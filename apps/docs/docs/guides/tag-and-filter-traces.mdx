@@ -21,6 +21,11 @@ your trace schema. Both are set on creation and **merge** when you append to an
 existing trace — tags are union-merged (deduplicated), metadata is
 shallow-merged (new keys win).
 
+:::note[Full runnable script]
+A standalone script exercising this whole flow lives at
+[scripts/guides/tag-and-filter-traces on GitHub](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/guides/tag-and-filter-traces) — Python and TypeScript versions.
+:::
+
 ## 1. Set tags and metadata when creating a trace
 
 The fastest way to attach tags is through the **gateway headers** on every

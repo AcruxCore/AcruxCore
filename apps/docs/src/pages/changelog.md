@@ -23,6 +23,26 @@ called out in the week it ships and in the SDK release notes.
 
 ---
 
+## Week of 3 August 2026
+
+### Major
+
+### Minor
+
+- **Fixed** — the Python SDK tool-calling tutorial's decorator example had a broken import.
+- **Tutorial and guide pages** now show a short snippet plus a link to the full runnable script.
+- **Tutorial script links** now point to scripts that were actually run and verified.
+#### Acrux Core is now open source
+
+- Source is public at [github.com/AcruxCore/AcruxCore](https://github.com/AcruxCore/AcruxCore).
+- Licensed under [Elastic License 2.0](https://www.elastic.co/licensing/elastic-license); `packages/sdk` and `packages/sdk-python` stay MIT.
+- Contributions welcome — see `CLA.md` in the repo before opening a pull request.
+
+### Minor
+
+- **A `LICENSE`, `TRADEMARK.md`, and `CLA.md`** now ship at the repo root, under
+  [Elastic License 2.0](https://www.elastic.co/licensing/elastic-license).
+
 ## Week of 27 July 2026
 
 ### Major

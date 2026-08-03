@@ -6,6 +6,8 @@ import {
   Eyebrow,
   DOCS,
   API_BASE_URL,
+  GITHUB_URL,
+  GitHubIcon,
   MARKETING_CSS,
   MarketingHeader,
   MarketingFooter,
@@ -92,7 +94,7 @@ export function LandingPage(): ReactNode {
           <div>
             <div
               style={cssToStyle(
-                'display:inline-flex;align-items:center;gap:8px;padding:5px 11px 5px 9px;border:1px solid var(--line);background:var(--surface);border-radius:999px;font-size:12px;color:var(--muted);margin-bottom:26px;',
+                'display:inline-flex;align-items:center;flex-wrap:wrap;row-gap:4px;gap:8px;padding:5px 11px 5px 9px;border:1px solid var(--line);background:var(--surface);border-radius:999px;font-size:12px;color:var(--muted);margin-bottom:26px;',
               )}
             >
               <span
@@ -107,6 +109,8 @@ export function LandingPage(): ReactNode {
               >
                 Beta
               </span>
+              <span style={cssToStyle('color:var(--line);')}>·</span>
+              <span>Open source</span>
               <span style={cssToStyle('color:var(--line);')}>·</span>
               <span>LLM-ops for engineering teams</span>
             </div>
@@ -414,6 +418,81 @@ export function LandingPage(): ReactNode {
           </div>
         </section>
 
+        {/* ===== OPEN SOURCE ===== */}
+        <section id="open-source" style={cssToStyle('padding:clamp(44px,6vw,80px) 0;border-top:1px solid var(--line-soft);')}>
+          <div
+            style={cssToStyle(
+              'display:grid;grid-template-columns:repeat(auto-fit,minmax(min(330px,100%),1fr));gap:clamp(32px,5vw,56px);align-items:center;',
+            )}
+          >
+            <div>
+              <Eyebrow>Open source</Eyebrow>
+              <h2
+                style={cssToStyle(
+                  'font-size:clamp(26px,3.4vw,40px);line-height:1.1;letter-spacing:-.02em;font-weight:700;margin:0 0 14px;text-wrap:balance;',
+                )}
+              >
+                Nothing about the platform is a black box.
+              </h2>
+              <p style={cssToStyle('font-size:16.5px;line-height:1.6;color:var(--muted);margin:0 0 26px;text-wrap:pretty;')}>
+                The API, gateway, dashboard, and both SDKs are public on GitHub under the Elastic License 2.0. Read exactly
+                how a call gets routed and priced, run the whole stack on your own infrastructure, or send a pull request.
+              </p>
+              <div style={cssToStyle('display:flex;flex-wrap:wrap;gap:12px;')}>
+                <a
+                  href={GITHUB_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="acx-hover-bright"
+                  style={cssToStyle(btnPrimary())}
+                >
+                  <span style={cssToStyle('display:inline-flex;align-items:center;gap:8px;')}>
+                    <GitHubIcon size={16} />
+                    View on GitHub
+                  </span>
+                </a>
+                <a
+                  href={`${GITHUB_URL}#readme`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="acx-hover-border"
+                  style={cssToStyle(btnSecondary())}
+                >
+                  Self-hosting guide
+                  <ExternalArrow />
+                </a>
+              </div>
+            </div>
+            <div style={cssToStyle('display:flex;flex-direction:column;gap:14px;')}>
+              {OPEN_SOURCE_POINTS.map((p) => (
+                <div
+                  key={p.label}
+                  className="acx-hover-border"
+                  style={cssToStyle(
+                    'display:flex;gap:14px;align-items:flex-start;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:18px 20px;transition:border-color .16s;',
+                  )}
+                >
+                  <span
+                    style={cssToStyle(
+                      'height:36px;width:36px;flex:none;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:9px;background:var(--elevated);color:var(--accent);',
+                    )}
+                  >
+                    {p.icon}
+                  </span>
+                  <div>
+                    <h3 style={cssToStyle('font-size:15px;font-weight:650;letter-spacing:-.01em;margin:0 0 4px;')}>
+                      {p.label}
+                    </h3>
+                    <p style={cssToStyle('font-size:13.5px;line-height:1.55;color:var(--muted);margin:0;text-wrap:pretty;')}>
+                      {p.body}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* ===== FINAL CTA ===== */}
         <CtaSection
           title="Start free. Ship the first prompt today."
@@ -544,6 +623,42 @@ const REASONS: { lead: string; rest: string }[] = [
     rest: 'Spans for model, tokens, latency, and cost — no extra instrumentation.',
   },
   { lead: 'Own your keys and data.', rest: 'Bring your own provider keys, or self-host the whole platform.' },
+  { lead: 'Open source.', rest: 'Elastic License 2.0 — read the code, self-host it, or send a pull request.' },
+];
+
+/** The three cards in the {@link LandingPage} "Open source" section. */
+const OPEN_SOURCE_POINTS: { label: string; body: string; icon: ReactNode }[] = [
+  {
+    label: 'Audit every call',
+    body: 'Read exactly how a prompt renders and a call gets priced — no black box between your app and the model.',
+    icon: (
+      <Ic size={17}>
+        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+        <circle cx={12} cy={12} r={3} />
+      </Ic>
+    ),
+  },
+  {
+    label: 'Self-host on your infra',
+    body: 'Run the API, gateway, and dashboard against your own database — your keys, your data, your network.',
+    icon: (
+      <Ic size={17}>
+        <rect x={3} y={4} width={18} height={6} rx={1.5} />
+        <rect x={3} y={14} width={18} height={6} rx={1.5} />
+        <path d="M7 8h.01M7 18h.01" />
+      </Ic>
+    ),
+  },
+  {
+    label: 'Elastic License 2.0',
+    body: 'A standard, recognized license — fork it, contribute back, or just read the source.',
+    icon: (
+      <Ic size={17}>
+        <path d="M12 3l8 3v6c0 5-3.5 8.5-8 9-4.5-.5-8-4-8-9V6Z" />
+        <path d="m9 12 2 2 4-4" />
+      </Ic>
+    ),
+  },
 ];
 
 const LOOP_NODES: { n: string; label: string; caption: string; arrow: ReactNode; arrowColor: string; icon: ReactNode }[] =

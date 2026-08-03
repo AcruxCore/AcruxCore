@@ -342,7 +342,7 @@ export ACRUXCORE_GATEWAY_KEY=agh_sk_...    # Acrux Core leg: gateway completions
 ```python title="weather_tool_shared.py"
 """The one tool and the one agent loop that both platform demos share.
 
-`examples/tool_agent_langsmith.py` and `examples/tool_agent_acruxcore.py` both
+`tool_agent_langsmith.py` and `tool_agent_acruxcore.py` (in `scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/python/`) both
 import from here, so the two runs differ ONLY in where the LLM call goes and
 how the run is traced — never in what the tool does or how the loop is shaped.
 
@@ -556,7 +556,7 @@ an `llm` span with token counts.
 Run:
   export LANGSMITH_API_KEY=lsv2_pt_...
   export OPENROUTER_API_KEY=sk-or-v1-...
-  python examples/tool_agent_langsmith.py
+  python scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/python/tool_agent_langsmith.py
 
 Needs: pip install openai requests langsmith
 """
@@ -675,7 +675,7 @@ Two things move off the client compared to the LangSmith leg:
 Run:
   export ACRUXCORE_API_KEY=acx_sk_...        # catalog reads + tool execute
   export ACRUXCORE_GATEWAY_KEY=agh_sk_...    # gateway completions
-  python examples/tool_agent_acruxcore.py
+  python scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/python/tool_agent_acruxcore.py
 
 Needs: pip install openai requests
 """

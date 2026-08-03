@@ -146,6 +146,8 @@ function Hero(): ReactNode {
           <div className="heroBadge">
             <span className="dot" aria-hidden="true" />
             <span>Documentation</span>
+            <span aria-hidden="true">·</span>
+            <span>Open source</span>
           </div>
           <Heading as="h1">
             Build on <span className="accent">Acrux Core.</span>

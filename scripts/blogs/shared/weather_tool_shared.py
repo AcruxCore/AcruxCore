@@ -1,6 +1,6 @@
 """The one tool and the one agent loop that both platform demos share.
 
-`examples/tool_agent_langsmith.py` and `examples/tool_agent_acruxcore.py` both
+`tool_agent_langsmith.py` and `tool_agent_acruxcore.py` (in scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/python/) both
 import from here, so the two runs differ ONLY in where the LLM call goes and
 how the run is traced — never in what the tool does or how the loop is shaped.
 

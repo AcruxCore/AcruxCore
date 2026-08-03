@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { MarketingShell, ContentHeader } from '../MarketingShell';
-import { cssToStyle, DOCS_URL } from '../marketing-chrome';
+import { cssToStyle, DOCS_URL, GITHUB_URL } from '../marketing-chrome';
 
 /**
  * Public "About" marketing page describing what Acrux Core is and the principles
@@ -51,6 +51,13 @@ export function AboutPage(): ReactNode {
             <strong>Everything is measurable.</strong> Every call is a trace with spans for model,
             tokens, latency, and cost — no extra instrumentation to bolt on.
           </li>
+          <li>
+            <strong>Open, by default.</strong> The platform is open source under the{' '}
+            <a href={GITHUB_URL} target="_blank" rel="noreferrer">
+              Elastic License 2.0
+            </a>{' '}
+            — read the code, self-host it, or send a pull request.
+          </li>
         </ul>
 
         <h2>Built for developers</h2>
@@ -60,6 +67,10 @@ export function AboutPage(): ReactNode {
           for everything else. Read the{' '}
           <a href={DOCS_URL} target="_blank" rel="noreferrer">
             documentation
+          </a>{' '}
+          or browse the{' '}
+          <a href={GITHUB_URL} target="_blank" rel="noreferrer">
+            source on GitHub
           </a>{' '}
           to see how it fits your stack.
         </p>

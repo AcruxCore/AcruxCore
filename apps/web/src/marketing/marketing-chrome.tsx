@@ -8,6 +8,9 @@ import { BrandLockup } from './brand';
 /** Public docs site (see cross-cutting-faq: docs.acruxcore.com). */
 export const DOCS_URL = 'https://docs.acruxcore.com';
 
+/** Public source mirror — Elastic License 2.0, synced from every deploy to `main`. */
+export const GITHUB_URL = 'https://github.com/AcruxCore/AcruxCore';
+
 /**
  * The single public inbox. Every contact path on the site — general questions,
  * sales, self-hosting, and security disclosure — resolves here rather than to a
@@ -173,6 +176,15 @@ export function ExternalArrow(): ReactNode {
   );
 }
 
+/** GitHub mark, used on the {@link GITHUB_URL} link in the nav and footer. */
+export function GitHubIcon({ size = 15 }: { size?: number }): ReactNode {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 .5C5.37.5 0 5.87 0 12.5c0 5.29 3.44 9.79 8.21 11.38.6.11.82-.26.82-.58 0-.29-.01-1.04-.02-2.04-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.81 1.3 3.5.99.11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.34-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.6-2.8 5.63-5.48 5.93.43.37.81 1.1.81 2.22 0 1.6-.02 2.89-.02 3.28 0 .32.22.7.83.58C20.56 22.28 24 17.79 24 12.5 24 5.87 18.63.5 12 .5Z" />
+    </svg>
+  );
+}
+
 const CARD_SHELL =
   'border:1px solid var(--line);background:var(--surface);border-radius:12px;overflow:hidden;box-shadow:0 24px 60px -30px rgba(0,0,0,.55);';
 const CARD_BAR =
@@ -332,7 +344,7 @@ export function RotatingCodeCard({
               style={cssToStyle(
                 tabBase +
                   (i === index
-                    ? 'color:var(--accent);border-color:var(--line);background:var(--surface);'
+                    ? 'color:var(--accent);border:1px solid var(--line);background:var(--surface);'
                     : 'color:var(--faint);'),
               )}
             >
@@ -471,6 +483,7 @@ const FOOTER_COLS: { title: string; links: FooterLink[] }[] = [
   {
     title: 'Follow Us',
     links: [
+      { label: 'GitHub', href: GITHUB_URL, external: true, icon: <GitHubIcon size={14} /> },
       {
         label: 'LinkedIn',
         href: 'https://www.linkedin.com/company/acruxcore/',
@@ -580,7 +593,12 @@ export function MarketingHeader({ onLanding = false }: { onLanding?: boolean }):
     { label: 'Pricing', to: '/pricing' },
     { label: 'Docs', href: DOCS_URL, external: true },
   ];
-  const navLinkStyle = cssToStyle('font-size:13.5px;color:var(--muted);font-weight:500;');
+  // Desktop shows GitHub as its own icon button (`.acx-nav-github`, hidden below
+  // 900px) rather than a plain-text item here, so it isn't repeated twice in the
+  // same row — the mobile panel adds it back below since that button disappears
+  // at the same breakpoint the panel takes over at.
+  const githubNavItem: FooterLink = { label: 'GitHub', href: GITHUB_URL, external: true, icon: <GitHubIcon size={14} /> };
+  const navLinkStyle = cssToStyle('display:inline-flex;align-items:center;gap:6px;font-size:13.5px;color:var(--muted);font-weight:500;');
 
   const navLink = (item: FooterLink & { state?: { fromLogo: boolean } }, onClick?: () => void): ReactNode =>
     item.to ? (
@@ -592,6 +610,7 @@ export function MarketingHeader({ onLanding = false }: { onLanding?: boolean }):
         className="acx-hover-muted"
         style={navLinkStyle}
       >
+        {item.icon}
         {item.label}
       </Link>
     ) : (
@@ -603,6 +622,7 @@ export function MarketingHeader({ onLanding = false }: { onLanding?: boolean }):
         className="acx-hover-muted"
         style={navLinkStyle}
       >
+        {item.icon}
         {item.label}
       </a>
     );
@@ -635,6 +655,19 @@ export function MarketingHeader({ onLanding = false }: { onLanding?: boolean }):
         </div>
 
         <div style={cssToStyle('display:flex;align-items:center;gap:10px;flex:none;margin-left:auto;')}>
+          <a
+            href={GITHUB_URL}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Acrux Core on GitHub — open source, Elastic License 2.0"
+            title="View source on GitHub"
+            className="acx-nav-github acx-hover-faint"
+            style={cssToStyle(
+              'height:34px;width:34px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:8px;transition:border-color .15s,color .15s;',
+            )}
+          >
+            <GitHubIcon size={17} />
+          </a>
           <button
             onClick={flipTheme}
             aria-label="Toggle color theme"
@@ -708,6 +741,7 @@ export function MarketingHeader({ onLanding = false }: { onLanding?: boolean }):
           )}
         >
           {navItems.map((item) => navLink(item, () => setMenuOpen(false)))}
+          {navLink(githubNavItem, () => setMenuOpen(false))}
           {isAuthenticated ? null : (
             <Link
               to="/login"
@@ -880,6 +914,7 @@ export const MARKETING_CSS = `
 @media (max-width:900px){
   .acx-landing .acx-nav-links{display:none !important;}
   .acx-landing .acx-nav-signin{display:none !important;}
+  .acx-landing .acx-nav-github{display:none !important;}
   .acx-landing .acx-nav-burger{display:inline-flex !important;}
 }
 /* Small phones: brand + theme toggle + CTA + burger together exceeded a 320-360px

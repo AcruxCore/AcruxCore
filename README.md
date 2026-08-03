@@ -2,7 +2,18 @@
 
 A multi-tenant agentic platform, built in phases (Prompt Management → AI Gateway →
 Tracing → Tool Catalog → Evaluation → Agentic Platform). This is an **npm
-workspaces monorepo** orchestrated with **Turborepo**.
+workspaces monorepo** orchestrated with **Turborepo**. The hosted product is at
+[acruxcore.com](https://acruxcore.com).
+
+This is the public source for Acrux Core, mirrored here from every deploy to
+production. Licensed under [Elastic License 2.0](./LICENSE). The AcruxCore name and
+logo are protected separately — see [TRADEMARK.md](./TRADEMARK.md).
+
+Contributions welcome — see [CLA.md](./CLA.md) before opening a pull request.
+
+`packages/sdk` and `packages/sdk-python` ship under their own **MIT** license,
+standard for published client libraries — the root Elastic License 2.0 covers
+the platform itself, not the SDKs.
 
 ```
 apps/
@@ -101,13 +112,8 @@ npm run dev
 - API → http://localhost:3001 (routes under `/api/v1`)
 - Web → **http://localhost:5173** ← open this in your browser
 
-Both ports come from the repo's single root `.env` — `API_PORT` and `WEB_PORT`.
-Change them there and everything follows; nothing is hardcoded in the apps. If a
-port is already taken the dev server now stops with a clear "port in use" error
-instead of quietly moving to the next free one.
-
-The frontend talks to the backend through a Vite dev proxy (`/api` → `API_PORT`),
-so they share an origin without extra CORS config.
+Both ports come from the repo's root `.env` (`API_PORT`, `WEB_PORT`); the frontend
+proxies `/api` to the backend, so they share an origin without extra CORS config.
 
 **Or run them separately** (two terminals) — handy when you only touch one side:
 
@@ -151,74 +157,12 @@ docker compose up --build
 - API → http://localhost:3001 (routes under `/api/v1`)
 - Docs → **http://localhost:3100** (public Docusaurus site)
 
-Why Redis but not Postgres? Supabase provides hosted Postgres **and** auth, so the
-API/worker point at it via `DATABASE_URL` / `DIRECT_URL`. Supabase does **not**
-provide Redis, which BullMQ (the eval worker's queue) requires — so Redis runs as
-a container. nginx proxies `/api` to the API container, so the browser reaches the
-backend same-origin (same as the dev proxy).
-
-The API applies pending Prisma migrations against the Supabase database on boot
-(`prisma migrate deploy`, idempotent). The `VITE_*` Supabase values are baked into
-the web bundle at build time, so re-run `docker compose build web` after changing
-them.
+Redis runs as a container for the worker queue; Postgres and auth come from
+Supabase. The API applies pending migrations on boot. The `VITE_*` Supabase
+values are baked in at build time, so re-run `docker compose build web` after
+changing them.
 
 Stop the stack with `docker compose down`.
-
----
-
-## CI/CD: deploy to the VPS on push to main
-
-`.github/workflows/deploy.yml` runs on every push to `main` that touches
-`apps/api/**`, `apps/worker/**`, `apps/web/**`, `packages/**`, `Dockerfile`,
-`docker-compose.yml`, or the workspace manifests. It SSHes into the VPS and
-runs, in the existing Compose stack's directory:
-
-```bash
-git fetch origin main && git reset --hard origin/main
-docker compose build --pull api worker web
-docker compose up -d --remove-orphans api worker web
-docker image prune -f
-```
-
-The build happens **on the VPS itself** — no container registry is needed,
-and it reuses Docker's layer cache from the previous build, so most deploys
-only rebuild the layers that actually changed. Redis and the docs site are
-left alone (`docs` deploys separately via `docs.yml`).
-
-Like `docs.yml`, the deploy step is **gated on a secret being set** — without
-it, the workflow runs as a safe no-op and just logs that deploy is skipped.
-This lets the workflow exist in the repo before the VPS is wired up.
-
-### Required GitHub secrets
-
-| Secret | Meaning |
-|--------|---------|
-| `DEPLOY_SSH_HOST` | VPS hostname or IP. **When unset, deploy is skipped.** |
-| `DEPLOY_SSH_USER` | SSH user with permission to run `docker compose` on the VPS. |
-| `DEPLOY_SSH_KEY` | Private SSH key (PEM) for that user. |
-| `DEPLOY_PATH` | Absolute path to the repo clone on the VPS, e.g. `/opt/acruxcore` (the directory containing `docker-compose.yml`). |
-
-Set these under **Settings → Secrets and variables → Actions** in GitHub. The
-docs site (`docs.yml`) deploys separately to Cloudflare Pages, not this VPS —
-see `apps/docs/DEPLOY.md` for its own secrets.
-
-### One-time VPS prerequisites
-
-These assume the stack is already running there per **Run with Docker**
-above (`.env` filled in, `docker compose up -d` already works manually):
-
-1. The SSH user in `DEPLOY_SSH_USER` must be able to run `docker compose`
-   without a password prompt (in the `docker` group, or run via a sudoers
-   rule) — the workflow runs it non-interactively.
-2. The clone at `DEPLOY_PATH` must already have a working `git pull` against
-   `origin main` (i.e. its own git credentials, e.g. a deploy key or stored
-   HTTPS token, are already set up — separate from the CI SSH key above,
-   which only gets the Action *onto* the box).
-3. Add the public half of the `DEPLOY_SSH_KEY` private key to
-   `~/.ssh/authorized_keys` for `DEPLOY_SSH_USER` on the VPS.
-
-Trigger a deploy manually any time via the **Actions** tab → **Deploy** →
-**Run workflow** (`workflow_dispatch`), without needing a push.
 
 ---
 

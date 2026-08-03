@@ -10,6 +10,7 @@ import {
   useDocumentTitle,
   SUPPORT_EMAIL,
   DOCS,
+  GITHUB_URL,
   ExternalArrow,
 } from '../marketing-chrome';
 
@@ -53,15 +54,15 @@ const PLANS: Plan[] = [
   {
     name: 'Self-hosted',
     price: 'Your infra',
-    priceNote: 'run the whole stack yourself',
-    blurb: 'When data residency or isolation rules go past a hosted service, run the API, gateway, and dashboard against your own database.',
+    priceNote: 'clone the public repo, run it yourself',
+    blurb: 'Acrux Core is open source under the Elastic License 2.0 — clone the repo and run the API, gateway, and dashboard against your own database. No sales call required.',
     features: [
       'Everything in Beta, on your infrastructure',
       'Your database, your keys, your network',
       'No trace or prompt data leaves your estate',
-      'Deployment walkthrough with us',
+      'Public source, Elastic License 2.0 — self-hosting guide in the README',
     ],
-    cta: { label: 'Talk to us', to: '/contact' },
+    cta: { label: 'View on GitHub', href: GITHUB_URL },
   },
   {
     name: 'Enterprise',
@@ -125,6 +126,19 @@ const FAQ: { q: string; a: ReactNode }[] = [
       <>
         Any one of them, on its own. The gateway is OpenAI-compatible, so you can route calls through it without ever
         storing a prompt with us — or store prompts and keep calling providers yourself.
+      </>
+    ),
+  },
+  {
+    q: 'Can I self-host without talking to sales first?',
+    a: (
+      <>
+        Yes. Acrux Core is open source under the{' '}
+        <a href={GITHUB_URL} target="_blank" rel="noreferrer">
+          Elastic License 2.0
+        </a>{' '}
+        — clone the repo and follow the README to run the whole stack against your own database. Contact us only if you
+        want help with the deployment or a support agreement on top of it.
       </>
     ),
   },

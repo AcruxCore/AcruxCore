@@ -15,7 +15,7 @@ compared to `tool_agent_acruxcore.py`:
 
 Run:
   export ACRUXCORE_API_KEY=acx_sk_...
-  python examples/tool_agent_acruxcore_sdk.py
+  python scripts/blogs/tool-agent-sdk-langchain-vs-acruxcore/python/tool_agent_acruxcore_sdk.py
 
 Needs: pip install acruxcore
 """
@@ -28,6 +28,9 @@ from typing import Any
 
 from acruxcore import AcruxCore, acrux
 
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 from weather_tool_shared import MODEL_ACRUXCORE, build_messages, get_weather
 
 BASE_URL = os.environ.get("ACRUXCORE_BASE_URL", "https://acruxcore.com/api/v1")

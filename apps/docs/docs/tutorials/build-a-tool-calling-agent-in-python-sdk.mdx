@@ -46,59 +46,22 @@ The agent needs something to query. This script builds a small `store.db` with t
 tables — `products` and `orders` — filled with fixed rows so your answers match
 this guide exactly. Save it and run it once.
 
-```python title="seed_db.py"
-import sqlite3
+The core of it is one `executescript` call to create the two tables, then two
+`executemany` calls to fill them:
 
-PRODUCTS = [
-    # (id, name, category, price, stock)
-    (1, "Aeron Chair", "Furniture", 1395.00, 12),
-    (2, "Standing Desk", "Furniture", 640.00, 30),
-    (3, "Mechanical Keyboard", "Electronics", 110.00, 220),
-    (4, "4K Monitor", "Electronics", 480.00, 85),
-    (5, "USB-C Hub", "Electronics", 45.00, 500),
-    (6, "Desk Lamp", "Lighting", 65.00, 140),
-    (7, "Noise-Cancelling Headphones", "Electronics", 320.00, 60),
-    (8, "Ergonomic Mouse", "Electronics", 75.00, 300),
-]
-
-ORDERS = [
-    # (id, product_id, quantity, order_date, customer)
-    (1, 3, 4, "2026-05-02", "Acme Corp"), (2, 4, 2, "2026-05-05", "Globex"),
-    (3, 1, 1, "2026-05-11", "Initech"), (4, 5, 20, "2026-05-14", "Acme Corp"),
-    (5, 7, 3, "2026-05-19", "Umbrella"), (6, 3, 10, "2026-05-22", "Globex"),
-    (7, 2, 5, "2026-06-01", "Initech"), (8, 4, 4, "2026-06-03", "Umbrella"),
-    (9, 8, 12, "2026-06-08", "Acme Corp"), (10, 1, 2, "2026-06-12", "Globex"),
-    (11, 7, 6, "2026-06-15", "Initech"), (12, 5, 40, "2026-06-18", "Umbrella"),
-    (13, 6, 8, "2026-06-21", "Acme Corp"), (14, 3, 15, "2026-06-25", "Globex"),
-    (15, 4, 1, "2026-06-29", "Initech"),
-]
-
-
-def seed(path: str = "store.db") -> None:
-    conn = sqlite3.connect(path)
-    conn.executescript(
-        """
-        DROP TABLE IF EXISTS orders;
-        DROP TABLE IF EXISTS products;
-        CREATE TABLE products (
-            id INTEGER PRIMARY KEY, name TEXT, category TEXT, price REAL, stock INTEGER
-        );
-        CREATE TABLE orders (
-            id INTEGER PRIMARY KEY, product_id INTEGER REFERENCES products(id),
-            quantity INTEGER, order_date TEXT, customer TEXT
-        );
-        """
-    )
-    conn.executemany("INSERT INTO products VALUES (?, ?, ?, ?, ?)", PRODUCTS)
-    conn.executemany("INSERT INTO orders VALUES (?, ?, ?, ?, ?)", ORDERS)
-    conn.commit()
-    conn.close()
-    print(f"Seeded {path}: {len(PRODUCTS)} products, {len(ORDERS)} orders.")
-
-
-if __name__ == "__main__":
-    seed()
+```python
+conn.executescript("""
+    CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, category TEXT, price REAL, stock INTEGER);
+    CREATE TABLE orders (id INTEGER PRIMARY KEY, product_id INTEGER REFERENCES products(id),
+                          quantity INTEGER, order_date TEXT, customer TEXT);
+""")
+conn.executemany("INSERT INTO products VALUES (?, ?, ?, ?, ?)", PRODUCTS)
+conn.executemany("INSERT INTO orders VALUES (?, ?, ?, ?, ?)", ORDERS)
 ```
+
+See [seed_db.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/python/seed_db.py)
+for the complete script — it drops and recreates the `products` and `orders`
+tables, then inserts the same fixed rows this guide's answers are based on.
 
 ```bash
 python seed_db.py
@@ -207,70 +170,25 @@ The loop threads one trace automatically.
 ### Option A — define the tool in code (`@acrux.tool`)
 
 The `@acrux.tool` decorator derives the schema from the function signature and
-docstring, syncs it to the catalog, and dispatches calls automatically.
+docstring, syncs it to the catalog, and dispatches calls automatically:
+
+```python
+@acrux.tool
+async def query_database(sql: str) -> list[dict]:
+    """Run a read-only SQL SELECT against the store database."""
+    conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+    ...
+
+result = await hub.run_tool_loop(rendered.model, messages, tools=[query_database])
+```
+
+See
+[sql_agent_decorator_tool.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/python/sql_agent_decorator_tool.py) for the complete source (named `sql_agent.py` in this page's prose, `sql_agent_decorator_tool.py` in the repo, to distinguish it from Option B below).
 
 :::tip
 The tool still appears in the dashboard after the run — you define it in code, not
 in the UI, but both places end up with the same schema.
 :::
-
-```python title="sql_agent.py"
-import asyncio
-import sqlite3
-
-from acruxcore import AcruxCore
-from acruxcore.tooling import acrux
-
-DB_PATH = "store.db"
-PROMPT = "sql-analyst-agent"
-
-
-@acrux.tool
-async def query_database(sql: str) -> list[dict]:
-    """Run a read-only SQL SELECT against the store database.
-
-    Args:
-        sql: A single read-only SQLite SELECT statement.
-    """
-    statement = sql.strip().rstrip(";").strip()
-    if not statement.lower().startswith("select"):
-        raise ValueError("Only read-only SELECT statements are allowed.")
-    if ";" in statement:
-        raise ValueError("Only a single statement is allowed.")
-    conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
-    conn.row_factory = sqlite3.Row
-    try:
-        return [dict(row) for row in conn.execute(statement).fetchall()]
-    finally:
-        conn.close()
-
-
-async def ask(hub: AcruxCore, question: str) -> str:
-    rendered = await hub.render_prompt(PROMPT, "production")
-    messages = [*rendered.messages, {"role": "user", "content": question}]
-    result = await hub.run_tool_loop(
-        rendered.model,
-        messages,
-        tools=[query_database],
-        trace={"name": "sql-analyst-agent", "session_id": "sql-agent-demo"},
-    )
-    print(f"  (trace {result.trace_id})")
-    return result.content
-
-
-async def main() -> None:
-    async with AcruxCore() as hub:
-        for question in [
-            "Which product generated the most total revenue, and how much?",
-            "How many total units were ordered in June 2026?",
-        ]:
-            print(f"\nQ: {question}")
-            print(f"A: {await ask(hub, question)}")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
 
 ### Option B — dashboard-authored tool (`tool_defs` + `dispatch`)
 
@@ -279,66 +197,17 @@ Same result, different wiring. Here the tool is defined in the dashboard and
 function to route calls to your local code — the catalog deliberately stores no
 body for client tools:
 
-```python title="sql_agent.py"
-import asyncio
-import sqlite3
-
-from acruxcore import AcruxCore
-
-DB_PATH = "store.db"
-PROMPT = "sql-analyst-agent"
-
-
-def query_database(sql: str) -> list[dict]:
-    """Run one read-only SELECT against the local store and return rows as dicts."""
-    statement = sql.strip().rstrip(";").strip()
-    if not statement.lower().startswith("select"):
-        raise ValueError("Only read-only SELECT statements are allowed.")
-    if ";" in statement:
-        raise ValueError("Only a single statement is allowed.")
-    conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
-    conn.row_factory = sqlite3.Row
-    try:
-        return [dict(row) for row in conn.execute(statement).fetchall()]
-    finally:
-        conn.close()
-
-
-async def dispatch(name: str, args: dict):
-    """Route a tool call from the model to its local implementation."""
-    if name == "query_database":
-        print(f"  → query_database: {args['sql']}")
-        return query_database(args["sql"])
-    raise ValueError(f"Unknown tool: {name}")
-
-
-async def ask(hub: AcruxCore, question: str) -> str:
-    rendered = await hub.render_prompt(PROMPT, "production")
-    messages = [*rendered.messages, {"role": "user", "content": question}]
-    result = await hub.run_tool_loop(
-        rendered.model,
-        messages,
-        tool_defs=rendered.tools,
-        dispatch=dispatch,
-        trace={"name": "sql-analyst-agent", "session_id": "sql-agent-demo"},
-    )
-    print(f"  (trace {result.trace_id})")
-    return result.content
-
-
-async def main() -> None:
-    async with AcruxCore() as hub:
-        for question in [
-            "Which product generated the most total revenue, and how much?",
-            "How many total units were ordered in June 2026?",
-        ]:
-            print(f"\nQ: {question}")
-            print(f"A: {await ask(hub, question)}")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+```python
+result = await hub.run_tool_loop(
+    rendered.model,
+    messages,
+    tool_defs=rendered.tools,
+    dispatch=dispatch,
+)
 ```
+
+See
+[sql_agent_dispatch.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/python/sql_agent_dispatch.py) for the complete source (named `sql_agent.py` in this page's prose, `sql_agent_dispatch.py` in the repo, to distinguish it from Option A above).
 
 Both options produce the same trace. Don't do both for the same tool — a
 decorated tool's spec overwrites the dashboard's on every run. See
@@ -400,26 +269,19 @@ pass `stream=True` to `chat` and iterate the result. Streaming yields text delta
 and does **not** auto-run tools (that's what the loop in step 6 is for), so use it
 for plain, readable answers:
 
-```python title="stream_demo.py"
-import asyncio
-from acruxcore import AcruxCore
-
-
-async def main() -> None:
-    async with AcruxCore() as hub:
-        stream = await hub.chat(
-            "gpt-4o-mini",
-            [{"role": "user", "content": "In one sentence, what makes a good data analyst?"}],
-            stream=True,
-        )
-        async for chunk in stream:
-            print(chunk.delta.get("content", "") or "", end="", flush=True)
-        print()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+```python
+stream = await hub.chat(
+    "gpt-4o-mini",
+    [{"role": "user", "content": "In one sentence, what makes a good data analyst?"}],
+    stream=True,
+)
+async for chunk in stream:
+    print(chunk.delta.get("content", "") or "", end="", flush=True)
 ```
+
+See [stream_demo.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/python/stream_demo.py)
+for the complete script — it opens a streamed `chat` call and prints each text
+delta as it arrives.
 
 ```bash
 python stream_demo.py

@@ -195,7 +195,7 @@ LangChain with `LANGCHAIN_TRACING_V2=true` set is enough.
 Run:
   export LANGSMITH_API_KEY=lsv2_pt_...
   export OPENROUTER_API_KEY=sk-or-v1-...
-  python examples/tool_agent_langchain.py
+  python scripts/blogs/tool-agent-sdk-langchain-vs-acruxcore/python/tool_agent_langchain.py
 
 Needs: pip install langchain langchain-openai langsmith
 """
@@ -297,7 +297,7 @@ compared to `tool_agent_acruxcore.py`:
 
 Run:
   export ACRUXCORE_API_KEY=acx_sk_...
-  python examples/tool_agent_acruxcore_sdk.py
+  python scripts/blogs/tool-agent-sdk-langchain-vs-acruxcore/python/tool_agent_acruxcore_sdk.py
 
 Needs: pip install acruxcore
 """

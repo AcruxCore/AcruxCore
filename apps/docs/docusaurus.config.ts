@@ -227,9 +227,9 @@ const config: Config = {
         {to: '/api-reference', label: 'API Reference', position: 'left'},
         {to: '/blog', label: 'Blog', position: 'left'},
         {to: '/changelog', label: 'Changelog', position: 'left'},
-        // Docs used to dead-end here: the only right-hand link was a GitHub repo
-        // that is private, so it 404'd for every visitor. These send readers back
-        // to the product instead.
+        // AcruxCore/AcruxCore was private until 2026-08-03, so this used to 404 for
+        // every visitor and was left out. It is public now.
+        {href: 'https://github.com/AcruxCore/AcruxCore', label: 'Open Source', position: 'left'},
         {href: 'https://acruxcore.com', label: 'acruxcore.com', position: 'right'},
         {
           href: 'https://acruxcore.com/signup',

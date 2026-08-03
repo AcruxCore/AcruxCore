@@ -8,7 +8,7 @@ an `llm` span with token counts.
 Run:
   export LANGSMITH_API_KEY=lsv2_pt_...
   export OPENROUTER_API_KEY=sk-or-v1-...
-  python examples/tool_agent_langsmith.py
+  python scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/python/tool_agent_langsmith.py
 
 Needs: pip install openai requests langsmith
 """
@@ -22,6 +22,9 @@ from langsmith.run_helpers import get_current_run_tree
 from langsmith.wrappers import wrap_openai
 from openai import OpenAI
 
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 from weather_tool_shared import (
     MODEL_OPENROUTER,
     WEATHER_TOOL_SCHEMA,

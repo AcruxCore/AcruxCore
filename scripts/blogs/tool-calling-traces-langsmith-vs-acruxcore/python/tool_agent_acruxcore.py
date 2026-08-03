@@ -12,7 +12,7 @@ Two things move off the client compared to the LangSmith leg:
 Run:
   export ACRUXCORE_API_KEY=acx_sk_...        # catalog reads + tool execute
   export ACRUXCORE_GATEWAY_KEY=agh_sk_...    # gateway completions
-  python examples/tool_agent_acruxcore.py
+  python scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/python/tool_agent_acruxcore.py
 
 Needs: pip install openai requests
 """
@@ -27,6 +27,9 @@ from urllib.parse import quote
 import requests
 from openai import OpenAI
 
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 from weather_tool_shared import (
     MODEL_ACRUXCORE,
     WEATHER_HTTP_EXECUTOR,

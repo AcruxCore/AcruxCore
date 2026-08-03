@@ -8,7 +8,7 @@ LangChain with `LANGCHAIN_TRACING_V2=true` set is enough.
 Run:
   export LANGSMITH_API_KEY=lsv2_pt_...
   export OPENROUTER_API_KEY=sk-or-v1-...
-  python examples/tool_agent_langchain.py
+  python scripts/blogs/tool-agent-sdk-langchain-vs-acruxcore/python/tool_agent_langchain.py
 
 Needs: pip install langchain langchain-openai langsmith
 """
@@ -33,6 +33,9 @@ from langchain.agents import create_agent  # noqa: E402  (after the env vars abo
 from langchain_core.tools import tool  # noqa: E402
 from langchain_openai import ChatOpenAI  # noqa: E402
 
+from pathlib import Path  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))  # noqa: E402
 from weather_tool_shared import (  # noqa: E402
     MODEL_OPENROUTER,
     QUESTION,
