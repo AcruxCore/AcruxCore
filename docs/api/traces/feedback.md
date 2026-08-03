@@ -1,0 +1,461 @@
+---
+title: "Traces Feedback"
+description: "Attach and read human feedback (rating, label, comment) on a trace or one of its spans."
+---
+
+# Traces — User Feedback API
+
+All endpoints verified working via curl. Document updated only after curl confirmation.
+
+User/human feedback attached to a trace, or to one span within it. Feedback is
+free-form: a caller supplies at least one of `rating`, `label`, `comment` —
+none are individually required. Auth: `requireAnyAuth` (session cookie or
+personal/team API key) for both posting and reading; any team role. Team-scoped
+throughout — a trace outside the caller's team behaves as if it doesn't exist
+(404), same as `GET /api/v1/traces/:id`.
+
+`spanId` in every request/response is the caller-supplied OTel span reference
+(e.g. `"s1"`, the same value used in `POST /api/v1/traces` and returned by
+`GET /api/v1/traces/:id`) — **never** the internal span UUID. Trace-level
+feedback (no span) has `spanId: null`.
+
+Feedback can be edited after posting (`PATCH /api/v1/traces/:id/feedback/:feedbackId`),
+but only by the row's original author (`createdBy`) — see that section below.
+Deleting feedback is not supported. `updatedAt` equals `createdAt` until the row
+has been edited.
+
+---
+
+### POST /api/v1/traces/:id/feedback
+
+Attaches feedback to a trace. Body accepts `rating` (integer -1..5), `label`
+(string, <=200 chars), `comment` (string, <=5000 chars), `spanId` (OTel ref,
+optional — omit for whole-trace feedback), and `source` (one of `user`,
+`developer`, `end_user`, `api`; defaults to `user`). At least one of
+rating/label/comment is required. `createdBy` is the caller's user id;
+verified non-null here for a personal API key (per the controller, it is
+`req.user?.id ?? null` — a team-scoped key with no associated user would
+yield null, though that path was not separately exercised).
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/traces/fbb5f16e-521b-4839-b9ab-78ace8c1f0a4/feedback \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"rating": -1, "label": "wrong_answer", "comment": "The tool call missed relevant docs.", "source": "end_user"}'
+```
+
+Response (status 201):
+
+```json
+{
+  "id": "d71ba68f-a7bf-424d-a424-a0ed80ec1592",
+  "traceId": "fbb5f16e-521b-4839-b9ab-78ace8c1f0a4",
+  "spanId": null,
+  "rating": -1,
+  "label": "wrong_answer",
+  "comment": "The tool call missed relevant docs.",
+  "source": "end_user",
+  "createdBy": "8e16d0ed-e41a-4006-b098-5e4aecd4998d",
+  "createdAt": "2026-07-05T02:33:11.976Z",
+  "updatedAt": "2026-07-05T02:33:11.976Z"
+}
+```
+
+---
+
+#### Span-level feedback (`spanId`)
+
+Supplying `spanId` attaches the feedback to one span instead of the whole
+trace. The value is the OTel ref from the original POST /api/v1/traces call
+(here "s1", the LLM span) — the response echoes that same ref back, not the
+span's internal UUID.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/traces/fbb5f16e-521b-4839-b9ab-78ace8c1f0a4/feedback \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"rating": 5, "spanId": "s1"}'
+```
+
+Response (status 201):
+
+```json
+{
+  "id": "bd505193-ea39-4e23-a9b5-c356d38b5064",
+  "traceId": "fbb5f16e-521b-4839-b9ab-78ace8c1f0a4",
+  "spanId": "s1",
+  "rating": 5,
+  "label": null,
+  "comment": null,
+  "source": "user",
+  "createdBy": "8e16d0ed-e41a-4006-b098-5e4aecd4998d",
+  "createdAt": "2026-07-05T02:33:24.590Z",
+  "updatedAt": "2026-07-05T02:33:24.590Z"
+}
+```
+
+A second span-level example — label only, no rating, source "developer",
+against span "s2" (a tool span, child of "s1"):
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/traces/fbb5f16e-521b-4839-b9ab-78ace8c1f0a4/feedback \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"label": "good_tool_use", "spanId": "s2", "source": "developer"}'
+```
+
+Response (status 201):
+
+```json
+{
+  "id": "f848d26d-5f1f-4d18-8d47-2dc76675fb21",
+  "traceId": "fbb5f16e-521b-4839-b9ab-78ace8c1f0a4",
+  "spanId": "s2",
+  "rating": null,
+  "label": "good_tool_use",
+  "comment": null,
+  "source": "developer",
+  "createdBy": "8e16d0ed-e41a-4006-b098-5e4aecd4998d",
+  "createdAt": "2026-07-05T02:33:24.608Z",
+  "updatedAt": "2026-07-05T02:33:24.608Z"
+}
+```
+
+---
+
+### PATCH /api/v1/traces/:id/feedback/:feedbackId
+
+Edits an existing feedback row's rating/label/comment in place (author-only —
+only the user who originally posted the row, matched via `createdBy`, may
+edit it; rows posted via a team API key have `createdBy: null` and so cannot
+be edited by anyone). Fields omitted from the body keep their existing value;
+`null` explicitly clears a field. Deleting feedback is not supported.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/traces/a856684b-79cf-4a83-ac8f-f50294ec07dc/feedback \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"rating": -1, "label": "wrong_answer", "comment": "The tool call missed relevant docs."}'
+```
+
+Response (status 201):
+
+```json
+{
+  "id": "7133430d-9e2c-4bb3-90b9-f56e95bde619",
+  "traceId": "a856684b-79cf-4a83-ac8f-f50294ec07dc",
+  "spanId": null,
+  "rating": -1,
+  "label": "wrong_answer",
+  "comment": "The tool call missed relevant docs.",
+  "source": "user",
+  "createdBy": "e0016d77-79da-4094-8bc9-e5ba5ff84527",
+  "createdAt": "2026-07-05T18:14:13.237Z",
+  "updatedAt": "2026-07-05T18:14:13.237Z"
+}
+```
+
+The author corrects the rating; label/comment are omitted, so they keep
+their existing values:
+
+```bash
+curl -X PATCH $ACRUXCORE_BASE_URL/traces/a856684b-79cf-4a83-ac8f-f50294ec07dc/feedback/7133430d-9e2c-4bb3-90b9-f56e95bde619 \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"rating": 1}'
+```
+
+Response (status 200) — rating flipped, label/comment unchanged, updatedAt advanced:
+
+```json
+{
+  "id": "7133430d-9e2c-4bb3-90b9-f56e95bde619",
+  "traceId": "a856684b-79cf-4a83-ac8f-f50294ec07dc",
+  "spanId": null,
+  "rating": 1,
+  "label": "wrong_answer",
+  "comment": "The tool call missed relevant docs.",
+  "source": "user",
+  "createdBy": "e0016d77-79da-4094-8bc9-e5ba5ff84527",
+  "createdAt": "2026-07-05T18:14:13.237Z",
+  "updatedAt": "2026-07-05T18:14:22.536Z"
+}
+```
+
+#### Error responses
+
+Clearing rating/label/comment down to nothing (status 400, same message as
+the create-side validation — the merged result, not just the patch body, is
+checked):
+
+```bash
+curl -X PATCH $ACRUXCORE_BASE_URL/traces/a856684b-79cf-4a83-ac8f-f50294ec07dc/feedback/7133430d-9e2c-4bb3-90b9-f56e95bde619 \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"rating": null, "label": null, "comment": null}'
+```
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "Provide at least one of rating, label, or comment." } }
+```
+
+A teammate who is not the row's author (status 403) — the row is left unchanged:
+
+```bash
+curl -X PATCH $ACRUXCORE_BASE_URL/traces/a856684b-79cf-4a83-ac8f-f50294ec07dc/feedback/7133430d-9e2c-4bb3-90b9-f56e95bde619 \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"rating": -1}'
+```
+
+```json
+{ "error": { "code": "FORBIDDEN", "message": "Only the original author can edit this feedback." } }
+```
+
+Unknown feedback id, or one belonging to another team's trace (status 404 —
+never distinguishes the two, same as the trace-lookup 404s above):
+
+```bash
+curl -X PATCH $ACRUXCORE_BASE_URL/traces/a856684b-79cf-4a83-ac8f-f50294ec07dc/feedback/00000000-0000-0000-0000-000000000000 \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" -d '{"rating": 1}'
+```
+
+```json
+{ "error": { "code": "NOT_FOUND", "message": "Feedback not found." } }
+```
+
+No Authorization header (status 401):
+
+```bash
+curl -X PATCH $ACRUXCORE_BASE_URL/traces/a856684b-79cf-4a83-ac8f-f50294ec07dc/feedback/7133430d-9e2c-4bb3-90b9-f56e95bde619 \
+  -H "Content-Type: application/json" -d '{"rating": 1}'
+```
+
+```json
+{ "error": { "code": "UNAUTHORIZED", "message": "API key required." } }
+```
+
+---
+
+### GET /api/v1/traces/:id/feedback
+
+Lists all feedback on a trace (trace-level and span-level, mixed), newest
+first. Continuing the example above, after the three POSTs:
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces/fbb5f16e-521b-4839-b9ab-78ace8c1f0a4/feedback"
+```
+
+Response (status 200):
+
+```json
+{
+  "data": [
+    {
+      "id": "f848d26d-5f1f-4d18-8d47-2dc76675fb21",
+      "traceId": "fbb5f16e-521b-4839-b9ab-78ace8c1f0a4",
+      "spanId": "s2",
+      "rating": null,
+      "label": "good_tool_use",
+      "comment": null,
+      "source": "developer",
+      "createdBy": "8e16d0ed-e41a-4006-b098-5e4aecd4998d",
+      "createdAt": "2026-07-05T02:33:24.608Z",
+      "updatedAt": "2026-07-05T02:33:24.608Z"
+    },
+    {
+      "id": "bd505193-ea39-4e23-a9b5-c356d38b5064",
+      "traceId": "fbb5f16e-521b-4839-b9ab-78ace8c1f0a4",
+      "spanId": "s1",
+      "rating": 5,
+      "label": null,
+      "comment": null,
+      "source": "user",
+      "createdBy": "8e16d0ed-e41a-4006-b098-5e4aecd4998d",
+      "createdAt": "2026-07-05T02:33:24.590Z",
+      "updatedAt": "2026-07-05T02:33:24.590Z"
+    },
+    {
+      "id": "d71ba68f-a7bf-424d-a424-a0ed80ec1592",
+      "traceId": "fbb5f16e-521b-4839-b9ab-78ace8c1f0a4",
+      "spanId": null,
+      "rating": -1,
+      "label": "wrong_answer",
+      "comment": "The tool call missed relevant docs.",
+      "source": "end_user",
+      "createdBy": "8e16d0ed-e41a-4006-b098-5e4aecd4998d",
+      "createdAt": "2026-07-05T02:33:11.976Z",
+      "updatedAt": "2026-07-05T02:33:11.976Z"
+    }
+  ]
+}
+```
+
+The same three feedback rows also appear, unchanged, in the additive
+`feedback` field of GET /api/v1/traces/:id (see docs/api/traces/traces.md) —
+verified byte-for-byte identical to the `data` array above.
+
+---
+
+### GET /api/v1/traces/feedback/summary
+
+Average rating + counts, grouped by `model` or `prompt_version` (query param
+`group_by`, default `prompt_version`). Optional `from`/`to` (ISO 8601)
+restrict the window; default is the last 30 days. `downCount` is the number
+of rows with rating < 0 (thumbs-down) in that bucket; `avgRating` is null
+for a bucket with no rated feedback.
+
+Attribution is per-TRACE, not per-span: every feedback row on a trace is
+counted against every distinct model/prompt_version used by that trace's
+`llm` spans, regardless of which span (or none) the feedback itself is
+attached to (see aggregate() in feedback.repository.ts). This trace has one
+`llm` span ("s1", model "gpt-4o-mini") and no other model, so all 3 feedback
+rows land in the same bucket — including the trace-level row (spanId null)
+and the "s2" row (a tool span with no model of its own).
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces/feedback/summary?group_by=model"
+```
+
+Response (status 200) — count 3; ratings -1, 5, null average (non-null only)
+to 2; downCount 1 (the one row with rating < 0):
+
+```json
+{
+  "groupBy": "model",
+  "buckets": [
+    { "key": "gpt-4o-mini", "count": 3, "avgRating": 2, "downCount": 1 }
+  ]
+}
+```
+
+Grouped by prompt_version (default) — empty because none of this trace's
+spans carry a promptVersionId:
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces/feedback/summary"
+```
+
+Response (status 200):
+
+```json
+{ "groupBy": "prompt_version", "buckets": [] }
+```
+
+---
+
+#### Error responses
+
+Empty body — none of rating/label/comment supplied (status 400):
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/traces/fbb5f16e-521b-4839-b9ab-78ace8c1f0a4/feedback \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" -d '{}'
+```
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "Provide at least one of rating, label, or comment." } }
+```
+
+rating outside -1..5 (status 400):
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/traces/fbb5f16e-521b-4839-b9ab-78ace8c1f0a4/feedback \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" -d '{"rating": 9}'
+```
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "rating must be between -1 and 5." } }
+```
+
+spanId does not belong to this trace (status 400, distinct error code):
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/traces/fbb5f16e-521b-4839-b9ab-78ace8c1f0a4/feedback \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" -d '{"rating": 1, "spanId": "does-not-exist"}'
+```
+
+```json
+{ "error": { "code": "INVALID_SPAN", "message": "spanId does not belong to this trace." } }
+```
+
+Unknown traceId (status 404):
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/traces/00000000-0000-0000-0000-000000000000/feedback \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" -d '{"rating": 1}'
+```
+
+```json
+{ "error": { "code": "NOT_FOUND", "message": "Trace not found." } }
+```
+
+Trace exists but belongs to another team (status 404) — same message as
+unknown, so the endpoint never confirms whether a foreign trace exists:
+
+```json
+{ "error": { "code": "NOT_FOUND", "message": "Trace not found." } }
+```
+
+No Authorization header, on either POST or the summary GET (status 401):
+
+```json
+{ "error": { "code": "UNAUTHORIZED", "message": "API key required." } }
+```
+
+---
+
+### GET /api/v1/traces/feedback
+
+T10: the team-wide raw feed backing the feedback visualization page —
+distinct from GET /:id/feedback (one trace) and /feedback/summary (aggregated).
+Newest-first, paginated (`page`/`limit`, `limit` capped at 100 like other list
+endpoints). Same row shape as the other feedback endpoints; `spanId` is the
+OTel ref (null for whole-trace feedback).
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces/feedback?limit=2"
+```
+
+Response (status 200) — 3 feedback rows exist across the team's traces;
+this page shows the 2 newest:
+
+```json
+{
+  "data": [
+    {
+      "id": "c80dfe36-cf93-4a0a-9a74-2a32ae2e33d2",
+      "traceId": "b6f37c03-30f6-4b8a-9082-24c9cbc4f8f4",
+      "spanId": "s2",
+      "rating": 1,
+      "label": null,
+      "comment": null,
+      "source": "developer",
+      "createdBy": "c7f4e80d-7873-445a-92a2-eaadfeb88896",
+      "createdAt": "2026-07-05T17:11:43.283Z",
+      "updatedAt": "2026-07-05T17:11:43.283Z"
+    },
+    {
+      "id": "ded66aec-e08f-48f9-93da-fcb45bbb6a87",
+      "traceId": "b6f37c03-30f6-4b8a-9082-24c9cbc4f8f4",
+      "spanId": "s2",
+      "rating": -1,
+      "label": null,
+      "comment": "Flight summary was thin",
+      "source": "developer",
+      "createdBy": "c7f4e80d-7873-445a-92a2-eaadfeb88896",
+      "createdAt": "2026-07-05T17:08:20.923Z",
+      "updatedAt": "2026-07-05T17:08:20.923Z"
+    }
+  ],
+  "total": 3,
+  "page": 1,
+  "limit": 2
+}
+```
+
+No Authorization header (status 401):
+
+```json
+{ "error": { "code": "UNAUTHORIZED", "message": "API key required." } }
+```

@@ -1,0 +1,15 @@
+meta {
+  name: Remove Example
+  type: http
+  seq: 8
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/datasets/{{datasetId}}/examples/{{example2Id}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}

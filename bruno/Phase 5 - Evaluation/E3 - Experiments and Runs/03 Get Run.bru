@@ -1,0 +1,15 @@
+meta {
+  name: Get Run
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/runs/{{runId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}

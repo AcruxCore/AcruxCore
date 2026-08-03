@@ -1,0 +1,30 @@
+meta {
+  name: Commit Version
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/prompts/{{promptId}}/versions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "messages": [
+      {
+        "role": "system",
+        "content": "Hello {{ name }}, welcome to {{ company }}."
+      }
+    ]
+  }
+}

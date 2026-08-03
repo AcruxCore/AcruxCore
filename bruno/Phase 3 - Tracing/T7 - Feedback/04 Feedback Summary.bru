@@ -1,0 +1,19 @@
+meta {
+  name: Feedback Summary
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v1/traces/feedback/summary?group_by=model
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+assert {
+  res.status: eq 200
+}

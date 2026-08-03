@@ -1,0 +1,152 @@
+---
+title: Start here
+description: Eight end-to-end agent builds, arranged from no-code to multi-agent — and a map for picking the one that matches how you want to work.
+sidebar_position: 0
+---
+
+# Start here
+
+Eight tutorials build the same general shape of thing — an LLM agent that reasons, calls tools, and answers — eight **deliberately different** ways. Each one picks a different combination of interface (dashboard or code), tool type, model-call path, and loop mechanism. Done in order, they form a learning path from "click through the dashboard" to "build a typed, policy-aware multi-step agent." Done one at a time, each is self-contained.
+
+This page is the map. Follow the **learning path** below if you're new and want a sequence. Skip to **[how they compare](#how-they-compare)** if you already know what you're looking for and want to pick by mechanism.
+
+:::tip[New to Acrux Core?]
+If you haven't yet, start with [Getting Started](/docs/getting-started/introduction) — it covers sign-up, your first API call, and the core concepts these tutorials build on.
+:::
+
+## The learning path
+
+Four levels, easiest first. Do them in order, or jump to the level that matches your goal. Each tutorial lists what it introduces that the earlier ones don't.
+
+### Level 1 — Start here (no code)
+
+If you've never opened the product, start here. Nothing to install, nothing to run.
+
+- **[Build a tool-calling agent in the dashboard (no code)](/docs/tutorials/build-a-tool-calling-agent-in-the-dashboard-no-code)** — a movie assistant powered by The Movie Database. You assemble two **HTTP tools** and a model entirely by clicking, and the gateway runs the tools for you. Introduces: HTTP tools, **secrets**, the playground. Zero code.
+
+### Level 2 — Your first agent in code (the core loop)
+
+The same tool-calling loop as Level 1, but now **you** drive it from a script. Pick the variant that matches how much plumbing you want to see.
+
+- **[Build a tool-calling agent in Python (no SDK)](/docs/tutorials/build-a-tool-calling-agent-in-python-no-sdk)** — a weather assistant in plain `requests`. You register a **credential** and **model** in the gateway, then write the read-`tool_calls → execute → feed-back loop` yourself, in full. Introduces: **client tools** (your code runs them, not the gateway), credentials, models, streaming.
+- **[Build a tool-calling agent in Python (SDK)](/docs/tutorials/build-a-tool-calling-agent-in-python-sdk)** — a text-to-SQL data analyst over a local SQLite file. Same shape as the no-SDK page, but the SDK's `run_tool_loop` drives the loop for you. Introduces: the **SDK**, async, **`run_tool_loop`**.
+
+### Level 3 — Real single-agent patterns
+
+You've got the core loop. These three each add one real-world concern: retrieval, the bare-metal BYO path, or runtime configurability.
+
+- **[Build a RAG agent without the gateway](/docs/tutorials/build-a-rag-agent-without-the-gateway)** — answer questions over the Acrux Core docs by indexing them and retrieving passages before each answer. Introduces: **RAG**, **embeddings**, retrieval, and the **BYO (bring your own key)** path that calls the provider directly.
+- **[Build a ReAct agent](/docs/tutorials/build-a-react-agent)** — a finance-research agent (Yahoo Finance news + today's date) with the gateway removed: the model call goes **straight to OpenAI** and every step is plain REST. Introduces: the **ReAct** pattern, BYO with a manual loop, prompt and tool creation over curl.
+- **[Build a configurable ReAct agent](/docs/tutorials/build-a-configurable-react-agent)** — one web-research agent that swaps persona, model, and search depth at call time by rendering a different **alias**. Introduces: **prompt versions + aliases** as a no-redeploy configuration mechanism, routed through the gateway.
+
+### Level 4 — Multi-agent and structured output
+
+The hardest two. Both build on everything above and add either multi-agent orchestration or typed, policy-aware output.
+
+- **[Build a supervisor multi-agent system](/docs/tutorials/build-a-supervisor-multi-agent-system)** — a router that classifies a request and hands it to one of three specialist subagents, all in one trace. Introduces: the **supervisor/router** pattern, multi-agent hand-off, `response_format` used for the routing decision itself, and the `@acrux.tool` decorator.
+- **[Build a Medical-Information QA agent](/docs/tutorials/build-a-medical-information-qa-agent)** — a typed, cited, policy-aware agent that refuses off-label questions and escalates adverse events, with every answer forced into one JSON shape. Introduces: `response_format` for a **typed answer**, citations, refusal/escalation policy, and mixed code/dashboard tool-description ownership. Fully keyless.
+
+## How they compare
+
+The same five decisions every agent build makes. Each tutorial picks a different combination. Hover over a column header in the table below, or jump to [What the columns mean](#what-the-columns-mean).
+
+| Tutorial | [Interface](#interface) | [Tool executor](#tool-executor) | [Model call path](#model-call-path) | [Loop mechanism](#loop-mechanism) | [Structured output](#structured-output) |
+|---|---|---|---|---|---|
+| [#1 Dashboard, no code](/docs/tutorials/build-a-tool-calling-agent-in-the-dashboard-no-code) | dashboard | HTTP (gateway) | gateway | playground | — |
+| [#2 Python, no SDK](/docs/tutorials/build-a-tool-calling-agent-in-python-no-sdk) | Python + `requests` | client (your code) | gateway | manual | — |
+| [#3 Python, SDK](/docs/tutorials/build-a-tool-calling-agent-in-python-sdk) | Python + `acruxcore` | client (your code) | gateway | `run_tool_loop` | — |
+| [#4 RAG, no gateway](/docs/tutorials/build-a-rag-agent-without-the-gateway) | Python + `acruxcore` | client (your code) | **BYO** (OpenRouter) | `run_tool_loop` | — |
+| [#5 ReAct](/docs/tutorials/build-a-react-agent) | Python / Node / curl | client (your code) | **BYO** (OpenAI) | manual | — |
+| [#6 Configurable ReAct](/docs/tutorials/build-a-configurable-react-agent) | Python / Node | client (your code) | gateway | `run_tool_loop` | — |
+| [#7 Supervisor](/docs/tutorials/build-a-supervisor-multi-agent-system) | Python / Node | client (your code) | gateway | `run_tool_loop` | `response_format` (router) |
+| [#8 Medical QA](/docs/tutorials/build-a-medical-information-qa-agent) | Python / Node | client (your code) | gateway | `run_tool_loop` | `response_format` (typed answer) |
+
+Two decisions only vary across the Level 3–4 tutorials (#5–#8), because #1–#4 set assets up through the dashboard. They matter when you're choosing how production assets get created:
+
+| Decision | #5 ReAct | #6 Configurable | #7 Supervisor | #8 Medical QA |
+|---|---|---|---|---|
+| **Prompt created via** | curl | dashboard | curl | dashboard |
+| **Tool created via** | curl | dashboard | `@acrux.tool` + `sync()` | `@acrux.tool` + `sync()` |
+| **Tool description owned by** | n/a (curl) | n/a (dashboard) | code (docstrings) | mixed — code + dashboard |
+
+## What the columns mean
+
+One-line definitions for the five columns the matrix scores. For the underlying concepts (tool-calling loop, gateway, `response_format`, etc.), see [Concepts you'll meet](#concepts-youll-meet) below.
+
+### Interface
+
+Where you **build and run** the agent. **Dashboard** — click in the browser (#1). **Code** — a script in Python, Node, or curl (#2 onward). This sets who can build it and whether the setup is reproducible from a shell.
+
+### Tool executor
+
+Where a tool call physically **runs**. **HTTP (gateway)** — the gateway makes the outbound request itself, you describe it once (#1). **Client (your code)** — the tool runs inside your process and you post the result back onto the trace (#2 onward); required when the tool touches your own database or an internal service.
+
+### Model call path
+
+What **sits between your code and the model provider**. **Gateway** — routed through Acrux Core, so you get budgets, fallbacks, secrets, per-call accounting, and `response_format` enforcement. **BYO (bring your own key)** — the gateway is skipped and you call the provider directly with your own key; the prompt is still versioned and a client-side trace is still recorded.
+
+### Loop mechanism
+
+**Who drives the tool-calling cycle** — read the model's `tool_calls`, run them, feed the results back, and let the model continue, repeating until it can answer.
+
+- **playground** — the dashboard runs the whole loop; you watch (#1).
+- **manual** — your script contains the loop in full, so every iteration is visible (#2, #5).
+- **`run_tool_loop`** — the SDK helper runs it for you: less code, and the trace is stitched across iterations automatically (#3, #4, #6, #7, #8).
+
+### Structured output
+
+Whether the final reply is **forced into a typed JSON shape** instead of free text. **None** — the answer is text a human reads (#1–#6). **`response_format`** — a request-time gateway parameter constrains the reply: a routing label on a toolless call in #7, a full cited typed answer in #8.
+
+## When to pick which
+
+The options above aren't equally right for every situation. Each is a real decision, not a style preference.
+
+**No-code or code?**
+
+- **Dashboard only (#1)** when the person building the agent isn't writing code, or when the tool is just an HTTP call the gateway can make for you.
+- **Code (#2 onward)** when the tool touches your database, an internal service, or anything the gateway can't reach — those need a **client tool** running in your process.
+
+**SDK or plain REST?**
+
+- **Plain REST (#2, #5)** when you want to see the mechanics with nothing hidden — what a tool-calling loop actually is, written out in full. Every curl tab in every tutorial is manual for the same reason.
+- **SDK + `run_tool_loop` (#3, #4, #6, #7, #8)** when you want the SDK to drive the loop for you: less boilerplate, and trace-stitching across the loop comes free.
+
+**Gateway or BYO (bring your own key)?**
+
+- **BYO (#4, #5)** when you want zero added latency and already have a provider key. Acrux Core still versions the prompt and records a trace, but nothing sits between you and the provider on the wire.
+- **The gateway (#1, #2, #3, #6, #7, #8)** when you want routing, budgets, cost-per-call accounting, provider fallbacks, secrets management, and `response_format` enforcement. See [Route calls through the gateway](/docs/guides/route-calls-through-the-gateway).
+
+**HTTP tool or client tool?**
+
+- **HTTP tool (#1)** when the tool is an external HTTP API the gateway can call for you — you describe the request once, including where a secret goes, and never run anything yourself.
+- **Client tool (#2 onward)** when the tool runs against your own systems — your code executes it and reports the result back onto the trace. See [Build and attach a tool](/docs/guides/build-and-attach-a-tool).
+
+**Free-text answers or structured output?**
+
+- **None (#1–#6)** when the answer is text a human reads.
+- **`response_format` (#7, #8)** when downstream code needs a machine-readable decision or typed object: a routing label on a call with no tools attached (#7), or a full typed answer with citations and a refuse/escalate flag (#8). `response_format` is a request-time gateway parameter — set per call, not stored on the prompt.
+
+**Prompt and tool created via curl, dashboard, or decorator?**
+
+- **curl** when creation is part of a script or CI setup and you want it reproducible from a shell — #5 and #7.
+- **dashboard** when a non-engineer (a PM or prompt author) needs to iterate on wording without a deploy — #6 and #8.
+- **`@acrux.tool` / `acrux.tool()` + `tools.sync()`** when the tool's code and its catalog entry should stay in sync: the function you decorate *is* the handler, and `sync()` keeps the catalog's schema next to it — #7 and #8.
+
+## Concepts you'll meet
+
+Recurring terms across the eight tutorials. Each is introduced in-line on first use; this is the one-line index, with a link to the deeper guide where one exists.
+
+- **Tool-calling loop** — the model calls a tool, your code (or the gateway) runs it, the result goes back to the model, repeat until the model can answer. Introduced in **#1**.
+- **HTTP tool vs client tool** — an HTTP tool runs on the gateway (you describe a request once; #1); a client tool runs in your process (the platform stores only its schema; #2 onward).
+- **Secret** — an encrypted value tools reference by name (e.g. `{{secret.TMDB_KEY}}`), never exposed in logs. Introduced in **#1**.
+- **Credential + model** — a credential is a provider API key (encrypted at rest); a model is a public name mapped to an upstream model on a credential. Introduced in **#2**.
+- **ReAct loop** — "reason + act": the same tool-calling loop, named, where the model reasons about what it needs before each tool call. Introduced in **#5**.
+- **Prompt version + alias** — a version is an immutable snapshot of a prompt's model, messages, and tools; an alias (`production`, `staging`, or any custom string) is a named pointer at a version. Swapping the alias your code renders is configuration without a redeploy. Introduced in **#6**; see [Version a prompt](/docs/guides/version-a-prompt).
+- **Gateway** — Acrux Core's model-routing layer: provider connections, budgets, rate limits, cost-per-call accounting, secrets, and `response_format` enforcement. Introduced in **#2**; see [Route calls through the gateway](/docs/guides/route-calls-through-the-gateway).
+- **`run_tool_loop`** — the SDK helper that drives the tool-calling cycle so you don't write the loop by hand. Introduced in **#3**; see [Use the SDK for chat and feedback](/docs/guides/use-the-sdk-for-chat-and-feedback).
+- **RAG (retrieval-augmented generation)** — look up the passages most likely to answer a question and paste them into the prompt before asking the model. Introduces embeddings and a vector store. Introduced in **#4**.
+- **BYO (bring your own key)** — skipping the gateway and calling a provider directly with your own key; Acrux Core still versions the prompt and records a client-side trace. Introduced in **#4**.
+- **`response_format`** — a request-time gateway parameter that forces the model's reply into a typed JSON shape. How it's enforced differs by provider: native on OpenAI and Gemini, translated to a forced tool call on Anthropic. Introduced in **#7** for a routing decision; used for a full typed answer in **#8**.
+- **Supervisor / router** — a small model call whose only job is to classify an incoming request and hand it to a specialist subagent. Introduced in **#7**.
+- **Tool-description ownership** — a decorated tool's model-facing description can live in code (a docstring) or in the dashboard; omit the docstring and `tools.sync()` leaves the dashboard copy untouched. Introduced in **#7**; see [Build and attach a tool](/docs/guides/build-and-attach-a-tool).
+- **Trace** — the recorded tree of spans (model calls, tool calls) for one run. Every tutorial ends by reading one back. See [Trace an LLM call](/docs/guides/trace-an-llm-call).

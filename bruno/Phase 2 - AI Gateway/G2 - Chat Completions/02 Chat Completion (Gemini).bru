@@ -1,0 +1,29 @@
+meta {
+  name: Chat Completion (Gemini)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/gateway/chat/completions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "model": "{{geminiModel}}",
+    "messages": [
+      { "role": "user", "content": "Say hi in one word." }
+    ],
+    "max_tokens": 10
+  }
+}

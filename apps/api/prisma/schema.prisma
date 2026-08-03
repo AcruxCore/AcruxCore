@@ -1,0 +1,1157 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+/// Core identity record — one row per registered user.
+/// `display_name` is nullable and used only in audit logs and member lists;
+/// email is the sole login credential and unique identifier.
+///
+/// Better Auth owns this table: its `user` model is mapped here rather than to a
+/// table of its own, so `users.id` stays the single identity every foreign key in
+/// the schema already points at. Its `name` field is mapped to `display_name`
+/// (see `shared/auth/better-auth.ts`), and the credential hash lives on
+/// `AuthAccount.password` — never on this row.
+model User {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email               String               @unique(map: "users_email_unique")
+  emailVerified       Boolean              @default(false) @map("email_verified")
+  displayName         String?              @map("display_name")
+  marketingConsent    Boolean              @default(false) @map("marketing_consent")
+  termsAcceptedAt     DateTime?            @map("terms_accepted_at") @db.Timestamptz(6)
+  image               String?
+  defaultTeamId       String?              @map("default_team_id") @db.Uuid
+  defaultTeam         Team?                @relation("UserDefaultTeam", fields: [defaultTeamId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "users_default_team_id_teams_id_fk")
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  authSessions        AuthSession[]
+  authAccounts        AuthAccount[]
+  knownDevices        KnownDevice[]
+  apiKeys             ApiKey[]
+  teamMemberships     TeamMember[]
+  prompts             Prompt[]
+  auditLogs           AuditLog[]
+  promptVersions      PromptVersion[]
+  invitesSent         TeamInvite[]
+  providerConnections ProviderConnection[]
+  virtualKeysCreated  VirtualKey[]
+  budgets             Budget[]
+  gatewayModels       GatewayModel[]
+  traceFeedback       TraceFeedback[]
+  datasets            Dataset[]
+  tools               Tool[]
+  toolVersions        ToolVersion[]
+  secrets             Secret[]
+  notificationPrefs   NotificationPreference[]
+
+  @@index([email], map: "idx_users_email")
+  @@map("users")
+}
+
+/// Tenancy unit. Every row is a team — no "type" field.
+/// The org layer (if added later) will be an additive parent table, not a type here.
+model Team {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                String
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  apiKeys             ApiKey[]
+  members             TeamMember[]
+  prompts             Prompt[]
+  auditLogs           AuditLog[]
+  invites             TeamInvite[]
+  providerConnections ProviderConnection[]
+  gatewayRequests     GatewayRequest[]
+  virtualKeys         VirtualKey[]
+  budgets             Budget[]
+  gatewayCache        GatewayCache[]
+  gatewayModels       GatewayModel[]
+  traces              Trace[]
+  spans               Span[]
+  spanPayloads        SpanPayload[]
+  teamTraceSettings   TeamTraceSettings?
+  traceFeedback       TraceFeedback[]
+  defaultForUsers     User[]               @relation("UserDefaultTeam")
+  datasets            Dataset[]
+  datasetExamples     DatasetExample[]
+  experiments         Experiment[]
+  experimentRuns      ExperimentRun[]
+  emailLogs           EmailLog[]
+  evalResults         EvalResult[]
+  promptCandidates    PromptCandidate[]
+  tools               Tool[]
+  secrets             Secret[]
+  notificationPrefs   NotificationPreference[]
+
+  @@map("teams")
+}
+
+/// Many-to-many join between users and teams.
+/// One row per (user, team) pair. `owner`/`admin`/`editor`/`viewer` form a strict
+/// hierarchy (every permission check that allows a lower role also allows every
+/// role above it — see `requireRole`/`requireTeamRole`), so a member holds
+/// exactly one role, not a set: a second, lower role would grant nothing a
+/// member's highest role doesn't already cover.
+model TeamMember {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  teamId    String    @map("team_id") @db.Uuid
+  role      team_role
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  team      Team      @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "team_members_team_id_teams_id_fk")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "team_members_user_id_users_id_fk")
+
+  @@unique([userId, teamId], map: "uq_team_members_user_team")
+  @@index([teamId], map: "idx_team_members_team_id")
+  @@index([userId], map: "idx_team_members_user_id")
+  @@map("team_members")
+}
+
+/// Personal and team-scoped API keys.
+/// `key` is stored plain text in Phase 1 (no external users yet).
+/// `revoked_at` being non-null means the key is inactive.
+/// The only time the full `key` value is returned to the caller is at creation (201 response).
+/// `scope` is 'personal' (tied to a user) or 'team' (no user, for CI/automation).
+model ApiKey {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String?   @map("user_id") @db.Uuid
+  teamId      String    @map("team_id") @db.Uuid
+  keyHash     String    @unique(map: "api_keys_key_hash_unique") @map("key_hash")
+  keyLastFour String    @map("key_last_four")
+  name        String?
+  scope       String    @default("personal")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(6)
+  team        Team      @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "api_keys_team_id_teams_id_fk")
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "api_keys_user_id_users_id_fk")
+
+  @@index([userId, teamId], map: "idx_api_keys_user_team")
+  @@map("api_keys")
+}
+
+/// Single-use invite token that brings a new user into a team with a specified role.
+/// Expires 7 days after creation. usedAt is set when the invite is accepted.
+model TeamInvite {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId    String    @map("team_id") @db.Uuid
+  team      Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  token     String    @unique
+  invitedBy String    @map("invited_by") @db.Uuid
+  inviter   User      @relation(fields: [invitedBy], references: [id])
+  role      team_role
+  /// Recipient the invite was emailed to. Null for copy-link invites.
+  email     String?
+  expiresAt DateTime  @default(dbgenerated("(now() + '7 days'::interval)")) @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([token], map: "idx_team_invites_token")
+  @@index([teamId], map: "idx_team_invites_team_id")
+  @@map("team_invites")
+}
+
+/// One row per outbound product email send attempt. Routing metadata ONLY —
+/// the rendered body is deliberately never stored, because the invite email
+/// embeds `team_invites.token`, a live credential that grants team membership.
+/// Persisting the HTML would put that credential back in the database and in
+/// every backup, which is exactly what the API-key-hashing work removed.
+model EmailLog {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId            String    @map("team_id") @db.Uuid
+  team              Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  /// Template/purpose key — `team_invite` today; specs B and C add more.
+  type              String
+  toEmail           String    @map("to_email")
+  subject           String
+  /// queued | sent | failed
+  status            String    @default("queued")
+  /// SES message id, once accepted. Null while queued or on failure.
+  providerMessageId String?   @map("provider_message_id")
+  /// Failure reason, truncated to 1000 chars. Null unless status = failed.
+  error             String?
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  sentAt            DateTime? @map("sent_at") @db.Timestamptz(6)
+
+  @@index([teamId, createdAt(sort: Desc)], map: "idx_email_log_team_time")
+  @@index([teamId, type, createdAt(sort: Desc)], map: "idx_email_log_team_type_time")
+  @@map("email_log")
+}
+
+/// A user's opt-*out* from one category of notification email, in one team.
+///
+/// Absence of a row means enabled. Nothing is written at signup and nothing is
+/// backfilled: the resolver only ever reads rows to find opt-outs, so a new
+/// category is on for everyone until somebody turns it off, with no migration.
+///
+/// Per team rather than per account, because a user who owns two teams may care
+/// about one team's spend and not the other's.
+model NotificationPreference {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId    String   @map("team_id") @db.Uuid
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  /// budget_alerts | eval_runs | membership | weekly_digest
+  category  String
+  enabled   Boolean  @default(true)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([userId, teamId, category], map: "notification_preferences_user_team_category")
+  @@index([teamId, category], map: "idx_notification_preferences_team_category")
+  @@map("notification_preferences")
+}
+
+/// A signed-in browser session, issued and validated by Better Auth.
+///
+/// `token` is the opaque value carried in the httpOnly session cookie — never a
+/// JWT, so revoking a session is a row delete rather than a wait for expiry.
+/// Deleting a user cascades their sessions away.
+model AuthSession {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  token     String   @unique(map: "auth_sessions_token_unique")
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "auth_sessions_user_id_users_id_fk")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([userId], map: "idx_auth_sessions_user_id")
+  @@index([expiresAt], map: "idx_auth_sessions_expires_at")
+  @@map("auth_sessions")
+}
+
+/// One credential per (provider, account) pair: the `credential` provider holds
+/// the password hash, and each social provider (`google`) holds its OAuth tokens.
+///
+/// This is why `users` has no `password_hash` column — a user who signs up with
+/// Google simply has no `credential` row, and one who later sets a password gains
+/// one without their identity row changing.
+model AuthAccount {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  userId                String    @map("user_id") @db.Uuid
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade, map: "auth_accounts_user_id_users_id_fk")
+  /// Scrypt hash for the `credential` provider; null for social accounts.
+  password              String?
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at") @db.Timestamptz(6)
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at") @db.Timestamptz(6)
+  scope                 String?
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([providerId, accountId], map: "auth_accounts_provider_account_unique")
+  @@index([userId], map: "idx_auth_accounts_user_id")
+  @@map("auth_accounts")
+}
+
+/// One row per (user, device) pair the account has successfully signed in from.
+///
+/// Exists so the "new sign-in" security email fires on a genuinely new device
+/// rather than on every login. `auth_sessions` cannot answer that question: a
+/// sign-out deletes the row, so an ordinary sign-out/sign-in cycle would look
+/// identical to an intruder on an unknown machine and the alert would become
+/// noise people learn to ignore.
+///
+/// The fingerprint is a hash, never the raw IP and user-agent: this table is
+/// long-lived, and the plaintext values are only needed once, inside the email
+/// body that is sent and then forgotten.
+model KnownDevice {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "known_devices_user_id_users_id_fk")
+  /// sha256 of `<ip>|<user-agent>`.
+  fingerprint String
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt  DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+
+  @@unique([userId, fingerprint], map: "known_devices_user_fingerprint")
+  @@map("known_devices")
+}
+
+/// Short-lived single-use tokens for email verification and password reset.
+///
+/// Better Auth deletes a row once its token is consumed, so this table is the
+/// reason a reset link cannot be replayed. It holds no team scope because a
+/// verification exists before the account is usable.
+model AuthVerification {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  identifier String
+  value      String
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([identifier], map: "idx_auth_verifications_identifier")
+  @@map("auth_verifications")
+}
+
+enum team_role {
+  owner
+  admin
+  editor
+  viewer
+}
+
+/// Reset cadence for a spend cap. 'total' never resets (resets_at is null).
+enum budget_period {
+  day
+  week
+  month
+  total
+}
+
+enum provider_kind {
+  openai
+  anthropic
+  openai_compatible
+  gemini
+}
+
+enum span_kind {
+  llm
+  tool
+  retrieval
+  embedding
+  agent
+  chain
+  other
+}
+
+enum span_status {
+  ok
+  error
+  unset
+}
+
+enum experiment_run_status {
+  queued
+  running
+  succeeded
+  failed
+}
+
+// ---------------------------------------------------------------------------
+// Audit event enum
+// ---------------------------------------------------------------------------
+
+/// All valid audit event names across phases 1–6.
+/// Adding a new event requires a new migration.
+enum AuditEvent {
+  prompt_created
+  prompt_renamed
+  prompt_updated
+  prompt_deleted
+  version_committed
+  alias_promoted
+  alias_deleted
+  api_key_generated
+  api_key_revoked
+  member_invited
+  member_joined
+  member_role_updated
+  member_removed
+  member_invite_revoked
+  provider_connection_created
+  provider_connection_updated
+  provider_connection_deleted
+  virtual_key_created
+  virtual_key_revoked
+  budget_created
+  budget_updated
+  gateway_model_created
+  gateway_model_updated
+  gateway_model_deleted
+  trace_settings_updated
+  tool_created
+  tool_version_committed
+  tool_alias_promoted
+  tool_version_superseded
+  secret_created
+  secret_rotated
+  secret_deleted
+}
+
+// ---------------------------------------------------------------------------
+// Prompts
+// ---------------------------------------------------------------------------
+
+/// A prompt is a named, mutable shell. Content lives in prompt_versions (B3).
+/// deletedAt IS NULL means active; soft-delete only — rows are never hard-deleted.
+/// There is intentionally NO unique constraint on (teamId, name): renaming a prompt
+/// is a breaking change for SDK callers and is the user's responsibility.
+model Prompt {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  description String?
+  teamId      String    @map("team_id") @db.Uuid
+  team        Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy   String    @map("created_by") @db.Uuid
+  creator     User      @relation(fields: [createdBy], references: [id])
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  auditLogs        AuditLog[]
+  versions         PromptVersion[]
+  aliases          PromptAlias[]
+  experiments      Experiment[]
+  promptCandidates PromptCandidate[]
+
+  @@index([teamId], map: "idx_prompts_team_id")
+  @@index([teamId, name], map: "idx_prompts_team_name")
+  @@index([teamId, deletedAt], map: "idx_prompts_team_deleted_at")
+  @@map("prompts")
+}
+
+// ---------------------------------------------------------------------------
+// Prompt Versions + Aliases (B3)
+// ---------------------------------------------------------------------------
+
+/// Immutable snapshot of a prompt's messages at a point in time.
+/// version_number is per-prompt sequential (MAX+1), starting at 1.
+/// messages stores the OpenAI-compatible chat array as JSONB.
+/// variables stores the sorted list of nunjucks variable names extracted at commit time.
+model PromptVersion {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  promptId      String        @map("prompt_id") @db.Uuid
+  prompt        Prompt        @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  versionNumber Int           @map("version_number")
+  /// OpenAI-compatible messages array; content fields are raw nunjucks template strings.
+  messages      Json
+  /// Sorted array of extracted variable name strings, e.g. ["name", "role"].
+  variables     Json          @default("[]")
+  /// Optional default gateway model for this version (issue #12). Bound by id so
+  /// it survives a deployment rename; SET NULL on model delete so the version
+  /// simply loses its default rather than blocking the delete.
+  modelId       String?       @map("model_id") @db.Uuid
+  model         GatewayModel? @relation("prompt_version_default_model", fields: [modelId], references: [id], onDelete: SetNull)
+  createdBy     String        @map("created_by") @db.Uuid
+  creator       User          @relation(fields: [createdBy], references: [id])
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  promptAliases   PromptAlias[]
+  gatewayRequests GatewayRequest[]
+  spans           Span[]
+  datasetExamples DatasetExample[]
+  tools           PromptVersionTool[]
+
+  /// Enforces per-prompt sequential numbering.
+  @@unique([promptId, versionNumber], name: "uq_prompt_versions_prompt_version")
+  /// Fast lookup by (prompt_id, version_number).
+  @@index([promptId, versionNumber], map: "idx_prompt_versions_lookup")
+  /// Fast listing by prompt, newest first.
+  @@index([promptId, createdAt], map: "idx_prompt_versions_list")
+  /// #12: reverse lookup of versions bound to a model (and SET NULL performance).
+  @@index([modelId], map: "idx_prompt_versions_model_id")
+  @@map("prompt_versions")
+}
+
+/// Mutable pointer from a named alias (e.g. 'production') to a specific version.
+/// Upsert on (promptId, alias) implements both promotion and rollback.
+model PromptAlias {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  promptId  String        @map("prompt_id") @db.Uuid
+  prompt    Prompt        @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  alias     String
+  versionId String        @map("version_id") @db.Uuid
+  version   PromptVersion @relation(fields: [versionId], references: [id])
+  updatedAt DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  /// One alias name per prompt.
+  @@unique([promptId, alias], name: "uq_prompt_aliases_prompt_alias")
+  /// Fast alias resolution at render time.
+  @@index([promptId, alias], map: "idx_prompt_aliases_lookup")
+  @@map("prompt_aliases")
+}
+
+/// Join: a committed PromptVersion references a catalog Tool, by alias (default
+/// 'production') with an optional version pin. Immutable once its prompt version
+/// is committed (FAQ Q4). Enables reverse queries ("which prompts use this tool?").
+model PromptVersionTool {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  promptVersionId String        @map("prompt_version_id") @db.Uuid
+  promptVersion   PromptVersion @relation(fields: [promptVersionId], references: [id], onDelete: Cascade)
+  toolId          String        @map("tool_id") @db.Uuid
+  tool            Tool          @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  /// Alias to resolve at use-time (e.g. 'production'). Ignored when pinnedVersionId is set.
+  aliasName       String        @default("production") @map("alias_name")
+  /// Optional hard pin to a specific ToolVersion; overrides aliasName resolution.
+  pinnedVersionId String?       @map("pinned_version_id") @db.Uuid
+  pinnedVersion   ToolVersion?  @relation("PinnedToolVersion", fields: [pinnedVersionId], references: [id], onDelete: SetNull)
+  /// Stable ordering of tools within a prompt version.
+  position        Int           @default(0)
+
+  @@unique([promptVersionId, toolId], name: "uq_prompt_version_tools_pv_tool")
+  @@index([promptVersionId], map: "idx_prompt_version_tools_pv")
+  @@index([toolId], map: "idx_prompt_version_tools_tool")
+  @@map("prompt_version_tools")
+}
+
+// ---------------------------------------------------------------------------
+// Tools (Phase 4 / TC1) — same shape as Prompt/PromptVersion/PromptAlias:
+// a named, soft-deleted shell (Tool), immutable auto-numbered versions
+// (ToolVersion), and one mutable alias pointer per name (ToolAlias).
+// ---------------------------------------------------------------------------
+
+/// Who authored a tool version. Drives the code-vs-dashboard ownership warnings:
+/// a `code` live version means a deploy will supersede any dashboard edit, and a
+/// `dashboard` live version being superseded is what the SDK warns about.
+/// `api` is the default so pre-existing rows and plain API callers keep their
+/// current behaviour — only `POST /tools/sync` writes `code`, only the web app
+/// writes `dashboard`.
+enum ToolVersionSource {
+  code
+  dashboard
+  api
+}
+
+/// A tool is a named, mutable shell. Content lives in tool_versions.
+/// deletedAt IS NULL means active; soft-delete only — rows are never hard-deleted.
+model Tool {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  description String?
+  teamId      String    @map("team_id") @db.Uuid
+  team        Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy   String    @map("created_by") @db.Uuid
+  creator     User      @relation(fields: [createdBy], references: [id])
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  versions          ToolVersion[]
+  aliases           ToolAlias[]
+  promptAttachments PromptVersionTool[]
+
+  @@index([teamId], map: "idx_tools_team_id")
+  @@index([teamId, name], map: "idx_tools_team_name")
+  @@index([teamId, deletedAt], map: "idx_tools_team_deleted_at")
+  @@map("tools")
+}
+
+/// Immutable snapshot of a tool's parameters/executor at a point in time.
+/// version_number is per-tool sequential (MAX+1), starting at 1.
+model ToolVersion {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  toolId           String   @map("tool_id") @db.Uuid
+  tool             Tool     @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  versionNumber    Int      @map("version_number")
+  description      String?
+  /// JSON Schema object describing the tool's parameters (the part the LLM sees).
+  parametersSchema Json     @map("parameters_schema")
+  /// Typed executor union: { type: 'client' } | { type: 'http', ... }.
+  executor         Json
+  /// Release note for humans — "v2, added retries". NEVER shown to the model;
+  /// that is `description`. This field exists so nobody is tempted to put a
+  /// changelog in `description`, where the resolver would feed it to the LLM as
+  /// the tool's purpose.
+  changelog        String?
+  /// Provenance of this version. See ToolVersionSource.
+  source           ToolVersionSource @default(api)
+  createdBy        String   @map("created_by") @db.Uuid
+  creator          User     @relation(fields: [createdBy], references: [id])
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  toolAliases         ToolAlias[]
+  pinnedByAttachments PromptVersionTool[] @relation("PinnedToolVersion")
+
+  @@unique([toolId, versionNumber], name: "uq_tool_versions_tool_version")
+  @@index([toolId, versionNumber], map: "idx_tool_versions_lookup")
+  @@index([toolId, createdAt], map: "idx_tool_versions_list")
+  @@map("tool_versions")
+}
+
+/// Mutable pointer from a named alias (e.g. 'production') to a specific version.
+/// Upsert on (toolId, alias) implements both promotion and rollback.
+model ToolAlias {
+  id        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  toolId    String      @map("tool_id") @db.Uuid
+  tool      Tool        @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  alias     String
+  versionId String      @map("version_id") @db.Uuid
+  version   ToolVersion @relation(fields: [versionId], references: [id])
+  updatedAt DateTime    @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  /// One alias name per tool.
+  @@unique([toolId, alias], name: "uq_tool_aliases_tool_alias")
+  /// Fast alias resolution at execution time.
+  @@index([toolId, alias], map: "idx_tool_aliases_lookup")
+  @@map("tool_aliases")
+}
+
+// ---------------------------------------------------------------------------
+// Audit log
+// ---------------------------------------------------------------------------
+
+/// Append-only event log written by all mutation endpoints across B1–B6.
+/// promptId is nullable — team-level events (API key generated, member invited)
+/// have no associated prompt.
+/// Never throws on write failure — audit loss is preferable to blocking user writes.
+model AuditLog {
+  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId    String     @map("team_id") @db.Uuid
+  team      Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  promptId  String?    @map("prompt_id") @db.Uuid
+  prompt    Prompt?    @relation(fields: [promptId], references: [id], onDelete: SetNull)
+  actorId   String     @map("actor_id") @db.Uuid
+  actor     User       @relation(fields: [actorId], references: [id])
+  event     AuditEvent
+  metadata  Json?
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([teamId, promptId, createdAt], map: "idx_audit_log_team_prompt")
+  @@index([teamId, createdAt], map: "idx_audit_log_team")
+  @@map("audit_log")
+}
+
+// ---------------------------------------------------------------------------
+// Gateway — Provider connections (G1, BYOK encrypted credentials)
+// ---------------------------------------------------------------------------
+
+/// One BYOK provider credential per row, team-scoped. The provider API key is
+/// encrypted at rest as `iv(12) || authTag(16) || ciphertext` (AES-256-GCM) in
+/// `secretCiphertext`; only `keyLastFour` is ever exposed by the API. `config`
+/// holds non-secret provider settings — `openai_compatible` requires `base_url`.
+model ProviderConnection {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId           String        @map("team_id") @db.Uuid
+  provider         provider_kind
+  label            String
+  secretCiphertext Bytes         @map("secret_ciphertext")
+  keyLastFour      String        @map("key_last_four")
+  config           Json          @default("{}")
+  createdBy        String        @map("created_by") @db.Uuid
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  team    Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  creator User @relation(fields: [createdBy], references: [id])
+
+  gatewayRequests GatewayRequest[]
+  gatewayModels   GatewayModel[]
+
+  @@index([teamId], map: "idx_provider_connections_team")
+  @@map("provider_connections")
+}
+
+// ---------------------------------------------------------------------------
+// Secrets (TC4, team-scoped credential store for http tool executors)
+// ---------------------------------------------------------------------------
+
+/// Team-scoped named credential referenced by name from http tool executors
+/// (FAQ Q11). Stores only ciphertext; the API exposes only `lastFour`. Reuses the
+/// BYOK crypto. Deletion is blocked while any tool version's executor references it.
+model Secret {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId           String   @map("team_id") @db.Uuid
+  team             Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  name             String
+  secretCiphertext Bytes    @map("secret_ciphertext")
+  lastFour         String   @map("last_four")
+  createdBy        String   @map("created_by") @db.Uuid
+  creator          User     @relation(fields: [createdBy], references: [id])
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([teamId, name], name: "uq_secrets_team_name")
+  @@index([teamId], map: "idx_secrets_team")
+  @@map("secrets")
+}
+
+// ---------------------------------------------------------------------------
+// Gateway — Model registry (a "deployment": public_name → upstream_model →
+// credential + price). Routing looks a request's `model` up here; there is no
+// name-inference. Prices are USD per 1M tokens (null = unpriced → cost null).
+// ---------------------------------------------------------------------------
+
+/// One registered model per row, team-scoped. `publicName` is what callers send
+/// as `model`; `upstreamModel` is what is actually sent to the provider. Bound to
+/// exactly one credential. Deleting the credential is blocked while a model uses it.
+model GatewayModel {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String   @map("team_id") @db.Uuid
+  publicName      String   @map("public_name")
+  upstreamModel   String   @map("upstream_model")
+  credentialId    String   @map("credential_id") @db.Uuid
+  inputPricePerM  Decimal? @map("input_price_per_m") @db.Decimal(12, 4)
+  outputPricePerM Decimal? @map("output_price_per_m") @db.Decimal(12, 4)
+  createdBy       String   @map("created_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  team                Team                   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  credential          ProviderConnection     @relation(fields: [credentialId], references: [id], onDelete: Restrict)
+  creator             User                   @relation(fields: [createdBy], references: [id])
+  fallbacks           GatewayModelFallback[] @relation("model_fallbacks")
+  fallbackFor         GatewayModelFallback[] @relation("fallback_model")
+  gatewayRequests     GatewayRequest[]
+  boundPromptVersions PromptVersion[]        @relation("prompt_version_default_model")
+
+  @@unique([teamId, publicName])
+  @@index([teamId], map: "idx_gateway_models_team")
+  @@map("gateway_models")
+}
+
+/// Ordered fallback chain: `model` falls back to `fallbackModel` at `position`
+/// (0-based) when the primary call fails. One level only (no recursion).
+model GatewayModelFallback {
+  modelId         String @map("model_id") @db.Uuid
+  fallbackModelId String @map("fallback_model_id") @db.Uuid
+  position        Int
+
+  model         GatewayModel @relation("model_fallbacks", fields: [modelId], references: [id], onDelete: Cascade)
+  fallbackModel GatewayModel @relation("fallback_model", fields: [fallbackModelId], references: [id], onDelete: Cascade)
+
+  @@id([modelId, fallbackModelId])
+  @@unique([modelId, position])
+  @@map("gateway_model_fallbacks")
+}
+
+// ---------------------------------------------------------------------------
+// Gateway request log (Phase 2 / G2) — one row per gateway call. This is the
+// request log, NOT the audit log. High-volume table.
+// ---------------------------------------------------------------------------
+
+/// One row per POST /gateway/chat/completions call: model, provider, tokens,
+/// cost, latency, status, cache flag. `virtual_key_id` is a plain nullable UUID
+/// in G2 (its FK to virtual_keys is added in G3's migration). `prompt_version_id`
+/// gets its FK now (prompt_versions exists) and is populated by G8 lineage.
+model GatewayRequest {
+  id                   String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId               String              @map("team_id") @db.Uuid
+  team                 Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  /// Plain nullable column in G2; FK to virtual_keys added in G3's migration.
+  virtualKeyId         String?             @map("virtual_key_id") @db.Uuid
+  virtualKey           VirtualKey?         @relation(fields: [virtualKeyId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "gateway_requests_virtual_key_id_fk")
+  providerConnectionId String?             @map("provider_connection_id") @db.Uuid
+  connection           ProviderConnection? @relation(fields: [providerConnectionId], references: [id], onDelete: SetNull)
+  provider             String?
+  requestedModel       String              @map("requested_model")
+  resolvedModel        String?             @map("resolved_model")
+  /// 'success' | 'error' | 'cache_hit'
+  status               String
+  promptTokens         Int                 @default(0) @map("prompt_tokens")
+  completionTokens     Int                 @default(0) @map("completion_tokens")
+  totalTokens          Int                 @default(0) @map("total_tokens")
+  /// USD; null when the model is not in the pricing registry. 9 fractional digits so
+  /// sub-microdollar per-request costs (e.g. a single cheap-model call ~$0.0000024)
+  /// are stored without truncation.
+  costUsd              Decimal?            @map("cost_usd") @db.Decimal(18, 9)
+  latencyMs            Int?                @map("latency_ms")
+  cacheHit             Boolean             @default(false) @map("cache_hit")
+  promptVersionId      String?             @map("prompt_version_id") @db.Uuid
+  promptVersion        PromptVersion?      @relation(fields: [promptVersionId], references: [id], onDelete: SetNull)
+  errorCode            String?             @map("error_code")
+  /// The registered model that served this request (null for pre-registry rows / cache hits).
+  gatewayModelId       String?             @map("gateway_model_id") @db.Uuid
+  gatewayModel         GatewayModel?       @relation(fields: [gatewayModelId], references: [id], onDelete: SetNull)
+  /// Fallback/retry telemetry — { attempts: number, trail: [{ modelId, credentialId, error? }] }.
+  meta                 Json                @default("{}")
+  createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  spans                Span[]
+
+  @@index([teamId, createdAt(sort: Desc)], map: "idx_gateway_requests_team_time")
+  @@index([virtualKeyId, createdAt(sort: Desc)], map: "idx_gateway_requests_key_time")
+  @@map("gateway_requests")
+}
+
+/// A team-issued proxy credential handed to the team's own apps instead of the
+/// real provider key. Stored hashed (sha256 hex); plaintext shown once at create.
+/// Empty allow-list array = unrestricted (Prisma cannot express a nullable list).
+model VirtualKey {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId           String           @map("team_id") @db.Uuid
+  team             Team             @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "virtual_keys_team_id_teams_id_fk")
+  name             String
+  keyHash          String           @unique(map: "idx_virtual_keys_hash") @map("key_hash")
+  keyLastFour      String           @map("key_last_four")
+  allowedModels    String[]         @default([]) @map("allowed_models")
+  allowedProviders String[]         @default([]) @map("allowed_providers")
+  maxRpm           Int?             @map("max_rpm")
+  maxTpm           Int?             @map("max_tpm")
+  cacheTtlSeconds  Int?             @map("cache_ttl_seconds")
+  createdBy        String           @map("created_by") @db.Uuid
+  creator          User             @relation(fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "virtual_keys_created_by_users_id_fk")
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  revokedAt        DateTime?        @map("revoked_at") @db.Timestamptz(6)
+  gatewayRequests  GatewayRequest[]
+  budgets          Budget[]
+
+  @@index([teamId], map: "idx_virtual_keys_team")
+  @@map("virtual_keys")
+}
+
+/// A spend cap. team-wide when virtual_key_id is null, else scoped to one key.
+/// spend_usd is incremented in the same tx that records a gateway_requests row.
+/// resets_at is null for 'total'; otherwise it is the start of the next period
+/// and is lazily rolled forward on read (no cron).
+model Budget {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId       String        @map("team_id") @db.Uuid
+  team         Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  /// null = team-wide budget. Non-null = scoped to a single virtual key.
+  virtualKeyId String?       @map("virtual_key_id") @db.Uuid
+  virtualKey   VirtualKey?   @relation(fields: [virtualKeyId], references: [id], onDelete: Cascade)
+  period       budget_period
+  limitUsd     Decimal       @map("limit_usd") @db.Decimal(12, 4)
+  spendUsd     Decimal       @default(0) @map("spend_usd") @db.Decimal(18, 9)
+  resetsAt     DateTime?     @map("resets_at") @db.Timestamptz(6)
+  createdBy    String        @map("created_by") @db.Uuid
+  creator      User          @relation(fields: [createdBy], references: [id])
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // NOTE: the (team_id, COALESCE(virtual_key_id, …), period) partial-unique index
+  // CANNOT be expressed as a Prisma @@unique because Postgres treats NULLs as
+  // distinct — two team-wide budgets (virtual_key_id = NULL) for the same period
+  // would NOT collide. It is created as raw SQL in a --create-only migration.
+  // The service layer also pre-checks to return a clean 409 BUDGET_EXISTS.
+  @@index([teamId], map: "idx_budgets_team")
+  @@map("budgets")
+}
+
+/// Per-team exact-match response cache (G6). Scoped by team_id; opt-in per
+/// virtual key via cache_ttl_seconds (G3). A non-expired row for a
+/// (team_id, cache_key) pair is a hit; expires_at <= now() is treated as a miss.
+model GatewayCache {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId           String   @map("team_id") @db.Uuid
+  cacheKey         String   @map("cache_key")
+  response         Json
+  promptTokens     Int      @map("prompt_tokens")
+  completionTokens Int      @map("completion_tokens")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt        DateTime @map("expires_at") @db.Timestamptz(6)
+  team             Team     @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "gateway_cache_team_id_teams_id_fk")
+
+  @@unique([teamId, cacheKey], map: "uq_gateway_cache_team_key")
+  @@index([expiresAt], map: "idx_gateway_cache_expiry")
+  @@map("gateway_cache")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3 — Traces / Spans (T1). OpenTelemetry-shaped, partition-ready.
+// `traces` groups many `spans`. Rollups on the trace are maintained on span write.
+// ---------------------------------------------------------------------------
+
+/// A trace groups related spans (one agent run = one trace with many spans).
+/// `session_id` is a caller-supplied opaque string (null = ungrouped). Rollups
+/// (`span_count`, `total_tokens`, `total_cost_usd`, `status`, `ended_at`) are
+/// maintained by SpansRepository.appendSpan so list/dashboard views avoid a scan.
+model Trace {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId       String      @map("team_id") @db.Uuid
+  sessionId    String?     @map("session_id")
+  name         String?
+  status       span_status @default(unset)
+  startedAt    DateTime    @map("started_at") @db.Timestamptz(6)
+  endedAt      DateTime?   @map("ended_at") @db.Timestamptz(6)
+  spanCount    Int         @default(0) @map("span_count")
+  totalCostUsd Decimal?    @map("total_cost_usd") @db.Decimal(18, 9)
+  totalTokens  Int         @default(0) @map("total_tokens")
+  metadata     Json        @default("{}")
+  tags         String[]    @default([])
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  team            Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  spans           Span[]
+  feedback        TraceFeedback[]
+  datasetExamples DatasetExample[]
+
+  @@index([teamId, createdAt(sort: Desc)], map: "idx_traces_team_time")
+  @@index([teamId, sessionId], map: "idx_traces_team_session")
+  @@index([tags], type: Gin, map: "idx_traces_tags_gin")
+  @@index([metadata], type: Gin, map: "idx_traces_metadata_gin")
+  @@map("traces")
+}
+
+/// The single observability table. Inline tokens/cost/latency/model/provider/
+/// prompt_version_id (FAQ Q2) so gateway spans and SDK-reported spans (T2) share
+/// one shape. `span_ref` is the caller-supplied/generated opaque span id (unique
+/// within a trace); `parent_span_ref` links to the parent's `span_ref` — never the
+/// internal `id`. `gateway_request_id` links back to the Phase 2 money ledger.
+/// `metadata`/`tags` (T9) are caller-supplied, symmetric with `Trace.metadata`/
+/// `Trace.tags`; `attributes` stays the system-set bucket (e.g. `cacheHit`, FAQ Q13).
+model Span {
+  id               String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId           String      @map("team_id") @db.Uuid
+  traceId          String      @map("trace_id") @db.Uuid
+  spanRef          String      @map("span_ref")
+  parentSpanRef    String?     @map("parent_span_ref")
+  kind             span_kind   @default(other)
+  name             String
+  status           span_status @default(unset)
+  startedAt        DateTime    @map("started_at") @db.Timestamptz(6)
+  endedAt          DateTime?   @map("ended_at") @db.Timestamptz(6)
+  latencyMs        Int?        @map("latency_ms")
+  model            String?
+  provider         String?
+  promptTokens     Int?        @map("prompt_tokens")
+  completionTokens Int?        @map("completion_tokens")
+  totalTokens      Int?        @map("total_tokens")
+  costUsd          Decimal?    @map("cost_usd") @db.Decimal(18, 9)
+  promptVersionId  String?     @map("prompt_version_id") @db.Uuid
+  gatewayRequestId String?     @map("gateway_request_id") @db.Uuid
+  errorMessage     String?     @map("error_message")
+  attributes       Json        @default("{}")
+  metadata         Json        @default("{}")
+  tags             String[]    @default([])
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  team           Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  trace          Trace           @relation(fields: [traceId], references: [id], onDelete: Cascade)
+  promptVersion  PromptVersion?  @relation(fields: [promptVersionId], references: [id], onDelete: SetNull)
+  gatewayRequest GatewayRequest? @relation(fields: [gatewayRequestId], references: [id], onDelete: SetNull)
+  payload        SpanPayload?
+  feedback       TraceFeedback[]
+
+  @@unique([traceId, spanRef], map: "uq_spans_trace_ref")
+  @@index([teamId, createdAt(sort: Desc)], map: "idx_spans_team_time")
+  @@index([traceId], map: "idx_spans_trace")
+  @@index([promptVersionId], map: "idx_spans_prompt_version")
+  @@index([teamId, model], map: "idx_spans_team_model")
+  @@map("spans")
+}
+
+/// Message bodies for a span, written ONLY when capture resolves on (FAQ Q5).
+/// Separate table so the hot metadata table stays small and payloads can be
+/// dropped/retained on their own schedule. PK = span_id (one payload per span).
+model SpanPayload {
+  spanId    String   @id @map("span_id") @db.Uuid
+  teamId    String   @map("team_id") @db.Uuid
+  input     Json?
+  output    Json?
+  variables Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  span Span @relation(fields: [spanId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@map("span_payloads")
+}
+
+/// One row per team, lazily created. `capture_payloads` is the payload-capture
+/// default (on). Future retention knobs live here too.
+model TeamTraceSettings {
+  teamId          String   @id @map("team_id") @db.Uuid
+  capturePayloads Boolean  @default(true) @map("capture_payloads")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@map("team_trace_settings")
+}
+
+// ---------------------------------------------------------------------------
+// Tracing — User feedback (T6)
+// ---------------------------------------------------------------------------
+
+/// Human/user feedback on a trace or one of its spans. `rating`, `label`, and
+/// `comment` are each optional individually, but the service enforces that at
+/// least one is present. `span_id` is null for whole-trace feedback. `source`
+/// tags the origin ('user' | 'developer' | 'end_user' | 'api'); `created_by` is
+/// null when posted via a team-scoped API key or an end user. Many rows per
+/// trace/span are allowed (multiple raters). Not audited — the row is the record.
+model TraceFeedback {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId    String   @map("team_id") @db.Uuid
+  traceId   String   @map("trace_id") @db.Uuid
+  spanId    String?  @map("span_id") @db.Uuid
+  rating    Int?
+  label     String?
+  comment   String?
+  source    String   @default("user")
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  team            Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  trace           Trace            @relation(fields: [traceId], references: [id], onDelete: Cascade)
+  span            Span?            @relation(fields: [spanId], references: [id], onDelete: Cascade)
+  creator         User?            @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  datasetExamples DatasetExample[]
+
+  @@index([traceId], map: "idx_trace_feedback_trace")
+  @@index([teamId, createdAt(sort: Desc)], map: "idx_trace_feedback_team_time")
+  @@map("trace_feedback")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 5 — Evaluations / Datasets (E2)
+// ---------------------------------------------------------------------------
+
+/// A named, mutable collection of eval examples (FAQ Q5). `overallFeedback` is a
+/// dataset-level directive applied to EVERY example by the judge (FAQ Q6).
+/// Soft-deleted (deletedAt) like Prompt, so a dataset referenced by past runs is
+/// never hard-removed.
+model Dataset {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String    @map("team_id") @db.Uuid
+  name            String
+  overallFeedback String?   @map("overall_feedback")
+  createdBy       String?   @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  team        Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  creator     User?            @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  examples    DatasetExample[]
+  experiments Experiment[]
+
+  @@index([teamId, createdAt(sort: Desc)], map: "idx_datasets_team_time")
+  @@index([teamId, deletedAt], map: "idx_datasets_team_deleted_at")
+  @@map("datasets")
+}
+
+/// One test case (FAQ Q5/Q6). `input` is the raw prompt VARIABLES (from E1's
+/// span_payloads.variables) — re-rendered against any candidate template later.
+/// `criteria` is the source feedback `comment` (per-example rubric, FAQ Q4).
+/// `sourcePromptVersionId` records which version produced the case (lineage +
+/// lets the run engine pick the production baseline). `reference_output` is
+/// deferred (FAQ Q5) — not added yet.
+model DatasetExample {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datasetId             String   @map("dataset_id") @db.Uuid
+  teamId                String   @map("team_id") @db.Uuid
+  input                 Json     @default("{}")
+  criteria              String?
+  sourceTraceId         String?  @map("source_trace_id") @db.Uuid
+  sourceFeedbackId      String?  @map("source_feedback_id") @db.Uuid
+  sourcePromptVersionId String?  @map("source_prompt_version_id") @db.Uuid
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  dataset        Dataset        @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  team           Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  sourceTrace    Trace?         @relation(fields: [sourceTraceId], references: [id], onDelete: SetNull)
+  sourceFeedback TraceFeedback? @relation(fields: [sourceFeedbackId], references: [id], onDelete: SetNull)
+  sourceVersion  PromptVersion? @relation(fields: [sourcePromptVersionId], references: [id], onDelete: SetNull)
+  evalResults    EvalResult[]
+
+  @@index([datasetId], map: "idx_dataset_examples_dataset")
+  @@map("dataset_examples")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 5 — Evaluations / Experiments + Runs (E3)
+// ---------------------------------------------------------------------------
+
+/// "Evaluate this dataset with this (prompt versions × models) grid" (design §3).
+/// `config` is the resolved sweep: version ids + model names. `promptId` is the
+/// prompt under test (its production version is auto-added as the baseline cell).
+model Experiment {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId    String   @map("team_id") @db.Uuid
+  datasetId String   @map("dataset_id") @db.Uuid
+  promptId  String?  @map("prompt_id") @db.Uuid
+  name      String?
+  /// { versionIds: string[], models: string[] } — the (prompt-variant × model) axes.
+  config    Json     @default("{}")
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  team    Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  dataset Dataset         @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  prompt  Prompt?         @relation(fields: [promptId], references: [id], onDelete: SetNull)
+  runs    ExperimentRun[]
+
+  @@index([teamId, createdAt(sort: Desc)], map: "idx_experiments_team_time")
+  @@map("experiments")
+}
+
+/// One execution of an experiment. Snapshots the exact example set + resolved grid
+/// for reproducibility (FAQ Q5). `status` tracks the BullMQ flow lifecycle.
+model ExperimentRun {
+  id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String                @map("team_id") @db.Uuid
+  experimentId    String                @map("experiment_id") @db.Uuid
+  status          experiment_run_status @default(queued)
+  /// Frozen example set: [{ exampleId, input, criteria }].
+  exampleSnapshot Json                  @default("[]") @map("example_snapshot")
+  /// Resolved cells: [{ cellKey, variantKind, promptVersionId, versionLabel, model }].
+  grid            Json                  @default("[]")
+  error           String?
+  /// User who started this run. Null for runs created before this column, and
+  /// for runs started by a team-scoped API key (which has no acting user).
+  /// The run-finished notification falls back to `experiment.createdBy`, then to
+  /// the team's owners/admins, so a null here never means "email nobody".
+  createdBy       String?               @map("created_by") @db.Uuid
+  startedAt       DateTime?             @map("started_at") @db.Timestamptz(6)
+  endedAt         DateTime?             @map("ended_at") @db.Timestamptz(6)
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  team             Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  experiment       Experiment        @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  results          EvalResult[]
+  promptCandidates PromptCandidate[]
+
+  @@index([teamId, createdAt(sort: Desc)], map: "idx_experiment_runs_team_time")
+  @@index([experimentId], map: "idx_experiment_runs_experiment")
+  @@map("experiment_runs")
+}
+
+/// An optimizer-drafted prompt template (FAQ Q16). NOT a Phase-1 version — it is
+/// executed inline (render → gateway) like any candidate, and only becomes a real
+/// version when a human promotes it. Belongs to the optimize run that produced it.
+model PromptCandidate {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String   @map("team_id") @db.Uuid
+  promptId        String   @map("prompt_id") @db.Uuid
+  experimentRunId String?  @map("experiment_run_id") @db.Uuid
+  /// OpenAI-compatible messages array; content is raw nunjucks template strings.
+  messages        Json
+  /// The optimizer's short rationale for this rewrite (shown as promote evidence).
+  rationale       String?
+  label           String // e.g. "candidate-A" — the variantLabel in the report.
+  createdBy       String?  @map("created_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  team   Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  prompt Prompt         @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  run    ExperimentRun? @relation(fields: [experimentRunId], references: [id], onDelete: SetNull)
+
+  @@index([experimentRunId], map: "idx_prompt_candidates_run")
+  @@map("prompt_candidates")
+}
+
+/// One produced output per (example × prompt-variant × model) cell (design §3).
+/// E3 writes output + traceId; E4 adds and fills score/passed/reason/judgeTraceId.
+model EvalResult {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId            String   @map("team_id") @db.Uuid
+  experimentRunId   String   @map("experiment_run_id") @db.Uuid
+  datasetExampleId  String   @map("dataset_example_id") @db.Uuid
+  /// 'version' now; 'candidate' arrives in E6.
+  variantKind       String   @map("variant_kind")
+  promptVersionId   String?  @map("prompt_version_id") @db.Uuid
+  promptCandidateId String?  @map("prompt_candidate_id") @db.Uuid
+  variantLabel      String   @map("variant_label")
+  model             String
+  output            Json?
+  traceId           String?  @map("trace_id") @db.Uuid
+  errorMessage      String?  @map("error_message")
+  /// Normalized 0–100 judge score; null until judged.
+  score             Int?
+  /// Per-cell pass/fail against the compiled criterion.
+  passed            Boolean?
+  /// The judge's short justification.
+  reason            String?
+  /// The evaluate call's own trace ID.
+  judgeTraceId      String?  @map("judge_trace_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  team    Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  run     ExperimentRun  @relation(fields: [experimentRunId], references: [id], onDelete: Cascade)
+  example DatasetExample @relation(fields: [datasetExampleId], references: [id], onDelete: Cascade)
+
+  @@index([experimentRunId], map: "idx_eval_results_run")
+  @@map("eval_results")
+}

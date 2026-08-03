@@ -1,0 +1,26 @@
+meta {
+  name: Execute Tool - Pinned Version
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/tools/{{toolId}}/execute
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "arguments": {"city": "Berlin"},
+    "versionNumber": 1
+  }
+}

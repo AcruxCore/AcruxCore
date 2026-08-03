@@ -1,0 +1,33 @@
+meta {
+  name: Create Gateway Connection
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/gateway/connections
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "provider": "openai",
+    "label": "E5 Eval OpenAI",
+    "apiKey": "{{providerKey}}"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setVar("e5ConnectionId", res.getBody().id);
+  }
+}

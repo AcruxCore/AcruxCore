@@ -1,0 +1,60 @@
+comparison:
+  label: Comparison
+  permalink: /comparison
+  description: Honest comparisons of Acrux Core with other LLM-ops tools.
+
+langsmith:
+  label: LangSmith
+  permalink: /langsmith
+  description: Posts that reference LangSmith.
+
+llm-ops:
+  label: LLM Ops
+  permalink: /llm-ops
+  description: Prompt management, gateways, tracing, and evaluation.
+
+gateway:
+  label: Gateway
+  permalink: /gateway
+  description: The Acrux Core model gateway — routing, cost, caching, and performance.
+
+performance:
+  label: Performance
+  permalink: /performance
+  description: Benchmarks and latency analysis of Acrux Core.
+
+langfuse:
+  label: Langfuse
+  permalink: /langfuse
+  description: Posts that reference Langfuse.
+
+promptlayer:
+  label: PromptLayer
+  permalink: /promptlayer
+  description: Posts that reference PromptLayer.
+
+walkthrough:
+  label: Walkthrough
+  permalink: /walkthrough
+  description: Hands-on, step-by-step walkthroughs with screenshots.
+
+tracing:
+  label: Tracing
+  permalink: /tracing
+  description: Traces, spans, and what an LLM run actually looks like in production.
+
+tools:
+  label: Tools
+  permalink: /tools
+  description: Tool calling and the Acrux Core Tool Catalog.
+
+sdk:
+  label: SDK
+  permalink: /sdk
+  description: Working with the Acrux Core SDKs and other platforms' client libraries.
+
+byok:
+  label: BYOK
+  permalink: /byok
+  description: Bringing your own provider key and calling the model provider directly.
+

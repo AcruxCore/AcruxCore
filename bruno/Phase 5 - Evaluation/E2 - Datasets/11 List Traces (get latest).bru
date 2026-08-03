@@ -1,0 +1,21 @@
+meta {
+  name: List Traces (get latest)
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{baseUrl}}/api/v1/traces?limit=1
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    bru.setVar("e5CapturedTraceId", res.getBody().data[0].id);
+  }
+}

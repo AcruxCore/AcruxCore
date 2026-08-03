@@ -1,0 +1,15 @@
+meta {
+  name: Delete Budget
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/gateway/budgets/{{budgetId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}

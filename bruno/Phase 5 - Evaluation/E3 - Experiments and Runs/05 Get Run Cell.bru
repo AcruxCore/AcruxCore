@@ -1,0 +1,15 @@
+meta {
+  name: Get Run Cell
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/runs/{{runId}}/cells/{{cellKey}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}

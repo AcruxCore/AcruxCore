@@ -1,0 +1,15 @@
+meta {
+  name: Delete Dataset
+  type: http
+  seq: 9
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/datasets/{{scratchDatasetId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}

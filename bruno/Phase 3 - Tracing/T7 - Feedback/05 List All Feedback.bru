@@ -1,0 +1,19 @@
+meta {
+  name: List All Feedback
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/traces/feedback?limit=5
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+assert {
+  res.status: eq 200
+}

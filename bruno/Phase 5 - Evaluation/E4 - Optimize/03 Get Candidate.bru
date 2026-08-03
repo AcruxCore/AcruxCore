@@ -1,0 +1,15 @@
+meta {
+  name: Get Candidate
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/runs/{{optimizeRunId}}/candidates/{{candidateId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}

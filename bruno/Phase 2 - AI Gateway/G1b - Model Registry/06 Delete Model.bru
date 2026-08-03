@@ -1,0 +1,15 @@
+meta {
+  name: Delete Model
+  type: http
+  seq: 6
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/gateway/models/{{modelId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}

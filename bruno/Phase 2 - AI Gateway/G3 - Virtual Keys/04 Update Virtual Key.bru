@@ -1,0 +1,26 @@
+meta {
+  name: Update Virtual Key
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/gateway/keys/{{virtualKeyId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "CI pipeline key (renamed)",
+    "maxRpm": 120
+  }
+}

@@ -1,0 +1,27 @@
+meta {
+  name: Create Scoped Virtual Key
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/gateway/keys
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Scoped gpt-4o-mini only",
+    "allowedModels": ["gpt-4o-mini"],
+    "maxRpm": 60
+  }
+}

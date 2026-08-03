@@ -1,0 +1,180 @@
+---
+title: Chat, stream, and collect feedback with the SDK
+description: Call the gateway from @acruxcoreai/sdk with chat() and streaming, run a traced tool-calling loop, then read traces back and record feedback — all from Node.
+sidebar_position: 9
+keywords: [sdk, chat, streaming, tool calling, feedback, node, typescript]
+---
+
+# Chat, stream, and collect feedback with the SDK
+
+**What you'll build:** the same gateway call you'd otherwise make with `curl`,
+but through `@acruxcoreai/sdk`'s `chat()` — including a streamed response, a
+tool-calling loop that traces itself, and reading + rating a trace afterwards.
+Everything here is plain Node/TypeScript; nothing requires the dashboard.
+
+```bash
+npm install @acruxcoreai/sdk
+```
+
+```typescript
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore({
+  apiKey: process.env.ACRUXCORE_API_KEY,
+  baseUrl: process.env.ACRUXCORE_BASE_URL,
+});
+```
+
+## 1. A plain completion with `chat()`
+
+`chat()` wraps `POST /gateway/chat/completions` — one request, one response, no
+looping. It returns the assistant's text plus the gateway's own metadata for
+that call (which provider handled it, what it cost, whether it was a cache hit):
+
+```typescript
+const result = await hub.chat({
+  model: 'support-model',
+  messages: [{ role: 'user', content: 'Say hi in one word.' }],
+});
+
+console.log(result.content);      // 'Hello!'
+console.log(result.usage);        // { promptTokens, completionTokens, totalTokens }
+console.log(result.gateway);      // { requestId, provider, model, costUsd, cache }
+```
+
+The gateway already records a trace for every completion it serves, so
+`chat()` doesn't write a second one — `result.gateway.requestId` is there if
+you want to correlate the call with [the trace it produced](./trace-an-llm-call).
+
+## 2. Stream the response
+
+Pass `stream: true` and iterate the result instead of awaiting it — useful for
+piping tokens to a UI as they arrive:
+
+```typescript
+for await (const chunk of await hub.chat({
+  model: 'support-model',
+  messages: [{ role: 'user', content: 'Count to three.' }],
+  stream: true,
+})) {
+  process.stdout.write(chunk.delta.content ?? '');
+}
+```
+
+Each `chunk` mirrors one SSE frame from the gateway; the loop ends when the
+gateway sends its closing `[DONE]` frame.
+
+## 3. Let the model call tools — with the loop traced for you
+
+If your prompt has [tools attached](./build-and-attach-a-tool), `renderPrompt`
+returns them ready to pass straight into `runToolLoop`, which drives the
+call → run → respond round-trip until the model is done:
+
+```typescript
+const { messages, tools } = await hub.renderPrompt('support-agent', 'production', {
+  ticket: 'Where is my order #4471?',
+});
+
+const dispatch = async (name: string, args: Record<string, unknown>) => {
+  if (name === 'lookup_order') return { status: 'shipped', eta: '2 days' };
+  throw new Error(`Unknown tool: ${name}`);
+};
+
+const result = await hub.runToolLoop({ model: 'support-model', messages, toolDefs: tools, dispatch });
+
+console.log(result.content);   // final assistant text
+console.log(result.traceId);   // one trace covering every round-trip + tool call
+```
+
+Note `toolDefs`, not `tools`: what `renderPrompt` hands back are raw
+OpenAI-shaped definitions, and `toolDefs` is the option for those. `tools` is
+reserved for tools you declared with `acrux.tool` — those carry their own body,
+so they need no `dispatch` at all. See
+[Build and attach a tool](./build-and-attach-a-tool) for that shape, which is the
+better one when you author the tool in code.
+
+If the model asks for several tools in one turn, `runToolLoop` runs your
+`dispatch` for all of them **in parallel** — independent tools don't wait on
+each other, and their results are appended in call order. So write `dispatch`
+to be safe to run concurrently.
+
+Unlike a standalone `chat()` call, `runToolLoop` **does** auto-report a trace —
+by default. Each model round-trip becomes an `llm` span, and each `dispatch`
+call becomes a `tool` span, timed for real. The gateway can only see its own
+requests; it has no way to see `lookup_order` running on your machine, so this
+is the one place the SDK adds tracing curl genuinely can't. Open
+**Observability → Traces** and `result.traceId` shows up with the whole chain
+nested under it — turn it off with `trace: false` if you're already tracing
+this yourself.
+
+## 4. Read the trace back and leave feedback
+
+Once you have a `traceId` — from `runToolLoop`, from `trace()`, or copied out of
+the dashboard — you can read it back and attach feedback without leaving Node.
+
+One line matters here: `await hub.flush()`. The spans are written in the
+background (see [section 5](#5-when-traces-are-sent)), so reading the trace
+immediately after the call can arrive before its own spans do.
+
+```typescript
+await hub.flush(); // wait for the loop's spans to be written
+
+const { trace, spans } = await hub.getTrace(result.traceId!);
+console.log(trace.status, trace.totalCostUsd, trace.totalTokens);
+
+const feedback = await hub.submitFeedback({
+  traceId: result.traceId!,
+  rating: 1,
+  label: 'resolved-in-one-turn',
+});
+
+// Correct it later — only the original author's feedback can be edited:
+await hub.updateFeedback({ traceId: result.traceId!, feedbackId: feedback.id, rating: -1 });
+```
+
+`listTraces()` covers the list view — e.g. pulling every trace for a session:
+
+```typescript
+const { data } = await hub.listTraces({ sessionId: 'tokyo-trip-plan-01', limit: 20 });
+```
+
+## 5. When traces are sent
+
+`chat()` and `runToolLoop` hand back the model's answer straight away and report
+their spans in the background, so tracing costs you nothing on the call itself.
+Traces aren't delayed to do it — an idle client sends each span as soon as it
+records it, and spans only group into one request while another is already in
+flight.
+
+Two situations need one extra line:
+
+```typescript
+// Reading traces back straight after a call
+const result = await hub.chat({ model: 'gpt-4o-mini', messages });
+await hub.flush(); // wait for the spans to be written
+const { trace } = await hub.getTrace(result.gateway.traceId!);
+
+// A long-running server
+process.on('SIGTERM', async () => {
+  await hub.close(); // flush, then stop accepting spans
+  server.close();
+});
+```
+
+A script that finishes and exits needs neither — the SDK flushes as the process
+winds down. It installs no signal handlers of its own, because that would stop
+Ctrl-C working in your application, so a process killed by a signal drops
+whatever was still buffered.
+
+In Python the calls are `await hub.flush()` and `await hub.aclose()`, and
+`async with AcruxCore(...) as hub:` already flushes on exit.
+
+## What's next
+
+- Haven't set up tools yet? Start with
+  [build and attach a tool](./build-and-attach-a-tool).
+- See feedback from the dashboard side, including the span-level thumbs and
+  the "jump back to this prompt version" link:
+  [using sessions and traces](./using-sessions-and-traces).
+- Full field reference: **Gateway** and **Traces** in the
+  [API Reference](/api-reference).

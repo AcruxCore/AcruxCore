@@ -1,0 +1,31 @@
+meta {
+  name: Create Prompt
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/v1/prompts
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "e5eval-greeting"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setVar("e5PromptId", res.getBody().id);
+  }
+}

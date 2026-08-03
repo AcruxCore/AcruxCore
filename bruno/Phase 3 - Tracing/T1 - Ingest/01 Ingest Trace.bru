@@ -1,0 +1,64 @@
+meta {
+  name: Ingest Trace
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/traces
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "traces": [
+      {
+        "name": "support-agent-run",
+        "sessionId": "{{sessionId}}",
+        "tags": ["prod", "phase3"],
+        "metadata": { "env": "prod" },
+        "spans": [
+          {
+            "spanId": "s1",
+            "name": "gpt-4o-mini",
+            "kind": "llm",
+            "startTime": "2026-07-04T10:00:00Z",
+            "endTime": "2026-07-04T10:00:01.200Z",
+            "model": "{{model}}",
+            "provider": "openai",
+            "usage": { "promptTokens": 120, "completionTokens": 40, "totalTokens": 160 },
+            "costUsd": 0.0000234
+          },
+          {
+            "spanId": "s2",
+            "parentSpanId": "s1",
+            "name": "search_docs",
+            "kind": "tool",
+            "startTime": "2026-07-04T10:00:00.100Z",
+            "endTime": "2026-07-04T10:00:00.300Z",
+            "status": "ok"
+          }
+        ]
+      }
+    ]
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    bru.setVar("traceId", res.getBody().traceIds[0]);
+  }
+}
+
+assert {
+  res.status: eq 200
+}

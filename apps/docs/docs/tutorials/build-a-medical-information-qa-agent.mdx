@@ -1,0 +1,1225 @@
+---
+title: Build a Medical-Information QA Agent
+description: A typed, cited, policy-aware medical-information agent that refuses off-label questions and escalates adverse events, enforced with the gateway's response_format feature — showing both dict and pydantic/zod forms.
+sidebar_position: 8
+keywords: [medical information, structured output, response_format, citations, safety policy, tool calling]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Build a Medical-Information QA Agent
+
+**What you'll build:** a medical-information call-center agent that answers questions about
+a small set of drugs, cites every fact back to a source document, refuses off-label and
+personal-medical-advice questions, escalates suspected adverse events, and always answers
+in one typed JSON shape — never free text you have to parse and hope about.
+
+Medical-information teams answer the same shape of question over and over: "what is this
+drug approved for," "can I take it with X," "is this a known side effect." The answers have
+to be traceable to an approved source, and the software around the model needs a
+**machine-readable verdict** — did it answer, refuse, or escalate — not a paragraph a human
+has to re-read to find out. This page builds exactly that: four tools that ground the model
+in a small, real set of drug and policy fixtures, and the gateway's `response_format`
+feature to force the final answer into one typed shape every time.
+
+:::note[A synthetic drug catalog — clearly fictional, said explicitly]
+Everything this page's tools look up — **Neuravex** and **Cortiblex**, their prescribing
+information, the safety policy, and the sample inquiry records — is **invented for this
+tutorial**. Neither is a real medicine; nothing here is medical advice. This mirrors the
+disclaimer on the source this page's shape is inspired by
+([`langchain-samples/medical-information-qa`](https://github.com/langchain-samples/medical-information-qa)), which
+ships its own fictional "Alvexora"/"Brevamistol"/"Cardioryn" catalog for the same reason —
+a real drug catalog would need a real regulatory reviewer, not a tutorial author. This page
+invents its **own** two drugs and its **own** policy wording, in the same shape as the
+source's fixtures but not copied from them.
+:::
+
+## 1. The fixtures and the four tools
+
+Two synthetic drugs, three markdown files, and four tool functions that do real,
+non-trivial lookups over them — no stubbed one-liners. The fixture shape (drug profiles +
+inquiries + a knowledge base of PI labels and policy markdown) is adapted from the
+[`langchain-samples/medical-information-qa`](https://github.com/langchain-samples/medical-information-qa)
+reference project, whose [`data/`](https://github.com/langchain-samples/medical-information-qa/tree/main/data)
+folder holds the canonical version of this catalog. This page uses its **own** fictional
+drugs (Neuravex, Cortiblex) instead of that repo's (Alvexora, Brevamistol, Cardioryn), so
+the five files below are excerpted inline — copy each into a `data/` folder next to
+whichever script you run. (The langchain repo's files use different drug names and won't
+match the scripts.)
+
+**`data/drugs.json`** — two fictional drugs, each with its approved indications,
+contraindication tags, and the adverse-reaction trigger terms `check_safety_policy` and
+the model's own reasoning key off of:
+
+```json title="data/drugs.json (excerpt)"
+{
+  "id": "NVX",
+  "brand_name": "Neuravex",
+  "generic_name": "vexaline hydrochloride",
+  "approved_indications": [
+    "Chronic diabetic peripheral neuropathic pain in adults",
+    "Major depressive disorder (MDD) in adults"
+  ],
+  "contraindication_tags": ["mao_inhibitor_use", "narrow_angle_glaucoma_uncontrolled"],
+  "ae_trigger_terms": ["suicidal thoughts", "serotonin syndrome", "severe liver injury", "blood pressure increase"],
+  "source_filenames": ["neuravex-pi.md"]
+}
+```
+
+**`data/neuravex-pi.md`** — the prescribing information `search_prescribing_info` searches
+over, with real section headers the tool cites by anchor:
+
+```markdown title="data/neuravex-pi.md (excerpt)"
+## Approved Indications
+
+Neuravex is approved for:
+
+1. Chronic diabetic peripheral neuropathic pain in adults.
+2. Major depressive disorder (MDD) in adults.
+
+Neuravex is **not** approved for pediatric use in any indication, and is not
+approved for generalized anxiety, exam-related anxiety, or any other anxiety
+disorder at any age.
+
+## Contraindications
+
+- Concurrent use of a monoamine oxidase inhibitor (MAOI), or within 14 days of
+  stopping one.
+- Uncontrolled narrow-angle glaucoma.
+```
+
+**`data/safety-policy.md`** — the refusal/adverse-event/PII policy the system prompt and
+`check_safety_policy` both point at, one section per topic:
+
+```markdown title="data/safety-policy.md (excerpt)"
+## Refusal Policy
+
+Refuse to answer, and clearly say so, when a question:
+
+- Asks about a use, population, or dose outside a drug's approved indications
+  (off-label use) — including any pediatric question when the drug has no
+  approved pediatric indication.
+- Asks for individualized medical advice for a named patient's own situation
+  (personal medical advice) rather than general prescribing information.
+
+## Adverse Event Escalation Policy
+
+Escalate immediately, before answering normally, when a question describes a
+symptom or experience that matches a drug's own adverse-reaction trigger
+terms — especially anything suggesting self-harm, a severe allergic reaction,
+or another serious reaction. An adverse-event escalation always sets
+`escalate_adverse_event: true` and directs the person to contact a healthcare
+provider or emergency services, never just a normal cited answer.
+```
+
+The four tools, in Python (the Node port is identical logic, just JS syntax — full source
+in Step 5's `<Tabs>`). Step 3 adds one `@acrux.tool` line above each of these to commit
+them to the catalog; the function bodies do not change between here and there, so read this
+as the logic you are about to ship:
+
+```python title="tools.py"
+import json, re
+from pathlib import Path
+
+DATA_DIR = Path(__file__).parent / "data"
+STOPWORDS = {"a", "an", "and", "any", "for", "in", "is", "it", "of", "on", "or", "the", "to", "with"}
+
+def _tokens(text: str) -> set:
+    return {w for w in re.findall(r"[a-z0-9]+", text.lower()) if w not in STOPWORDS and len(w) > 2}
+
+def _slugify(heading: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", heading.lower()).strip("-")
+
+def _load_sections(filenames):
+    """Split each markdown fixture into '## '-delimited (file, heading, slug, body) chunks."""
+    sections = []
+    for filename in filenames:
+        text = (DATA_DIR / filename).read_text()
+        for block in re.split(r"(?m)^## ", text)[1:]:
+            heading, _, body = block.partition("\n")
+            sections.append({"file": filename, "heading": heading.strip(), "slug": _slugify(heading.strip()), "body": body.strip()})
+    return sections
+
+def get_drug_profile(query: str) -> dict:
+    """Look up one of the committed synthetic drugs by id, brand name, or generic name."""
+    q = query.strip().lower()
+    drugs = json.loads((DATA_DIR / "drugs.json").read_text())
+    for drug in drugs:
+        if q in (drug["id"].lower(), drug["brand_name"].lower(), drug["generic_name"].lower()):
+            return drug
+    return {"error": f"No drug found matching '{query}'."}
+
+def get_inquiry(inquiry_id: str) -> dict:
+    """Look up a synthetic prior medical-information inquiry record by its id."""
+    inquiries = json.loads((DATA_DIR / "inquiries.json").read_text())
+    for inquiry in inquiries:
+        if inquiry["id"].lower() == inquiry_id.strip().lower():
+            return inquiry
+    return {"error": f"No inquiry found with id '{inquiry_id}'."}
+
+def search_prescribing_info(query: str, top_k: int = 3) -> list:
+    """Token-overlap search over every committed markdown PI/policy fixture.
+
+    Scores each '## '-delimited section by how many of the query's tokens it
+    shares, and returns the top matches cited as `[source: filename.md#section-slug]`.
+    """
+    sections = _load_sections(["neuravex-pi.md", "cortiblex-pi.md", "safety-policy.md"])
+    q_tokens = _tokens(query)
+    scored = [(len(q_tokens & _tokens(s["heading"] + " " + s["body"])), s) for s in sections]
+    scored = [(score, s) for score, s in scored if score > 0]
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    return [{"source": f"{s['file']}#{s['slug']}", "snippet": s["body"][:400]} for _, s in scored[:top_k]]
+
+_POLICY_TOPIC_SLUGS = {
+    "response": "response-policy", "refusal": "refusal-policy",
+    "adverse_event": "adverse-event-escalation-policy", "pii": "pii-redaction-policy",
+}
+
+def check_safety_policy(topic: str) -> dict:
+    slug = _POLICY_TOPIC_SLUGS.get(topic)
+    if slug is None:
+        return {"error": f"Unknown policy topic '{topic}'. Valid: {list(_POLICY_TOPIC_SLUGS)}"}
+    for s in _load_sections(["safety-policy.md"]):
+        if s["slug"] == slug:
+            return {"source": f"safety-policy.md#{slug}", "snippet": s["body"]}
+    return {"error": f"Policy section '{slug}' not found."}
+```
+
+Run each function standalone before wiring anything into an agent — real output, over the
+real fixtures:
+
+```text
+=== get_drug_profile('Neuravex') ===
+{"id": "NVX", "brand_name": "Neuravex", "generic_name": "vexaline hydrochloride", ...}
+
+=== search_prescribing_info('Cortiblex fungal infection contraindication') ===
+[
+  {"source": "cortiblex-pi.md#contraindications", "snippet": "- Active systemic fungal infection.\n- Administration of a live or live-attenuated vaccine within the prior 4 weeks."},
+  {"source": "cortiblex-pi.md#approved-indications", "snippet": "Cortiblex is approved for:\n\n1. Short-course treatment (up to 14 days) of moderate-to-severe rheumatoid\n   arthritis flare in adults. ..."}
+]
+
+=== check_safety_policy('adverse_event') ===
+{"source": "safety-policy.md#adverse-event-escalation-policy", "snippet": "Escalate immediately, before answering normally, when a question describes a\nsymptom or experience that matches a drug's own adverse-reaction trigger\nterms ..."}
+```
+
+The search really ranks by overlap — a query naming "Cortiblex" and "fungal infection"
+comes back with the contraindications section ranked first, not just whatever section
+happens to appear first in the file.
+
+## 2. Create the prompt via the dashboard
+
+Open **Account & keys → New key** for one API key the rest of this page reuses, then export
+it alongside the base URL so every script below picks both up from the environment:
+
+```bash
+export ACRUXCORE_API_KEY=acx_sk_...
+export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
+```
+
+![The "Copy your API key" dialog showing a freshly created key beginning acx_sk_, a Copy button, and a Node SDK snippet using it](/img/tutorials/build-a-medical-information-qa-agent/01-api-key.png)
+
+Then **Prompts → New prompt**, named `medical-information-qa`:
+
+![The "New prompt" dialog with Name set to medical-information-qa and a description about citations, refusals, and adverse-event escalation](/img/tutorials/build-a-medical-information-qa-agent/02-new-prompt-dialog.png)
+
+The system message covers exactly the four policies the tools and `response_format` schema
+below exist to enforce — citation, refusal, adverse-event escalation, and PII redaction —
+with a `{{ question }}` user message and the model bound to `claude-haiku-direct`:
+
+![The prompt editor with the full system prompt covering citation, refusal, adverse-event, and PII policy, and a {{ question }} user message, model set to claude-haiku-direct](/img/tutorials/build-a-medical-information-qa-agent/03-prompt-editor.png)
+
+## 3. Create the four tools via the SDK decorator — with one deliberate exception
+
+These are the same four functions from Step 1 — nothing new to write. You add one
+`@acrux.tool` line above each and call `tools.sync()` to commit them to the catalog; the
+function bodies are identical to Step 1 and are elided as `...` below.
+
+Three of the tools — `get_drug_profile`, `get_inquiry`, `search_prescribing_info` — carry
+normal docstrings, so the code owns their model-facing description. `check_safety_policy`
+ships with **no docstring at all**, on purpose. A docstring-less function sends its
+*schema* (name and parameters) but no description, which hands ownership of the
+model-facing text to the dashboard — the catalog carries the existing description forward
+instead of clearing it.
+
+:::tip[The mechanic that makes this work]
+A function with **no docstring** sends its *schema* (name + parameters) but **no
+description** to the catalog. So the dashboard's wording is carried forward untouched on
+every sync — it's never overwritten, because the code never sends one. That single rule is
+what lets the code own the schema while the UI owns the description.
+:::
+
+This is a real split teams hit in practice. A compliance reviewer owns the wording of the
+safety-policy tool's description without needing write access to the codebase, while the
+other three tools stay fully code-owned. It also means the dashboard's "defined in code"
+badge on `check_safety_policy` refers only to the schema: the next deploy commits the
+tool's signature, but the compliance wording rides along untouched. Code owns the schema,
+the UI owns the description — no tension between the two.
+
+```python title="create_tools.py"
+from acruxcore import AcruxCore, acrux
+
+@acrux.tool
+async def get_drug_profile(query: str) -> dict:
+    """Look up one of the team's committed synthetic drugs by id, brand name, or generic name.
+
+    Args:
+        query (str): A drug id (e.g. "NVX"), brand name (e.g. "Neuravex"), or
+            generic name (e.g. "vexaline hydrochloride"). Case-insensitive.
+    """
+    ...  # same body as Step 1
+
+@acrux.tool
+async def get_inquiry(inquiry_id: str) -> dict:
+    """Look up a synthetic prior medical-information inquiry record by its id.
+
+    Args:
+        inquiry_id (str): An inquiry id, e.g. "MIQ-101".
+    """
+    ...
+
+@acrux.tool
+async def search_prescribing_info(query: str) -> list:
+    """Token-overlap search over every committed markdown PI/policy fixture.
+
+    Splits each file into '## '-delimited sections, scores each section by how
+    many of the query's tokens it shares, and returns up to 3 top matches cited
+    as `[source: filename.md#section-slug]`.
+
+    Args:
+        query (str): Free-text search query, e.g. drug name plus topic.
+    """
+    ...
+
+@acrux.tool
+async def check_safety_policy(topic: str) -> dict:
+    # No docstring on purpose: the model-facing description is set in the dashboard
+    # (below), not in code. The code still owns this tool's *schema* (name + parameters),
+    # so a sync commits the signature and sends no description, leaving the dashboard's
+    # wording untouched. Code-owns-schema, UI-owns-wording is one valid way to split who
+    # edits what.
+    ...  # same body as Step 1
+
+async def main():
+    async with AcruxCore() as hub:
+        tools = [get_drug_profile, get_inquiry, search_prescribing_info, check_safety_policy]
+        for fn, r in zip(tools, await hub.tools.sync(tools)):
+            print(f"{fn.__name__}: tool_id={r.tool_id} v{r.version_number} committed={r.committed}")
+```
+
+```text
+get_drug_profile: tool_id=262cde98-be21-4f54-a250-552550ee3b2c v1 committed=True
+get_inquiry: tool_id=37d08422-c608-48d7-8d09-88a213d2b79f v1 committed=True
+search_prescribing_info: tool_id=1ef2763b-a88d-488b-97fd-1606ff7da808 v1 committed=True
+check_safety_policy: tool_id=6f366a23-4b59-4847-911e-dd1ff98ab313 v1 committed=True
+```
+
+All four exist now, `check_safety_policy` with a blank description. Open its tool page and
+set the real, compliance-approved description **in the dashboard**:
+
+![The "New version" dialog for check_safety_policy with a Description field filled with a compliance-approved policy-lookup description and a changelog note](/img/tutorials/build-a-medical-information-qa-agent/04-tool-description-dialog.png)
+
+That commits `v2`, tagged `dashboard`, and — since nothing has promoted it to `production`
+yet — needs one more click on the **Aliases** tab to actually go live. Once it does, this
+is the state before re-running `tools.sync()`:
+
+![check_safety_policy's version list showing v1 (code, blank) and v2 (dashboard, the compliance description), v2 tagged dashboard](/img/tutorials/build-a-medical-information-qa-agent/05-tool-versions-before-resync.png)
+
+Re-running `create_tools.py` now is the real test. The **description itself never gets
+blanked** — `check_safety_policy`'s docstring-less function always sends no description, so
+the dashboard's text is carried forward every time. What *can* still churn a new version is
+the **schema**: if the dashboard edit also enriches a parameter description the code's
+signature doesn't know about (as this page's first re-promote attempt did), the next sync
+sees a real schema diff, commits a new code-sourced version, and carries the description
+text forward onto it — a new version number, same live text. Once the dashboard-side schema
+matches what the code would generate, a sync becomes a true no-op:
+
+```text
+check_safety_policy: tool_id=6f366a23-4b59-4847-911e-dd1ff98ab313 v4 committed=False
+```
+
+![check_safety_policy's version list after two syncs: v4 (dashboard) still holds the compliance description and stayed live, with v1-v3 in history below it](/img/tutorials/build-a-medical-information-qa-agent/06-tool-versions-after-resync.png)
+
+`committed=False` on the second run is the actual proof: nothing moved. The compliance
+team's wording survived a real re-sync of the exact same docstring-less code.
+
+## 4. Attach the tools to the prompt
+
+Open the prompt's **Tools** tab and check all four:
+
+![The prompt's Tools tab with check_safety_policy, search_prescribing_info, get_inquiry, and get_drug_profile checked under "Attach to next commit"](/img/tutorials/build-a-medical-information-qa-agent/07-prompt-attach-tools.png)
+
+Committing lands all four on a new version, `production` and `staging` both pointing at it:
+
+![The prompt page showing production and staging both at v2, with the Tools tab listing all four attached tools](/img/tutorials/build-a-medical-information-qa-agent/08-prompt-tools-attached-v2.png)
+
+## 5. Shape every answer with `response_format`: three real scenarios
+
+Every answer this agent returns has to come back as one typed JSON shape — never free text.
+Pick the form that fits your stack (toggle below):
+
+- **JSON Schema dict** (zero dependencies) — hand-write the OpenAI-shaped dict and pass it
+  directly as `response_format`. Works everywhere, no extra packages.
+- **Pydantic `BaseModel`** (Python) — define a class with `Field(description=...)` hints;
+  the SDK converts it to the same wire dict via `pydantic_response_format()`.
+- **Zod `z.object()`** (Node) — define a schema with `.describe(...)` hints; the SDK
+  converts it to the same wire dict via `{ zod: ... }`.
+
+All three produce identical wire behavior — the SDK normalizes the typed forms to the same
+JSON Schema dict the gateway already accepts. The `describe`/`Field(description=...)` hints
+reach the model as per-field guidance.
+
+The `disposition` field is the point of the whole shape: it comes back `answer`,
+`refuse_off_label`, or `escalate_adverse_event` because the model behaves differently on
+each question, not because the script picks a different template.
+
+Each scenario is **one** SDK call that sets both the tools and `response_format` together —
+`run_tool_loop(..., tools=..., response_format=...)` in Python, `runToolLoop({ toolRefs,
+responseFormat })` in Node:
+
+<Tabs groupId="response_format">
+<TabItem value="json_schema" label="JSON Schema (dict)">
+
+Zero dependencies — pass the OpenAI-shaped dict directly as `response_format`. This is
+what the curl tab and the Python/Node scripts below show first.
+
+```json title="ANSWER_SCHEMA — used by all three SDK tabs"
+{
+  "type": "object",
+  "properties": {
+    "disposition": {"type": "string", "enum": ["answer", "answer_with_limitations", "refuse_off_label", "refuse_personal_advice", "escalate_adverse_event"]},
+    "answer": {"type": "string"},
+    "safety_flags": {"type": "array", "items": {"type": "string", "enum": ["off_label", "personal_medical_advice", "adverse_event", "pii_redacted", "unsupported_claim"]}},
+    "escalate_adverse_event": {"type": "boolean"},
+    "pii_redacted": {"type": "boolean"},
+    "redaction_notes": {"type": "array", "items": {"type": "string"}},
+    "citations": {"type": "array", "items": {"type": "string"}}
+  },
+  "required": ["disposition", "answer", "safety_flags", "escalate_adverse_event", "pii_redacted", "redaction_notes", "citations"],
+  "additionalProperties": false
+}
+```
+
+Usage: `response_format={ type: "json_schema", json_schema: { name: "medical_information_answer", schema: ANSWER_SCHEMA, strict: true } }` (Node) or `response_format={"type": "json_schema", ...}` (Python).
+
+</TabItem>
+<TabItem value="pydantic" label="Pydantic (Python)">
+
+Requires `pydantic>=2` (`pip install acruxcore[pydantic]`). `Field(description=...)` hints
+reach the model as per-field guidance; the SDK converts to the same wire dict automatically.
+
+```python title="MedicalInformationAnswer — pydantic BaseModel"
+from typing import Literal
+from pydantic import BaseModel, Field
+from acruxcore import pydantic_response_format
+
+class MedicalInformationAnswer(BaseModel):
+    disposition: Literal[
+        "answer", "answer_with_limitations", "refuse_off_label",
+        "refuse_personal_advice", "escalate_adverse_event",
+    ] = Field(description="The agent's decision: answer, refuse, or escalate.")
+    answer: str = Field(description="The text the end user sees — a cited answer, a refusal, or an escalation notice.")
+    safety_flags: list[str] = Field(description="Policy flags triggered on this turn, e.g. off_label, adverse_event, pii_redacted.")
+    escalate_adverse_event: bool = Field(description="True when the question describes a suspected adverse event that must be escalated.")
+    pii_redacted: bool = Field(description="True when personally identifiable information was found and redacted from the answer.")
+    redaction_notes: list[str] = Field(description="What was redacted and why, one string per redaction.")
+    citations: list[str] = Field(description="Source references, e.g. 'cortiblex-pi.md#approved-indications'.")
+```
+
+Usage: `response_format=pydantic_response_format(MedicalInformationAnswer, name="medical_information_answer")`
+
+</TabItem>
+<TabItem value="zod" label="Zod (Node)">
+
+Requires `zod>=3.25` (`npm install zod`). `.describe(...)` hints reach the model as
+per-field guidance; the SDK converts to the same wire dict automatically.
+
+```typescript title="MedicalInformationAnswer — zod schema"
+import { z } from 'zod/v4';
+
+const MedicalInformationAnswer = z.object({
+  disposition: z.enum([
+    'answer', 'answer_with_limitations', 'refuse_off_label',
+    'refuse_personal_advice', 'escalate_adverse_event',
+  ]).describe("The agent's decision: answer, refuse, or escalate."),
+  answer: z.string().describe('The text the end user sees — a cited answer, a refusal, or an escalation notice.'),
+  safety_flags: z.array(z.enum([
+    'off_label', 'personal_medical_advice', 'adverse_event',
+    'pii_redacted', 'unsupported_claim',
+  ])).describe('Policy flags triggered on this turn.'),
+  escalate_adverse_event: z.boolean().describe('True when the question describes a suspected adverse event that must be escalated.'),
+  pii_redacted: z.boolean().describe('True when PII was found and redacted from the answer.'),
+  redaction_notes: z.array(z.string()).describe('What was redacted and why.'),
+  citations: z.array(z.string()).describe('Source references, e.g. "cortiblex-pi.md#approved-indications".'),
+});
+```
+
+Usage: `responseFormat: { zod: MedicalInformationAnswer, name: 'medical_information_answer' }`
+
+</TabItem>
+</Tabs>
+
+Three questions, run against all three SDK tabs below:
+
+1. **Normal cited answer** — "What is Cortiblex approved to treat, and is it safe for
+   someone with a fungal infection?"
+2. **Off-label refusal** — "Can I give my 10-year-old Neuravex for anxiety before her
+   school exams?"
+3. **Adverse-event escalation** — "I've been having thoughts of hurting myself since I
+   started Neuravex two weeks ago. What should I do?"
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+No SDK on this tab — just `curl` + `jq` + `awk`, so the tool loop is hand-rolled. It makes
+two `/gateway/chat/completions` calls on one trace: first a tool-gathering loop with the
+four tools attached, then one shaping call with `response_format` set and no tools. The
+search/policy tools are real bash + `awk` (no Python dependency) — the same token-overlap
+logic as Step 1, just shell syntax:
+
+<details>
+<summary>Full source: <code>run_agent.sh</code></summary>
+
+```bash
+#!/usr/bin/env bash
+# Medical-information QA agent -- bash + curl + jq + awk, gateway, manual tool_calls loop.
+#
+# Phase 1: render the prompt (tools attached), loop tool_calls by hand until the
+#          model stops calling tools -- gathers grounding facts via the real
+#          token-overlap search + fixture lookups (implemented in awk/jq below,
+#          same logic as the Python/Node tabs).
+# Phase 2: SAME trace, one more call with response_format set and NO tools, to
+#          shape the final typed MedicalInformationAnswer JSON.
+set -euo pipefail
+
+QUESTION="${1:-What is Cortiblex approved to treat, and is it safe for someone with a fungal infection?}"
+DATA_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/data" && pwd)"
+STOPWORDS=" a an and any for in is it of on or the to with "
+
+now() { date -u +"%Y-%m-%dT%H:%M:%S.%3NZ"; }
+
+# Lowercase, alnum-only tokens, length > 2, stopwords removed, deduped+sorted.
+_tokens() {
+  echo "$1" | tr 'A-Z' 'a-z' | grep -oE '[a-z0-9]+' | while read -r w; do
+    if [ "${#w}" -gt 2 ] && [[ "$STOPWORDS" != *" $w "* ]]; then echo "$w"; fi
+  done | sort -u
+}
+
+# Splits each markdown fixture into '## '-delimited sections, one JSON object per line.
+_load_sections() {
+  for f in "$@"; do
+    awk -v file="$f" '
+      function slugify(s,   r) { r = tolower(s); gsub(/[^a-z0-9]+/, "-", r); gsub(/^-+|-+$/, "", r); return r }
+      function esc(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); gsub(/\n/, "\\n", s); return s }
+      function emit() { gsub(/\n+$/, "", body); printf "{\"file\":\"%s\",\"heading\":\"%s\",\"slug\":\"%s\",\"body\":\"%s\"}\n", file, esc(heading), slugify(heading), esc(body) }
+      BEGIN { started = 0 }
+      /^## / { if (started) emit(); heading = substr($0, 4); body = ""; started = 1; next }
+      started { body = body $0 "\n" }
+      END { if (started) emit() }
+    ' "$DATA_DIR/$f"
+  done
+}
+
+get_drug_profile() {
+  local q_lower; q_lower=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+  jq -c --arg q "$q_lower" '[.[] | select((.id|ascii_downcase)==$q or (.brand_name|ascii_downcase)==$q or (.generic_name|ascii_downcase)==$q)] | first // {error:"No drug found"}' "$DATA_DIR/drugs.json"
+}
+
+get_inquiry() {
+  local id_lower; id_lower=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+  jq -c --arg id "$id_lower" '[.[] | select((.id|ascii_downcase)==$id)] | first // {error:"No inquiry found"}' "$DATA_DIR/inquiries.json"
+}
+
+search_prescribing_info() {
+  local query="$1" q_tokens; q_tokens=$(_tokens "$query")
+  _load_sections "neuravex-pi.md" "cortiblex-pi.md" "safety-policy.md" | while IFS= read -r section_json; do
+    local heading body s_tokens overlap
+    heading=$(echo "$section_json" | jq -r '.heading')
+    body=$(echo "$section_json" | jq -r '.body')
+    s_tokens=$(_tokens "$heading $body")
+    overlap=$(comm -12 <(echo "$q_tokens") <(echo "$s_tokens") | wc -l)
+    [ "$overlap" -gt 0 ] && printf '%s\t%s\n' "$overlap" "$section_json"
+  done | sort -t $'\t' -k1,1 -rn | head -3 | cut -f2- | jq -s '[.[] | {source: (.file + "#" + .slug), snippet: .body[0:400]}]'
+}
+
+check_safety_policy() {
+  local topic="$1" slug=""
+  case "$topic" in
+    response) slug="response-policy" ;;
+    refusal) slug="refusal-policy" ;;
+    adverse_event) slug="adverse-event-escalation-policy" ;;
+    pii) slug="pii-redaction-policy" ;;
+    *) jq -n --arg t "$topic" '{error: ("Unknown policy topic " + $t)}'; return ;;
+  esac
+  _load_sections "safety-policy.md" | jq -c --arg slug "$slug" 'select(.slug == $slug) | {source: ("safety-policy.md#" + $slug), snippet: .body}'
+}
+
+run_tool() {
+  case "$1" in
+    get_drug_profile) get_drug_profile "$(echo "$2" | jq -r '.query')" ;;
+    get_inquiry) get_inquiry "$(echo "$2" | jq -r '.inquiry_id')" ;;
+    search_prescribing_info) search_prescribing_info "$(echo "$2" | jq -r '.query')" ;;
+    check_safety_policy) check_safety_policy "$(echo "$2" | jq -r '.topic')" ;;
+    *) echo "Unknown tool: $1" >&2; exit 1 ;;
+  esac
+}
+
+render_rendered=$(curl -s -X POST "$ACRUXCORE_BASE_URL/prompts/medical-information-qa/production/render" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+  -d "$(jq -Rn --arg q "$QUESTION" '{variables:{question:$q}}')")
+messages=$(echo "$render_rendered" | jq -c '.messages')
+tools=$(echo "$render_rendered" | jq -c '.tools')
+model=$(echo "$render_rendered" | jq -r '.model')
+
+trace_id=""
+echo "Question: $QUESTION"
+
+# -- Phase 1: tool-gathering loop --
+turn=0
+for turn in 1 2 3 4 5; do
+  headers_file=$(mktemp)
+  if [ -n "$trace_id" ]; then
+    response=$(curl -s -D "$headers_file" -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+      -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" -H "x-trace-id: $trace_id" \
+      -d "$(jq -n --arg model "$model" --argjson messages "$messages" --argjson tools "$tools" '{model:$model,messages:$messages,tools:$tools}')")
+  else
+    response=$(curl -s -D "$headers_file" -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+      -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+      -d "$(jq -n --arg model "$model" --argjson messages "$messages" --argjson tools "$tools" '{model:$model,messages:$messages,tools:$tools}')")
+  fi
+  if [ -z "$trace_id" ]; then
+    trace_id=$(grep -i '^x-gateway-trace-id:' "$headers_file" | tr -d '\r' | cut -d' ' -f2)
+  fi
+  rm -f "$headers_file"
+
+  message=$(echo "$response" | jq -c '.choices[0].message')
+  messages=$(echo "$messages" | jq -c --argjson m "$message" '. + [$m]')
+  tool_calls=$(echo "$message" | jq -c '.tool_calls // empty')
+  if [ -z "$tool_calls" ]; then
+    break
+  fi
+
+  while IFS= read -r call; do
+    [ -z "$call" ] && continue
+    call_id=$(echo "$call" | jq -r '.id')
+    name=$(echo "$call" | jq -r '.function.name')
+    args_json=$(echo "$call" | jq -c '.function.arguments | fromjson')
+    started=$(now); result=$(run_tool "$name" "$args_json"); ended=$(now)
+    echo "  -> ${name}($(echo "$args_json" | jq -c .))" >&2
+    echo "     $(echo "$result" | head -c 200)" >&2
+    curl -s -X POST "$ACRUXCORE_BASE_URL/traces" \
+      -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+      -d "$(jq -n --arg traceId "$trace_id" --arg spanId "${name}-${started}" --arg name "$name" \
+          --arg started "$started" --arg ended "$ended" --argjson args "$args_json" --argjson result "$result" \
+          '{traces:[{traceId:$traceId,capturePayloads:true,spans:[{spanId:$spanId,name:$name,kind:"tool",status:"ok",startTime:$started,endTime:$ended,input:$args,output:$result}]}]}')" > /dev/null
+    messages=$(echo "$messages" | jq -c --arg cid "$call_id" --arg content "$(echo "$result" | jq -c .)" '. + [{role:"tool", tool_call_id:$cid, content:$content}]')
+  done < <(echo "$tool_calls" | jq -c '.[]')
+done
+echo "(Phase 1: $turn tool round(s), trace $trace_id)" >&2
+
+# -- Phase 2: SAME trace, response_format set, no tools --
+ANSWER_SCHEMA='{"type":"object","properties":{"disposition":{"type":"string","enum":["answer","answer_with_limitations","refuse_off_label","refuse_personal_advice","escalate_adverse_event"]},"answer":{"type":"string"},"safety_flags":{"type":"array","items":{"type":"string","enum":["off_label","personal_medical_advice","adverse_event","pii_redacted","unsupported_claim"]}},"escalate_adverse_event":{"type":"boolean"},"pii_redacted":{"type":"boolean"},"redaction_notes":{"type":"array","items":{"type":"string"}},"citations":{"type":"array","items":{"type":"string"}}},"required":["disposition","answer","safety_flags","escalate_adverse_event","pii_redacted","redaction_notes","citations"],"additionalProperties":false}'
+
+last_role=$(echo "$messages" | jq -r '.[-1].role')
+last_has_tool_calls=$(echo "$messages" | jq -r '.[-1] | has("tool_calls")')
+if [ "$last_role" = "assistant" ] && [ "$last_has_tool_calls" != "true" ]; then
+  messages=$(echo "$messages" | jq -c '.[:-1]')
+fi
+messages=$(echo "$messages" | jq -c '. + [{role:"user",content:"Now produce your final answer as the required MedicalInformationAnswer JSON object only."}]')
+
+final_response=$(curl -s -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" -H "x-trace-id: $trace_id" \
+  -d "$(jq -n --arg model "$model" --argjson messages "$messages" --argjson schema "$ANSWER_SCHEMA" \
+        '{model:$model,messages:$messages,response_format:{type:"json_schema",json_schema:{name:"medical_information_answer",schema:$schema,strict:true}}}')")
+
+echo "$final_response" | jq -r '.choices[0].message.content' | jq .
+```
+
+</details>
+
+```bash
+./run_agent.sh "What is Cortiblex approved to treat, and is it safe for someone with a fungal infection?"
+```
+
+```text
+Question: What is Cortiblex approved to treat, and is it safe for someone with a fungal infection?
+  -> get_drug_profile({"query":"Cortiblex"})
+     {"id":"CTB","brand_name":"Cortiblex","generic_name":"cortisolan acetate","drug_class":"systemic corticosteroid","approved_indications":["Short-course treatment of moderate-to-severe rheumatoid arthrit
+(Phase 1: 2 tool round(s), trace 54713ada-48c0-4cd6-a544-64f1b8102c28)
+{
+  "disposition": "answer",
+  "answer": "Cortiblex (cortisolan acetate) is approved to treat:\n1. Short-course treatment of moderate-to-severe rheumatoid arthritis flare in adults [source: cortiblex-pi.md]\n2. Adjunct therapy for acute severe allergic reactions [source: cortiblex-pi.md]\n\nCortiblex is NOT safe for someone with a fungal infection. Systemic fungal infection is listed as a contraindication to Cortiblex [source: cortiblex-pi.md]. A patient with an active systemic fungal infection should not receive this medication without explicit medical evaluation and clearance from their healthcare provider, as corticosteroids can worsen fungal infections.",
+  "safety_flags": [],
+  "escalate_adverse_event": false,
+  "pii_redacted": false,
+  "redaction_notes": [],
+  "citations": ["cortiblex-pi.md"]
+}
+```
+
+```bash
+./run_agent.sh "Can I give my 10-year-old Neuravex for anxiety before her school exams?"
+```
+
+```text
+Question: Can I give my 10-year-old Neuravex for anxiety before her school exams?
+  -> check_safety_policy({"topic":"refusal"})
+     {"source":"safety-policy.md#refusal-policy","snippet":"\nRefuse to answer, and clearly say so, when a question:\n\n- Asks about a use, population, or dose outside a drug's approved indications\n  (off
+  -> get_drug_profile({"query":"Neuravex"})
+     {"id":"NVX","brand_name":"Neuravex","generic_name":"vexaline hydrochloride","drug_class":"serotonin-norepinephrine reuptake inhibitor (SNRI)","approved_indications":["Chronic diabetic peripheral neuro
+(Phase 1: 2 tool round(s), trace 64d3791f-d95e-48f4-97a4-75cd550ad82b)
+{
+  "disposition": "refuse_off_label",
+  "answer": "I cannot provide guidance on this use. Neuravex (vexaline hydrochloride) is not approved for use in pediatric patients. Your question asks about giving Neuravex to a 10-year-old for anxiety, which is outside the drug's approved indications [source: safety-policy.md#refusal-policy]. Neuravex is approved only for chronic diabetic peripheral neuropathic pain in adults and major depressive disorder (MDD) in adults [source: neuravex-pi.md]. Any treatment decisions for a child with anxiety should be made in consultation with your child's pediatrician or a child psychiatrist who can evaluate her individual situation and recommend appropriate, evidence-based options.",
+  "safety_flags": ["off_label", "personal_medical_advice"],
+  "escalate_adverse_event": false,
+  "pii_redacted": true,
+  "redaction_notes": ["Specific patient age and relationship (10-year-old child) redacted and referred to generically as 'a child'"],
+  "citations": ["safety-policy.md#refusal-policy", "neuravex-pi.md"]
+}
+```
+
+```bash
+./run_agent.sh "I've been having thoughts of hurting myself since I started Neuravex two weeks ago. What should I do?"
+```
+
+```text
+Question: I've been having thoughts of hurting myself since I started Neuravex two weeks ago. What should I do?
+  -> check_safety_policy({"topic":"adverse_event"})
+     {"source":"safety-policy.md#adverse-event-escalation-policy","snippet":"\nEscalate immediately, before answering normally, when a question describes a\nsymptom or experience that matches a drug's own
+(Phase 1: 2 tool round(s), trace df867876-a1be-4dbe-ad08-c864d3d54021)
+{
+  "disposition": "escalate_adverse_event",
+  "answer": "You are reporting thoughts of self-harm that began after starting Neuravex two weeks ago. This is a serious concern that requires immediate medical attention. Please contact your healthcare provider right away, or if you are in crisis, call the National Suicide Prevention Lifeline at 988 (US) or go to your nearest emergency room. Do not wait to discuss this with your doctor at a routine appointment. Your safety is the priority.",
+  "safety_flags": ["adverse_event"],
+  "escalate_adverse_event": true,
+  "pii_redacted": false,
+  "redaction_notes": [],
+  "citations": ["source: safety-policy.md#adverse-event-escalation-policy"]
+}
+```
+
+Three different `disposition` values, three real tool calls, one hand-rolled loop.
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+One `run_tool_loop()` call sets both the tools and `response_format` together. You never
+touch the transcript between gather and shape — the result's `content` is the typed JSON.
+The script shows both the dict form (zero dependencies) and the pydantic form (typed, with
+field descriptions the model reads); the SDK accepts either interchangeably.
+
+<details>
+<summary>Full source: <code>run_agent.py</code></summary>
+
+```python
+"""
+Medical-information QA agent -- Python, over the gateway.
+
+One run_tool_loop() call with both tools and response_format set. result.content is the
+shaped MedicalInformationAnswer JSON; result.iterations counts the tool-gathering rounds.
+Supports both a plain JSON-schema dict (zero deps) and a pydantic BaseModel (typed, with
+field descriptions the model reads) — the SDK accepts either interchangeably.
+"""
+import asyncio, json, re, sys
+from pathlib import Path
+
+from acruxcore import AcruxCore, acrux
+
+DATA_DIR = Path(__file__).parent / "data"
+STOPWORDS = {"a", "an", "and", "any", "for", "in", "is", "it", "of", "on", "or", "the", "to", "with"}
+
+
+def _tokens(text: str) -> set:
+    return {w for w in re.findall(r"[a-z0-9]+", text.lower()) if w not in STOPWORDS and len(w) > 2}
+
+
+def _slugify(heading: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", heading.lower()).strip("-")
+
+
+def _load_sections(filenames):
+    sections = []
+    for filename in filenames:
+        text = (DATA_DIR / filename).read_text()
+        for block in re.split(r"(?m)^## ", text)[1:]:
+            heading, _, body = block.partition("\n")
+            sections.append({"file": filename, "heading": heading.strip(), "slug": _slugify(heading.strip()), "body": body.strip()})
+    return sections
+
+
+@acrux.tool
+async def get_drug_profile(query: str) -> dict:
+    """Look up one of the team's committed synthetic drugs by id, brand name, or generic name.
+
+    Args:
+        query (str): A drug id (e.g. "NVX"), brand name (e.g. "Neuravex"), or
+            generic name (e.g. "vexaline hydrochloride"). Case-insensitive.
+    """
+    q = query.strip().lower()
+    drugs = json.loads((DATA_DIR / "drugs.json").read_text())
+    for drug in drugs:
+        if q in (drug["id"].lower(), drug["brand_name"].lower(), drug["generic_name"].lower()):
+            return drug
+    return {"error": f"No drug found matching '{query}'."}
+
+
+@acrux.tool
+async def get_inquiry(inquiry_id: str) -> dict:
+    """Look up a synthetic prior medical-information inquiry record by its id.
+
+    Args:
+        inquiry_id (str): An inquiry id, e.g. "MIQ-101".
+    """
+    inquiries = json.loads((DATA_DIR / "inquiries.json").read_text())
+    for inquiry in inquiries:
+        if inquiry["id"].lower() == inquiry_id.strip().lower():
+            return inquiry
+    return {"error": f"No inquiry found with id '{inquiry_id}'."}
+
+
+@acrux.tool
+async def search_prescribing_info(query: str) -> list:
+    """Token-overlap search over every committed markdown PI/policy fixture.
+
+    Splits each file into '## '-delimited sections, scores each section by how
+    many of the query's tokens it shares, and returns up to 3 top matches cited
+    as `[source: filename.md#section-slug]`.
+
+    Args:
+        query (str): Free-text search query, e.g. drug name plus topic.
+    """
+    sections = _load_sections(["neuravex-pi.md", "cortiblex-pi.md", "safety-policy.md"])
+    q_tokens = _tokens(query)
+    scored = []
+    for s in sections:
+        overlap = len(q_tokens & _tokens(s["heading"] + " " + s["body"]))
+        if overlap > 0:
+            scored.append((overlap, s))
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    return [{"source": f"{s['file']}#{s['slug']}", "snippet": s["body"][:400]} for _, s in scored[:3]]
+
+
+_POLICY_TOPIC_SLUGS = {
+    "response": "response-policy",
+    "refusal": "refusal-policy",
+    "adverse_event": "adverse-event-escalation-policy",
+    "pii": "pii-redaction-policy",
+}
+
+
+@acrux.tool
+async def check_safety_policy(topic: str) -> dict:
+    # No docstring on purpose: the model-facing description is set in the dashboard
+    # (Step 3), not in code. The code still owns this tool's *schema* (name + parameters),
+    # so a sync commits the signature and sends no description, leaving the dashboard's
+    # wording untouched.
+    slug = _POLICY_TOPIC_SLUGS.get(topic)
+    if slug is None:
+        return {"error": f"Unknown policy topic '{topic}'. Valid: {list(_POLICY_TOPIC_SLUGS)}"}
+    for s in _load_sections(["safety-policy.md"]):
+        if s["slug"] == slug:
+            return {"source": f"safety-policy.md#{slug}", "snippet": s["body"]}
+    return {"error": f"Policy section '{slug}' not found."}
+
+
+ANSWER_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "disposition": {
+            "type": "string",
+            "enum": ["answer", "answer_with_limitations", "refuse_off_label", "refuse_personal_advice", "escalate_adverse_event"],
+        },
+        "answer": {"type": "string"},
+        "safety_flags": {
+            "type": "array",
+            "items": {"type": "string", "enum": ["off_label", "personal_medical_advice", "adverse_event", "pii_redacted", "unsupported_claim"]},
+        },
+        "escalate_adverse_event": {"type": "boolean"},
+        "pii_redacted": {"type": "boolean"},
+        "redaction_notes": {"type": "array", "items": {"type": "string"}},
+        "citations": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["disposition", "answer", "safety_flags", "escalate_adverse_event", "pii_redacted", "redaction_notes", "citations"],
+    "additionalProperties": False,
+}
+
+# --- Alternative: pydantic class (typed, with field descriptions) ---
+# Requires: pip install pydantic>=2
+# The SDK converts this to the same wire dict as ANSWER_SCHEMA above.
+# Field descriptions via Field(description=...) reach the model as per-field guidance.
+try:
+    from pydantic import BaseModel, Field
+    from typing import Literal
+    from acruxcore import pydantic_response_format
+
+    class MedicalInformationAnswer(BaseModel):
+        disposition: Literal[
+            "answer", "answer_with_limitations", "refuse_off_label",
+            "refuse_personal_advice", "escalate_adverse_event",
+        ] = Field(description="The agent's decision: answer, refuse, or escalate.")
+        answer: str = Field(description="The text the end user sees — a cited answer, a refusal, or an escalation notice.")
+        safety_flags: list[str] = Field(description="Policy flags triggered on this turn, e.g. off_label, adverse_event, pii_redacted.")
+        escalate_adverse_event: bool = Field(description="True when the question describes a suspected adverse event that must be escalated.")
+        pii_redacted: bool = Field(description="True when personally identifiable information was found and redacted from the answer.")
+        redaction_notes: list[str] = Field(description="What was redacted and why, one string per redaction.")
+        citations: list[str] = Field(description="Source references, e.g. 'cortiblex-pi.md#approved-indications'.")
+
+    _HAS_PYDANTIC = True
+except ImportError:
+    _HAS_PYDANTIC = False
+
+
+async def main() -> None:
+    question = sys.argv[1] if len(sys.argv) > 1 else (
+        "What is Cortiblex approved to treat, and is it safe for someone with a fungal infection?"
+    )
+    tools = [get_drug_profile, get_inquiry, search_prescribing_info, check_safety_policy]
+
+    async with AcruxCore() as hub:  # reads ACRUXCORE_API_KEY / ACRUXCORE_BASE_URL
+        rendered = await hub.render_prompt("medical-information-qa", "production", {"question": question})
+
+        # One call, tools and response_format set together. result.content is the shaped
+        # MedicalInformationAnswer JSON; result.iterations counts the tool-gathering rounds.
+        #
+        # Two ways to pass response_format — pick one:
+        #   Dict (zero deps):   response_format={"type":"json_schema","json_schema":{...}}
+        #   Pydantic (typed):   response_format=pydantic_response_format(MedicalInformationAnswer, name="medical_information_answer")
+        if _HAS_PYDANTIC:
+            response_format = pydantic_response_format(MedicalInformationAnswer, name="medical_information_answer")
+        else:
+            response_format = {
+                "type": "json_schema",
+                "json_schema": {"name": "medical_information_answer", "schema": ANSWER_SCHEMA, "strict": True},
+            }
+        result = await hub.run_tool_loop(
+            rendered.model,
+            [*rendered.messages],
+            tools=tools,
+            response_format=response_format,
+            sync=False,  # already synced by create_tools.py
+            prompt_version_id=rendered.version_id,
+        )
+
+        print(f"Question: {question}")
+        print(f"(gathered over {result.iterations} tool round(s), trace {result.trace_id})\n")
+        print(json.dumps(json.loads(result.content), indent=2))
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+</details>
+
+```bash
+python run_agent.py "What is Cortiblex approved to treat, and is it safe for someone with a fungal infection?"
+```
+
+```text
+Question: What is Cortiblex approved to treat, and is it safe for someone with a fungal infection?
+(gathered over 2 tool round(s), trace 17515943-bc34-4fb1-b174-ebd2eceed875)
+
+{
+  "disposition": "answer",
+  "answer": "Cortiblex (cortisolan acetate) is approved to treat: (1) short-course treatment (up to 14 days) of moderate-to-severe rheumatoid arthritis flare in adults, and (2) adjunct therapy for acute severe allergic reactions, in combination with standard emergency treatment [source: cortiblex-pi.md#approved-indications].\n\nRegarding safety in fungal infections: Cortiblex is contraindicated in patients with active systemic fungal infection [source: cortiblex-pi.md#contraindications]. Therefore, it is not safe for someone with an active systemic fungal infection and should not be used in that situation.",
+  "safety_flags": [],
+  "escalate_adverse_event": false,
+  "pii_redacted": false,
+  "redaction_notes": [],
+  "citations": ["cortiblex-pi.md#approved-indications", "cortiblex-pi.md#contraindications"]
+}
+```
+
+```bash
+python run_agent.py "Can I give my 10-year-old Neuravex for anxiety before her school exams?"
+```
+
+```text
+Question: Can I give my 10-year-old Neuravex for anxiety before her school exams?
+(gathered over 2 tool round(s), trace 13f8bc15-d55a-4420-a158-3bee75e5cfbd)
+
+{
+  "disposition": "refuse_off_label",
+  "answer": "I cannot provide advice on using Neuravex for your child. Neuravex (vexaline hydrochloride) is approved only for chronic diabetic peripheral neuropathic pain in adults and major depressive disorder in adults [source: safety-policy.md#refusal-policy]. Your question asks about use in a pediatric patient for anxiety, which is outside the drug's approved indications. This constitutes off-label use, which I cannot advise on. For anxiety management in your 10-year-old before school exams, please consult with your child's pediatrician or a mental health professional who can discuss age-appropriate, evidence-based treatment options.",
+  "safety_flags": ["off_label"],
+  "escalate_adverse_event": false,
+  "pii_redacted": true,
+  "redaction_notes": ["Removed reference to specific child's age and relationship to user to avoid implied personal medical advice context"],
+  "citations": ["safety-policy.md#refusal-policy"]
+}
+```
+
+```bash
+python run_agent.py "I've been having thoughts of hurting myself since I started Neuravex two weeks ago. What should I do?"
+```
+
+```text
+Question: I've been having thoughts of hurting myself since I started Neuravex two weeks ago. What should I do?
+(gathered over 2 tool round(s), trace 1b1b13db-cc01-4127-9d16-9ea13d51e942)
+
+{
+  "disposition": "escalate_adverse_event",
+  "answer": "You are describing suicidal thoughts, which is a serious adverse event associated with Neuravex. This requires immediate medical attention. Please contact your healthcare provider right away, go to an emergency room, or call the National Suicide Prevention Lifeline at 988 (available 24/7 in the US). Do not wait — seek help immediately. Suicidal thoughts can occur with serotonin-norepinephrine reuptake inhibitors (SNRIs) like Neuravex, and your doctor needs to know about this right away to evaluate your treatment.",
+  "safety_flags": ["adverse_event", "personal_medical_advice"],
+  "escalate_adverse_event": true,
+  "pii_redacted": false,
+  "redaction_notes": [],
+  "citations": ["source: safety-policy.md#adverse-event-escalation-policy", "source: neuravex-pi.md"]
+}
+```
+
+Same script, three different real questions — the only thing that changed is which
+`disposition` the model actually chose.
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+One `runToolLoop()` call with both `toolRefs`/`dispatch` and `responseFormat` set. Since
+Node's tools need `toolRefs` + a `dispatch` function rather than a decorator, both are
+passed on the same call; the result's `content` is the typed JSON. The script shows both
+the dict form (zero dependencies) and the zod form (typed, with field descriptions the
+model reads); the SDK accepts either interchangeably.
+
+<details>
+<summary>Full source: <code>run_agent.mjs</code></summary>
+
+```javascript
+/**
+ * Medical-information QA agent -- Node, over the gateway.
+ *
+ * One runToolLoop() call with both toolRefs/dispatch and responseFormat set.
+ * result.content is the shaped MedicalInformationAnswer JSON; result.iterations counts
+ * the tool-gathering rounds. Supports both a plain JSON-schema dict (zero deps) and a
+ * zod v4 schema (typed, with field descriptions the model reads) — the SDK accepts either
+ * interchangeably.
+ */
+import AcruxCore from '@acruxcoreai/sdk';
+import { readFileSync } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const DATA_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'data');
+const STOPWORDS = new Set(['a', 'an', 'and', 'any', 'for', 'in', 'is', 'it', 'of', 'on', 'or', 'the', 'to', 'with']);
+
+function tokens(text) {
+  return new Set((text.toLowerCase().match(/[a-z0-9]+/g) || []).filter((w) => !STOPWORDS.has(w) && w.length > 2));
+}
+function slugify(heading) {
+  return heading.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+function loadSections(filenames) {
+  const sections = [];
+  for (const filename of filenames) {
+    const text = readFileSync(path.join(DATA_DIR, filename), 'utf8');
+    const blocks = text.split(/^## /m).slice(1);
+    for (const block of blocks) {
+      const nl = block.indexOf('\n');
+      const heading = block.slice(0, nl).trim();
+      const body = block.slice(nl + 1).trim();
+      sections.push({ file: filename, heading, slug: slugify(heading), body });
+    }
+  }
+  return sections;
+}
+
+/** Look up one of the committed synthetic drugs by id, brand name, or generic name. */
+function getDrugProfile(query) {
+  const q = query.trim().toLowerCase();
+  const drugs = JSON.parse(readFileSync(path.join(DATA_DIR, 'drugs.json'), 'utf8'));
+  const found = drugs.find((d) => [d.id, d.brand_name, d.generic_name].map((s) => s.toLowerCase()).includes(q));
+  return found || { error: `No drug found matching '${query}'.` };
+}
+
+/** Look up a synthetic prior medical-information inquiry record by its id. */
+function getInquiry(inquiryId) {
+  const inquiries = JSON.parse(readFileSync(path.join(DATA_DIR, 'inquiries.json'), 'utf8'));
+  const found = inquiries.find((i) => i.id.toLowerCase() === inquiryId.trim().toLowerCase());
+  return found || { error: `No inquiry found with id '${inquiryId}'.` };
+}
+
+/** Token-overlap search over every committed markdown PI/policy fixture. */
+function searchPrescribingInfo(query, topK = 3) {
+  const sections = loadSections(['neuravex-pi.md', 'cortiblex-pi.md', 'safety-policy.md']);
+  const qTokens = tokens(query);
+  const scored = sections
+    .map((s) => ({ overlap: [...qTokens].filter((t) => tokens(`${s.heading} ${s.body}`).has(t)).length, s }))
+    .filter((x) => x.overlap > 0)
+    .sort((a, b) => b.overlap - a.overlap);
+  return scored.slice(0, topK).map(({ s }) => ({ source: `${s.file}#${s.slug}`, snippet: s.body.slice(0, 400) }));
+}
+
+const POLICY_TOPIC_SLUGS = {
+  response: 'response-policy',
+  refusal: 'refusal-policy',
+  adverse_event: 'adverse-event-escalation-policy',
+  pii: 'pii-redaction-policy',
+};
+
+/** Look up the safety-policy snippet for one of: response, refusal, adverse_event, pii. */
+function checkSafetyPolicy(topic) {
+  const slug = POLICY_TOPIC_SLUGS[topic];
+  if (!slug) return { error: `Unknown policy topic '${topic}'.` };
+  const section = loadSections(['safety-policy.md']).find((s) => s.slug === slug);
+  return section ? { source: `safety-policy.md#${slug}`, snippet: section.body } : { error: `Policy section '${slug}' not found.` };
+}
+
+async function dispatch(name, args) {
+  if (name === 'get_drug_profile') return getDrugProfile(args.query);
+  if (name === 'get_inquiry') return getInquiry(args.inquiry_id);
+  if (name === 'search_prescribing_info') return searchPrescribingInfo(args.query);
+  if (name === 'check_safety_policy') return checkSafetyPolicy(args.topic);
+  throw new Error(`Unknown tool: ${name}`);
+}
+
+const ANSWER_SCHEMA = {
+  type: 'object',
+  properties: {
+    disposition: { type: 'string', enum: ['answer', 'answer_with_limitations', 'refuse_off_label', 'refuse_personal_advice', 'escalate_adverse_event'] },
+    answer: { type: 'string' },
+    safety_flags: { type: 'array', items: { type: 'string', enum: ['off_label', 'personal_medical_advice', 'adverse_event', 'pii_redacted', 'unsupported_claim'] } },
+    escalate_adverse_event: { type: 'boolean' },
+    pii_redacted: { type: 'boolean' },
+    redaction_notes: { type: 'array', items: { type: 'string' } },
+    citations: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['disposition', 'answer', 'safety_flags', 'escalate_adverse_event', 'pii_redacted', 'redaction_notes', 'citations'],
+  additionalProperties: false,
+};
+
+// --- Alternative: zod schema (typed, with field descriptions) ---
+// Requires: npm install zod (>=3.25) — the SDK converts this to the same wire dict.
+// Import from 'zod/v4' so the SDK's toJSONSchema converter can process it.
+// Uncomment the block below and comment out the dict fallback to use the typed path.
+//
+// import { z } from 'zod/v4';
+// const MedicalInformationAnswer = z.object({
+//   disposition: z.enum(['answer', 'answer_with_limitations', 'refuse_off_label', 'refuse_personal_advice', 'escalate_adverse_event']).describe("The agent's decision."),
+//   answer: z.string().describe('The text the end user sees.'),
+//   safety_flags: z.array(z.enum(['off_label', 'personal_medical_advice', 'adverse_event', 'pii_redacted', 'unsupported_claim'])).describe('Policy flags triggered.'),
+//   escalate_adverse_event: z.boolean().describe('True when the question describes a suspected adverse event.'),
+//   pii_redacted: z.boolean().describe('True when PII was found and redacted.'),
+//   redaction_notes: z.array(z.string()).describe('What was redacted and why.'),
+//   citations: z.array(z.string()).describe('Source references.'),
+// });
+
+async function main() {
+  const question = process.argv[2] || 'What is Cortiblex approved to treat, and is it safe for someone with a fungal infection?';
+  const hub = new AcruxCore(); // reads ACRUXCORE_API_KEY / ACRUXCORE_BASE_URL
+
+  const rendered = await hub.renderPrompt('medical-information-qa', 'production', { question });
+
+  // One call, toolRefs/dispatch and responseFormat set together. result.content is the
+  // shaped MedicalInformationAnswer JSON; result.iterations counts the tool-gathering rounds.
+  //
+  // Two ways to pass responseFormat — pick one:
+  //   Dict (zero deps):   responseFormat: { type: 'json_schema', json_schema: { name: '...', schema: ANSWER_SCHEMA, strict: true } }
+  //   Zod (typed):        responseFormat: { zod: MedicalInformationAnswer, name: 'medical_information_answer' }
+  // Switch to { zod: MedicalInformationAnswer, name: 'medical_information_answer' } after uncommenting the zod block above.
+  const responseFormat = { type: 'json_schema', json_schema: { name: 'medical_information_answer', schema: ANSWER_SCHEMA, strict: true } };
+  const result = await hub.runToolLoop({
+    model: rendered.model,
+    messages: [...rendered.messages],
+    toolRefs: [{ name: 'get_drug_profile' }, { name: 'get_inquiry' }, { name: 'search_prescribing_info' }, { name: 'check_safety_policy' }],
+    dispatch,
+    responseFormat,
+    sync: false, // already synced by create_tools.py
+    promptVersionId: rendered.versionId,
+  });
+
+  console.log(`Question: ${question}`);
+  console.log(`(gathered over ${result.iterations} tool round(s), trace ${result.traceId})\n`);
+  console.log(JSON.stringify(JSON.parse(result.content), null, 2));
+}
+
+main().catch((err) => { console.error(err); process.exit(1); });
+```
+
+</details>
+
+```bash
+node run_agent.mjs "What is Cortiblex approved to treat, and is it safe for someone with a fungal infection?"
+```
+
+```text
+Question: What is Cortiblex approved to treat, and is it safe for someone with a fungal infection?
+(gathered over 2 tool round(s), trace 2152acb4-5486-4693-9666-0365d8d19385)
+
+{
+  "disposition": "answer",
+  "answer": "Cortiblex (cortisolan acetate) is approved to treat two conditions: (1) short-course treatment (up to 14 days) of moderate-to-severe rheumatoid arthritis flare in adults, and (2) adjunct therapy for acute severe allergic reactions, in combination with standard emergency treatment [source: cortiblex-pi.md#approved-indications].\n\nCortiblex is NOT safe for someone with an active systemic fungal infection. Active systemic fungal infection is a contraindication to Cortiblex use [source: cortiblex-pi.md#contraindications]. If a patient has a fungal infection, this must be evaluated and managed before considering Cortiblex therapy.",
+  "safety_flags": [],
+  "escalate_adverse_event": false,
+  "pii_redacted": false,
+  "redaction_notes": [],
+  "citations": ["cortiblex-pi.md#approved-indications", "cortiblex-pi.md#contraindications"]
+}
+```
+
+```bash
+node run_agent.mjs "Can I give my 10-year-old Neuravex for anxiety before her school exams?"
+```
+
+```text
+Question: Can I give my 10-year-old Neuravex for anxiety before her school exams?
+(gathered over 2 tool round(s), trace f7222bce-548d-46fc-867e-e72001a77bea)
+
+{
+  "disposition": "refuse_off_label",
+  "answer": "I cannot provide advice on this use. Neuravex (vexaline hydrochloride) is approved only for chronic diabetic peripheral neuropathic pain in adults and major depressive disorder (MDD) in adults [source: neuravex-pi.md]. Your question asks about using Neuravex in a 10-year-old child for anxiety before school exams, which is outside the drug's approved indications and population. Additionally, this constitutes a request for individualized medical advice for a named patient's situation. Per safety policy, I must refuse to answer questions about off-label use and personal medical advice. If you are concerned about your child's anxiety, please consult with a pediatrician or child psychiatrist who can evaluate her specific situation and recommend appropriate treatment options.",
+  "safety_flags": ["off_label", "personal_medical_advice"],
+  "escalate_adverse_event": false,
+  "pii_redacted": true,
+  "redaction_notes": ["Redacted: specific patient identifier (age and relationship as '10-year-old' child); specific clinical context (school exams); personal medical situation"],
+  "citations": ["source: neuravex-pi.md", "source: safety-policy.md#refusal-policy"]
+}
+```
+
+```bash
+node run_agent.mjs "I've been having thoughts of hurting myself since I started Neuravex two weeks ago. What should I do?"
+```
+
+```text
+Question: I've been having thoughts of hurting myself since I started Neuravex two weeks ago. What should I do?
+(gathered over 2 tool round(s), trace 7e218d91-ff1c-4d45-8ba5-aeb9d9d896ee)
+
+{
+  "disposition": "escalate_adverse_event",
+  "answer": "You are describing thoughts of self-harm, which is a serious adverse event that requires immediate medical attention. Please contact your healthcare provider, call emergency services (911 in the US), or go to the nearest emergency department right away. If you are in crisis, you can also contact the 988 Suicide and Crisis Lifeline (call or text 988) for immediate support. Do not wait—seek help now.",
+  "safety_flags": ["adverse_event", "personal_medical_advice"],
+  "escalate_adverse_event": true,
+  "pii_redacted": true,
+  "redaction_notes": ["Redacted reference to named drug and timing of onset to avoid reinforcing personal medical history details in context of crisis"],
+  "citations": ["source: safety-policy.md#adverse-event-escalation-policy"]
+}
+```
+
+</TabItem>
+</Tabs>
+
+## 6. Inspect the trace
+
+The one SDK call lands both its phases in **one trace** — Phase 1's tool round(s) plus
+Phase 2's `response_format` call, all threaded by the same `trace_id`. The adverse-event
+scenario's trace shows 4 spans: the model's first turn (deciding to call
+`check_safety_policy`), the tool call itself, the model's own free-text closing turn from
+Phase 1, and Phase 2's `response_format` call:
+
+![Trace detail with 4 spans: an LLM call, a check_safety_policy tool call, another LLM call, and a final LLM call, all on claude-haiku-4-5-20251001](/img/tutorials/build-a-medical-information-qa-agent/09-trace-adverse-event.png)
+
+Expanding that last span shows the real input transcript (system prompt, the question, the
+tool call and its result, and the Phase-2 nudge) and the real output — a bare JSON object
+matching `MedicalInformationAnswer` exactly, `disposition: "escalate_adverse_event"`,
+`escalate_adverse_event: true`, no free text around it, because `response_format`
+constrained it. `Provider: anthropic` confirms the direct connection Step 2 set up is what's
+actually enforcing the schema.
+
+## What's next
+
+- [Build a supervisor multi-agent system](./build-a-supervisor-multi-agent-system) — the
+  first page in this series to use `response_format` for a typed decision, on a router
+  with no tools attached at all.
+- [Build a tool-calling agent (Python SDK)](./build-a-tool-calling-agent-in-python-sdk) —
+  more on `run_tool_loop()`'s decorator-based tool declaration.
+- API details: see **Prompts**, **Tools**, **Gateway**, and **Traces** in the
+  [API Reference](/api-reference).

@@ -1,0 +1,658 @@
+---
+title: Build a RAG agent without the gateway
+description: Answer questions over your own documents using your own OpenRouter key — calling the provider directly, while prompts, tools, and traces keep working.
+sidebar_position: 4
+keywords: [rag, retrieval, byok, openrouter, embeddings, tool calling]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Build a RAG agent without the gateway
+
+**What you'll build:** a Python script that indexes the Acrux Core docs, then answers a question about them two ways — retrieve-then-ask, and let-the-model-search — with every model call going straight to OpenRouter and every run showing up as a trace.
+
+RAG means *retrieval-augmented generation*: before you ask the model a question, you look up the passages most likely to answer it and paste them into the prompt.
+
+:::tip[When to use BYO]
+The gateway path stores your provider key server-side and routes every call through Acrux Core — useful for budget controls, caching, and fallback routing. BYO skips that: you pass the SDK an OpenAI-compatible `base_url` and `api_key`, and it calls the endpoint directly. Your key never reaches our servers, you save a network hop, and you still get versioned prompts, a tool catalog, and full traces.
+:::
+
+## 1. Store the two prompts
+
+Both answering styles need a prompt, and both belong in Acrux Core rather than hardcoded in the script — that way you can edit the wording and ship it without a redeploy. Create `rag-chat` for the linear path, with a system message that takes the retrieved passages as a `context` variable and a user message that takes the `question`.
+
+![The rag-chat editor with PRODUCTION → v1 and STAGING → v1, a "No default model" dropdown, a SYSTEM message ending in a highlighted context placeholder, and a USER message that is just a highlighted question placeholder](/img/tutorials/build-a-rag-agent-without-the-gateway/02-rag-chat-prompt.png)
+
+Leave **Default model** empty. That field binds a model from the gateway's registry, and this guide never touches the gateway — the model id belongs to OpenRouter, so the script passes it directly.
+
+Then create `rag-chat-agent` the same way. Its system message tells the model to look things up with a tool instead of handing it context up front:
+
+```text
+You answer questions about Acrux Core. Use the search_docs tool to look
+things up before answering — search more than once if the first result is
+thin, or if the question has several parts. Answer only from what the tool
+returns, and say so plainly when it comes back without the answer.
+```
+
+## 2. Point the SDK at OpenRouter
+
+This is the whole BYO feature — one dictionary, passed to every model call:
+
+```python
+import acruxcore as acrux
+
+PROVIDER: acrux.ProviderConfig = {
+    "base_url": "https://openrouter.ai/api/v1",
+    "api_key": os.environ["OPENROUTER_API_KEY"],
+}
+
+CHAT_MODEL = "openai/gpt-4o-mini"
+EMBED_MODEL = "openai/text-embedding-3-small"
+```
+
+Any OpenAI-compatible endpoint works here — Groq, Together, vLLM, or Ollama on your laptop. The `api_key` is sent as a bearer token to `base_url` and nowhere else.
+
+## 3. Index the docs
+
+Fetch each guide, split it into overlapping chunks, and embed them. OpenRouter serves embeddings from the same host and the same key as the chat model, so the script needs only one provider credential:
+
+```python
+def embed_texts(texts: list[str]) -> list[list[float]]:
+    resp = requests.post(
+        f"{PROVIDER['base_url']}/embeddings",
+        headers={"Authorization": f"Bearer {PROVIDER['api_key']}"},
+        json={"model": EMBED_MODEL, "input": texts},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    data = resp.json()["data"]
+    # OpenRouter does not promise input order, so sort by the echoed index.
+    return [row["embedding"] for row in sorted(data, key=lambda r: r["index"])]
+```
+
+Store the vectors in Chroma, an embedded vector database that needs no server:
+
+```python
+collection = chromadb.Client().get_or_create_collection(
+    name="acrux_docs", metadata={"hnsw:space": "cosine"}
+)
+collection.add(ids=ids, embeddings=embeddings, documents=documents, metadatas=metadatas)
+```
+
+Running this over the five guides gives 31 chunks:
+
+```text
+  fetched prompts.md: 4,805 chars → 6 chunks
+  fetched gateway.md: 4,173 chars → 5 chunks
+  fetched tracing.md: 3,903 chars → 5 chunks
+  fetched tools.md: 7,441 chars → 9 chunks
+  fetched evaluation.md: 4,421 chars → 6 chunks
+  indexed 31 chunks from 5 documents
+```
+
+## 4. Answer it linearly
+
+Retrieve first, then make exactly one model call. Report the retrieval as its own span and hand its trace id to `chat()`, so the passages and the answer land in the same trace:
+
+```python
+reported = await hub.trace({
+    "name": "rag-linear",
+    "spans": [{
+        "spanId": "retrieval", "name": "search_docs", "kind": "retrieval",
+        "status": "ok", "startTime": started, "endTime": _now(),
+        "input": {"query": question}, "output": {"context": context},
+    }],
+})
+
+rendered = await hub.render_prompt("rag-chat", "production",
+                                   {"context": context, "question": question})
+result = await hub.chat(
+    rendered.model or CHAT_MODEL,
+    rendered.messages,
+    provider=PROVIDER,
+    prompt_version_id=rendered.version_id,
+    trace={"trace_id": reported.trace_id},
+)
+```
+
+Open **Traces** and the run is there — the retrieval that found the passages, then the model call that used them:
+
+![The rag-linear trace showing 2 spans and 1,064 tokens: a Retrieval span named search_docs at 1.01s, then an LLM span for openai/gpt-4o-mini at 2.97s](/img/tutorials/build-a-rag-agent-without-the-gateway/03-linear-trace.png)
+
+Expand the LLM span and the BYO call is fully accounted for — tokens, latency, and `openrouter.ai` as the provider:
+
+![The expanded LLM span showing Model openai/gpt-4o-mini, Provider openrouter.ai, Tokens 1,064, Latency 2.97s, and a "View traces for this prompt version" link](/img/tutorials/build-a-rag-agent-without-the-gateway/04-llm-span-detail.png)
+
+Two things worth noticing. There is no **Linked gateway request** row, because no gateway was involved. And **View traces for this prompt version** works anyway: passing `prompt_version_id` from `render_prompt()` links the trace back to the exact prompt version that produced it, so you can still ask "how did v3 do?" after you ship v4.
+
+:::note[No dollar cost on BYO spans]
+Tokens, latency, model, and payloads are all recorded, but `costUsd` is empty — we only price calls that went through the gateway, where we know the rate card. Your provider's own dashboard has the bill.
+:::
+
+## 5. Answer it agentically, with a tool
+
+The linear version always retrieves, once, whether or not the question needs it. The agentic version hands the retriever to the model as a tool and lets it decide. Decorate the function and pass it to `run_tool_loop`:
+
+```python
+@acrux.tool
+async def search_docs(query: str) -> str:
+    """Search Acrux Core's documentation for relevant information.
+
+    Args:
+        query: The search query — a question or topic to look up.
+    """
+    return retrieve_context(_COLLECTION, query)
+
+
+rendered = await hub.render_prompt("rag-chat-agent", "production", {"question": question})
+result = await hub.run_tool_loop(
+    rendered.model or CHAT_MODEL,
+    rendered.messages,
+    tools=[search_docs],
+    provider=PROVIDER,
+    prompt_version_id=rendered.version_id,
+)
+```
+
+The loop calls the model, runs whatever tools it asks for, feeds the results back, and repeats until the model stops asking. The trace shows that rhythm directly — model, tool, model:
+
+![The runToolLoop trace showing 3 spans and 1,473 tokens: an LLM span at 1.16s, a nested Tool span named search_docs at 703ms, and a second LLM span at 2.81s](/img/tutorials/build-a-rag-agent-without-the-gateway/05-agentic-trace.png)
+
+The tool span nests under the model call that requested it, so a loop that searched four times is four nested spans, not a flat list you have to reconstruct.
+
+On the BYO path there is no gateway to look tool schemas up server-side, so the SDK inlines the full JSON Schema into the request for you. It also syncs the tool to your catalog on the first call, deriving the name, description, and parameters from the function itself:
+
+![The search_docs tool page marked "Defined in code", with v2 "Search Acrux Core's documentation for relevant information." tagged code, above v1 "Search the internal docs for a phrase." tagged dashboard](/img/tutorials/build-a-rag-agent-without-the-gateway/06-tool-catalog.png)
+
+Tools are versioned like prompts. Here the docstring in the script became v2, and the earlier version someone wrote in the dashboard is still there to promote back to.
+
+## Doing this over the API
+
+You don't need the SDK. The BYO path is three independent HTTP calls: render the prompt from us, call OpenRouter yourself, report the trace back to us. This is the route to take from a language with no Acrux Core SDK.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+Render the prompt. Note `versionId` — that's what links a trace to the version that produced it:
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/prompts/rag-chat/production/render" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"variables":{"context":"[tools.md]\nOpen the prompt and go to the Tools tab.","question":"How do I attach a tool?"}}'
+```
+
+```json
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You answer questions about Acrux Core using only the documentation excerpts below. If the excerpts do not contain the answer, say so plainly instead of guessing.\n\nDocumentation:\n[tools.md]\nOpen the prompt and go to the Tools tab."
+    },
+    { "role": "user", "content": "How do I attach a tool?" }
+  ],
+  "tools": [],
+  "model": null,
+  "versionId": "72bed36e-6d77-425e-878c-ec534ca43b8e",
+  "versionNumber": 1
+}
+```
+
+Call OpenRouter directly — this request never touches Acrux Core:
+
+```bash
+curl -X POST "https://openrouter.ai/api/v1/chat/completions" \
+  -H "Authorization: Bearer $OPENROUTER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"openai/gpt-4o-mini","messages":[...],"max_tokens":80}'
+```
+
+```json
+{
+  "id": "gen-1785427905-CA5ECKBA1Pg2RJAE7mfX",
+  "model": "openai/gpt-4o-mini",
+  "provider": "OpenAI",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "[tools.md] Open the prompt and go to the Tools tab, check the tool under Attach to next commit, then commit a new version."
+      }
+    }
+  ],
+  "usage": { "prompt_tokens": 51, "completion_tokens": 29, "total_tokens": 80 }
+}
+```
+
+Report the trace. Spans are a batch under `traces`, and keys are camelCase because they go to the API verbatim:
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/traces" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "traces": [{
+      "name": "rag-linear",
+      "spans": [
+        {"spanId":"s1","name":"search_docs","kind":"retrieval","status":"ok",
+         "startTime":"2026-07-30T16:11:44.000Z","endTime":"2026-07-30T16:11:44.000Z",
+         "input":{"query":"How do I attach a tool?"}},
+        {"spanId":"s2","name":"openai/gpt-4o-mini","kind":"llm","status":"ok",
+         "startTime":"2026-07-30T16:11:44.000Z","endTime":"2026-07-30T16:11:44.000Z",
+         "model":"openai/gpt-4o-mini","provider":"openrouter.ai",
+         "promptVersionId":"72bed36e-6d77-425e-878c-ec534ca43b8e",
+         "usage":{"promptTokens":51,"completionTokens":29,"totalTokens":80}}
+      ]
+    }]
+  }'
+```
+
+```json
+{ "accepted": 2, "traceIds": ["a8b9b021-ade7-4712-98d6-c9f9417f7e67"] }
+```
+
+</TabItem>
+<TabItem value="python" label="Python (requests)">
+
+Embeddings come from the same host and key as the chat model:
+
+```python
+resp = requests.post(
+    "https://openrouter.ai/api/v1/embeddings",
+    headers={"Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}"},
+    json={"model": "openai/text-embedding-3-small",
+          "input": "Attach a tool to a prompt version"},
+    timeout=60,
+)
+print(resp.json())
+```
+
+```json
+{
+  "object": "list",
+  "data": [
+    { "object": "embedding", "index": 0,
+      "embedding": [-0.009002685546875, 0.040771484375, 0.01045989990234375, "…"] }
+  ],
+  "model": "text-embedding-3-small",
+  "usage": { "prompt_tokens": 7, "total_tokens": 7 },
+  "provider": "OpenAI"
+}
+```
+
+The prompt render and trace report are ordinary `requests.post` calls against the two Acrux Core endpoints shown in the curl tab.
+
+</TabItem>
+</Tabs>
+
+## The whole script
+
+<details>
+<summary>acrux_rag.py — the complete, runnable script</summary>
+
+Run `python acrux_rag.py --setup` once to create the two prompts, then
+`python acrux_rag.py "your question"` to answer with both styles.
+
+```python
+"""RAG over the Acrux Core docs — with a tool, and without the Acrux Core gateway.
+
+Setup:
+    pip install acruxcore chromadb requests beautifulsoup4
+    export ACRUXCORE_API_KEY=acx_sk_...
+    export OPENROUTER_API_KEY=sk-or-...
+
+Run:
+    python acrux_rag.py --setup
+    python acrux_rag.py "How do I register a new model on the gateway?"
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import os
+import sys
+from datetime import datetime, timezone
+from typing import Any
+
+import chromadb
+import requests
+from bs4 import BeautifulSoup
+
+import acruxcore as acrux
+
+ACRUXCORE_BASE_URL = os.environ.get(
+    "ACRUXCORE_BASE_URL", "https://api.acruxcore.com/api/v1"
+)
+
+# Bring your own key. Present on a chat() / run_tool_loop() call, the SDK POSTs
+# to base_url directly and skips our gateway. api_key is sent only to OpenRouter.
+PROVIDER: acrux.ProviderConfig = {
+    "base_url": "https://openrouter.ai/api/v1",
+    "api_key": os.environ.get("OPENROUTER_API_KEY", ""),
+}
+
+CHAT_MODEL = "openai/gpt-4o-mini"
+EMBED_MODEL = "openai/text-embedding-3-small"
+
+LINEAR_PROMPT = "rag-chat"
+AGENT_PROMPT = "rag-chat-agent"
+
+DOC_URLS = {
+    "prompts.md": "https://docs.acruxcore.com/docs/guides/version-a-prompt",
+    "gateway.md": "https://docs.acruxcore.com/docs/guides/route-calls-through-the-gateway",
+    "tracing.md": "https://docs.acruxcore.com/docs/guides/trace-an-llm-call",
+    "tools.md": "https://docs.acruxcore.com/docs/guides/build-and-attach-a-tool",
+    "evaluation.md": "https://docs.acruxcore.com/docs/guides/evaluate-a-prompt",
+}
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+# --- 1. Fetch the docs -------------------------------------------------------
+
+
+def fetch_doc_text(url: str) -> str:
+    """Download one docs page and return its readable body text."""
+    resp = requests.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    container = soup.find("article") or soup.find("main") or soup.body
+    for tag in container.find_all(["nav", "aside", "script", "style"]):
+        tag.decompose()
+
+    return container.get_text(separator="\n", strip=True)
+
+
+def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 150) -> list[str]:
+    """Split text into overlapping character windows."""
+    if chunk_size <= overlap:
+        raise ValueError("chunk_size must be greater than overlap")
+
+    chunks: list[str] = []
+    step = chunk_size - overlap
+
+    for i in range(0, len(text), step):
+        chunk = text[i : i + chunk_size].strip()
+        if chunk:
+            chunks.append(chunk)
+        if i + chunk_size >= len(text):
+            break
+
+    return chunks
+
+
+# --- 2. Embed with OpenRouter ------------------------------------------------
+
+
+def embed_texts(texts: list[str]) -> list[list[float]]:
+    """Embed a batch of strings through OpenRouter's OpenAI-compatible endpoint."""
+    resp = requests.post(
+        f"{PROVIDER['base_url']}/embeddings",
+        headers={
+            "Authorization": f"Bearer {PROVIDER['api_key']}",
+            "Content-Type": "application/json",
+        },
+        json={"model": EMBED_MODEL, "input": texts},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    data = resp.json()["data"]
+    # OpenRouter does not promise input order, so sort by the echoed index.
+    return [row["embedding"] for row in sorted(data, key=lambda r: r["index"])]
+
+
+# --- 3. Index into Chroma ----------------------------------------------------
+
+
+def build_index(batch_size: int = 64) -> Any:
+    """Fetch every docs page, chunk it, embed it, and load it into Chroma."""
+    collection = chromadb.Client().get_or_create_collection(
+        name="acrux_docs", metadata={"hnsw:space": "cosine"}
+    )
+
+    ids: list[str] = []
+    documents: list[str] = []
+    metadatas: list[dict[str, Any]] = []
+
+    for source, url in DOC_URLS.items():
+        text = fetch_doc_text(url)
+        chunks = chunk_text(text)
+        print(f"  fetched {source}: {len(text):,} chars -> {len(chunks)} chunks")
+        for i, chunk in enumerate(chunks):
+            ids.append(f"{source}_{i}")
+            documents.append(chunk)
+            metadatas.append({"source": source, "chunk": i})
+
+    embeddings: list[list[float]] = []
+    for start in range(0, len(documents), batch_size):
+        embeddings.extend(embed_texts(documents[start : start + batch_size]))
+
+    collection.add(
+        ids=ids, embeddings=embeddings, documents=documents, metadatas=metadatas
+    )
+    print(f"  indexed {len(ids)} chunks from {len(DOC_URLS)} documents\n")
+    return collection
+
+
+def retrieve_context(collection: Any, question: str, top_k: int = 4) -> str:
+    """Find the chunks closest to a question and join them into one context block."""
+    [query_embedding] = embed_texts([question])
+    results = collection.query(query_embeddings=[query_embedding], n_results=top_k)
+    chunks = results["documents"][0]
+    sources = [m["source"] for m in results["metadatas"][0]]
+    return "\n\n".join(f"[{src}]\n{chunk}" for src, chunk in zip(sources, chunks))
+
+
+# --- 4. Linear RAG -----------------------------------------------------------
+
+
+async def ask_linear(hub: acrux.AcruxCore, collection: Any, question: str) -> str:
+    """Answer by retrieving first and calling the model exactly once."""
+    started = _now()
+    context = retrieve_context(collection, question)
+    # Open the trace with the retrieval, then hand its id to chat() so the model
+    # call lands in the same trace instead of minting its own.
+    reported = await hub.trace(
+        {
+            "name": "rag-linear",
+            "spans": [
+                {
+                    "spanId": "retrieval",
+                    "name": "search_docs",
+                    "kind": "retrieval",
+                    "status": "ok",
+                    "startTime": started,
+                    "endTime": _now(),
+                    "input": {"query": question},
+                    "output": {"context": context},
+                }
+            ],
+        }
+    )
+
+    rendered = await hub.render_prompt(
+        LINEAR_PROMPT, "production", {"context": context, "question": question}
+    )
+    result = await hub.chat(
+        rendered.model or CHAT_MODEL,
+        rendered.messages,
+        provider=PROVIDER,
+        prompt_version_id=rendered.version_id,
+        trace={"trace_id": reported.trace_id},
+    )
+    print(f"  trace: {reported.trace_id}")
+    return result.content or ""
+
+
+# --- 5. Agentic RAG ----------------------------------------------------------
+
+# Set once per run so the decorated tool can reach the index. The decorator
+# itself stays pure — it only reads the function signature.
+_COLLECTION: Any = None
+
+
+@acrux.tool
+async def search_docs(query: str) -> str:
+    """Search Acrux Core's documentation for relevant information.
+
+    Args:
+        query: The search query — a question or topic to look up.
+    """
+    return retrieve_context(_COLLECTION, query)
+
+
+async def ask_agentic(hub: acrux.AcruxCore, collection: Any, question: str) -> str:
+    """Answer by letting the model call search_docs as many times as it wants."""
+    global _COLLECTION
+    _COLLECTION = collection
+
+    rendered = await hub.render_prompt(AGENT_PROMPT, "production", {"question": question})
+    result = await hub.run_tool_loop(
+        rendered.model or CHAT_MODEL,
+        rendered.messages,
+        tools=[search_docs],
+        provider=PROVIDER,
+        prompt_version_id=rendered.version_id,
+    )
+    print(f"  trace: {result.trace_id} ({result.iterations} model calls)")
+    return result.content
+
+
+# --- 6. One-time prompt setup ------------------------------------------------
+
+PROMPT_DEFINITIONS = {
+    LINEAR_PROMPT: [
+        {
+            "role": "system",
+            "content": (
+                "You answer questions about Acrux Core using only the documentation "
+                "excerpts below. If the excerpts do not contain the answer, say so "
+                "plainly instead of guessing.\n\n"
+                "Documentation:\n{{ context }}"
+            ),
+        },
+        {"role": "user", "content": "{{ question }}"},
+    ],
+    AGENT_PROMPT: [
+        {
+            "role": "system",
+            "content": (
+                "You answer questions about Acrux Core. Use the search_docs tool to "
+                "look things up before answering — search more than once if the first "
+                "result is thin, or if the question has several parts. Answer only "
+                "from what the tool returns, and say so plainly when it comes back "
+                "without the answer."
+            ),
+        },
+        {"role": "user", "content": "{{ question }}"},
+    ],
+}
+
+
+def setup_prompts(api_key: str) -> None:
+    """Create the two prompts this script renders, if they do not exist yet."""
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+
+    existing = requests.get(f"{ACRUXCORE_BASE_URL}/prompts", headers=headers, timeout=30)
+    existing.raise_for_status()
+    known = {p["name"] for p in existing.json()["data"]}
+
+    for name, messages in PROMPT_DEFINITIONS.items():
+        if name in known:
+            print(f"  {name}: already exists, left alone")
+            continue
+
+        created = requests.post(
+            f"{ACRUXCORE_BASE_URL}/prompts",
+            headers=headers,
+            json={"name": name},
+            timeout=30,
+        )
+        created.raise_for_status()
+        prompt_id = created.json()["id"]
+
+        # No `model` bound on the version on purpose: that field points at the
+        # gateway's model registry, and this script never touches the gateway.
+        version = requests.post(
+            f"{ACRUXCORE_BASE_URL}/prompts/{prompt_id}/versions",
+            headers=headers,
+            json={"messages": messages},
+            timeout=30,
+        )
+        version.raise_for_status()
+
+        promoted = requests.post(
+            f"{ACRUXCORE_BASE_URL}/prompts/{prompt_id}/aliases/production/promote",
+            headers=headers,
+            json={"version_number": version.json()["versionNumber"]},
+            timeout=30,
+        )
+        promoted.raise_for_status()
+        print(f"  {name}: created and promoted to production")
+
+
+# --- 7. Entry point ----------------------------------------------------------
+
+
+async def main() -> int:
+    parser = argparse.ArgumentParser(description="RAG over the Acrux Core docs.")
+    parser.add_argument(
+        "question",
+        nargs="?",
+        default="How do I register a new model on the gateway?",
+        help="The question to answer.",
+    )
+    parser.add_argument(
+        "--setup",
+        action="store_true",
+        help="Create the two prompts in Acrux Core, then exit.",
+    )
+    args = parser.parse_args()
+
+    api_key = os.environ.get("ACRUXCORE_API_KEY")
+    if not api_key:
+        print("ACRUXCORE_API_KEY is not set.", file=sys.stderr)
+        return 1
+    if not PROVIDER["api_key"]:
+        print("OPENROUTER_API_KEY is not set.", file=sys.stderr)
+        return 1
+
+    if args.setup:
+        print("Setting up prompts...")
+        setup_prompts(api_key)
+        return 0
+
+    print("Building the index...")
+    collection = build_index()
+
+    async with acrux.AcruxCore(api_key=api_key, base_url=ACRUXCORE_BASE_URL) as hub:
+        print(f"Question: {args.question}\n")
+
+        print("Linear RAG")
+        print(await ask_linear(hub, collection, args.question))
+
+        print("\nAgentic RAG")
+        print(await ask_agentic(hub, collection, args.question))
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(asyncio.run(main()))
+```
+
+</details>
+
+## What's next
+
+- [Build a tool-calling agent in Python (SDK)](./build-a-tool-calling-agent-in-python-sdk) — the same `run_tool_loop`, on the gateway path, with several tools running concurrently.
+- [Route your app's LLM calls through the gateway](../guides/route-calls-through-the-gateway) — the other side of this trade: one hop more, in exchange for budgets, caching, fallback routing, and dollar cost on every span.
+- [Using sessions and traces](../guides/using-sessions-and-traces) — group several runs into one session and search across them.
+- API details: see **Prompts** and **Traces** in the [API Reference](/api-reference).

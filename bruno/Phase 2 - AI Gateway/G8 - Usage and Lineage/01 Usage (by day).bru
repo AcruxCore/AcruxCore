@@ -1,0 +1,22 @@
+meta {
+  name: Usage (by day)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/gateway/usage
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+params:query {
+  ~group_by: day
+  ~from: 2026-06-04
+  ~to: 2026-07-04
+  ~virtual_key_id: {{virtualKeyId}}
+}

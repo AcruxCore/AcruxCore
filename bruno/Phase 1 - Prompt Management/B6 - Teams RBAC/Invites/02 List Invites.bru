@@ -1,0 +1,15 @@
+meta {
+  name: List Invites
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/teams/{{teamId}}/invites
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}

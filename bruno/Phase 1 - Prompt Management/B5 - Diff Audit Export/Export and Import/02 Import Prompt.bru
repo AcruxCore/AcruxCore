@@ -1,0 +1,41 @@
+meta {
+  name: Import Prompt
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/prompts/import
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "schemaVersion": 1,
+    "exportedAt": "2026-06-26T23:07:20.238Z",
+    "prompt": {
+      "name": "greet",
+      "description": null
+    },
+    "version": {
+      "versionNumber": 1,
+      "messages": [
+        {
+          "role": "system",
+          "content": "Hello {{ name }}, welcome to {{ company }}."
+        }
+      ],
+      "variables": ["company", "name"],
+      "createdAt": "2026-06-26T23:06:48.866Z"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+meta {
+  name: Create API Key
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/api-keys
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "e5-eval-key"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setVar("apiKey", res.getBody().key);
+  }
+}

@@ -1,0 +1,19 @@
+meta {
+  name: List Traces
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/traces
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+assert {
+  res.status: eq 200
+}

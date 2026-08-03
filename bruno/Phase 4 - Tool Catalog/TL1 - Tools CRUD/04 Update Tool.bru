@@ -1,0 +1,25 @@
+meta {
+  name: Update Tool
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/tools/{{toolId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "description": "Fetch current weather for a city (v2)."
+  }
+}

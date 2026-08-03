@@ -1,0 +1,9 @@
+{
+  "label": "Guides",
+  "position": 2,
+  "link": {
+    "type": "generated-index",
+    "title": "End-to-end guides",
+    "description": "Task-oriented walkthroughs — each takes one Acrux Core feature from the UI to the API and SDK."
+  }
+}

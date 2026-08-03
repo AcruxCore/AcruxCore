@@ -1,0 +1,35 @@
+meta {
+  name: Create Experiment
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/experiments
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "dataset_id": "{{datasetId}}",
+    "prompt_id": "{{e5PromptId}}",
+    "name": "E5 Eval greeting sweep",
+    "version_ids": ["{{e5VersionV2Id}}"],
+    "models": ["{{e5SweepModel}}"]
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setVar("experimentId", res.getBody().id);
+  }
+}

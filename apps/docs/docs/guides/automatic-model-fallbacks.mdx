@@ -1,0 +1,120 @@
+---
+title: "Automatic Model Fallbacks: Keep Your App Running When a Provider Goes Down"
+description: Chain a model to one or more fallbacks in order, and see the gateway actually reroute a call when the primary fails — with the one case where it deliberately won't.
+sidebar_position: 14
+keywords: [model fallback, provider outage, high availability, gateway resilience, fallbackModelIds]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Automatic Model Fallbacks: Keep Your App Running When a Provider Goes Down
+
+**What you'll build:** a model with two fallbacks chained in order, then real
+proof that a broken primary actually reroutes to the first fallback — plus
+the one failure mode fallback is designed to skip, so you don't rely on it
+for the wrong thing.
+
+Every registered model can name an ordered list of other registered models
+to try if it fails. This is entirely inside the gateway — your code still
+sends `"model": "gpt-4o-mini"` and never finds out a fallback served the
+request unless it checks the response's `model` field.
+
+## 1. See what's already registered
+
+Open **Gateway → Models**. This account already has `gpt-4o-mini` with one
+fallback set:
+
+![Models list showing gemini-flash, claude-haiku, and gpt-4o-mini, the last one annotated "fallback → claude-haiku"](/img/tutorials/automatic-model-fallbacks/01-models-list.png)
+
+## 2. Chain a second fallback
+
+Click **Edit** on `gpt-4o-mini`. The **Fallbacks** section lists every other
+registered model as a checkbox — check one to add it to the chain, and each
+checked box shows its position (`#1`, `#2`, …).
+
+![Edit model dialog with claude-haiku checked as #1 and gemini-flash just checked, becoming #2](/img/tutorials/automatic-model-fallbacks/02-edit-fallback-chain.png)
+
+Save, and the model list still summarizes only the first hop — the fuller
+chain shows up once you're inside the edit dialog again, or in the API
+response's `fallbacks` array.
+
+![Models list still showing gpt-4o-mini's fallback summary after saving the two-model chain](/img/tutorials/automatic-model-fallbacks/03-models-list-updated.png)
+
+## 3. Prove it actually reroutes
+
+Talk is cheap — here's a primary model whose credential was deliberately
+broken (an invalid provider key), called through the gateway exactly like
+normal:
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "Say OK"}], "max_tokens": 5}'
+```
+
+```json
+{"id":"gen-1785556261-FPkPq2k1htUsgj3TaYxS","model":"anthropic/claude-3-haiku","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"OK"},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":4,"total_tokens":13}}
+```
+
+The request asked for `gpt-4o-mini`. The response's `"model"` field says
+`anthropic/claude-3-haiku` — the first fallback actually served it, silently,
+with no error surfaced to the caller.
+
+## 4. What fallback deliberately does not cover
+
+Not every failure reroutes, and the distinction matters for what you can
+rely on it for:
+
+| What went wrong with the primary | What happens |
+|---|---|
+| Provider outage, timeout, network error, `429` rate limit | Retries the same deployment first, then falls back through the chain in order |
+| Bad or revoked credential (`401`/`403`) | Not retried on the same deployment, but **does** fall back to the next one — this is what step 3 demonstrated |
+| Malformed request the provider rejects with `400` (e.g. an invalid upstream model id) | **Surfaced immediately, no fallback at all** — treated as your mistake to fix, not something a different model can route around |
+
+That last row is deliberate, not a gap: a `400` almost always means the
+*request itself* is wrong (a typo in `upstreamModel`, a schema the provider
+rejects), and every model in the chain would likely reject the same request
+the same way. Fallback exists for "this provider is having a bad day," not
+for "this request was never valid."
+
+## Doing this over the API
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+# Set (or replace) the fallback chain — order matters, it's tried in order
+curl -X PATCH "$ACRUXCORE_BASE_URL/gateway/models/<model-id>" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"fallbackModelIds": ["<claude-haiku-id>", "<gemini-flash-id>"]}'
+```
+
+```json
+{
+  "id": "5317b60d-7347-4e58-85ef-88b7439526a4",
+  "publicName": "gpt-4o-mini",
+  "fallbacks": [
+    {"id": "392375ef-e6ca-4746-ae4f-00c4abe458aa", "publicName": "claude-haiku"},
+    {"id": "6df6e1a3-b04b-4947-8abb-291448d83120", "publicName": "gemini-flash"}
+  ]
+}
+```
+
+</TabItem>
+</Tabs>
+
+`fallbackModelIds` replaces the whole ordered chain on every call — there's
+no separate add/remove endpoint, so send the full list each time. `400
+INVALID_FALLBACK` comes back for an unknown id or a model pointing at
+itself.
+
+## What's next
+
+- Route your first call through the gateway — see
+  [Route your app's LLM calls through the gateway](./route-calls-through-the-gateway).
+- Cap what a key can spend even when every deployment succeeds — see
+  [Set Spend Limits with Gateway Budgets and Rate Limits](./set-spend-limits-with-gateway-budgets-and-rate-limits).
+- Full field reference: **Gateway Models** in the [API Reference](/api-reference).

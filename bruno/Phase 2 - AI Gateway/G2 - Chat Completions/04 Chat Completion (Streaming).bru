@@ -1,0 +1,30 @@
+meta {
+  name: Chat Completion (Streaming)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/v1/gateway/chat/completions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "model": "{{model}}",
+    "messages": [
+      { "role": "user", "content": "Count: one two three" }
+    ],
+    "max_tokens": 20,
+    "stream": true
+  }
+}

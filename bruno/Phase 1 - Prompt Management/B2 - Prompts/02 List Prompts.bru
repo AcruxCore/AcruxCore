@@ -1,0 +1,21 @@
+meta {
+  name: List Prompts
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/prompts
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+params:query {
+  ~search: customer
+  ~page: 1
+  ~limit: 20
+}

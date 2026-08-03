@@ -1,0 +1,21 @@
+meta {
+  name: Get Run Report
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v1/runs/{{runId}}/report
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    bru.setVar("cellKey", encodeURIComponent(res.getBody().cells[0].cellKey));
+  }
+}

@@ -1,0 +1,386 @@
+---
+sidebar_position: 9
+title: "Optimize Loop"
+description: "Draft, score, and promote LLM-generated prompt rewrites against a dataset."
+---
+
+# Optimize Loop API (Phase 5 E6)
+
+All endpoints verified working via curl against a real dev server (real
+Postgres, a real BullMQ worker process — `apps/worker` — consuming a real
+local Redis, and a real OpenAI account behind the gateway connection — no
+mocked `fetch`, no mocked queue). Document updated only after curl
+confirmation, per CLAUDE.md's API-reference rule.
+
+The **optimize loop** closes the feedback → optimize → promote cycle: given
+a prompt's `production` version and a dataset of failing/target cases, an
+LLM ("the optimizer") drafts up to `draft_count` candidate rewrites of the
+template, then those candidates (plus the `production` baseline) are run
+through the exact same E3/E4/E5 machinery — grid resolution, BullMQ cell
+execution via `GatewayService.complete`, and judge scoring — so a
+candidate's score is directly comparable to production's. A human then
+inspects `GET /runs/:id/report` (E5, documented in
+[`experiments.md`](experiments.md) — not duplicated here) and, if a
+candidate is a genuine improvement, promotes it with `POST
+/runs/:id/promote`. Promotion is the **only** path that turns a disposable
+`PromptCandidate` into a real, immutable `PromptVersion` — nothing is ever
+auto-promoted.
+
+Auth: `requireAnyAuth` (session cookie or personal/team API key) on `POST
+/prompts/:promptId/optimize`. `POST /runs/:id/promote` additionally requires
+`requireRole('owner', 'admin', 'editor')` — the same guard used by the
+prompt-alias promote route and the version-commit route — since it commits a
+real version and moves an alias.
+
+Verified with `apps/api` running via `npm run dev` and a real, separately
+booted `apps/worker` process (`node dist/index.js`), both pointed at the
+same Redis instance so the API's enqueued optimize/cell/finalize/judge jobs
+are actually picked up by the worker.
+
+---
+
+### POST /api/v1/prompts/:promptId/optimize
+
+Kicks off an optimize attempt: validates `draft_count` (default 3, hard
+cap 6), freezes the dataset's examples, creates an experiment + a `queued`
+run, and enqueues an `eval-optimize` job. Returns immediately — drafting
+the candidates (one gateway call to the optimizer model), resolving the
+real (candidate + production-baseline) x model grid, and enqueuing the
+cell/finalize BullMQ Flow all happen out of the request path, in the
+`optimizeWorker` process (`processOptimize`).
+
+Demo setup: prompt "support-reply-e6t6" v1 (`production`) is deliberately
+weak — a vague, unconstrained system message ("You are a friendly customer
+support agent. Help the customer with their issue: {{ complaint }}") that
+in practice produces multi-sentence, exclamation-mark-laden replies with
+greetings/sign-offs. The dataset's two examples carry `criteria` demanding
+a strict, judge-checkable format (exactly two sentences, no exclamation
+marks, no greeting/sign-off, a concrete next step), and its
+`overall_feedback` spells out the exact rewrite instruction the optimizer
+should embed in its candidates. (A first attempt with a milder
+`overall_feedback` produced a candidate that only tied production — see
+the "first attempt" note below — so the dataset was rebuilt with more
+explicit feedback and re-run.)
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/prompts/f23200d4-22df-4d3f-a4ac-f704fc0bd2f3/optimize \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"dataset_id": "ef6525f8-4597-456b-8b17-5dc2dbb1a4f2", "models": ["gpt-4o-mini"], "draft_count": 2}'
+```
+
+Response (status 202):
+
+```json
+{ "run_id": "97584f62-79ca-4575-ab68-34c6ae5ada03", "status": "queued" }
+```
+
+Polling `GET /api/v1/runs/97584f62-79ca-4575-ab68-34c6ae5ada03` (E3's run
+endpoint, documented in [`experiments.md`](experiments.md)) a few seconds
+later shows the real grid the optimizer resolved — two drafted candidates
+plus the production baseline, all six cells (3 variants x 1 model x 2
+examples) succeeded:
+
+Response (status 200) — succeeded:
+
+```json
+{
+  "id": "97584f62-79ca-4575-ab68-34c6ae5ada03",
+  "experimentId": "2a3fed67-2751-4adf-89cc-7ff87964fd89",
+  "status": "succeeded",
+  "startedAt": null,
+  "endedAt": "2026-07-08T10:08:22.466Z",
+  "error": null,
+  "createdAt": "2026-07-08T10:08:00.335Z",
+  "grid": [
+    { "model": "gpt-4o-mini", "cellKey": "candidate-A|gpt-4o-mini", "variantKind": "candidate", "variantLabel": "candidate-A", "promptCandidateId": "612a38c2-3b3a-460c-ae01-ec4547dbc47b" },
+    { "model": "gpt-4o-mini", "cellKey": "candidate-B|gpt-4o-mini", "variantKind": "candidate", "variantLabel": "candidate-B", "promptCandidateId": "c808b0a3-b95c-4dee-af1a-1cd79e766005" },
+    { "model": "gpt-4o-mini", "cellKey": "production|gpt-4o-mini", "variantKind": "version", "variantLabel": "production", "promptVersionId": "bd214c90-a5e1-4e2b-8231-abda126cc739" }
+  ],
+  "exampleCount": 2,
+  "results": { "total": 6, "succeeded": 6, "errored": 0 }
+}
+```
+
+#### First attempt (documented honestly, not fabricated)
+
+The very first optimize run against this prompt used a dataset whose
+`overall_feedback` only restated the criteria ("Replies must be exactly two
+sentences, no exclamation marks, and no greeting or sign-off phrases.")
+without giving the optimizer copyable rewrite instructions. Both drafted
+candidates failed to beat production — one tied it (`avgScore` 35 vs 35,
+`deltaVsBaseline.label: "flat"`), the other regressed (`avgScore` 20,
+`label: "regressed"`) — because GPT-4o-mini kept writing polite,
+multi-sentence replies regardless of the rewritten system message's intent.
+This is the real, observed first-attempt behavior, not a scripted success —
+see `GET /runs/532b1c30-247e-4327-831c-327a92d9e4c2/report` for that run's
+full (unfavorable) numbers. The dataset was then rebuilt with explicit,
+literal rewrite instructions in `overall_feedback` (see the curl above) and
+re-run, producing the compelling win documented below. `processOptimize`
+itself never sends the production template's actual prior output to the
+optimizer on this (first) attempt for a prompt — it has no `priorOutput` to
+cite yet — so the quality of `overall_feedback` is what determines whether
+the optimizer's rewrite meaningfully changes model behavior.
+
+#### Error responses
+
+Nonexistent prompt id (status 404):
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/prompts/00000000-0000-0000-0000-000000000000/optimize \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"dataset_id": "ef6525f8-4597-456b-8b17-5dc2dbb1a4f2", "models": ["gpt-4o-mini"]}'
+```
+
+```json
+{ "error": { "code": "NOT_FOUND", "message": "Prompt not found." } }
+```
+
+---
+
+### GET /api/v1/runs/:id/report (already documented — E5)
+
+The comparison-report endpoint itself is unchanged by E6 — it is the same
+`GET /runs/:id/report` built in Phase 5 E5 and already fully documented in
+[`experiments.md`](experiments.md#get-apiv1runsreport), including its
+response shape, the `deltaVsBaseline`/`leaderboard`/`winner` fields, and its
+404 error case. Not duplicated here. The only thing E6 changes is what can
+appear in `variants`/`cells`: a `variantKind: "candidate"` entry (an
+optimizer-drafted rewrite, keyed by `promptCandidateId` instead of
+`promptVersionId`) alongside the usual `"version"` baseline entry.
+
+Verified for the winning run above — the rebuilt dataset's run genuinely
+demonstrates the loop working: `candidate-A` scores 100 (`passRate` 1)
+against production's 10 (`passRate` 0), a `deltaVsBaseline` of +90 labeled
+`"improved"`, and `candidate-A` is the advisory `winner`:
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" $ACRUXCORE_BASE_URL/runs/97584f62-79ca-4575-ab68-34c6ae5ada03/report
+```
+
+Response (status 200):
+
+```json
+{
+  "runId": "97584f62-79ca-4575-ab68-34c6ae5ada03",
+  "status": "succeeded",
+  "models": ["gpt-4o-mini"],
+  "variants": [
+    { "variantKind": "candidate", "variantLabel": "candidate-A", "isProductionBaseline": false },
+    { "variantKind": "candidate", "variantLabel": "candidate-B", "isProductionBaseline": false },
+    { "variantKind": "version", "promptVersionId": "bd214c90-a5e1-4e2b-8231-abda126cc739", "variantLabel": "production", "isProductionBaseline": true }
+  ],
+  "cells": [
+    {
+      "cellKey": "candidate-A|gpt-4o-mini",
+      "variantLabel": "candidate-A",
+      "model": "gpt-4o-mini",
+      "isProductionBaseline": false,
+      "avgScore": 100,
+      "passRate": 1,
+      "exampleCount": 2,
+      "scoredCount": 2,
+      "unscoredCount": 0,
+      "deltaVsBaseline": { "score": 90, "passRate": 1, "label": "improved" }
+    },
+    {
+      "cellKey": "candidate-B|gpt-4o-mini",
+      "variantLabel": "candidate-B",
+      "model": "gpt-4o-mini",
+      "isProductionBaseline": false,
+      "avgScore": 95,
+      "passRate": 1,
+      "exampleCount": 2,
+      "scoredCount": 2,
+      "unscoredCount": 0,
+      "deltaVsBaseline": { "score": 85, "passRate": 1, "label": "improved" }
+    },
+    {
+      "cellKey": "production|gpt-4o-mini",
+      "variantLabel": "production",
+      "model": "gpt-4o-mini",
+      "isProductionBaseline": true,
+      "avgScore": 10,
+      "passRate": 0,
+      "exampleCount": 2,
+      "scoredCount": 2,
+      "unscoredCount": 0,
+      "deltaVsBaseline": null
+    }
+  ],
+  "leaderboard": ["candidate-A|gpt-4o-mini", "candidate-B|gpt-4o-mini", "production|gpt-4o-mini"],
+  "winner": { "cellKey": "candidate-A|gpt-4o-mini", "variantLabel": "candidate-A", "model": "gpt-4o-mini", "avgScore": 100 }
+}
+```
+
+`GET /runs/:id/cells/:cellKey` (also E5, same file) confirms candidate-A's
+actual generated output is a genuine, judge-verified fix — e.g. for the
+late-delivery example: `"I'm sorry to hear that your package arrived three
+days late and the box was crushed. I can process a replacement for you
+right away."` (score 100, `passed: true`, reason: "consists of exactly two
+sentences ... adheres to all specified guidelines without any extraneous
+elements"). Production's own output for the same example scored 10 (see the
+cell drill-down for the exact multi-sentence, greeting-laden text the judge
+penalized).
+
+---
+
+### POST /api/v1/runs/:id/promote
+
+Promotes one optimizer-drafted candidate to a real, immutable
+`PromptVersion` and moves an alias (default `production`) to point at it —
+the human-in-the-loop capstone of the loop. Reuses `VersionsService.commitVersion`
+and `AliasesService.promoteAlias` verbatim (both keep their own audit trail),
+so promoting a candidate is indistinguishable, downstream, from a human
+manually committing that exact template. Editor role or above required.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/runs/97584f62-79ca-4575-ab68-34c6ae5ada03/promote \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt_candidate_id": "612a38c2-3b3a-460c-ae01-ec4547dbc47b"}'
+```
+
+Response (status 200):
+
+```json
+{
+  "version": {
+    "id": "ce24f374-d40f-4853-a3a0-4bd2a467881e",
+    "promptId": "f23200d4-22df-4d3f-a4ac-f704fc0bd2f3",
+    "versionNumber": 2,
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a friendly customer support agent. Respond in EXACTLY two sentences. The first sentence apologizes and names the specific issue: {{ complaint }}. The second sentence states one concrete next step (replacement or refund). Do not use any exclamation marks. Do not include a greeting (e.g. Hi, Hello) or a sign-off (e.g. Thank you, Best regards, look forward to). Do not ask the customer for more information."
+      }
+    ],
+    "variables": ["complaint"],
+    "createdBy": "03198832-644c-4a1c-bc39-8b1d38df12f1",
+    "createdAt": "2026-07-08T10:09:02.582Z"
+  },
+  "alias": {
+    "id": "ed288af9-7d03-4e1e-afd9-6ff12c5257d6",
+    "alias": "production",
+    "versionId": "ce24f374-d40f-4853-a3a0-4bd2a467881e",
+    "versionNumber": 2,
+    "updatedAt": "2026-07-08T10:09:02.594Z"
+  }
+}
+```
+
+Verified the promotion actually happened, not just the response body:
+`GET /prompts/:id/versions` before -> 1 version (v1); after -> 2 versions
+(v2 now first/newest), and `GET /prompts/:id/aliases` before -> production
+@ v1; after -> production @ v2 (staging stays at v1, untouched):
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" $ACRUXCORE_BASE_URL/prompts/f23200d4-22df-4d3f-a4ac-f704fc0bd2f3/versions
+```
+
+Response (status 200) — BEFORE promote: `{"data":[{"versionNumber":1,...}],"total":1,...}`.
+AFTER promote: `{"data":[{"versionNumber":2,...},{"versionNumber":1,...}],"total":2,...}`.
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" $ACRUXCORE_BASE_URL/prompts/f23200d4-22df-4d3f-a4ac-f704fc0bd2f3/aliases
+```
+
+Response (status 200) — AFTER promote:
+
+```json
+[
+  { "id": "405c2762-b136-4057-a38e-55d179905091", "alias": "staging", "versionId": "bd214c90-a5e1-4e2b-8231-abda126cc739", "versionNumber": 1, "updatedAt": "2026-07-08T10:05:58.737Z" },
+  { "id": "ed288af9-7d03-4e1e-afd9-6ff12c5257d6", "alias": "production", "versionId": "ce24f374-d40f-4853-a3a0-4bd2a467881e", "versionNumber": 2, "updatedAt": "2026-07-08T10:09:02.594Z" }
+]
+```
+
+#### Error responses
+
+Nonexistent run id (status 404):
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/runs/00000000-0000-0000-0000-000000000000/promote \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt_candidate_id": "612a38c2-3b3a-460c-ae01-ec4547dbc47b"}'
+```
+
+```json
+{ "error": { "code": "NOT_FOUND", "message": "Run not found." } }
+```
+
+Candidate id that does not belong to this run (status 404) — team-scoped
+AND run-scoped, so even a real candidate id from a different run 404s:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/runs/97584f62-79ca-4575-ab68-34c6ae5ada03/promote \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt_candidate_id": "00000000-0000-0000-0000-000000000000"}'
+```
+
+```json
+{ "error": { "code": "NOT_FOUND", "message": "Prompt candidate not found for this run." } }
+```
+
+---
+
+### GET /api/v1/runs/:id/candidates/:candidateId
+
+Reads one optimizer-drafted candidate's own template (`messages`) and the
+optimizer's `rationale` for it (E7 Task 5) — the read a promote-review UI
+needs to show WHAT is about to be turned into a real, immutable version
+BEFORE a human confirms `POST /runs/:id/promote`. Reuses
+`OptimizeRepository.getCandidateForRun` verbatim (the same team + run
+scoped lookup `promoteCandidate` already used) — no new query was written.
+Read-only: `requireAnyAuth` only, no role restriction — viewing a
+candidate does not require promote-right, only actually promoting it does.
+
+Demo setup for this verification: a fresh prompt ("e7t5-greeting", v1
+"Answer as {{ name }}" promoted to production) and a 2-example dataset
+("Reply in exactly one word."), optimized with `draft_count: 2` against
+`gpt-4o-mini`. The run resolved candidate-A + candidate-B + the production
+baseline, all 6 cells succeeded.
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" $ACRUXCORE_BASE_URL/runs/d7803330-07a7-46e0-a032-b1790989e853/candidates/b8dfffd0-b5cc-472b-8585-128223c3d753
+```
+
+Response (status 200):
+
+```json
+{
+  "id": "b8dfffd0-b5cc-472b-8585-128223c3d753",
+  "promptId": "7a82ce01-0f07-4d04-b079-a05e4f7e3be9",
+  "messages": [
+    { "role": "system", "content": "Respond with a single word: {{ name }}" },
+    { "role": "system", "content": "Please provide only one word, which should be {{ name }}." }
+  ],
+  "rationale": "Revised the template to emphasize that the response should consist of exactly one word.",
+  "label": "candidate-A",
+  "createdAt": "2026-07-08T11:25:57.547Z"
+}
+```
+
+#### Error responses
+
+Nonexistent run id (status 404):
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" $ACRUXCORE_BASE_URL/runs/00000000-0000-0000-0000-000000000000/candidates/00000000-0000-0000-0000-000000000000
+```
+
+```json
+{ "error": { "code": "NOT_FOUND", "message": "Run not found." } }
+```
+
+Real run, but a nonexistent candidate id (status 404):
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" $ACRUXCORE_BASE_URL/runs/d7803330-07a7-46e0-a032-b1790989e853/candidates/00000000-0000-0000-0000-000000000000
+```
+
+```json
+{ "error": { "code": "NOT_FOUND", "message": "Prompt candidate not found for this run." } }
+```

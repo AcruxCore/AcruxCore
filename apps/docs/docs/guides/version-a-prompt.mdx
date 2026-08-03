@@ -1,0 +1,222 @@
+---
+title: Version a prompt and ship it to production
+description: Create a prompt, commit versions, promote an alias to production, and render it from your app — the full prompt lifecycle in Acrux Core.
+sidebar_position: 1
+keywords: [prompt versioning, prompt alias, promote prompt, render prompt, prompt management]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Version a prompt and ship it to production
+
+**What you'll build:** a `support-reply` prompt with two committed versions,
+`production` pointing at the version you choose, and app code that renders it —
+so you can change the live prompt later without redeploying.
+
+## 1. Create the prompt
+
+On **Prompts**, click **New prompt**. A prompt is just a named container for
+versioned templates.
+
+![Empty Prompts list](/img/tutorials/version-a-prompt/01-prompts-empty.png)
+
+Name it `support-reply`. The name is your SDK lookup key, so lowercase-with-hyphens
+works well.
+
+![New prompt dialog](/img/tutorials/version-a-prompt/02-new-prompt-dialog.png)
+
+## 2. Author and commit v1
+
+In the **Editor**, add a **system** message and a **user** message. Use
+`{{ variables }}` where runtime input goes:
+
+![Prompt editor with system and user messages](/img/tutorials/version-a-prompt/03-editor-messages.png)
+
+```jinja
+system: You are a friendly, concise customer-support agent for {{ company }}.
+        Reply warmly and help the customer resolve their issue in 2-3 sentences.
+user:   {{ customer_message }}
+```
+
+Click **Commit new version**. Versions are **immutable** — this is v1. The first
+commit also auto-creates the `production` and `staging` aliases, both pointing at
+v1.
+
+![Versions tab showing v1](/img/tutorials/version-a-prompt/04-versions-v1.png)
+
+You can also create a prompt and commit a version over the API:
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+# Create the prompt
+curl -X POST "$ACRUXCORE_BASE_URL/prompts" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"support-reply","description":"Drafts a friendly support reply"}'
+```
+
+```json
+{"id":"c7f36c65-9693-4264-86a5-e58c0d8acb13","name":"support-reply","description":"Drafts a friendly support reply","teamId":"73e9f801-9f43-412f-a359-4d23928b9eff","createdBy":"00cc9833-13ca-42b4-a102-b403e85ea250","createdAt":"2026-08-01T04:49:54.617Z"}
+```
+
+```bash
+# Commit a version — versions are keyed by the prompt's id, not its name
+curl -X POST "$ACRUXCORE_BASE_URL/prompts/c7f36c65-9693-4264-86a5-e58c0d8acb13/versions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      {"role":"system","content":"You are a friendly, concise customer-support agent for {{ company }}. Reply warmly and help the customer resolve their issue in 2-3 sentences."},
+      {"role":"user","content":"{{ customer_message }}"}
+    ]
+  }'
+```
+
+</TabItem>
+<TabItem value="python-requests" label="Python (requests)">
+
+```python
+import os, requests
+
+base, key = os.environ["ACRUXCORE_BASE_URL"], os.environ["ACRUXCORE_API_KEY"]
+h = {"Authorization": f"Bearer {key}"}
+
+prompt = requests.post(f"{base}/prompts", headers=h,
+              json={"name": "support-reply", "description": "Drafts a friendly support reply"}).json()
+
+# Versions are keyed by the prompt's id, not its name
+requests.post(f"{base}/prompts/{prompt['id']}/versions", headers=h, json={
+    "messages": [
+        {"role": "system", "content": "You are a friendly, concise customer-support agent for {{ company }}. Reply warmly and help the customer resolve their issue in 2-3 sentences."},
+        {"role": "user", "content": "{{ customer_message }}"},
+    ],
+})
+```
+
+</TabItem>
+</Tabs>
+
+The prompt endpoints are keyed by id everywhere except **render**, which
+takes the name directly (see step 5) — worth knowing since it's the one
+inconsistency in an otherwise id-based API.
+
+## 3. Commit v2
+
+Edit the system message — say, add *"Always end with a clear next step."* — and
+**Commit new version** again. You now have v1 and v2. Note that committing v2 did
+**not** move `production`: both aliases still point at v1. A commit never silently
+changes what's live.
+
+![Versions tab showing v2 and v1](/img/tutorials/version-a-prompt/05-versions-v2.png)
+
+## 4. Promote v2 to production
+
+On v2, click **→ production**. Acrux Core confirms the change, because it takes
+effect immediately for anything reading the `production` alias.
+
+![Promote-to-production confirmation dialog](/img/tutorials/version-a-prompt/06-promote-dialog.png)
+
+Confirm. `production` now points at v2 while `staging` stays on v1 — so you can
+keep testing v1 (or a future v3) on `staging` without touching production.
+
+![Production alias now on v2](/img/tutorials/version-a-prompt/07-production-v2.png)
+
+Promotion is also one API call:
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+# Aliases are also keyed by the prompt's id, not its name
+curl -X POST "$ACRUXCORE_BASE_URL/prompts/c7f36c65-9693-4264-86a5-e58c0d8acb13/aliases/production/promote" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"version_number": 2}'
+```
+
+```json
+{"id":"156e8918-52de-4a28-b850-4fd4b2b1dae4","alias":"production","versionId":"71a44b6e-627f-4482-a40b-38f5038a9ab7","versionNumber":2,"updatedAt":"2026-08-01T04:50:29.832Z"}
+```
+
+</TabItem>
+<TabItem value="python-requests" label="Python (requests)">
+
+```python
+requests.post(
+    f"{base}/prompts/{prompt['id']}/aliases/production/promote",
+    headers=h, json={"version_number": 2},
+)
+```
+
+</TabItem>
+</Tabs>
+
+## 5. Render it from your app
+
+Your app asks for the prompt by name and alias and gets back rendered messages.
+Because it reads `production`, promoting a new version changes the output with no
+code change.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/prompts/support-reply/production/render" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"variables":{"company":"Acme","customer_message":"Where is my order #123?"}}'
+```
+
+```json
+{
+  "messages": [
+    {"role":"system","content":"You are a friendly, concise customer-support agent for Acme. ... Always end with a clear next step."},
+    {"role":"user","content":"Where is my order #123?"}
+  ],
+  "tools": []
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore();
+
+const { messages, tools } = await hub.renderPrompt('support-reply', 'production', {
+  company: 'Acme',
+  customer_message: 'Where is my order #123?',
+});
+// `messages` is ready to send to a model; `tools` is [] until you attach some.
+```
+
+</TabItem>
+<TabItem value="python-requests" label="Python (requests)">
+
+```python
+resp = requests.post(
+    f"{base}/prompts/support-reply/production/render",
+    headers=h,
+    json={"variables": {"company": "Acme", "customer_message": "Where is my order #123?"}},
+)
+messages = resp.json()["messages"]
+```
+
+</TabItem>
+</Tabs>
+
+## What's next
+
+- [Route the rendered prompt through the gateway](./route-calls-through-the-gateway)
+  to actually call a model.
+- [Attach a tool](./build-and-attach-a-tool) so the model can take actions.
+- Read what changed between v1 and v2, or take a version out as a portable
+  file — see
+  [Diff, Export, and Import Your Prompt Library](./diff-export-and-import-your-prompt-library).
+- API details: see **Prompts**, **Versions**, and **Aliases** in the
+  [API Reference](/api-reference).

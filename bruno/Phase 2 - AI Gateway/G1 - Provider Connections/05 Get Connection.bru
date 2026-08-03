@@ -1,0 +1,15 @@
+meta {
+  name: Get Connection
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/gateway/connections/{{connectionId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}

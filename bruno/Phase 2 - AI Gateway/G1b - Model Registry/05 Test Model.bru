@@ -1,0 +1,15 @@
+meta {
+  name: Test Model
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/v1/gateway/models/{{modelId}}/test
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}

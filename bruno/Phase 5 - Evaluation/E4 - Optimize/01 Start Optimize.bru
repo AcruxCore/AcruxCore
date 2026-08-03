@@ -1,0 +1,37 @@
+meta {
+  name: Start Optimize
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/prompts/{{e5PromptId}}/optimize
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "dataset_id": "{{e5FromFeedbackDatasetId}}",
+    "models": ["gpt-4o-mini"],
+    "draft_count": 2
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 202) {
+    bru.setVar("optimizeRunId", res.getBody().run_id);
+  }
+  // The optimizer drafts candidates with one gateway call, then resolves and
+  // runs the (candidate + production-baseline) x model grid through the same
+  // BullMQ cell/finalize machinery as a normal experiment run.
+  await new Promise((resolve) => setTimeout(resolve, 10000));
+}

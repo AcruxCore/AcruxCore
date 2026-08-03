@@ -1,0 +1,15 @@
+meta {
+  name: Get Version
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tools/{{toolId}}/versions/{{toolVersionNumber}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}

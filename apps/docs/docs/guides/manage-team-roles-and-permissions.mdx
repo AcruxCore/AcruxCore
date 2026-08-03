@@ -1,0 +1,114 @@
+---
+title: Manage Team Roles and Permissions
+description: See who's on your team, change an existing member's role, and remove their access — the three actions inviting a teammate doesn't cover.
+sidebar_position: 11
+keywords: [team roles, permissions, rbac, change role, remove member, team management]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Manage Team Roles and Permissions
+
+**What you'll build:** the ability to see everyone on your team, promote or demote
+an existing member without re-inviting them, and cut off someone's access the
+moment they no longer need it.
+
+Every account belongs to a team, and every member holds exactly one role:
+`owner`, `admin`, `editor`, or `viewer`. A role is set when someone is invited
+(see [Invite a teammate](./invite-a-teammate)), but people change roles over
+time — a contractor's engagement ends, a teammate moves from read-only to
+actively shipping prompts. This guide covers managing that existing roster.
+
+## 1. See who's on the team
+
+Open **Team** in the sidebar. The **Members** panel lists everyone with access
+and their current role.
+
+![Team page showing the Members panel with the owner and one other member, each with their role and Edit role / Remove buttons](/img/tutorials/manage-team-roles-and-permissions/01-members-list.png)
+
+The `owner` role is special: it belongs to whoever created the team, can't be
+granted to anyone else, and never shows the edit/remove controls other rows
+get.
+
+## 2. Change an existing member's role
+
+Click **Edit role** on any non-owner member. A dialog lists the three
+grantable roles — `admin` (manage members, keys, and prompts), `editor`
+(commit versions and promote), and `viewer` (read-only).
+
+![Role dialog for a member showing three radio options: admin, editor, and viewer, with viewer currently selected](/img/tutorials/manage-team-roles-and-permissions/02-edit-role-dialog.png)
+
+Pick a role and click **Save role**. The change takes effect immediately —
+there's no re-invite, and the member doesn't need to accept anything.
+
+![Members list showing the same member's role now reading editor instead of viewer](/img/tutorials/manage-team-roles-and-permissions/03-role-updated.png)
+
+## 3. Remove a member's access
+
+Click **Remove** on the member's row. You get one confirmation before it
+takes effect.
+
+![Remove member confirmation dialog naming the member who will lose access](/img/tutorials/manage-team-roles-and-permissions/04-remove-confirm.png)
+
+Confirm, and the member disappears from the list immediately — their session
+is invalidated and every API key tied to their personal account stops
+working. Being removed is always emailed to them, regardless of their
+notification settings, since losing access is security-relevant.
+
+![Members list after the member has been removed, back to just the owner and one remaining member](/img/tutorials/manage-team-roles-and-permissions/05-member-removed.png)
+
+## Doing this over the API
+
+The same three actions are one call each — useful for scripting team
+management or building it into an internal admin tool.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+# List members
+curl "$ACRUXCORE_BASE_URL/teams/<team-id>/members" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+[
+  {"userId":"00cc9833-13ca-42b4-a102-b403e85ea250","email":"demo@acruxcore.com","role":"owner","joinedAt":"2026-07-27T16:28:38.265Z"},
+  {"userId":"b7645f3b-e573-4841-b3ac-1ca05c0be310","email":"viewer-demo@acruxcore.com","role":"viewer","joinedAt":"2026-07-28T20:05:58.900Z"}
+]
+```
+
+```bash
+# Change an existing member's role — owner cannot be granted this way
+curl -X PATCH "$ACRUXCORE_BASE_URL/teams/<team-id>/members/<user-id>/roles" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"role": "viewer"}'
+```
+
+```json
+{ "userId": "b7645f3b-e573-4841-b3ac-1ca05c0be310", "role": "viewer" }
+```
+
+```bash
+# Remove a member
+curl -X DELETE "$ACRUXCORE_BASE_URL/teams/<team-id>/members/<user-id>" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+# → 204 No Content
+```
+
+</TabItem>
+</Tabs>
+
+Both the role update and the removal require the caller to hold `owner` or
+`admin` on that team — an `editor` or `viewer` calling either endpoint gets
+`403 FORBIDDEN`. Listing members has no such restriction; any authenticated
+member can see the roster.
+
+## What's next
+
+- Bring someone new onto the team — see [Invite a teammate](./invite-a-teammate).
+- Scope what a service (rather than a person) can call — see
+  [Scope Access with Virtual Keys](./scope-access-with-virtual-keys).
+- Full field reference: **Teams** in the [API Reference](/api-reference).

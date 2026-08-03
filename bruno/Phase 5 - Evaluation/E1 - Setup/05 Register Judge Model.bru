@@ -1,0 +1,34 @@
+meta {
+  name: Register Judge Model
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/v1/gateway/models
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "publicName": "gpt-4o-mini",
+    "upstreamModel": "gpt-4o-mini",
+    "credentialId": "{{e5ConnectionId}}"
+  }
+}
+
+script:post-response {
+  // The judge service always calls the fixed public name "gpt-4o-mini"
+  // (JUDGE_MODEL in judge.service.ts) regardless of which model(s) the
+  // experiment/optimize grid sweeps — it must be registered separately or
+  // every judge call fails with "Model 'gpt-4o-mini' is not registered."
+}

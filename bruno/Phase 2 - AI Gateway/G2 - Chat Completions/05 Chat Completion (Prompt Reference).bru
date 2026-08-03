@@ -1,0 +1,30 @@
+meta {
+  name: Chat Completion (Prompt Reference)
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/v1/gateway/chat/completions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "model": "{{model}}",
+    "prompt": {
+      "name": "{{promptName}}",
+      "alias": "{{aliasName}}",
+      "variables": { "name": "Alice" }
+    }
+  }
+}

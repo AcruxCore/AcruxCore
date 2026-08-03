@@ -1,0 +1,32 @@
+meta {
+  name: Post Trace Feedback
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{baseUrl}}/api/v1/traces/{{e5CapturedTraceId}}/feedback
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "rating": -1,
+    "comment": "Use third person, do not say I"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setVar("e5FeedbackId", res.getBody().id);
+  }
+}

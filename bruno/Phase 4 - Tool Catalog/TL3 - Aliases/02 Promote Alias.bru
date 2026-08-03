@@ -1,0 +1,25 @@
+meta {
+  name: Promote Alias
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/tools/{{toolId}}/aliases/{{toolAliasName}}/promote
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "version_number": 2
+  }
+}

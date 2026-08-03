@@ -1,0 +1,776 @@
+---
+title: Store prompts and tools via the API
+description: Save a prompt and its tools over the REST API, confirm them in the dashboard, then fetch and stream them from the SDK.
+sidebar_position: 10
+keywords: [prompts, tools, rest api, sdk, streaming, renderprompt]
+---
+
+# Store prompts and tools via the API
+
+**What you'll build:** a `travel-assistant` prompt with three tools attached —
+all saved through the REST API — then fetched and run from the SDK, finishing
+with a reply streamed to your terminal token by token.
+
+In acruxcore, prompts and tools are **versioned catalog resources**: a prompt
+holds templated messages, a tool holds a JSON schema the model reads, and a
+prompt version can **attach** tools so they travel together. You can author both
+in the dashboard, but you can also create them entirely over the REST API — which
+is what this guide does. At run time your app fetches them **by name** with the
+`@acruxcoreai/sdk`, so the prompt text and tool schemas live on the server, not
+hard-coded in your code.
+
+Everything here maps to two runnable example files in the SDK, embedded in full
+below: `rest-defined-agent.ts` (store → fetch → run) and
+`stream-a-stored-prompt.ts` (streaming).
+
+## 1. Set your API key and base URL
+
+Every request authenticates with a Bearer API key. Create one under
+**Gateway → Keys** (or **Account → API keys**), then export it along with the API
+base URL so both `curl` and the SDK can read them:
+
+```bash
+export ACRUXCORE_API_KEY=<your api key>
+export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
+```
+
+:::note[One key, both roles]
+The same Bearer key works for the REST calls below **and** for the SDK. Write
+operations (creating prompts, tools, and versions) need an `owner`, `admin`, or
+`editor` role — a `viewer` key gets `403`.
+:::
+
+## 2. Store a tool
+
+A tool is created in two steps: a **shell** (name + description) and then an
+immutable **version** that carries the JSON schema the model reads. Here is
+`get_weather`.
+
+First the shell:
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/tools" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"get_weather","description":"Get the current weather for a city."}'
+```
+
+```json
+{
+  "id": "94ade16a-a242-4374-a0c8-4e773a450296",
+  "name": "get_weather",
+  "description": "Get the current weather for a city.",
+  "teamId": "86b81746-fd2d-4b2b-914b-0af7c89ac02f",
+  "createdBy": "78f42468-a5a6-4f7e-82d3-0c113f87659f",
+  "createdAt": "2026-07-14T10:48:23.757Z"
+}
+```
+
+Then a version. The `parametersSchema` is the standard JSON Schema the model
+reads to decide how to call the tool. The `executor` says who runs it —
+`{ "type": "client" }` means **your own app** runs the tool (your `dispatch`
+function, shown later), so the platform only stores the schema.
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/tools/94ade16a-a242-4374-a0c8-4e773a450296/versions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "Get the current weather for a city.",
+    "parametersSchema": {"type":"object","properties":{"city":{"type":"string","description":"City name, e.g. \"Tokyo\"."}},"required":["city"]},
+    "executor": {"type":"client"}
+  }'
+```
+
+The **first** version auto-creates `production` and `staging` aliases pointing at
+it:
+
+```json
+{
+  "id": "a314b29e-f828-43ad-b18d-9eda6a3c5cf8",
+  "toolId": "94ade16a-a242-4374-a0c8-4e773a450296",
+  "versionNumber": 1,
+  "description": "Get the current weather for a city.",
+  "parametersSchema": {
+    "type": "object",
+    "required": ["city"],
+    "properties": { "city": { "type": "string", "description": "City name, e.g. \"Tokyo\"." } }
+  },
+  "executor": { "type": "client" },
+  "createdBy": "78f42468-a5a6-4f7e-82d3-0c113f87659f",
+  "createdAt": "2026-07-14T10:48:23.812Z",
+  "aliases": [
+    { "alias": "production", "versionId": "a314b29e-f828-43ad-b18d-9eda6a3c5cf8", "versionNumber": 1 },
+    { "alias": "staging", "versionId": "a314b29e-f828-43ad-b18d-9eda6a3c5cf8", "versionNumber": 1 }
+  ]
+}
+```
+
+The example stores three tools this way — `get_weather`, `convert_currency`, and
+`get_current_time` — each with the same shell-then-version shape.
+
+:::tip[One call instead of three]
+The shell-then-version-then-promote sequence above is shown because this guide is
+about the raw API. If you only want the catalog to match a spec you already have,
+[`POST /tools/sync`](/api-reference/tools/sync) does all of it in one idempotent
+call: it creates the tool when the name is new, commits a version only when the spec
+differs from the live one, and moves the alias when it commits. Re-running it with an
+unchanged spec changes nothing.
+:::
+
+## 3. Store the prompt and attach the tools
+
+Same two-step shape: a prompt **shell**, then a **version** with the templated
+messages. The `{{ city }}`-style placeholders are
+[nunjucks](https://mozilla.github.io/nunjucks/) variables the server fills in at
+render time. The `tools` array **attaches** the catalog tools you just created to
+this exact version, by their tool id.
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/prompts" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"travel-assistant","description":"Travel assistant used by the rest-defined-agent SDK example."}'
+```
+
+```json
+{
+  "id": "bf43ef76-e2cf-48ec-a37b-dd03f0edba97",
+  "name": "travel-assistant",
+  "description": "Travel assistant used by the rest-defined-agent SDK example.",
+  "teamId": "86b81746-fd2d-4b2b-914b-0af7c89ac02f",
+  "createdBy": "78f42468-a5a6-4f7e-82d3-0c113f87659f",
+  "createdAt": "2026-07-14T10:48:38.209Z"
+}
+```
+
+Now the version. Pass each tool as `{ "toolId": "<id>" }`:
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/prompts/bf43ef76-e2cf-48ec-a37b-dd03f0edba97/versions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      {"role":"system","content":"You are a helpful travel assistant. Use the provided tools to answer with concrete, up-to-date facts instead of guessing."},
+      {"role":"user","content":"What'"'"'s the weather in {{ city }} right now, what time is it there, and how much is {{ amount }} {{ from }} in {{ to }}?"}
+    ],
+    "tools": [
+      {"toolId":"94ade16a-a242-4374-a0c8-4e773a450296"},
+      {"toolId":"666c6d6d-ece8-47ac-93ff-21c7c3b8698b"},
+      {"toolId":"3c4f9d29-7e47-4cfc-afc1-2b2bfd6fd92f"}
+    ]
+  }'
+```
+
+The response confirms the version, the four `variables` the server extracted from
+the template, and the auto-created aliases:
+
+```json
+{
+  "id": "0675fd3a-fe43-4203-a10d-178c7dab2b6b",
+  "promptId": "bf43ef76-e2cf-48ec-a37b-dd03f0edba97",
+  "versionNumber": 1,
+  "messages": [
+    { "role": "system", "content": "You are a helpful travel assistant. ..." },
+    { "role": "user", "content": "What's the weather in ... {{ city }} ... {{ amount }} {{ from }} ... {{ to }}?" }
+  ],
+  "variables": ["amount", "city", "from", "to"],
+  "model": null,
+  "aliases": [
+    { "alias": "production", "versionId": "0675fd3a-fe43-4203-a10d-178c7dab2b6b", "versionNumber": 1 },
+    { "alias": "staging", "versionId": "0675fd3a-fe43-4203-a10d-178c7dab2b6b", "versionNumber": 1 }
+  ]
+}
+```
+
+:::tip[Prefer the dashboard?]
+Steps 2 and 3 have a UI equivalent: the **New tool** and **New prompt** buttons
+create the shells, and each detail page commits versions. The screenshots in the
+next step are that same dashboard — the API and the UI write to the same catalog.
+:::
+
+## 4. Confirm they saved in the dashboard
+
+Open the web app to see what you just stored. The prompt shows up in the
+**Prompts** list:
+
+![The Prompts list in the acruxcore dashboard, showing a travel-assistant entry with its description and a test prompt below it](/img/tutorials/store-prompts-and-tools-via-api/01-prompts-list.png)
+
+Open it and the **Editor** tab shows the two templated messages, the `production`
+and `staging` aliases both pointing at v1, and the nunjucks variables in place:
+
+![The travel-assistant prompt detail page, Editor tab, showing a system message and a user message with city, amount, from and to placeholders, with production and staging both on v1](/img/tutorials/store-prompts-and-tools-via-api/02-prompt-detail.png)
+
+The **Tools** tab confirms all three tools are attached to v1:
+
+![The prompt Tools tab listing get_weather, convert_currency and get_current_time under an Attached to v1 heading](/img/tutorials/store-prompts-and-tools-via-api/03-prompt-tools-attached.png)
+
+The tools themselves live in **Gateway → Tools**:
+
+![The Tool Catalog list showing get_current_time, convert_currency and get_weather, each with its description](/img/tutorials/store-prompts-and-tools-via-api/04-tools-list.png)
+
+Opening `get_weather` shows its committed v1:
+
+![The get_weather tool detail page showing a single version v1 under the Versions tab](/img/tutorials/store-prompts-and-tools-via-api/05-tool-detail.png)
+
+## 5. Fetch them from the SDK
+
+Now the run path. A single `renderPrompt(name, alias, variables)` call returns
+**both** the templated messages (variables already filled in server-side) and the
+attached tool schemas, already in OpenAI shape:
+
+```typescript
+import acruxcore from '@acruxcoreai/sdk';
+
+const hub = new acruxcore(); // reads ACRUXCORE_API_KEY + ACRUXCORE_BASE_URL from env
+
+const { messages, tools } = await hub.renderPrompt('travel-assistant', 'production', {
+  city: 'Tokyo',
+  amount: 100,
+  from: 'USD',
+  to: 'JPY',
+});
+```
+
+`messages` comes back rendered and `tools` carries the three schemas you stored —
+neither is defined in your code. This is the real output of the example's fetch
+step:
+
+```text
+Fetched from framework: 2 message(s) + 3 tool(s) [get_weather, convert_currency, get_current_time]
+```
+
+## 6. Run the agent
+
+`runToolLoop` takes the fetched `messages` and the fetched definitions as
+`toolDefs`, calls the model, and when the model asks for a tool it runs your local
+`dispatch` function and feeds the result back — looping until the model gives a final
+answer. The **only** tool code left in your app is `dispatch`; the schemas and prompt
+text came from the server.
+
+Here is the complete, runnable `rest-defined-agent.ts` — it does the store (steps
+2–3), the fetch (step 5), and the run in one idempotent file:
+
+<details>
+<summary>Full source: <code>rest-defined-agent.ts</code></summary>
+
+```typescript
+/**
+ * Example: store the system prompt AND the tools in the framework via REST, then
+ * fetch both back through the SDK and run the agent — nothing about the prompt or
+ * the tool schemas is hardcoded on the run path.
+ *
+ * The companion `multi-tool-agent.ts` hardcodes the tool JSON-schemas and the chat
+ * messages inline. Here the flow is store → fetch → use:
+ *
+ *   STORE (REST, one-time setup):
+ *     1. Tools  → POST /tools (shell) + POST /tools/:id/versions (schema). Each
+ *        version stores the `parametersSchema` the model reads plus a
+ *        `{ type: 'client' }` executor — "our own app runs this tool", so
+ *        {@link dispatch} below still runs locally.
+ *     2. Prompt → POST /prompts (shell) + POST /prompts/:id/versions with the
+ *        templated messages AND `tools: [{ toolId }]` that ATTACH the catalog
+ *        tools to this immutable version.
+ *
+ *   FETCH + USE (SDK, at run time):
+ *     3. `renderPrompt(name, 'production', vars)` returns `{ messages, tools }` in
+ *        one call: the messages are templated server-side and `tools` are the
+ *        version's attached tool schemas, already in OpenAI shape. Both come from
+ *        the framework — this file no longer holds them.
+ *     4. `runToolLoop({ messages, toolDefs })` runs the loop with exactly what was
+ *        fetched. The only tool code left in this file is `dispatch` — the local
+ *        implementations. Schemas, descriptions, and the prompt text live on the
+ *        server.
+ *
+ * This is the realistic split for a team: prompts and tool contracts are versioned
+ * and edited in the platform by whoever owns them; the app ships just the
+ * executable logic and fetches the rest by name.
+ *
+ * The setup is written as idempotent "ensure" helpers (find-by-name, create only
+ * if missing) because names are NOT unique in the catalog — a naive re-run would
+ * create duplicate rows and make name resolution ambiguous. Run it as many times
+ * as you like; it converges to one prompt (with the three tools attached) + three
+ * tools.
+ *
+ * Run:
+ *   ACRUXCORE_API_KEY=<your key> \
+ *   ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1 \
+ *   ACRUXCORE_MODEL=gpt-4o-mini \
+ *   npx tsx packages/sdk/examples/rest-defined-agent.ts
+ *
+ * `ACRUXCORE_MODEL` must be a model your team has registered in the gateway; it
+ * defaults to `gpt-4o-mini`.
+ */
+
+import acruxcore from '@acruxcoreai/sdk';
+
+const apiKey = process.env.ACRUXCORE_API_KEY;
+const baseUrl = process.env.ACRUXCORE_BASE_URL;
+const model = process.env.ACRUXCORE_MODEL ?? 'gpt-4o-mini';
+
+if (!apiKey || !baseUrl) {
+  throw new Error('Set ACRUXCORE_API_KEY and ACRUXCORE_BASE_URL first.');
+}
+
+// `baseUrl` already ends in /api/v1; the SDK trims a trailing slash, so mirror that.
+const restBase = baseUrl.replace(/\/+$/, '');
+
+/**
+ * Minimal Bearer-authenticated REST call against the acruxcore API. The SDK
+ * covers render/chat/tool-loop/trace; catalog authoring (create prompt/tool,
+ * commit versions) is plain REST, so we call it directly here.
+ *
+ * @param method - HTTP method.
+ * @param path - Path under the API base, e.g. `/tools` or `/prompts/:id/versions`.
+ * @param body - Optional JSON body; omitted for GET/DELETE.
+ * @returns The parsed JSON response (or `undefined` for a 204).
+ * @throws {Error} If the response status is not 2xx, with the server's error body.
+ */
+async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${restBase}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`${method} ${path} → ${res.status}: ${detail}`);
+  }
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
+}
+
+/** A row as returned by the list endpoints — only the fields we read. */
+interface NamedRow {
+  id: string;
+  name: string;
+}
+/** Shape of the paginated list responses. */
+interface ListResponse {
+  data: NamedRow[];
+  total: number;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Local tool implementations — the ONLY tool code left in this file. Their
+// JSON-schemas live in the catalog and are fetched at run time (see main()).
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Canned weather so the example runs without any external API or key. */
+const WEATHER: Record<string, string> = {
+  tokyo: '22°C, light rain',
+  london: '15°C, overcast',
+  'new york': '27°C, sunny',
+};
+
+/** Illustrative fixed rates (units of `to` per 1 unit of `from`). */
+const RATES: Record<string, number> = {
+  'USD:JPY': 157.0,
+  'USD:EUR': 0.92,
+  'EUR:USD': 1.09,
+};
+
+/**
+ * Routes one tool call from the model to its local implementation. The tool
+ * *names* here must match the catalog tools attached to the prompt version.
+ *
+ * @param name - The tool name the model asked for (a catalog tool name).
+ * @param args - The parsed JSON arguments object for this call.
+ * @returns The tool's result — any JSON-serialisable value.
+ * @throws {Error} If the model calls a tool name this agent doesn't implement.
+ */
+function dispatch(name: string, args: Record<string, unknown>): unknown {
+  switch (name) {
+    case 'get_weather': {
+      const city = String(args.city ?? '').toLowerCase();
+      return { city: args.city, conditions: WEATHER[city] ?? 'no data for that city' };
+    }
+    case 'convert_currency': {
+      const from = String(args.from ?? '').toUpperCase();
+      const to = String(args.to ?? '').toUpperCase();
+      const amount = Number(args.amount ?? 0);
+      const rate = RATES[`${from}:${to}`];
+      if (rate === undefined) return { error: `no rate for ${from}->${to}` };
+      return { amount, from, to, converted: Math.round(amount * rate * 100) / 100, rate };
+    }
+    case 'get_current_time': {
+      const timezone = String(args.timezone ?? 'UTC');
+      const time = new Intl.DateTimeFormat('en-GB', {
+        timeZone: timezone,
+        hour: '2-digit',
+        minute: '2-digit',
+        weekday: 'short',
+      }).format(new Date());
+      return { timezone, time };
+    }
+    default:
+      throw new Error(`Unknown tool: ${name}`);
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Catalog definitions used ONLY to seed the framework (the STORE step). At run
+// time the schemas come back from renderPrompt, not from here.
+// ────────────────────────────────────────────────────────────────────────────
+
+/** A tool we want in the catalog: its name/description plus the JSON-schema the model reads. */
+interface ToolSpec {
+  name: string;
+  description: string;
+  parametersSchema: Record<string, unknown>;
+}
+
+/**
+ * The three tools, in the shape the catalog stores. Note there is no OpenAI
+ * `{ type: 'function', function: {...} }` wrapper here — the catalog stores the
+ * bare `parametersSchema`, and render wraps it when it returns attached tools.
+ */
+const TOOL_SPECS: ToolSpec[] = [
+  {
+    name: 'get_weather',
+    description: 'Get the current weather for a city.',
+    parametersSchema: {
+      type: 'object',
+      properties: { city: { type: 'string', description: 'City name, e.g. "Tokyo".' } },
+      required: ['city'],
+    },
+  },
+  {
+    name: 'convert_currency',
+    description: 'Convert an amount of money from one currency to another.',
+    parametersSchema: {
+      type: 'object',
+      properties: {
+        amount: { type: 'number', description: 'The amount to convert.' },
+        from: { type: 'string', description: 'ISO 4217 source currency, e.g. "USD".' },
+        to: { type: 'string', description: 'ISO 4217 target currency, e.g. "JPY".' },
+      },
+      required: ['amount', 'from', 'to'],
+    },
+  },
+  {
+    name: 'get_current_time',
+    description: 'Get the current wall-clock time in an IANA timezone.',
+    parametersSchema: {
+      type: 'object',
+      properties: {
+        timezone: { type: 'string', description: 'IANA timezone, e.g. "Asia/Tokyo".' },
+      },
+      required: ['timezone'],
+    },
+  },
+];
+
+const PROMPT_NAME = 'travel-assistant';
+
+/**
+ * The prompt version's messages, with nunjucks `{{ variables }}` the server fills
+ * at render time. Seed data only — after the first run this text lives in the
+ * catalog and is fetched via renderPrompt.
+ */
+const PROMPT_MESSAGES = [
+  {
+    role: 'system' as const,
+    content:
+      'You are a helpful travel assistant. Use the provided tools to answer with ' +
+      'concrete, up-to-date facts instead of guessing.',
+  },
+  {
+    role: 'user' as const,
+    content:
+      "What's the weather in {{ city }} right now, what time is it there, and how " +
+      'much is {{ amount }} {{ from }} in {{ to }}?',
+  },
+];
+
+// ────────────────────────────────────────────────────────────────────────────
+// STORE (idempotent): create each resource only if a same-named one is missing.
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Ensures a catalog tool with `spec.name` exists and has at least one committed
+ * version, and returns its id. Safe to call repeatedly: it finds an existing tool
+ * by exact name and only creates the shell/version that is missing.
+ *
+ * @param spec - The tool name, description, and parameters schema to converge to.
+ * @returns The tool's id (used to attach it to the prompt version).
+ * @throws {Error} On any non-2xx REST response.
+ */
+async function ensureTool(spec: ToolSpec): Promise<string> {
+  const found = await api<ListResponse>(
+    'GET',
+    `/tools?search=${encodeURIComponent(spec.name)}`,
+  );
+  let tool = found.data.find((t) => t.name === spec.name);
+
+  if (!tool) {
+    tool = await api<NamedRow>('POST', '/tools', {
+      name: spec.name,
+      description: spec.description,
+    });
+    console.log(`  + created tool "${spec.name}"`);
+  }
+
+  const versions = await api<ListResponse>('GET', `/tools/${tool.id}/versions`);
+  if (versions.total === 0) {
+    // `{ type: 'client' }` = our own app executes the tool (see dispatch); the
+    // platform stores the schema but never calls it itself. The first version
+    // auto-creates the `production` alias the prompt attachment resolves against.
+    await api('POST', `/tools/${tool.id}/versions`, {
+      description: spec.description,
+      parametersSchema: spec.parametersSchema,
+      executor: { type: 'client' },
+    });
+    console.log(`  + committed v1 for tool "${spec.name}"`);
+  }
+
+  return tool.id;
+}
+
+/**
+ * Ensures a prompt named {@link PROMPT_NAME} exists with a committed version that
+ * carries {@link PROMPT_MESSAGES} and has the given catalog tools attached.
+ * Idempotent, like {@link ensureTool}.
+ *
+ * @param toolIds - Catalog tool ids to attach to the version (from {@link ensureTool}).
+ * @throws {Error} On any non-2xx REST response.
+ */
+async function ensurePrompt(toolIds: string[]): Promise<void> {
+  const found = await api<ListResponse>(
+    'GET',
+    `/prompts?search=${encodeURIComponent(PROMPT_NAME)}`,
+  );
+  let prompt = found.data.find((p) => p.name === PROMPT_NAME);
+
+  if (!prompt) {
+    prompt = await api<NamedRow>('POST', '/prompts', {
+      name: PROMPT_NAME,
+      description: 'Travel assistant used by the rest-defined-agent SDK example.',
+    });
+    console.log(`  + created prompt "${PROMPT_NAME}"`);
+  }
+
+  const versions = await api<ListResponse>('GET', `/prompts/${prompt.id}/versions`);
+  if (versions.total === 0) {
+    // Attach the catalog tools to this immutable version. renderPrompt then
+    // returns them alongside the messages. First commit auto-creates the
+    // `production` alias renderPrompt reads below.
+    await api('POST', `/prompts/${prompt.id}/versions`, {
+      messages: PROMPT_MESSAGES,
+      tools: toolIds.map((toolId) => ({ toolId })),
+    });
+    console.log(`  + committed v1 for prompt "${PROMPT_NAME}" (${toolIds.length} tools attached)`);
+  }
+}
+
+async function main(): Promise<void> {
+  // ── STORE: push the tools and the prompt (with tools attached) to the framework.
+  console.log('Storing catalog tools and prompt in the framework…');
+  const toolIds: string[] = [];
+  for (const spec of TOOL_SPECS) {
+    // Sequential so the log reads top-to-bottom; setup is one-time, off the hot path.
+    toolIds.push(await ensureTool(spec));
+  }
+  await ensurePrompt(toolIds);
+
+  const hub = new acruxcore({ apiKey, baseUrl });
+
+  // ── FETCH: one SDK call returns BOTH the templated messages and the attached
+  // tool schemas. Neither is defined on this run path — they came from the server.
+  const { messages, tools } = await hub.renderPrompt(PROMPT_NAME, 'production', {
+    city: 'Tokyo',
+    amount: 100,
+    from: 'USD',
+    to: 'JPY',
+  });
+  console.log(
+    `\nFetched from framework: ${messages.length} message(s) + ${tools.length} tool(s) ` +
+      `[${tools.map((t) => t.function.name).join(', ')}]`,
+  );
+
+  // ── USE: run the loop with exactly what was fetched. `dispatch` supplies the
+  // local execution for each fetched tool.
+  // `toolDefs`, not `tools`: these are raw OpenAI-shaped definitions from
+  // renderPrompt. `tools` is for tools declared with `acrux.tool`, which carry
+  // their own body and need no dispatch.
+  const result = await hub.runToolLoop({ model, messages, toolDefs: tools, dispatch });
+
+  console.log('\nAssistant:', result.content);
+  console.log(`\n(${result.iterations} round-trip(s), trace ${result.traceId ?? 'disabled'})`);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
+```
+
+</details>
+
+Run it, pointing `ACRUXCORE_MODEL` at a model your team has registered in the
+gateway (see **Gateway → Models**):
+
+```bash
+export ACRUXCORE_API_KEY=<your api key>
+export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
+export ACRUXCORE_MODEL=<your registered model>   # e.g. Mimo, gpt-4o-mini
+npx tsx packages/sdk/examples/rest-defined-agent.ts
+```
+
+```text
+Storing catalog tools and prompt in the framework…
+
+Fetched from framework: 2 message(s) + 3 tool(s) [get_weather, convert_currency, get_current_time]
+
+Assistant: Here's the current information for Tokyo:
+
+Weather in Tokyo: 22°C with light rain
+Current time in Tokyo: Tuesday, 7:48 PM (19:48)
+Currency conversion: 100 USD = 15,700 JPY (at an exchange rate of 1 USD = 157 JPY)
+
+(2 round-trip(s), trace 5282713f-a301-4538-b6e6-f51c0a4cfcc4)
+```
+
+The setup is idempotent (find-or-create by name), so it is safe to re-run — a
+second run finds the existing prompt and tools and skips creating them.
+
+## 7. Inspect the trace
+
+Every `runToolLoop` run is auto-traced, and the whole run lands in **one** trace.
+Open **Observability → Traces** and click the newest `runToolLoop` entry: two
+model turns (`LLM`) with the three tool calls in between.
+
+![A trace named runToolLoop with five spans: an LLM span, then get_weather, get_current_time and convert_currency tool spans, then a final LLM span, all marked OK](/img/tutorials/store-prompts-and-tools-via-api/06-trace-tree.png)
+
+Click a tool span to see its captured input and output — here `get_weather`
+received the city Tokyo and returned the conditions:
+
+![The expanded get_weather span showing an Input of city Tokyo and an Output with the weather conditions 22°C light rain](/img/tutorials/store-prompts-and-tools-via-api/07-trace-span-payload.png)
+
+:::note[Payload capture]
+Input/output payloads appear only when payload capture is on for your team
+(**Observability → Settings**). It is on by default.
+:::
+
+## 8. Stream the reply
+
+Sometimes you want tokens as they are generated instead of waiting for the whole
+answer. Pass `stream: true` to `chat()` and it returns an async iterable — each
+chunk carries a `delta.content` string you can print as it arrives.
+
+This example reuses the **same** stored `travel-assistant` prompt: it renders it,
+then streams the reply. It intentionally does **not** forward the attached tools —
+streaming yields text deltas, and if the model chose to call a tool the first
+turn would stream tool-call fragments instead of a readable answer (streaming does
+not auto-run tools — that is what `runToolLoop` is for). Omitting `tools` keeps the
+streamed output clean prose.
+
+```typescript
+/**
+ * Example: fetch a stored prompt with the SDK, then STREAM the reply token by
+ * token instead of waiting for the whole completion.
+ *
+ * This reuses the same `travel-assistant` prompt that `rest-defined-agent.ts`
+ * stores in the framework — run that example first (or store the prompt yourself)
+ * so `renderPrompt` has something to fetch. The flow here is fetch → stream:
+ *
+ *   1. `renderPrompt(name, 'production', vars)` returns the templated `messages`
+ *      (and the version's attached `tools`, which this example intentionally does
+ *      NOT forward — see below).
+ *   2. `chat({ ..., stream: true })` returns an async iterable. Each chunk carries
+ *      a `delta.content` string; concatenating them rebuilds the full answer as it
+ *      is generated, so a UI can render tokens live.
+ *
+ * Why no tools here: streaming yields text deltas. If the model decided to call a
+ * tool instead of answering, the first turn would stream tool-call fragments, not
+ * prose — and streaming does not auto-run tools (that is what `runToolLoop` is
+ * for). To keep the streamed output a clean, readable answer, this example omits
+ * `tools` so the model replies directly. Use `runToolLoop` when you need the tools.
+ *
+ * Run:
+ *   ACRUXCORE_API_KEY=<your key> \
+ *   ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1 \
+ *   ACRUXCORE_MODEL=<a model your team registered> \
+ *   npx tsx packages/sdk/examples/stream-a-stored-prompt.ts
+ *
+ * `ACRUXCORE_MODEL` must be a model your team has registered in the gateway; it
+ * defaults to `gpt-4o-mini`.
+ */
+
+import acruxcore from '@acruxcoreai/sdk';
+
+const apiKey = process.env.ACRUXCORE_API_KEY;
+const baseUrl = process.env.ACRUXCORE_BASE_URL;
+const model = process.env.ACRUXCORE_MODEL ?? 'gpt-4o-mini';
+
+if (!apiKey || !baseUrl) {
+  throw new Error('Set ACRUXCORE_API_KEY and ACRUXCORE_BASE_URL first.');
+}
+
+const hub = new acruxcore({ apiKey, baseUrl });
+
+async function main(): Promise<void> {
+  // ── FETCH: the templated messages come from the stored prompt version.
+  const { messages } = await hub.renderPrompt('travel-assistant', 'production', {
+    city: 'Tokyo',
+    amount: 100,
+    from: 'USD',
+    to: 'JPY',
+  });
+
+  // ── STREAM: print each token as it arrives. `stream: true` changes the return
+  // type to an async iterable of chunks (no `tools` forwarded — see file header).
+  const stream = await hub.chat({ model, messages, stream: true });
+
+  let full = '';
+  for await (const chunk of stream) {
+    const piece = chunk.delta.content ?? '';
+    process.stdout.write(piece); // render live
+    full += piece;
+  }
+
+  console.log(`\n\n(streamed ${full.length} characters)`);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
+```
+
+Run it the same way:
+
+```bash
+export ACRUXCORE_MODEL=<your registered model>
+npx tsx packages/sdk/examples/stream-a-stored-prompt.ts
+```
+
+The answer prints token by token as it is generated:
+
+```text
+I appreciate your question, but I don't have access to real-time tools for
+checking weather, current time, or currency exchange rates. Here's what I can
+suggest:
+
+- Weather in Tokyo: Check a weather site like weather.com ...
+- Current time in Tokyo: Tokyo is in the JST (UTC+9) timezone ...
+- USD to JPY conversion: Check a currency converter like xe.com ...
+
+(streamed 699 characters)
+```
+
+Without the tools, the model answers from its own knowledge — which is exactly
+why the tool-driven `runToolLoop` in step 6 returns concrete, live values instead.
+
+## What's next
+
+- [Use the SDK for chat and feedback](./use-the-sdk-for-chat-and-feedback) — more
+  ways to call the gateway and attach feedback to traces.
+- [Version a prompt](./version-a-prompt) — commit new versions and move the
+  `production` alias.
+- API details: see **Prompts**, **Prompt Versions**, **Tools**, and **Tool
+  Versions** in the [API Reference](/api-reference).

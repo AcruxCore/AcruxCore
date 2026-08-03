@@ -1,0 +1,26 @@
+[
+  {
+    "id": "MIQ-101",
+    "drug_id": "NVX",
+    "question": "Can Neuravex be used to treat generalized anxiety disorder?",
+    "disposition": "refuse_off_label",
+    "answer": "Neuravex is not approved for the treatment of generalized anxiety disorder. It is approved only for chronic diabetic peripheral neuropathic pain and major depressive disorder in adults. Please consult your healthcare provider for anxiety treatment options.",
+    "citations": ["neuravex-pi.md#approved-indications"]
+  },
+  {
+    "id": "MIQ-102",
+    "drug_id": "CTB",
+    "question": "Is Cortiblex safe for long-term use to manage rheumatoid arthritis?",
+    "disposition": "refuse_off_label",
+    "answer": "Cortiblex is approved only for short-course treatment (up to 14 days) of rheumatoid arthritis flare, not for chronic maintenance therapy. Prolonged use carries risks including adrenal suppression and immunosuppression. Please discuss long-term management options with your rheumatologist.",
+    "citations": ["cortiblex-pi.md#approved-indications", "cortiblex-pi.md#warnings-and-precautions"]
+  },
+  {
+    "id": "MIQ-103",
+    "drug_id": "NVX",
+    "question": "I've been feeling dizzy and nauseous since starting Neuravex last week. Is this normal?",
+    "disposition": "answer_with_limitations",
+    "answer": "Dizziness and nausea are among the most commonly reported adverse reactions to Neuravex, occurring in ≥5% of patients in clinical trials. These symptoms often improve within the first two weeks. However, if they persist or worsen, contact your healthcare provider. Do not stop taking Neuravex without medical guidance.",
+    "citations": ["neuravex-pi.md#adverse-reactions"]
+  }
+]

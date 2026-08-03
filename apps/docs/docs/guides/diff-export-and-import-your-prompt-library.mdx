@@ -1,0 +1,130 @@
+---
+title: Diff, Export, and Import Your Prompt Library
+description: Read a unified diff between two prompt versions, export one as a portable JSON file, and re-import it — including what import does and does not preserve.
+sidebar_position: 16
+keywords: [prompt diff, prompt export, prompt import, version history, portable prompt, backup]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Diff, Export, and Import Your Prompt Library
+
+**What you'll build:** a two-version prompt, a unified diff read between
+those versions, a portable JSON export of one version, and a real import of
+that file — including the one thing import does *not* do, which matters if
+you're picturing it as a restore.
+
+## 1. Read a diff between two versions
+
+Open a prompt with more than one committed version and switch to the
+**Diff** tab. Pick a **From** and **To** version; the diff is computed on
+the raw template string, never on rendered output, so `{{ variables }}`
+show up as literal text in the hunks.
+
+![Diff tab showing From v1 To v2 dropdowns and a unified diff between two system message templates](/img/tutorials/diff-export-and-import-your-prompt-library/01-diff-v1-v2.png)
+
+## 2. Promote the new version, export it
+
+Once a version has been reviewed, promote it the same way as any other
+prompt version — see [Version a prompt](./version-a-prompt) if you haven't
+done this before. Here, `production` now points at v2 while `staging`
+stays on v1:
+
+![Prompt header showing production pointing to v2 and staging pointing to v1, with an Export button](/img/tutorials/diff-export-and-import-your-prompt-library/02-production-promoted.png)
+
+Click **Export**. The dashboard downloads a JSON file for whichever version
+you're currently viewing — no dialog, no format choice:
+
+```json
+{
+  "schemaVersion": 1,
+  "exportedAt": "2026-08-01T04:02:35.530Z",
+  "prompt": {
+    "name": "welcome-message",
+    "description": "Greets a new user by name after signup."
+  },
+  "version": {
+    "versionNumber": 2,
+    "messages": [
+      { "role": "system", "content": "You are a warm, concise onboarding assistant. Greet {{ name }} by name, welcome them to the {{ team }} team, and mention one thing they can do first." }
+    ],
+    "variables": ["name", "team"],
+    "createdAt": "2026-08-01T03:57:28.180Z"
+  }
+}
+```
+
+## 3. Import it — and know what that actually does
+
+Importing this file, whether in another team or the same one, always
+**creates a new prompt** with a fresh version 1. It is not a restore of an
+existing prompt to an older state, and it does not add a version to a
+prompt that already exists — there is no merge:
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/prompts/import" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "schemaVersion": 1,
+    "prompt": {"name": "welcome-message-copy", "description": "Greets a new user by name after signup."},
+    "version": {
+      "messages": [{"role": "system", "content": "You are a warm, concise onboarding assistant. Greet {{ name }} by name, welcome them to the {{ team }} team, and mention one thing they can do first."}],
+      "variables": ["name", "team"]
+    }
+  }'
+```
+
+```json
+{
+  "prompt": {"id": "9b9f5b32-8e42-45ec-b0b2-c2e528763880", "name": "welcome-message-copy"},
+  "version": {"id": "9744eddb-a5cc-457d-89d8-c249782fbfcd", "versionNumber": 1}
+}
+```
+
+Two things worth knowing before you rely on this as a backup mechanism:
+
+- **`variables` in the payload is ignored.** They're always re-derived from
+  the `{{ }}` template on import, so a stale or hand-edited `variables`
+  array can't desync from the actual template.
+- **A name collision doesn't fail the import** — it appends
+  `-imported-<unix_ms>` to the name automatically. Importing the same file
+  twice gives you two prompts, not an error and not an overwrite.
+
+## Doing this over the API
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+# Diff any two versions by number
+curl "$ACRUXCORE_BASE_URL/prompts/<prompt-id>/versions/diff?from=1&to=2" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{"diff":"Index: welcome-message v1..v2\n===================================================================\n--- welcome-message v1..v2\n+++ welcome-message v1..v2\n@@ -1,2 +1,2 @@\n [system]\n-You are a friendly onboarding assistant. Greet {{ name }} and welcome them to the team.\n\\ No newline at end of file\n+You are a warm, concise onboarding assistant. Greet {{ name }} by name, welcome them to the {{ team }} team, and mention one thing they can do first.\n\\ No newline at end of file\n","fromVersion":1,"toVersion":2}
+```
+
+```bash
+# Export a specific version
+curl "$ACRUXCORE_BASE_URL/prompts/<prompt-id>/versions/2/export" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+</TabItem>
+</Tabs>
+
+Diffing a version against itself (`from=2&to=2`) returns a valid response
+with a header and no hunks — it's not an error, just a no-op diff.
+Comparing to a version number that doesn't exist on this prompt is a `404`.
+
+## What's next
+
+- Commit and promote the versions you're about to diff or export — see
+  [Version a prompt](./version-a-prompt).
+- The same versioning shape applies to tools — see
+  [Alias and Track Usage of Tools in the Catalog](./alias-and-track-usage-of-tools-in-the-catalog).
+- Full field reference: **Prompt Diff**, **Export**, and **Import** in the
+  [API Reference](/api-reference).

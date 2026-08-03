@@ -1,0 +1,392 @@
+---
+title: Using sessions and traces
+description: Group related prompt calls into a session, follow one call into its trace, leave feedback, and jump back to the prompt that produced it.
+sidebar_position: 8
+keywords: [sessions, traces, feedback, tracing, prompt version, observability]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Using sessions and traces
+
+**What you'll build:** three tour-planning prompts called one after another as
+part of a single trip-planning "session," so you can see them grouped in the
+frontend, drill down into one call's trace, leave feedback on it, and jump back
+to the exact prompt that produced it.
+
+Every gateway call is already recorded as a **trace** — a record of one request,
+its spans (a span is one unit of work, like the LLM call itself), tokens, and
+cost. A **session** is a lightweight way to say "these several traces belong to
+the same user flow." You tag each call with the same session id, and the
+frontend rolls them up into one view — handy when one user action (like
+planning a trip) triggers several prompt calls in a row.
+
+## 1. Register the prompts
+
+This guide uses a tour-planner theme: three separate prompts that together plan
+a trip. **Prompts → New prompt**, create `tour-itinerary-planner`,
+`tour-budget-estimator`, and `tour-packing-list-generator`, each with its own
+system message and variables (e.g. `{{ destination }}`, `{{ days }}`). See
+[Version a prompt](./version-a-prompt) if you haven't created one before.
+
+![Prompts list showing tour-itinerary-planner, tour-budget-estimator, and tour-packing-list-generator](/img/tutorials/using-sessions-and-traces/07-prompts-list.png)
+
+## 2. Call all three under one session
+
+Send each prompt through the gateway with the same session id — an
+`x-session-id` header on a raw gateway request, or `sessionId` in the SDK's
+`trace:` option. Each call still gets its own trace, but they all share the
+session id — that's the only thing that ties them together as one flow.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "x-session-id: tokyo-trip-plan-01" \
+  -d '{"prompt":{"name":"tour-itinerary-planner","alias":"production","variables":{"days":"3","destination":"Tokyo"}}}'
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+The SDK doesn't call a stored prompt by name in one shot — render it first with
+`renderPrompt()`, then pass the templated messages to `chat()` (no tools) or
+`runToolLoop()` (if the prompt defines tools). Both accept `trace: { sessionId }`
+to stamp the trace with the session id.
+
+**No tools — `chat()`:**
+
+```typescript
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore();
+const sessionId = 'tokyo-trip-plan-01';
+
+const prompts: [string, Record<string, string>][] = [
+  ['tour-itinerary-planner', { days: '3', destination: 'Tokyo' }],
+  ['tour-budget-estimator', { days: '3', destination: 'Tokyo' }],
+  ['tour-packing-list-generator', { days: '3', destination: 'Tokyo' }],
+];
+
+for (const [name, variables] of prompts) {
+  const { messages, model, versionId } = await hub.renderPrompt(name, 'production', variables);
+  await hub.chat({
+    model: model ?? 'gpt-4o-mini',
+    messages,
+    promptVersionId: versionId ?? undefined,
+    trace: { sessionId },
+  });
+}
+```
+
+**With tools — `runToolLoop()`:**
+
+```typescript
+for (const [name, variables] of prompts) {
+  const { messages, model, versionId, tools } = await hub.renderPrompt(name, 'production', variables);
+  await hub.runToolLoop({
+    model: model ?? 'gpt-4o-mini',
+    messages,
+    tools,
+    promptVersionId: versionId ?? undefined,
+    trace: { sessionId },
+    dispatch: async (toolName, args) => {
+      // handle tool calls
+    },
+  });
+}
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+**No tools — `chat()`:**
+
+```python
+import asyncio
+from acruxcore import AcruxCore
+
+
+async def main():
+    hub = AcruxCore()
+    session_id = "tokyo-trip-plan-01"
+
+    prompts = [
+        ("tour-itinerary-planner", {"days": "3", "destination": "Tokyo"}),
+        ("tour-budget-estimator", {"days": "3", "destination": "Tokyo"}),
+        ("tour-packing-list-generator", {"days": "3", "destination": "Tokyo"}),
+    ]
+    for name, variables in prompts:
+        rendered = await hub.render_prompt(name, "production", variables)
+        await hub.chat(
+            rendered.model or "gpt-4o-mini",
+            rendered.messages,
+            prompt_version_id=rendered.version_id,
+            trace={"session_id": session_id},
+        )
+
+
+asyncio.run(main())
+```
+
+**With tools — `run_tool_loop()`:**
+
+```python
+async def main():
+    hub = AcruxCore()
+    session_id = "tokyo-trip-plan-01"
+
+    async def dispatch(tool_name, args):
+        # handle tool calls
+        ...
+
+    for name, variables in prompts:
+        rendered = await hub.render_prompt(name, "production", variables)
+        await hub.run_tool_loop(
+            rendered.model or "gpt-4o-mini",
+            rendered.messages,
+            tool_defs=rendered.tools,
+            dispatch=dispatch,
+            prompt_version_id=rendered.version_id,
+            trace={"session_id": session_id},
+        )
+
+
+asyncio.run(main())
+```
+
+</TabItem>
+</Tabs>
+
+Repeat for the other two prompts with the same session id (the SDK examples
+above already loop through all three). Open **Observability → Sessions** and the
+session shows up with all three calls rolled into it — trace count, total
+tokens, and the time span they happened in.
+
+![Sessions list with one row: tokyo-trip-plan-01, 3 traces, 461 tokens](/img/tutorials/using-sessions-and-traces/01-sessions-list.png)
+
+:::note
+A session is never created directly — it's just a `sessionId` string shared by
+one or more traces, and it doesn't start on its own. The first call that uses a
+new session id "creates" it; every later call you want in that conversation must
+carry the same id — an `x-session-id` header on a gateway request, or
+`sessionId` in the SDK's `trace:` option. A call with no session id lands as a
+standalone trace.
+:::
+
+## 3. Open the session and drill into a trace
+
+Click the session row to see every trace that shares its id — one per prompt
+call, newest first.
+
+![Session detail page listing the three tour-planner traces with their token counts and durations](/img/tutorials/using-sessions-and-traces/02-session-detail.png)
+
+Click any trace's timestamp to open it. Expand the LLM span to see the resolved
+model, token usage, latency — and a link back to the prompt version that
+produced this exact call.
+
+![Trace detail page with the LLM span expanded, showing model, provider, tokens, and latency](/img/tutorials/using-sessions-and-traces/03-trace-detail-span.png)
+
+## 4. Leave feedback
+
+Scroll to the **Feedback** panel at the bottom of the trace (or use the thumbs
+on an individual span, if you want feedback scoped to just that unit of work).
+Pick thumbs up or down, optionally add a short label and comment, then submit.
+
+![Feedback form filled in with a thumbs-up rating, a label, and a comment, before submitting](/img/tutorials/using-sessions-and-traces/04-feedback-form.png)
+
+Once saved, your feedback appears in the list above the form, and the expanded
+span shows a **"View traces for this prompt version →"** link — this is the
+path back to the prompt.
+
+![Saved feedback entry above the span panel's "View traces for this prompt version" link](/img/tutorials/using-sessions-and-traces/05-feedback-saved-prompt-link.png)
+
+## 5. Navigate back to the prompt
+
+Click that link. It takes you to the **Traces** list pre-filtered to only calls
+made against that one prompt version — confirming exactly which version this
+feedback belongs to.
+
+![Traces list filtered to a single prompt version, showing only the matching call](/img/tutorials/using-sessions-and-traces/06-traces-filtered-by-prompt-version.png)
+
+From there, open **Prompts** and pick the same prompt by name (here,
+`tour-packing-list-generator`) to go straight to its versions, aliases, and
+editor — closing the loop from a piece of feedback all the way back to the
+prompt that earned it.
+
+## Doing this over the API
+
+Sessions and feedback are both first-class API resources, so you can build the
+same flow — call, group, read back, and record feedback — entirely from code.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+# List sessions
+curl "$ACRUXCORE_BASE_URL/sessions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{
+  "data": [
+    {
+      "sessionId": "tokyo-trip-plan-01",
+      "traceCount": 3,
+      "totalCostUsd": null,
+      "totalTokens": 461,
+      "firstAt": "2026-07-12T18:36:44.950Z",
+      "lastAt": "2026-07-12T18:36:59.152Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 20
+}
+```
+
+```bash
+# Get one session and its traces
+curl "$ACRUXCORE_BASE_URL/sessions/tokyo-trip-plan-01" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{
+  "session": {
+    "sessionId": "tokyo-trip-plan-01",
+    "traceCount": 3,
+    "totalCostUsd": null,
+    "totalTokens": 461,
+    "firstAt": "2026-07-12T18:36:44.950Z",
+    "lastAt": "2026-07-12T18:36:59.152Z"
+  },
+  "traces": [
+    {
+      "id": "bede0c1b-3d8e-40ef-950d-f5198f453ee7",
+      "name": "tour-packing-list-generator call",
+      "sessionId": "tokyo-trip-plan-01",
+      "status": "ok",
+      "spanCount": 1,
+      "totalTokens": 177
+    }
+  ]
+}
+```
+
+```bash
+# Leave feedback on a trace (omit spanId for whole-trace feedback)
+curl -X POST "$ACRUXCORE_BASE_URL/traces/bede0c1b-3d8e-40ef-950d-f5198f453ee7/feedback" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"rating":1,"label":"helpful-packing-list","comment":"Covers layering and rain gear well for Tokyo autumn."}'
+```
+
+```json
+{
+  "id": "be698c98-11f5-47a4-bfb7-df692da87c82",
+  "traceId": "bede0c1b-3d8e-40ef-950d-f5198f453ee7",
+  "spanId": null,
+  "rating": 1,
+  "label": "helpful-packing-list",
+  "comment": "Covers layering and rain gear well for Tokyo autumn.",
+  "source": "user",
+  "createdAt": "2026-07-12T18:40:23.697Z"
+}
+```
+
+`source` defaults to `"user"` when omitted from the request, as it is above —
+it also accepts `"developer"`, `"end_user"`, or `"api"` if you want to record
+where feedback actually came from.
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+The SDK's `chat()` and `runToolLoop()` take raw `model` + `messages`, not a
+stored-prompt reference — so to call a prompt *by name* under a session, use
+the gateway request above. To group your own SDK calls into a session instead,
+pass the same `sessionId` in `trace:` on every call. `runToolLoop` forwards it
+to the gateway as `x-session-id`, and the gateway stamps the session on the
+trace it records — so every turn you tag with that id rolls up together.
+
+```typescript
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore();
+
+// Each runToolLoop with the same sessionId lands in the same session.
+const { traceId } = await hub.runToolLoop({
+  model: 'gpt-4o-mini',
+  messages: [{ role: 'user', content: 'Plan a 3-day trip to Tokyo.' }],
+  trace: { sessionId: 'tokyo-trip-plan-01' },
+});
+
+// Read the session back — every trace sharing this sessionId.
+const { data } = await hub.listTraces({ sessionId: 'tokyo-trip-plan-01', limit: 20 });
+
+// Leave feedback on the trace.
+await hub.submitFeedback({
+  traceId,
+  rating: 1,
+  label: 'helpful-packing-list',
+  comment: 'Covers layering and rain gear well for Tokyo autumn.',
+});
+```
+
+There's no `getSession` on the SDK — `listTraces({ sessionId })` is how you pull
+every trace in a session from code.
+
+</TabItem>
+
+<TabItem value="python" label="Python (SDK)">
+
+```python
+import asyncio
+from acruxcore import AcruxCore
+
+
+async def main():
+    hub = AcruxCore()
+
+    # Each run_tool_loop with the same session_id lands in the same session.
+    result = await hub.run_tool_loop(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": "Plan a 3-day trip to Tokyo."}],
+        trace={"session_id": "tokyo-trip-plan-01"},
+    )
+
+    # Read the session back — every trace sharing this session_id.
+    page = await hub.list_traces(session_id="tokyo-trip-plan-01", limit=20)
+
+    # Leave feedback on the trace.
+    await hub.submit_feedback(
+        result.trace_id,
+        rating=1,
+        label="helpful-packing-list",
+        comment="Covers layering and rain gear well for Tokyo autumn.",
+    )
+
+
+asyncio.run(main())
+```
+
+There's no `get_session` on the SDK — `list_traces(session_id=...)` is how you
+pull every trace in a session from code.
+
+</TabItem>
+</Tabs>
+
+## What's next
+
+- Haven't inspected a single trace yet? Start with
+  [Trace and inspect an LLM call](./trace-an-llm-call).
+- Turn feedback into training data: [evaluate a prompt](./evaluate-a-prompt).
+- Stream responses and run a traced tool-calling loop from Node:
+  [chat, stream, and collect feedback with the SDK](./use-the-sdk-for-chat-and-feedback).
+- Full field reference: **Sessions** and **Traces** in the
+  [API Reference](/api-reference).

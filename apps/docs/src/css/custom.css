@@ -1,0 +1,446 @@
+/**
+ * Global styles for the Acrux Core docs site.
+ *
+ * The palette is ported 1:1 from the product's "precision instrument" design
+ * system (apps/web — dark-first, hairline borders, a single acid-green accent)
+ * so the docs read as the same product, not a separate indigo microsite. The
+ * brand tokens live as `--acx-*` custom properties and are also wired into
+ * Infima's own variables so every generated page (docs, blog, API reference)
+ * inherits the scheme automatically.
+ */
+
+/* ============================================================
+   Brand tokens — light mode (Infima default)
+   ============================================================ */
+:root {
+  --acx-bg: #f6f7f9;
+  --acx-surface: #ffffff;
+  --acx-elevated: #f0f2f5;
+  --acx-line: #dfe3e9;
+  --acx-line-soft: #e9ecf1;
+  --acx-ink: #10141a;
+  --acx-muted: #5a6472;
+  --acx-faint: #8b94a3;
+  --acx-accent: #4d7c00;
+  --acx-accent-dim: #6f9c1e;
+  --acx-accent-ink: #ffffff;
+
+  /* Infima primary → the olive/lime accent (readable on white). */
+  --ifm-color-primary: #4d7c00;
+  --ifm-color-primary-dark: #456f00;
+  --ifm-color-primary-darker: #416900;
+  --ifm-color-primary-darkest: #365600;
+  --ifm-color-primary-light: #558900;
+  --ifm-color-primary-lighter: #598f00;
+  --ifm-color-primary-lightest: #69a800;
+
+  --ifm-background-color: var(--acx-bg);
+  --ifm-background-surface-color: var(--acx-surface);
+  --ifm-font-color-base: var(--acx-ink);
+  --ifm-heading-color: var(--acx-ink);
+  --ifm-color-emphasis-200: var(--acx-line);
+  --ifm-color-emphasis-300: var(--acx-line);
+  --ifm-toc-border-color: var(--acx-line);
+  --ifm-hr-background-color: var(--acx-line);
+
+  --ifm-navbar-background-color: color-mix(in srgb, var(--acx-bg) 80%, transparent);
+  --ifm-navbar-shadow: none;
+  --ifm-footer-background-color: #0b0e14;
+  --ifm-footer-color: #8b94a3;
+  --ifm-footer-link-color: #c3cad4;
+  --ifm-footer-title-color: #e6eaf0;
+
+  --ifm-global-radius: 8px;
+  --ifm-code-font-size: 92%;
+  --ifm-font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    system-ui, Roboto, Helvetica, Arial, sans-serif;
+  --ifm-font-family-monospace: ui-monospace, 'SF Mono', SFMono-Regular,
+    'JetBrains Mono', Menlo, Consolas, monospace;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.08);
+}
+
+/* ============================================================
+   Brand tokens — dark mode (the product's home turf)
+   ============================================================ */
+[data-theme='dark'] {
+  --acx-bg: #0b0e14;
+  --acx-surface: #12161b;
+  --acx-elevated: #171c23;
+  --acx-line: #232a34;
+  --acx-line-soft: #1b212a;
+  --acx-ink: #e6eaf0;
+  --acx-muted: #8b94a3;
+  --acx-faint: #5c6472;
+  --acx-accent: #b6f400;
+  --acx-accent-dim: #7f9c1e;
+  --acx-accent-ink: #0b0e14;
+
+  --ifm-color-primary: #b6f400;
+  --ifm-color-primary-dark: #a4db00;
+  --ifm-color-primary-darker: #9bcf00;
+  --ifm-color-primary-darkest: #80ab00;
+  --ifm-color-primary-light: #c4f72e;
+  --ifm-color-primary-lighter: #cbf847;
+  --ifm-color-primary-lightest: #ddfb85;
+
+  --ifm-background-color: var(--acx-bg);
+  --ifm-background-surface-color: var(--acx-surface);
+  --ifm-color-emphasis-200: var(--acx-line);
+  --ifm-color-emphasis-300: var(--acx-line);
+  --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.06);
+}
+
+/* ============================================================
+   Navbar (the "header") — translucent, hairline, brand mark
+   ============================================================ */
+.navbar {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--acx-line);
+}
+
+/* The brand mark is now a real logo image, configured as `navbar.logo` in
+   docusaurus.config.ts. Docusaurus's own margin between the logo and the title is
+   wider than the lockup on the app side, so tighten it to match. */
+.navbar__logo {
+  margin-right: 8px;
+}
+
+.navbar__title {
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.navbar__link:hover,
+.navbar__link--active {
+  color: var(--acx-accent);
+}
+
+/* ============================================================
+   Landing page
+   ============================================================ */
+.docLanding {
+  --sans: var(--ifm-font-family-base);
+  --mono: var(--ifm-font-family-monospace);
+  background: var(--acx-bg);
+  overflow-x: hidden;
+}
+
+.heroWrap {
+  position: relative;
+  border-bottom: 1px solid var(--acx-line-soft);
+}
+
+/* Faint lime glow behind the hero, same signature as the marketing page. */
+.heroGlow {
+  position: absolute;
+  top: -180px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(1100px, 120vw);
+  height: 560px;
+  background: radial-gradient(
+    ellipse at center,
+    color-mix(in srgb, var(--acx-accent) 20%, transparent) 0%,
+    transparent 62%
+  );
+  opacity: 0.4;
+  filter: blur(20px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.hero {
+  position: relative;
+  z-index: 1;
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: clamp(48px, 7vw, 84px) 24px clamp(40px, 6vw, 64px);
+}
+
+.heroContent {
+  max-width: 720px;
+}
+
+.heroBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 11px 5px 9px;
+  border: 1px solid var(--acx-line);
+  background: var(--acx-surface);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--acx-muted);
+  margin-bottom: 24px;
+}
+
+.heroBadge .dot {
+  height: 7px;
+  width: 7px;
+  border-radius: 2px;
+  background: var(--acx-accent);
+  box-shadow: 0 0 8px var(--acx-accent-dim);
+  animation: acxPulse 2.6s ease-in-out infinite;
+}
+
+.hero h1 {
+  font-size: clamp(32px, 4.8vw, 54px);
+  line-height: 1.04;
+  letter-spacing: -0.028em;
+  font-weight: 700;
+  margin: 0 0 20px;
+  text-wrap: balance;
+  color: var(--acx-ink);
+}
+
+.hero h1 .accent {
+  color: var(--acx-accent);
+}
+
+.heroTagline {
+  font-size: clamp(16px, 1.5vw, 18px);
+  line-height: 1.6;
+  color: var(--acx-muted);
+  margin: 0 0 30px;
+  max-width: 46ch;
+  text-wrap: pretty;
+}
+
+.heroButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.btnPrimary,
+.btnGhost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 22px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: filter 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.btnPrimary {
+  background: var(--acx-accent);
+  color: var(--acx-accent-ink);
+  border: 1px solid var(--acx-accent);
+}
+
+.btnPrimary:hover {
+  filter: brightness(1.08);
+  color: var(--acx-accent-ink);
+  text-decoration: none;
+}
+
+.btnGhost {
+  background: var(--acx-surface);
+  color: var(--acx-ink);
+  border: 1px solid var(--acx-line);
+}
+
+.btnGhost:hover {
+  border-color: var(--acx-faint);
+  color: var(--acx-ink);
+  text-decoration: none;
+}
+
+/* ---- Section shell + eyebrow ---- */
+.section {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: clamp(48px, 6vw, 80px) 24px;
+}
+
+.eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--acx-accent);
+  font-weight: 600;
+  margin: 0 0 14px;
+}
+
+.sectionHead h2 {
+  font-size: clamp(26px, 3.2vw, 38px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+  margin: 0 0 12px;
+  text-wrap: balance;
+  color: var(--acx-ink);
+}
+
+.sectionHead p {
+  font-size: 16.5px;
+  line-height: 1.6;
+  color: var(--acx-muted);
+  margin: 0;
+  max-width: 60ch;
+  text-wrap: pretty;
+}
+
+/* ---- Building-block cards ---- */
+.blockGrid {
+  margin-top: clamp(30px, 4vw, 44px);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(268px, 1fr));
+  gap: 16px;
+}
+
+.blockCard {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 1px solid var(--acx-line);
+  border-radius: 12px;
+  padding: 22px 22px 20px;
+  background: var(--acx-surface);
+  color: var(--acx-ink);
+  text-decoration: none;
+  transition: border-color 0.18s ease, transform 0.18s ease;
+}
+
+.blockCard:hover {
+  border-color: var(--acx-faint);
+  transform: translateY(-2px);
+  text-decoration: none;
+  color: var(--acx-ink);
+}
+
+.blockCard__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  width: 40px;
+  border-radius: 9px;
+  border: 1px solid var(--acx-line);
+  background: var(--acx-elevated);
+  color: var(--acx-accent);
+  margin-bottom: 16px;
+}
+
+.blockCard h3 {
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin: 0 0 6px;
+  color: var(--acx-ink);
+}
+
+.blockCard p {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--acx-muted);
+  margin: 0 0 16px;
+}
+
+.blockCard__go {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--acx-faint);
+  transition: color 0.15s ease, gap 0.15s ease;
+}
+
+.blockCard:hover .blockCard__go {
+  color: var(--acx-accent);
+  gap: 9px;
+}
+
+/* ---- "Start here" quick links strip ---- */
+.startStrip {
+  border-top: 1px solid var(--acx-line-soft);
+}
+
+.startGrid {
+  margin-top: clamp(26px, 3vw, 36px);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.startCard {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  border: 1px solid var(--acx-line);
+  border-radius: 10px;
+  padding: 18px 18px;
+  background: var(--acx-surface);
+  color: var(--acx-ink);
+  text-decoration: none;
+  transition: border-color 0.18s ease;
+}
+
+.startCard:hover {
+  border-color: var(--acx-faint);
+  text-decoration: none;
+  color: var(--acx-ink);
+}
+
+.startCard__n {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--acx-accent);
+  flex: none;
+}
+
+.startCard__t {
+  font-weight: 600;
+  font-size: 14.5px;
+  margin: 0 0 3px;
+}
+
+.startCard__d {
+  font-size: 13px;
+  color: var(--acx-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+@keyframes acxPulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heroBadge .dot {
+    animation: none;
+  }
+}
+
+/* ── navbar "Start free" call to action ──
+   The docs site used to end at a private GitHub link; this is the way back into
+   the product for a reader who has just finished the quickstart. */
+.navbar__item.navbar-cta {
+  margin-left: 4px;
+  padding: 6px 13px;
+  border-radius: 7px;
+  background: var(--acx-accent);
+  color: var(--acx-accent-ink);
+  font-weight: 650;
+  transition: filter 0.15s ease;
+}
+
+.navbar__item.navbar-cta:hover {
+  filter: brightness(1.1);
+  color: var(--acx-accent-ink);
+  text-decoration: none;
+}

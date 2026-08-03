@@ -1,0 +1,29 @@
+meta {
+  name: Update Trace Feedback
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/traces/{{traceId}}/feedback/{{feedbackId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "rating": 4
+  }
+}
+
+assert {
+  res.status: eq 200
+}

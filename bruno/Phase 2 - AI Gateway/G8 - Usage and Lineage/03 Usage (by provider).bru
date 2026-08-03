@@ -1,0 +1,19 @@
+meta {
+  name: Usage (by provider)
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/gateway/usage?group_by=provider
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+params:query {
+  group_by: provider
+}

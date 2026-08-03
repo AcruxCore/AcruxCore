@@ -1,0 +1,25 @@
+meta {
+  name: Update Connection
+  type: http
+  seq: 6
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/gateway/connections/{{connectionId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "label": "OpenAI Prod (renamed)"
+  }
+}

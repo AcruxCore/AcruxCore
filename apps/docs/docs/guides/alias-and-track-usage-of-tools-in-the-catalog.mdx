@@ -1,0 +1,119 @@
+---
+title: Alias and Track Usage of Tools in the Catalog
+description: Commit a second tool version, promote staging ahead of production, and read real call volume, error rate, and latency per tool.
+sidebar_position: 13
+keywords: [tool aliases, tool versions, tool analytics, promote, tool catalog]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Alias and Track Usage of Tools in the Catalog
+
+**What you'll build:** a tool with two committed versions, a `staging` alias
+moved ahead of `production` to try the new one safely, and a read of real
+call volume, error rate, and latency across every tool your team has run.
+
+A tool is versioned exactly like a prompt (see
+[Build and attach a tool](./build-and-attach-a-tool) for the basics of
+creating one). This guide covers what happens after you have more than one
+version: which alias points where, and how to see whether a tool is actually
+being used, and how well.
+
+## 1. Commit a second version
+
+Open a tool's page and click **New version** — the form prefills from the
+current version, so a small change (here, adding an optional `currency`
+parameter) is a few edits, not a rewrite.
+
+![New version form for get_stock_price with a symbol parameter from v1 and a new optional currency parameter being added, plus a changelog note](/img/tutorials/alias-and-track-usage-of-tools-in-the-catalog/01-new-version-v1.png)
+
+Commit it, and both versions now show on the **Versions** tab — each
+immutable, each with its own changelog note:
+
+![Versions tab showing v1 and v2 of get_stock_price, v2 with its changelog note visible](/img/tutorials/alias-and-track-usage-of-tools-in-the-catalog/02-two-versions.png)
+
+## 2. Move one alias, not the other
+
+Switch to the **Aliases** tab. Every new tool gets `production` and
+`staging`, both pointing at v1 until you move them.
+
+![Aliases tab showing both production and staging pointing at v1](/img/tutorials/alias-and-track-usage-of-tools-in-the-catalog/03-aliases-both-v1.png)
+
+Pick v2 in `staging`'s dropdown and click **Promote**. `production` doesn't
+move — this is the same pattern prompts use, and for the same reason: try
+the new version wherever your code renders against `staging`, without
+touching what's live.
+
+![Aliases tab showing staging now pointing at v2 while production still points at v1](/img/tutorials/alias-and-track-usage-of-tools-in-the-catalog/04-staging-promoted-v2.png)
+
+## 3. Read real usage across every tool
+
+Open **Gateway → Tool analytics**. This aggregates every traced tool call
+your team has made — call volume, error rate, and p50/p95 latency, grouped
+by tool name.
+
+![Tool analytics page showing a bar chart and table of call counts, error rates, and latency percentiles across several tools](/img/tutorials/alias-and-track-usage-of-tools-in-the-catalog/05-tool-analytics.png)
+
+A tool only shows up once it's actually been called — this reads real
+`tool`-kind trace spans, not a static list of what exists in the catalog.
+That's also why a brand-new tool like the one built in this guide won't
+appear here yet: nothing has called it.
+
+## Doing this over the API
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+# List a tool's aliases
+curl "$ACRUXCORE_BASE_URL/tools/<tool-id>/aliases" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{
+  "data": [
+    {"id":"9b760d3c-88c6-4104-8323-9bd68055af76","alias":"production","versionId":"c0c6fd75-3d39-4555-a4c2-db5b1bb7155a","versionNumber":1,"updatedAt":"2026-08-01T03:42:06.695Z"},
+    {"id":"562f6352-934e-41f1-bc66-7e5cd0a3891a","alias":"staging","versionId":"db1c38ca-44d5-4b49-9937-ff91c47b4884","versionNumber":2,"updatedAt":"2026-08-01T03:44:25.523Z"}
+  ]
+}
+```
+
+```bash
+# Promote an alias to a specific version number — note the snake_case field
+curl -X POST "$ACRUXCORE_BASE_URL/tools/<tool-id>/aliases/staging/promote" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"version_number": 2}'
+```
+
+```json
+{"id":"562f6352-934e-41f1-bc66-7e5cd0a3891a","alias":"staging","versionId":"db1c38ca-44d5-4b49-9937-ff91c47b4884","versionNumber":2,"updatedAt":"2026-08-01T03:46:12.877Z"}
+```
+
+```bash
+# Read usage analytics across every tool, optionally windowed by since/until
+curl "$ACRUXCORE_BASE_URL/tools/analytics" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{"data":[{"toolName":"search_orders","calls":9,"errorRate":0,"p50Ms":823,"p95Ms":2850},{"toolName":"get_weather","calls":9,"errorRate":0,"p50Ms":606,"p95Ms":1247}]}
+```
+
+</TabItem>
+</Tabs>
+
+Promoting an alias that doesn't exist yet creates it — there's no separate
+"create alias" call. Listing aliases and reading analytics both work for any
+authenticated team member; promoting requires `owner`, `admin`, or `editor`.
+
+## What's next
+
+- Create the tool this guide started from — see
+  [Build and attach a tool](./build-and-attach-a-tool).
+- The same alias/promote pattern for prompts — see
+  [Version a prompt](./version-a-prompt).
+- Full field reference: **Tool Aliases** and **Tools Analytics** in the
+  [API Reference](/api-reference).

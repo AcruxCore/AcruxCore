@@ -1,0 +1,139 @@
+---
+title: Set Spend Limits with Gateway Budgets and Rate Limits
+description: Cap spend team-wide or per key by day, week, month, or total, and pair it with a request-rate cap — then prove both actually reject a call before it costs anything.
+sidebar_position: 15
+keywords: [gateway budgets, spend limit, rate limit, 402 budget exceeded, 429 rate limited, cost control]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Set Spend Limits with Gateway Budgets and Rate Limits
+
+**What you'll build:** a spend cap enforced before a single provider dollar
+is spent, and a request-rate cap enforced independently of it — with real
+`402` and `429` responses proving both actually stop a call, not just log
+one.
+
+A **budget** is a spend cap: team-wide (every call, regardless of key) or
+scoped to one virtual key, over a `day`, `week`, `month`, or `total` (never
+resets) window. A key's **rate limit** (`maxRpm`/`maxTpm`, set when you
+[create or edit the key](./scope-access-with-virtual-keys)) is a separate
+mechanism — capping request/token *rate*, not spend. Both are enforced in the
+same place: before the gateway calls a provider at all.
+
+## 1. See what's already capped
+
+Open **Gateway → Budgets**. This account already has one budget scoped to
+the `checkout-service` key and one team-wide budget covering everything.
+
+![Budgets page showing a checkout-service daily budget at $0 of $5 and a team-wide monthly budget](/img/tutorials/set-spend-limits-with-gateway-budgets-and-rate-limits/01-budgets-list.png)
+
+## 2. Create a budget
+
+Click **New budget**. Scope it to **Team-wide** or to one virtual key, pick
+a period, and set the limit in USD.
+
+![New budget form with scope set to a specific key, period Daily, and a limit entered](/img/tutorials/set-spend-limits-with-gateway-budgets-and-rate-limits/02-new-budget-form.png)
+
+Click **Create budget**. It appears immediately in the list with $0 spent
+against the limit, and a countdown to when the period resets.
+
+![Budgets list showing the new budget alongside the existing two](/img/tutorials/set-spend-limits-with-gateway-budgets-and-rate-limits/03-budget-created.png)
+
+## 3. Prove the spend cap actually rejects a call
+
+A key whose budget limit was set below what it had already spent this period
+gets rejected — no partial call, no charge:
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+  -H "Authorization: Bearer $SCOPED_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "Say OK"}], "max_tokens": 5}'
+```
+
+```json
+{"error":{"code":"BUDGET_EXCEEDED","message":"Virtual key budget exceeded."}}
+```
+
+That's a `402`. The rejection happens in the gateway before any request
+reaches the provider — an over-budget call costs nothing, not even a
+partial completion.
+
+## 4. Prove the rate cap actually rejects a call
+
+Rate limits are independent of budgets and checked the same way — before the
+provider call. A key already near its `maxRpm` for the current window gets:
+
+```bash
+curl -i -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+  -H "Authorization: Bearer $SCOPED_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "Say OK"}], "max_tokens": 5}'
+```
+
+```text
+HTTP/1.1 429 Too Many Requests
+Retry-After: 19
+```
+```json
+{"error":{"code":"RATE_LIMITED","message":"Rate limit exceeded."}}
+```
+
+`Retry-After` is in seconds until the window rolls forward — worth reading
+and backing off on, rather than retrying immediately. One thing worth
+knowing: lowering a key's `maxRpm` takes effect on calls already counted in
+the *current* window, not just future ones — if a key already made several
+calls this minute, dropping its cap to 1 rpm can rate-limit its very next
+call, not just its eleventh.
+
+## Doing this over the API
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+# Create a budget — omit virtualKeyId (or send null) for team-wide
+curl -X POST "$ACRUXCORE_BASE_URL/gateway/budgets" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"period": "week", "limitUsd": 50}'
+```
+
+```json
+{
+  "id": "8820e264-d1ef-4c81-8050-2982fabd13ac",
+  "virtualKeyId": null,
+  "period": "week",
+  "limitUsd": 50,
+  "spendUsd": 0,
+  "resetsAt": "2026-08-03T00:00:00.000Z",
+  "createdBy": "00cc9833-13ca-42b4-a102-b403e85ea250",
+  "createdAt": "2026-08-01T04:41:58.988Z",
+  "updatedAt": "2026-08-01T04:41:58.988Z"
+}
+```
+
+```bash
+# Set a rate limit on a key (also settable at creation time)
+curl -X PATCH "$ACRUXCORE_BASE_URL/gateway/keys/<key-id>" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"maxRpm": 60}'
+```
+
+</TabItem>
+</Tabs>
+
+Only one budget may exist per `(team, scope, period)` combination — a
+duplicate returns `409`. Creating and updating budgets requires `owner` or
+`admin`; listing them is open to any team member.
+
+## What's next
+
+- Create the scoped key a per-key budget or rate limit applies to — see
+  [Scope Access with Virtual Keys](./scope-access-with-virtual-keys).
+- Chain a fallback so a provider outage doesn't just fail the call — see
+  [Automatic Model Fallbacks](./automatic-model-fallbacks).
+- Full field reference: **Gateway Budgets** in the [API Reference](/api-reference).

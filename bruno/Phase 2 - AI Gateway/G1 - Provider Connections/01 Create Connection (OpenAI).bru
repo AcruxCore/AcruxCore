@@ -1,0 +1,27 @@
+meta {
+  name: Create Connection (OpenAI)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/gateway/connections
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "provider": "openai",
+    "label": "OpenAI Prod",
+    "apiKey": "{{providerKey}}"
+  }
+}

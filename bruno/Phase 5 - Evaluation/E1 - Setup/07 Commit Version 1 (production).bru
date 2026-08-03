@@ -1,0 +1,34 @@
+meta {
+  name: Commit Version 1 (production)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/v1/prompts/{{e5PromptId}}/versions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "messages": [
+      { "role": "system", "content": "Say hello to {{ name }} in one short sentence." }
+    ]
+  }
+}
+
+script:post-response {
+  // v1 auto-promotes to both `production` and `staging` on a brand new prompt.
+  if (res.getStatus() === 201) {
+    bru.setVar("e5VersionV1Id", res.getBody().id);
+  }
+}

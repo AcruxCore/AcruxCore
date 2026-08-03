@@ -1,0 +1,11 @@
+meta {
+  name: Revoke Team API Key
+  type: http
+  seq: 3
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/teams/{{teamId}}/api-keys/{{teamKeyId}}
+  body: none
+  auth: none
+}

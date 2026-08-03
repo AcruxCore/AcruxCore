@@ -1,0 +1,34 @@
+meta {
+  name: Commit Version 2
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/tools/{{toolId}}/versions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "description": "v2 - POST variant",
+    "parametersSchema": {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+    "executor": {
+      "type": "http",
+      "url": "https://httpbin.org/post",
+      "method": "POST",
+      "headers": [],
+      "query": [],
+      "argMapping": []
+    }
+  }
+}

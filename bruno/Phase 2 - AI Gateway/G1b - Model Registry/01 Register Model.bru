@@ -1,0 +1,33 @@
+meta {
+  name: Register Model
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/gateway/models
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "publicName": "claude-via-or",
+    "upstreamModel": "anthropic/claude-3.5-sonnet",
+    "credentialId": "{{connectionId}}"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setVar("modelId", res.getBody().id);
+  }
+}

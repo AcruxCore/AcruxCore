@@ -1,0 +1,15 @@
+meta {
+  name: Revoke Virtual Key
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/gateway/keys/{{virtualKeyId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}

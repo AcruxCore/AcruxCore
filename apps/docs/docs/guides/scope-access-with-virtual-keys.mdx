@@ -1,0 +1,111 @@
+---
+title: Scope Access with Virtual Keys
+description: Create a gateway key restricted to one model, a rate cap, and a cache TTL, so a leaked key can't spend outside its job.
+sidebar_position: 12
+keywords: [virtual key, api key scoping, rate limit, allowed models, gateway auth, agh_sk]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Scope Access with Virtual Keys
+
+**What you'll build:** a virtual key restricted to one model, capped at a
+request rate, and set to reuse cached responses for a minute — then proof
+that the restriction actually holds, by calling an allowed model and a
+disallowed one with the same key.
+
+A **virtual key** (`agh_sk_…`) is what your app sends to the gateway — never
+your provider's own key, which stays encrypted server-side. Every virtual
+key can be **unrestricted** (any registered model, no caps) or **scoped**:
+limited to specific models or providers, rate-limited, and given its own
+cache window. Scoping matters because a virtual key is what ends up baked
+into a mobile app, a CI pipeline, or a third-party service — anywhere a key
+is more likely to leak than a browser session.
+
+## 1. See what you already have
+
+Open **Gateway → Virtual keys**. Each row shows whether a key is
+unrestricted or scoped, and to what.
+
+![Virtual keys list showing a mix of unrestricted keys and one scoped to a model with a rate limit](/img/tutorials/scope-access-with-virtual-keys/01-keys-list.png)
+
+## 2. Create a scoped key
+
+Click **New key**. Everything under **Scope** is optional — leave it blank
+for an unrestricted key. Here we're creating one for a mobile client:
+restricted to `gpt-4o-mini`, capped at 120 requests/minute, with responses
+cached for 60 seconds.
+
+![New virtual key form with name mobile-app, allowed model gpt-4o-mini, max RPM 120, and cache TTL 60](/img/tutorials/scope-access-with-virtual-keys/02-new-key-form.png)
+
+Click **Create key**. Like a personal API key, the plaintext token is shown
+exactly once.
+
+Back on the list, the new key's scope is summarized right there — no need to
+open it again to remember what it's restricted to:
+
+![Virtual keys list showing the new mobile-app key with its scope summary: gpt-4o-mini, 120 rpm, cache 60s](/img/tutorials/scope-access-with-virtual-keys/04-keys-list-updated.png)
+
+## 3. Prove the scope actually holds
+
+Call the gateway with the new key using the allowed model — it works exactly
+like an unrestricted key would:
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+  -H "Authorization: Bearer $MOBILE_APP_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "Say OK"}], "max_tokens": 5}'
+```
+
+```json
+{"id":"gen-1785555455-vODktjXf4x5AKdhpxbXt","model":"openai/gpt-4o-mini","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"OK!"},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":3,"total_tokens":12}}
+```
+
+Now call it with a model outside the allow-list, same key:
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+  -H "Authorization: Bearer $MOBILE_APP_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "claude-via-or", "messages": [{"role": "user", "content": "Say OK"}], "max_tokens": 5}'
+```
+
+```json
+{"error":{"code":"MODEL_NOT_ALLOWED","message":"Model 'claude-via-or' is not allowed for this key."}}
+```
+
+The rejection happens before any provider is called — a scoped key can't be
+talked into spending outside its job, even by a client that's been
+compromised or misconfigured. `maxRpm` / `maxTpm` enforce the same way, with
+`429 RATE_LIMITED` and a `Retry-After` header once the cap is hit.
+
+## 4. Revoke it when it's done
+
+If a key leaks, or the service it belonged to is retired, click **Revoke**.
+It's immediate and permanent — the confirmation says so, because there's no
+undo.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X DELETE "$ACRUXCORE_BASE_URL/gateway/keys/<key-id>" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+</TabItem>
+</Tabs>
+
+Any request made with a revoked key gets `401 INVALID_KEY` from that moment
+on. Requests it already made keep their trace and usage history — revoking
+doesn't rewrite what already happened, only what happens next.
+
+## What's next
+
+- Cap total spend rather than just request rate — see
+  [Set Spend Limits with Gateway Budgets and Rate Limits](./set-spend-limits-with-gateway-budgets-and-rate-limits).
+- Route calls through the gateway in the first place — see
+  [Route your app's LLM calls through the gateway](./route-calls-through-the-gateway).
+- Full field reference: **Gateway Virtual Keys** in the [API Reference](/api-reference).

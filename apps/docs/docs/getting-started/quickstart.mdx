@@ -1,0 +1,225 @@
+---
+title: Quickstart
+description: Sign up, register a model, author a prompt, and make your first traced LLM call through the Acrux Core gateway — in about ten minutes.
+sidebar_position: 2
+keywords: [llm gateway quickstart, prompt management, openai compatible gateway, acrux core sdk, python llm sdk]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Quickstart
+
+By the end of this page you'll have made a real, traced LLM call that renders a
+prompt you authored and routes through a provider of your choice. It takes about
+ten minutes.
+
+## 1. Create your account
+
+Open the web app and sign up. You get a personal team (workspace) immediately —
+no separate "create team" step.
+
+![Acrux Core sign-up screen](/img/tutorials/getting-started/01-signup.png)
+
+## 2. Create an API key
+
+Go to **Account & keys** and click **New key**. Copy the key **now** — it's shown
+only once. This is what the SDK and your `curl` calls authenticate with.
+
+![Account & keys page with a personal API key](/img/tutorials/getting-started/02-account-keys.png)
+
+Set two environment variables you'll reuse everywhere:
+
+```bash
+export ACRUXCORE_API_KEY="<paste your key>"
+# Hosted: https://api.acruxcore.com/api/v1 · Local dev: http://localhost:3001/api/v1
+export ACRUXCORE_BASE_URL="https://api.acruxcore.com/api/v1"
+```
+
+## 3. Register a model
+
+The gateway needs one **credential** (a provider key) and one **model** (a public
+name pointing at it). In the web app:
+
+1. **Gateway → Credentials → New credential.** Pick your provider — this guide
+   uses **OpenAI-compatible** with the base URL `https://openrouter.ai/api/v1` and
+   an [OpenRouter](https://openrouter.ai) key. Paste the key; it's encrypted at
+   rest and never shown again.
+2. **Gateway → Models → New model.** Set **Public name** to `support-model`, pick
+   the credential, and set **Upstream model** to `openai/gpt-4o-mini`.
+
+Callers now send `model: "support-model"`; the upstream id can change later
+without breaking them. (The [gateway guide](../guides/route-calls-through-the-gateway)
+covers this in detail.)
+
+## 4. Author a prompt
+
+**Prompts → New prompt.** Name it `support-reply`. Add a **system** message and a
+**user** message, using `{{ variables }}` where the input goes:
+
+![Prompt editor with system and user messages](/img/tutorials/version-a-prompt/03-editor-messages.png)
+
+<details>
+<summary>See the raw prompt template</summary>
+
+```jinja
+system: You are a friendly, concise customer-support agent for {{ company }}.
+        Reply warmly and help the customer resolve their issue in 2-3 sentences.
+user:   {{ customer_message }}
+```
+
+</details>
+
+Click **Commit new version** — the first commit auto-creates the `production` and
+`staging` aliases pointing at v1. (See [Version a prompt](../guides/version-a-prompt)
+for the full lifecycle.)
+
+## 5. Make your first call
+
+Now put the three pieces together: the prompt you authored, filled with real values,
+sent to `support-model` through the gateway. The gateway routes the call, prices it,
+and records a trace whichever way you call it. `curl` names the prompt and lets the
+gateway render it server-side — one request does everything. The SDKs render first,
+so your code can read or extend the messages before they go out.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "support-model",
+    "prompt": {
+      "name": "support-reply",
+      "alias": "production",
+      "variables": {
+        "company": "Acme",
+        "customer_message": "My order #123 has not arrived yet."
+      }
+    }
+  }'
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```bash
+npm install @acruxcoreai/sdk
+```
+
+```typescript
+import AcruxCore from '@acruxcoreai/sdk';
+
+// Reads ACRUXCORE_API_KEY and ACRUXCORE_BASE_URL from the environment.
+const hub = new AcruxCore();
+
+// Render the stored prompt to messages, then complete it.
+const { messages } = await hub.renderPrompt('support-reply', 'production', {
+  company: 'Acme',
+  customer_message: 'My order #123 has not arrived yet.',
+});
+
+const { content } = await hub.chat({ model: 'support-model', messages });
+
+console.log(content);
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```bash
+pip install acruxcore
+```
+
+```python
+import asyncio
+from acruxcore import AcruxCore
+
+async def main():
+    # Reads ACRUXCORE_API_KEY and ACRUXCORE_BASE_URL from the environment.
+    async with AcruxCore() as hub:
+        # Render the stored prompt to messages, then complete it.
+        rendered = await hub.render_prompt("support-reply", "production", {
+            "company": "Acme",
+            "customer_message": "My order #123 has not arrived yet.",
+        })
+
+        reply = await hub.chat("support-model", rendered.messages)
+        print(reply.content)
+
+asyncio.run(main())
+```
+
+The Python SDK is async throughout, so `AcruxCore` is an async context manager.
+Create one instance at startup and reuse it.
+
+</TabItem>
+</Tabs>
+
+The response is OpenAI-shaped, so the endpoint drops into anything that already
+speaks OpenAI — including the official `openai` client, pointed at
+`ACRUXCORE_BASE_URL + "/gateway"` (the
+[gateway guide](../guides/route-calls-through-the-gateway#4-call-it-from-code) shows
+that). The SDKs hand you the same payload with the text pulled out on `content`.
+
+```json
+{
+  "id": "gen-...",
+  "model": "openai/gpt-4o-mini",
+  "object": "chat.completion",
+  "choices": [
+    { "index": 0, "message": { "role": "assistant", "content": "I'm sorry to hear that your order hasn't arrived yet! ..." }, "finish_reason": "stop" }
+  ],
+  "usage": { "prompt_tokens": 57, "completion_tokens": 32, "total_tokens": 89 }
+}
+```
+
+:::note[The render cache]
+Both SDKs cache a render for 60 seconds, keyed by prompt name, alias **and the
+variables you passed** — so rendering the same prompt with a new question always
+re-renders, and only an identical repeat is served from memory. Change the window
+with `cacheTtl` / `cache_ttl` (milliseconds), or pass `0` to switch caching off
+entirely. The `curl` path renders server-side and has no client cache.
+:::
+
+## 6. See it in Traces
+
+Open **Observability → Traces**. Your call is at the top — click it to see the
+model, token counts, latency, and status. That's the full loop: a versioned
+prompt, routed through the gateway, recorded as a trace.
+
+## More of the SDK
+
+Rendering a prompt and completing it are the two calls most apps need first. Both
+SDKs — [`@acruxcoreai/sdk`](https://www.npmjs.com/package/@acruxcoreai/sdk) for
+Node and [`acruxcore`](https://pypi.org/project/acruxcore/) for Python — cover the
+rest of the platform, with the same method names in each language's style:
+
+- **Streaming** — pass `stream: true` / `stream=True` to `chat()` and iterate the
+  response token by token instead of awaiting it whole.
+- **Tool-calling loop** — declare a tool with `acrux.tool` and hand it to
+  `runToolLoop` / `run_tool_loop`. The loop syncs the tool into the catalog, calls
+  the model, runs your function, and repeats until the model stops asking. A catalog
+  tool with an `http` executor runs on the platform instead, with no local code at
+  all. Either way the whole run is one trace. See
+  [Build and attach a tool](../guides/build-and-attach-a-tool).
+- **Read traces back** — `getTrace()` / `listTraces()` pull a trace's full span tree
+  or a filtered list, without leaving your app.
+- **Feedback** — `submitFeedback()` / `updateFeedback()` attach a rating, label, or
+  comment to a trace or a single span, e.g. surfacing an end user's thumbs-up/down.
+
+See [Chat, stream, and collect feedback with the SDK](../guides/use-the-sdk-for-chat-and-feedback)
+for all of it worked through end to end.
+
+## Where to next
+
+- **[Tutorials](../tutorials/)** — eight agent builds from no-code to multi-agent; pick the level that matches your goal
+- [Build and attach a tool](../guides/build-and-attach-a-tool) — give the model a
+  function of yours to call
+- [Chat, stream, and collect feedback with the SDK](../guides/use-the-sdk-for-chat-and-feedback)
+- [Version a prompt and ship it to production](../guides/version-a-prompt)
+- [Route your app's calls through the gateway](../guides/route-calls-through-the-gateway)
+- [Trace and inspect an LLM call](../guides/trace-an-llm-call)
+- [Core concepts](./core-concepts) for the full mental model

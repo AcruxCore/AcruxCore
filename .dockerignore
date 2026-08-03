@@ -1,0 +1,64 @@
+# Keep the build context small and never leak secrets or host build artifacts
+# into images. Dependencies and compiled output are rebuilt inside the image.
+
+# Dependencies (reinstalled via npm ci in the builder)
+node_modules
+**/node_modules
+
+# Build output (recompiled in the builder)
+dist
+**/dist
+build
+**/build
+.docusaurus
+**/.docusaurus
+
+# Secrets / env (env is injected via docker-compose, not baked in)
+.env
+.env.*
+!.env.example
+!.env.docker.example
+
+# VCS + tooling
+.git
+.github
+.turbo
+**/.turbo
+.memsearch
+.superpowers
+.claude
+.envrc
+
+# Tests / local artifacts
+test-results
+**/test-results
+.playwright-mcp
+coverage
+**/coverage
+cookies.txt
+*.log
+
+# Docs source and misc host files not needed to build the apps.
+# Exclude the docs/ tree EXCEPT docs/api — the Docusaurus site (apps/docs)
+# builds its API reference from ../../docs/api, so that folder must stay in
+# the context. (Use `docs/*` not `docs` so the exception can re-include a
+# child; Docker can't re-include under a fully-excluded parent dir.)
+docs/*
+!docs/api
+
+# apps/docs (the Docusaurus site) has no Docker target anymore — it deploys
+# to Cloudflare Pages via CI, not this image. Keep only its package.json so
+# `npm ci` at the workspace root can still resolve it as a workspace member;
+# the rest of its source is dead weight in this build context.
+apps/docs/*
+!apps/docs/package.json
+bruno
+examples
+*.png
+Acrux Core landing page
+
+# Docker files themselves
+Dockerfile
+**/Dockerfile
+.dockerignore
+docker-compose.yml

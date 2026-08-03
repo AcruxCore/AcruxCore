@@ -1,0 +1,19 @@
+meta {
+  name: Usage (by model)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/gateway/usage?group_by=model
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+params:query {
+  group_by: model
+}

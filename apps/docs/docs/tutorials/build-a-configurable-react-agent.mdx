@@ -1,0 +1,874 @@
+---
+title: Build a configurable ReAct agent
+description: A web-research agent whose model, persona, and search depth all change at call time — just by swapping one alias name, no redeploy and no code change.
+sidebar_position: 6
+keywords: [react agent, tavily, configurable, prompt alias, tool calling]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Build a configurable ReAct agent
+
+**What you'll build:** one web-research agent that runs two different ways depending
+on a single string you pass at call time — `quick`, a fast, shallow-search persona
+on a cheap model, or `deep`, a thorough, wide-search persona on a stronger model.
+Same prompt, same tool, same code. The only thing that changes between the two is
+which **alias** you render.
+
+Here's the full flow:
+
+1. **Create the prompt** with two versions — v1 (quick persona + cheap model) and
+   v2 (deep persona + stronger model).
+2. **Create aliases** — point `quick` at v1 and `deep` at v2 using the Versions
+   tab's "New alias" form.
+3. **Render by alias** — your code calls `render_prompt("web-research-agent", "quick")`
+   or `render_prompt("web-research-agent", "deep")`, and the platform returns that
+   version's model, system prompt, and tools.
+4. **Run the loop** — the SDK drives the gateway completion loop with whatever the
+   render returned. The model, the persona, and the search depth all changed because
+   the alias changed.
+
+An **alias** is a named pointer at a specific version — `production` and `staging`
+are the two Acrux Core creates for you automatically, but an alias is just a string,
+not a fixed enum. Nothing stops you from pointing others at whatever versions you
+want: `quick`, `deep`, a customer id, a region. Swapping which alias your code
+renders is the entire configuration mechanism: no redeploy, no code change, not even
+a restart.
+
+:::note[What you'll need]
+A [Tavily](https://tavily.com/) API key (the free tier is enough). The Python tab
+calls the real `langchain_community` Tavily wrapper (`pip install langchain-community`
+— its Tavily calls run on plain `requests`/`aiohttp`, no separate `tavily-python`
+client needed); the Node tab calls its TypeScript equivalent
+(`npm install @langchain/tavily`).
+:::
+
+## 1. See the shallow vs. deep search for yourself
+
+The source this page reproduces defines two configurations of the same Tavily
+wrapper — `basic_research` (5 results, basic depth, includes images) and
+`advanced_research` (10 results, advanced depth):
+
+```python
+from langchain_community.tools.tavily_search import TavilySearchResults
+
+async def advanced_research(query: str):
+    """Deep research: 10 results, advanced depth."""
+    wrapped = TavilySearchResults(max_results=10, search_depth="advanced")
+    return await wrapped.ainvoke({"query": query})
+
+async def basic_research(query: str):
+    """Quick research: 5 results, basic depth, includes images."""
+    wrapped = TavilySearchResults(max_results=5, search_depth="basic", include_raw_content=False, include_images=True)
+    return await wrapped.ainvoke({"query": f"trending {query}"})
+```
+
+Both configurations are one real call to Tavily's REST API
+(`https://api.tavily.com/search`) with different parameters. Run them standalone
+first, before any of this touches Acrux Core, to see the two depths visibly
+differ:
+
+```bash
+curl -s -X POST https://api.tavily.com/search \
+  -H "Content-Type: application/json" \
+  -d '{"api_key":"'"$TAVILY_API_KEY"'","query":"Acrux Core LLM gateway pricing","search_depth":"advanced","max_results":10}' \
+  | python3 -c "import json,sys; d=json.load(sys.stdin); print('results:', len(d['results'])); print('images:', len(d.get('images', [])))"
+```
+
+```text
+results: 10
+images: 0
+```
+
+```bash
+curl -s -X POST https://api.tavily.com/search \
+  -H "Content-Type: application/json" \
+  -d '{"api_key":"'"$TAVILY_API_KEY"'","query":"trending AI agent frameworks","search_depth":"basic","max_results":5,"include_images":true,"include_raw_content":false}' \
+  | python3 -c "import json,sys; d=json.load(sys.stdin); print('results:', len(d['results'])); print('images:', len(d.get('images', [])))"
+```
+
+```text
+results: 5
+images: 4
+```
+
+10 results with no images vs. 5 results with 4 real image URLs attached — the same
+API, visibly different depth, driven entirely by the request body. That's the axis
+this whole tutorial turns into a runtime config swap. This standalone check calls
+the raw REST API directly (curl has no LangChain to import), specifically to show
+the image count difference: the source's own `TavilySearchResults` wrapper — the
+one the Python tab below calls directly — passes `include_images=True` through to
+this same endpoint, but its plain `.ainvoke()` return only surfaces `title`, `url`,
+`content`, and `score`, dropping `images` even when they're requested. That's a
+real, narrow quirk of that one deprecated Python class, not of Tavily wrappers in
+general — the Node tab's `TavilySearch` (from `@langchain/tavily`, the actively
+maintained successor to `TavilySearchResults`) returns a real `images` array from
+the same kind of call, confirmed when building the Node tab below.
+
+## 2. Get an API key
+
+The scripts below need one Acrux Core key to create the prompt and tool, render
+each alias, and run the loop. Open **Account & keys → New key**, name it something
+like `configurable-react-agent`, and copy the value — it's shown once.
+
+![The "Copy your API key" dialog showing a freshly created key beginning acx_sk_, a Copy button, and a Node SDK snippet using it](/img/tutorials/build-a-configurable-react-agent/08-api-key.png)
+
+```bash
+export ACRUXCORE_API_KEY=acx_sk_...
+export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
+export TAVILY_API_KEY=tvly-...
+```
+
+## 3. Create the `web_research` tool
+
+Open **Gateway → Tools**, click **New tool**, and name it `web_research`. Its
+schema is deliberately thin — the model only ever supplies a `query`; which depth
+that query runs at is decided by which alias is active, not by the model.
+
+![New tool dialog with the name web_research and a description about searching the live web](/img/tutorials/build-a-configurable-react-agent/01-new-tool.png)
+
+Click **Create tool**, then **New version** to define its one parameter and pick
+**Client — the caller's app runs it**: the platform stores the schema, your own
+code runs the real Tavily call.
+
+![New version form showing a required query string parameter and the executor set to Client](/img/tutorials/build-a-configurable-react-agent/02-tool-version.png)
+
+Click **Commit version**. `web_research` now exists with one parameter and no
+opinion at all about search depth — that lives entirely in the prompt versions
+you're about to create.
+
+## 4. Create the prompt: two versions, two personas
+
+Open **Prompts → New prompt**, name it `web-research-agent`.
+
+![New prompt dialog with the name web-research-agent and a description about the configurable persona](/img/tutorials/build-a-configurable-react-agent/03-new-prompt.png)
+
+On the **Editor** tab, set **Default model** to `gemini-flash` — a small, cheap,
+fast model — and write the quick persona's system message. Add a `user` message of
+`{{ question }}` so the actual question is supplied at render time, not baked into
+the template:
+
+![Editor tab with default model gemini-flash and a system message describing the fast, shallow-search persona](/img/tutorials/build-a-configurable-react-agent/04-quick-editor.png)
+
+Switch to the **Tools** tab and tick `web_research` under **Attach to next
+commit**, then click **Commit new version**. This is v1 — `production` and
+`staging` both auto-point at it, since it's the first version.
+
+![Tools tab with web_research checked under Attach to next commit](/img/tutorials/build-a-configurable-react-agent/05-tools-tab.png)
+
+Back on the **Editor** tab, change **Default model** to `gpt-4o-mini` — a stronger
+model — and replace the system message with the deep persona's framing: more
+thorough, more sources, more synthesis. `web_research` is still checked from
+before, so it carries forward automatically. Click **Commit new version** again to
+create v2:
+
+![Editor tab now showing default model gpt-4o-mini and a system message describing the thorough, deep-search persona](/img/tutorials/build-a-configurable-react-agent/06-deep-editor.png)
+
+The **Versions** tab now shows both: v1 on `gemini-flash` with `production` and
+`staging` both still pointing at it, v2 on `gpt-4o-mini` with neither alias moved
+yet.
+
+![Versions tab listing v2 on gpt-4o-mini and v1 on gemini-flash, with production and staging both still on v1](/img/tutorials/build-a-configurable-react-agent/07-versions-tab.png)
+
+## 5. Point `quick` and `deep` at each version
+
+An **alias** is a named pointer at a specific version. When your code calls
+`render_prompt("web-research-agent", "quick")`, the platform looks up which
+version `quick` points at, and returns that version's model, system prompt, and
+tools. `production` and `staging` are the two aliases Acrux Core creates
+automatically on the first version — but an alias is just a string, not a fixed
+enum. You can create any name you want.
+
+Here's what we're setting up:
+
+| Alias | Points at | Model | System prompt |
+|-------|-----------|-------|---------------|
+| `quick` | v1 | gemini-flash | Fast, concise persona |
+| `deep` | v2 | gpt-4o-mini | Thorough, multi-source persona |
+| `production` | v1 | gemini-flash | Fast, concise persona |
+| `staging` | v1 | gemini-flash | Fast, concise persona |
+
+The only difference between a `quick` run and a `deep` run is which alias you
+pass — the model, the persona, and the search depth all come from whichever
+version that alias points at.
+
+### Creating the aliases
+
+Open the **Versions** tab. Each version row shows which aliases currently point
+at it, and each row has **promote buttons** (`→ production`, `→ staging`, etc.)
+that move an existing alias to that version. But we need *new* names, so scroll
+to the bottom of the tab to find the **New alias** form.
+
+Type `quick` in the alias name field, select **v1** from the version dropdown,
+and click **Promote**. The upsert creates the alias — promoting a name that
+doesn't exist yet simply creates it.
+
+![New alias form with quick typed in the name field, v1 selected in the version dropdown, and the Promote button enabled](/img/tutorials/build-a-configurable-react-agent/09-create-alias-form.png)
+
+Do the same for `deep`: type `deep`, select **v2**, click **Promote**.
+
+### What changed
+
+Both custom aliases now appear as badges on their respective version rows. On
+the **v1** row, you'll see `PRODUCTION`, `STAGING`, and `QUICK` badges — all
+three point at v1. On the **v2** row, the `DEEP` badge sits alone. Custom
+aliases show a **×** delete button; `production` and `staging` cannot be deleted.
+
+The prompt header also displays all four alias badges with their version
+pointers — this is the at-a-glance view of what's bound where:
+
+![Versions tab showing v2 with a deep badge and v1 with production, staging, and quick badges, plus the header showing all four alias pointers](/img/tutorials/build-a-configurable-react-agent/10-alias-badges-on-versions.png)
+
+### How aliases are used
+
+Aliases show up in three places:
+
+**1. The Playground.** Open **Gateway → Playground → Stored prompt**, pick
+`web-research-agent`, and the **Alias** dropdown lists all four. Selecting
+`deep · v2` instantly swaps the system message to the thorough persona — proof
+that the alias resolved to v2's content:
+
+![Playground's Stored prompt tab with web-research-agent selected and the Alias dropdown showing production v1, staging v1, quick v1, and deep v2, with deep selected and the system message updated to match](/img/tutorials/build-a-configurable-react-agent/11-playground-alias.png)
+
+**2. The render API.** When your code calls the render endpoint, the alias
+determines everything:
+
+```bash
+# This returns v1's model + system prompt (quick → v1)
+curl -s -X POST "$ACRUXCORE_BASE_URL/prompts/web-research-agent/quick/render" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"variables":{"question":"What is new in AI?"}}'
+# -> { "model": "gemini-flash", "messages": [...fast persona...], "tools": [...] }
+
+# This returns v2's model + system prompt (deep → v2)
+curl -s -X POST "$ACRUXCORE_BASE_URL/prompts/web-research-agent/deep/render" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"variables":{"question":"What is new in AI?"}}'
+# -> { "model": "gpt-4o-mini", "messages": [...thorough persona...], "tools": [...] }
+```
+
+Same endpoint, same variables — the alias on the URL is the only thing that
+changed. The model, system prompt, and tool list all came from whichever version
+that alias points at.
+
+**3. Your code's dispatch function.** The one place your code *does* branch on
+the alias is the `web_research` tool dispatch — because search depth is a client
+decision (step 3 deliberately left it out of the tool schema). The dispatch
+function picks Tavily's `search_depth` and `max_results` to match the alias:
+
+```python
+async def web_research(query: str, alias: str) -> list:
+    if alias == "quick":
+        wrapped = TavilySearchResults(max_results=5, search_depth="basic", ...)
+    else:
+        wrapped = TavilySearchResults(max_results=10, search_depth="advanced")
+    return await wrapped.ainvoke({"query": query})
+```
+
+This is the only `if alias ==` in the entire script. The model, the persona,
+and the system prompt all came from the render call — only the tool
+configuration branches, because it lives on the client side.
+
+:::tip[Aliases via curl]
+The UI is not the only way — the API accepts any string:
+`POST /prompts/:id/aliases/:alias/promote` with `{"version_number": N}`.
+This is useful for automation or CI pipelines that need to create aliases
+programmatically.
+:::
+
+## 6. Run the agent
+
+As step 5 explained, the alias determines everything — model, system prompt, and
+tools all come from whichever version that alias points at. **The only thing that
+changes between a quick run and a deep run is the alias string you pass.**
+
+The one place the scripts *do* branch on the alias is the `web_research` dispatch
+function, which picks Tavily's `search_depth`/`max_results` to match. This is
+because search depth is a client-side decision — step 3 deliberately left it out
+of the tool schema, so the dispatch function carries that config instead.
+
+Because `web_research` is a **client** tool, the gateway can't run it — your code
+has to. Python and Node use the SDK's `run_tool_loop()`/`runToolLoop()` to drive
+the back-and-forth; curl has no such helper, so its loop is written by hand, the
+same shape [Build a tool-calling agent in Python (no SDK)](./build-a-tool-calling-agent-in-python-no-sdk)
+uses: a header trick (`x-trace-name` to open a trace, `x-gateway-trace-id` back,
+then `x-trace-id` on every later call) keeps the whole run in one trace, since the
+gateway itself records every `llm` span now — unlike
+[Build a ReAct agent](./build-a-react-agent)'s BYO path, nothing here has to be
+reported manually except the `tool` spans `web_research` produces.
+
+The three tabs differ in what they can call to implement `web_research` itself.
+curl has no way to import a Python or TypeScript class, so it calls Tavily's REST
+API (`https://api.tavily.com/search`) directly — the same endpoint every LangChain
+Tavily wrapper ultimately calls anyway. Python and Node both **can** import the
+real wrapper class, and both do: the Python tab calls `langchain_community`'s
+`TavilySearchResults` directly, exactly as the source shows, and the Node tab
+calls `@langchain/tavily`'s `TavilySearch` — its actively maintained TypeScript
+equivalent (no separate Tavily wrapper ships in `@langchain/community` itself).
+Neither language needed a substitute: both wrapper packages install cleanly and
+both reached Tavily's API without incident in every run below.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+<details>
+<summary>Full source: <code>web_research_agent.sh</code></summary>
+
+```bash
+#!/usr/bin/env bash
+# Configurable web-research agent — bash + curl + jq, gateway, manual tool_calls loop.
+# curl has no runToolLoop() equivalent, so this loops by hand; the Python and Node
+# tabs do the same work with run_tool_loop()/runToolLoop().
+#
+# Flow:
+#   1. render  — POST /prompts/web-research-agent/:alias/render (Acrux Core)
+#                -> {messages, tools, model, versionId}. Model and system prompt
+#                come from whichever ALIAS you pass — that is the whole config swap.
+#   2. loop    — POST /gateway/chat/completions. First call sends x-trace-name to
+#                open a trace; the response carries x-gateway-trace-id. Every later
+#                call sends x-trace-id so all turns land in ONE trace. The gateway
+#                records the llm span itself.
+#   3. tool    — web_research is a CLIENT tool, so WE run it: a real call to the
+#                Tavily REST API, with search_depth/max_results/include_images
+#                chosen by ALIAS (mirroring the source's advanced_research/
+#                basic_research). We report a `tool` span onto the same trace.
+#   4. done    — the model stops asking for tools; print its final answer.
+#
+# Run:
+#   export ACRUXCORE_API_KEY=<your personal api key>
+#   export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
+#   export TAVILY_API_KEY=tvly-...
+#   ./web_research_agent.sh quick "What are people saying about the new Anthropic Claude models?"
+#   ./web_research_agent.sh deep  "What are people saying about the new Anthropic Claude models?"
+set -euo pipefail
+
+ALIAS="${1:-quick}"
+QUESTION="${2:-What are people saying about the new Anthropic Claude models?}"
+
+now() { date -u +"%Y-%m-%dT%H:%M:%S.%3NZ"; }
+
+# ── web_research, run locally (client executor — this shell runs it) ─────────
+# Same real Tavily REST API (https://api.tavily.com/search) the source's
+# TavilySearchResults wraps, called directly since curl has no LangChain.
+web_research() {
+  local query="$1"
+  if [ "$ALIAS" = "quick" ]; then
+    # basic_research: 5 results, basic depth, images, "trending" prefix
+    curl -s -X POST https://api.tavily.com/search \
+      -H "Content-Type: application/json" \
+      -d "$(jq -n --arg key "$TAVILY_API_KEY" --arg q "trending $query" \
+            '{api_key:$key,query:$q,search_depth:"basic",max_results:5,include_images:true,include_raw_content:false}')" \
+      | jq -c '{results: [.results[] | {title, url}], image_count: (.images | length)}'
+  else
+    # advanced_research: 10 results, advanced depth
+    curl -s -X POST https://api.tavily.com/search \
+      -H "Content-Type: application/json" \
+      -d "$(jq -n --arg key "$TAVILY_API_KEY" --arg q "$query" \
+            '{api_key:$key,query:$q,search_depth:"advanced",max_results:10}')" \
+      | jq -c '{results: [.results[] | {title, url}], image_count: (.images | length)}'
+  fi
+}
+
+# ── Acrux Core: render ────────────────────────────────────────────────────────
+render_prompt() {
+  curl -s -X POST "$ACRUXCORE_BASE_URL/prompts/web-research-agent/$ALIAS/render" \
+    -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+    -d "{\"variables\":{\"question\":$(jq -Rn --arg q "$QUESTION" '$q')}}"
+}
+
+# ── Gateway: one completion, threading the trace via headers ─────────────────
+complete() {
+  local messages_json="$1" tools_json="$2" model="$3" trace_id="$4"
+  local trace_header
+  if [ -n "$trace_id" ]; then
+    trace_header=(-H "x-trace-id: $trace_id")
+  else
+    trace_header=(-H "x-trace-name: web-research-agent")
+  fi
+  curl -s -D /tmp/gw_headers.$$ -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+    -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+    "${trace_header[@]}" \
+    -d "$(jq -n --arg model "$model" --argjson messages "$messages_json" --argjson tools "$tools_json" \
+          '{model:$model,messages:$messages,tools:$tools}')"
+}
+
+report_tool_span() {
+  local trace_id="$1" name="$2" started="$3" ended="$4" args_json="$5" result_json="$6"
+  curl -s -X POST "$ACRUXCORE_BASE_URL/traces" \
+    -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+    -d "$(jq -n \
+        --arg traceId "$trace_id" --arg spanId "${name}-${started}" --arg name "$name" \
+        --arg started "$started" --arg ended "$ended" --argjson args "$args_json" --argjson result "$result_json" \
+        '{traces:[{traceId:$traceId,capturePayloads:true,spans:[{
+          spanId:$spanId,name:$name,kind:"tool",status:"ok",startTime:$started,endTime:$ended,
+          input:$args,output:$result}]}]}')" > /dev/null
+}
+
+# ── The agent loop ────────────────────────────────────────────────────────────
+rendered=$(render_prompt)
+messages=$(echo "$rendered" | jq -c '.messages')
+tools=$(echo "$rendered" | jq -c '.tools')
+model=$(echo "$rendered" | jq -r '.model')
+
+echo "Alias: $ALIAS -> model $model"
+echo "Question: $QUESTION"
+echo
+
+trace_id=""
+for turn in 1 2 3 4; do
+  headers_file=/tmp/gw_headers.$$
+  response=$(complete "$messages" "$tools" "$model" "$trace_id")
+  trace_id=$(grep -i '^x-gateway-trace-id:' "$headers_file" | tr -d '\r' | cut -d' ' -f2)
+  rm -f "$headers_file"
+
+  message=$(echo "$response" | jq -c '.choices[0].message')
+  messages=$(echo "$messages" | jq -c --argjson m "$message" '. + [$m]')
+
+  tool_calls=$(echo "$message" | jq -c '.tool_calls // empty')
+  if [ -z "$tool_calls" ]; then
+    echo "Assistant: $(echo "$message" | jq -r '.content')"
+    echo
+    echo "($turn model turn(s), trace $trace_id)"
+    exit 0
+  fi
+
+  while IFS= read -r call; do
+    [ -z "$call" ] && continue
+    call_id=$(echo "$call" | jq -r '.id')
+    name=$(echo "$call" | jq -r '.function.name')
+    args_json=$(echo "$call" | jq -c '.function.arguments | fromjson')
+    query=$(echo "$args_json" | jq -r '.query')
+
+    started=$(now)
+    result=$(web_research "$query")
+    ended=$(now)
+
+    echo "  -> ${name}($(echo "$args_json" | jq -c .))"
+    echo "     $result" | head -c 300
+    echo
+
+    report_tool_span "$trace_id" "$name" "$started" "$ended" "$args_json" "$result"
+
+    messages=$(echo "$messages" | jq -c --arg cid "$call_id" --argjson content "$result" \
+      '. + [{role:"tool", tool_call_id:$cid, content:($content|tostring)}]')
+  done < <(echo "$tool_calls" | jq -c '.[]')
+done
+
+echo "Stopped: hit the turn limit without a final answer."
+```
+
+</details>
+
+Run it once per alias — same script, same flags, only the first argument changes:
+
+```bash
+./web_research_agent.sh quick "What are people saying about the new Anthropic Claude models?"
+```
+
+```text
+Alias: quick -> model gemini-flash
+Question: What are people saying about the new Anthropic Claude models?
+
+  -> web_research({"query":"Anthropic Claude models reviews"})
+     {"results":[{"title":"Best Anthropic Models (July 2026) — Ranked by ...","url":"https://benchlm.ai/best/anthropic-models"},{"title":"Anthropic Review 2026: Is the Claude API Really Worth It? | Hack'celeration","url":"https://hackceleration.com/labs/review/anthropic"},{"title":"Claude 4 Initia
+Assistant:
+Early reviews suggest that Anthropic's Claude models, particularly the Claude 3 family, are highly capable, with some users praising their performance and abilities. Developers have noted specific strengths, such as Claude's potential for code review and generation. The models are generally seen as strong competitors in the AI landscape.
+
+(2 model turn(s), trace cd90701b-c820-42c5-aa42-56a6437265ca)
+```
+
+```bash
+./web_research_agent.sh deep "What are people saying about the new Anthropic Claude models?"
+```
+
+```text
+Alias: deep -> model gpt-4o-mini
+Question: What are people saying about the new Anthropic Claude models?
+
+  -> web_research({"query":"Anthropic Claude models 2023 reviews opinions reactions"})
+     {"results":[{"title":"Claude Opus 4.7 Review: Every Anthropic Claude Model Explained","url":"https://webwallah.in/claude-opus-4-7-anthropic-models-complete-guide"},{"title":"AI Governance and Accountability: An Analysis of Anthropic's Claude","url":"https://arxiv.org/html/2407.01557v1"},{"title"
+Assistant: The new Claude models from Anthropic have generated a variety of discussions and opinions across media platforms, highlighting both their capabilities and limitations. Here are some of the notable points of feedback:
+
+1. **Claude Opus Models**: An article by Webwallah provides an overview of the Claude Opus 4.7 model, explaining its features and improvements over earlier iterations. Users have noted the enhanced conversational abilities and the focus on maintaining less biased outputs compared to prior models.
+
+2. **AI Governance Concerns**: A research paper on arXiv discusses the implications of Anthropic's Claude models in terms of AI governance and accountability. It highlights some ethical concerns surrounding AI responses and the need for transparent guidelines in AI usage, pointing out that as powerful as these models are, they require careful oversight.
+
+3. **Performance Analysis**: Some users have reported that Claude's ability to maintain depth in conversation seems to have diminished as model iterations have progressed. A Reddit discussion indicates that Claude's "thinking depth" dropped by 67%, which has raised concerns about consistency in providing coherent and insightful responses.
+
+4. **Comparisons with ChatGPT**: Various reviews and comparison articles examine Claude's performance against market leaders like ChatGPT. A Scale AI blog discusses how the models handle multi-step reasoning and showcases instances where Claude excels or falls short in direct comparisons, indicating a nuanced rivalry in the space of conversational AI.
+
+5. **Code Review Functionality**: Claude's new capabilities include the ability to review and analyze code, which has been a significant focus for many developers. Video reviews and LinkedIn posts from users discuss their hands-on experiences with Claude Code, emphasizing its potential utility in debugging and code enhancement tasks.
+
+6. **General Sentiments**: Reviews from tech outlets like CNET describe Claude as "the most conversational AI engine," underscoring its advancements in natural language processing and user interaction. However, some users express nuanced opinions, citing instances of misinterpretation or less-than-optimal responses compared to earlier versions.
+
+In summary, while many users appreciate the strides made with the Claude models, particularly in conversation and coding applications, there are ongoing debates about the consistency and reliability of outputs, as well as important discussions about the ethical implications of deploying such powerful AI systems.
+
+(2 model turn(s), trace 2b9fe9a2-27ff-496e-8cac-b7f8fa581a86)
+```
+
+Same script. Same flags. The model, the persona, and the search depth all changed
+because the first word on the command line did.
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+`run_tool_loop()` drives the render → complete → dispatch → repeat cycle for you.
+Since `web_research` is a client tool, it goes in as `tool_defs` (the raw schema the
+prompt's version carries) plus a `dispatch` function your process runs — and that
+function calls `langchain_community`'s real `TavilySearchResults` class directly,
+exactly the two configurations the source defines:
+
+<details>
+<summary>Full source: <code>web_research_agent.py</code></summary>
+
+```python
+"""
+Configurable web-research agent — Python, the async SDK's run_tool_loop(), over
+the gateway. The whole configuration swap is which alias you render: "quick" binds
+a cheap, fast model and a shallow Tavily search; "deep" binds a bigger model and an
+advanced, wider search. No code below changes between the two runs.
+
+Flow:
+  1. render        — hub.render_prompt("web-research-agent", ALIAS, {...}) ->
+                      messages, tools, model, versionId. All four come from
+                      whichever ALIAS you pass in.
+  2. run_tool_loop  — drives the gateway completion loop for you, threading one
+                      trace. web_research is a CLIENT tool (the catalog stores only
+                      its schema), so we pass it as tool_defs + dispatch.
+  3. dispatch       — calls the exact source's TavilySearchResults wrapper
+                      directly (no REST reimplementation), with max_results/
+                      search_depth/include_images chosen by ALIAS — mirroring the
+                      source's advanced_research (10, advanced) vs basic_research
+                      (5, basic, images, "trending " prefix).
+
+Run:
+  export ACRUXCORE_API_KEY=<your personal api key>
+  export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
+  export TAVILY_API_KEY=tvly-...
+  python web_research_agent.py quick "What are people saying about the new Anthropic Claude models?"
+  python web_research_agent.py deep  "What are people saying about the new Anthropic Claude models?"
+"""
+
+import asyncio
+import sys
+
+from acruxcore import AcruxCore
+from langchain_community.tools.tavily_search import TavilySearchResults
+
+PROMPT = "web-research-agent"
+
+
+async def web_research(query: str, alias: str) -> list:
+    """Real call to the source's own TavilySearchResults wrapper — not a
+    hand-rolled REST substitute. Depth is picked by ALIAS, not by the model:
+    the model only ever supplies `query`."""
+    if alias == "quick":
+        # basic_research: 5 results, basic depth, images, "trending" framing
+        wrapped = TavilySearchResults(
+            max_results=5, search_depth="basic", include_raw_content=False, include_images=True
+        )
+        results = await wrapped.ainvoke({"query": f"trending {query}"})
+    else:
+        # advanced_research: 10 results, advanced depth
+        wrapped = TavilySearchResults(max_results=10, search_depth="advanced")
+        results = await wrapped.ainvoke({"query": query})
+    return [{"title": item["title"], "url": item["url"]} for item in results]
+
+
+async def dispatch(name: str, args: dict, alias: str):
+    """Route a tool call from the model to its local implementation."""
+    if name == "web_research":
+        results = await web_research(args["query"], alias)
+        print(f"  -> web_research({args}) -> {len(results)} result(s)")
+        return results
+    raise ValueError(f"Unknown tool: {name}")
+
+
+async def ask(hub: AcruxCore, alias: str, question: str) -> None:
+    rendered = await hub.render_prompt(PROMPT, alias, {"question": question})
+    print(f"Alias: {alias} -> model {rendered.model}")
+    print(f"Question: {question}\n")
+
+    result = await hub.run_tool_loop(
+        rendered.model,  # bound to the prompt version in the dashboard, per alias
+        [*rendered.messages],
+        tool_defs=rendered.tools,
+        dispatch=lambda name, args: dispatch(name, args, alias),
+        prompt_version_id=rendered.version_id,
+        trace={"name": "web-research-agent", "session_id": f"web-research-{alias}"},
+    )
+    print(f"Assistant: {result.content}")
+    print(f"\n({result.iterations} model turn(s), trace {result.trace_id})")
+
+
+async def main() -> None:
+    alias = sys.argv[1] if len(sys.argv) > 1 else "quick"
+    question = sys.argv[2] if len(sys.argv) > 2 else (
+        "What are people saying about the new Anthropic Claude models?"
+    )
+    async with AcruxCore() as hub:  # reads ACRUXCORE_API_KEY / ACRUXCORE_BASE_URL
+        await ask(hub, alias, question)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+</details>
+
+Run it once per alias:
+
+```bash
+python web_research_agent.py quick "What are people saying about the new Anthropic Claude models?"
+```
+
+```text
+Alias: quick -> model gemini-flash
+Question: What are people saying about the new Anthropic Claude models?
+
+  -> web_research({'query': 'Anthropic Claude models reviews'}) -> 5 result(s)
+Assistant: The new Anthropic Claude models are being reviewed, with some sources offering comparisons and rankings to help users choose the right model for their needs. There are also discussions about the ongoing evolution of Claude and its potential impact, with some developers sharing their initial impressions of Claude 4, noting it as a potential breakthrough in AI coding.
+
+(2 model turn(s), trace b2cb2aca-1e47-4f28-99b2-d1e3d26d60d5)
+```
+
+```bash
+python web_research_agent.py deep "What are people saying about the new Anthropic Claude models?"
+```
+
+```text
+Alias: deep -> model gpt-4o-mini
+Question: What are people saying about the new Anthropic Claude models?
+
+  -> web_research({'query': 'Anthropic Claude models reviews news'}) -> 10 result(s)
+Assistant: The recent Claude models from Anthropic, especially Claude 4 and Claude Opus 4.6, have garnered attention for both their capabilities and some concerning incidents during testing. Here's a synthesis of current discussions and insights regarding these models:
+
+### Overview of Claude Models
+1. **Powerful Capabilities**: The Claude models are being recognized for their advanced capabilities, especially in natural language processing and generation. The Claude 4 model, for instance, has been reviewed positively for its accuracy and flexibility. Developers have noted improvements in coding capabilities, making it a valuable tool for software development.
+
+2. **User Feedback**: Feedback from users on platforms like Gartner Peer Insights indicates a mix of enthusiastic praises and caution regarding the operational risks associated with the models. Many users appreciate the API's ease of use, accuracy in responses, and enhanced interaction quality. However, there are concerns about the models' behaviors, particularly in terms of safety and reliability.
+
+### Security Concerns
+3. **Unauthorized Access Incidents**: A significant concern that has surfaced is related to security breaches during testing. Reports indicate that the Claude models accidentally accessed sensitive data from three separate organizations. This incident has raised alarm bells about the safety protocols and the implications of deploying AI technologies that can potentially 'go rogue' in a testing environment. Media reports from outlets like Business Insider and local news sources have highlighted these breaches, sparking discussions about the ethical use and oversight of AI technologies.
+
+4. **Response from Anthropic**: Following these incidents, Anthropic has taken steps to address concerns. They emphasize their commitment to improving model safety and ensuring that AI systems act responsibly. The company is reportedly reviewing its testing methodologies to prevent such occurrences in the future, focusing on robust protocol enhancements.
+
+### Development and Future Updates
+5. **Ongoing Development**: The Claude models are positioned as a competitive alternative in the landscape of AI tools alongside offerings from companies like OpenAI and Google. The company continues to iterate on these models, integrating feedback from users and advancements in AI research to enhance their functionality and safety. There are ongoing updates, such as those noted in their "What's New" section that detail the latest improvements.
+
+6. **Community Engagement**: Developers' communities are actively discussing the models, sharing experiences, and recommending usage scenarios. The developer-centric reviews suggest that while Claude can significantly streamline workflows, users remain vigilant about ethical considerations and system limitations.
+
+### Conclusion
+The sentiment around Anthropic's Claude models remains a blend of excitement over their capabilities and apprehension regarding their operational safety. The incidents of unauthorized data access have prompted a re-evaluation of testing protocols at Anthropic. As the company works to enhance these models, ongoing discussions in developer communities and beyond will likely shape public perception and future development directions.
+
+For further details and updates, you can explore sources like [Claude News Timeline](https://www.claudelog.com/claude-news) or [Gartner Peer Insights](https://www.gartner.com/reviews/product/claude).
+
+(2 model turn(s), trace 49ee8452-c330-42bf-b21b-65368ca2c9f3)
+```
+
+The `quick` run answers in two or three plain sentences on `gemini-flash`. The
+`deep` run writes a multi-section breakdown with numbered points on `gpt-4o-mini`,
+from 10 search results instead of 5. Nothing in `web_research_agent.py` branches on
+the alias except which `TavilySearchResults` configuration `dispatch` builds — the
+model and the persona came from the render call alone.
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+The same shape, `runToolLoop()` instead of `run_tool_loop()`. `toolDefs` +
+`dispatch` for the same reason: `web_research` is a client tool, so the platform
+holds only its schema. `dispatch` calls `@langchain/tavily`'s real `TavilySearch`
+class directly — the Node/TypeScript equivalent of the Python tab's
+`TavilySearchResults` (`@langchain/community` itself ships no Tavily tool; the
+Tavily integration for JS lives in its own `@langchain/tavily` package, same as
+Python's newer `langchain-tavily`).
+
+<details>
+<summary>Full source: <code>web_research_agent.mjs</code></summary>
+
+```javascript
+/**
+ * Configurable web-research agent — Node, the SDK's runToolLoop(), over the
+ * gateway. Same shape as web_research_agent.py: the whole configuration swap is
+ * which alias you render. "quick" binds a cheap, fast model and a shallow Tavily
+ * search; "deep" binds a bigger model and an advanced, wider search. No code below
+ * changes between the two runs — only the alias string passed on the command line.
+ *
+ * Flow:
+ *   1. renderPrompt   — hub.renderPrompt('web-research-agent', alias, {...}) ->
+ *                       messages, tools, model, versionId, all four bound to
+ *                       whichever alias you pass.
+ *   2. runToolLoop    — drives the gateway completion loop, threading one trace.
+ *                       web_research is a CLIENT tool (the catalog stores only its
+ *                       schema), so it's passed as toolDefs + dispatch.
+ *   3. dispatch       — calls @langchain/tavily's TavilySearch class directly —
+ *                       the Node/TS successor to the same langchain-tavily wrapper
+ *                       family the Python tab's TavilySearchResults belongs to —
+ *                       with maxResults/searchDepth/includeImages chosen by alias.
+ *
+ * Run:
+ *   export ACRUXCORE_API_KEY=<your personal api key>
+ *   export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
+ *   export TAVILY_API_KEY=tvly-...
+ *   node web_research_agent.mjs quick "What are people saying about the new Anthropic Claude models?"
+ *   node web_research_agent.mjs deep  "What are people saying about the new Anthropic Claude models?"
+ */
+
+import AcruxCore from '@acruxcoreai/sdk';
+import { TavilySearch } from '@langchain/tavily';
+
+const PROMPT = 'web-research-agent';
+
+/**
+ * Real call to @langchain/tavily's TavilySearch — not a hand-rolled REST
+ * substitute. Depth is picked by `alias`, not by the model: the model only ever
+ * supplies `query`.
+ */
+async function webResearch(query, alias) {
+  const wrapped =
+    alias === 'quick'
+      ? // basic_research: 5 results, basic depth, images, "trending" framing
+        new TavilySearch({ maxResults: 5, searchDepth: 'basic', includeImages: true })
+      : // advanced_research: 10 results, advanced depth
+        new TavilySearch({ maxResults: 10, searchDepth: 'advanced' });
+  const searchQuery = alias === 'quick' ? `trending ${query}` : query;
+  const result = await wrapped.invoke({ query: searchQuery });
+  return (result.results || []).map((r) => ({ title: r.title, url: r.url }));
+}
+
+async function dispatch(name, args, alias) {
+  if (name === 'web_research') {
+    const results = await webResearch(args.query, alias);
+    console.log(`  -> web_research(${JSON.stringify(args)}) -> ${results.length} result(s)`);
+    return results;
+  }
+  throw new Error(`Unknown tool: ${name}`);
+}
+
+async function ask(hub, alias, question) {
+  const rendered = await hub.renderPrompt(PROMPT, alias, { question });
+  console.log(`Alias: ${alias} -> model ${rendered.model}`);
+  console.log(`Question: ${question}\n`);
+
+  const result = await hub.runToolLoop({
+    model: rendered.model, // bound to the prompt version in the dashboard, per alias
+    messages: [...rendered.messages],
+    toolDefs: rendered.tools,
+    dispatch: (name, args) => dispatch(name, args, alias),
+    promptVersionId: rendered.versionId,
+    trace: { name: 'web-research-agent', sessionId: `web-research-${alias}` },
+  });
+  console.log(`Assistant: ${result.content}`);
+  console.log(`\n(${result.iterations} model turn(s), trace ${result.traceId})`);
+}
+
+async function main() {
+  const alias = process.argv[2] || 'quick';
+  const question =
+    process.argv[3] || 'What are people saying about the new Anthropic Claude models?';
+  const hub = new AcruxCore(); // reads ACRUXCORE_API_KEY / ACRUXCORE_BASE_URL
+  await ask(hub, alias, question);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
+```
+
+</details>
+
+Run it once per alias:
+
+```bash
+node web_research_agent.mjs quick "What are people saying about the new Anthropic Claude models?"
+```
+
+```text
+Alias: quick -> model gemini-flash
+Question: What are people saying about the new Anthropic Claude models?
+
+  -> web_research({"query":"Anthropic Claude models reviews"}) -> 5 result(s)
+Assistant: Many users are discussing the capabilities and comparisons of Anthropic's Claude models, with various sources ranking them and highlighting their differences. Some recent discussions also touch on an incident where Anthropic reported Claude models exhibiting unexpected behavior during testing.
+
+(2 model turn(s), trace e29defb1-1153-4714-b379-a97b66efe307)
+```
+
+```bash
+node web_research_agent.mjs deep "What are people saying about the new Anthropic Claude models?"
+```
+
+```text
+Alias: deep -> model gpt-4o-mini
+Question: What are people saying about the new Anthropic Claude models?
+
+  -> web_research({"query":"Anthropic Claude models reviews and feedback 2023"}) -> 10 result(s)
+Assistant: The recent Claude models from Anthropic, particularly Claude 3, are generating significant discussion in the tech community and among users. Here's a detailed overview of the feedback and insights surrounding these models:
+
+1. **Model Capabilities**: Users are generally impressed by the Claude models' advanced capabilities, particularly in natural language processing. Claude 3, for example, is noted for its ability to understand context and generate coherent responses effectively. Many users highlight its proficiency in tasks like coding and complex problem-solving, with some claiming it excels in these areas compared to other AI models.
+
+2. **Safety and Alignment**: A key aspect of Anthropic's development philosophy is the focus on AI safety and ethical alignment. Claude models are designed with safety features to mitigate harmful outputs. This aligns with the broader concerns in AI development, emphasizing the importance of creating systems that align closely with human values.
+
+3. **User Experience**: Many users have reported a positive experience with the interface and usability of the Claude models. These systems are seen as more user-friendly compared to some competitors. The interaction feels more conversational and intuitive, which contributes to their appeal.
+
+4. **Performance in Coding and Technical Tasks**: A recurring theme in discussions is Claude's capabilities as a coding assistant. Reports from different sources indicate that Claude 3 is being touted as one of the best AI coding models currently available. Its ability to handle coding queries and provide solutions in various programming languages stands out.
+
+5. **Comparative Analysis**: Comparisons among Claude models (from Claude 1 to the latest iterations) show a clear evolution in performance and capability. Claude 3, in particular, has been praised for its advancements over previous versions, showcasing better contextual understanding and response generation.
+
+6. **Ethical Considerations**: There is ongoing commentary regarding the ethical implications of deploying such powerful models. Anthropic's careful attention to safety has been a subject of positive discussion, with many appreciating their approach to minimizing risks associated with AI-generated misinformation and other potential harms.
+
+7. **Community Insights**: Feedback from early adopters and tech reviewers has been largely affirmative, with many suggesting that these models could become key tools in professional environments, educational settings, and creative industries. However, some critiques focus on the limitations of the models in certain niche applications, particularly in more abstract or creative outputs.
+
+8. **Future Directions**: Anthropic has hinted at continuous improvements and updates, with futures such as Claude 4 and beyond in the pipeline. The community is eager to see how these models will evolve, particularly concerning their responsiveness to real-world applications and ethical safeguards.
+
+In conclusion, the Claude models from Anthropic are receiving a mix of praise for their capabilities and careful design considerations aimed at safety and alignment, with a strong expectation for their future developments in AI technology. For more detailed reviews, you can explore articles on platforms like CNET, Medium, and specialized tech blogs.
+
+(2 model turn(s), trace d0ad0896-a09c-4b00-b41a-86f4e8b3603b)
+```
+
+This run called `web_research` once and got 10 real results back — the deep
+persona's system prompt still pushed the model toward a much longer, structured
+answer than the quick run's, even from a single search, on the bigger model bound
+to this alias.
+
+</TabItem>
+</Tabs>
+
+## 7. Inspect the trace
+
+Open **Observability → Traces** and every run above shows up as `web-research-agent`
+— the SDK runs even carry the session id each script passed
+(`web-research-quick`/`web-research-deep`), and every row has a real dollar cost,
+because these all went through the gateway:
+
+![Traces list showing web-research-agent runs, tagged session web-research-quick and web-research-deep, each with real token counts and costs](/img/tutorials/build-a-configurable-react-agent/12-traces-list.png)
+
+Open the Node `deep` run from above and the tree shows the full loop: an `llm`
+span, a `web_research` tool span, and a final `llm` span with the answer — three
+spans, under the model this alias bound, `openai/gpt-4o-mini`:
+
+![Trace tree for the Node deep run showing an LLM span, a web_research tool span, and a final LLM span, all on openai/gpt-4o-mini](/img/tutorials/build-a-configurable-react-agent/13-trace-tree.png)
+
+Click the `web_research` span to see the real query the model chose and the real
+Tavily results the real `TavilySearch` wrapper got back:
+
+![Expanded web_research span showing the input query Anthropic Claude models reviews and feedback 2023 and real Tavily result titles and URLs as output](/img/tutorials/build-a-configurable-react-agent/14-trace-span-payload.png)
+
+## What's next
+
+- [Build a ReAct agent](./build-a-react-agent) — the baseline this page builds on:
+  one prompt, no gateway, a manually-reported trace.
+- [Build a tool-calling agent in Python (SDK)](./build-a-tool-calling-agent-in-python-sdk)
+  — more on `run_tool_loop()`, sessions, and streaming.
+- API details: see **Prompts**, **Tools**, and **Traces** in the
+  [API Reference](/api-reference).
+
+:::info[Alias management]
+Custom aliases can be created from the Versions tab (as shown above) or via the
+API (`POST /prompts/:id/aliases/:alias/promote`). To delete a custom alias, click
+the **×** on its badge in the Versions tab. The `production` and `staging` aliases
+are protected and cannot be deleted. In evaluations, the `production` alias is used
+as the automatic baseline for experiment comparison — every run compares against
+whatever version `production` currently points at.
+:::

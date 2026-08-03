@@ -1,0 +1,32 @@
+meta {
+  name: Gateway Completion (captured)
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/api/v1/gateway/chat/completions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+  x-capture-payloads: true
+}
+
+body:json {
+  {
+    "model": "{{e5SweepModel}}",
+    "prompt": { "name": "e5eval-greeting", "alias": "production", "variables": { "name": "Carol" } }
+  }
+}
+
+script:post-response {
+  // Immediately after this completion, its trace is the newest one for the
+  // team — list traces and grab the first (newest) entry's id.
+}

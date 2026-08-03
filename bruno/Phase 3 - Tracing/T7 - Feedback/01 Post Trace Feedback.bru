@@ -1,0 +1,38 @@
+meta {
+  name: Post Trace Feedback
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/traces/{{traceId}}/feedback
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "rating": 5,
+    "label": "great_answer",
+    "comment": "Nice work",
+    "source": "user"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setVar("feedbackId", res.getBody().id);
+  }
+}
+
+assert {
+  res.status: eq 201
+}

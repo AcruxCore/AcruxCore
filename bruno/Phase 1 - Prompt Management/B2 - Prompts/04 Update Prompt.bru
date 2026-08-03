@@ -1,0 +1,25 @@
+meta {
+  name: Update Prompt
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/prompts/{{promptId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "customer-support-v2"
+  }
+}

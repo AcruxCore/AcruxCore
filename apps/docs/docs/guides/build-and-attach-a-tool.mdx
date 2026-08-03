@@ -1,0 +1,237 @@
+---
+title: Build and attach a tool
+description: Declare a tool in code with acrux.tool, let the first run fill in the catalog, attach it to a prompt, and see where each tool actually runs.
+sidebar_position: 4
+keywords: [tool calling, function calling, tool catalog, acrux.tool, runToolLoop, agent tools]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Build and attach a tool
+
+**What you'll build:** a `get_weather` tool, declared in your own code, attached to
+your `support-reply` prompt, and driven by the SDK's tool-calling loop — so the model
+can ask for live data and your function supplies it.
+
+You will not open the dashboard until step 3. The catalog entry, its first version,
+and its `production` alias are all created by the first run.
+
+## 1. Declare the tool in code
+
+`acrux.tool` puts the four things a tool needs in one place: its name, the
+description the model reads, the arguments it takes, and the code that runs.
+
+<Tabs groupId="lang">
+<TabItem value="node" label="Node">
+
+```typescript
+import AcruxCore, { acrux } from '@acruxcoreai/sdk';
+import { z } from 'zod/v4';
+
+const getWeather = acrux.tool(
+  {
+    name: 'get_weather',
+    description: 'Get the current weather for a city.',
+    parameters: z.object({ city: z.string().describe("City name, e.g. 'London'") }),
+  },
+  // wttr.in needs no API key, so this body runs as written.
+  async ({ city }) => {
+    const res = await fetch(`https://wttr.in/${encodeURIComponent(city)}?format=j1`);
+    if (!res.ok) throw new Error(`wttr.in returned ${res.status}`);
+    const data = (await res.json()) as {
+      current_condition: { temp_C: string; weatherDesc: { value: string }[] }[];
+    };
+    const current = data.current_condition[0];
+    return { city, tempC: Number(current.temp_C), summary: current.weatherDesc[0].value };
+  },
+);
+```
+
+`city` inside the handler is a `string`, not `unknown` — the type comes from the
+schema. Rename the field in the `z.object` and the handler stops compiling, which is
+the drift this shape is there to prevent.
+
+`parameters` also accepts a plain JSON Schema object, so zod is optional.
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import httpx
+from acruxcore import AcruxCore, acrux
+
+
+@acrux.tool
+async def get_weather(city: str) -> dict:
+    """Get the current weather for a city.
+
+    Args:
+        city: City name, e.g. 'London'.
+    """
+    async with httpx.AsyncClient() as http:
+        res = await http.get(f"https://wttr.in/{city}", params={"format": "j1"})
+    res.raise_for_status()
+    current = res.json()["current_condition"][0]
+    return {
+        "city": city,
+        "temp_c": int(current["temp_C"]),
+        "summary": current["weatherDesc"][0]["value"],
+    }
+```
+
+The decorator reads the function: the name is `get_weather`, the description is the
+docstring's first paragraph, and the `Args:` block describes each parameter. It
+attaches a spec and returns the function unchanged, so you can still call
+`await get_weather(city="London")` in a test.
+
+</TabItem>
+</Tabs>
+
+## 2. Run it — the catalog fills itself in
+
+Pass the declared tool to the loop. Nothing else is needed.
+
+<Tabs groupId="lang">
+<TabItem value="node" label="Node">
+
+```typescript
+const hub = new AcruxCore();
+
+const result = await hub.runToolLoop({
+  model: 'support-model',
+  messages: [{ role: 'user', content: 'What is the weather in London right now?' }],
+  tools: [getWeather],
+});
+
+console.log(result.content);    // the model's answer, based on what wttr.in returned
+console.log(result.iterations); // 2 — one tool round-trip, then the final answer
+console.log(result.traceId);    // one trace covering both model calls and the tool
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+async with AcruxCore() as hub:
+    result = await hub.run_tool_loop(
+        model="support-model",
+        messages=[{"role": "user", "content": "What is the weather in London right now?"}],
+        tools=[get_weather],
+    )
+
+print(result.content)     # the model's answer, based on what wttr.in returned
+print(result.iterations)  # 2 — one tool round-trip, then the final answer
+print(result.trace_id)    # one trace covering both model calls and the tool
+```
+
+</TabItem>
+</Tabs>
+
+On its first call the loop **syncs** the tool: it creates the catalog entry because
+the name is new, commits version 1, and points `production` at it. It then names the
+tool to the gateway as a catalog reference rather than sending the schema inline, so
+the model is served the version the catalog holds.
+
+Run it a second time and nothing is committed — the spec is unchanged, so the sync is
+a no-op. Change the description or add a parameter and the next run commits version 2
+and moves `production` to it.
+
+## 3. Inspect it in the dashboard
+
+Now open **Gateway → Tools → `get_weather`**. The tool your code created is there,
+with a **Defined in code** badge and a version whose source is `code`.
+
+![The get_weather tool after a sync, showing the Defined in code badge](/img/tutorials/build-and-attach-a-tool/01-detail.png)
+
+:::warning
+Editing a version here is superseded by your next deploy. The sync compares the spec
+your code sends against the live version, so a hand edit to a code-owned tool stops
+being live the next time the loop runs. The version you edited is not lost — it stays
+in the version list and can be promoted back — but treat the dashboard as read-only
+for tools your code owns.
+:::
+
+One exception is worth knowing: a function with **no** docstring (Python) or no
+`description` (Node) sends no description at all, which hands the model-facing
+wording to whoever writes it in the dashboard. Supply a description in code and code
+owns it. Pick per tool which side owns the words.
+
+## 4. Attach it to a prompt
+
+Open your `support-reply` prompt and go to the **Tools** tab. Attachments are
+**fixed per version**, so check `get_weather` under *Attach to next commit*, then
+commit a new prompt version. That version now carries the tool.
+
+![Attaching get_weather to the prompt's next version](/img/tutorials/build-and-attach-a-tool/03-attach.png)
+
+Now `renderPrompt` returns the tool alongside the messages:
+
+```typescript
+const { messages, tools } = await hub.renderPrompt('support-reply', 'production', {
+  company: 'Acme',
+  customer_message: 'What is the weather in London?',
+});
+// tools now contains the get_weather function definition
+```
+
+You already have the tool declared in code, so feed the rendered `messages` to the
+same loop as before and keep passing `tools: [getWeather]`:
+
+```typescript
+const result = await hub.runToolLoop({ model: 'support-model', messages, tools: [getWeather] });
+```
+
+The attachment still matters for callers that have no declared tool — the raw gateway
+endpoint, or another service reading the prompt. In that case `renderPrompt`'s `tools`
+are raw OpenAI-shaped definitions rather than declared tools, so they go to the loop
+as `toolDefs` with a `dispatch` to run them:
+
+```typescript
+const result = await hub.runToolLoop({
+  model: 'support-model',
+  messages,
+  toolDefs: tools,
+  dispatch: async (name, args) => {
+    if (name === 'get_weather') return fetchWeather(args.city as string);
+    throw new Error(`Unknown tool: ${name}`);
+  },
+});
+```
+
+## 5. Where the tool runs
+
+Three cases, and the loop decides between them before it calls the model:
+
+| What you pass | Who runs the tool |
+|---|---|
+| `tools: [getWeather]` — a declared tool | Your process, via the declared handler |
+| `toolRefs: [{ name }]` resolving to an `http` executor | The platform, which calls the URL and writes the `tool` span itself |
+| `toolRefs: [{ name }]` resolving to a `client` executor | A declared tool of that name, otherwise `dispatch` |
+| `toolDefs: [rawDefinition]` | `dispatch` |
+
+A `client` tool with neither a declared handler nor a `dispatch` fails immediately
+with `MISSING_DISPATCH`, before the first model call, so the mistake costs no tokens.
+
+A catalog tool with an `http` executor needs no local code at all:
+
+```typescript
+const result = await hub.runToolLoop({
+  model: 'support-model',
+  messages,
+  toolRefs: [{ name: 'search_orders' }],
+});
+```
+
+The endpoints behind this are documented in the API reference:
+[`POST /tools/sync`](/api-reference/tools/sync) and
+[`POST /tools/resolve`](/api-reference/tools/resolve).
+
+## What's next
+
+- Commit a second version, move `staging` ahead of `production`, and read
+  real usage — see
+  [Alias and Track Usage of Tools in the Catalog](./alias-and-track-usage-of-tools-in-the-catalog).
+- Tools are versioned and aliased exactly like prompts — see **Tools**,
+  **Tool versions**, and **Tool execute** in the [API Reference](/api-reference).
+- Measure whether a tool improved answers: [evaluate a prompt](./evaluate-a-prompt).

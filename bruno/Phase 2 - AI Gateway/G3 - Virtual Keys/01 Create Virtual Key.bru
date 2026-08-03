@@ -1,0 +1,25 @@
+meta {
+  name: Create Virtual Key
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/gateway/keys
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "CI pipeline key"
+  }
+}

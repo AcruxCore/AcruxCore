@@ -1,0 +1,25 @@
+meta {
+  name: Update Budget
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/gateway/budgets/{{budgetId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "limitUsd": 100
+  }
+}

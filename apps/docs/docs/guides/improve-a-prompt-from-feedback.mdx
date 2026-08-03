@@ -1,0 +1,321 @@
+---
+title: Improve a prompt from feedback
+description: Turn replies your team disagreed with into candidate rewrites of your production prompt, score them against what is live, and promote the one that earns it.
+sidebar_position: 6
+keywords: [prompt optimization, improve prompt from feedback, llm judge, prompt candidate rewrite, promote prompt version]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Improve a prompt from feedback
+
+**What you'll build:** an optimize run that reads the replies your team marked wrong, drafts
+rewrites of your live prompt, scores every rewrite *and* the live version against those same
+cases, and leaves you a ranked report to promote from.
+
+This is for the failure that has no stack trace. The reply came back well formed, your code
+accepted it, and a human read it and decided the answer was wrong. That usually means the
+prompt is missing something your team knows and never wrote down — and this loop is how that
+knowledge gets into the prompt.
+
+Here is the shape of it. A ticket-router prompt that specifies its output format completely,
+so every reply is valid JSON with values from the right lists, and says nothing about how this
+team actually decides:
+
+| The ticket | The prompt answered | Should have been |
+|---|---|---|
+| "I can't sign in… I'm completely locked out." | `account` / **P1** | `account` / **P0** |
+| "Two identical $49 charges… **no rush at all**." | `billing` / **P2** | `billing` / **P1** |
+| "This is really frustrating… please fix this **ASAP**." | `bug` / **P0** | `feature_request` / **P2** |
+
+Read the middle two together. The polite customer's real billing problem was filed as low
+priority; the annoyed customer's wishlist item was escalated to an emergency. The prompt was
+letting the customer's *tone* set the priority, because tone was the only signal it had been
+given. No schema check finds that, and no exception fires.
+
+:::info[Requires the worker]
+Optimize runs are processed **asynchronously** by the Acrux Core worker. The call below
+returns `202 queued` and the worker does the drafting, the model calls and the scoring in the
+background. If a run sits at `queued`, the worker is not running or cannot reach Redis.
+:::
+
+## 1. Write feedback comments that can grade
+
+Everything below depends on this step, so it comes first.
+
+When a dataset is built from feedback, **each comment becomes that example's pass/fail
+criteria**, and the same comment is also shown to the model doing the rewriting. So a comment
+is doing two jobs: it tells the optimizer what to change, and it tells the judge what correct
+looks like. A comment that only expresses displeasure can do neither.
+
+The habit to build: **name the correct answer, and the rule behind it.**
+
+```text title="Cannot grade anything"
+Wrong queue again 🙄
+```
+
+```text title="Grades, and teaches the rewrite"
+Wrong on both counts. Anything about signing in, passwords or reset emails is always
+category account for us — the account team owns auth, and filing it as a bug parks it in
+a backlog nobody triages the same day. And a customer who cannot get into the product at
+all is P0, not a lower priority. Correct answer: category account, priority P0.
+```
+
+Both are one comment on one thumbs-down. The second one is a rubric.
+
+:::note[Phrase it however you like]
+You do **not** have to write criteria-style prose. Opening with a verdict — "wrong",
+"the priority is wrong", "prose again" — and then giving the correct answer is exactly the
+natural form, and the judge is built to read it that way. Say what was wrong and what it
+should have been; the order does not matter.
+:::
+
+Feedback needs one more thing to be eligible: its source trace must have **captured
+payloads**, so the prompt variables were stored and the case can be replayed. See
+[Trace an LLM call](./trace-an-llm-call) for the capture setting.
+
+## 2. Start the optimize run
+
+In the dashboard, go to **Observability → Feedback**, tick the rows you disagreed with, and
+click **Improve from feedback**.
+
+![The Feedback page with three thumbs-down rows selected and the Improve from feedback action visible](/img/tutorials/feedback-optimize-loop/01-feedback-selected.png)
+
+Fill in the dialog. The field worth care is **Overall feedback**: it is shown to the optimizer
+as the instruction for the whole batch, so this is where the policy goes — the thing that is
+true across all the examples rather than about any one of them.
+
+![The Improve from feedback dialog with a dataset name, the policy as overall feedback, the target prompt and one model](/img/tutorials/feedback-optimize-loop/02-improve-dialog.png)
+
+Over the API it is two calls — build the dataset, then start the run against the prompt:
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+# Build the dataset from the feedback rows
+curl -X POST "$ACRUXCORE_BASE_URL/datasets/from-feedback" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "ticket-router-misrouted",
+    "overall_feedback": "Follow our routing policy, not the customer tone: sign-in and password resets are always account; a customer locked out entirely is P0; every billing discrepancy is P1 even when they say it is not urgent; nobody blocked means P2.",
+    "feedback_ids": ["<feedback-id-1>", "<feedback-id-2>", "<feedback-id-3>"]
+  }'
+# → { "id": "<dataset-id>", "example_count": 3, "skipped": [] }
+
+# Draft rewrites of the prompt's production version and score them
+curl -X POST "$ACRUXCORE_BASE_URL/prompts/<prompt-id>/optimize" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "dataset_id": "<dataset-id>", "models": ["gpt-4o-mini"], "draft_count": 3 }'
+# → { "run_id": "<run-id>", "status": "queued" }
+```
+
+</TabItem>
+<TabItem value="python-requests" label="Python (requests)">
+
+```python
+import os, requests
+
+base, key = os.environ["ACRUXCORE_BASE_URL"], os.environ["ACRUXCORE_API_KEY"]
+h = {"Authorization": f"Bearer {key}"}
+
+dataset = requests.post(f"{base}/datasets/from-feedback", headers=h, json={
+    "name": "ticket-router-misrouted",
+    "overall_feedback": (
+        "Follow our routing policy, not the customer tone: sign-in and password resets "
+        "are always account; a customer locked out entirely is P0; every billing "
+        "discrepancy is P1 even when they say it is not urgent; nobody blocked means P2."
+    ),
+    "feedback_ids": ["<feedback-id-1>", "<feedback-id-2>", "<feedback-id-3>"],
+}).json()
+
+run = requests.post(f"{base}/prompts/<prompt-id>/optimize", headers=h, json={
+    "dataset_id": dataset["id"],
+    "models": ["gpt-4o-mini"],
+    "draft_count": 3,
+}).json()
+print(run["run_id"], run["status"])   # -> queued
+```
+
+</TabItem>
+</Tabs>
+
+`draft_count` is how many rewrites to ask for, up to 6. Three is a good default: enough for
+the drafts to differ meaningfully, few enough to read.
+
+## 3. Read the leaderboard
+
+Poll `GET /runs/<run-id>` until it leaves `running`, then open **Evaluations → the run**.
+
+**What you should see:** one row per candidate *plus* a `production` row marked as the
+baseline, each scored over every example in the dataset. Acrux Core always adds that baseline
+cell, so the comparison is against what is live today rather than against nothing.
+
+![Run report leaderboard with candidates ranked above and below the production baseline](/img/tutorials/feedback-optimize-loop/03-run-report.png)
+
+The matrix below it is the same data per cell, each with its delta against the baseline — which
+is the number to read when you have more than one model in the grid:
+
+![The matrix view showing each variant's score against one model with its delta versus the production baseline](/img/tutorials/feedback-optimize-loop/04-matrix.png)
+
+Your scores will not match the worked example at the bottom of this page — the optimizer drafts
+differently every run. Read the *shape* instead:
+
+| What you see | What it means |
+|---|---|
+| One or more candidates well above `production` | You have something to promote. Go to step 4. |
+| Candidates clustered around `production` | The rewrites changed wording, not behaviour. See [no candidate beat production](#if-no-candidate-beat-production). |
+| Everything at or below `production` | Usually thin criteria rather than a bad optimizer. Same section. |
+| A few points between two candidates | Noise. Do not read a ranking into it. |
+
+## 4. Check the evidence, not the rationale
+
+Each candidate comes with a one-line rationale describing what it changed. **Treat that as a
+claim, not a diff.** It is generated text like any other, and a rewrite that changed nothing
+can still describe itself as having added your rules — which is precisely why the loop scores
+every candidate instead of asking you to read them.
+
+So open the cell rather than trusting the summary. Every cell keeps the criteria, the exact
+input, the exact output, the judge's reasoning, and links to both the generating trace and the
+judge's own trace.
+
+![Cell drill-down showing criteria, input, output, judge reasoning and trace links](/img/tutorials/feedback-optimize-loop/05-cell-drilldown.png)
+
+Read two or three cells of your top candidate before promoting it. You are checking that it
+passed *for the right reason* — the judge is a model reading your criteria, not a compiler.
+
+## 5. Promote it — this part is yours
+
+Nothing is promoted automatically. Click **Promote to production** on the candidate you chose
+and you get a review step: the optimizer's rationale, the current production template beside
+the proposed one, and the judge evidence for that cell.
+
+![The promote dialog showing the rationale, current production template beside the candidate, and judge verdicts](/img/tutorials/feedback-optimize-loop/06-promote-review.png)
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/runs/<run-id>/promote" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "prompt_candidate_id": "<candidate-id>", "alias": "production" }'
+```
+
+</TabItem>
+<TabItem value="python-requests" label="Python (requests)">
+
+```python
+requests.post(f"{base}/runs/{run['run_id']}/promote", headers=h, json={
+    "prompt_candidate_id": "<candidate-id>",
+    "alias": "production",
+})
+```
+
+</TabItem>
+</Tabs>
+
+Confirming commits the candidate as a real, immutable prompt version — the same object you
+would get by editing the prompt by hand, with the same audit trail — and moves the
+`production` alias to it. **Only that alias moves.** Anything on `staging` stays where it was.
+
+![The prompt page showing production on the new version and staging still on the old one](/img/tutorials/feedback-optimize-loop/07-v2-on-production.png)
+
+## 6. Verify on the inputs that started this
+
+The scoreboard said the rewrite is better. Confirm it on the actual traffic by re-sending the
+original tickets through the gateway — `production` now resolves to the new version, so no
+code changes:
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4o-mini",
+    "prompt": { "name": "ticket-router", "alias": "production",
+                "variables": { "ticket": "<the ticket that was misrouted>" } }
+  }'
+```
+
+**What you should see:** the answer your feedback comment said it should have been. If it is
+still wrong here while the report said it passed, the criteria and your real requirement have
+drifted apart — fix the comment and run again.
+
+## If no candidate beat production
+
+This is the common outcome on a first attempt, and it is almost always the input rather than
+the optimizer. In order of likelihood:
+
+- **The comments say a reply was bad without saying what good is.** Go back to step 1. A
+  comment naming the correct answer and the rule is what produces a rewrite that wins; "too
+  formal" produces a rewrite that is differently formal.
+- **The overall feedback describes one example instead of the batch.** It is the batch-level
+  instruction. Policy belongs here; "this one should have been P1" belongs on the example.
+- **Too few examples.** Three to five cases that fail for the *same* reason beat twenty
+  unrelated ones — the optimizer is looking for the pattern they share.
+- **The examples disagree with each other.** If two comments imply opposite rules, no single
+  template satisfies both and every candidate stalls near the baseline. Split them into two
+  datasets.
+- **The prompt is not the problem.** If the model cannot know the answer from the input at
+  all, no rewrite will fix it. That is a retrieval or a tool problem, not a prompt problem.
+
+Nothing was promoted, so a run that produced no winner costs only its model calls. Improve the
+comments and start another.
+
+## A worked example
+
+For calibration, here is one real run of exactly the steps above, on the ticket-router from the
+top of this page. Your numbers will differ — this is what the *shape* looks like when it works.
+
+Three comments went in, each naming the correct answer and the rule. The optimizer drafted
+three rewrites, and with the production baseline that made four cells over three examples:
+
+| Variant | Score | Passed |
+|---|---|---|
+| candidate-B | 93.3 | 3 / 3 |
+| candidate-C | 93.3 | 3 / 3 |
+| candidate-A | 20.0 | 0 / 3 |
+| production | 10.0 | 0 / 3 |
+
+The winner had written the policy into the system message:
+
+```text
+… Always categorize: issues with signing in or password resets as 'account', any billing
+discrepancies as 'billing', and designed behaviors as 'feature_request'. Ensure priorities
+are set according to guidelines: lockouts are 'P0', all billing issues are 'P1', and
+non-blocking issues are 'P2'.
+```
+
+**candidate-A is the one worth studying.** Its rationale read *"Reiterated rules about
+categorization and priority determination directly in the template to avoid allowing the
+customer's tone to influence the outcomes."* Its template was byte-for-byte identical to the
+production version — it changed nothing and said it had added the rules. That is step 4 in one
+example: a reviewer reading three plausible rationales has no way to catch it, and the
+scoreboard caught it without being clever, by running it.
+
+Two honest details from the same run. Both winning candidates scored 80 rather than 100 on the
+billing case, because the judge wanted the *output* to restate that tone should not affect
+priority — which no two-field JSON object will ever do. And `production` and candidate-A have
+the same template but scored 10 and 20, which is the run-to-run noise the table in step 3 warns
+about.
+
+After promoting candidate-B, the three original tickets re-sent through the same gateway call:
+
+```json
+{ "category": "account",         "priority": "P0" }
+{ "category": "billing",         "priority": "P1" }
+{ "category": "feature_request", "priority": "P2" }
+```
+
+Three for three, and the prompt was never edited by hand.
+
+## What's next
+
+- Compare *existing* versions instead of drafting new ones —
+  [Evaluate a prompt against a dataset](./evaluate-a-prompt).
+- Aliases, versions and rollback — [Version a prompt](./version-a-prompt).
+- Every field and status code: the [optimize loop reference](/api-reference/optimize).

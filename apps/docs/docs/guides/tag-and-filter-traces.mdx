@@ -1,0 +1,422 @@
+---
+title: Tag and filter traces
+description: Attach tags and metadata to traces, filter them by tag or metadata key/value, and discover what tags your team is using.
+sidebar_position: 17
+keywords: [traces, tags, metadata, filtering, facets, sessions, observability, search]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Tag and filter traces
+
+**What you'll do:** attach tags and metadata to traces, filter your trace list
+by tag or metadata, and discover which tags and metadata keys your team is
+already using.
+
+Tags are short labels (`prod`, `nl`, `staging`) that help you group and filter
+traces. Metadata is a freeform JSON object (`{"env": "prod", "lang": "nl",
+"userId": "abc123"}`) that lets you attach structured context without changing
+your trace schema. Both are set on creation and **merge** when you append to an
+existing trace — tags are union-merged (deduplicated), metadata is
+shallow-merged (new keys win).
+
+## 1. Set tags and metadata when creating a trace
+
+The fastest way to attach tags is through the **gateway headers** on every
+completion call. This works from any HTTP client — no SDK changes needed.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+Pass `x-trace-tags` (comma-separated) and `x-trace-metadata` (JSON string) as
+request headers:
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/chat/completions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "x-trace-tags: prod, nl" \
+  -H 'x-trace-metadata: {"env": "prod", "lang": "nl"}' \
+  -d '{
+    "model": "support-model",
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'
+```
+
+The trace created by this call will have `tags: ["prod", "nl"]` and
+`metadata: {"env": "prod", "lang": "nl"}`.
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+The SDK forwards `tags` and `metadata` as gateway headers automatically.
+Pass them in the trace options on any `chat()` or `run_tool_loop()` call:
+
+```python
+from acruxcore import AcruxCore
+
+client = AcruxCore()
+
+result = await client.chat(
+    "support-model",
+    [{"role": "user", "content": "Hello"}],
+    trace={
+        "tags": ["prod", "nl"],
+        "metadata": {"env": "prod", "lang": "nl"},
+    },
+)
+```
+
+</TabItem>
+<TabItem value="node" label="Node.js">
+
+The SDK forwards `tags` and `metadata` as gateway headers automatically.
+Pass them in the trace options on any `chat()` or `runToolLoop()` call:
+
+```typescript
+import { AcruxCore } from "@acruxcoreai/sdk";
+
+const client = new AcruxCore();
+
+const result = await client.chat({
+  model: "support-model",
+  messages: [{ role: "user", content: "Hello" }],
+  trace: {
+    tags: ["prod", "nl"],
+    metadata: { env: "prod", lang: "nl" },
+  },
+});
+```
+
+</TabItem>
+</Tabs>
+
+## 2. Filter traces by tag
+
+Once traces have tags, you can filter them. Tags use **AND** matching — a
+query for `prod` and `nl` returns only traces that carry both.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+Repeat the `tags` parameter for AND matching:
+
+```bash
+curl -g -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces?tags=prod&tags=nl"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "1b2d4e99-8bfb-49f0-af63-97ae6da301f0",
+      "name": "support-query",
+      "status": "ok",
+      "tags": ["prod", "nl"],
+      "spanCount": 1,
+      "startedAt": "2026-07-05T12:25:11.000Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 20
+}
+```
+
+:::tip[URL-encode brackets]
+curl treats `[` and `]` in URLs as globbing syntax. Always pass `-g` to
+disable that, or URL-encode the brackets (`%5B`/`%5D`).
+:::
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+The SDK's `list_traces()` method does not yet support tag or metadata
+filtering. Use the REST API directly:
+
+```python
+import httpx
+
+response = httpx.get(
+    f"{base_url}/traces",
+    headers={"Authorization": f"Bearer {api_key}"},
+    params={"tags": ["prod", "nl"]},
+)
+traces = response.json()
+```
+
+</TabItem>
+<TabItem value="node" label="Node.js">
+
+The SDK's `listTraces()` method does not yet support tag or metadata
+filtering. Use the REST API directly:
+
+```typescript
+const params = new URLSearchParams();
+params.append("tags", "prod");
+params.append("tags", "nl");
+
+const response = await fetch(`${baseUrl}/traces?${params}`, {
+  headers: { Authorization: `Bearer ${apiKey}` },
+});
+const traces = await response.json();
+```
+
+</TabItem>
+</Tabs>
+
+## 3. Filter traces by metadata
+
+Metadata filtering uses **bracket notation** and also AND matching — every
+supplied key/value pair must be present in the trace's metadata.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -g -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces?metadata[env]=prod&metadata[lang]=nl"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "1b2d4e99-8bfb-49f0-af63-97ae6da301f0",
+      "name": "support-query",
+      "status": "ok",
+      "tags": ["prod", "nl"],
+      "spanCount": 1,
+      "startedAt": "2026-07-05T12:25:11.000Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 20
+}
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+response = httpx.get(
+    f"{base_url}/traces",
+    headers={"Authorization": f"Bearer {api_key}"},
+    params={"metadata[env]": "prod", "metadata[lang]": "nl"},
+)
+traces = response.json()
+```
+
+</TabItem>
+<TabItem value="node" label="Node.js">
+
+```typescript
+const params = new URLSearchParams();
+params.append("metadata[env]", "prod");
+params.append("metadata[lang]", "nl");
+
+const response = await fetch(`${baseUrl}/traces?${params}`, {
+  headers: { Authorization: `Bearer ${apiKey}` },
+});
+const traces = await response.json();
+```
+
+</TabItem>
+</Tabs>
+
+## 4. Discover which tags and metadata keys exist
+
+You don't need to remember every tag by hand. The **facets** endpoint returns
+all distinct tags and metadata keys your team has used, and a second endpoint
+returns all distinct values for a single metadata key.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+Get all tags and metadata keys:
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces/facets"
+```
+
+```json
+{
+  "tags": ["prod", "staging", "nl", "de", "support", "billing"],
+  "metadataKeys": ["env", "lang", "userId", "sessionId"]
+}
+```
+
+Get all values for one metadata key:
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces/facets/values?key=env"
+```
+
+```json
+{
+  "key": "env",
+  "values": ["prod", "staging", "dev"]
+}
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+# List all tags and metadata keys
+facets = httpx.get(
+    f"{base_url}/traces/facets",
+    headers={"Authorization": f"Bearer {api_key}"},
+).json()
+
+# List all values for a metadata key
+values = httpx.get(
+    f"{base_url}/traces/facets/values",
+    headers={"Authorization": f"Bearer {api_key}"},
+    params={"key": "env"},
+).json()
+```
+
+</TabItem>
+<TabItem value="node" label="Node.js">
+
+```typescript
+// List all tags and metadata keys
+const facets = await fetch(`${baseUrl}/traces/facets`, {
+  headers: { Authorization: `Bearer ${apiKey}` },
+}).then(r => r.json());
+
+// List all values for a metadata key
+const values = await fetch(
+  `${baseUrl}/traces/facets/values?key=env`,
+  { headers: { Authorization: `Bearer ${apiKey}` } }
+).then(r => r.json());
+```
+
+</TabItem>
+</Tabs>
+
+## 5. Group traces under a session
+
+Tags and metadata live on individual traces. When you want several traces to
+roll up as one conversation — a support ticket, a multi-turn chat, a single
+agent run — give them a shared **session id**. All traces carrying the same
+session id appear together under **Observability → Sessions** in the dashboard.
+
+A session id is just a string you choose (`support-ticket-421`, `agent-run-abc`).
+It has no tags or metadata of its own — filter your traces by tag first, then
+the matching traces group under whatever sessions they belong to.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+Pass `x-session-id` as a request header on any gateway call:
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/chat/completions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "x-session-id: support-ticket-421" \
+  -H "x-trace-tags: prod, support" \
+  -d '{
+    "model": "support-model",
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'
+```
+
+Send the same `x-session-id` on every call that belongs to the conversation;
+each trace keeps its own tags and metadata but groups under the one session.
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+Pass `session_id` in the trace options alongside your tags and metadata:
+
+```python
+result = await client.chat(
+    "support-model",
+    [{"role": "user", "content": "Hello"}],
+    trace={
+        "session_id": "support-ticket-421",
+        "tags": ["prod", "support"],
+    },
+)
+```
+
+The same `session_id` works on `run_tool_loop()` — every call inside the
+loop inherits the session.
+
+</TabItem>
+<TabItem value="node" label="Node.js">
+
+Pass `sessionId` in the trace options alongside your tags and metadata:
+
+```typescript
+const result = await client.chat({
+  model: "support-model",
+  messages: [{ role: "user", content: "Hello" }],
+  trace: {
+    sessionId: "support-ticket-421",
+    tags: ["prod", "support"],
+  },
+});
+```
+
+The same `sessionId` works on `runToolLoop()` — every call inside the
+loop inherits the session.
+
+</TabItem>
+</Tabs>
+
+Read it back from a trace with `get_trace()` / `getTrace()`:
+
+```python
+detail = await client.get_trace(trace_id)
+print(detail.trace.session_id)   # "support-ticket-421"
+```
+
+```typescript
+const detail = await client.getTrace(traceId);
+console.log(detail.trace.sessionId); // "support-ticket-421"
+```
+
+For deeper coverage of sessions — listing them, filtering traces by session,
+and reading aggregate stats — see the
+[Using sessions and traces](./using-sessions-and-traces.mdx) guide.
+
+## Merge behavior
+
+When you append to an existing trace (sending a second request with the same
+trace id), tags and metadata **merge** rather than overwrite:
+
+- **Tags** are union-merged — if the trace already has `["prod"]` and you
+  send `["nl"]`, the result is `["prod", "nl"]`. Duplicates are removed.
+- **Metadata** is shallow-merged — existing keys stay, new keys are added, and
+  overlapping keys take the new value.
+
+This means you can set base tags once (e.g. `prod`) and add per-request tags
+(e.g. `support`, `billing`) without losing either.
+
+## Summary
+
+| What | How |
+|------|-----|
+| Set tags on a trace | `x-trace-tags: a, b` header (gateway) or `tags: [...]` in trace input (SDK) |
+| Set metadata on a trace | `x-trace-metadata: {"k":"v"}` header (gateway) or `metadata: {...}` in trace input (SDK) |
+| Filter by tags | `?tags=a&tags=b` (AND match) |
+| Filter by metadata | `?metadata[k1]=v1&metadata[k2]=v2` (AND match) |
+| Discover tags | `GET /traces/facets` |
+| Discover metadata values | `GET /traces/facets/values?key=<key>` |
+| Group traces under a session | `x-session-id: <id>` header (gateway) or `sessionId` / `session_id` in trace input (SDK) |
+
+:::note[SDK filtering gap]
+The Python and Node.js SDKs forward tags and metadata to the gateway on
+`chat()` and `runToolLoop()` calls, but `list_traces()` / `listTraces()`
+do not yet accept tag or metadata filter parameters. Use the REST API
+directly for filtering until SDK support is added.
+:::

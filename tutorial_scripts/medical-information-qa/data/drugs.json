@@ -1,0 +1,28 @@
+[
+  {
+    "id": "NVX",
+    "brand_name": "Neuravex",
+    "generic_name": "vexaline hydrochloride",
+    "drug_class": "serotonin-norepinephrine reuptake inhibitor (SNRI)",
+    "approved_indications": [
+      "Chronic diabetic peripheral neuropathic pain in adults",
+      "Major depressive disorder (MDD) in adults"
+    ],
+    "contraindication_tags": ["mao_inhibitor_use", "narrow_angle_glaucoma_uncontrolled"],
+    "ae_trigger_terms": ["suicidal thoughts", "serotonin syndrome", "severe liver injury", "blood pressure increase"],
+    "source_filenames": ["neuravex-pi.md"]
+  },
+  {
+    "id": "CTB",
+    "brand_name": "Cortiblex",
+    "generic_name": "cortisolan acetate",
+    "drug_class": "systemic corticosteroid",
+    "approved_indications": [
+      "Short-course treatment (up to 14 days) of moderate-to-severe rheumatoid arthritis flare in adults",
+      "Adjunct therapy for acute severe allergic reactions"
+    ],
+    "contraindication_tags": ["systemic_fungal_infection", "live_vaccine_recent"],
+    "ae_trigger_terms": ["adrenal suppression", "hyperglycemia", "gastrointestinal bleeding", "immunosuppression"],
+    "source_filenames": ["cortiblex-pi.md"]
+  }
+]

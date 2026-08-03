@@ -1,0 +1,26 @@
+meta {
+  name: Traces For Prompt Version
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/prompts/{{promptId}}/versions/{{versionNumber}}/traces
+  body: none
+  auth: bearer
+}
+
+docs {
+  Reverse lineage — requires {{promptId}}/{{versionNumber}} from Phase 1's
+  "B2 - Prompts" / "B3 - Versioning and Aliases" folders (run those first, or
+  set the vars manually). Returns traces whose spans were ingested with a
+  matching `promptVersionId` — an empty `data: []` is still a 200.
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+assert {
+  res.status: eq 200
+}

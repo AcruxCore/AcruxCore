@@ -1,0 +1,33 @@
+meta {
+  name: Commit Version 2
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/v1/prompts/{{e5PromptId}}/versions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "messages": [
+      { "role": "system", "content": "Greet {{ name }} enthusiastically with an exclamation mark." }
+    ]
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setVar("e5VersionV2Id", res.getBody().id);
+  }
+}

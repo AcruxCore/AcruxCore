@@ -1,0 +1,27 @@
+meta {
+  name: Create Connection (Gemini)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/gateway/connections
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "provider": "gemini",
+    "label": "Gemini Prod",
+    "apiKey": "{{providerKey}}"
+  }
+}

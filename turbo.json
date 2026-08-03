@@ -1,0 +1,32 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "build/**", ".docusaurus/**"],
+      // Turbo's default envMode is `strict`: any env var not listed here is
+      // stripped before the task's process even starts, regardless of what
+      // Docker's ARG/ENV or docker-compose's `args:` pass in. Both of these
+      // are non-VITE_-prefixed names that vite.config.ts's `define` maps onto
+      // a VITE_ name at build time (see apps/web/vite.config.ts) — Turbo's
+      // Vite framework inference only auto-passes already-VITE_-prefixed
+      // vars, so these two must be declared explicitly or the bundle silently
+      // builds without them (discovered via PR #198 — GA4 never loaded in
+      // production despite correct Docker/compose wiring; SENTRY_WEB_DSN had
+      // the identical gap and had likely never worked either).
+      "env": ["SENTRY_WEB_DSN", "GA4_MEASUREMENT_ID"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "start": {
+      "cache": false,
+      "persistent": true
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "env": ["TEST_DATABASE_URL", "SESSION_SECRET", "NODE_ENV", "ACRUXCORE_API_KEY", "ACRUXCORE_BASE_URL"]
+    }
+  }
+}

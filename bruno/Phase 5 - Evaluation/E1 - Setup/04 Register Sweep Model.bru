@@ -1,0 +1,33 @@
+meta {
+  name: Register Sweep Model
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/v1/gateway/models
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "publicName": "gpt-4o-mini-e5eval",
+    "upstreamModel": "gpt-4o-mini",
+    "credentialId": "{{e5ConnectionId}}"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setVar("e5SweepModel", res.getBody().publicName);
+  }
+}

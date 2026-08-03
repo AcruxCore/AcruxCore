@@ -1,0 +1,969 @@
+---
+title: Build a supervisor multi-agent system
+description: A router that classifies an incoming request and hands it to one of three specialist subagents — finance research, general research, or writing — sharing one trace.
+sidebar_position: 7
+keywords: [multi-agent, supervisor, langgraph, routing, tool calling]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Build a supervisor multi-agent system
+
+**What you'll build:** a content-request router that reads an incoming question, decides
+which of three specialist subagents should handle it — finance research, general research,
+or writing — and hands the request to that subagent's own prompt and tools, with the whole
+two-step run landing in one trace.
+
+A **supervisor** (sometimes called a router or orchestrator) is a small model call whose only
+job is to classify: given a request, which of several specialists should take it? The pattern
+shows up anywhere one entry point needs to fan out to different tools, prompts, or personas
+depending on what's actually being asked — a support desk with a billing team and a technical
+team, a content pipeline with a data team and a copy team. This page builds the simplest real
+version of it: one classification call, one hand-off call.
+
+:::note[Ported from langgraph — without langgraph]
+This page ports [`langchain-samples/assistants-demo`](https://github.com/langchain-samples/assistants-demo)'s
+`agents/supervisor/subagents.py`. The original uses `langgraph_supervisor.create_supervisor(...)`,
+a LangGraph state machine with unbounded loops and a `ROUTE_TO`/`COMPLETE` text protocol.
+This page replaces all of that with one `response_format` call and one `runToolLoop()` — no
+`langgraph` dependency, no string parsing, no cycles.
+:::
+
+:::tip[Extending to multi-hop]
+The source's LangGraph version can chain subagents — e.g. research Tesla's earnings, then
+write a LinkedIn post from that research. This page builds the one-hop case only. To add
+multi-hop, extend Step 5's loop: feed one subagent's output into a second router call.
+That's the hybrid-port case, not covered here.
+:::
+
+## 1. Run the four tools standalone
+
+The source assigns three subagents four tools total, defined once in
+`agents/react_agent/tools.py` and shared across all of them:
+
+| Subagent | Tools |
+|---|---|
+| `finance_research_agent` | `finance_research`, `basic_research`, `get_todays_date` |
+| `general_research_agent` | `advanced_research`, `get_todays_date` |
+| `writing_agent` | `basic_research`, `get_todays_date` |
+
+`finance_research` wraps `langchain_community`'s real `YahooFinanceNewsTool`; `advanced_research`
+and `basic_research` both wrap `TavilySearchResults` at different depths, the same two
+configurations [Build a configurable ReAct agent](./build-a-configurable-react-agent) uses.
+Run all four standalone first, before any of this touches Acrux Core:
+
+```python
+import asyncio
+from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain_community.tools.yahoo_finance_news import YahooFinanceNewsTool
+from datetime import datetime
+
+async def finance_research(ticker_symbol: str):
+    wrapped = YahooFinanceNewsTool()
+    return await wrapped.ainvoke({"query": ticker_symbol})
+
+async def advanced_research(query: str):
+    wrapped = TavilySearchResults(max_results=10, search_depth="advanced")
+    return await wrapped.ainvoke({"query": query})
+
+async def basic_research(query: str):
+    wrapped = TavilySearchResults(max_results=5, search_depth="basic", include_raw_content=False, include_images=True)
+    return await wrapped.ainvoke({"query": f"trending {query}"})
+
+async def get_todays_date() -> str:
+    return datetime.now().strftime("%Y-%m-%d")
+
+async def main():
+    print("=== finance_research(TSLA) ===")
+    print(await finance_research("TSLA"))
+    print()
+
+    print('=== advanced_research("LangGraph supervisor multi-agent pattern") ===')
+    results = await advanced_research("LangGraph supervisor multi-agent pattern")
+    print(f"{len(results)} result(s)")
+    for r in results[:3]:
+        print(f"  - {r['title']} | {r['url']}")
+    print()
+
+    print('=== basic_research("AI content marketing") ===')
+    results = await basic_research("AI content marketing")
+    print(f"{len(results)} result(s)")
+    for r in results[:3]:
+        print(f"  - {r['title']} | {r['url']}")
+    print()
+
+    print("=== get_todays_date() ===")
+    print(await get_todays_date())
+
+asyncio.run(main())
+```
+
+Call each one to verify the underlying services respond before wiring anything to the gateway:
+
+```text
+=== finance_research(TSLA) ===
+Tesla (TSLA) Explores China Split As SpaceX Merger Talk Draws Attention
+Reports indicate Tesla (NasdaqGS:TSLA) has explored separating its China operations to address
+regulatory and supply chain issues. The proposed structure could support a future merger with
+SpaceX, although Elon Musk has firmly denied that such a merger is planned.
+
+=== advanced_research("LangGraph supervisor multi-agent pattern") ===
+10 result(s)
+  - LangGraph Multi-Agent Supervisor | https://reference.langchain.com/python/langgraph-supervisor
+  - supervisor-pattern · GitHub Topics · GitHub | https://github.com/topics/supervisor-pattern
+  - Building Multi-Agent Systems with LangGraph-Supervisor | https://dev.to/sreeni5018/building-multi-agent-systems-with-langgraph-supervisor-138i
+
+=== basic_research("AI content marketing") ===
+5 result(s)
+  - How to adopt AI for content marketing: 2026 guide | Airtable | https://www.airtable.com/articles/ai-content-marketing
+  - AI-Driven Content Strategy: The Future of Marketing Innovation - Aprimo | https://www.aprimo.com/blog/ai-driven-content-strategy-the-future-of-marketing-innovation
+  - AI Will Shape the Future of Marketing | https://professional.dce.harvard.edu/blog/ai-will-shape-the-future-of-marketing
+
+=== get_todays_date() ===
+2026-08-02
+```
+
+## 2. Get an API key
+
+The scripts below need one Acrux Core key to sync the tools, create the prompts, render
+each one, and run the loop. Open **Account & keys → New key**, name it something like
+`supervisor-multi-agent`, and copy the value — it's shown once.
+
+![The "Copy your API key" dialog showing a freshly created key beginning acx_sk_, a Copy button, and a Node SDK snippet using it](/img/tutorials/build-a-supervisor-multi-agent-system/01-api-key.png)
+
+```bash
+export ACRUXCORE_API_KEY=acx_sk_...
+export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
+export TAVILY_API_KEY=tvly-...
+```
+
+## 3. Create the four tools via the SDK decorator + `tools.sync()`
+
+This is the first tutorial in this series to create tools the code-owned way: a Python function
+decorated with `@acrux.tool` **is** the tool — its docstring becomes the model-facing
+description, its signature becomes the JSON Schema, and `tools.sync()` reconciles that with the
+catalog. Per this design's docstring-in-code decision, every docstring below is the source
+repo's own text, kept **verbatim** — including its own typo ("finincial") and its own terse
+`Args: None` on `get_todays_date` — because this page's framing is "the tool owns its
+interface," and paraphrasing would contradict that:
+
+```python
+"""
+Create the four supervisor tools in the Acrux Core catalog via @acrux.tool + tools.sync().
+
+Run once before supervisor_flow.py.  Requires:
+  pip install acruxcore langchain_community tavily-python yfinance
+"""
+import asyncio
+from datetime import datetime
+from typing import Optional, cast, Any
+
+from acruxcore import AcruxCore, acrux
+from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain_community.tools.yahoo_finance_news import YahooFinanceNewsTool
+
+
+@acrux.tool
+async def finance_research(ticker_symbol: str) -> Optional[list]:
+    """Search for finance research, must be a ticker symbol. This tool is used to search for financial data and news from Yahoo Finance.
+    It will return related finincial news from Yahoo Finance for that given ticker symbol.
+
+    Args:
+        ticker_symbol (str): The ticker symbol of the company to research.
+    """
+    wrapped = YahooFinanceNewsTool()
+    return cast(Any, await wrapped.ainvoke({"query": ticker_symbol}))
+
+
+@acrux.tool
+async def advanced_research(query: str) -> Optional[list]:
+    """Perform in-depth research with more results and deeper analysis. This tool
+    will return 10 results and go deeper for more information.
+
+    Args:
+        query (str): The query to search for.
+    """
+    wrapped = TavilySearchResults(max_results=10, search_depth="advanced")
+    return cast(Any, await wrapped.ainvoke({"query": query}))
+
+
+@acrux.tool
+async def basic_research(query: str) -> Optional[list]:
+    """This tool performs quick searches with little depth,
+    returning concise results ideal for basic research or quick queries.
+
+    Args:
+        query (str): The query to search for.
+    """
+    wrapped = TavilySearchResults(max_results=5, search_depth="basic", include_raw_content=False, include_images=True)
+    return cast(Any, await wrapped.ainvoke({"query": f"trending {query}"}))
+
+
+@acrux.tool
+async def get_todays_date() -> str:
+    """Quick tool to get today's date.
+    Args: None
+    """
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+async def main() -> None:
+    async with AcruxCore() as hub:
+        results = await hub.tools.sync(
+            [finance_research, advanced_research, basic_research, get_todays_date]
+        )
+        for fn, r in zip([finance_research, advanced_research, basic_research, get_todays_date], results):
+            print(f"{fn.__name__}: tool_id={r.tool_id} v{r.version_number} committed={r.committed}")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+```text
+finance_research: tool_id=c6ffbbff-7e5f-4e6e-acbe-1fd1a027632f v2 committed=True
+advanced_research: tool_id=bcf7f63f-7134-412b-8f16-5f745f077133 v1 committed=True
+basic_research: tool_id=ab20959a-2651-4779-86f8-0714c967798e v1 committed=True
+get_todays_date: tool_id=d0a800d5-a484-4d4f-a9e2-05a715775682 v2 committed=True
+```
+
+`finance_research` and `get_todays_date` came back as **v2**: this team's catalog already had
+a v1 for both, created by curl in [Build a ReAct agent](./build-a-react-agent), with a plainer
+hand-written description. `tools.sync()` is idempotent per name — it found the existing tools
+and committed a new version carrying the source's real docstring, exactly the "code supersedes
+a dashboard/API version" behavior the SDK documents. Open **Gateway → Tools → finance_research**
+and both versions are visible, `v1` tagged `api` and `v2` tagged `code`:
+
+![finance_research tool detail page showing v2 defined in code with the verbatim source docstring, and v1 from the API with a shorter description](/img/tutorials/build-a-supervisor-multi-agent-system/02-tool-versions.png)
+
+All four now appear in the catalog:
+
+![Tools list showing basic_research, advanced_research, web_research, get_todays_date, and finance_research among the team's tools](/img/tutorials/build-a-supervisor-multi-agent-system/03-tools-list.png)
+
+## 4. Create the router and subagent prompts over the API
+
+Four prompts, all created by curl: the router, and the three subagents' own system prompts,
+quoted from `agents/supervisor/supervisor_context.py` — none collapsed into another, since
+their tool lists overlapping (`finance_research_agent` and `writing_agent` both use
+`basic_research`) doesn't make their prompts the same agent.
+
+**The router.** The source's real supervisor prompt describes the three agents and a
+`ROUTE_TO:`/`COMPLETE` text protocol for a full multi-hop loop. Since this page reproduces one
+routing decision, not the loop, the version below keeps the source's own framing and agent
+descriptions verbatim and drops only the `ROUTE_TO:`/`COMPLETE` protocol text — that part is
+replaced by `response_format` at call time (Step 5), not by anything stored on this prompt.
+
+Each prompt is created in two calls: first the **shell** (`POST /prompts`, name + description only),
+then a **version** (`POST /prompts/:id/versions`) with the actual messages and model. See
+[Store prompts and tools via the API](../guides/store-prompts-and-tools-via-api)
+for a deeper walkthrough of this pattern.
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/prompts" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"name":"content-supervisor","description":"Classifies an incoming content request and routes it to one of three specialist subagents."}'
+
+curl -X POST "$ACRUXCORE_BASE_URL/prompts/2963439b-d01b-4a94-8345-9f0e50b7794d/versions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-haiku-direct",
+    "messages": [
+      {"role":"system","content":"You are the Executive Content Director orchestrating a team of specialized AI agents to produce exceptional content for clients.\n\nAvailable agents:\n- finance_research_agent: Specialized in financial data research and analysis using Yahoo Finance and other financial sources\n- general_research_agent: Expert at comprehensive web research on any topic using advanced search tools\n- writing_agent: Professional content writer that creates final polished content in any format\n\nRead the user'"'"'s request and decide which single agent should handle it next."},
+      {"role":"user","content":"{{ question }}"}
+    ]
+  }'
+```
+
+```json
+{"id":"163c1c3a-181d-4568-9165-ace51278bb11","promptId":"2963439b-d01b-4a94-8345-9f0e50b7794d","versionNumber":1,"variables":["question"],"model":"claude-haiku-direct","aliases":[{"alias":"production","versionNumber":1},{"alias":"staging","versionNumber":1}]}
+```
+
+`claude-haiku-direct` is a model registered against a **direct Anthropic connection**
+(`POST /gateway/connections` with `provider: "anthropic"`, then `POST /gateway/models` pointing
+it at `claude-haiku-4-5-20251001`) — matching the source's own default,
+`anthropic:claude-haiku-4-5`, across all four prompts.
+
+:::warning[`response_format` requires a direct connection]
+The gateway translates `response_format` into a forced tool call for direct Anthropic connections
+and passes it through natively for direct OpenAI connections. For `openai_compatible` connections
+(e.g. OpenRouter), the gateway passes `response_format` through to the upstream as-is — whether
+the upstream honors it is outside the gateway's control. If the router in Step 5 returns
+free-text instead of JSON, your connection type is the first thing to check.
+:::
+
+**The three subagents,** each with its own prompt name, its own real system prompt, and the
+tool ids `tools.sync()` returned above:
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/prompts" -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"name":"finance-research-agent","description":"Finance research subagent: Yahoo Finance news plus quick web lookups, for the content supervisor."}'
+
+curl -X POST "$ACRUXCORE_BASE_URL/prompts/a672652c-8ef8-49ac-b674-b4a38bb6d8dd/versions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-haiku-direct",
+    "messages": [
+      {"role":"system","content":"You are an expert finance research assistant for a digital content agency.\nYou have access to the following tools: finance_research, basic_research, and get_todays_date. \nFirst get today'"'"'s date then continue. \nThe finance_research tool is used to search for financial data and news from Yahoo Finance. \nThe basic_research tool is used to search for general information. \nThe get_todays_date tool is used to get today'"'"'s date. \nWhen you are done with your research, return the research to the supervisor agent."},
+      {"role":"user","content":"{{ task }}"}
+    ],
+    "tools": [{"toolId":"c6ffbbff-7e5f-4e6e-acbe-1fd1a027632f"},{"toolId":"ab20959a-2651-4779-86f8-0714c967798e"},{"toolId":"d0a800d5-a484-4d4f-a9e2-05a715775682"}]
+  }'
+```
+
+```json
+{"id":"6bc66e79-5876-465a-a50f-4f138da54783","promptId":"a672652c-8ef8-49ac-b674-b4a38bb6d8dd","versionNumber":1,"variables":["task"],"model":"claude-haiku-direct","aliases":[{"alias":"production","versionNumber":1},{"alias":"staging","versionNumber":1}]}
+```
+
+The other two subagents follow the exact same shape — create the prompt shell, then commit a
+version with the system prompt, user prompt, and tool ids. You can do this from the dashboard
+(**Prompts → New prompt**, then the **Editor** tab to commit a version and attach tools) or
+repeat the same two curl calls. Here is what each one needs:
+
+**`general-research-agent`** — tools: `advanced_research` + `get_todays_date`
+
+> You are an expert general research agent. You have access to the following tools:
+> advanced_research and get_todays_date. First get today's date then continue to use the
+> advanced_research tool to search for general information on the topic you are given to
+> research, when your done you return the research to the supervisor agent. YOU MUST USE THE
+> ADVANCED_RESEARCH TOOL TO GET THE INFORMATION YOU NEED
+
+**`writing-agent`** — tools: `basic_research` + `get_todays_date`
+
+> You are an expert writing assistant. Your primary responsibility is to help draft, edit, and
+> improve written content to ensure clarity, correctness, and engagement. You are strictly
+> supposed to take in the content you are given and write the final content based on the
+> requested format for the user, then return the final content to the supervisor agent.
+
+Both use `{{ task }}` as the user prompt variable, same as the finance agent.
+
+## 5. Run the two-step router → subagent flow
+
+The flow has two steps:
+
+1. **Classify.** Render the router prompt and call the gateway with `response_format` set to
+   a typed JSON schema — `{"route_to": "finance_research_agent" | "general_research_agent" |
+   "writing_agent"}`. The model returns a structured answer like `{"route_to":
+   "finance_research_agent"}`. This call carries no tools (`response_format` and `tools` are
+   mutually exclusive on one request). Capture the trace id from `x-gateway-trace-id`.
+2. **Dispatch.** Render the subagent prompt the router picked, and run its tools via
+   `runToolLoop()`/`run_tool_loop()` (curl loops by hand), passing that **same trace id** so
+   the hand-off lands in one trace instead of two.
+
+Run each script twice, with two genuinely different questions, to prove the routing is real:
+
+```bash
+./supervisor_flow.sh "Research Tesla (TSLA) latest stock news and tell me if investors should be worried."
+./supervisor_flow.sh "What are the biggest trends in sustainable packaging for consumer goods in 2026?"
+```
+
+The first is a finance question; the second is a general-research question. If routing were
+hardcoded, both would land on the same subagent — they don't.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+<details>
+<summary>Full source: <code>supervisor_flow.sh</code></summary>
+
+```bash
+#!/usr/bin/env bash
+# Supervisor multi-agent flow -- bash + curl + jq, gateway, manual tool_calls loop.
+#
+# Step A: render the router prompt, call the gateway with response_format set to a
+#         typed { "route_to": ... } json_schema. No tools attached -- response_format
+#         and tools are mutually exclusive on one request. Capture x-gateway-trace-id.
+# Step B: render the matching subagent's own prompt + tools and loop by hand (curl has
+#         no runToolLoop() equivalent), threading x-trace-id so both calls land in ONE trace.
+set -euo pipefail
+
+QUESTION="${1:-Research Tesla (TSLA) latest stock news and tell me if investors should be worried.}"
+
+now() { date -u +"%Y-%m-%dT%H:%M:%S.%3NZ"; }
+
+finance_research() {
+  local ticker="$1" jar
+  jar=$(mktemp)
+  curl -s -c "$jar" -A "Mozilla/5.0" "https://fc.yahoo.com" -o /dev/null
+  curl -s -b "$jar" -A "Mozilla/5.0" -X POST \
+    "https://finance.yahoo.com/xhr/ncp?queryRef=latestNews&serviceKey=ncp_fin" \
+    -H "Content-Type: application/json" \
+    -d "{\"serviceConfig\":{\"snippetCount\":3,\"s\":[\"${ticker}\"]}}" \
+    | jq -c '[.data.tickerStream.stream[] | {title: .content.title}]'
+  rm -f "$jar"
+}
+
+advanced_research() {
+  curl -s -X POST https://api.tavily.com/search -H "Content-Type: application/json" \
+    -d "$(jq -n --arg key "$TAVILY_API_KEY" --arg q "$1" \
+          '{api_key:$key,query:$q,search_depth:"advanced",max_results:10}')" \
+    | jq -c '[.results[] | {title, url}]'
+}
+
+basic_research() {
+  curl -s -X POST https://api.tavily.com/search -H "Content-Type: application/json" \
+    -d "$(jq -n --arg key "$TAVILY_API_KEY" --arg q "trending $1" \
+          '{api_key:$key,query:$q,search_depth:"basic",max_results:5,include_images:true,include_raw_content:false}')" \
+    | jq -c '[.results[] | {title, url}]'
+}
+
+get_todays_date() { date -u +%F; }
+
+run_tool() {
+  case "$1" in
+    finance_research) finance_research "$(echo "$2" | jq -r '.ticker_symbol')" ;;
+    advanced_research) advanced_research "$(echo "$2" | jq -r '.query')" ;;
+    basic_research) basic_research "$(echo "$2" | jq -r '.query')" ;;
+    get_todays_date) get_todays_date ;;
+    *) echo "Unknown tool: $1" >&2; exit 1 ;;
+  esac
+}
+
+render_prompt() {
+  curl -s -X POST "$ACRUXCORE_BASE_URL/prompts/$1/$2/render" \
+    -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+    -d "{\"variables\":{\"$3\":$(jq -Rn --arg v "$4" '$v')}}"
+}
+
+report_tool_span() {
+  curl -s -X POST "$ACRUXCORE_BASE_URL/traces" \
+    -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+    -d "$(jq -n --arg traceId "$1" --arg spanId "${2}-${3}" --arg name "$2" \
+        --arg started "$3" --arg ended "$4" --argjson args "$5" --arg result "$6" \
+        '{traces:[{traceId:$traceId,capturePayloads:true,spans:[{
+          spanId:$spanId,name:$name,kind:"tool",status:"ok",startTime:$started,endTime:$ended,
+          input:$args,output:$result}]}]}')" > /dev/null
+}
+
+# -- Step A: router, response_format, no tools --
+router_rendered=$(render_prompt "content-supervisor" "production" "question" "$QUESTION")
+router_messages=$(echo "$router_rendered" | jq -c '.messages')
+router_model=$(echo "$router_rendered" | jq -r '.model')
+ROUTE_SCHEMA='{"type":"object","properties":{"route_to":{"type":"string","enum":["finance_research_agent","general_research_agent","writing_agent"]}},"required":["route_to"],"additionalProperties":false}'
+
+route_headers=$(mktemp)
+route_resp=$(curl -s -D "$route_headers" -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+  -d "$(jq -n --arg model "$router_model" --argjson messages "$router_messages" --argjson schema "$ROUTE_SCHEMA" \
+        '{model:$model,messages:$messages,response_format:{type:"json_schema",json_schema:{name:"route_decision",schema:$schema,strict:true}}}')")
+route_to=$(echo "$route_resp" | jq -r '.choices[0].message.content | fromjson | .route_to')
+trace_id=$(grep -i '^x-gateway-trace-id:' "$route_headers" | tr -d '\r' | cut -d' ' -f2)
+rm -f "$route_headers"
+
+echo "Question: $QUESTION"
+echo "Step A -- routed to: $route_to  (trace $trace_id)"
+echo
+
+# -- Step B: the chosen subagent, hand-rolled tool loop, SAME trace --
+case "$route_to" in
+  finance_research_agent) subagent_name="finance-research-agent" ;;
+  general_research_agent) subagent_name="general-research-agent" ;;
+  writing_agent) subagent_name="writing-agent" ;;
+esac
+
+rendered=$(render_prompt "$subagent_name" "production" "task" "$QUESTION")
+messages=$(echo "$rendered" | jq -c '.messages')
+tools=$(echo "$rendered" | jq -c '.tools')
+model=$(echo "$rendered" | jq -r '.model')
+
+for turn in 1 2 3 4; do
+  headers_file=$(mktemp)
+  response=$(curl -s -D "$headers_file" -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+    -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+    -H "x-trace-id: $trace_id" \
+    -d "$(jq -n --arg model "$model" --argjson messages "$messages" --argjson tools "$tools" \
+          '{model:$model,messages:$messages,tools:$tools}')")
+  rm -f "$headers_file"
+
+  message=$(echo "$response" | jq -c '.choices[0].message')
+  messages=$(echo "$messages" | jq -c --argjson m "$message" '. + [$m]')
+  tool_calls=$(echo "$message" | jq -c '.tool_calls // empty')
+  if [ -z "$tool_calls" ]; then
+    echo "Step B -- $route_to: $(echo "$message" | jq -r '.content')"
+    echo
+    echo "($turn model turn(s), trace $trace_id)"
+    exit 0
+  fi
+
+  while IFS= read -r call; do
+    [ -z "$call" ] && continue
+    call_id=$(echo "$call" | jq -r '.id')
+    name=$(echo "$call" | jq -r '.function.name')
+    args_json=$(echo "$call" | jq -c '.function.arguments | fromjson')
+    started=$(now); result=$(run_tool "$name" "$args_json"); ended=$(now)
+    echo "  -> ${name}($(echo "$args_json" | jq -c .))"
+    echo "     $(echo "$result" | head -c 200)"
+    report_tool_span "$trace_id" "$name" "$started" "$ended" "$args_json" "$result"
+    messages=$(echo "$messages" | jq -c --arg cid "$call_id" --arg content "$result" \
+      '. + [{role:"tool", tool_call_id:$cid, content:$content}]')
+  done < <(echo "$tool_calls" | jq -c '.[]')
+done
+echo "Stopped: hit the turn limit without a final answer."
+```
+
+</details>
+
+```bash
+./supervisor_flow.sh "Research Tesla (TSLA) latest stock news and tell me if investors should be worried."
+```
+
+```text
+Question: Research Tesla (TSLA) latest stock news and tell me if investors should be worried.
+Step A -- routed to: finance_research_agent  (trace ed61263e-3b02-4cd3-8b9f-5c1c00080aca)
+
+  -> get_todays_date({})
+     2026-08-01
+  -> finance_research({"ticker_symbol":"TSLA"})
+     [{"title":"SpaceX stock hits new closing low in rocky week ahead of earnings"},{"title":"Tesla reportedly considering a spin off of its China business"},{"title":"Tesla Rival BYD Ramping Up Sales On O
+Step B -- finance_research_agent: Based on the latest financial news for Tesla (TSLA) as of August 1, 2026, here's my analysis:
+
+### Key Findings:
+- **Tesla considering a spin-off of its China business** - potentially significant restructuring news
+- **BYD ramping up overseas sales** - intensifying competitive pressure in the EV market
+
+### Should Investors Be Worried?
+Mixed signals, cautious approach recommended. Monitor earnings reports and official statements
+about the China spin-off, and watch for the impact of BYD's overseas growth on Tesla's market
+share. Not necessarily a red flag for panic selling at this point.
+
+(2 model turn(s), trace ed61263e-3b02-4cd3-8b9f-5c1c00080aca)
+```
+
+```bash
+./supervisor_flow.sh "What are the biggest trends in sustainable packaging for consumer goods in 2026?"
+```
+
+```text
+Question: What are the biggest trends in sustainable packaging for consumer goods in 2026?
+Step A -- routed to: general_research_agent  (trace 60754ee4-221d-4a53-94a3-09ccdff534e7)
+
+  -> get_todays_date({})
+     2026-08-01
+  -> advanced_research({"query":"biggest trends sustainable packaging consumer goods 2026"})
+     [{"title":"Food packaging trends 2026: Sustainability, digital innovation & consumer-centric solutions","url":"https://www.foodingredientsfirst.com/news/food-packaging-trends-sustainability-digital-in
+Step B -- general_research_agent: Perfect! I've completed my research on the biggest trends in
+sustainable packaging for consumer goods in 2026:
+
+1. Food Packaging & Sustainability Focus, 2. Digital Innovation Integration, 3. Eco-Friendly
+Materials Leadership, 4. Consumer-Centric Design, 5. Circular Economy Models, 6. Market Growth,
+7. Compliance & Regulations.
+
+(2 model turn(s), trace 60754ee4-221d-4a53-94a3-09ccdff534e7)
+```
+
+Same script, different question — a finance ticker question routed to `finance_research_agent`
+and called the real Yahoo Finance tool; a general trends question routed to
+`general_research_agent` and called the real Tavily-backed `advanced_research`. Two different
+subagents, two different tool sets, one classification decision each.
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+`run_tool_loop()` drives Step B; Step A stays a plain `requests.post` even though
+`response_format` is now in the SDK's `chat()`/`run_tool_loop()` (see the [Medical-Information
+QA Agent](./build-a-medical-information-qa-agent) tutorial) — it's a single standalone call
+with no loop, so the raw `POST` shows the wire shape rather than reaching for an SDK method
+built for multi-round tool loops. `tools=` passes the **same decorated functions** Step 3
+already synced, with `sync=False` since nothing has changed since that sync:
+
+<details>
+<summary>Full source: <code>supervisor_flow.py</code></summary>
+
+```python
+"""
+Supervisor multi-agent flow -- Python, over the gateway.
+
+Step A: render the router prompt (content-supervisor) and call the gateway with
+        response_format set to a typed { "route_to": ... } json_schema.
+Step B: render the matching subagent's prompt + tools and run run_tool_loop(),
+        passing trace={"trace_id": ...} so both calls land in ONE trace.
+
+Requires:
+  pip install acruxcore langchain_community tavily-python yfinance requests
+"""
+import asyncio, json, os, sys
+from datetime import datetime
+from typing import Any, Optional, cast
+
+import requests
+from acruxcore import AcruxCore, acrux
+from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain_community.tools.yahoo_finance_news import YahooFinanceNewsTool
+
+ROUTER_PROMPT = "content-supervisor"
+SUBAGENT_PROMPTS = {
+    "finance_research_agent": "finance-research-agent",
+    "general_research_agent": "general-research-agent",
+    "writing_agent": "writing-agent",
+}
+ROUTE_SCHEMA = {
+    "type": "object",
+    "properties": {"route_to": {"type": "string", "enum": list(SUBAGENT_PROMPTS)}},
+    "required": ["route_to"],
+    "additionalProperties": False,
+}
+
+ACRUXCORE_API_KEY = os.environ["ACRUXCORE_API_KEY"]
+ACRUXCORE_BASE_URL = os.environ["ACRUXCORE_BASE_URL"].rstrip("/")
+ACRUXCORE_HEADERS = {"Authorization": f"Bearer {ACRUXCORE_API_KEY}", "Content-Type": "application/json"}
+
+
+@acrux.tool
+async def finance_research(ticker_symbol: str) -> Optional[list]:
+    """Search for finance research, must be a ticker symbol. This tool is used to search for financial data and news from Yahoo Finance.
+    It will return related finincial news from Yahoo Finance for that given ticker symbol.
+
+    Args:
+        ticker_symbol (str): The ticker symbol of the company to research.
+    """
+    wrapped = YahooFinanceNewsTool()
+    return cast(Any, await wrapped.ainvoke({"query": ticker_symbol}))
+
+
+@acrux.tool
+async def advanced_research(query: str) -> Optional[list]:
+    """Perform in-depth research with more results and deeper analysis. This tool
+    will return 10 results and go deeper for more information.
+
+    Args:
+        query (str): The query to search for.
+    """
+    wrapped = TavilySearchResults(max_results=10, search_depth="advanced")
+    return cast(Any, await wrapped.ainvoke({"query": query}))
+
+
+@acrux.tool
+async def basic_research(query: str) -> Optional[list]:
+    """This tool performs quick searches with little depth,
+    returning concise results ideal for basic research or quick queries.
+
+    Args:
+        query (str): The query to search for.
+    """
+    wrapped = TavilySearchResults(max_results=5, search_depth="basic", include_raw_content=False, include_images=True)
+    return cast(Any, await wrapped.ainvoke({"query": f"trending {query}"}))
+
+
+@acrux.tool
+async def get_todays_date() -> str:
+    """Quick tool to get today's date.
+    Args: None
+    """
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+TOOLS_BY_ROUTE = {
+    "finance_research_agent": [finance_research, basic_research, get_todays_date],
+    "general_research_agent": [advanced_research, get_todays_date],
+    "writing_agent": [basic_research, get_todays_date],
+}
+
+
+async def main() -> None:
+    question = sys.argv[1] if len(sys.argv) > 1 else (
+        "Research Tesla (TSLA) latest stock news and tell me if investors should be worried."
+    )
+
+    async with AcruxCore() as hub:  # reads ACRUXCORE_API_KEY / ACRUXCORE_BASE_URL
+        rendered_router = await hub.render_prompt(ROUTER_PROMPT, "production", {"question": question})
+        resp = requests.post(
+            f"{ACRUXCORE_BASE_URL}/gateway/chat/completions",
+            headers=ACRUXCORE_HEADERS,
+            json={
+                "model": rendered_router.model,
+                "messages": rendered_router.messages,
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {"name": "route_decision", "schema": ROUTE_SCHEMA, "strict": True},
+                },
+            },
+        )
+        resp.raise_for_status()
+        route_to = json.loads(resp.json()["choices"][0]["message"]["content"])["route_to"]
+        trace_id = resp.headers["x-gateway-trace-id"]
+
+        print(f"Question: {question}")
+        print(f"Step A -- routed to: {route_to}  (trace {trace_id})\n")
+
+        subagent_prompt = SUBAGENT_PROMPTS[route_to]
+        rendered_sub = await hub.render_prompt(subagent_prompt, "production", {"task": question})
+
+        result = await hub.run_tool_loop(
+            rendered_sub.model,
+            [*rendered_sub.messages],
+            tools=TOOLS_BY_ROUTE[route_to],
+            sync=False,
+            prompt_version_id=rendered_sub.version_id,
+            trace={"trace_id": trace_id},
+        )
+        print(f"Step B -- {route_to}: {result.content}")
+        print(f"\n({result.iterations} model turn(s), trace {result.trace_id})")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+</details>
+
+```bash
+python supervisor_flow.py "Research Tesla's (TSLA) latest stock news and tell me if investors should be worried."
+```
+
+```text
+Question: Research Tesla's (TSLA) latest stock news and tell me if investors should be worried.
+Step A -- routed to: finance_research_agent  (trace b1c11786-175b-4ddb-953b-d38892e53481)
+
+Step B -- finance_research_agent: Based on my research of Tesla (TSLA) as of August 1, 2026, here's what investors should know:
+
+**Current Performance Concerns:**
+- Tesla shares are down approximately 1% over the past year
+- The stock is down 30% year-to-date, with a dramatic single-day drop of 14.5% on July 23rd
+
+**Should Investors Be Worried?**
+Mixed signals. Reasons for caution: the 30% YTD decline and the sharp single-day drop suggest a
+recent negative catalyst. Reasons to stay patient: Jim Cramer continues to express belief in
+Tesla and Elon Musk despite the weak share performance, suggesting some analysts still see
+long-term value.
+
+**Bottom Line:** Monitor the situation but don't necessarily panic — understanding *why* the
+stock dropped so sharply would determine if this is a temporary correction or something deeper.
+
+(2 model turn(s), trace b1c11786-175b-4ddb-953b-d38892e53481)
+```
+
+```bash
+python supervisor_flow.py "What are the biggest trends in sustainable packaging for consumer goods in 2026?"
+```
+
+```text
+Question: What are the biggest trends in sustainable packaging for consumer goods in 2026?
+Step A -- routed to: general_research_agent  (trace ece520e8-66c8-400c-824c-d7b16b7468f7)
+
+Step B -- general_research_agent: Perfect! I've completed my research on the biggest trends in
+sustainable packaging for consumer goods in 2026:
+
+1. Substantiated Sustainability, 2. Circularity as the Default Expectation, 3. Paper & Paperboard
+Dominance (38-41% of the market), 4. Digital-Enhanced Smart Packaging, 5. Recycled Content as
+Trust Signal, 6. Design Efficiency & Minimalism, 7. Reusable & Refill Formats, 8. Circular Luxury,
+9. Transparency & Clear Disposal Guidance, 10. Conditional Compostables Framework.
+
+Global sustainable packaging market: USD 319.3-399.97 billion in 2026, 5.8-6.7% CAGR through
+2035-2036.
+
+(2 model turn(s), trace ece520e8-66c8-400c-824c-d7b16b7468f7)
+```
+
+Same script, same tool functions from Step 3 — the only thing that changed between the two runs
+is which question the router read.
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+Same shape, `runToolLoop()` instead of `run_tool_loop()`. Since Node's `tool()` needs a hand-written
+JSON Schema rather than deriving one from a docstring, this tab passes the four tools as
+`toolRefs` (resolved from the catalog Step 3 already populated) plus a `dispatch` function, which
+calls `@langchain/tavily`'s real `TavilySearch` class for `advanced_research`/`basic_research` —
+the same wrapper [Build a configurable ReAct agent](./build-a-configurable-react-agent) uses.
+`finance_research` here reads Nasdaq's public per-symbol RSS feed instead of Yahoo Finance
+directly: the same real, environment-specific gap
+[Build a ReAct agent](./build-a-react-agent)'s Node tab hit — this environment's `fetch` cannot
+reach Yahoo's edge (`ETIMEDOUT`/`ENETUNREACH`), even though curl and Python reach it fine moments
+apart. Real, live headline data either way, just a different real source for that one tool call:
+
+<details>
+<summary>Full source: <code>supervisor_flow.mjs</code></summary>
+
+```javascript
+/**
+ * Supervisor multi-agent flow -- Node, over the gateway.
+ *
+ * Step A: render the router prompt, call the gateway directly (fetch) with
+ *         response_format set to a typed { "route_to": ... } json_schema.
+ * Step B: render the matching subagent's prompt + tools and run runToolLoop(),
+ *         passing trace: { traceId } so both calls land in ONE trace.
+ *
+ * Requires:
+ *   npm install @acruxcoreai/sdk @langchain/tavily
+ */
+import AcruxCore from '@acruxcoreai/sdk';
+import { TavilySearch } from '@langchain/tavily';
+
+const ACRUXCORE_API_KEY = process.env.ACRUXCORE_API_KEY;
+const ACRUXCORE_BASE_URL = process.env.ACRUXCORE_BASE_URL.replace(/\/+$/, '');
+const ACRUXCORE_HEADERS = { Authorization: `Bearer ${ACRUXCORE_API_KEY}`, 'Content-Type': 'application/json' };
+
+const ROUTER_PROMPT = 'content-supervisor';
+const SUBAGENT_PROMPTS = {
+  finance_research_agent: 'finance-research-agent',
+  general_research_agent: 'general-research-agent',
+  writing_agent: 'writing-agent',
+};
+const ROUTE_SCHEMA = {
+  type: 'object',
+  properties: { route_to: { type: 'string', enum: Object.keys(SUBAGENT_PROMPTS) } },
+  required: ['route_to'],
+  additionalProperties: false,
+};
+const TOOL_REFS_BY_ROUTE = {
+  finance_research_agent: [{ name: 'finance_research' }, { name: 'basic_research' }, { name: 'get_todays_date' }],
+  general_research_agent: [{ name: 'advanced_research' }, { name: 'get_todays_date' }],
+  writing_agent: [{ name: 'basic_research' }, { name: 'get_todays_date' }],
+};
+
+async function financeResearch(tickerSymbol) {
+  const res = await fetch(`https://www.nasdaq.com/feed/rssoutbound?symbol=${tickerSymbol}`, {
+    headers: { 'User-Agent': 'Mozilla/5.0' },
+  });
+  const xml = await res.text();
+  const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 3);
+  if (items.length === 0) return `No news found for company that searched with ${tickerSymbol} ticker.`;
+  return items.map((m) => (m[1].match(/<title>([\s\S]*?)<\/title>/) || [, ''])[1].trim()).join('\n');
+}
+
+async function advancedResearch(query) {
+  const wrapped = new TavilySearch({ maxResults: 10, searchDepth: 'advanced' });
+  const result = await wrapped.invoke({ query });
+  return (result.results || []).map((r) => ({ title: r.title, url: r.url }));
+}
+
+async function basicResearch(query) {
+  const wrapped = new TavilySearch({ maxResults: 5, searchDepth: 'basic', includeImages: true });
+  const result = await wrapped.invoke({ query: `trending ${query}` });
+  return (result.results || []).map((r) => ({ title: r.title, url: r.url }));
+}
+
+async function getTodaysDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+async function dispatch(name, args) {
+  if (name === 'finance_research') return financeResearch(args.ticker_symbol);
+  if (name === 'advanced_research') return advancedResearch(args.query);
+  if (name === 'basic_research') return basicResearch(args.query);
+  if (name === 'get_todays_date') return getTodaysDate();
+  throw new Error(`Unknown tool: ${name}`);
+}
+
+async function route(hub, question) {
+  const rendered = await hub.renderPrompt(ROUTER_PROMPT, 'production', { question });
+  const res = await fetch(`${ACRUXCORE_BASE_URL}/gateway/chat/completions`, {
+    method: 'POST',
+    headers: ACRUXCORE_HEADERS,
+    body: JSON.stringify({
+      model: rendered.model,
+      messages: rendered.messages,
+      response_format: { type: 'json_schema', json_schema: { name: 'route_decision', schema: ROUTE_SCHEMA, strict: true } },
+    }),
+  });
+  if (!res.ok) throw new Error(`gateway ${res.status}: ${await res.text()}`);
+  const body = await res.json();
+  const routeTo = JSON.parse(body.choices[0].message.content).route_to;
+  const traceId = res.headers.get('x-gateway-trace-id');
+  return { routeTo, traceId };
+}
+
+async function main() {
+  const question = process.argv[2] || 'Research Tesla (TSLA) latest stock news and tell me if investors should be worried.';
+  const hub = new AcruxCore(); // reads ACRUXCORE_API_KEY / ACRUXCORE_BASE_URL
+
+  const { routeTo, traceId } = await route(hub, question);
+  console.log(`Question: ${question}`);
+  console.log(`Step A -- routed to: ${routeTo}  (trace ${traceId})\n`);
+
+  const subagentPrompt = SUBAGENT_PROMPTS[routeTo];
+  const rendered = await hub.renderPrompt(subagentPrompt, 'production', { task: question });
+
+  const result = await hub.runToolLoop({
+    model: rendered.model,
+    messages: [...rendered.messages],
+    toolRefs: TOOL_REFS_BY_ROUTE[routeTo],
+    dispatch,
+    sync: false,
+    promptVersionId: rendered.versionId,
+    trace: { traceId },
+  });
+  console.log(`Step B -- ${routeTo}: ${result.content}`);
+  console.log(`\n(${result.iterations} model turn(s), trace ${result.traceId})`);
+}
+
+main().catch((err) => { console.error(err); process.exit(1); });
+```
+
+</details>
+
+```bash
+node supervisor_flow.mjs "Research Tesla's (TSLA) latest stock news and tell me if investors should be worried."
+```
+
+```text
+Question: Research Tesla's (TSLA) latest stock news and tell me if investors should be worried.
+Step A -- routed to: finance_research_agent  (trace 9a9623b9-e0da-4fe9-9fb3-2204c6d38eb8)
+
+Step B -- finance_research_agent: Based on my research of Tesla (TSLA) as of August 1, 2026, here's what the latest stock news shows:
+
+**Positive Development:** Tesla's $99-a-month Full Self-Driving (FSD) subscription plan is on
+pace to generate $1.8 billion annually.
+
+**My Assessment:** Not necessarily worrying — mixed signals. Tesla is successfully monetizing
+its FSD technology, and the broader market sentiment appears positive. Recommend monitoring
+quarterly earnings, FSD adoption rates, and delivery numbers for a more complete picture.
+
+(2 model turn(s), trace 9a9623b9-e0da-4fe9-9fb3-2204c6d38eb8)
+```
+
+```bash
+node supervisor_flow.mjs "What are the biggest trends in sustainable packaging for consumer goods in 2026?"
+```
+
+```text
+Question: What are the biggest trends in sustainable packaging for consumer goods in 2026?
+Step A -- routed to: general_research_agent  (trace f491aa68-3862-4823-917d-4ab95feae80a)
+
+Step B -- general_research_agent: Perfect! I've gathered research on the biggest trends in
+sustainable packaging for consumer goods in 2026:
+
+1. Advanced Sustainable Materials, 2. Digital Innovation & Smart Packaging, 3. Consumer-Centric
+Design Solutions, 4. Circular Economy Principles, 5. Regulatory Compliance & Standards,
+6. Functional Sustainability Features, 7. Supply Chain Transparency, 8. Active & Intelligent
+Packaging, 9. Global Material Innovations, 10. Cost-Effective Sustainability.
+
+(2 model turn(s), trace f491aa68-3862-4823-917d-4ab95feae80a)
+```
+
+</TabItem>
+</Tabs>
+
+## 6. Inspect the trace
+
+Open **Observability → Traces** and the general-research run above shows up as **one** trace
+with **5 spans**: the router's `llm` call, the subagent's own `llm` call, the
+`get_todays_date` and `advanced_research` tool calls in between, and a final `llm` call with
+the answer — all on `claude-haiku-4-5-20251001`, the model both the router prompt and the
+subagent prompts are bound to:
+
+![Trace detail showing 5 spans: two LLM calls, get_todays_date and advanced_research tool calls, all on claude-haiku-4-5-20251001](/img/tutorials/build-a-supervisor-multi-agent-system/05-trace-overview.png)
+
+Expanding the first `LLM` span — the router call — shows the real input (the supervisor system
+prompt plus the question) and the real output: a bare JSON object, `{"route_to":
+"general_research_agent"}`, no free text around it, because `response_format` constrained it:
+
+![Expanded router LLM span showing the supervisor system prompt as input and a bare JSON object with route_to set to general_research_agent as output](/img/tutorials/build-a-supervisor-multi-agent-system/04-trace-router-span.png)
+
+And the `advanced_research` tool span shows the real query the subagent chose and the real
+Tavily results it got back — proof the hand-off carried the subagent's own tools into the same
+trace the router opened:
+
+![Expanded advanced_research tool span showing the real search query and real Tavily result titles/URLs as output](/img/tutorials/build-a-supervisor-multi-agent-system/06-trace-tool-span.png)
+
+Two model calls, two different prompts, four spans of real tool and model activity between
+them — one trace, exactly as the classification note at the top promised.
+
+## What's next
+
+- [Build a configurable ReAct agent](./build-a-configurable-react-agent) — more on the
+  `basic_research`/`advanced_research` Tavily split this page's subagents reuse.
+- [Build a ReAct agent](./build-a-react-agent) — the baseline `finance_research` +
+  `get_todays_date` tool pair, without a gateway or a router in front of them.
+- API details: see **Prompts**, **Tools**, and **Traces** in the
+  [API Reference](/api-reference).

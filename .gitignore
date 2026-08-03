@@ -1,0 +1,58 @@
+# Secrets / env
+.env
+.env.*
+!.env.example
+!.env.docker.example
+
+# Python
+.venv/
+
+# Local tooling
+.memsearch/
+
+# Test / curl artifacts
+cookies.txt
+
+# Node / build
+node_modules/
+dist/
+build/
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+test-results/
+.playwright-mcp/
+
+# Turborepo task cache
+.turbo/
+
+# Superpowers subagent-driven-development scratch (task briefs, reports, review packages, progress ledger)
+.superpowers/
+.envrc
+.claude/settings.local.json
+# Added by code-review-graph
+.code-review-graph/
+.worktrees/
+credentials.txt
+
+# Python bytecode from examples/
+__pycache__/
+
+# The video pipeline skill — local tooling, not version-controlled.
+.claude/skills/making-product-videos/
+
+# The LinkedIn post skill — local tooling, not version-controlled.
+.claude/skills/linkedin-post/
+
+# Generated LinkedIn post images/copy — local output, not version-controlled.
+social/
+
+# Promotion/ad planning notes — local working notes, not version-controlled.
+promotion/
+.opencode/index

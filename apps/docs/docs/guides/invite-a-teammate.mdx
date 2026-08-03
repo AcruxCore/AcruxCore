@@ -1,0 +1,170 @@
+---
+title: Invite a teammate to your team
+description: Create a single-use invite link, choose the role it grants, and email it straight to a new teammate to get them into your Acrux Core team.
+sidebar_position: 7
+keywords: [invite teammate, team invite, add team member, team roles, RBAC, invite link, invite email, email invite]
+---
+
+# Invite a teammate to your team
+
+**What you'll build:** an invite that emails a chosen role straight to a
+teammate's inbox, and that same person joining your team by clicking the
+link inside it — the same flow you'd use to bring a colleague onto a real
+Acrux Core team. If you'd rather send the link yourself (Slack, chat,
+whatever), that still works too — just leave the email address blank.
+
+Every account gets a personal team the moment it's created, and every prompt,
+key, and trace is scoped to a team. Adding a teammate means giving another
+person access to that same team, with only the access they need.
+
+## 1. Open the Team page
+
+Click **Team** in the sidebar. You'll see two panels: **Members** (who already
+has access) and **Invites** (pending links you've created). On a brand-new
+team, you're the only member and there are no invites yet.
+
+![Team page showing the Members and Invites panels](/img/tutorials/invite-a-teammate/01-team-page.png)
+
+Only an **owner** or **admin** can create invites — the **Invites** panel
+itself is hidden for `editor` and `viewer` accounts, since they aren't allowed
+to manage team access.
+
+## 2. Create an invite
+
+Click **New invite**. Type the teammate's **email address** — this is the
+primary way to invite someone, and Acrux Core sends them the invite by mail so
+you don't have to relay the link yourself. Then choose the role they should
+receive — exactly one. `viewer` gives read-only access, `editor` can commit
+and promote prompt versions, and `admin` can additionally manage members,
+invites, and API keys. The `owner` role can't be granted through an invite; it
+only exists for whoever created the team.
+
+The roles are a strict ladder — each one can do everything the role below it
+can — so one role is all anyone needs. An `editor` already covers every
+`viewer` action.
+
+![New invite dialog with a single-choice role picker for admin, editor, and viewer](/img/tutorials/invite-a-teammate/02-new-invite-dialog.png)
+
+Click **Send invite**. Acrux Core generates a random, single-use token, emails
+it to the address you entered, and lists the invite with the role it grants
+and its expiry:
+
+![Invites panel showing the newly created invite link, valid 7 days](/img/tutorials/invite-a-teammate/03-invite-created.png)
+
+Invites are **single-use and expire after 7 days** — once the teammate uses
+one, or a week goes by, that link stops working and you'd create a new one.
+If you change your mind before it's used, **Revoke** removes it immediately.
+
+:::tip[Don't want to send an email?]
+Leave the email address blank and click **Create link** instead. Acrux Core
+still generates the same single-use, 7-day link, but sends nothing — you copy
+it yourself with **Copy link** and share it however you'd normally reach that
+person. Both paths produce the identical kind of invite; emailing it is just a
+convenience so you don't have to be the courier.
+:::
+
+A team can send at most 20 invite emails an hour — comfortably above normal
+use, and there purely to stop the invite address from being used to blast
+mail at strangers. The copy-link path has no such limit, since nothing leaves
+our servers.
+
+## 3. What the invited teammate sees
+
+They receive an email with an **Accept invite** button (or, if you shared a
+copy-link invite, whatever link you sent them). Opening it while signed out
+lands them on a simple "you've been invited" screen — no team details are
+leaked to someone who doesn't already have the link, just a prompt to sign in
+or create an account:
+
+![Invite landing page prompting the signed-out visitor to sign in or create an account](/img/tutorials/invite-a-teammate/04-invite-landing-signed-out.png)
+
+If they already have an Acrux Core account, **Sign in to accept** logs them in
+and joins them to the team immediately. If they're new, **Create an account**
+takes them through signup first — the invite token travels along with them,
+so finishing signup accepts it automatically with no extra step.
+
+:::note[No account yet? You'll come right back]
+Signing up sends a confirmation email — a separate one from the invite,
+sent by our auth provider to prove the address is real. Before this guide's
+underlying fix, confirming that email dropped a brand-new teammate on a
+generic page with the invite forgotten. Now the confirmation link carries the
+invite along with it, so clicking it returns them straight to this same
+invite screen to finish joining — no re-clicking the original invite email
+required.
+:::
+
+## 4. The teammate joins the team
+
+The moment signup (or sign-in) completes, Acrux Core accepts the invite in
+the background and redirects straight to the **Team** page — now showing the
+teammate as a member with exactly the role the invite granted:
+
+![Team page from the new teammate's perspective, now a member with the editor role](/img/tutorials/invite-a-teammate/05-joined-team-page.png)
+
+## 5. Confirm from your side
+
+Back on your own **Team** page (refresh, or just navigate there again), the
+new teammate shows up in **Members** with their role, and the invite is gone
+from the **Invites** list — it was single-use, so it can't be shared again by
+accident:
+
+![Team page now showing two members and the consumed invite no longer listed](/img/tutorials/invite-a-teammate/06-team-page-two-members.png)
+
+From here you (or another owner/admin) can **Edit role** at any time, or
+**Remove** the member if they should lose access.
+
+## Doing this over the API
+
+Creating and listing invites accepts your personal `$ACRUXCORE_API_KEY` like
+any other endpoint — only a **team-scoped** key is blocked here
+(`TEAM_KEY_NOT_PERMITTED`), since inviting people is a user action, not
+something a team-wide integration key should do.
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/teams/YOUR_TEAM_ID/invites" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"role":"editor","email":"teammate@example.com"}'
+```
+
+```json
+{
+  "id": "811e5279-e05e-4ba2-96a5-ce578fabfe42",
+  "token": "<invite-token>",
+  "role": "editor",
+  "email": "teammate@example.com",
+  "expiresAt": "2026-08-05T15:46:56.664Z",
+  "createdAt": "2026-07-29T15:46:56.664Z"
+}
+```
+
+`role` takes one of `admin`, `editor`, or `viewer` — one role, not a list.
+Passing `"owner"`, or the array form `{"roles":["editor"]}` that this endpoint
+accepted before 29 July 2026, returns:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "role must be one of admin, editor, viewer"
+  }
+}
+```
+
+`email` is optional — drop it from the body for the copy-link path, and the
+response comes back with `"email": null` instead. Sending more than 20 invite
+emails from one team within an hour returns `429 EMAIL_RATE_LIMITED`; the
+copy-link path has no such cap.
+
+The link you'd share is `{your app URL}/invite/{token}`. Accepting an invite
+is the one part of this flow that's dashboard-session-only, not
+Bearer-capable — the invited person accepts it by signing in or signing up,
+and the web app calls `POST /teams/invites/:token/accept` on their behalf
+automatically. There's no practical reason to script that step yourself.
+
+## What's next
+
+- [Version a prompt and ship it to production](./version-a-prompt) — now that
+  a teammate has editor access, they can commit and promote versions too.
+- [Manage Team Roles and Permissions](./manage-team-roles-and-permissions) —
+  change an existing member's role or remove their access.

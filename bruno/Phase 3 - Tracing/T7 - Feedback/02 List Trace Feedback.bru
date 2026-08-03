@@ -1,0 +1,19 @@
+meta {
+  name: List Trace Feedback
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/traces/{{traceId}}/feedback
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+assert {
+  res.status: eq 200
+}

@@ -1,0 +1,24 @@
+meta {
+  name: Get Optimize Run
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/runs/{{optimizeRunId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const candidateCell = res.getBody().grid.find((c) => c.variantKind === "candidate");
+    if (candidateCell) {
+      bru.setVar("candidateId", candidateCell.promptCandidateId);
+    }
+  }
+}

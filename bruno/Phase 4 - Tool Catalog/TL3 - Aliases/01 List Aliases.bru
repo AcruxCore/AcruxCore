@@ -1,0 +1,15 @@
+meta {
+  name: List Aliases
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tools/{{toolId}}/aliases
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}

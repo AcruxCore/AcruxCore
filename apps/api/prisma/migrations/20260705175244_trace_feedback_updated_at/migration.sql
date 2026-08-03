@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "trace_feedback" ADD COLUMN     "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP;

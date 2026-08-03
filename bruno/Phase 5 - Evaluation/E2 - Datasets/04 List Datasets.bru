@@ -1,0 +1,15 @@
+meta {
+  name: List Datasets
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v1/datasets
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}

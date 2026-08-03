@@ -1,0 +1,32 @@
+meta {
+  name: Add Example (Alice)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/datasets/{{datasetId}}/examples
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "input": { "name": "Alice" },
+    "criteria": "Must greet Alice by name in one short sentence"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setVar("exampleId", res.getBody().id);
+  }
+}

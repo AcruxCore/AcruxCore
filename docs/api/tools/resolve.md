@@ -1,0 +1,184 @@
+---
+title: "Tool Resolve"
+description: "Resolve tool names to model-ready function definitions, in one batched call."
+---
+
+# Tool Resolve API
+
+All endpoints verified working via curl. Document updated only after curl confirmation.
+
+`POST /tools/resolve` turns a list of tool **names** into the `function` blocks you
+put in an LLM request. It is the read counterpart to
+[`sync.md`](./sync.md): the SDKs call sync on start-up to register what the code
+defines, then call resolve to get back what the model should actually see.
+
+Names, not ids — the caller is a decorated function in a source file and has no id
+to hand. It is a POST because the payload is a list of objects, not because it
+writes anything; resolve requires only an authenticated role, not `editor`.
+
+One call resolves up to **50** refs. Batching matters: an agent with a dozen tools
+would otherwise make a dozen round-trips before it can send its first prompt.
+
+---
+
+### POST /api/v1/tools/resolve
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/tools/resolve \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"refs":[{"name":"get_weather","alias":"production"}]}'
+```
+
+Response (status 200):
+
+```json
+{
+  "data": [
+    {
+      "toolId": "eb1df7c0-778c-4b89-8536-8c08a1f6d406",
+      "versionNumber": 2,
+      "executorType": "client",
+      "function": {
+        "name": "get_weather",
+        "description": "Get the current weather, in Celsius, for a city.",
+        "parameters": {"type":"object","required":["city"],"properties":{"city":{"type":"string","description":"City name, e.g. Lahore."}}}
+      }
+    }
+  ]
+}
+```
+
+`alias` defaults to `production`, so it can be left out. Results come back in the
+order the refs were sent, and a batch may mix executor types freely:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/tools/resolve \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"refs":[{"name":"get_weather"},{"name":"lookup_order"}]}'
+```
+
+Response (status 200):
+
+```json
+{
+  "data": [
+    {
+      "toolId": "eb1df7c0-778c-4b89-8536-8c08a1f6d406",
+      "versionNumber": 2,
+      "executorType": "client",
+      "function": {
+        "name": "get_weather",
+        "description": "Get the current weather, in Celsius, for a city.",
+        "parameters": {"type":"object","required":["city"],"properties":{"city":{"type":"string","description":"City name, e.g. Lahore."}}}
+      }
+    },
+    {
+      "toolId": "801b77d2-29c9-4050-9488-31a311eb7e68",
+      "versionNumber": 1,
+      "executorType": "http",
+      "function": {
+        "name": "lookup_order",
+        "description": "Look up an order by id.",
+        "parameters": {"type":"object","required":["order_id"],"properties":{"order_id":{"type":"string"}}}
+      }
+    }
+  ]
+}
+```
+
+**Request fields**
+
+| Field | Required | Notes |
+|---|---|---|
+| `refs` | yes | 1–50 refs. |
+| `refs[].name` | yes | Tool name, resolved within your team. |
+| `refs[].alias` | no | Defaults to `production`. |
+
+**Response fields**
+
+| Field | Notes |
+|---|---|
+| `toolId` | Useful for linking to the tool in the dashboard. |
+| `versionNumber` | The immutable version the alias resolved to. Log it and a trace tells you exactly which spec the model saw. |
+| `executorType` | `client` or `http`. Tells the caller **who runs the tool**. |
+| `function` | Ready to drop into an OpenAI-style `tools[].function`. |
+
+---
+
+## Why `executorType` is here and the executor is not
+
+`executorType` is the one thing a tool loop needs in order to route a tool call:
+
+- `client` — your own code runs it. The loop looks the function up in its local
+  registry and calls it.
+- `http` — the platform runs it. The loop posts the arguments to
+  [`execute.md`](./execute.md) and never touches the target service itself.
+
+The executor **definition** is deliberately absent from the response. A tool's
+`http` executor holds its target url, its headers, and `{{secret.NAME}}`
+references that resolve to real credentials. Those stay server-side. Returning them
+so a client could call the service directly would make every tool's credentials
+readable by anything holding an API key, and would defeat the point of running
+`http` executors on the platform at all.
+
+Resolving the `http` tool above returns its schema and nothing else — no url, no
+header names, no secret name, no `executor` key:
+
+```json
+{"toolId":"801b77d2-29c9-4050-9488-31a311eb7e68","versionNumber":1,"executorType":"http","function":{"name":"lookup_order","description":"Look up an order by id.","parameters":{"type":"object","required":["order_id"],"properties":{"order_id":{"type":"string"}}}}}
+```
+
+---
+
+## Every failure in one 404
+
+A partial success would be worse than useless here: a tool loop that silently starts
+without one of its tools produces a model that cannot do what it was asked and no
+error explaining why. So resolve is all-or-nothing, and when refs fail it reports
+**all** of them at once rather than stopping at the first — one round-trip tells you
+everything that is wrong.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/tools/resolve \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"refs":[{"name":"ghost_one"},{"name":"get_weather"},{"name":"ghost_two"}]}'
+```
+
+Response (status 404) — note `get_weather` resolved fine and is not listed:
+
+```json
+{
+  "error": {
+    "code": "TOOL_REF_NOT_FOUND",
+    "message": "Could not resolve 2 tool ref(s): 'ghost_one'@production, 'ghost_two'@production",
+    "refs": [
+      {"name":"ghost_one","alias":"production"},
+      {"name":"ghost_two","alias":"production"}
+    ]
+  }
+}
+```
+
+The `refs` array carries the failures in machine-readable form, each with the alias
+that was actually tried, so an SDK can name them without parsing the message.
+
+A ref fails when no tool of that name exists in your team (including one that has
+been soft-deleted), when the requested alias has never been set on it, or when the
+alias points at a version that is gone. All three produce the same 404 with the ref
+listed — the response does not say which of the three it was.
+
+Response (status 400) — an empty `refs` array:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/tools/resolve \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"refs":[]}'
+```
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"refs must contain at least one ref."}}
+```

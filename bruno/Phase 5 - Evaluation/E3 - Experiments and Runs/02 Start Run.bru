@@ -1,0 +1,25 @@
+meta {
+  name: Start Run
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/experiments/{{experimentId}}/runs
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+script:post-response {
+  if (res.getStatus() === 202) {
+    bru.setVar("runId", res.getBody().run_id);
+  }
+  // Give the real BullMQ worker time to dequeue and process the cell +
+  // finalize jobs (a real gateway + judge call each) before the next
+  // request polls the run.
+  await new Promise((resolve) => setTimeout(resolve, 8000));
+}

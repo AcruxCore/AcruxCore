@@ -1,0 +1,29 @@
+meta {
+  name: Update Trace Settings
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{baseUrl}}/api/v1/traces/settings
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "capturePayloads": true
+  }
+}
+
+assert {
+  res.status: eq 200
+}

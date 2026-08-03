@@ -1,0 +1,29 @@
+meta {
+  name: Chat Completion (Virtual Key)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/gateway/chat/completions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{virtualKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "model": "{{model}}",
+    "messages": [
+      { "role": "user", "content": "Say hi in one word." }
+    ],
+    "max_tokens": 10
+  }
+}

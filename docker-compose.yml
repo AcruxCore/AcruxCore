@@ -1,0 +1,212 @@
+# Acrux Core stack for Docker.
+#
+# Auth is in-app (Better Auth, sessions in our own `auth_sessions` table), so
+# there is no identity vendor to configure — only BETTER_AUTH_SECRET. The
+# database is plain Postgres reached over DATABASE_URL / DIRECT_URL: a managed
+# service (Neon, RDS, Supabase-as-DB) or a container you add yourself. This
+# stack runs only Redis, which BullMQ needs for the email and eval queues.
+#
+# Quick start:
+#   1. cp .env.docker.example .env   (Compose auto-loads .env for substitution)
+#   2. Fill in DATABASE_URL, DIRECT_URL, and the required secrets:
+#      GATEWAY_ENCRYPTION_KEY, BETTER_AUTH_SECRET, and — in production —
+#      EMAIL_UNSUBSCRIBE_SECRET, which the API and worker refuse to boot without
+#      (see the template).
+#   3. docker compose up --build
+#   4. Web:  http://localhost:8080     API: http://localhost:3001/api/v1
+#
+# The API applies pending Prisma migrations against that database on boot.
+#
+# Interpolation convention below: a variable Compose *requires* is written bare
+# (`${APP_URL}`) so omitting it from .env prints a warning, which is the point —
+# a missing required value should be noisy. An optional one is written with an
+# explicit empty default (`${SES_REGION:-}`) so it can be left out of .env
+# entirely without warning. That distinction is why, for example, an install
+# using EMAIL_TRANSPORT=smtp need not carry three blank SES_* lines it will
+# never read.
+
+services:
+  # The service key is what Compose registers as this container's DNS alias on
+  # the network, so it must NOT be the generic `redis`. `mynetwork` is an
+  # external network shared with other stacks on the same host, and any other
+  # compose project with a service called `redis` would register that same
+  # alias. Docker's embedded DNS then answers `redis` with BOTH containers'
+  # A records and clients pick one per lookup — so `api` could resolve one
+  # Redis while `worker` resolved the other, with no error anywhere: the API
+  # enqueued jobs into a Redis nobody consumed, leaving eval runs at `queued`
+  # forever and outbound email silently unsent. That is exactly what happened
+  # in production on 2026-07-28 (a `video-subtitles` stack on the same host
+  # also published the `redis` alias). A project-prefixed service name is
+  # unambiguous, which is the whole fix.
+  acruxcore-redis:
+    image: redis:7-alpine
+    container_name: acruxcore-redis
+    restart: unless-stopped
+    ports:
+      # Loopback-only: this container has no `requirepass`, and BullMQ job
+      # payloads (e.g. an invite email job) briefly carry a live invite token,
+      # so binding to all interfaces would expose it to anything on the host's
+      # network. `api`/`worker` reach Redis over the compose network as
+      # `acruxcore-redis:6379` regardless — this mapping only affects the host.
+      # Kept loopback rather than removed so `redis-cli ping`/local dev from
+      # the host still works.
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - mynetwork
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    container_name: acruxcore-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      # DATABASE_URL is the pooled (pgbouncer) runtime URL; DIRECT_URL is the
+      # direct :5432 URL used by `prisma migrate deploy`.
+      DATABASE_URL: ${DATABASE_URL}
+      DIRECT_URL: ${DIRECT_URL}
+      # Hardcoded on purpose, not ${REDIS_URL:-...}: the repo shares one .env
+      # with local `npm run dev`, where REDIS_URL points at localhost — letting
+      # that value interpolate in here would aim the containers at a Redis that
+      # does not exist inside them. The host name is fixed by this same file.
+      REDIS_URL: redis://acruxcore-redis:6379
+      # Required — the API fails fast at boot if this is missing or not base64-32.
+      GATEWAY_ENCRYPTION_KEY: ${GATEWAY_ENCRYPTION_KEY}
+      # Signs session cookies. Required in production: the API refuses to boot
+      # without it, so a deploy that forgets it crash-loops rather than issuing
+      # sessions nobody can revoke.
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      # Optional auth tuning. Each is safe to leave unset — an empty value is
+      # read as "unset", not as a deliberate override.
+      AUTH_SESSION_TTL_DAYS: ${AUTH_SESSION_TTL_DAYS:-}
+      # Unset, this follows the mail transport: on unless EMAIL_TRANSPORT=none,
+      # because an install that cannot send mail cannot ask anyone to confirm.
+      AUTH_REQUIRE_EMAIL_VERIFICATION: ${AUTH_REQUIRE_EMAIL_VERIFICATION:-}
+      AUTH_ALLOW_FIRST_RUN_CLAIM: ${AUTH_ALLOW_FIRST_RUN_CLAIM:-}
+      # Which forwarded hops are ours, and which header carries the client. Both
+      # default sensibly for this stack; override only for a proxy on a public
+      # address. Blank here means "use the default", not "trust nothing".
+      AUTH_TRUSTED_PROXIES: ${AUTH_TRUSTED_PROXIES:-}
+      AUTH_IP_HEADERS: ${AUTH_IP_HEADERS:-}
+      # Optional "Continue with Google". Both or neither — half a pair shows no
+      # button rather than one that fails at the provider.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      # Outbound product email. `ses` needs SES_*, `smtp` needs SMTP_HOST/PORT,
+      # and either way the API fails fast at boot when they are missing.
+      EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-ses}
+      SES_REGION: ${SES_REGION:-}
+      SES_ACCESS_KEY_ID: ${SES_ACCESS_KEY_ID:-}
+      SES_SECRET_ACCESS_KEY: ${SES_SECRET_ACCESS_KEY:-}
+      # Used when EMAIL_TRANSPORT=smtp, including against SES's own SMTP
+      # endpoint. SES SMTP credentials are NOT the IAM keys above.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-}
+      APP_URL: ${APP_URL}
+      # HMAC key for one-click unsubscribe tokens. Required in production — the
+      # API refuses to boot without it, because every notification it renders
+      # carries a link signed with this key.
+      EMAIL_UNSUBSCRIBE_SECRET: ${EMAIL_UNSUBSCRIBE_SECRET}
+      # Sentry error monitoring. Unset, the API boots exactly as before —
+      # Sentry.init() never runs and nothing is reported.
+      SENTRY_API_DSN: ${SENTRY_API_DSN:-}
+    depends_on:
+      acruxcore-redis:
+        condition: service_healthy
+    # ports:
+    #   - "${API_PORT:-3001}:3001"
+    networks:
+      - mynetwork
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker
+    container_name: acruxcore-worker
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      DIRECT_URL: ${DIRECT_URL}
+      # Hardcoded on purpose, not ${REDIS_URL:-...}: the repo shares one .env
+      # with local `npm run dev`, where REDIS_URL points at localhost — letting
+      # that value interpolate in here would aim the containers at a Redis that
+      # does not exist inside them. The host name is fixed by this same file.
+      REDIS_URL: redis://acruxcore-redis:6379
+      GATEWAY_ENCRYPTION_KEY: ${GATEWAY_ENCRYPTION_KEY}
+      # No BETTER_AUTH_SECRET here on purpose: the worker never reads the auth
+      # config. It sends mail and runs eval jobs — it issues no sessions.
+      #
+      # Outbound product email. This process is the one that actually sends, so
+      # its transport must match the API's — an API on `ses` with a worker on the
+      # default would queue mail that silently goes nowhere.
+      EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-ses}
+      SES_REGION: ${SES_REGION:-}
+      SES_ACCESS_KEY_ID: ${SES_ACCESS_KEY_ID:-}
+      SES_SECRET_ACCESS_KEY: ${SES_SECRET_ACCESS_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-}
+      APP_URL: ${APP_URL}
+      EMAIL_WORKER_CONCURRENCY: ${EMAIL_WORKER_CONCURRENCY:-5}
+      EMAIL_UNSUBSCRIBE_SECRET: ${EMAIL_UNSUBSCRIBE_SECRET}
+      # Weekly usage digest. `DIGEST_ENABLED` is the kill switch: setting it false
+      # stops the schedule on the next worker restart without a deploy. The cron
+      # is always interpreted as UTC.
+      DIGEST_ENABLED: ${DIGEST_ENABLED:-true}
+      DIGEST_CRON: ${DIGEST_CRON:-0 8 * * 1}
+      DIGEST_WORKER_CONCURRENCY: ${DIGEST_WORKER_CONCURRENCY:-2}
+      # Sentry error monitoring. Unset, the worker boots exactly as before —
+      # Sentry.init() never runs and nothing is reported.
+      SENTRY_WORKERS_DSN: ${SENTRY_WORKERS_DSN:-}
+    depends_on:
+      acruxcore-redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    networks:
+      - mynetwork
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: web
+      # Auth needs no build arg: the session is an httpOnly cookie set by our
+      # own API on our own origin, so the bundle carries no key for that.
+      # SENTRY_WEB_DSN and GA4_MEASUREMENT_ID are the values the client bundle
+      # does need baked in at build time (see apps/web/Dockerfile and
+      # vite.config.ts's `define`).
+      args:
+        SENTRY_WEB_DSN: ${SENTRY_WEB_DSN:-}
+        GA4_MEASUREMENT_ID: ${GA4_MEASUREMENT_ID:-}
+    container_name: acruxcore-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    # ports:
+    #   - "${WEB_PORT:-8084}:80"
+    networks:
+      - mynetwork
+
+networks:
+  mynetwork:
+    external: true

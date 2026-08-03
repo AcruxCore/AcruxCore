@@ -1,0 +1,25 @@
+meta {
+  name: List Requests
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v1/gateway/requests?limit=20
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+params:query {
+  limit: 20
+  ~page: 1
+  ~virtual_key_id: {{virtualKeyId}}
+  ~model: {{model}}
+  ~status: success
+  ~from: 2026-06-04
+  ~to: 2026-07-04
+}

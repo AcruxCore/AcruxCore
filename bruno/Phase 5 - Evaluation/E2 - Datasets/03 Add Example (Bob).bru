@@ -1,0 +1,34 @@
+meta {
+  name: Add Example (Bob)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/datasets/{{datasetId}}/examples
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "input": { "name": "Bob" },
+    "criteria": "Must greet Bob by name in one short sentence"
+  }
+}
+
+script:post-response {
+  // Kept alive to be removed by "08 Remove Example" below, so the dataset
+  // still has one example (Alice) left for the Experiments/Runs folder.
+  if (res.getStatus() === 201) {
+    bru.setVar("example2Id", res.getBody().id);
+  }
+}

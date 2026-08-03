@@ -1,0 +1,605 @@
+---
+title: Build a tool-calling agent in Python (SDK)
+description: Set up a model, a client tool, and a prompt in the dashboard, then drive a text-to-SQL data analyst from Python with the async SDK's run_tool_loop — one trace, real SQLite queries, and streaming.
+sidebar_position: 3
+keywords: [python, sdk, tool calling, agent, sqlite, text-to-sql, run_tool_loop, tracing, async]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Build a tool-calling agent in Python (SDK)
+
+**What you'll build:** a *data analyst* agent that answers plain-English questions
+about a store by writing SQL, running it against a local **SQLite** file, and
+explaining the result — for example, *"Which product generated the most revenue?"*
+→ **"The Aeron Chair, with $4,185.00."** You set up the model, the tool, and the
+prompt by **clicking through the dashboard**, then the run is a few lines of
+**async Python** using the SDK's `run_tool_loop`. The whole run lands in **one
+trace**.
+
+A **tool** is a function you let the model call. Acrux Core has two kinds. An
+**HTTP tool** runs on the gateway — you describe a request once and the platform
+makes it (see
+[Build a tool-calling agent in the dashboard](./build-a-tool-calling-agent-in-the-dashboard-no-code)).
+A **client tool** runs in *your* process: the platform stores only the tool's JSON
+schema, and when the model calls it, your code does the work. Querying a local
+database is the textbook case for a client tool — the gateway can't reach your
+SQLite file, but your Python can. The SDK's `run_tool_loop` handles the back and
+forth: it calls the model, hands each tool call to a function you supply, feeds
+the result back, and repeats until the model has an answer.
+
+This guide splits the work the way you'd split it in real life. Everything that's
+a **one-time setup** — the model, the tool schema, the prompt — you do once in the
+dashboard by clicking. Everything that's **code** — running the agent — you do with
+the SDK.
+
+:::note[What you'll need]
+An [OpenRouter](https://openrouter.ai/) API key (any provider works — OpenRouter
+just gives one key for many models) and Python 3.9+. Install the SDK with
+`pip install acruxcore`.
+:::
+
+## 1. Seed a local SQLite database
+
+The agent needs something to query. This script builds a small `store.db` with two
+tables — `products` and `orders` — filled with fixed rows so your answers match
+this guide exactly. Save it and run it once.
+
+```python title="seed_db.py"
+import sqlite3
+
+PRODUCTS = [
+    # (id, name, category, price, stock)
+    (1, "Aeron Chair", "Furniture", 1395.00, 12),
+    (2, "Standing Desk", "Furniture", 640.00, 30),
+    (3, "Mechanical Keyboard", "Electronics", 110.00, 220),
+    (4, "4K Monitor", "Electronics", 480.00, 85),
+    (5, "USB-C Hub", "Electronics", 45.00, 500),
+    (6, "Desk Lamp", "Lighting", 65.00, 140),
+    (7, "Noise-Cancelling Headphones", "Electronics", 320.00, 60),
+    (8, "Ergonomic Mouse", "Electronics", 75.00, 300),
+]
+
+ORDERS = [
+    # (id, product_id, quantity, order_date, customer)
+    (1, 3, 4, "2026-05-02", "Acme Corp"), (2, 4, 2, "2026-05-05", "Globex"),
+    (3, 1, 1, "2026-05-11", "Initech"), (4, 5, 20, "2026-05-14", "Acme Corp"),
+    (5, 7, 3, "2026-05-19", "Umbrella"), (6, 3, 10, "2026-05-22", "Globex"),
+    (7, 2, 5, "2026-06-01", "Initech"), (8, 4, 4, "2026-06-03", "Umbrella"),
+    (9, 8, 12, "2026-06-08", "Acme Corp"), (10, 1, 2, "2026-06-12", "Globex"),
+    (11, 7, 6, "2026-06-15", "Initech"), (12, 5, 40, "2026-06-18", "Umbrella"),
+    (13, 6, 8, "2026-06-21", "Acme Corp"), (14, 3, 15, "2026-06-25", "Globex"),
+    (15, 4, 1, "2026-06-29", "Initech"),
+]
+
+
+def seed(path: str = "store.db") -> None:
+    conn = sqlite3.connect(path)
+    conn.executescript(
+        """
+        DROP TABLE IF EXISTS orders;
+        DROP TABLE IF EXISTS products;
+        CREATE TABLE products (
+            id INTEGER PRIMARY KEY, name TEXT, category TEXT, price REAL, stock INTEGER
+        );
+        CREATE TABLE orders (
+            id INTEGER PRIMARY KEY, product_id INTEGER REFERENCES products(id),
+            quantity INTEGER, order_date TEXT, customer TEXT
+        );
+        """
+    )
+    conn.executemany("INSERT INTO products VALUES (?, ?, ?, ?, ?)", PRODUCTS)
+    conn.executemany("INSERT INTO orders VALUES (?, ?, ?, ?, ?)", ORDERS)
+    conn.commit()
+    conn.close()
+    print(f"Seeded {path}: {len(PRODUCTS)} products, {len(ORDERS)} orders.")
+
+
+if __name__ == "__main__":
+    seed()
+```
+
+```bash
+python seed_db.py
+# Seeded store.db: 8 products, 15 orders.
+```
+
+## 2. Register a model
+
+:::tip[Already set up a credential?]
+If you followed the [no-SDK version](./build-a-tool-calling-agent-in-python-no-sdk#1-store-your-provider-key-as-a-credential) of this tutorial, your credential is
+already stored — skip ahead to the model registration below.
+:::
+
+A **model** is a public name your code sends as `"model"`, mapped to an upstream
+model on one of your credentials. Open **Gateway → Models → New model**. Name it
+`gpt-4o-mini`, keep the **OpenRouter** credential selected, and set the upstream
+model to `openai/gpt-4o-mini` — OpenRouter's id for it. Leave prices blank (they
+auto-fill for known models).
+
+![New model dialog with public name gpt-4o-mini, credential OpenRouter, and upstream model openai/gpt-4o-mini](/img/tutorials/build-a-tool-calling-agent-in-python-sdk/02-new-model.png)
+
+Click **Register model**, then hit **Test** on the new row to fire a 1-token
+completion and confirm the key works.
+
+## 3. Create the `query_database` tool
+
+Open **Gateway → Tools**, click **New tool**, and name it `query_database`. The
+description is what the model reads to decide when to call the tool, so make it
+clear.
+
+![New tool dialog with the name query_database and a description about running a read-only SQL SELECT](/img/tutorials/build-a-tool-calling-agent-in-python-sdk/03-new-tool.png)
+
+Click **Create tool**. A tool is versioned like a prompt — the shell holds no logic
+yet. Click **New version** to define its parameters and executor:
+
+- **Parameters**: add one row — `sql`, type `string`, marked **required**,
+  described as the SQL SELECT the model should run.
+- **Executor**: leave it on **Client — the caller's app runs it**. This is the
+  key choice: the platform stores the schema, but *your* Python executes the
+  query. (The other option, HTTP, is for tools the gateway calls itself.)
+
+![New version form showing a required sql string parameter and the executor set to Client — the caller's app runs it](/img/tutorials/build-a-tool-calling-agent-in-python-sdk/04-client-executor.png)
+
+Click **Commit version**. The first version automatically gets `production` and
+`staging` aliases.
+
+## 4. Attach the tool to a prompt
+
+The prompt holds the **system instructions** (including the database schema, so
+the model knows what it can query) and the **attached tool**. The user's actual
+question isn't stored here — your code adds it at runtime, so one prompt answers
+any question.
+
+Open **Prompts → New prompt**, name it `sql-analyst-agent`, and create it. On the
+**Editor** tab, set **Default model** to `gpt-4o-mini` and write one **system**
+message:
+
+```text
+You are a data analyst for an online store. Answer questions about products and
+sales by querying a SQLite database with the query_database tool. Never guess —
+always query.
+
+Schema:
+CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, category TEXT, price REAL, stock INTEGER);
+CREATE TABLE orders (id INTEGER PRIMARY KEY, product_id INTEGER REFERENCES products(id), quantity INTEGER, order_date TEXT, customer TEXT);
+
+Write a single read-only SQLite SELECT, call query_database with it, then answer
+in one or two sentences using only the rows it returns. Prices are in USD;
+revenue = quantity * price; order_date is YYYY-MM-DD.
+```
+
+![The sql-analyst-agent prompt Editor tab showing default model gpt-4o-mini, a system message with the database schema, and production pointing at v1](/img/tutorials/build-a-tool-calling-agent-in-python-sdk/05-prompt-editor.png)
+
+Switch to the **Tools** tab and tick `query_database` under **Attach to next
+commit**, then click **Commit new version**. Tools and the model are fixed per
+version, so committing bakes them in — and because it's the first commit,
+`production` points at `v1` automatically.
+
+![The prompt Tools tab showing query_database under an Attached to v1 heading](/img/tutorials/build-a-tool-calling-agent-in-python-sdk/06-prompt-tools.png)
+
+Now one `render_prompt("sql-analyst-agent", "production")` call returns the system
+message **and** the `query_database` schema together.
+
+## 5. Create a personal API key
+
+Your Python needs a key to authenticate. Open **Account & keys → New key**, name
+it `sql-agent`, and create it.
+
+![Create API key dialog with the name sql-agent](/img/tutorials/build-a-tool-calling-agent-in-python-sdk/07-new-api-key.png)
+
+Copy the key the moment it's shown — this is the **only** time the full value
+appears. Then set it and the API base URL as environment variables:
+
+```bash
+export ACRUXCORE_API_KEY=<your personal api key>
+export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
+```
+
+## 6. Run the agent in Python
+
+Everything set up in the dashboard, the run is code. The SDK's `run_tool_loop`
+takes the model, the messages, and either a **decorated function** or a
+**tool definition + dispatch** pair — both do the same thing, just wired differently.
+The loop threads one trace automatically.
+
+### Option A — define the tool in code (`@acrux.tool`)
+
+The `@acrux.tool` decorator derives the schema from the function signature and
+docstring, syncs it to the catalog, and dispatches calls automatically.
+
+:::tip
+The tool still appears in the dashboard after the run — you define it in code, not
+in the UI, but both places end up with the same schema.
+:::
+
+```python title="sql_agent.py"
+import asyncio
+import sqlite3
+
+from acruxcore import AcruxCore
+from acruxcore.tooling import acrux
+
+DB_PATH = "store.db"
+PROMPT = "sql-analyst-agent"
+
+
+@acrux.tool
+async def query_database(sql: str) -> list[dict]:
+    """Run a read-only SQL SELECT against the store database.
+
+    Args:
+        sql: A single read-only SQLite SELECT statement.
+    """
+    statement = sql.strip().rstrip(";").strip()
+    if not statement.lower().startswith("select"):
+        raise ValueError("Only read-only SELECT statements are allowed.")
+    if ";" in statement:
+        raise ValueError("Only a single statement is allowed.")
+    conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    try:
+        return [dict(row) for row in conn.execute(statement).fetchall()]
+    finally:
+        conn.close()
+
+
+async def ask(hub: AcruxCore, question: str) -> str:
+    rendered = await hub.render_prompt(PROMPT, "production")
+    messages = [*rendered.messages, {"role": "user", "content": question}]
+    result = await hub.run_tool_loop(
+        rendered.model,
+        messages,
+        tools=[query_database],
+        trace={"name": "sql-analyst-agent", "session_id": "sql-agent-demo"},
+    )
+    print(f"  (trace {result.trace_id})")
+    return result.content
+
+
+async def main() -> None:
+    async with AcruxCore() as hub:
+        for question in [
+            "Which product generated the most total revenue, and how much?",
+            "How many total units were ordered in June 2026?",
+        ]:
+            print(f"\nQ: {question}")
+            print(f"A: {await ask(hub, question)}")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Option B — dashboard-authored tool (`tool_defs` + `dispatch`)
+
+Same result, different wiring. Here the tool is defined in the dashboard and
+`rendered.tools` carries its raw OpenAI-shaped schema. You supply a `dispatch`
+function to route calls to your local code — the catalog deliberately stores no
+body for client tools:
+
+```python title="sql_agent.py"
+import asyncio
+import sqlite3
+
+from acruxcore import AcruxCore
+
+DB_PATH = "store.db"
+PROMPT = "sql-analyst-agent"
+
+
+def query_database(sql: str) -> list[dict]:
+    """Run one read-only SELECT against the local store and return rows as dicts."""
+    statement = sql.strip().rstrip(";").strip()
+    if not statement.lower().startswith("select"):
+        raise ValueError("Only read-only SELECT statements are allowed.")
+    if ";" in statement:
+        raise ValueError("Only a single statement is allowed.")
+    conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    try:
+        return [dict(row) for row in conn.execute(statement).fetchall()]
+    finally:
+        conn.close()
+
+
+async def dispatch(name: str, args: dict):
+    """Route a tool call from the model to its local implementation."""
+    if name == "query_database":
+        print(f"  → query_database: {args['sql']}")
+        return query_database(args["sql"])
+    raise ValueError(f"Unknown tool: {name}")
+
+
+async def ask(hub: AcruxCore, question: str) -> str:
+    rendered = await hub.render_prompt(PROMPT, "production")
+    messages = [*rendered.messages, {"role": "user", "content": question}]
+    result = await hub.run_tool_loop(
+        rendered.model,
+        messages,
+        tool_defs=rendered.tools,
+        dispatch=dispatch,
+        trace={"name": "sql-analyst-agent", "session_id": "sql-agent-demo"},
+    )
+    print(f"  (trace {result.trace_id})")
+    return result.content
+
+
+async def main() -> None:
+    async with AcruxCore() as hub:
+        for question in [
+            "Which product generated the most total revenue, and how much?",
+            "How many total units were ordered in June 2026?",
+        ]:
+            print(f"\nQ: {question}")
+            print(f"A: {await ask(hub, question)}")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+Both options produce the same trace. Don't do both for the same tool — a
+decorated tool's spec overwrites the dashboard's on every run. See
+[Build and attach a tool](../guides/build-and-attach-a-tool) for the full decorator
+reference.
+
+Notice there's **no hardcoded model** in either option. `render_prompt` returns the
+model you bound to the prompt in the dashboard as `rendered.model`, and you hand it
+straight to `run_tool_loop`. Change the model in the dashboard and your code follows —
+no code edit.
+
+Run it:
+
+```bash
+python sql_agent.py
+```
+
+The model writes the SQL, your code runs it and prints it, and the model turns the
+rows into an answer:
+
+```text
+Q: Which product generated the most total revenue, and how much?
+  → query_database: SELECT products.name, SUM(orders.quantity * products.price) AS total_revenue
+FROM orders JOIN products ON orders.product_id = products.id
+GROUP BY products.id ORDER BY total_revenue DESC LIMIT 1;
+  (trace d6b0b097-e2b8-4f00-9c40-a7828d0b034e)
+A: The product that generated the most total revenue is the "Aeron Chair," with a revenue of $4,185.00.
+
+Q: How many total units were ordered in June 2026?
+  → query_database: SELECT SUM(quantity) AS total_units FROM orders
+WHERE order_date BETWEEN '2026-06-01' AND '2026-06-30';
+  (trace 0dfc16f8-7951-4b80-aaa4-24b9f85e864c)
+A: A total of 93 units were ordered in June 2026.
+```
+
+Each question wrote its own SQL and got its own trace. Because the question is
+appended in code rather than stored as a template variable, one prompt answers any
+number of different questions.
+
+:::tip[The model lives with the prompt]
+`run_tool_loop` gets its model from `rendered.model` — the default model you set
+on the prompt version in the dashboard. Switch a prompt to a cheaper or newer
+model in the UI and every caller picks it up on the next render, with no code
+change or redeploy. (The render API returns it too, so a plain `curl` client can
+read `model` from the render response and pass it on — see below.)
+:::
+
+:::warning[Keep the tool read-only]
+The model chooses the SQL, so treat it as untrusted. Opening the connection with
+`mode=ro` and rejecting anything but a single `SELECT` (as above) means a stray or
+malicious query can't modify your data. Never point a tool like this at a
+writable production database.
+:::
+
+## 7. Stream a reply
+
+When you want tokens as they're generated instead of waiting for the whole answer,
+pass `stream=True` to `chat` and iterate the result. Streaming yields text deltas
+and does **not** auto-run tools (that's what the loop in step 6 is for), so use it
+for plain, readable answers:
+
+```python title="stream_demo.py"
+import asyncio
+from acruxcore import AcruxCore
+
+
+async def main() -> None:
+    async with AcruxCore() as hub:
+        stream = await hub.chat(
+            "gpt-4o-mini",
+            [{"role": "user", "content": "In one sentence, what makes a good data analyst?"}],
+            stream=True,
+        )
+        async for chunk in stream:
+            print(chunk.delta.get("content", "") or "", end="", flush=True)
+        print()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+```bash
+python stream_demo.py
+```
+
+```text
+A good data analyst combines strong analytical skills, attention to detail, and
+effective communication abilities to derive insights from data and translate them
+into actionable recommendations.
+```
+
+The answer prints as it's generated. Reach for streaming when you want a live
+answer; reach for the loop in step 6 when the model needs to call tools.
+
+## 8. Inspect the trace
+
+Every run landed in **one** trace, because `run_tool_loop` threads the same trace
+across each model turn. Open **Observability → Traces** and click the newest
+`sql-analyst-agent` run: the LLM turn that asked for the tool, the `query_database`
+tool span your Python reported, and the final LLM turn — three spans, in order.
+
+![Trace named sql-analyst-agent with three spans — an LLM span, a query_database tool span, and a final LLM span — all marked OK](/img/tutorials/build-a-tool-calling-agent-in-python-sdk/08-trace-tree.png)
+
+Click the **query_database** span to see the payloads the loop captured — the
+**SQL the model wrote** as input, and the **rows your code returned** as output:
+
+![The expanded query_database span showing an Input with the SELECT statement and an Output with a single row for Aeron Chair, total_revenue 4185](/img/tutorials/build-a-tool-calling-agent-in-python-sdk/09-trace-span.png)
+
+The gateway records the LLM spans; the SDK adds the tool span from your process.
+Together they tell the whole story of the run.
+
+:::note[Payload capture]
+Inputs and outputs are stored only when payload capture is on for your team (it's
+on by default). Turn it off in **Observability → Settings** if you'd rather not
+store request bodies.
+:::
+
+## 9. Group the runs into a session
+
+The `trace={"session_id": "sql-agent-demo"}` you passed to `run_tool_loop` tags
+every run with that **session** — a caller-supplied id that groups related runs
+(one user's conversation, one job, one test run). Open **Observability →
+Sessions** and click `sql-agent-demo`: both questions are there, each its own
+trace, with their real token counts.
+
+![The sql-agent-demo session showing two sql-analyst-agent traces, each with 3 spans and a token count](/img/tutorials/build-a-tool-calling-agent-in-python-sdk/10-session.png)
+
+Use one session id per logical grouping — reuse it across many `run_tool_loop`
+calls and they all collect under the same session, which is how you follow a
+multi-turn agent conversation end to end.
+
+## Doing this over the API
+
+The dashboard steps for the tool and prompt have REST equivalents — handy for
+provisioning a new environment from a script, or checking your tool definitions in
+with your code. Set `ACRUXCORE_BASE_URL` to `https://api.acruxcore.com/api/v1` and
+use a Bearer API key. All responses below are real.
+
+Create the tool shell, then commit a **client** version — same shape the dashboard
+form produces:
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+# 1. Tool shell
+curl -X POST "$ACRUXCORE_BASE_URL/tools" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"name":"query_database","description":"Run a single read-only SQL SELECT against the store database and return the matching rows."}'
+
+# 2. Client version — the parameters schema + a client executor (use the id from step 1)
+curl -X POST "$ACRUXCORE_BASE_URL/tools/<tool-id>/versions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+  -d '{
+    "parametersSchema": {"type":"object","properties":{"sql":{"type":"string","description":"A single read-only SQLite SELECT statement."}},"required":["sql"]},
+    "executor": {"type":"client"}
+  }'
+```
+
+```json
+{
+  "id": "518cebb9-9d25-43b4-b34d-d876f2ce124b",
+  "toolId": "214f2c44-c41b-431b-b99a-d4a3dfb65f57",
+  "versionNumber": 1,
+  "executor": { "type": "client" },
+  "aliases": [
+    { "alias": "production", "versionNumber": 1 },
+    { "alias": "staging", "versionNumber": 1 }
+  ]
+}
+```
+
+</TabItem>
+</Tabs>
+
+Then the prompt shell and a version that attaches the tool with `tools: [{ toolId }]`:
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+# 3. Prompt shell
+curl -X POST "$ACRUXCORE_BASE_URL/prompts" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"name":"sql-analyst-agent","description":"Text-to-SQL data analyst."}'
+
+# 4. Version — system message, default model, tool attached (use the ids above)
+curl -X POST "$ACRUXCORE_BASE_URL/prompts/<prompt-id>/versions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+  -d '{
+    "messages": [{"role":"system","content":"You are a data analyst. Use query_database to answer."}],
+    "model": "gpt-4o-mini",
+    "tools": [{"toolId":"<tool-id>"}]
+  }'
+```
+
+```json
+{
+  "id": "4b6b2c08-f9cc-4e33-a9bd-cb5d8b120801",
+  "promptId": "9983c0fb-c971-411a-b04b-a2ea82c3e402",
+  "versionNumber": 1,
+  "model": "gpt-4o-mini",
+  "aliases": [
+    { "alias": "production", "versionNumber": 1 },
+    { "alias": "staging", "versionNumber": 1 }
+  ]
+}
+```
+
+</TabItem>
+</Tabs>
+
+Whether you clicked or curled, `render` returns the same thing the SDK fetches —
+the messages, the attached tool schema (already in OpenAI shape), and the bound
+`model`. A plain `curl` client reads `model` straight from here and passes it to
+`/gateway/chat/completions`, so it runs on the prompt's bound model too — no
+hardcoding, exactly like the SDK's `rendered.model`:
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/prompts/sql-analyst-agent/production/render" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+```json
+{
+  "messages": [{ "role": "system", "content": "You are a data analyst for an online store. ..." }],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "query_database",
+        "description": "Read-only SQL over the store database; the client executes it.",
+        "parameters": {
+          "type": "object",
+          "required": ["sql"],
+          "properties": { "sql": { "type": "string", "description": "A single read-only SQLite SELECT statement to run against the store database." } }
+        }
+      }
+    }
+  ],
+  "model": "gpt-4o-mini"
+}
+```
+
+</TabItem>
+</Tabs>
+
+## What's next
+
+- [Build a tool-calling agent in Python (no SDK)](./build-a-tool-calling-agent-in-python-no-sdk)
+  — the same loop written by hand over plain REST, so you can see what
+  `run_tool_loop` does for you.
+- [Build a tool-calling agent in the dashboard](./build-a-tool-calling-agent-in-the-dashboard-no-code)
+  — the no-code path, with HTTP tools the gateway runs for you.
+- [Using sessions and traces](../guides/using-sessions-and-traces) — group related runs
+  and dig into what happened.
+- API details: see **Gateway**, **Prompts**, **Tools**, and **Traces** in the
+  [API Reference](/api-reference).
+```

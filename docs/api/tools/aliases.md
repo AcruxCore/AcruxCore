@@ -1,0 +1,96 @@
+---
+title: "Tool Aliases"
+description: "List, render, and promote named pointers to a specific tool version."
+---
+
+# Tool Aliases API
+
+All endpoints verified working via curl. Document updated only after curl confirmation.
+
+All endpoints accept either a session cookie (`connect.sid`) or a Bearer API key.
+Promote requires `owner`, `admin`, or `editor` role. List is read-only (any
+authenticated role).
+
+---
+
+### GET /api/v1/tools/:id/aliases
+
+Lists all aliases for a tool with their target version numbers.
+
+```bash
+curl $ACRUXCORE_BASE_URL/tools/8662ca24-69f2-4431-a7f4-82e9abc77ff1/aliases \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+Response (status 200):
+
+```json
+{
+  "data": [
+    {"id":"eda4a0d8-e3fe-40d7-927d-69977db6f537","alias":"production","versionId":"b40e86ed-9dfd-44c4-bf86-038e4964be22","versionNumber":1,"updatedAt":"2026-07-12T04:23:06.734Z"},
+    {"id":"0114e5d1-c386-402e-a059-e061d8a21f6e","alias":"staging","versionId":"b40e86ed-9dfd-44c4-bf86-038e4964be22","versionNumber":1,"updatedAt":"2026-07-12T04:23:06.734Z"}
+  ]
+}
+```
+
+---
+
+### POST /api/v1/tools/:id/aliases/:alias/promote
+
+Promotes (or creates) an alias to point to a specific version number — same
+"promote or roll back" semantics as the prompt-alias endpoint. `:alias` can be
+any string; if it doesn't already exist, this call creates it.
+
+Promote production to v2.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/tools/8662ca24-69f2-4431-a7f4-82e9abc77ff1/aliases/production/promote \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"version_number":2}'
+```
+
+Response (status 200):
+
+```json
+{
+  "id": "eda4a0d8-e3fe-40d7-927d-69977db6f537",
+  "alias": "production",
+  "versionId": "f196ec83-36d3-4826-a33b-25bac669437f",
+  "versionNumber": 2,
+  "updatedAt": "2026-07-12T04:23:39.548Z"
+}
+```
+
+Promoting a name that doesn't exist yet creates that alias (no 404 for an unknown alias name).
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/tools/8662ca24-69f2-4431-a7f4-82e9abc77ff1/aliases/nope/promote \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"version_number":1}'
+```
+
+Response (status 200) — new alias "nope" created:
+
+```json
+{
+  "id": "dcc70a4f-9051-49d0-a834-27f43c9e9f5e",
+  "alias": "nope",
+  "versionId": "b40e86ed-9dfd-44c4-bf86-038e4964be22",
+  "versionNumber": 1,
+  "updatedAt": "2026-07-12T04:23:39.559Z"
+}
+```
+
+Response (status 400) — version_number missing from body:
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"version_number is required"}}
+```
+
+Response (status 404) — version_number does not exist for this tool:
+
+```json
+{"error":{"code":"NOT_FOUND","message":"Version 99 not found for this tool."}}
+```

@@ -1,0 +1,30 @@
+meta {
+  name: Create Connection (OpenAI-Compatible)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/gateway/connections
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "provider": "openai_compatible",
+    "label": "Local vLLM",
+    "apiKey": "{{providerKey}}",
+    "config": {
+      "base_url": "https://api.example.com/v1"
+    }
+  }
+}

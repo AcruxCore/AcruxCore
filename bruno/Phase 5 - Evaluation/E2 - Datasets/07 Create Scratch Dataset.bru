@@ -1,0 +1,33 @@
+meta {
+  name: Create Scratch Dataset
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/v1/datasets
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "e5eval-scratch-set"
+  }
+}
+
+script:post-response {
+  // Throwaway dataset used only to exercise DELETE /datasets/:id below,
+  // so the main {{datasetId}} survives for the Experiments/Runs folder.
+  if (res.getStatus() === 201) {
+    bru.setVar("scratchDatasetId", res.getBody().id);
+  }
+}

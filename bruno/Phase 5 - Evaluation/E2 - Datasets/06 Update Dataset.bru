@@ -1,0 +1,26 @@
+meta {
+  name: Update Dataset
+  type: http
+  seq: 6
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/datasets/{{datasetId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "e5eval-manual-set-v2",
+    "overall_feedback": "Always use third person, never first person"
+  }
+}

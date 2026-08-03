@@ -1,0 +1,26 @@
+meta {
+  name: Update Model
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/gateway/models/{{modelId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "inputPricePerM": 3,
+    "outputPricePerM": 15
+  }
+}

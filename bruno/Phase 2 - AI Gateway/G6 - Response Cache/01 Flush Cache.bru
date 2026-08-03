@@ -1,0 +1,15 @@
+meta {
+  name: Flush Cache
+  type: http
+  seq: 1
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/gateway/cache
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}

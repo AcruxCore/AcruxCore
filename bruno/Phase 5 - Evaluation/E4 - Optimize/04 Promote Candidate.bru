@@ -1,0 +1,25 @@
+meta {
+  name: Promote Candidate
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/v1/runs/{{optimizeRunId}}/promote
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "prompt_candidate_id": "{{candidateId}}"
+  }
+}
