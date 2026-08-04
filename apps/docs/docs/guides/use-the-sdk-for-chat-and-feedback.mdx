@@ -1,16 +1,22 @@
 ---
 title: Chat, stream, and collect feedback with the SDK
-description: Call the gateway from @acruxcoreai/sdk with chat() and streaming, run a traced tool-calling loop, then read traces back and record feedback — all from Node.
+description: Call the gateway from the SDK with chat() and streaming, run a traced tool-calling loop, then read traces back and record feedback — in Node and Python.
 sidebar_position: 9
-keywords: [sdk, chat, streaming, tool calling, feedback, node, typescript]
+keywords: [sdk, chat, streaming, tool calling, feedback, node, typescript, python]
 ---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
 # Chat, stream, and collect feedback with the SDK
 
 **What you'll build:** the same gateway call you'd otherwise make with `curl`,
-but through `@acruxcoreai/sdk`'s `chat()` — including a streamed response, a
-tool-calling loop that traces itself, and reading + rating a trace afterwards.
-Everything here is plain Node/TypeScript; nothing requires the dashboard.
+but through the SDK's `chat()` — including a streamed response, a tool-calling
+loop that traces itself, and reading + rating a trace afterwards. Everything
+here is plain Node/TypeScript or Python; nothing requires the dashboard.
+
+<Tabs groupId="lang">
+<TabItem value="node" label="Node">
 
 ```bash
 npm install @acruxcoreai/sdk
@@ -25,11 +31,33 @@ const hub = new AcruxCore({
 });
 ```
 
+</TabItem>
+<TabItem value="python" label="Python">
+
+```bash
+pip install acruxcore
+```
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore(
+    api_key=os.environ["ACRUXCORE_API_KEY"],
+    base_url=os.environ["ACRUXCORE_BASE_URL"],
+)
+```
+
+</TabItem>
+</Tabs>
+
 ## 1. A plain completion with `chat()`
 
 `chat()` wraps `POST /gateway/chat/completions` — one request, one response, no
 looping. It returns the assistant's text plus the gateway's own metadata for
 that call (which provider handled it, what it cost, whether it was a cache hit):
+
+<Tabs groupId="lang">
+<TabItem value="node" label="Node">
 
 ```typescript
 const result = await hub.chat({
@@ -42,14 +70,38 @@ console.log(result.usage);        // { promptTokens, completionTokens, totalToke
 console.log(result.gateway);      // { requestId, provider, model, costUsd, cache }
 ```
 
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+result = await hub.chat(
+    "support-model",
+    [{"role": "user", "content": "Say hi in one word."}],
+)
+
+print(result.content)   # 'Hello!'
+print(result.usage)     # ChatUsage(prompt_tokens, completion_tokens, total_tokens)
+print(result.gateway)   # GatewayCallMeta(request_id, provider, model, cost_usd, cache)
+```
+
+`model` and `messages` are positional; every other option — `stream`,
+`temperature`, `trace`, and so on — is keyword-only.
+
+</TabItem>
+</Tabs>
+
 The gateway already records a trace for every completion it serves, so
-`chat()` doesn't write a second one — `result.gateway.requestId` is there if
-you want to correlate the call with [the trace it produced](./trace-an-llm-call).
+`chat()` doesn't write a second one — the gateway metadata carries the
+request id if you want to correlate the call with
+[the trace it produced](./trace-an-llm-call).
 
 ## 2. Stream the response
 
-Pass `stream: true` and iterate the result instead of awaiting it — useful for
-piping tokens to a UI as they arrive:
+Pass `stream: true` (Node) or `stream=True` (Python) and iterate the result
+instead of awaiting it — useful for piping tokens to a UI as they arrive:
+
+<Tabs groupId="lang">
+<TabItem value="node" label="Node">
 
 ```typescript
 for await (const chunk of await hub.chat({
@@ -61,14 +113,32 @@ for await (const chunk of await hub.chat({
 }
 ```
 
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+async for chunk in await hub.chat(
+    "support-model",
+    [{"role": "user", "content": "Count to three."}],
+    stream=True,
+):
+    print(chunk.delta.get("content", ""), end="", flush=True)
+```
+
+</TabItem>
+</Tabs>
+
 Each `chunk` mirrors one SSE frame from the gateway; the loop ends when the
 gateway sends its closing `[DONE]` frame.
 
 ## 3. Let the model call tools — with the loop traced for you
 
-If your prompt has [tools attached](./build-and-attach-a-tool), `renderPrompt`
-returns them ready to pass straight into `runToolLoop`, which drives the
+If your prompt has [tools attached](./build-and-attach-a-tool), rendering it
+returns them ready to pass straight into the tool loop, which drives the
 call → run → respond round-trip until the model is done:
+
+<Tabs groupId="lang">
+<TabItem value="node" label="Node">
 
 ```typescript
 const { messages, tools } = await hub.renderPrompt('support-agent', 'production', {
@@ -93,28 +163,66 @@ so they need no `dispatch` at all. See
 [Build and attach a tool](./build-and-attach-a-tool) for that shape, which is the
 better one when you author the tool in code.
 
-If the model asks for several tools in one turn, `runToolLoop` runs your
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+render = await hub.render_prompt("support-agent", "production", {
+    "ticket": "Where is my order #4471?",
+})
+
+async def dispatch(name, args):
+    if name == "lookup_order":
+        return {"status": "shipped", "eta": "2 days"}
+    raise ValueError(f"Unknown tool: {name}")
+
+result = await hub.run_tool_loop(
+    model="support-model",
+    messages=render.messages,
+    tool_defs=render.tools,
+    dispatch=dispatch,
+)
+
+print(result.content)     # final assistant text
+print(result.trace_id)    # one trace covering every round-trip + tool call
+```
+
+Note `tool_defs`, not `tools`: what `render_prompt` hands back are raw
+OpenAI-shaped definitions, and `tool_defs` is the option for those. `tools` is
+reserved for functions decorated with `@acrux.tool` — those carry their own
+body, so they need no `dispatch` at all. See
+[Build and attach a tool](./build-and-attach-a-tool) for that shape, which is the
+better one when you author the tool in code.
+
+</TabItem>
+</Tabs>
+
+If the model asks for several tools in one turn, the loop runs your
 `dispatch` for all of them **in parallel** — independent tools don't wait on
 each other, and their results are appended in call order. So write `dispatch`
 to be safe to run concurrently.
 
-Unlike a standalone `chat()` call, `runToolLoop` **does** auto-report a trace —
+Unlike a standalone `chat()` call, the tool loop **does** auto-report a trace —
 by default. Each model round-trip becomes an `llm` span, and each `dispatch`
 call becomes a `tool` span, timed for real. The gateway can only see its own
 requests; it has no way to see `lookup_order` running on your machine, so this
 is the one place the SDK adds tracing curl genuinely can't. Open
-**Observability → Traces** and `result.traceId` shows up with the whole chain
-nested under it — turn it off with `trace: false` if you're already tracing
-this yourself.
+**Observability → Traces** and the returned trace id shows up with the whole
+chain nested under it — turn it off with `trace: false` (Node) /
+`trace=False` (Python) if you're already tracing this yourself.
 
 ## 4. Read the trace back and leave feedback
 
-Once you have a `traceId` — from `runToolLoop`, from `trace()`, or copied out of
-the dashboard — you can read it back and attach feedback without leaving Node.
+Once you have a trace id — from the tool loop, from `trace()`, or copied out of
+the dashboard — you can read it back and attach feedback without leaving your
+app.
 
-One line matters here: `await hub.flush()`. The spans are written in the
-background (see [section 5](#5-when-traces-are-sent)), so reading the trace
-immediately after the call can arrive before its own spans do.
+One line matters here: flushing. The spans are written in the background (see
+[section 5](#5-when-traces-are-sent)), so reading the trace immediately after
+the call can arrive before its own spans do.
+
+<Tabs groupId="lang">
+<TabItem value="node" label="Node">
 
 ```typescript
 await hub.flush(); // wait for the loop's spans to be written
@@ -138,15 +246,44 @@ await hub.updateFeedback({ traceId: result.traceId!, feedbackId: feedback.id, ra
 const { data } = await hub.listTraces({ sessionId: 'tokyo-trip-plan-01', limit: 20 });
 ```
 
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+await hub.flush()  # wait for the loop's spans to be written
+
+trace = await hub.get_trace(result.trace_id)
+print(trace.trace.status, trace.trace.total_cost_usd, trace.trace.total_tokens)
+
+feedback = await hub.submit_feedback(
+    result.trace_id, rating=1, label="resolved-in-one-turn",
+)
+
+# Correct it later — only the original author's feedback can be edited:
+await hub.update_feedback(result.trace_id, feedback.id, rating=-1)
+```
+
+`list_traces()` covers the list view — e.g. pulling every trace for a session:
+
+```python
+page = await hub.list_traces(session_id="tokyo-trip-plan-01", limit=20)
+```
+
+</TabItem>
+</Tabs>
+
 ## 5. When traces are sent
 
-`chat()` and `runToolLoop` hand back the model's answer straight away and report
-their spans in the background, so tracing costs you nothing on the call itself.
-Traces aren't delayed to do it — an idle client sends each span as soon as it
-records it, and spans only group into one request while another is already in
-flight.
+`chat()` and the tool loop hand back the model's answer straight away and
+report their spans in the background, so tracing costs you nothing on the
+call itself. Traces aren't delayed to do it — an idle client sends each span
+as soon as it records it, and spans only group into one request while another
+is already in flight.
 
 Two situations need one extra line:
+
+<Tabs groupId="lang">
+<TabItem value="node" label="Node">
 
 ```typescript
 // Reading traces back straight after a call
@@ -166,8 +303,24 @@ winds down. It installs no signal handlers of its own, because that would stop
 Ctrl-C working in your application, so a process killed by a signal drops
 whatever was still buffered.
 
-In Python the calls are `await hub.flush()` and `await hub.aclose()`, and
-`async with AcruxCore(...) as hub:` already flushes on exit.
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+# Reading traces back straight after a call
+result = await hub.chat("gpt-4o-mini", messages)
+await hub.flush()  # wait for the spans to be written
+trace = await hub.get_trace(result.gateway.trace_id)
+
+# A long-running server — or use `async with AcruxCore() as hub:` for a script
+await hub.aclose()  # flush, then stop accepting spans
+```
+
+`async with AcruxCore() as hub:` already flushes on exit, so a short script
+using the context-manager form needs neither call.
+
+</TabItem>
+</Tabs>
 
 ## What's next
 

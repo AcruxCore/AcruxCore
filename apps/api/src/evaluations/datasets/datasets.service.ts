@@ -7,9 +7,36 @@ import {
   DatasetDto,
   DatasetExampleDto,
   MAX_EXAMPLE_INPUT_BYTES,
+  MAX_HISTORY_BYTES,
+  MAX_HISTORY_TRACES,
+  MismatchedPromptInfo,
+  PromptMismatchWarning,
   UpdateDatasetDto,
 } from './datasets.types';
+import { buildTraceExchange, capHistoryBytes } from './history.builder';
 import { NotFoundError, UnprocessableError } from '../../shared/errors';
+import type { ChatMessage } from '../../gateway/providers/types';
+
+/**
+ * Per-request memo for session-history reconstruction. `buildFromFeedback`
+ * runs over many feedback rows and several of them typically sit in the SAME
+ * session — without this, each row re-reads the same prior traces and the same
+ * span payloads, turning one request into hundreds of sequential round trips.
+ * Scoped to a single call, so it can never serve stale data across requests.
+ */
+interface HistoryCache {
+  /** traceId → its `{ sessionId, startedAt }`, or null when absent for the team. */
+  traces: Map<string, { sessionId: string | null; startedAt: Date } | null>;
+  /** `sessionId|beforeStartedAt` → the prior traces of that session. */
+  priorTraces: Map<string, Array<{ id: string; startedAt: Date }>>;
+  /** traceId → the exchange reconstructed from that trace's own llm spans. */
+  exchanges: Map<string, ChatMessage[]>;
+}
+
+/** Fresh, empty {@link HistoryCache} for one `buildFromFeedback` call. */
+function newHistoryCache(): HistoryCache {
+  return { traces: new Map(), priorTraces: new Map(), exchanges: new Map() };
+}
 
 /** One skipped feedback row and why it was not turned into an example. */
 export interface SkippedFeedback {
@@ -34,6 +61,69 @@ type DatasetWithCount = Prisma.DatasetGetPayload<{ include: { _count: { select: 
  */
 export class DatasetsService {
   constructor(private readonly repo: DatasetsRepository) {}
+
+  /**
+   * Reconstructs the conversation history leading up to a feedback trace,
+   * when that trace belongs to a session (FAQ Q19). Walks the session
+   * backward (`listPriorSessionTraces`, capped at `MAX_HISTORY_TRACES`),
+   * reconstructs each prior trace's own exchange (`buildTraceExchange`),
+   * concatenates them oldest first, and caps the serialized size
+   * (`capHistoryBytes`). Frozen once here — never re-derived live.
+   *
+   * Every read is memoized in `cache` for the duration of the request, since
+   * feedback rows from one conversation share the same prior traces.
+   *
+   * Best-effort by design: history is extra context on an example, never the
+   * example itself, so a reconstruction that fails (an `llm` span whose
+   * captured payload is shaped in a way nothing here anticipated, a read that
+   * errors) logs and yields null rather than failing the dataset build the
+   * caller actually asked for.
+   *
+   * @param teamId - Isolation boundary.
+   * @param traceId - The feedback's trace id.
+   * @param cache - Per-request memo, from {@link newHistoryCache}.
+   * @returns The reconstructed history, or null if the trace has no session,
+   *   no prior trace yielded a usable exchange, or reconstruction failed.
+   */
+  private async buildHistoryForTrace(
+    teamId: string,
+    traceId: string,
+    cache: HistoryCache,
+  ): Promise<ChatMessage[] | null> {
+    try {
+      if (!cache.traces.has(traceId)) {
+        cache.traces.set(traceId, await this.repo.getTraceById(teamId, traceId));
+      }
+      const trace = cache.traces.get(traceId)!;
+      if (!trace || !trace.sessionId) return null;
+
+      const priorKey = `${trace.sessionId}|${trace.startedAt.toISOString()}`;
+      if (!cache.priorTraces.has(priorKey)) {
+        cache.priorTraces.set(
+          priorKey,
+          await this.repo.listPriorSessionTraces(teamId, trace.sessionId, trace.startedAt, MAX_HISTORY_TRACES),
+        );
+      }
+      const priorTraces = cache.priorTraces.get(priorKey)!;
+      if (priorTraces.length === 0) return null;
+
+      const exchanges: ChatMessage[] = [];
+      for (const prior of priorTraces) {
+        if (!cache.exchanges.has(prior.id)) {
+          const spans = await this.repo.listLlmSpansForTrace(teamId, prior.id);
+          cache.exchanges.set(prior.id, buildTraceExchange(spans));
+        }
+        exchanges.push(...cache.exchanges.get(prior.id)!);
+      }
+      if (exchanges.length === 0) return null;
+
+      const capped = capHistoryBytes(exchanges, MAX_HISTORY_BYTES);
+      return capped.length > 0 ? capped : null;
+    } catch (err) {
+      console.error('[datasets] session-history reconstruction failed', { traceId, err });
+      return null;
+    }
+  }
 
   /**
    * Builds a new dataset from a set of trace feedback rows: one example per
@@ -77,9 +167,11 @@ export class DatasetsService {
     const foundById = new Map(found.map((fb) => [fb.id, fb]));
 
     const skipped: SkippedFeedback[] = [];
+    const historyCache = newHistoryCache();
     const examples: Array<{
       input: Prisma.InputJsonValue;
       criteria?: string;
+      history?: Prisma.InputJsonValue;
       sourceTraceId?: string;
       sourceFeedbackId?: string;
       sourcePromptVersionId?: string;
@@ -113,9 +205,14 @@ export class DatasetsService {
         continue;
       }
 
+      // Session-scoped history (FAQ Q19): automatic whenever the feedback's
+      // trace belongs to a session — never re-derived later, frozen here.
+      const history = await this.buildHistoryForTrace(teamId, fb.traceId, historyCache);
+
       examples.push({
         input: sourcePayload.variables as Prisma.InputJsonValue,
         ...(fb.comment ? { criteria: fb.comment } : {}),
+        ...(history ? { history: history as unknown as Prisma.InputJsonValue } : {}),
         sourceTraceId: fb.traceId,
         sourceFeedbackId: fb.id,
         ...(sourcePayload.promptVersionId ? { sourcePromptVersionId: sourcePayload.promptVersionId } : {}),
@@ -229,6 +326,7 @@ export class DatasetsService {
     const example = await this.repo.createExample(teamId, datasetId, {
       input: dto.input as Prisma.InputJsonValue,
       ...(dto.criteria ? { criteria: dto.criteria } : {}),
+      ...(dto.history ? { history: dto.history as unknown as Prisma.InputJsonValue } : {}),
     });
     return this.exampleToDto(example);
   }
@@ -247,6 +345,47 @@ export class DatasetsService {
 
     const deleted = await this.repo.deleteExample(teamId, datasetId, exampleId);
     if (deleted === 0) throw new NotFoundError('Example not found.');
+  }
+
+  /**
+   * Checks whether any of a dataset's examples were sourced from a prompt
+   * other than the one a run is about to target (design
+   * "Prompt-mismatch warning"). Informational only — never throws, never
+   * blocks; the caller always starts the run regardless of the result.
+   *
+   * @param examples - The dataset's examples (only `sourcePromptVersionId` is read).
+   * @param targetPromptId - The prompt the run is about to target.
+   * @param teamId - Isolation boundary, threaded into `resolveVersionPrompts`
+   *   so a version belonging to another team can never surface its prompt's
+   *   name in this (informational, unauthenticated-by-role) response.
+   * @returns The warning (grouped by the OTHER prompt, with a per-prompt
+   *   example count), or null if every example either matches the target
+   *   prompt or carries no resolvable lineage (manually added, or its source
+   *   version was since deleted).
+   */
+  async checkPromptMismatch(
+    examples: Array<{ sourcePromptVersionId: string | null }>,
+    targetPromptId: string,
+    teamId: string,
+  ): Promise<PromptMismatchWarning | null> {
+    const versionIds = [
+      ...new Set(
+        examples.map((e) => e.sourcePromptVersionId).filter((id): id is string => id !== null),
+      ),
+    ];
+    if (versionIds.length === 0) return null;
+
+    const versionPrompts = await this.repo.resolveVersionPrompts(versionIds, teamId);
+    const counts = new Map<string, MismatchedPromptInfo>();
+    for (const example of examples) {
+      if (!example.sourcePromptVersionId) continue;
+      const info = versionPrompts.get(example.sourcePromptVersionId);
+      if (!info || info.promptId === targetPromptId) continue;
+      const existing = counts.get(info.promptId);
+      if (existing) existing.exampleCount += 1;
+      else counts.set(info.promptId, { promptId: info.promptId, name: info.promptName, exampleCount: 1 });
+    }
+    return counts.size > 0 ? { mismatchedPrompts: [...counts.values()] } : null;
   }
 
   /** Maps a Prisma dataset row (+ example count) to the API DTO. */
@@ -270,6 +409,7 @@ export class DatasetsService {
       datasetId: row.datasetId,
       input: row.input as Record<string, unknown>,
       criteria: row.criteria,
+      history: row.history as unknown as ChatMessage[] | null,
       sourceTraceId: row.sourceTraceId,
       sourceFeedbackId: row.sourceFeedbackId,
       sourcePromptVersionId: row.sourcePromptVersionId,

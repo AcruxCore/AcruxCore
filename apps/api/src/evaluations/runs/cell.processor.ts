@@ -4,11 +4,13 @@ import { RunsRepository } from './runs.repository';
 import { VersionsRepository } from '../../prompts/versions/versions.repository';
 import { OptimizeRepository } from '../optimize/optimize.repository';
 import { renderMessages } from '../../prompts/versions/nunjucks.utils';
-import type { MessageInput } from '../../prompts/versions/nunjucks.utils';
+import type { MessageInput, RenderedMessage } from '../../prompts/versions/nunjucks.utils';
+import { sanitizeForReplay } from '../datasets/history.builder';
 import { GatewayService } from '../../gateway/completions/gateway.service';
 import { GatewayRepository } from '../../gateway/completions/gateway.repository';
 import { ConnectionsRepository } from '../../gateway/connections/connections.repository';
 import type { GatewayCallContext } from '../../gateway/completions/completions.types';
+import type { ChatMessage } from '../../gateway/providers/types';
 import { NotFoundError } from '../../shared/errors';
 
 const runsRepo = new RunsRepository();
@@ -23,6 +25,37 @@ interface SnapshotExample {
   exampleId: string;
   input: Record<string, unknown>;
   criteria: string | null;
+  /** Prior-turn history frozen at run-start (FAQ Q19), or null. */
+  history: ChatMessage[] | null;
+}
+
+/**
+ * Splices a reconstructed session history in before a rendered template's
+ * new turn: any leading `system` message(s) from `rendered` come first (a
+ * version's system prompt must not repeat once per turn), then `history`,
+ * then the rest of `rendered` (the new turn). Returns `rendered` unchanged,
+ * cast to `ChatMessage[]`, when `history` is null/empty — a cell with no
+ * history sends exactly what it sends today.
+ *
+ * The history is run through `sanitizeForReplay` first. Build-time already
+ * does this, but a hand-authored `history` never passed through it and neither
+ * did rows frozen into a snapshot before it existed, and this is the one place
+ * where a half tool round trip stops being data and becomes a provider 400
+ * that fails the cell.
+ *
+ * @param rendered - The template's rendered messages for this cell's new turn.
+ * @param history - The frozen prior-turn history, or null.
+ * @returns The final message array to send to the gateway.
+ */
+function spliceHistory(rendered: RenderedMessage[], history: ChatMessage[] | null | undefined): ChatMessage[] {
+  const replayable = history ? sanitizeForReplay(history) : [];
+  if (replayable.length === 0) return rendered as ChatMessage[];
+
+  const leadingSystemCount = rendered.findIndex((m) => m.role !== 'system');
+  const splitAt = leadingSystemCount === -1 ? rendered.length : leadingSystemCount;
+  const leadingSystem = rendered.slice(0, splitAt) as ChatMessage[];
+  const rest = rendered.slice(splitAt) as ChatMessage[];
+  return [...leadingSystem, ...replayable, ...rest];
 }
 
 /**
@@ -127,11 +160,12 @@ export async function processCell(data: CellJobData): Promise<void> {
 
   const messages = await resolveCellMessages(data);
   const rendered = await renderMessages(messages, example.input);
+  const finalMessages = spliceHistory(rendered, example.history);
 
   const traceId = randomUUID();
   const ctx: GatewayCallContext = { teamId: data.teamId, traceId };
 
-  const gatewayResult = await gateway.complete(ctx, { model: data.model, messages: rendered });
+  const gatewayResult = await gateway.complete(ctx, { model: data.model, messages: finalMessages });
   const output = gatewayResult.body.choices[0]?.message.content ?? '';
 
   const result = await runsRepo.writeResult({
@@ -160,6 +194,7 @@ export async function processCell(data: CellJobData): Promise<void> {
       // criterion or the overall feedback mid-run — or after it — can no longer
       // change what a given result was scored against (FAQ Q5 reproducibility).
       criteria: example.criteria,
+      history: example.history,
       overallFeedback: data.overallFeedback ?? null,
     },
     {

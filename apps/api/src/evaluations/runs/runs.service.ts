@@ -3,19 +3,32 @@ import { ExperimentsRepository } from '../experiments/experiments.repository';
 import { DatasetsRepository } from '../datasets/datasets.repository';
 import { RunsRepository } from './runs.repository';
 import { PromptsRepository } from '../../prompts/prompts.repository';
-import { AliasesRepository } from '../../prompts/aliases/aliases.repository';
+import { AliasesService } from '../../prompts/aliases/aliases.service';
 import { VersionsRepository } from '../../prompts/versions/versions.repository';
+import { MembersRepository } from '../../teams/members/members.repository';
 import { getFlowProducer, EVAL_CELLS_QUEUE, EVAL_RUNS_QUEUE, finalizeJobOpts } from '../queue';
 import { NotFoundError } from '../../shared/errors';
 import { buildRunReport } from './report.aggregate';
+import { deriveGridShape, deriveRunKind, foldRunScores } from './run-list.aggregate';
 import type { ExperimentConfig } from '../experiments/experiments.types';
-import type { RunDetailDto, RunGridCell, RunSnapshotExample, StartRunResult, RunCellDetailDto } from './runs.types';
+import type {
+  RunDetailDto,
+  RunGridCell,
+  RunListItemDto,
+  RunListQuery,
+  RunListResponse,
+  RunSnapshotExample,
+  StartRunResult,
+  RunCellDetailDto,
+} from './runs.types';
 import type { RunReport } from './report.types';
 
 /**
  * Business logic for starting and reading experiment runs: freezes the
  * dataset's examples, resolves the full (prompt-version × model) grid —
- * including an automatic production-alias baseline per model — persists the
+ * including an automatic baseline per model, resolved via a named alias, or
+ * (when none is given) the prompt's `production` alias, falling back to its
+ * latest committed version if there is no `production` alias — persists the
  * run, and enqueues a BullMQ Flow (cell jobs as children of a finalize job).
  */
 export class RunsService {
@@ -24,17 +37,19 @@ export class RunsService {
     private readonly datasetsRepo: DatasetsRepository,
     private readonly runsRepo: RunsRepository,
     private readonly promptsRepo: PromptsRepository,
-    private readonly aliasesRepo: AliasesRepository,
+    private readonly aliasesService: AliasesService,
     private readonly versionsRepo: VersionsRepository,
+    private readonly membersRepo: MembersRepository,
   ) {}
 
   /**
    * Starts a new run for an experiment: freezes the dataset's examples into
    * `exampleSnapshot`, resolves the `grid` (explicit `config.versionIds` ×
-   * `config.models`, plus one production-baseline cell per model when the
-   * experiment's `promptId`'s current `production` version is not already
-   * covered by an explicit cell), persists the run, and enqueues a BullMQ
-   * Flow — one finalize job (parent) with one cell job (child) per
+   * `config.models`, plus one resolved-baseline cell per model — via
+   * `config.alias`, or `production` falling back to the latest committed
+   * version when no alias is given — when it is not already covered by an
+   * explicit cell), persists the run, and enqueues a
+   * BullMQ Flow — one finalize job (parent) with one cell job (child) per
    * `grid × exampleSnapshot` pair.
    *
    * @param teamId - Isolation boundary.
@@ -61,6 +76,7 @@ export class RunsService {
       exampleId: example.id,
       input: example.input as Record<string, unknown>,
       criteria: example.criteria,
+      history: example.history as unknown as RunSnapshotExample['history'],
     }));
 
     const config = experiment.config as unknown as ExperimentConfig;
@@ -127,6 +143,71 @@ export class RunsService {
     });
 
     return { runId: run.id, status: 'queued' };
+  }
+
+  /**
+   * Lists the team's runs newest-first for the run-history screen, with each
+   * run's evaluated dataset/prompt, the shape of its frozen grid, and the
+   * scores it produced.
+   *
+   * The scores are computed on read from `eval_results` (there is no per-run
+   * summary table, exactly as with {@link getReport}), so a run still in flight
+   * lists the partial numbers it has produced so far rather than nothing.
+   *
+   * @param teamId - Isolation boundary.
+   * @param query - Validated query params: optional `status`/`dataset_id`/
+   *   `prompt_id` filters plus `page`/`limit`.
+   * @returns The `{ data, total, page, limit }` envelope this platform's list
+   *   endpoints share.
+   */
+  async listRuns(teamId: string, query: RunListQuery): Promise<RunListResponse> {
+    const page = await this.runsRepo.listRuns(teamId, {
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.dataset_id ? { datasetId: query.dataset_id } : {}),
+      ...(query.prompt_id ? { promptId: query.prompt_id } : {}),
+      page: query.page,
+      limit: query.limit,
+    });
+
+    // One lookup for every distinct starter on the page, rather than per row.
+    // Runs started by a team-scoped API key have no acting user (`createdBy`
+    // null) and keep `startedBy: null`.
+    const starterIds = [...new Set(page.runs.map((r) => r.createdBy).filter((id): id is string => id !== null))];
+    const starters = await this.membersRepo.findEmailsByUserIds(starterIds);
+    const starterById = new Map(starters.map((s) => [s.userId, s]));
+
+    const data: RunListItemDto[] = page.runs.map((run) => {
+      const scores = foldRunScores(page.aggregates.filter((a) => a.runId === run.id));
+      const shape = deriveGridShape(run.grid);
+      const starter = run.createdBy ? starterById.get(run.createdBy) : undefined;
+
+      return {
+        id: run.id,
+        status: run.status,
+        kind: deriveRunKind(run.grid),
+        experimentId: run.experimentId,
+        experimentName: run.experimentName,
+        datasetId: run.datasetId,
+        datasetName: run.datasetName,
+        promptId: run.promptId,
+        promptName: run.promptName,
+        variantCount: shape.variantCount,
+        modelCount: shape.modelCount,
+        exampleCount: run.exampleCount,
+        results: scores.results,
+        avgScore: scores.avgScore,
+        passRate: scores.passRate,
+        topVariantLabel: scores.topVariantLabel,
+        startedBy: starter ? { id: starter.userId, name: starter.name, email: starter.email } : null,
+        createdAt: run.createdAt.toISOString(),
+        startedAt: run.startedAt ? run.startedAt.toISOString() : null,
+        endedAt: run.endedAt ? run.endedAt.toISOString() : null,
+        durationMs:
+          run.startedAt && run.endedAt ? run.endedAt.getTime() - run.startedAt.getTime() : null,
+      };
+    });
+
+    return { data, total: page.total, page: query.page, limit: query.limit };
   }
 
   /**
@@ -218,6 +299,7 @@ export class RunsService {
     // snapshot carried criteria (or if an example isn't in the snapshot).
     const snapshot = run.exampleSnapshot as unknown as RunSnapshotExample[];
     const frozenCriteria = new Map(snapshot.map((e) => [e.exampleId, e.criteria]));
+    const frozenHistory = new Map(snapshot.map((e) => [e.exampleId, e.history]));
 
     return {
       cellKey,
@@ -227,6 +309,7 @@ export class RunsService {
         exampleId: row.datasetExampleId,
         input: row.example.input as Record<string, unknown>,
         criteria: frozenCriteria.get(row.datasetExampleId) ?? row.example.criteria,
+        history: frozenHistory.get(row.datasetExampleId) ?? null,
         output: row.output,
         score: row.score,
         passed: row.passed,
@@ -241,16 +324,19 @@ export class RunsService {
    * Resolves the full (prompt-version × model) grid for a run: one cell per
    * explicit `config.versionIds × config.models` pair, plus — when the
    * experiment names a `promptId` that resolves for this team — one
-   * additional `variantLabel: 'production'` cell per model for the prompt's
-   * current `production` alias version, unless that version id is already
-   * among `config.versionIds`. Every explicit version id is verified to
-   * belong to `teamId` before being placed in the grid — a queue payload must
-   * never carry an id from another team (the same defense-in-depth rule
+   * additional baseline cell per model for the resolved comparison baseline
+   * (`config.alias`'s current version, or — when `config.alias` is omitted —
+   * `production`'s current version, falling back to the prompt's latest
+   * committed version if it has no `production` alias; see
+   * `AliasesService.resolveBaselineVersion`), unless that version id is
+   * already among `config.versionIds`. Every explicit version id is verified
+   * to belong to `teamId` before being placed in the grid — a queue payload
+   * must never carry an id from another team (the same defense-in-depth rule
    * `processCell` enforces on the consuming side).
    *
    * @param teamId - Isolation boundary.
    * @param promptId - The experiment's prompt under test, or null if none was set.
-   * @param config - The experiment's resolved sweep (`versionIds`, `models`).
+   * @param config - The experiment's resolved sweep (`versionIds`, `models`, optional `alias`).
    * @returns The resolved grid cells (explicit + baseline).
    * @throws {NotFoundError} If an explicit version id does not resolve for this team.
    */
@@ -261,15 +347,20 @@ export class RunsService {
   ): Promise<RunGridCell[]> {
     const cells: RunGridCell[] = [];
 
-    // Resolve the prompt's current production version up front, so an explicit
-    // cell that *is* the production version can be flagged as the baseline
-    // (see RunGridCell.isProductionBaseline). Null if no prompt/alias resolves.
-    let productionVersionId: string | null = null;
+    // Resolve the run's comparison baseline up front, so an explicit cell
+    // that *is* the baseline version can be flagged as such (see
+    // RunGridCell.isProductionBaseline). Null if no prompt is set, or the
+    // prompt has no committed versions yet and no alias was requested.
+    let baselineVersionId: string | null = null;
+    let baselineLabel = 'production';
     if (promptId) {
       const prompt = await this.promptsRepo.findById(promptId, teamId);
       if (prompt) {
-        const production = await this.aliasesRepo.findByAlias(promptId, 'production');
-        productionVersionId = production?.versionId ?? null;
+        const baseline = await this.aliasesService.resolveBaselineVersion(teamId, promptId, config.alias);
+        if (baseline) {
+          baselineVersionId = baseline.versionId;
+          baselineLabel = baseline.alias ?? `v${baseline.versionNumber}`;
+        }
       }
     }
 
@@ -285,22 +376,22 @@ export class RunsService {
           promptVersionId: versionId,
           variantLabel,
           model,
-          // An explicitly-listed version that happens to be the current
-          // production version IS the baseline, even though it is labeled v<N>.
-          isProductionBaseline: versionId === productionVersionId,
+          // An explicitly-listed version that happens to be the resolved
+          // baseline IS the baseline, even though it is labeled v<N>.
+          isProductionBaseline: versionId === baselineVersionId,
         });
       }
     }
 
-    // Add a dedicated production-baseline cell per model only when the
-    // production version is not already covered by an explicit cell above.
-    if (productionVersionId && !config.versionIds.includes(productionVersionId)) {
+    // Add a dedicated baseline cell per model only when the baseline version
+    // is not already covered by an explicit cell above.
+    if (baselineVersionId && !config.versionIds.includes(baselineVersionId)) {
       for (const model of config.models) {
         cells.push({
-          cellKey: `production|${model}`,
+          cellKey: `${baselineLabel}|${model}`,
           variantKind: 'version',
-          promptVersionId: productionVersionId,
-          variantLabel: 'production',
+          promptVersionId: baselineVersionId,
+          variantLabel: baselineLabel,
           model,
           isProductionBaseline: true,
         });

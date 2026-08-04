@@ -27,21 +27,51 @@ called out in the week it ships and in the SDK release notes.
 
 ### Major
 
-### Minor
+#### SDK 0.6.7 — trace tags and metadata
 
-- **Fixed** — the Python SDK tool-calling tutorial's decorator example had a broken import.
-- **Tutorial and guide pages** now show a short snippet plus a link to the full runnable script.
-- **Tutorial script links** now point to scripts that were actually run and verified.
+- `chat()` and the tool loop now accept `tags`/`metadata` in trace options, sent as gateway headers.
+- Both SDK packages now link back to the public [GitHub repo](https://github.com/AcruxCore/AcruxCore).
+
 #### Acrux Core is now open source
 
 - Source is public at [github.com/AcruxCore/AcruxCore](https://github.com/AcruxCore/AcruxCore).
 - Licensed under [Elastic License 2.0](https://www.elastic.co/licensing/elastic-license); `packages/sdk` and `packages/sdk-python` stay MIT.
 - Contributions welcome — see `CLA.md` in the repo before opening a pull request.
 
+#### Past evaluation runs are now listed in one place
+
+- A new **Runs** tab on Evaluations lists every run, newest first, with its score and best variant.
+- A run's report is reachable long after the fact — closing the tab no longer loses it.
+- `GET /api/v1/runs` returns the same history, filterable by status, dataset or prompt.
+  [Reference →](/api-reference/experiments)
+
+#### Evaluations and optimize now use full conversation context
+
+- Feedback on a session now carries its prior turns into the dataset example.
+- A run replays that history before the new turn, so candidates see the real context.
+- The judge and the optimizer read it too, so scores and rewrites match the conversation.
+
+#### Optimize and experiments can now pick their baseline alias
+
+- New `alias` field — target `staging`, `dev`, or any alias instead of `production`.
+- Baseline still defaults to `production`, falling back to the latest version if none.
+- Feedback-built datasets now warn (never block) if examples came from a different prompt.
+
 ### Minor
 
+- **`POST /datasets/from-feedback`** now accepts at most 100 feedback ids per request.
+- **Fixed** — the Python SDK tool-calling tutorial's decorator example had a broken import.
+- **Tutorial and guide pages** now show a short snippet plus a link to the full runnable script.
+- **Tutorial script links** now point to scripts that were actually run and verified.
+- **New guide** — [evaluate a prompt with conversation history](/docs/guides/evaluate-a-prompt-with-conversation-history).
 - **A `LICENSE`, `TRADEMARK.md`, and `CLA.md`** now ship at the repo root, under
   [Elastic License 2.0](https://www.elastic.co/licensing/elastic-license).
+- **Fixed** — the `/sdk` page's Python tutorial links 404'd (wrong docs path).
+- **The `/sdk` page** now links five capability guides per language, and its
+  code samples show a decorated tool call and session tracing.
+- **Three SDK guides** — chat, tracing, and gateway routing — now show Python
+  code alongside Node's.
+- **Added** — an "Optimize" button on a dataset's page starts a run without rebuilding it.
 
 ## Week of 27 July 2026
 

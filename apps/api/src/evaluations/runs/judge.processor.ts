@@ -28,14 +28,14 @@ const judgeService = new JudgeService();
  *   so `finalize.processor`'s readiness check is never left waiting forever.
  */
 export async function processJudge(data: JudgeJobData): Promise<void> {
-  // Grade against the run's FROZEN criteria/overallFeedback (threaded here by
-  // cell.processor from the run snapshot) rather than the live mutable dataset,
-  // for reproducibility (FAQ Q5). Jobs enqueued before these fields shipped
-  // carry neither key — pass `undefined` so `scoreResult` falls back to a live
-  // read for them.
+  // Grade against the run's FROZEN criteria/overallFeedback/history (threaded
+  // here by cell.processor from the run snapshot) rather than the live
+  // mutable dataset, for reproducibility (FAQ Q5/Q19). Jobs enqueued before
+  // these fields shipped carry none of these keys — pass `undefined` so
+  // `scoreResult` falls back to a live read for them.
   const frozen =
-    'criteria' in data || 'overallFeedback' in data
-      ? { criteria: data.criteria ?? null, overallFeedback: data.overallFeedback ?? null }
+    'criteria' in data || 'overallFeedback' in data || 'history' in data
+      ? { criteria: data.criteria ?? null, overallFeedback: data.overallFeedback ?? null, history: data.history ?? null }
       : undefined;
   await judgeService.scoreResult(data.teamId, data.resultId, frozen);
 }

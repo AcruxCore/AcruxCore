@@ -106,6 +106,8 @@ curl -X POST "$ACRUXCORE_BASE_URL/experiments" \
     "models": ["support-model"]
   }'
 # → { "id": "<experiment-id>", ... }
+# Add "alias": "staging" to compare against an alias other than the default
+# (production if it exists, otherwise the prompt's latest committed version).
 
 # Start a run (async)
 curl -X POST "$ACRUXCORE_BASE_URL/experiments/<experiment-id>/runs" \
@@ -132,8 +134,16 @@ print(run["run_id"], run["status"])  # -> queued
 </TabItem>
 </Tabs>
 
-When a prompt is under test, Acrux Core also adds an automatic **production
-baseline** cell, so you always compare your candidate against what's live today.
+When a prompt is under test, Acrux Core also adds an automatic **baseline** cell, so you
+always compare your candidate against something rather than nothing — by default that's the
+prompt's `production` alias, falling back to its latest committed version if there's no
+`production` alias yet. Pick a different alias in the dashboard's **Baseline alias** field (or
+pass `"alias": "staging"` over the API) if you want the comparison to be against `staging`,
+`dev`, or any other alias instead.
+
+If the dataset's examples were captured against a different prompt than the one under test
+here, the run still starts — Acrux Core just adds a warning to the response and the run page
+so you know the comparison might not be apples-to-apples. It never blocks the run.
 
 ## 4. Read the report
 
@@ -148,16 +158,26 @@ curl "$ACRUXCORE_BASE_URL/runs/<run-id>/report" \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"          # per-cell scores
 ```
 
-In the web app, **Evaluations → the run** shows the same report as a comparison
-grid.
+In the web app, **Evaluations → Runs** lists every run your team has made —
+newest first, with each run's score, best variant and duration — and each row
+opens the same report as a comparison grid. The same history is available over
+the API:
+
+```bash
+curl "$ACRUXCORE_BASE_URL/runs?limit=20" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"           # newest first
+
+curl "$ACRUXCORE_BASE_URL/runs?dataset_id=<dataset-id>" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"           # only this dataset's runs
+```
 
 ## 5. Use this as a gate before you promote
 
-The automatic production baseline cell from step 3 is what makes this a
-**regression gate**, not just a comparison: every run already scores your
-candidate version *and* whatever `production` currently serves, side by
-side, on the same dataset. Read the report before promoting a version, not
-after:
+The automatic baseline cell from step 3 is what makes this a **regression
+gate**, not just a comparison: every run already scores your candidate
+version *and* whatever the baseline alias currently serves (`production` by
+default), side by side, on the same dataset. Read the report before
+promoting a version, not after:
 
 - Candidate clearly beats baseline → promote it, per
   [Version a prompt](./version-a-prompt).

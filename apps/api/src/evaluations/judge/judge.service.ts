@@ -4,6 +4,7 @@ import { GatewayService } from '../../gateway/completions/gateway.service';
 import { GatewayRepository } from '../../gateway/completions/gateway.repository';
 import { ConnectionsRepository } from '../../gateway/connections/connections.repository';
 import type { GatewayCallContext } from '../../gateway/completions/completions.types';
+import type { ChatMessage } from '../../gateway/providers/types';
 import { compileEvaluatePrompt } from './judge.prompt';
 import { parseVerdict } from './judge.parse';
 
@@ -49,12 +50,13 @@ export class JudgeService {
    * @param teamId - Isolation boundary; the result must belong to this team.
    * @param resultId - The `eval_result` row to score.
    * @param frozen - The grading inputs FROZEN at run-start (per-example
-   *   `criteria` + dataset-level `overallFeedback`), threaded from the run
-   *   snapshot via the judge job. When provided, the judge grades against
-   *   these — so editing the dataset after (or during) a run cannot change
-   *   what a result was scored against (FAQ Q5 reproducibility). Omitted only
-   *   by legacy callers / pre-existing jobs, which fall back to reading the
-   *   result's live `criteria`/`overallFeedback`.
+   *   `criteria` + dataset-level `overallFeedback`, plus the example's
+   *   `history` — FAQ Q19), threaded from the run snapshot via the judge job.
+   *   When provided, the judge grades against these — so editing the dataset
+   *   after (or during) a run cannot change what a result was scored against
+   *   (FAQ Q5 reproducibility). Omitted only by legacy callers / pre-existing
+   *   jobs, which fall back to reading the result's live
+   *   `criteria`/`overallFeedback`/`history`.
    * @returns Nothing. The verdict (or the unscored placeholder) is persisted
    *   as a side effect via `RunsRepository.writeVerdict`.
    * @throws {NotFoundError} Never thrown directly — a missing/cross-team
@@ -70,7 +72,7 @@ export class JudgeService {
   async scoreResult(
     teamId: string,
     resultId: string,
-    frozen?: { criteria: string | null; overallFeedback: string | null },
+    frozen?: { criteria: string | null; overallFeedback: string | null; history?: ChatMessage[] | null },
   ): Promise<void> {
     const result = await runsRepo.getResultById(teamId, resultId);
     if (!result) {
@@ -81,6 +83,7 @@ export class JudgeService {
     // values only for legacy callers/jobs that don't carry them (see @param).
     const criteria = frozen ? frozen.criteria : result.example.criteria;
     const overallFeedback = frozen ? frozen.overallFeedback : result.example.dataset.overallFeedback;
+    const history = frozen ? frozen.history ?? null : (result.example.history as unknown as ChatMessage[] | null);
     if (criteria === null && overallFeedback === null) {
       // Nothing to grade against. Still write a marker (score/passed stay
       // null; only `reason` is set) so finalize.processor's readiness check
@@ -95,7 +98,7 @@ export class JudgeService {
       return;
     }
 
-    const messages = compileEvaluatePrompt({ output: result.output, criteria, overallFeedback });
+    const messages = compileEvaluatePrompt({ output: result.output, criteria, overallFeedback, history });
 
     const attempt = async (): Promise<{ verdict: ReturnType<typeof parseVerdict>; traceId: string }> => {
       // Minted up front, same reasoning as cell.processor.ts: GatewayResult

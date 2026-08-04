@@ -12,11 +12,20 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+## 0.6.7 — 2026-08-04
+
 ### Added
 
 - **`tags` and `metadata` in trace options.** `chat()` and `run_tool_loop()` now
   forward `tags` and `metadata` from the trace options as `x-trace-tags` /
   `x-trace-metadata` gateway headers.
+
+### Changed
+
+- **The PyPI project page links the source repo again.** `pyproject.toml`'s
+  `[project.urls]` gains `Repository`, pointing at
+  [github.com/AcruxCore/AcruxCore](https://github.com/AcruxCore/AcruxCore) now
+  that the repo is public.
 
 ## 0.6.6 — 2026-08-01
 

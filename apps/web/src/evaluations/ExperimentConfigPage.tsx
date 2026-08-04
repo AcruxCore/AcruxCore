@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ApiError,
+  useAliases,
   useCreateExperiment,
   useDataset,
   useModels,
@@ -9,6 +10,7 @@ import {
   useStartRun,
   useVersions,
 } from '@/api';
+import type { Experiment } from '@/api';
 import { Button, Empty, Field, Input, PageSpinner, Select } from '@/ui';
 
 /** Toggles membership of `id` in a `Set`, returning a new set (never mutates in place). */
@@ -37,10 +39,16 @@ export function ExperimentConfigPage() {
   const [versionIds, setVersionIds] = useState<Set<string>>(new Set());
   const [models, setModels] = useState<Set<string>>(new Set());
   const [name, setName] = useState('');
+  const [alias, setAlias] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [mismatchWarning, setMismatchWarning] = useState<{
+    runId: string;
+    warning: NonNullable<Experiment['promptMismatchWarning']>;
+  } | null>(null);
 
   const prompts = usePrompts({ search: promptSearch || undefined });
   const versions = useVersions(promptId);
+  const aliases = useAliases(promptId);
   const gatewayModels = useModels();
 
   const createExperiment = useCreateExperiment();
@@ -50,6 +58,8 @@ export function ExperimentConfigPage() {
   function selectPrompt(next: string) {
     setPromptId(next);
     setVersionIds(new Set());
+    setAlias('');
+    setMismatchWarning(null);
   }
 
   async function handleSubmit() {
@@ -74,8 +84,17 @@ export function ExperimentConfigPage() {
         name: name.trim() || undefined,
         version_ids: [...versionIds],
         models: [...models],
+        ...(alias ? { alias } : {}),
       });
       const { run_id } = await startRun.mutateAsync(experiment.id);
+      if (experiment.promptMismatchWarning) {
+        // Informational only (design "Prompt-mismatch warning") — the run
+        // has already started; show the warning (with a link to the run
+        // that's already in flight) instead of navigating away or letting
+        // the button re-arm into a duplicate paid run.
+        setMismatchWarning({ runId: run_id, warning: experiment.promptMismatchWarning });
+        return;
+      }
       navigate(`/evaluations/runs/${run_id}`);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not start the run.');
@@ -134,7 +153,7 @@ export function ExperimentConfigPage() {
         </Field>
 
         {promptId && (
-          <Field label="Versions" hint="At least one. The run adds an automatic production baseline for comparison.">
+          <Field label="Versions" hint="At least one. The run adds an automatic baseline for comparison (see Baseline alias below).">
             {versions.isLoading ? (
               <PageSpinner />
             ) : versions.isError ? (
@@ -162,6 +181,23 @@ export function ExperimentConfigPage() {
                 ))}
               </ul>
             )}
+          </Field>
+        )}
+
+        {promptId && (
+          <Field label="Baseline alias" htmlFor="experiment-alias" hint="Which version the automatic baseline cell compares against. Leave unset to use production, falling back to the latest committed version if there's no production alias yet.">
+            <Select
+              aria-label="Baseline alias"
+              id="experiment-alias"
+              value={alias}
+              onChange={(e) => setAlias(e.target.value)}
+              disabled={aliases.isLoading}
+            >
+              <option value="">Use production (or latest)</option>
+              {(aliases.data ?? []).map((a) => (
+                <option key={a.id} value={a.alias}>{a.alias} (v{a.versionNumber})</option>
+              ))}
+            </Select>
           </Field>
         )}
 
@@ -193,11 +229,27 @@ export function ExperimentConfigPage() {
           )}
         </Field>
 
+        {mismatchWarning && (
+          <p className="text-[13px] text-warn">
+            Heads up: this dataset's examples came from{' '}
+            {mismatchWarning.warning.mismatchedPrompts.map((p) => `"${p.name}" (${p.exampleCount})`).join(', ')}, not
+            the prompt you picked. The run has started anyway —{' '}
+            <Link to={`/evaluations/runs/${mismatchWarning.runId}`} className="underline">
+              open it
+            </Link>
+            .
+          </p>
+        )}
+
         {error && <p className="text-[13px] text-danger">{error}</p>}
 
         <div>
-          <Button variant="primary" disabled={submitting} onClick={handleSubmit}>
-            {submitting ? 'Starting…' : 'Start run'}
+          <Button
+            variant="primary"
+            disabled={submitting}
+            onClick={mismatchWarning ? () => navigate(`/evaluations/runs/${mismatchWarning.runId}`) : handleSubmit}
+          >
+            {submitting ? 'Starting…' : mismatchWarning ? 'Open run' : 'Start run'}
           </Button>
         </div>
       </div>

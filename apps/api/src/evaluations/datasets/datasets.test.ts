@@ -1,4 +1,5 @@
 import request from 'supertest';
+import { randomUUID } from 'node:crypto';
 import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
 import { authedAgent } from '../../test-utils';
@@ -98,6 +99,314 @@ describe('POST /api/v1/datasets/from-feedback', () => {
     expect(example!.input).toEqual({ name: 'Al' });
     expect(example!.criteria).toBe('Use third person, do not say I');
     expect(example!.sourcePromptVersionId).not.toBeNull();
+  });
+
+  it('captures prior-turn history (incl. a tool round trip) when the feedback trace belongs to a session', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+    const turn2TraceId = randomUUID();
+
+    const prompt = (await agent.post('/api/v1/prompts').send({ name: 'support-followup' }).expect(201)).body;
+    await agent
+      .post(`/api/v1/prompts/${prompt.id}/versions`)
+      .send({ messages: [{ role: 'user', content: '{{ message }}' }] })
+      .expect(201);
+    await agent.post(`/api/v1/prompts/${prompt.id}/aliases/production/promote`).send({ version_number: 1 }).expect(200);
+
+    // Turn 1 — plain exchange, tags the session.
+    mockFetchOnce({
+      ...CANNED_OPENAI,
+      choices: [{ index: 0, message: { role: 'assistant', content: 'Sure, what is your order number?' }, finish_reason: 'stop' }],
+    });
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .set('x-capture-payloads', 'true')
+      .set('x-session-id', 'sess-1')
+      .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'My order is late' }] })
+      .expect(200);
+
+    // Turn 2 — a tool round trip within one trace (shared x-trace-id).
+    mockFetchOnce({
+      ...CANNED_OPENAI,
+      choices: [{
+        index: 0,
+        message: {
+          role: 'assistant', content: null,
+          tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'lookup_order', arguments: '{"orderId":"123"}' } }],
+        },
+        finish_reason: 'tool_calls',
+      }],
+    });
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .set('x-capture-payloads', 'true')
+      .set('x-session-id', 'sess-1')
+      .set('x-trace-id', turn2TraceId)
+      .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'Order 123' }] })
+      .expect(200);
+
+    mockFetchOnce({
+      ...CANNED_OPENAI,
+      choices: [{ index: 0, message: { role: 'assistant', content: 'Order 123 ships tomorrow.' }, finish_reason: 'stop' }],
+    });
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .set('x-capture-payloads', 'true')
+      .set('x-session-id', 'sess-1')
+      .set('x-trace-id', turn2TraceId)
+      .send({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'user', content: 'Order 123' },
+          // The client echoes back exactly what the first call returned — the
+          // OpenAI adapter normalizes a null content to '' (openai.adapter.ts:146),
+          // so a real follow-up call carries '', not null, at this position.
+          {
+            role: 'assistant', content: '',
+            tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'lookup_order', arguments: '{"orderId":"123"}' } }],
+          },
+          { role: 'tool', tool_call_id: 'call_1', content: '{"eta":"tomorrow"}' },
+        ],
+      })
+      .expect(200);
+
+    // Turn 3 — the flagged turn. Routed through a stored prompt (like the
+    // other tests in this file) so `findSourceSpanPayload` has a
+    // `promptVersionId`'d span to resolve — unrelated to history reconstruction,
+    // which reads turns 1-2 straight off their raw span payloads regardless.
+    mockFetchOnce({
+      ...CANNED_OPENAI,
+      choices: [{ index: 0, message: { role: 'assistant', content: 'Anything else?' }, finish_reason: 'stop' }],
+    });
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .set('x-capture-payloads', 'true')
+      .set('x-session-id', 'sess-1')
+      .send({ model: 'gpt-4o-mini', prompt: { name: 'support-followup', alias: 'production', variables: { message: 'No wrong tone, too curt' } } })
+      .expect(200);
+
+    const flaggedTrace = await prisma.trace.findFirst({ where: { teamId, sessionId: 'sess-1' }, orderBy: { startedAt: 'desc' } });
+    const fb = (
+      await agent
+        .post(`/api/v1/traces/${flaggedTrace!.id}/feedback`)
+        .send({ rating: -1, comment: 'Too curt' })
+        .expect(201)
+    ).body;
+
+    const res = await agent
+      .post('/api/v1/datasets/from-feedback')
+      .send({ name: 'session-history', feedback_ids: [fb.id] })
+      .expect(201);
+
+    const dataset = await agent.get(`/api/v1/datasets/${res.body.id}`).expect(200);
+    const example = dataset.body.examples[0];
+    expect(example.history).toEqual([
+      { role: 'user', content: 'My order is late' },
+      { role: 'assistant', content: 'Sure, what is your order number?' },
+      { role: 'user', content: 'Order 123' },
+      {
+        role: 'assistant', content: '',
+        tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'lookup_order', arguments: '{"orderId":"123"}' } }],
+      },
+      { role: 'tool', tool_call_id: 'call_1', content: '{"eta":"tomorrow"}' },
+      { role: 'assistant', content: 'Order 123 ships tomorrow.' },
+    ]);
+  });
+
+  it('leaves history null when the feedback trace has no session', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    const prompt = (await agent.post('/api/v1/prompts').send({ name: 'no-session-prompt' }).expect(201)).body;
+    await agent
+      .post(`/api/v1/prompts/${prompt.id}/versions`)
+      .send({ messages: [{ role: 'user', content: 'Say hi to {{ name }}' }] })
+      .expect(201);
+    await agent.post(`/api/v1/prompts/${prompt.id}/aliases/production/promote`).send({ version_number: 1 }).expect(200);
+
+    mockFetchOnce(CANNED_OPENAI);
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .set('x-capture-payloads', 'true')
+      .send({ model: 'gpt-4o-mini', prompt: { name: 'no-session-prompt', alias: 'production', variables: { name: 'Al' } } })
+      .expect(200);
+
+    const trace = await prisma.trace.findFirst({ where: { teamId } });
+    const fb = (
+      await agent.post(`/api/v1/traces/${trace!.id}/feedback`).send({ rating: -1, comment: 'meh' }).expect(201)
+    ).body;
+
+    const res = await agent
+      .post('/api/v1/datasets/from-feedback')
+      .send({ name: 'no-session', feedback_ids: [fb.id] })
+      .expect(201);
+
+    const dataset = await agent.get(`/api/v1/datasets/${res.body.id}`).expect(200);
+    expect(dataset.body.examples[0].history).toBeNull();
+  });
+
+  // Both published SDKs report an llm span as `input: {messages}` + `output:
+  // <bare message>`, which is not the shape the gateway hook writes. Reading
+  // only the gateway shape threw inside the reconstruction and 500'd the whole
+  // request, so no dataset was created at all.
+  it('reconstructs history from an SDK-reported prior turn, not only gateway-written spans', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    // Exactly what `@acruxcoreai/sdk`'s and `acruxcore`'s auto-trace posts.
+    await agent
+      .post('/api/v1/traces')
+      .send({
+        traces: [
+          {
+            name: 'chat',
+            sessionId: 'sess-sdk',
+            capturePayloads: true,
+            spans: [
+              {
+                spanId: 's1',
+                name: 'gpt-4o-mini',
+                kind: 'llm',
+                status: 'ok',
+                startTime: '2026-08-01T10:00:00Z',
+                endTime: '2026-08-01T10:00:01Z',
+                model: 'gpt-4o-mini',
+                provider: 'openai',
+                input: { messages: [{ role: 'user', content: 'My order is late' }] },
+                output: { role: 'assistant', content: 'What is your order number?' },
+              },
+            ],
+          },
+        ],
+      })
+      .expect(200);
+
+    const prompt = (await agent.post('/api/v1/prompts').send({ name: 'sdk-followup' }).expect(201)).body;
+    await agent
+      .post(`/api/v1/prompts/${prompt.id}/versions`)
+      .send({ messages: [{ role: 'user', content: '{{ message }}' }] })
+      .expect(201);
+    await agent.post(`/api/v1/prompts/${prompt.id}/aliases/production/promote`).send({ version_number: 1 }).expect(200);
+
+    mockFetchOnce(CANNED_OPENAI);
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .set('x-capture-payloads', 'true')
+      .set('x-session-id', 'sess-sdk')
+      .send({ model: 'gpt-4o-mini', prompt: { name: 'sdk-followup', alias: 'production', variables: { message: 'Order 123' } } })
+      .expect(200);
+
+    const flagged = await prisma.trace.findFirst({
+      where: { teamId, sessionId: 'sess-sdk' },
+      orderBy: { startedAt: 'desc' },
+    });
+    const fb = (
+      await agent.post(`/api/v1/traces/${flagged!.id}/feedback`).send({ rating: -1, comment: 'too curt' }).expect(201)
+    ).body;
+
+    const res = await agent
+      .post('/api/v1/datasets/from-feedback')
+      .send({ name: 'sdk-shaped-history', feedback_ids: [fb.id] })
+      .expect(201);
+
+    const dataset = await agent.get(`/api/v1/datasets/${res.body.id}`).expect(200);
+    expect(dataset.body.examples[0].history).toEqual([
+      { role: 'user', content: 'My order is late' },
+      { role: 'assistant', content: 'What is your order number?' },
+    ]);
+  });
+
+  // A gateway-path `chat({ trace: { sessionId } })` call produces TWO llm spans
+  // for one turn: the gateway's own, plus the SDK's self-report. The turn must
+  // appear once in the reconstructed history, not twice.
+  it('does not duplicate a turn that both the gateway and the SDK reported', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    const priorTraceId = randomUUID();
+    mockFetchOnce({
+      ...CANNED_OPENAI,
+      choices: [{ index: 0, message: { role: 'assistant', content: 'What is your order number?' }, finish_reason: 'stop' }],
+    });
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .set('x-capture-payloads', 'true')
+      .set('x-session-id', 'sess-dup')
+      .set('x-trace-id', priorTraceId)
+      .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'My order is late' }] })
+      .expect(200);
+
+    // The SDK's own report of that same exchange, into the same trace.
+    await agent
+      .post('/api/v1/traces')
+      .send({
+        traces: [
+          {
+            traceId: priorTraceId,
+            capturePayloads: true,
+            spans: [
+              {
+                spanId: 'sdk-self-report',
+                name: 'gpt-4o-mini',
+                kind: 'llm',
+                status: 'ok',
+                startTime: '2026-08-01T10:00:00Z',
+                endTime: '2026-08-01T10:00:01Z',
+                input: { messages: [{ role: 'user', content: 'My order is late' }] },
+                output: { role: 'assistant', content: 'What is your order number?' },
+              },
+            ],
+          },
+        ],
+      })
+      .expect(200);
+
+    const prompt = (await agent.post('/api/v1/prompts').send({ name: 'dup-followup' }).expect(201)).body;
+    await agent
+      .post(`/api/v1/prompts/${prompt.id}/versions`)
+      .send({ messages: [{ role: 'user', content: '{{ message }}' }] })
+      .expect(201);
+    await agent.post(`/api/v1/prompts/${prompt.id}/aliases/production/promote`).send({ version_number: 1 }).expect(200);
+
+    mockFetchOnce(CANNED_OPENAI);
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .set('x-capture-payloads', 'true')
+      .set('x-session-id', 'sess-dup')
+      .send({ model: 'gpt-4o-mini', prompt: { name: 'dup-followup', alias: 'production', variables: { message: 'Order 123' } } })
+      .expect(200);
+
+    const flagged = await prisma.trace.findFirst({
+      where: { teamId, sessionId: 'sess-dup', id: { not: priorTraceId } },
+      orderBy: { startedAt: 'desc' },
+    });
+    const fb = (
+      await agent.post(`/api/v1/traces/${flagged!.id}/feedback`).send({ rating: -1, comment: 'too curt' }).expect(201)
+    ).body;
+
+    const res = await agent
+      .post('/api/v1/datasets/from-feedback')
+      .send({ name: 'dup-history', feedback_ids: [fb.id] })
+      .expect(201);
+
+    const dataset = await agent.get(`/api/v1/datasets/${res.body.id}`).expect(200);
+    expect(dataset.body.examples[0].history).toEqual([
+      { role: 'user', content: 'My order is late' },
+      { role: 'assistant', content: 'What is your order number?' },
+    ]);
+  });
+
+  it('rejects a request drawing on more feedback rows than one build allows', async () => {
+    const { agent } = await authedAgent(app);
+    const tooMany = Array.from({ length: 101 }, () => randomUUID());
+    await agent
+      .post('/api/v1/datasets/from-feedback')
+      .send({ name: 'too-many', feedback_ids: tooMany })
+      .expect(400);
   });
 
   it('dedupes repeated feedback ids: the same id twice yields one example, not two', async () => {
@@ -351,6 +660,50 @@ describe('dataset CRUD', () => {
 
     const afterDelete = (await agent.get(`/api/v1/datasets/${created.id}`).expect(200)).body;
     expect(afterDelete.exampleCount).toBe(0);
+  });
+
+  it('accepts an optional history array on a manually-added example', async () => {
+    const { agent } = await authedAgent(app);
+    const dataset = (await agent.post('/api/v1/datasets').send({ name: 'manual-history' }).expect(201)).body;
+
+    const res = await agent
+      .post(`/api/v1/datasets/${dataset.id}/examples`)
+      .send({
+        input: { name: 'Al' },
+        criteria: 'be concise',
+        history: [
+          { role: 'user', content: 'turn 1' },
+          { role: 'assistant', content: 'reply 1' },
+        ],
+      })
+      .expect(201);
+
+    expect(res.body.history).toEqual([
+      { role: 'user', content: 'turn 1' },
+      { role: 'assistant', content: 'reply 1' },
+    ]);
+  });
+
+  it('rejects a history array with more messages than the cap allows', async () => {
+    const { agent } = await authedAgent(app);
+    const dataset = (await agent.post('/api/v1/datasets').send({ name: 'manual-too-many' }).expect(201)).body;
+
+    const tooMany = Array.from({ length: 21 }, (_, i) => ({ role: 'user', content: `m${i}` }));
+    await agent
+      .post(`/api/v1/datasets/${dataset.id}/examples`)
+      .send({ input: {}, history: tooMany })
+      .expect(400);
+  });
+
+  it('rejects a history array whose serialized size exceeds the cap', async () => {
+    const { agent } = await authedAgent(app);
+    const dataset = (await agent.post('/api/v1/datasets').send({ name: 'manual-oversized-history' }).expect(201)).body;
+
+    const hugeContent = 'x'.repeat(40000);
+    await agent
+      .post(`/api/v1/datasets/${dataset.id}/examples`)
+      .send({ input: {}, history: [{ role: 'user', content: hugeContent }] })
+      .expect(400);
   });
 
   it('rejects an oversized example input with a clear validation error (Finding #24)', async () => {

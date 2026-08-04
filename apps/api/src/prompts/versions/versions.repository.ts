@@ -74,6 +74,22 @@ export class VersionsRepository {
   }
 
   /**
+   * Fetches the most recently committed version for a prompt, team-scoped —
+   * the fallback baseline when no alias is specified (design
+   * "Alias-based baseline"). Independent of any alias.
+   *
+   * @param promptId - UUID of the parent prompt.
+   * @param teamId - The calling team's UUID (isolation boundary).
+   * @returns The highest-`versionNumber` row, or null if the prompt has no committed versions.
+   */
+  async findLatestForPrompt(promptId: string, teamId: string): Promise<PromptVersionRow | null> {
+    return prisma.promptVersion.findFirst({
+      where: { promptId, prompt: { teamId } },
+      orderBy: { versionNumber: 'desc' },
+    });
+  }
+
+  /**
    * Fetches a version by its (prompt_id, version_number) composite lookup.
    * Returns null if the version does not exist for this prompt.
    *

@@ -96,4 +96,22 @@ describe('compileEvaluatePrompt', () => {
     expect(userContent).toContain('[ESCAPED:OVERALL_FEEDBACK_END]');
     expect(userContent).toContain('[ESCAPED:OUTPUT_START]');
   });
+
+  it('is byte-for-byte identical to the no-history call when history is omitted', () => {
+    const withoutHistoryParam = compileEvaluatePrompt({ output: 'hi', criteria: 'be nice', overallFeedback: null });
+    const withUndefinedHistory = compileEvaluatePrompt({ output: 'hi', criteria: 'be nice', overallFeedback: null, history: undefined });
+    expect(withUndefinedHistory).toEqual(withoutHistoryParam);
+  });
+
+  it('includes a Conversation so far block when history is present', () => {
+    const messages = compileEvaluatePrompt({
+      output: 'Order 123 ships tomorrow.',
+      criteria: 'acknowledge the order number',
+      overallFeedback: null,
+      history: [{ role: 'user', content: 'My order 123 is late' }],
+    });
+    const userMessage = messages.find((m) => m.role === 'user')!;
+    expect(userMessage.content).toContain('Conversation so far');
+    expect(userMessage.content).toContain('My order 123 is late');
+  });
 });

@@ -27,8 +27,10 @@ import { neutralizeDelimiterMarkers } from '../../shared/security';
  *   - `productionMessages`: The current production prompt template (will be
  *     stringified if not already a string).
  *   - `cases`: The failing test cases — each with its `input`, per-case
- *     `criteria` (null if not supplied), and optional `priorOutput` (the
- *     output the production prompt produced for this case, if known).
+ *     `criteria` (null if not supplied), optional `priorOutput` (the
+ *     output the production prompt produced for this case, if known), and
+ *     optional `history` (the conversation leading up to this case, when the
+ *     source trace belonged to a session — FAQ Q19).
  *   - `overallFeedback`: Dataset-level feedback directive (null if not
  *     supplied).
  *   - `draftCount`: Maximum number of candidate rewrites to request.
@@ -36,7 +38,7 @@ import { neutralizeDelimiterMarkers } from '../../shared/security';
  */
 export function compileOptimizePrompt(input: {
   productionMessages: unknown;
-  cases: Array<{ input: unknown; criteria: string | null; priorOutput?: unknown }>;
+  cases: Array<{ input: unknown; criteria: string | null; priorOutput?: unknown; history?: ChatMessage[] | null }>;
   overallFeedback: string | null;
   draftCount: number;
 }): ChatMessage[] {
@@ -67,7 +69,14 @@ export function compileOptimizePrompt(input: {
             ? c.priorOutput
             : JSON.stringify(c.priorOutput),
       );
-      return `Case ${idx + 1}:
+      const historyBlock =
+        c.history && c.history.length > 0
+          ? `\nConversation history leading up to this case:
+<<<CASE_HISTORY_START>>>
+${neutralizeDelimiterMarkers(JSON.stringify(c.history))}
+<<<CASE_HISTORY_END>>>`
+          : '';
+      return `Case ${idx + 1}:${historyBlock}
 Input:
 <<<CASE_INPUT_START>>>
 ${inputStr}

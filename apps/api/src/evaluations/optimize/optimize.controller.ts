@@ -24,7 +24,21 @@ export class OptimizeController {
 
       const userId = req.user?.id ?? null;
       const result = await this.service.startOptimize(req.teamId!, userId, req.params.promptId, parsed.data);
-      res.status(202).json({ run_id: result.runId, status: result.status });
+      res.status(202).json({
+        run_id: result.runId,
+        status: result.status,
+        ...(result.promptMismatchWarning
+          ? {
+              prompt_mismatch_warning: {
+                mismatched_prompts: result.promptMismatchWarning.mismatchedPrompts.map((p) => ({
+                  prompt_id: p.promptId,
+                  name: p.name,
+                  example_count: p.exampleCount,
+                })),
+              },
+            }
+          : {}),
+      });
     } catch (err) {
       next(err);
     }

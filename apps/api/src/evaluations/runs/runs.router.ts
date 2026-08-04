@@ -3,10 +3,10 @@ import { ExperimentsRepository } from '../experiments/experiments.repository';
 import { DatasetsRepository } from '../datasets/datasets.repository';
 import { RunsRepository } from './runs.repository';
 import { PromptsRepository } from '../../prompts/prompts.repository';
-import { AliasesRepository } from '../../prompts/aliases/aliases.repository';
 import { AliasesService } from '../../prompts/aliases/aliases.service';
 import { VersionsRepository } from '../../prompts/versions/versions.repository';
 import { VersionsService } from '../../prompts/versions/versions.service';
+import { MembersRepository } from '../../teams/members/members.repository';
 import { OptimizeRepository, OptimizeService, OptimizeController } from '../optimize';
 import { RunsService } from './runs.service';
 import { RunsController } from './runs.controller';
@@ -17,8 +17,9 @@ const service = new RunsService(
   new DatasetsRepository(),
   new RunsRepository(),
   new PromptsRepository(),
-  new AliasesRepository(),
+  new AliasesService(),
   new VersionsRepository(),
+  new MembersRepository(),
 );
 const controller = new RunsController(service);
 
@@ -52,6 +53,9 @@ const promoteController = new OptimizeController(promoteService);
 export const runsRouter: IRouter = Router();
 
 runsRouter.post('/experiments/:id/runs', requireAnyAuth, controller.startRun);
+// The run-history list. Registered before `/runs/:id` for readability only —
+// the two paths differ in segment count, so Express never confuses them.
+runsRouter.get('/runs', requireAnyAuth, controller.list);
 runsRouter.get('/runs/:id', requireAnyAuth, controller.getRun);
 runsRouter.get('/runs/:id/report', requireAnyAuth, controller.getReport);
 runsRouter.get('/runs/:id/cells/:cellKey', requireAnyAuth, controller.getCell);

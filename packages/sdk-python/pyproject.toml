@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "acruxcore"
-version = "0.6.6"
+version = "0.6.7"
 description = "Async Python SDK for Acrux Core — runtime prompt render, gateway chat, tool loops, traces, and feedback"
 readme = "README.md"
 license = { text = "MIT" }
@@ -48,10 +48,9 @@ dev = [
 ]
 
 [project.urls]
-# The source repo is private, so the public-facing links point at the docs site
-# rather than a GitHub URL that 404s for anyone reading the PyPI page.
 Homepage = "https://acruxcore.com"
 Documentation = "https://docs.acruxcore.com"
+Repository = "https://github.com/AcruxCore/AcruxCore"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/acruxcore"]

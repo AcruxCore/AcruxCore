@@ -92,6 +92,13 @@ export interface JudgeJobData {
    */
   criteria?: string | null;
   /**
+   * The example's frozen `history` (FAQ Q19), forwarded here by
+   * `cell.processor` so the judge can grade with the same conversational
+   * context the model under test saw. Undefined on jobs enqueued before this
+   * field shipped.
+   */
+  history?: import('../../gateway/providers/types').ChatMessage[] | null;
+  /**
    * The dataset-level `overallFeedback`, FROZEN at run-start and forwarded here
    * by `cell.processor` (same reasoning as {@link JudgeJobData.criteria}).
    * Undefined on pre-existing jobs → judge falls back to a live read.
@@ -122,6 +129,11 @@ export interface OptimizeJobData {
   datasetId: string;
   /** Models to run each candidate + the production baseline against. */
   models: string[];
+  /**
+   * Alias whose version is the comparison baseline, or undefined to use the
+   * prompt's latest committed version (design "Alias-based baseline").
+   */
+  alias?: string;
   /** Max number of candidate rewrites to request/keep. */
   draftCount: number;
 }

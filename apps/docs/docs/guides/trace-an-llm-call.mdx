@@ -89,6 +89,47 @@ console.log('reported trace', traceId);
 ```
 
 </TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+result = await hub.trace({
+    "name": "support-answer",
+    "tags": ["support"],
+    "spans": [
+        {
+            "spanId": "retrieve",
+            "name": "search_docs",
+            "kind": "retrieval",
+            "status": "ok",
+            "startTime": "2026-07-12T10:00:00.000Z",
+            "endTime": "2026-07-12T10:00:00.220Z",
+        },
+        {
+            "spanId": "answer",
+            "parentSpanId": "retrieve",
+            "name": "gpt-4o-mini",
+            "kind": "llm",
+            "model": "openai/gpt-4o-mini",
+            "provider": "openai_compatible",
+            "usage": {"promptTokens": 120, "completionTokens": 40, "totalTokens": 160},
+            "startTime": "2026-07-12T10:00:00.230Z",
+            "endTime": "2026-07-12T10:00:01.400Z",
+        },
+    ],
+})
+
+print("reported trace", result.trace_id)
+```
+
+`trace()` takes the same dict shape as the raw endpoint — its keys stay
+camelCase because they're sent to the API verbatim, unlike the rest of the
+Python client's snake_case options.
+
+</TabItem>
 <TabItem value="curl" label="curl">
 
 ```bash

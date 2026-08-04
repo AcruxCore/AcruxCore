@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { PromptMismatchWarning } from '../datasets/datasets.types';
 
 /** Per-dimension cap on `version_ids`/`models` — a fan-out safety net, see `MAX_EXPERIMENT_GRID_SIZE`. */
 export const MAX_EXPERIMENT_DIMENSION = 50;
@@ -26,6 +27,12 @@ export const CreateExperimentSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   version_ids: z.array(z.string().uuid()).min(1).max(MAX_EXPERIMENT_DIMENSION),
   models: z.array(z.string().min(1)).min(1).max(MAX_EXPERIMENT_DIMENSION),
+  // Which alias's version is the auto-injected baseline cell (design
+  // "Alias-based baseline"). Omitted -> resolveGrid uses the prompt's
+  // 'production' alias, falling back to its latest committed version if it
+  // has no 'production' alias. No effect when `prompt_id` is omitted (no
+  // baseline is ever injected in that case).
+  alias: z.string().min(1).optional(),
 });
 
 /** Validated create-experiment payload. */
@@ -35,6 +42,7 @@ export type CreateExperimentDto = z.infer<typeof CreateExperimentSchema>;
 export interface ExperimentConfig {
   versionIds: string[];
   models: string[];
+  alias?: string;
 }
 
 /** Response DTO for an experiment run (summary — no results list). */
@@ -62,4 +70,9 @@ export interface ExperimentDto {
   createdBy: string | null;
   createdAt: string;
   runs: ExperimentRunDto[];
+}
+
+/** `ExperimentDto` plus the create-time-only prompt-mismatch check (design "Prompt-mismatch warning"). */
+export interface CreateExperimentResult extends ExperimentDto {
+  promptMismatchWarning?: PromptMismatchWarning;
 }

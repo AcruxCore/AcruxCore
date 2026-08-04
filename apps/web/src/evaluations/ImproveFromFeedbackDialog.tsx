@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ApiError, useCreateDatasetFromFeedback, useModels, usePrompts, useOptimize } from '@/api';
+import { Link, useNavigate } from 'react-router-dom';
+import { ApiError, useAliases, useCreateDatasetFromFeedback, useModels, usePrompts, useOptimize } from '@/api';
+import type { StartRunResponse } from '@/api';
 import { Button, Dialog, DialogFooter, Field, Input, Select, Textarea } from '@/ui';
 
 export interface ImproveFromFeedbackDialogProps {
@@ -31,25 +32,30 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
   const createDataset = useCreateDatasetFromFeedback();
   const [promptSearch, setPromptSearch] = useState('');
   const [promptId, setPromptId] = useState('');
+  const [alias, setAlias] = useState('');
   const [models, setModels] = useState<Set<string>>(new Set());
   const [name, setName] = useState('');
   const [overallFeedback, setOverallFeedback] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [mismatchWarning, setMismatchWarning] = useState<{ runId: string; warning: NonNullable<StartRunResponse['prompt_mismatch_warning']> } | null>(null);
 
   const prompts = usePrompts({ search: promptSearch || undefined });
   const gatewayModels = useModels();
   const optimize = useOptimize(promptId || 'unset');
+  const aliases = useAliases(promptId);
 
   useEffect(() => {
     if (open) {
       setPromptSearch('');
       setPromptId('');
+      setAlias('');
       setModels(new Set());
       setName('');
       setOverallFeedback('');
       setError(null);
       setSubmitting(false);
+      setMismatchWarning(null);
     }
   }, [open]);
 
@@ -84,13 +90,23 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
         overall_feedback: overallFeedback.trim() || undefined,
         feedback_ids: feedbackIds,
       });
-      const { run_id } = await optimize.mutateAsync({
+      const result = await optimize.mutateAsync({
         dataset_id: dataset.id,
         models: [...models],
+        ...(alias ? { alias } : {}),
       });
       onStarted?.();
+      if (result.prompt_mismatch_warning) {
+        // Surface the warning instead of navigating away immediately — the
+        // run has already started; this only tells the user their dataset's
+        // examples came from a different prompt (design "Prompt-mismatch
+        // warning" — informational, never blocking).
+        setMismatchWarning({ runId: result.run_id, warning: result.prompt_mismatch_warning });
+        setSubmitting(false);
+        return;
+      }
       onOpenChange(false);
-      navigate(`/evaluations/runs/${run_id}`);
+      navigate(`/evaluations/runs/${result.run_id}`);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not start the optimize run.');
       setSubmitting(false);
@@ -125,7 +141,7 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
           />
         </Field>
 
-        <Field label="Prompt to improve" htmlFor="improve-prompt-search" hint="Which prompt's production version the optimizer should rewrite.">
+        <Field label="Prompt to improve" htmlFor="improve-prompt-search" hint="Which prompt's version the optimizer should rewrite.">
           <div className="flex flex-col gap-2">
             <Input
               id="improve-prompt-search"
@@ -147,7 +163,24 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
           </div>
         </Field>
 
-        <Field label="Models" hint="At least one — candidates (plus the production baseline) are run against every selected model.">
+        {promptId && (
+          <Field label="Baseline alias" htmlFor="improve-alias" hint="Which version to compare candidates against. Leave unset to use production, falling back to the latest committed version if there's no production alias yet.">
+            <Select
+              aria-label="Baseline alias"
+              id="improve-alias"
+              value={alias}
+              onChange={(e) => setAlias(e.target.value)}
+              disabled={aliases.isLoading}
+            >
+              <option value="">Use production (or latest)</option>
+              {(aliases.data ?? []).map((a) => (
+                <option key={a.id} value={a.alias}>{a.alias} (v{a.versionNumber})</option>
+              ))}
+            </Select>
+          </Field>
+        )}
+
+        <Field label="Models" hint="At least one — candidates (plus the baseline) are run against every selected model.">
           {gatewayModels.isLoading ? (
             <p className="text-[13px] text-muted">Loading…</p>
           ) : (gatewayModels.data ?? []).length === 0 ? (
@@ -171,6 +204,18 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
             </ul>
           )}
         </Field>
+
+        {mismatchWarning && (
+          <p className="text-[13px] text-warn">
+            Heads up: this dataset's examples came from{' '}
+            {mismatchWarning.warning.mismatched_prompts.map((p) => `"${p.name}" (${p.example_count})`).join(', ')}, not the
+            prompt you picked. The run has started anyway —{' '}
+            <Link to={`/evaluations/runs/${mismatchWarning.runId}`} className="underline">
+              open it
+            </Link>{' '}
+            if this wasn't intentional.
+          </p>
+        )}
 
         {error && <p className="text-[13px] text-danger">{error}</p>}
       </div>

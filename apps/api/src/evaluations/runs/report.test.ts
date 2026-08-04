@@ -75,8 +75,10 @@ interface ScoredRunGridCell {
 /**
  * Arranges a full run through the real HTTP + processor path: a prompt with
  * v1 ("Say hi to {{ name }}") and v2 ("Say hello to {{ name }}") promoted to
- * `production`, an experiment naming only `v1` explicitly (so `resolveGrid`
- * adds `v2` back in as the `production`-baseline cell), one model, and a
+ * `production`, an experiment naming only `v1` explicitly and no `alias` (so
+ * `resolveGrid` resolves the baseline to the prompt's `production` alias —
+ * v2 here, since production was promoted to it above — and adds it back in,
+ * labeled `production`), one model, and a
  * dataset with 2 examples (each carrying `criteria` so the judge actually
  * scores them). Starts the run over HTTP (`POST /experiments/:id/runs`),
  * which snapshots the examples and freezes the grid, but does not itself
@@ -170,13 +172,16 @@ describe('GET /runs/:id/report', () => {
   it('returns the matrix with baseline, deltas, and winner', async () => {
     const { agent, teamId, runId, grid, exampleIds } = await arrangeRun();
     const v1Cell = grid.find((cell) => cell.variantLabel === 'v1')!;
-    const productionCell = grid.find((cell) => cell.variantLabel === 'production')!;
+    // No `alias` was requested, so the baseline resolves to the prompt's
+    // `production` alias (v2 here, since `arrangeRun` promotes production to
+    // v2), labeled `production` (design "Alias-based baseline", FAQ Q21).
+    const baselineCell = grid.find((cell) => cell.variantLabel === 'production')!;
 
     mockFetchOnce(CANNED_OPENAI);
-    // v1 first, then production, each x both examples -- the exact order
+    // v1 first, then the baseline, each x both examples -- the exact order
     // eval_results are produced in, so results[] below (ordered by
     // createdAt) lines up 1:1 with the queued judge verdicts below.
-    for (const cell of [v1Cell, productionCell]) {
+    for (const cell of [v1Cell, baselineCell]) {
       for (const exampleId of exampleIds) {
         await processCell({
           teamId,
@@ -230,7 +235,10 @@ describe('GET /runs/:id/report', () => {
     // cell (the guard sees it is already covered). The baseline must still be
     // recognized off the frozen grid flag — not reconstructed from a
     // `variantLabel === 'production'` string, which no cell carries here — or
-    // the whole regression view silently disappears.
+    // the whole regression view silently disappears. `alias: 'production'` is
+    // passed explicitly below (design "Alias-based baseline") to pin the
+    // baseline to v1 regardless of which version is latest, so the guard is
+    // exercised deterministically rather than depending on default resolution.
     const { agent, teamId } = await authedAgent(app);
     const credId = await createConnection(agent);
     await registerModel(agent, credId);
@@ -263,7 +271,13 @@ describe('GET /runs/:id/report', () => {
     const experiment = (
       await agent
         .post('/api/v1/experiments')
-        .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [v1.id, v2.id], models: ['gpt-4o-mini'] })
+        .send({
+          dataset_id: dataset.id,
+          prompt_id: prompt.id,
+          version_ids: [v1.id, v2.id],
+          models: ['gpt-4o-mini'],
+          alias: 'production',
+        })
         .expect(201)
     ).body;
 

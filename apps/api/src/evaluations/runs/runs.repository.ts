@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import prisma from '../../shared/db/client';
 import type { ReportGridCell, EvalResultRow } from './report.types';
+import type { RunListFilters, RunVariantAggregate } from './runs.types';
 
 /** An experiment run row including its produced results. */
 export type ExperimentRunWithResults = Prisma.ExperimentRunGetPayload<{ include: { results: true } }>;
@@ -44,6 +45,43 @@ interface RawGridCell {
 }
 
 /**
+ * One run of the history list as read from storage: the run row plus the names
+ * reached through its experiment, and the frozen grid/example count the DTO's
+ * "shape" fields are derived from. `exampleSnapshot` itself is never selected —
+ * a run's snapshot holds every example's full input (and prior-turn history),
+ * so the count comes from `jsonb_array_length` in SQL instead of loading it.
+ */
+export interface RunListRow {
+  id: string;
+  status: string;
+  experimentId: string;
+  experimentName: string | null;
+  datasetId: string;
+  datasetName: string;
+  promptId: string | null;
+  promptName: string | null;
+  grid: RawGridCell[];
+  exampleCount: number;
+  createdBy: string | null;
+  createdAt: Date;
+  startedAt: Date | null;
+  endedAt: Date | null;
+}
+
+/** One page of the run-history list plus the full filtered count. */
+export interface RunListPage {
+  runs: RunListRow[];
+  aggregates: RunVariantAggregate[];
+  total: number;
+}
+
+/** Raw shape of the `jsonb_array_length` example-count query. */
+interface ExampleCountRow {
+  runId: string;
+  exampleCount: number;
+}
+
+/**
  * Data access for the `experiment_runs` and `eval_results` tables. The only
  * files in this domain (alongside `experiments.repository.ts`) that touch
  * Prisma. `setRunStatus`, `writeResult`, and `writeResultError` are called
@@ -81,6 +119,142 @@ export class RunsRepository {
         createdBy: data.createdBy ?? null,
       },
     });
+  }
+
+  /**
+   * Lists a team's runs newest-first for the run-history screen (`GET /runs`),
+   * with the names reached through each run's experiment and the result
+   * aggregates behind its scores.
+   *
+   * Three queries, none of which grows with the team's history: the filtered
+   * count, the page of runs, and one grouped aggregate restricted to the
+   * page's run ids (plus a `jsonb_array_length` read for the frozen example
+   * counts, folded into the page query's ids as well). Aggregating only the
+   * page is what keeps this affordable — a team with 10k runs pays the same as
+   * a team with 20.
+   *
+   * @param teamId - Isolation boundary.
+   * @param filters - Optional `status`/`datasetId`/`promptId` narrowing, plus
+   *   the 1-based `page` and `limit` (already capped by the Zod schema).
+   * @returns The page's runs, the per-(run × variant) aggregates for them, and
+   *   the total number of runs matching the filters.
+   */
+  async listRuns(teamId: string, filters: RunListFilters): Promise<RunListPage> {
+    const where: Prisma.ExperimentRunWhereInput = {
+      teamId,
+      ...(filters.status ? { status: filters.status } : {}),
+      ...(filters.datasetId || filters.promptId
+        ? {
+            experiment: {
+              ...(filters.datasetId ? { datasetId: filters.datasetId } : {}),
+              ...(filters.promptId ? { promptId: filters.promptId } : {}),
+            },
+          }
+        : {}),
+    };
+
+    const [total, rows] = await Promise.all([
+      prisma.experimentRun.count({ where }),
+      prisma.experimentRun.findMany({
+        where,
+        select: {
+          id: true,
+          status: true,
+          experimentId: true,
+          grid: true,
+          createdBy: true,
+          createdAt: true,
+          startedAt: true,
+          endedAt: true,
+          experiment: {
+            select: {
+              name: true,
+              datasetId: true,
+              promptId: true,
+              dataset: { select: { name: true } },
+              prompt: { select: { name: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (filters.page - 1) * filters.limit,
+        take: filters.limit,
+      }),
+    ]);
+
+    if (rows.length === 0) return { runs: [], aggregates: [], total };
+
+    const runIds = rows.map((r) => r.id);
+    const [exampleCounts, aggregates] = await Promise.all([
+      this.exampleCountsForRuns(runIds),
+      this.variantAggregatesForRuns(teamId, runIds),
+    ]);
+    const countByRun = new Map(exampleCounts.map((c) => [c.runId, c.exampleCount]));
+
+    return {
+      runs: rows.map((r) => ({
+        id: r.id,
+        status: r.status,
+        experimentId: r.experimentId,
+        experimentName: r.experiment.name,
+        datasetId: r.experiment.datasetId,
+        datasetName: r.experiment.dataset.name,
+        promptId: r.experiment.promptId,
+        promptName: r.experiment.prompt?.name ?? null,
+        grid: r.grid as unknown as RawGridCell[],
+        exampleCount: countByRun.get(r.id) ?? 0,
+        createdBy: r.createdBy,
+        createdAt: r.createdAt,
+        startedAt: r.startedAt,
+        endedAt: r.endedAt,
+      })),
+      aggregates,
+      total,
+    };
+  }
+
+  /**
+   * Reads the frozen example count for each of the given runs without loading
+   * the snapshots themselves — `jsonb_array_length` is not expressible in the
+   * query builder, hence `Prisma.sql`.
+   *
+   * @param runIds - Run UUIDs (non-empty; already team-scoped by the caller).
+   * @returns One row per run id, with the length of its `example_snapshot` array.
+   */
+  private async exampleCountsForRuns(runIds: string[]): Promise<ExampleCountRow[]> {
+    return prisma.$queryRaw<ExampleCountRow[]>(Prisma.sql`
+      SELECT id AS "runId", jsonb_array_length(example_snapshot)::int AS "exampleCount"
+      FROM experiment_runs
+      WHERE id IN (${Prisma.join(runIds.map((id) => Prisma.sql`${id}::uuid`))})
+    `);
+  }
+
+  /**
+   * Groups the given runs' `eval_results` by (run, variant label), counting
+   * errored/scored/passed rows and summing scores in one pass. Raw SQL because
+   * the `COUNT(*) FILTER (WHERE …)` conditional aggregates are not expressible
+   * through Prisma's `groupBy` (which would need one query per condition).
+   *
+   * @param teamId - Isolation boundary (re-applied here, not just on the run page).
+   * @param runIds - Run UUIDs (non-empty).
+   * @returns One aggregate row per (run, variant) pair that has produced results.
+   *   A run that has produced none is simply absent.
+   */
+  private async variantAggregatesForRuns(teamId: string, runIds: string[]): Promise<RunVariantAggregate[]> {
+    return prisma.$queryRaw<RunVariantAggregate[]>(Prisma.sql`
+      SELECT
+        experiment_run_id AS "runId",
+        variant_label AS "variantLabel",
+        COUNT(*)::int AS "total",
+        COUNT(*) FILTER (WHERE error_message IS NOT NULL)::int AS "errored",
+        COUNT(score)::int AS "scored",
+        COALESCE(SUM(score), 0)::int AS "scoreSum",
+        COUNT(*) FILTER (WHERE passed IS TRUE)::int AS "passed"
+      FROM eval_results
+      WHERE team_id = ${teamId}::uuid
+        AND experiment_run_id IN (${Prisma.join(runIds.map((id) => Prisma.sql`${id}::uuid`))})
+      GROUP BY experiment_run_id, variant_label
+    `);
   }
 
   /**

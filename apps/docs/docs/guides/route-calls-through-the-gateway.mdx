@@ -92,6 +92,22 @@ console.log(content);
 for streaming and for `runToolLoop`, the SDK's traced tool-calling loop.
 
 </TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+result = await hub.chat(
+    "support-model",
+    [{"role": "user", "content": "Say hi in three words."}],
+    max_tokens=20,
+)
+print(result.content)
+```
+
+</TabItem>
 <TabItem value="python-openai" label="Python (openai)">
 
 ```python

@@ -640,10 +640,24 @@ export interface DatasetExample {
   datasetId: string;
   input: Record<string, unknown>;
   criteria: string | null;
+  /** Prior-turn conversation reconstructed from the source session (FAQ Q19), or null. */
+  history: ChatMessage[] | null;
   sourceTraceId: string | null;
   sourceFeedbackId: string | null;
   sourcePromptVersionId: string | null;
   createdAt: string;
+}
+
+/** One prompt whose dataset examples don't match the run's target prompt, and how many. */
+export interface MismatchedPromptInfo {
+  promptId: string;
+  name: string;
+  exampleCount: number;
+}
+
+/** Informational (non-blocking) warning: the dataset's examples don't all match the run's target prompt. */
+export interface PromptMismatchWarning {
+  mismatchedPrompts: MismatchedPromptInfo[];
 }
 
 /** GET /datasets/:id — a `Dataset` plus its full example list (the list endpoint omits `examples`). */
@@ -696,6 +710,7 @@ export interface CreateExperimentInput {
   name?: string;
   version_ids: string[];
   models: string[];
+  alias?: string;
 }
 
 /** Resolved (prompt-version × model) sweep persisted on the experiment. */
@@ -726,6 +741,7 @@ export interface Experiment {
   createdBy: string | null;
   createdAt: string;
   runs: ExperimentRunSummary[];
+  promptMismatchWarning?: PromptMismatchWarning;
 }
 
 export interface ExperimentListResponse {
@@ -742,6 +758,9 @@ export interface ExperimentListResponse {
 export interface StartRunResponse {
   run_id: string;
   status: string;
+  prompt_mismatch_warning?: {
+    mismatched_prompts: Array<{ prompt_id: string; name: string; example_count: number }>;
+  };
 }
 
 /** One resolved (prompt-variant × model) cell inside a run's grid. */
@@ -774,6 +793,65 @@ export interface Run {
   grid: RunGridCell[];
   exampleCount: number;
   results: RunResultsSummary;
+}
+
+/** Whether a run swept explicit prompt versions or optimizer-drafted candidates. */
+export type RunKind = 'evaluation' | 'optimize';
+
+/** Per-run result counts on a run-history row. `scored` ≤ `succeeded` — an example without criteria is never judged. */
+export interface RunListResultCounts {
+  total: number;
+  succeeded: number;
+  errored: number;
+  scored: number;
+}
+
+/** Who started a run. Null for a run started by a team-scoped API key. */
+export interface RunListStarter {
+  id: string;
+  /** Display name, falling back to the email address. */
+  name: string;
+  email: string;
+}
+
+/**
+ * One row of `GET /runs` — the run-history list. `avgScore`/`passRate`/
+ * `topVariantLabel` are null (never `0`) until the run has a scored result, the
+ * same "unscored is not zero" rule the comparison report follows.
+ */
+export interface RunListItem {
+  id: string;
+  status: RunStatus;
+  kind: RunKind;
+  experimentId: string;
+  experimentName: string | null;
+  datasetId: string;
+  datasetName: string;
+  promptId: string | null;
+  promptName: string | null;
+  variantCount: number;
+  modelCount: number;
+  exampleCount: number;
+  results: RunListResultCounts;
+  /** Mean judge score, 0–100. */
+  avgScore: number | null;
+  /** Share of scored results that passed, 0–1. */
+  passRate: number | null;
+  topVariantLabel: string | null;
+  startedBy: RunListStarter | null;
+  createdAt: string;
+  startedAt: string | null;
+  endedAt: string | null;
+  durationMs: number | null;
+}
+
+/** Query params for `GET /runs` (wire/snake_case shape). */
+export interface RunListFilters {
+  status?: RunStatus;
+  dataset_id?: string;
+  prompt_id?: string;
+  page?: number;
+  limit?: number;
 }
 
 // ── Evaluations: comparison report + cell drill-down (E5/E6) ───────────────
@@ -845,6 +923,8 @@ export interface RunCellExample {
   exampleId: string;
   input: Record<string, unknown>;
   criteria: string | null;
+  /** Prior-turn history frozen at run-start (FAQ Q19), or null. */
+  history: ChatMessage[] | null;
   output: unknown;
   score: number | null;
   passed: boolean | null;
@@ -866,6 +946,7 @@ export interface OptimizeInput {
   dataset_id: string;
   models: string[];
   draft_count?: number;
+  alias?: string;
 }
 
 export interface PromoteCandidateInput {

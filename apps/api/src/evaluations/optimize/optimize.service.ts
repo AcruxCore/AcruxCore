@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { ExperimentsRepository } from '../experiments/experiments.repository';
 import { DatasetsRepository } from '../datasets/datasets.repository';
+import { DatasetsService } from '../datasets/datasets.service';
 import { RunsRepository } from '../runs/runs.repository';
 import { PromptsRepository } from '../../prompts/prompts.repository';
 import { OptimizeRepository } from './optimize.repository';
@@ -13,6 +14,7 @@ import type { RunSnapshotExample } from '../runs/runs.types';
 import type { StartOptimizeDto, PromoteCandidateDto, CandidateDetail } from './optimize.types';
 import type { VersionDetail } from '../../prompts/versions/versions.types';
 import type { AliasDetail } from '../../prompts/aliases/aliases.types';
+import type { PromptMismatchWarning } from '../datasets/datasets.types';
 
 /** Default number of candidate rewrites requested when `draft_count` is omitted. */
 const DEFAULT_DRAFT_COUNT = 3;
@@ -24,6 +26,7 @@ const MAX_DRAFT_COUNT = 6;
 export interface StartOptimizeResult {
   runId: string;
   status: string;
+  promptMismatchWarning?: PromptMismatchWarning;
 }
 
 /** Response DTO for `POST /runs/:id/promote` (E6 Task 5). */
@@ -90,6 +93,12 @@ export class OptimizeService {
     const dataset = await this.datasetsRepo.getDatasetById(teamId, dto.dataset_id);
     if (!dataset) throw new NotFoundError('Dataset not found.');
 
+    const promptMismatchWarning = await new DatasetsService(this.datasetsRepo).checkPromptMismatch(
+      dataset.examples,
+      promptId,
+      teamId,
+    );
+
     // No upfront (version x model) sweep exists yet for an optimize-triggered
     // experiment — the candidates it will sweep don't exist until
     // `processOptimize`'s gateway call returns. `versionIds: []` is a
@@ -111,6 +120,7 @@ export class OptimizeService {
       exampleId: example.id,
       input: example.input as Record<string, unknown>,
       criteria: example.criteria,
+      history: example.history as unknown as RunSnapshotExample['history'],
     }));
 
     const run = await this.runsRepo.createRun(teamId, experiment.id, {
@@ -130,6 +140,7 @@ export class OptimizeService {
       runId: run.id,
       datasetId: dto.dataset_id,
       models: dto.models,
+      alias: dto.alias,
       draftCount,
     };
     // Note: the optimize job runs at BullMQ `attempts: 1` (default) on purpose.
@@ -140,7 +151,7 @@ export class OptimizeService {
     // write), so job-level retries are neither needed nor safe here.
     await getOptimizeQueue().add('optimize', jobData);
 
-    return { runId: run.id, status: 'queued' };
+    return { runId: run.id, status: 'queued', ...(promptMismatchWarning ? { promptMismatchWarning } : {}) };
   }
 
   /**

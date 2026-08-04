@@ -47,6 +47,11 @@ export const StartOptimizeSchema = z.object({
   dataset_id: z.string().uuid(),
   models: z.array(z.string().min(1)).min(1),
   draft_count: z.number().int().positive().optional(),
+  // Which alias's version to use as the comparison baseline (design
+  // "Alias-based baseline"). Omitted -> OptimizeService/processOptimize
+  // resolve the prompt's 'production' alias, falling back to its latest
+  // committed version if it has no 'production' alias.
+  alias: z.string().min(1).optional(),
 });
 
 /** Validated start-optimize payload. */

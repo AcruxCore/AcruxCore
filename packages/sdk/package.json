@@ -1,6 +1,6 @@
 {
   "name": "@acruxcoreai/sdk",
-  "version": "0.6.6",
+  "version": "0.6.7",
   "description": "TypeScript SDK for Acrux Core \u2014 runtime prompt render, gateway chat, tool loops, traces, and feedback",
   "license": "MIT",
   "keywords": [
@@ -13,6 +13,11 @@
     "sdk"
   ],
   "homepage": "https://acruxcore.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AcruxCore/AcruxCore.git",
+    "directory": "packages/sdk"
+  },
   "bugs": {
     "email": "support@acruxcore.com"
   },

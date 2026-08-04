@@ -1,0 +1,345 @@
+---
+title: Evaluate a prompt with conversation history
+description: Carry a session's prior turns into a dataset example so a run, the judge, and the optimizer see the same conversation the model actually answered in.
+sidebar_position: 18
+keywords: [conversation history, multi-turn evaluation, session-scoped eval, dataset history, llm judge context]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Evaluate a prompt with conversation history
+
+**What you'll build:** a dataset example that carries the earlier turns of a real
+conversation alongside the flagged reply, and a run that replays those turns ahead
+of the new one — so the judge and the optimizer see the same context the model saw,
+not just the single message someone reacted to.
+
+[Evaluate a prompt against a dataset](./evaluate-a-prompt) and
+[Improve a prompt from feedback](./improve-a-prompt-from-feedback) both start from a
+single flagged reply. That is enough when a prompt answers one question at a time.
+It stops being enough once calls are grouped into a
+[session](./using-sessions-and-traces) — a multi-turn conversation — because a reply
+can be wrong *only* in light of what was said earlier. Score that reply on its own
+and a judge (or a person) has no way to tell "this failed" from "this failed because
+it forgot the last turn." Acrux Core reconstructs the prior turns of the flagged
+trace's session automatically, so the dataset example carries the conversation, not
+just its last line.
+
+## 1. Leave feedback on a reply from a multi-turn session
+
+Reconstruction needs two things from the flagged trace: a `session_id` — the same
+one every call in the conversation was tagged with, either the gateway's
+`x-session-id` header or an SDK call's `trace: { sessionId }` option — and captured
+payloads, same as any dataset-eligible feedback (see
+[Trace an LLM call](./trace-an-llm-call) for the capture setting). Select the row on
+**Observability → Feedback** as usual.
+
+![The Feedback page with two thumbs-down rows selected from a multi-turn session, and the Create dataset action visible](/img/tutorials/evaluate-a-prompt-with-conversation-history/01-feedback-selected.png)
+
+## 2. Build a dataset — the history comes along automatically
+
+Click **Create dataset**. Nothing here differs from a single-turn dataset: name it,
+optionally add an overall rubric, and confirm.
+
+![The Create dataset from feedback dialog with a name and overall-feedback rubric filled in](/img/tutorials/evaluate-a-prompt-with-conversation-history/02-create-dataset-dialog.png)
+
+The difference shows up on the dataset itself. Each example whose source trace had
+a session gets a **History** column — collapsed by default, so a single-turn
+dataset looks exactly like it always has:
+
+![The dataset detail page with the History column's "2 prior messages" disclosure expanded, showing the reconstructed user/assistant turns](/img/tutorials/evaluate-a-prompt-with-conversation-history/03-dataset-history-disclosure.png)
+
+That disclosure is reading `DatasetExample.history` — a plain array of
+`{ role, content }` messages, oldest first, walked backward from the flagged trace
+through every earlier trace sharing its `session_id`. It degrades to nothing
+instead of failing the build: a first-turn trace, a trace with no session, or one
+whose earlier spans hold nothing readable to replay all just leave `history` empty,
+and the example is built the same as before this existed.
+
+## 3. Run it — history replays ahead of the new turn
+
+Starting a run works exactly as in [Evaluate a prompt against a dataset](./evaluate-a-prompt#3-create-and-run-an-experiment):
+pick the prompt under test, a version, and a model.
+
+![The run report showing one variant scored against the production baseline](/img/tutorials/evaluate-a-prompt-with-conversation-history/04-run-report.png)
+
+What's different is invisible until you open a cell. At run-start, each example's
+`history` is frozen alongside its `input` and `criteria`. When the cell runs, that
+frozen history is spliced in right after the version's system message and right
+before the new turn's rendered input — so the model answers with the same
+conversation in front of it that produced the original reply, not the bare new
+question in isolation. The same frozen history is also handed to the judge as
+grading context, so "does this refer back correctly?" is something the judge can
+actually check instead of guessing from the criteria text alone.
+
+![The cell drill-down panel with a "2 prior messages" disclosure expanded, showing input, output, and judge reasoning that references the earlier turn](/img/tutorials/evaluate-a-prompt-with-conversation-history/05-cell-drilldown-history.png)
+
+Read the judge's reasoning here the same way
+[Improve a prompt from feedback](./improve-a-prompt-from-feedback#4-check-the-evidence-not-the-rationale)
+recommends: it is grading a specific claim ("does the output correctly resolve the
+back-reference to the prior turn"), not a vibe. A partial-credit score — the model in
+the screenshot named the wrong scope (a city instead of the country it belongs to)
+while still clearly using the prior turn — is exactly the kind of nuance a
+single-turn eval could never have caught, because there wouldn't have been a prior
+turn to get right or wrong.
+
+## 4. Add history by hand, when there's no live trace to reconstruct from
+
+Reconstruction only runs for feedback built from a real session. Building an example
+from a transcript you already have — a support log, a recorded incident, a
+hand-written test case — has no source trace at all, so add `history` directly on a
+manually-added example instead:
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/datasets/<dataset-id>/examples" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": { "question": "What language do people speak there?" },
+    "criteria": "Must name Italian and refer to Rome/Italy from the prior turn, not ask which place.",
+    "history": [
+      { "role": "user", "content": "What is the capital of Italy?" },
+      { "role": "assistant", "content": "The capital of Italy is Rome." }
+    ]
+  }'
+```
+
+</TabItem>
+<TabItem value="python" label="Python (requests)">
+
+```python
+import os, requests
+
+base, key = os.environ["ACRUXCORE_BASE_URL"], os.environ["ACRUXCORE_API_KEY"]
+h = {"Authorization": f"Bearer {key}"}
+
+requests.post(f"{base}/datasets/<dataset-id>/examples", headers=h, json={
+    "input": {"question": "What language do people speak there?"},
+    "criteria": "Must name Italian and refer to Rome/Italy from the prior turn, not ask which place.",
+    "history": [
+        {"role": "user", "content": "What is the capital of Italy?"},
+        {"role": "assistant", "content": "The capital of Italy is Rome."},
+    ],
+})
+```
+
+</TabItem>
+<TabItem value="node" label="Node (fetch)">
+
+```javascript
+const base = process.env.ACRUXCORE_BASE_URL;
+const key = process.env.ACRUXCORE_API_KEY;
+
+await fetch(`${base}/datasets/<dataset-id>/examples`, {
+  method: 'POST',
+  headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    input: { question: 'What language do people speak there?' },
+    criteria: 'Must name Italian and refer to Rome/Italy from the prior turn, not ask which place.',
+    history: [
+      { role: 'user', content: 'What is the capital of Italy?' },
+      { role: 'assistant', content: 'The capital of Italy is Rome.' },
+    ],
+  }),
+});
+```
+
+</TabItem>
+</Tabs>
+
+`history` is capped at 20 messages / 32 KB — plenty for a real back-and-forth,
+tight enough that one runaway example can't blow up every run built from it.
+
+:::tip[Tool calls replay too, minus a dangling one]
+A reconstructed or hand-supplied history can include `tool_calls` and `tool`-role
+results, not just plain text turns — a prior turn that called a tool replays with
+the call and its result intact. The one thing that gets trimmed automatically is a
+trailing *unanswered* `tool_calls` message (a prior turn abandoned mid tool-loop):
+replaying that verbatim is a guaranteed 400 from most providers, so the splice drops
+it rather than failing the cell.
+:::
+
+## Doing this over the API
+
+The dashboard covers building a dataset from feedback and reading a run's history
+back. Everything else — a manual example with explicit history, and the
+experiment/run calls themselves — is REST-only today: this domain isn't wrapped by
+either published SDK yet, so the examples below call the API directly instead of
+going through `@acruxcoreai/sdk` or `acruxcore`.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+# Build a dataset from one multi-turn feedback row — history is reconstructed automatically
+curl -X POST "$ACRUXCORE_BASE_URL/datasets/from-feedback" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "geography-followups",
+    "overall_feedback": "When a question refers back to something asked earlier in the conversation, answer about that earlier subject, not a fresh unrelated one.",
+    "feedback_ids": ["<feedback-id>"]
+  }'
+# → { "id": "<dataset-id>", "example_count": 1, "skipped": [] }
+
+# Read it back — the reconstructed history is on the example
+curl "$ACRUXCORE_BASE_URL/datasets/<dataset-id>" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{
+  "id": "018fbce5-7bc4-4e74-a3d2-a96546375da0",
+  "name": "geography-followups-demo",
+  "exampleCount": 1,
+  "examples": [
+    {
+      "id": "788dfad9-9467-42d8-b965-6ae3037b2722",
+      "input": { "question": "And what is its population?" },
+      "criteria": "Wrong — asked to specify a location instead of answering about France, the subject of the previous turn. Should answer with France's population.",
+      "history": [
+        { "role": "user", "content": "What is the capital of France?" },
+        { "role": "assistant", "content": "The capital of France is Paris." }
+      ],
+      "sourceTraceId": "74dadbca-048e-4894-8b08-7b034210c5f1",
+      "sourceFeedbackId": "f5ec2cf3-0f70-4242-8006-5bfe5a4976df",
+      "sourcePromptVersionId": "db48cbeb-1f82-44ff-8c2b-febd739079fe"
+    }
+  ]
+}
+```
+
+```bash
+# Create and start a run over that dataset — same two calls as any experiment
+curl -X POST "$ACRUXCORE_BASE_URL/experiments" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"dataset_id": "<dataset-id>", "prompt_id": "<prompt-id>", "name": "history replay check", "version_ids": ["<version-id>"], "models": ["gpt-4o-mini"]}'
+# → { "id": "<experiment-id>", ... }
+
+curl -X POST "$ACRUXCORE_BASE_URL/experiments/<experiment-id>/runs" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+# → { "run_id": "<run-id>", "status": "queued" }
+
+# Once it settles, the cell drill-down carries the exact history that was replayed
+curl "$ACRUXCORE_BASE_URL/runs/<run-id>/cells/v1%7Cgpt-4o-mini" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{
+  "cellKey": "v1|gpt-4o-mini",
+  "examples": [
+    {
+      "exampleId": "788dfad9-9467-42d8-b965-6ae3037b2722",
+      "input": { "question": "And what is its population?" },
+      "criteria": "Wrong — asked to specify a location instead of answering about France, the subject of the previous turn. Should answer with France's population.",
+      "history": [
+        { "role": "user", "content": "What is the capital of France?" },
+        { "role": "assistant", "content": "The capital of France is Paris." }
+      ],
+      "output": "As of 2023, the population of Paris is approximately 2.1 million in the city proper, with around 11 million in the metropolitan area.",
+      "score": 30,
+      "passed": false,
+      "reason": "The output provides information about the population of Paris instead of the population of France, which was the subject of the user's inquiry. It fails to address the user's question directly.",
+      "traceId": "aca9f3a1-68a5-4485-8213-682a052cc06e",
+      "judgeTraceId": "8ff603d5-e642-489b-a812-0e80b1518422"
+    }
+  ]
+}
+```
+
+</TabItem>
+<TabItem value="python" label="Python (requests)">
+
+```python
+import os, requests
+
+base, key = os.environ["ACRUXCORE_BASE_URL"], os.environ["ACRUXCORE_API_KEY"]
+h = {"Authorization": f"Bearer {key}"}
+
+dataset = requests.post(f"{base}/datasets/from-feedback", headers=h, json={
+    "name": "geography-followups",
+    "overall_feedback": (
+        "When a question refers back to something asked earlier in the conversation, "
+        "answer about that earlier subject, not a fresh unrelated one."
+    ),
+    "feedback_ids": ["<feedback-id>"],
+}).json()
+
+full = requests.get(f"{base}/datasets/{dataset['id']}", headers=h).json()
+print(full["examples"][0]["history"])
+# -> [{'role': 'user', 'content': 'What is the capital of France?'},
+#     {'role': 'assistant', 'content': 'The capital of France is Paris.'}]
+
+experiment = requests.post(f"{base}/experiments", headers=h, json={
+    "dataset_id": dataset["id"],
+    "prompt_id": "<prompt-id>",
+    "name": "history replay check",
+    "version_ids": ["<version-id>"],
+    "models": ["gpt-4o-mini"],
+}).json()
+
+run = requests.post(f"{base}/experiments/{experiment['id']}/runs", headers=h).json()
+print(run["run_id"], run["status"])  # -> queued
+
+cell = requests.get(f"{base}/runs/{run['run_id']}/cells/v1%7Cgpt-4o-mini", headers=h).json()
+print(cell["examples"][0]["history"])  # the exact turns replayed for this cell
+```
+
+</TabItem>
+<TabItem value="node" label="Node (fetch)">
+
+```javascript
+const base = process.env.ACRUXCORE_BASE_URL;
+const key = process.env.ACRUXCORE_API_KEY;
+const h = { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
+
+const dataset = await fetch(`${base}/datasets/from-feedback`, {
+  method: 'POST',
+  headers: h,
+  body: JSON.stringify({
+    name: 'geography-followups',
+    overall_feedback:
+      'When a question refers back to something asked earlier in the conversation, answer about that earlier subject, not a fresh unrelated one.',
+    feedback_ids: ['<feedback-id>'],
+  }),
+}).then((r) => r.json());
+
+const full = await fetch(`${base}/datasets/${dataset.id}`, { headers: h }).then((r) => r.json());
+console.log(full.examples[0].history);
+
+const experiment = await fetch(`${base}/experiments`, {
+  method: 'POST',
+  headers: h,
+  body: JSON.stringify({
+    dataset_id: dataset.id,
+    prompt_id: '<prompt-id>',
+    name: 'history replay check',
+    version_ids: ['<version-id>'],
+    models: ['gpt-4o-mini'],
+  }),
+}).then((r) => r.json());
+
+const run = await fetch(`${base}/experiments/${experiment.id}/runs`, {
+  method: 'POST',
+  headers: h,
+}).then((r) => r.json());
+console.log(run.run_id, run.status); // -> queued
+```
+
+</TabItem>
+</Tabs>
+
+## What's next
+
+- The single-turn version of this same flow —
+  [Evaluate a prompt against a dataset](./evaluate-a-prompt).
+- How sessions get their shared id in the first place —
+  [Using sessions and traces](./using-sessions-and-traces).
+- Every field on a dataset example, and the run/report/cell-drilldown shapes:
+  **Datasets** and **Experiments & Runs** in the [API Reference](/api-reference).

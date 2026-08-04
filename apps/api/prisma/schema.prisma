@@ -1015,6 +1015,10 @@ model Dataset {
 /// One test case (FAQ Q5/Q6). `input` is the raw prompt VARIABLES (from E1's
 /// span_payloads.variables) — re-rendered against any candidate template later.
 /// `criteria` is the source feedback `comment` (per-example rubric, FAQ Q4).
+/// `history` is the reconstructed prior-turn conversation (FAQ Q19) when the
+/// source feedback's trace belongs to a session — an array of
+/// `{role, content, tool_calls?, tool_call_id?}` messages, oldest first, or
+/// null when there is no session. Frozen once at build time, never re-derived.
 /// `sourcePromptVersionId` records which version produced the case (lineage +
 /// lets the run engine pick the production baseline). `reference_output` is
 /// deferred (FAQ Q5) — not added yet.
@@ -1024,6 +1028,7 @@ model DatasetExample {
   teamId                String   @map("team_id") @db.Uuid
   input                 Json     @default("{}")
   criteria              String?
+  history               Json?
   sourceTraceId         String?  @map("source_trace_id") @db.Uuid
   sourceFeedbackId      String?  @map("source_feedback_id") @db.Uuid
   sourcePromptVersionId String?  @map("source_prompt_version_id") @db.Uuid

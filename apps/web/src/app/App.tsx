@@ -33,7 +33,7 @@ import {
   TraceSettingsPage,
   FeedbackListPage,
 } from '@/traces';
-import { DatasetsPage, DatasetDetailPage, ExperimentConfigPage, RunReportPage } from '@/evaluations';
+import { DatasetsPage, DatasetDetailPage, ExperimentConfigPage, RunHistoryPage, RunReportPage } from '@/evaluations';
 import {
   RootRoute,
   AboutPage,
@@ -107,6 +107,7 @@ export function App() {
         <Route path="/evaluations" element={<DatasetsPage />} />
         <Route path="/evaluations/datasets/:id" element={<DatasetDetailPage />} />
         <Route path="/evaluations/datasets/:id/run" element={<ExperimentConfigPage />} />
+        <Route path="/evaluations/runs" element={<RunHistoryPage />} />
         <Route path="/evaluations/runs/:id" element={<RunReportPage />} />
       </Route>
 

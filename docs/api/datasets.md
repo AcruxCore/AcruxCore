@@ -87,6 +87,10 @@ example uses a feedback row from a real gateway completion made with
 then `POST /traces/:id/feedback` with `{"rating":-1,"comment":"Use third
 person, do not say I"}`.
 
+`feedback_ids` takes at most 100 ids per request — the build runs
+synchronously and reads several rows per id. Split a larger selection into
+batches; each batch builds its own dataset.
+
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/datasets/from-feedback \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
@@ -183,11 +187,81 @@ curl -X POST $ACRUXCORE_BASE_URL/datasets/from-feedback \
 { "error": { "code": "UNPROCESSABLE", "message": "No eligible feedback rows — enable payload capture and collect new traffic" } }
 ```
 
+More than 100 `feedback_ids` (status 400) — the request is rejected before any
+row is read, so no dataset is created:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/datasets/from-feedback \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "too-many", "feedback_ids": ["<101 uuids>"]}'
+```
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "Array must contain at most 100 element(s)" } }
+```
+
 Note: the all-eligible-plus-team-isolation scenarios (every requested
 feedback id eligible; a cross-team feedback id skipped/422) are covered by
 the automated test suite (`apps/api/src/evaluations/datasets/datasets.test.ts`)
 and were not separately re-curled here since the mixed-eligibility case
 above already exercises the same code path with real data.
+
+---
+
+#### Multi-turn feedback captures the prior-turn history
+
+When the flagged trace's `session_id` links it to earlier traces in the same
+conversation, the example built from that feedback also carries a
+reconstructed `history` — every prior turn's user/assistant messages, tool
+calls, and tool results, in order. `example_count` is still 1: this is the
+same example row, with one extra field. This example reused the `production`
+alias trace from above, first replaying a prior turn in the same session
+(`x-session-id` header, not shown — captured payloads are enough for the
+reconstruction) and leaving feedback on the second turn:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/datasets/from-feedback \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "doc-history-demo-dataset", "feedback_ids": ["113ebbdf-ef46-41d4-8b93-1dd5f3f6aeef"]}'
+```
+
+The created example, as seen via `GET /api/v1/datasets/:id`:
+
+```json
+{
+  "id": "ef1d5b62-014f-43e4-be78-ed8c20c4a80a",
+  "datasetId": "71e14e39-574d-49ee-a2e3-776994e7d563",
+  "input": { "question": "And what is its population?" },
+  "criteria": "Give the population as of the most recent census, with a year.",
+  "history": [
+    { "role": "user", "content": "What is the capital of France?" },
+    { "role": "assistant", "content": "The capital of France is Paris." }
+  ],
+  "sourceTraceId": "11111111-1111-1111-1111-111111111112",
+  "sourceFeedbackId": "113ebbdf-ef46-41d4-8b93-1dd5f3f6aeef",
+  "sourcePromptVersionId": "51c52ee0-23db-454b-b044-a6a1a242f8e5",
+  "createdAt": "2026-08-03T20:59:15.345Z"
+}
+```
+
+A single-turn example (no `session_id`, or the first turn in a session) has
+`history: null` — see the first example at the top of this page, predating
+this field. `history` is also `null` when the prior turns' spans hold nothing
+readable to replay: reconstruction is extra context on the example, never the
+example itself, so it degrades to `null` instead of failing the build.
+
+Prior turns recorded by the TypeScript or Python SDK's auto-trace are read the
+same way as ones the gateway recorded — the two write their captured payloads
+in different shapes and both are understood. When a turn was reported twice
+(the gateway writes its own span and the SDK self-reports one for the same
+call), it appears once in `history`.
+
+Every eval run freezes an example's `history` at run-start time and replays
+it ahead of the new turn, so a candidate prompt is judged against the same
+conversation the model actually saw — see `GET
+/api/v1/runs/:id/cells/:cellKey` in the [experiments reference](./experiments.md).
 
 ---
 
@@ -293,7 +367,11 @@ Response (status 200):
 ### POST /api/v1/datasets/:id/examples
 
 Adds one example manually — no source trace/feedback needed. `input` is a
-free-form object (the variable bag); `criteria` is optional.
+free-form object (the variable bag); `criteria` is optional. `history` is
+also optional — an array of chat messages (`role`, `content`, and/or
+`tool_calls`/`tool_call_id`) giving the prior turns to replay ahead of
+`input` during a run; capped at 20 messages / 32KB. Omit it for a
+single-turn example.
 
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/datasets/4c979706-3e84-4e8f-a089-6ce4dd9f6e4a/examples \
@@ -303,7 +381,8 @@ curl -X POST $ACRUXCORE_BASE_URL/datasets/4c979706-3e84-4e8f-a089-6ce4dd9f6e4a/e
 ```
 
 Response (status 201) — sourceTraceId/sourceFeedbackId/sourcePromptVersionId
-are null for a manually-added example:
+are null for a manually-added example, and so is `history` when the request
+didn't supply one:
 
 ```json
 {
@@ -311,11 +390,53 @@ are null for a manually-added example:
   "datasetId": "4c979706-3e84-4e8f-a089-6ce4dd9f6e4a",
   "input": { "name": "Bob" },
   "criteria": "Say hi politely, third person",
+  "history": null,
   "sourceTraceId": null,
   "sourceFeedbackId": null,
   "sourcePromptVersionId": null,
   "createdAt": "2026-07-07T08:31:37.634Z"
 }
+```
+
+Supplying `history` explicitly:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/datasets/71e14e39-574d-49ee-a2e3-776994e7d563/examples \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"input": {"question": "What about Germany?"}, "criteria": "Answer in one sentence, include the year.", "history": [{"role": "user", "content": "What is the capital of France?"}, {"role": "assistant", "content": "Paris."}]}'
+```
+
+Response (status 201):
+
+```json
+{
+  "id": "b4563eb4-3add-44a0-84bc-73e673153cf0",
+  "datasetId": "71e14e39-574d-49ee-a2e3-776994e7d563",
+  "input": { "question": "What about Germany?" },
+  "criteria": "Answer in one sentence, include the year.",
+  "history": [
+    { "role": "user", "content": "What is the capital of France?" },
+    { "role": "assistant", "content": "Paris." }
+  ],
+  "sourceTraceId": null,
+  "sourceFeedbackId": null,
+  "sourcePromptVersionId": null,
+  "createdAt": "2026-08-03T20:59:25.851Z"
+}
+```
+
+A `history` longer than 20 messages is rejected (status 400):
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/datasets/54fd9af3-c470-4d1a-a0eb-ea192b5b43ab/examples \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"input": {"q": "x"}, "history": [{"role": "user", "content": "m0"}, "… 21 messages …"]}'
+```
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "Array must contain at most 20 element(s)" } }
 ```
 
 ---

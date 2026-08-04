@@ -86,6 +86,16 @@ Fill in the dialog. The field worth care is **Overall feedback**: it is shown to
 as the instruction for the whole batch, so this is where the policy goes — the thing that is
 true across all the examples rather than about any one of them.
 
+**Baseline alias** decides what the candidates are scored against. Leave it unset and Acrux
+Core uses the prompt's `production` alias if it has one, or its latest committed version
+otherwise — pick `staging` or another alias instead if you want the comparison to be against
+something other than what's currently live.
+
+If the dataset has examples captured from a *different* prompt than the one you're targeting
+here, Acrux Core doesn't stop you — it starts the run anyway and shows a warning next to the
+result, since a mismatch usually just means the comment was written against a different
+prompt's output and the scoring may not be apples-to-apples.
+
 ![The Improve from feedback dialog with a dataset name, the policy as overall feedback, the target prompt and one model](/img/tutorials/feedback-optimize-loop/02-improve-dialog.png)
 
 Over the API it is two calls — build the dataset, then start the run against the prompt:
@@ -144,15 +154,22 @@ print(run["run_id"], run["status"])   # -> queued
 </Tabs>
 
 `draft_count` is how many rewrites to ask for, up to 6. Three is a good default: enough for
-the drafts to differ meaningfully, few enough to read.
+the drafts to differ meaningfully, few enough to read. Add an optional `"alias"` field —
+`"alias": "staging"` — to score against something other than the default (`production` if it
+exists, otherwise the latest committed version).
+
+Already have a dataset from an earlier run and just want to try a different prompt, alias or
+model? Open the dataset's own page under **Evaluations → Datasets** and click **Optimize** —
+it starts a new run against the existing dataset without rebuilding it from feedback.
 
 ## 3. Read the leaderboard
 
 Poll `GET /runs/<run-id>` until it leaves `running`, then open **Evaluations → the run**.
 
-**What you should see:** one row per candidate *plus* a `production` row marked as the
-baseline, each scored over every example in the dataset. Acrux Core always adds that baseline
-cell, so the comparison is against what is live today rather than against nothing.
+**What you should see:** one row per candidate *plus* a baseline row — labeled `production` by
+default, or whichever alias you picked, or `vN` when the prompt has no alias to fall back on —
+each scored over every example in the dataset. Acrux Core always adds that baseline cell, so
+the comparison is against a real version rather than against nothing.
 
 ![Run report leaderboard with candidates ranked above and below the production baseline](/img/tutorials/feedback-optimize-loop/03-run-report.png)
 

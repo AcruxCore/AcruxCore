@@ -1,0 +1,23 @@
+meta {
+  name: List Runs
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/api/v1/runs?limit=20
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+params:query {
+  limit: 20
+  ~page: 1
+  ~status: succeeded
+  ~dataset_id: {{datasetId}}
+  ~prompt_id: {{promptId}}
+}

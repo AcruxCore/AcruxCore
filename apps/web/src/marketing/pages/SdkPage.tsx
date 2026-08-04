@@ -33,30 +33,45 @@ ${cm('# hosted API base URL:')}
 ${cm('#   ' + API_BASE_URL)}
 export ACRUXCORE_API_KEY=ak_…`;
 
-const TS_CODE = `${kw('import')} acruxcore ${kw('from')} ${st("'@acruxcoreai/sdk'")};
+const TS_CODE = `${kw('import')} acruxcore, { acrux } ${kw('from')} ${st("'@acruxcoreai/sdk'")};
+${kw('import')} { z } ${kw('from')} ${st("'zod/v4'")};
 
 ${kw('const')} hub = ${kw('new')} ${fn('acruxcore')}({ apiKey });
+
+${cm('// a tool, registered with a decorator-style call')}
+${kw('const')} lookupOrder = acrux.${fn('tool')}(
+  { name: ${st("'lookup_order'")}, parameters: z.object({
+    orderId: z.string(),
+  }) },
+  ${kw('async')} ({ orderId }) => ({ orderId, status: ${st("'shipped'")} }),
+);
 
 ${cm('// prompt + its tools, served from cache')}
 ${kw('const')} render = ${kw('await')} hub.${fn('renderPrompt')}(
   ${st("'support-agent'")}, ${st("'production'")}, { ticket },
 );
 
-${cm('// the whole tool loop, as one trace')}
+${cm('// the whole tool loop, one trace + session')}
 ${kw('const')} result = ${kw('await')} hub.${fn('runToolLoop')}({
   model: ${st("'gpt-4o'")},
   messages: render.messages,
-  toolDefs: render.tools,
-  dispatch,
+  tools: [lookupOrder],
+  trace: { sessionId: ${st("'ticket-4471'")} },
 });
 
 ${kw('await')} hub.${fn('submitFeedback')}({
   traceId: result.traceId, rating: ${st("'up'")},
 });`;
 
-const PY_CODE = `${kw('from')} acruxcore ${kw('import')} ${fn('AcruxCore')}
+const PY_CODE = `${kw('from')} acruxcore ${kw('import')} ${fn('AcruxCore')}, acrux
 
 hub = ${fn('AcruxCore')}(api_key=api_key)
+
+${cm('# a tool, registered with a decorator')}
+@acrux.${fn('tool')}
+${kw('async def')} lookup_order(order_id: str) -> dict:
+    ${cm('"""Look up an order’s shipping status."""')}
+    ${kw('return')} {${st('"order_id"')}: order_id, ${st('"status"')}: ${st('"shipped"')}}
 
 ${cm('# prompt + its tools, served from cache')}
 render = ${kw('await')} hub.${fn('render_prompt')}(
@@ -64,17 +79,35 @@ render = ${kw('await')} hub.${fn('render_prompt')}(
     {${st('"ticket"')}: ticket},
 )
 
-${cm('# the whole tool loop, as one trace')}
+${cm('# the whole tool loop, one trace + session')}
 result = ${kw('await')} hub.${fn('run_tool_loop')}(
     model=${st('"gpt-4o"')},
     messages=render.messages,
-    tool_defs=render.tools,
-    dispatch=dispatch,
+    tools=[lookup_order],
+    trace={${st('"session_id"')}: ${st('"ticket-4471"')}},
 )
 
 ${kw('await')} hub.${fn('submit_feedback')}(
     trace_id=result.trace_id, rating=${st('"up"')},
 )`;
+
+/**
+ * The five things every caller needs from the client, in order: fetch a stored
+ * prompt, call a model, give it a tool, group + trace the calls, then leave
+ * feedback. Every guide below carries both a Node and a Python tab, so the same
+ * five links serve both language sections rather than forking into two lists
+ * that would drift out of sync.
+ */
+const SDK_TUTORIALS: { label: string; href: string }[] = [
+  { label: 'Register and fetch a prompt', href: `${DOCS.versionPrompt}#5-render-it-from-your-app` },
+  { label: 'Call the gateway with chat()', href: `${DOCS.tsSdk}#1-a-plain-completion-with-chat` },
+  { label: 'Register a tool with a decorator', href: DOCS.attachTool },
+  { label: 'Group calls into sessions and traces', href: DOCS.sessionsTraces },
+  {
+    label: 'Leave feedback on a trace',
+    href: `${DOCS.tsSdk}#4-read-the-trace-back-and-leave-feedback`,
+  },
+];
 
 /** One method-level capability of the client, named after the real method. */
 interface SdkCapability {
@@ -149,12 +182,7 @@ const LANGUAGES: LanguageSection[] = [
     requires: 'Node 18 or newer · ships its own types',
     packageLabel: '@acruxcoreai/sdk',
     code: { filename: 'agent.ts', lang: 'TypeScript', html: TS_CODE },
-    tutorials: [
-      { label: 'Chat, stream, and collect feedback', href: DOCS.tsSdk },
-      { label: 'Store prompts and tools from code', href: DOCS.storeViaApi },
-      { label: 'Trace an LLM call', href: DOCS.traceCall },
-      { label: 'Group traces into sessions', href: DOCS.sessionsTraces },
-    ],
+    tutorials: SDK_TUTORIALS,
   },
   {
     id: 'python',
@@ -163,10 +191,7 @@ const LANGUAGES: LanguageSection[] = [
     requires: 'Python 3.9 or newer · async, built on httpx',
     packageLabel: 'acruxcore',
     code: { filename: 'agent.py', lang: 'Python', html: PY_CODE },
-    tutorials: [
-      { label: 'Build a tool-calling agent with the SDK', href: DOCS.pySdk },
-      { label: 'The same agent over plain REST', href: DOCS.pyNoSdk },
-    ],
+    tutorials: SDK_TUTORIALS,
   },
 ];
 

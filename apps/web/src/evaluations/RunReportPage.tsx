@@ -55,8 +55,10 @@ export function RunReportPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <Link to="/evaluations" className="text-[12px] text-muted hover:text-ink">
-        ← Evaluations
+      {/* Back to the run history rather than the datasets list: both ways into
+          this page (starting a run, or clicking a history row) came past it. */}
+      <Link to="/evaluations/runs" className="text-[12px] text-muted hover:text-ink">
+        ← Runs
       </Link>
 
       <header>

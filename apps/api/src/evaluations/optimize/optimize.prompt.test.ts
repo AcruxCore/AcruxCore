@@ -120,4 +120,32 @@ describe('compileOptimizePrompt', () => {
     // The example itself must model a user message, not just describe one.
     expect(system).toContain('{"role": "user", "content": "..."}');
   });
+
+  it('is byte-for-byte identical to the no-history call when no case has history', () => {
+    const without = compileOptimizePrompt({
+      productionMessages: [{ role: 'system', content: 'sys' }],
+      cases: [{ input: { a: 1 }, criteria: 'be nice' }],
+      overallFeedback: null,
+      draftCount: 2,
+    });
+    const withUndefined = compileOptimizePrompt({
+      productionMessages: [{ role: 'system', content: 'sys' }],
+      cases: [{ input: { a: 1 }, criteria: 'be nice', history: undefined }],
+      overallFeedback: null,
+      draftCount: 2,
+    });
+    expect(withUndefined).toEqual(without);
+  });
+
+  it('includes a Conversation history block inside the case when present', () => {
+    const messages = compileOptimizePrompt({
+      productionMessages: [{ role: 'system', content: 'sys' }],
+      cases: [{ input: { a: 1 }, criteria: 'be nice', history: [{ role: 'user', content: 'earlier turn' }] }],
+      overallFeedback: null,
+      draftCount: 2,
+    });
+    const userMessage = messages.find((m) => m.role === 'user')!;
+    expect(userMessage.content).toContain('Conversation history leading up to this case');
+    expect(userMessage.content).toContain('earlier turn');
+  });
 });

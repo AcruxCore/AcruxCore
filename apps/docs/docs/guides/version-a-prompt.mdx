@@ -196,6 +196,21 @@ const { messages, tools } = await hub.renderPrompt('support-reply', 'production'
 ```
 
 </TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+render = await hub.render_prompt("support-reply", "production", {
+    "company": "Acme",
+    "customer_message": "Where is my order #123?",
+})
+# `render.messages` is ready to send to a model; `render.tools` is [] until you attach some.
+```
+
+</TabItem>
 <TabItem value="python-requests" label="Python (requests)">
 
 ```python

@@ -70,6 +70,7 @@ export const keys = {
   experiments: ['experiments'] as const,
   experiment: (id: string) => ['experiment', id] as const,
   // Evaluations: runs + report + cell drill-down (E3/E5/E6)
+  runs: (filters: ApiQuery) => ['runs', filters] as const,
   run: (id: string) => ['run', id] as const,
   runReport: (id: string) => ['runReport', id] as const,
   runCell: (id: string, cellKey: string) => ['runCell', id, cellKey] as const,

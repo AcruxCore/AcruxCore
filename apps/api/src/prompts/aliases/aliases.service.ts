@@ -10,6 +10,19 @@ import { NotFoundError } from '../../shared/errors/http-errors';
 import { AppError } from '../../shared/errors/app-error';
 
 /**
+ * A resolved comparison baseline for an experiment/optimize run — either a
+ * named alias's current version, or (when no alias was requested) the
+ * prompt's `production` alias if one exists, or (only if there is no
+ * `production` alias either) the prompt's most recently committed version.
+ */
+export interface BaselineVersion {
+  versionId: string;
+  versionNumber: number;
+  /** The alias name used to resolve this, or null when resolved via "latest version". */
+  alias: string | null;
+}
+
+/**
  * Business logic for alias management and prompt rendering.
  */
 export class AliasesService {
@@ -147,6 +160,40 @@ export class AliasesService {
     });
 
     return true;
+  }
+
+  /**
+   * Resolves the comparison baseline for an experiment/optimize run (design
+   * "Alias-based baseline"). Resolution order: a named alias's current
+   * version when `alias` is given; otherwise the prompt's `production` alias
+   * if one exists; otherwise the prompt's latest committed version. The
+   * `production` fallback exists because a plain "latest version" default
+   * silently drops the baseline cell whenever the version under test is
+   * itself the latest committed version — the single most common flow — so
+   * a run would come back with no regression comparison and no explanation.
+   * Does NOT attempt to match against any trace/feedback lineage.
+   *
+   * @param teamId - Isolation boundary (used only for the "latest" path;
+   *   `findByAlias` itself is not team-scoped, matching its existing callers).
+   * @param promptId - UUID of the prompt.
+   * @param alias - Alias name to resolve, or omitted for the production/latest default.
+   * @returns The resolved baseline, or null if no alias was requested AND the
+   *   prompt has neither a `production` alias nor any committed versions yet
+   *   (mirrors the old silent-no-baseline behavior for a not-yet-set-up prompt).
+   * @throws {NotFoundError} If `alias` was given but does not exist for this prompt.
+   */
+  async resolveBaselineVersion(teamId: string, promptId: string, alias?: string): Promise<BaselineVersion | null> {
+    if (alias) {
+      const found = await this.aliasesRepo.findByAlias(promptId, alias);
+      if (!found) throw new NotFoundError(`Alias "${alias}" not found for this prompt`);
+      return { versionId: found.versionId, versionNumber: found.versionNumber, alias };
+    }
+    const production = await this.aliasesRepo.findByAlias(promptId, 'production');
+    if (production) {
+      return { versionId: production.versionId, versionNumber: production.versionNumber, alias: 'production' };
+    }
+    const latest = await this.versionsRepo.findLatestForPrompt(promptId, teamId);
+    return latest ? { versionId: latest.id, versionNumber: latest.versionNumber, alias: null } : null;
   }
 
   /**

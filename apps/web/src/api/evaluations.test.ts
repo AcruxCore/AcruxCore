@@ -23,6 +23,14 @@ describe('evaluations query keys', () => {
     expect(keys.experiment('exp-1')).not.toEqual(keys.experiment('exp-2'));
   });
 
+  it('runs(filters) varies with the filters and never collides with run(id)', () => {
+    expect(keys.runs({ page: 1, limit: 20 })).toEqual(['runs', { page: 1, limit: 20 }]);
+    expect(keys.runs({ page: 1 })).not.toEqual(keys.runs({ page: 2 }));
+    expect(keys.runs({ status: 'failed' })).not.toEqual(keys.runs({ status: 'succeeded' }));
+    // A filtered list and a single run must not share a cache entry.
+    expect(keys.runs({ page: 1 })).not.toEqual(keys.run('1'));
+  });
+
   it('run(id) is unique per id and deep-equal across calls', () => {
     expect(keys.run('a')).toEqual(['run', 'a']);
     expect(keys.run('a')).toEqual(keys.run('a'));

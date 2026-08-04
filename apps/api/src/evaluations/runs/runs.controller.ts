@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { RunsService } from './runs.service';
+import { RunListQuerySchema } from './runs.types';
+import { ValidationError } from '../../shared/errors';
 
 /**
  * HTTP handlers for the run-orchestration endpoints: starting a run for an
@@ -16,6 +18,19 @@ export class RunsController {
       const userId = req.user?.id ?? null;
       const result = await this.service.startRun(req.teamId!, userId, req.params.id);
       res.status(202).json({ run_id: result.runId, status: result.status });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /** GET /api/v1/runs — list the team's runs, newest first, with their scores. */
+  list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const parsed = RunListQuerySchema.safeParse(req.query);
+      if (!parsed.success) throw new ValidationError(parsed.error.issues[0].message);
+
+      const result = await this.service.listRuns(req.teamId!, parsed.data);
+      res.status(200).json(result);
     } catch (err) {
       next(err);
     }

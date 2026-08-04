@@ -7,6 +7,7 @@ import { useRunCell } from '@/api';
 import type { RunCellExample } from '@/api/types';
 import { scoreToGrade } from './matrix.helpers';
 import { PromoteDialog } from './PromoteDialog';
+import { HistoryDisclosure } from './HistoryDisclosure';
 
 export interface CellDrilldownPanelProps {
   runId: string;
@@ -50,6 +51,7 @@ function ExampleRow({ example }: { example: RunCellExample }) {
       </div>
 
       {example.criteria && <p className="text-[12px] text-muted">{example.criteria}</p>}
+      <HistoryDisclosure history={example.history} />
 
       <MonoBlock label="Input" value={JSON.stringify(example.input, null, 2)} />
       <MonoBlock label="Output" value={JSON.stringify(example.output, null, 2)} />

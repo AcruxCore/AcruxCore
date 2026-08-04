@@ -2,11 +2,13 @@ import { Link } from 'react-router-dom';
 import { Empty, PageSpinner } from '@/ui';
 import { useDatasets } from '@/api';
 import { timeAgo, dateTime } from '@/lib/format';
+import { EvaluationsTabs } from './EvaluationsTabs';
 
 /**
  * The `/evaluations` screen: every dataset the team has built (from feedback
  * rows today; more sources land later), newest first. Each row links to the
- * dataset's examples and its "Run experiment" entry point.
+ * dataset's examples and its "Run experiment" entry point. The run history for
+ * those experiments lives on the sibling Runs tab.
  */
 export function DatasetsPage() {
   const { data, isLoading, isError } = useDatasets();
@@ -20,6 +22,8 @@ export function DatasetsPage() {
           Datasets built from feedback, and the experiments run against them.
         </p>
       </header>
+
+      <EvaluationsTabs active="datasets" />
 
       {isLoading ? (
         <PageSpinner />

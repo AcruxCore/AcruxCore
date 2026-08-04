@@ -175,9 +175,70 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
     const runRow = await prisma.experimentRun.findUnique({ where: { id: run.run_id } });
     const grid = runRow!.grid as Array<{ variantKind: string; variantLabel: string; model: string }>;
     expect(grid.some((c) => c.variantKind === 'candidate')).toBe(true);
+    // No `alias` was requested, so the baseline resolves to the prompt's
+    // `production` alias (which arrangeOptimizeBasics points at v1) — the
+    // production-alias-first default (design "Alias-based baseline", FAQ Q21).
     expect(grid.some((c) => c.variantLabel === 'production')).toBe(true);
-    // 2 candidates + 1 production baseline, x 1 model = 3 grid cells.
+    // 2 candidates + 1 baseline, x 1 model = 3 grid cells.
     expect(grid.length).toBe(3);
+
+    // The run-history list reads `kind` off exactly this grid, so an optimize
+    // run must show up as one rather than as a plain evaluation.
+    const historyRow = (await agent.get('/api/v1/runs').expect(200)).body.data[0];
+    expect(historyRow.id).toBe(run.run_id);
+    expect(historyRow.kind).toBe('optimize');
+    expect(historyRow.variantCount).toBe(3);
+    expect(historyRow.modelCount).toBe(1);
+  });
+
+  it("threads a dataset example's frozen history into the optimizer's own gateway call", async () => {
+    const { agent, teamId, userId } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    const prompt = (await agent.post('/api/v1/prompts').send({ name: 'support' }).expect(201)).body;
+    await agent
+      .post(`/api/v1/prompts/${prompt.id}/versions`)
+      .send({ messages: [{ role: 'user', content: 'Reply to {{ name }}' }] })
+      .expect(201);
+    await agent.post(`/api/v1/prompts/${prompt.id}/aliases/production/promote`).send({ version_number: 1 }).expect(200);
+
+    const dataset = (await agent.post('/api/v1/datasets').send({ name: 'cases-with-history' }).expect(201)).body;
+    await agent
+      .post(`/api/v1/datasets/${dataset.id}/examples`)
+      .send({
+        input: { name: 'Al' },
+        criteria: 'too curt',
+        history: [{ role: 'user', content: 'My order is late' }, { role: 'assistant', content: 'What is your order number?' }],
+      })
+      .expect(201);
+
+    mockFetchOnce(cannedOptimizer([{ messages: [{ role: 'user', content: 'Reply warmly to {{ name }}' }], rationale: 'warmer tone' }]));
+
+    const run = (
+      await agent
+        .post(`/api/v1/prompts/${prompt.id}/optimize`)
+        .send({ dataset_id: dataset.id, models: ['gpt-4o-mini'], draft_count: 1 })
+        .expect(202)
+    ).body;
+    const runRowBefore = await prisma.experimentRun.findUnique({ where: { id: run.run_id } });
+
+    await processOptimize({
+      teamId,
+      userId,
+      promptId: prompt.id,
+      experimentId: runRowBefore!.experimentId,
+      runId: run.run_id,
+      datasetId: dataset.id,
+      models: ['gpt-4o-mini'],
+      draftCount: 1,
+    });
+
+    const fetchMock = global.fetch as unknown as jest.Mock;
+    const sentBody = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string);
+    const userMessage = sentBody.messages.find((m: { role: string }) => m.role === 'user');
+    expect(userMessage.content).toContain('Conversation history leading up to this case');
+    expect(userMessage.content).toContain('My order is late');
   });
 
   it('optimizer returns one valid + one template-broken candidate -> exactly 1 candidate stored', async () => {
@@ -404,6 +465,201 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
     const sentBody = JSON.parse((lastCall[1] as RequestInit).body as string);
     expect(JSON.stringify(sentBody.messages)).toContain('third person');
     expect(JSON.stringify(sentBody.messages)).toContain('Al');
+  });
+
+  it('includes a prompt-mismatch warning but still starts the run when the dataset was built from a different prompt', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    // Prompt A: the one the dataset's feedback actually came from.
+    const promptA = (await agent.post('/api/v1/prompts').send({ name: 'prompt-a' }).expect(201)).body;
+    await agent
+      .post(`/api/v1/prompts/${promptA.id}/versions`)
+      .send({ messages: [{ role: 'user', content: 'Say hi to {{ name }}' }] })
+      .expect(201);
+    await agent.post(`/api/v1/prompts/${promptA.id}/aliases/production/promote`).send({ version_number: 1 }).expect(200);
+
+    mockFetchOnce(CANNED_CELL_OPENAI);
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .set('x-capture-payloads', 'true')
+      .send({ model: 'gpt-4o-mini', prompt: { name: 'prompt-a', alias: 'production', variables: { name: 'Al' } } })
+      .expect(200);
+
+    const trace = await prisma.trace.findFirst({ where: { teamId } });
+    const fb = (
+      await agent.post(`/api/v1/traces/${trace!.id}/feedback`).send({ rating: -1, comment: 'too curt' }).expect(201)
+    ).body;
+    const dataset = (
+      await agent
+        .post('/api/v1/datasets/from-feedback')
+        .send({ name: 'from-prompt-a', feedback_ids: [fb.id] })
+        .expect(201)
+    ).body;
+
+    // Prompt B: what we're about to (wrongly) optimize with prompt A's feedback.
+    const promptB = (await agent.post('/api/v1/prompts').send({ name: 'prompt-b' }).expect(201)).body;
+    await agent
+      .post(`/api/v1/prompts/${promptB.id}/versions`)
+      .send({ messages: [{ role: 'user', content: 'Greet {{ name }}' }] })
+      .expect(201);
+    await agent.post(`/api/v1/prompts/${promptB.id}/aliases/production/promote`).send({ version_number: 1 }).expect(200);
+
+    const run = (
+      await agent
+        .post(`/api/v1/prompts/${promptB.id}/optimize`)
+        .send({ dataset_id: dataset.id, models: ['gpt-4o-mini'] })
+        .expect(202)
+    ).body;
+
+    expect(run.status).toBe('queued');
+    expect(run.prompt_mismatch_warning.mismatched_prompts).toEqual([
+      { prompt_id: promptA.id, name: 'prompt-a', example_count: 1 },
+    ]);
+  });
+
+  it('omits the mismatch warning when the dataset has no prompt-sourced examples', async () => {
+    // arrangeOptimizeBasics adds its examples via POST /datasets/:id/examples
+    // (manual examples), so every sourcePromptVersionId is null — this only
+    // exercises checkPromptMismatch's early `versionIds.length === 0` return,
+    // not the "examples matched the target prompt" branch. See the next test
+    // for that branch.
+    const { agent } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agent);
+
+    const run = (
+      await agent
+        .post(`/api/v1/prompts/${promptId}/optimize`)
+        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'] })
+        .expect(202)
+    ).body;
+
+    expect(run.prompt_mismatch_warning).toBeUndefined();
+  });
+
+  it('omits the mismatch warning when the dataset was built from feedback on the same prompt being optimized', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    // Prompt A: both the feedback's source AND the optimize target — so
+    // every example's sourcePromptVersionId resolves to promptId === targetPromptId,
+    // exercising checkPromptMismatch's `info.promptId === targetPromptId -> continue` branch.
+    const promptA = (await agent.post('/api/v1/prompts').send({ name: 'prompt-a-self' }).expect(201)).body;
+    await agent
+      .post(`/api/v1/prompts/${promptA.id}/versions`)
+      .send({ messages: [{ role: 'user', content: 'Say hi to {{ name }}' }] })
+      .expect(201);
+    await agent.post(`/api/v1/prompts/${promptA.id}/aliases/production/promote`).send({ version_number: 1 }).expect(200);
+
+    mockFetchOnce(CANNED_CELL_OPENAI);
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .set('x-capture-payloads', 'true')
+      .send({ model: 'gpt-4o-mini', prompt: { name: 'prompt-a-self', alias: 'production', variables: { name: 'Al' } } })
+      .expect(200);
+
+    const trace = await prisma.trace.findFirst({ where: { teamId } });
+    const fb = (
+      await agent.post(`/api/v1/traces/${trace!.id}/feedback`).send({ rating: -1, comment: 'too curt' }).expect(201)
+    ).body;
+    const dataset = (
+      await agent
+        .post('/api/v1/datasets/from-feedback')
+        .send({ name: 'from-prompt-a-self', feedback_ids: [fb.id] })
+        .expect(201)
+    ).body;
+
+    const run = (
+      await agent
+        .post(`/api/v1/prompts/${promptA.id}/optimize`)
+        .send({ dataset_id: dataset.id, models: ['gpt-4o-mini'] })
+        .expect(202)
+    ).body;
+
+    expect(run.prompt_mismatch_warning).toBeUndefined();
+  });
+
+  it('resolves the baseline via a named alias, not a hardcoded production, and labels the grid cell with it', async () => {
+    const { agent, teamId, userId } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agent);
+
+    // Move `staging` to a second version that differs from `production` (still v1).
+    await agent
+      .post(`/api/v1/prompts/${promptId}/versions`)
+      .send({ messages: [{ role: 'system', content: 'Answer as {{ name }}, staging edition' }] })
+      .expect(201);
+    await agent.post(`/api/v1/prompts/${promptId}/aliases/staging/promote`).send({ version_number: 2 }).expect(200);
+
+    mockFetchOnce(cannedOptimizer([{ messages: [{ role: 'system', content: 'Rewritten for {{ name }}' }], rationale: 'x' }]));
+
+    const run = (
+      await agent
+        .post(`/api/v1/prompts/${promptId}/optimize`)
+        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], draft_count: 1, alias: 'staging' })
+        .expect(202)
+    ).body;
+
+    const runRowBefore = await prisma.experimentRun.findUnique({ where: { id: run.run_id } });
+    await processOptimize({
+      teamId,
+      userId,
+      promptId,
+      experimentId: runRowBefore!.experimentId,
+      runId: run.run_id,
+      datasetId,
+      models: ['gpt-4o-mini'],
+      draftCount: 1,
+      alias: 'staging',
+    });
+
+    const runRow = await prisma.experimentRun.findUnique({ where: { id: run.run_id } });
+    const grid = runRow!.grid as unknown as FrozenGridCell[];
+    expect(grid.some((c) => c.variantLabel === 'staging')).toBe(true);
+    expect(grid.some((c) => c.variantLabel === 'production')).toBe(false);
+  });
+
+  it('defaults to the production alias (not latest) when no alias is given, even if a newer version was committed since', async () => {
+    const { agent, teamId, userId } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agent);
+
+    // v2 committed, but production alias still points at v1 — the default
+    // must resolve to production (v1), not silently follow "latest" to v2.
+    // This is the exact scenario FAQ Q21 fixed: a plain "latest" default
+    // would otherwise pick whatever the user just committed, which is the
+    // single most common version to be testing, and silently drop the
+    // baseline cell entirely when that version is also the one under test.
+    await agent
+      .post(`/api/v1/prompts/${promptId}/versions`)
+      .send({ messages: [{ role: 'system', content: 'Answer as {{ name }}, v2' }] })
+      .expect(201);
+
+    mockFetchOnce(cannedOptimizer([{ messages: [{ role: 'system', content: 'Rewritten for {{ name }}' }], rationale: 'x' }]));
+
+    const run = (
+      await agent
+        .post(`/api/v1/prompts/${promptId}/optimize`)
+        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], draft_count: 1 })
+        .expect(202)
+    ).body;
+
+    const runRowBefore = await prisma.experimentRun.findUnique({ where: { id: run.run_id } });
+    await processOptimize({
+      teamId,
+      userId,
+      promptId,
+      experimentId: runRowBefore!.experimentId,
+      runId: run.run_id,
+      datasetId,
+      models: ['gpt-4o-mini'],
+      draftCount: 1,
+    });
+
+    const runRow = await prisma.experimentRun.findUnique({ where: { id: run.run_id } });
+    const grid = runRow!.grid as unknown as FrozenGridCell[];
+    expect(grid.some((c) => c.variantLabel === 'production')).toBe(true);
+    expect(grid.some((c) => c.variantLabel === 'v2')).toBe(false);
   });
 });
 

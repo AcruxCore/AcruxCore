@@ -10,14 +10,17 @@ All endpoints verified working via curl against a real dev server (real
 Postgres, a real BullMQ worker process — `apps/worker` — consuming a real
 local Redis, and a real OpenAI account behind the gateway connection — no
 mocked `fetch`, no mocked queue). Document updated only after curl
-confirmation, per CLAUDE.md's API-reference rule.
+confirmation, per CLAUDE.md's API-reference rule — except the
+prompt-mismatch-warning field's shape, documented from source; see
+"Prompt-mismatch warning" below.
 
 An **experiment** ties a dataset (examples to evaluate against) to a
 (prompt-version × model) grid to sweep. Starting a **run** freezes the
 dataset's examples into `exampleSnapshot`, resolves the full grid — including
-an automatic `production`-alias baseline cell per model, added whenever the
-experiment names a `promptId` and that prompt's current production version
-isn't already an explicit `version_ids` entry — and enqueues a BullMQ Flow
+an automatic baseline cell per model (the prompt's `production` alias if one
+exists, otherwise its latest committed version), added whenever the
+experiment names a `promptId` and the resolved baseline version isn't
+already an explicit `version_ids` entry — and enqueues a BullMQ Flow
 (one `finalize` job with one `cell` job per grid × example pair). Each `cell`
 job renders the prompt version against the example's `input` variables and
 calls the gateway **in-process** (`GatewayService.complete`), so budgets, rate
@@ -38,9 +41,21 @@ worker — not an in-process/inline stub.
 ### POST /api/v1/experiments
 
 Creates an experiment: a dataset to evaluate, an optional prompt under test
-(enables the automatic production-baseline cell), and the explicit
-(version × model) grid to sweep. `version_ids` and `models` must each have
-at least one entry.
+(enables the automatic baseline cell), and the explicit (version × model)
+grid to sweep. `version_ids` and `models` must each have at least one
+entry.
+
+Two more fields exist alongside those, both optional:
+
+- `alias` (request) — which alias's version the automatic baseline cell
+  (added when `prompt_id` is set and that version isn't already among the
+  explicit `version_ids`) points to. Omitted, the baseline resolves to the
+  prompt's `production` alias if one exists, otherwise its latest committed
+  version. Has no effect when `prompt_id` is omitted, since no
+  baseline cell is ever injected. See "Alias-based baseline" below.
+- `promptMismatchWarning` (response only) — a non-blocking notice returned
+  when the dataset's examples were sourced from a prompt other than
+  `prompt_id`. See "Prompt-mismatch warning" below.
 
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/experiments \
@@ -80,6 +95,91 @@ curl -X POST $ACRUXCORE_BASE_URL/experiments \
 { "error": { "code": "VALIDATION_ERROR", "message": "Required" } }
 ```
 
+#### Alias-based baseline (`alias` field)
+
+By default (no `alias` given), the automatic baseline cell (when `prompt_id`
+is set) resolves to the prompt's `production` alias if one exists, otherwise
+its latest committed version. Passing `alias` points it at a different named
+alias's version instead — verified here against a prompt whose `production`
+alias is pinned to v1 while a `staging` alias was separately promoted to v2,
+requesting v2 explicitly plus `alias: "staging"`:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/experiments \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"dataset_id": "c4629544-565c-4e34-9d76-6074f525c596", "prompt_id": "e7ec9bcd-e5c1-4d28-bd48-1da7ad3c5027", "name": "Task7 alias baseline demo", "version_ids": ["06c027e3-7f6e-4b1d-8696-6868bae24f7d"], "models": ["gpt-4o-mini"], "alias": "staging"}'
+```
+
+Response (status 201) — `alias` is stored verbatim on `config`, alongside
+`models`/`versionIds`:
+
+```json
+{
+  "id": "b819389b-6422-4bce-87a4-e7901d2052e2",
+  "teamId": "13a4f9a6-cd2a-47bf-b937-4e18675d6b48",
+  "datasetId": "c4629544-565c-4e34-9d76-6074f525c596",
+  "promptId": "e7ec9bcd-e5c1-4d28-bd48-1da7ad3c5027",
+  "name": "Task7 alias baseline demo",
+  "config": { "alias": "staging", "models": ["gpt-4o-mini"], "versionIds": ["06c027e3-7f6e-4b1d-8696-6868bae24f7d"] },
+  "createdBy": "39fcb676-6296-4960-9388-a02cab78d9f9",
+  "createdAt": "2026-08-04T09:28:05.299Z",
+  "runs": []
+}
+```
+
+`alias` is only consulted when `POST /experiments/:id/runs` resolves the
+automatic baseline cell (`AliasesService.resolveBaselineVersion`) — it has
+no effect on the explicit `version_ids` grid itself. An `alias` that
+doesn't exist on this prompt fails the request synchronously: `RunsService
+.startRun` awaits `resolveGrid` (which calls `resolveBaselineVersion`)
+*before* creating the run row, so the `NotFoundError` it throws propagates
+straight out of `POST /experiments/:id/runs` as a synchronous 404 — no run
+is ever created, and there is nothing to look up afterwards on
+`GET /runs/:id`.
+
+#### Prompt-mismatch warning (`promptMismatchWarning`, response only)
+
+Not curl-verified in this environment: reproducing it needs a dataset whose
+examples were built via `POST /datasets/from-feedback`, which requires a
+real `POST /gateway/chat/completions` call against a configured LLM
+provider to populate a trace's `sourcePromptVersionId` — no provider key
+(`OPENAI_TEST_KEY`/`ANTHROPIC_TEST_KEY`) is configured in this environment.
+Documented from source instead
+(`experiments.service.ts`/`experiments.types.ts` on this branch): when the
+dataset's examples were sourced from a prompt other than `prompt_id`, the
+201 response carries an extra top-level `promptMismatchWarning` object
+(camelCase, unlike the optimize endpoint's snake_case
+`prompt_mismatch_warning` — this endpoint's whole response is camelCase):
+
+```json
+{
+  "id": "9462c9b7-62a7-4f01-80fe-71f142cdd02b",
+  "teamId": "c2e28d00-c7ed-4c27-85d9-434927282f67",
+  "datasetId": "4595c340-d7fa-4d76-977e-76b60ebefb62",
+  "promptId": "173ad5cd-969c-4a04-8896-fbf625bbc2e5",
+  "name": "E3 Task7 greeting sweep",
+  "config": { "models": ["gpt-4o-mini-e3t7"], "versionIds": ["b5327b3e-3c45-4858-ac62-1e5852279624"] },
+  "createdBy": "6937e9cb-6754-4f45-aac8-a780d2e3ef57",
+  "createdAt": "2026-07-07T14:26:50.940Z",
+  "runs": [],
+  "promptMismatchWarning": {
+    "mismatchedPrompts": [
+      { "promptId": "1e5e7cd3-7570-402c-97ff-e5b0c4eadfb3", "name": "support-reply", "exampleCount": 2 }
+    ]
+  }
+}
+```
+
+`mismatchedPrompts` groups by the *other* prompt each mismatched example
+was sourced from, with `exampleCount` counting only that prompt's examples
+in this dataset. It's informational only — the experiment is created
+either way — and the field is omitted entirely (not `null`) when every
+example either matches `prompt_id` or carries no resolvable lineage
+(manually-added examples, or a since-deleted source version). It is only
+computed when `prompt_id` is given, since without a target prompt there is
+nothing to compare an example's lineage against.
+
 ---
 
 ### POST /api/v1/experiments/:id/runs
@@ -112,6 +212,145 @@ curl -X POST $ACRUXCORE_BASE_URL/experiments/00000000-0000-0000-0000-00000000000
 
 ```json
 { "error": { "code": "NOT_FOUND", "message": "Experiment not found." } }
+```
+
+---
+
+### GET /api/v1/runs
+
+Lists the team's runs, newest first — the run history. Each row carries the
+dataset and prompt the run evaluated, the shape of its frozen grid, and the
+scores it produced, so you can find the run worth opening without fetching each
+one's report.
+
+`kind` is `"optimize"` when the run swept optimizer-drafted candidates
+(`POST /prompts/:id/optimize`) and `"evaluation"` otherwise.
+`avgScore`, `passRate` and `topVariantLabel` are `null` — never `0` — until the
+run has at least one judge-scored result, so an unscored run is never mistaken
+for one that scored badly. `avgScore` is the mean across every scored result in
+the run, weighted by example (a 1-example variant does not count the same as a
+100-example one), and `topVariantLabel` names the highest-mean variant.
+
+Query params (all optional):
+
+| Param | Type | Default | Meaning |
+|---|---|---|---|
+| `status` | `queued` \| `running` \| `succeeded` \| `failed` | — | Lifecycle filter |
+| `dataset_id` | uuid | — | Only runs whose experiment used this dataset |
+| `prompt_id` | uuid | — | Only runs whose experiment named this prompt |
+| `page` | integer ≥ 1 | `1` | 1-based page number |
+| `limit` | integer 1–100 | `20` | Rows per page |
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" $ACRUXCORE_BASE_URL/runs
+```
+
+Response (status 200) — one optimize run and one evaluation run, both finished:
+
+```json
+{
+  "data": [
+    {
+      "id": "df727319-f64d-4ebd-8e3d-fa1b43d0f377",
+      "status": "succeeded",
+      "kind": "optimize",
+      "experimentId": "fc90fd51-4f00-400f-b547-8a17017434dd",
+      "experimentName": "optimize",
+      "datasetId": "d95a4068-3415-48fe-959a-ba7cfd3d96f5",
+      "datasetName": "support replies",
+      "promptId": "1e5e7cd3-7570-402c-97ff-e5b0c4eadfb3",
+      "promptName": "support-reply",
+      "variantCount": 3,
+      "modelCount": 1,
+      "exampleCount": 3,
+      "results": { "total": 9, "succeeded": 9, "errored": 0, "scored": 9 },
+      "avgScore": 83.9,
+      "passRate": 1,
+      "topVariantLabel": "candidate-A",
+      "startedBy": { "id": "035f4fca-ec77-47e2-b6de-755b0111c798", "name": "Run History", "email": "runhist@example.com" },
+      "createdAt": "2026-08-04T03:32:57.141Z",
+      "startedAt": "2026-08-04T03:33:00.093Z",
+      "endedAt": "2026-08-04T03:33:08.434Z",
+      "durationMs": 8341
+    },
+    {
+      "id": "54a06825-dce7-4c53-9c4a-7115ebd91ace",
+      "status": "succeeded",
+      "kind": "evaluation",
+      "experimentId": "01009014-6f50-41a8-9089-ddcc8aca75e9",
+      "experimentName": "support reply sweep",
+      "datasetId": "d95a4068-3415-48fe-959a-ba7cfd3d96f5",
+      "datasetName": "support replies",
+      "promptId": "1e5e7cd3-7570-402c-97ff-e5b0c4eadfb3",
+      "promptName": "support-reply",
+      "variantCount": 2,
+      "modelCount": 1,
+      "exampleCount": 3,
+      "results": { "total": 6, "succeeded": 6, "errored": 0, "scored": 6 },
+      "avgScore": 81.7,
+      "passRate": 1,
+      "topVariantLabel": "production",
+      "startedBy": { "id": "035f4fca-ec77-47e2-b6de-755b0111c798", "name": "Run History", "email": "runhist@example.com" },
+      "createdAt": "2026-08-04T03:32:35.362Z",
+      "startedAt": "2026-08-04T03:32:35.398Z",
+      "endedAt": "2026-08-04T03:32:43.461Z",
+      "durationMs": 8063
+    }
+  ],
+  "total": 2,
+  "page": 1,
+  "limit": 20
+}
+```
+
+A run still in flight lists the partial numbers it has produced so far rather
+than nothing — polled while the run above was mid-flight, 4 of its 6 results
+were already scored:
+
+```json
+{ "status": "running", "results": { "total": 6, "succeeded": 6, "errored": 0, "scored": 4 }, "avgScore": 82.5, "durationMs": null }
+```
+
+Paging (`total` is the full filtered count, not the page's length):
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" "$ACRUXCORE_BASE_URL/runs?limit=1&page=2"
+```
+
+```json
+{ "total": 2, "page": 2, "limit": 1 }
+```
+
+A filter that matches nothing returns an empty page, not a 404:
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" "$ACRUXCORE_BASE_URL/runs?status=failed"
+```
+
+```json
+{ "data": [], "total": 0, "page": 1, "limit": 20 }
+```
+
+#### Error responses
+
+A status outside the four lifecycle values (status 400):
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" "$ACRUXCORE_BASE_URL/runs?status=cancelled"
+```
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "Invalid enum value. Expected 'queued' | 'running' | 'succeeded' | 'failed', received 'cancelled'" } }
+```
+
+A `limit` above the 100 ceiling (status 400):
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" "$ACRUXCORE_BASE_URL/runs?limit=500"
+```
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "Number must be less than or equal to 100" } }
 ```
 
 ---
@@ -302,7 +541,16 @@ curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" $ACRUXCORE_BASE_URL/runs/0000
 Drill-down (Phase 5 E5): one grid cell's per-example outputs, judge
 reasoning, and traces. `cellKey` is `${variantLabel}|${model}` (as minted
 into the run's `grid`) and must be URL-encoded (`|` -> `%7C`) — decoded
-again by Express before it reaches the controller. Curled against the same
+again by Express before it reaches the controller. Each example in the
+response also carries `history`: the same array frozen onto the dataset
+example at run-start time (see `history` on `GET /api/v1/datasets/:id` in
+the [datasets reference](./datasets.md)), or `null` for a single-turn
+example — this is the exact conversation that was replayed ahead of `input`
+for that cell's completion, not the live (possibly since-edited) dataset
+value. Not separately re-curled below: it's the same frozen JSON already
+curl-verified on the dataset endpoint, and the run/judge wiring is covered
+by the real-Postgres integration test
+`apps/api/src/evaluations/runs/run-engine.test.ts`. Curled against the same
 run as the report above, both of its two cells:
 
 ```bash

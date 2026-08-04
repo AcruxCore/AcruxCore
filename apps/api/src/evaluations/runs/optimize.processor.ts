@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { RunsRepository } from './runs.repository';
 import { DatasetsRepository } from '../datasets/datasets.repository';
 import { PromptsRepository } from '../../prompts/prompts.repository';
-import { AliasesRepository } from '../../prompts/aliases/aliases.repository';
+import { AliasesService } from '../../prompts/aliases/aliases.service';
 import { VersionsRepository } from '../../prompts/versions/versions.repository';
 import { OptimizeRepository } from '../optimize/optimize.repository';
 import { compileOptimizePrompt } from '../optimize/optimize.prompt';
@@ -27,7 +27,7 @@ const OPTIMIZER_MODEL = process.env.EVAL_OPTIMIZER_MODEL ?? 'gpt-4o-mini';
 const runsRepo = new RunsRepository();
 const datasetsRepo = new DatasetsRepository();
 const promptsRepo = new PromptsRepository();
-const aliasesRepo = new AliasesRepository();
+const aliasesService = new AliasesService();
 const versionsRepo = new VersionsRepository();
 const optimizeRepo = new OptimizeRepository();
 // Same construction as cell.processor.ts/judge.service.ts's module-level
@@ -88,7 +88,9 @@ async function retryGatewayCall<T>(fn: () => Promise<T>, attempts: number): Prom
  *
  * Steps:
  * 1. Load the run's frozen `exampleSnapshot` and the dataset's `overallFeedback`.
- * 2. Resolve the prompt's current `production` alias + that version's `messages`.
+ * 2. Resolve the comparison baseline (design "Alias-based baseline"): the
+ *    named alias in `data.alias`'s current version, or, when no alias was
+ *    given, the prompt's latest committed version — plus that version's `messages`.
  * 3. Compile the optimizer prompt (`compileOptimizePrompt`) from the
  *    production template + the snapshot's cases (no `priorOutput` — this is a
  *    brand-new optimize attempt, so there is no prior cell result to cite)
@@ -107,8 +109,8 @@ async function retryGatewayCall<T>(fn: () => Promise<T>, attempts: number): Prom
  *
  * @param data - The optimize job payload (`OptimizeJobData`).
  * @throws {NotFoundError} If the run, the dataset, the prompt itself, the
- *   prompt's `production` alias, or that alias's version cannot be found for
- *   `data.teamId`.
+ *   requested baseline alias (or, when none was requested, any committed
+ *   version), or that baseline's version cannot be found for `data.teamId`.
  * @throws Rethrows whatever `GatewayService.complete` throws (e.g. a
  *   budget/rate-limit error) unchanged — the optimizer call is never allowed
  *   to bypass budgets/rate limits, mirroring `processCell`/`JudgeService`.
@@ -137,23 +139,27 @@ export async function processOptimize(data: OptimizeJobData): Promise<void> {
     throw new NotFoundError(`Prompt ${data.promptId} not found`);
   }
 
-  const production = await aliasesRepo.findByAlias(data.promptId, 'production');
-  if (!production) {
-    throw new NotFoundError(`Production alias not found for prompt ${data.promptId}`);
+  const baseline = await aliasesService.resolveBaselineVersion(data.teamId, data.promptId, data.alias);
+  if (!baseline) {
+    throw new NotFoundError(
+      data.alias
+        ? `Alias "${data.alias}" not found for prompt ${data.promptId}`
+        : `Prompt ${data.promptId} has no committed versions to optimize from`,
+    );
   }
-
   // Team-scoped lookup, same reasoning as cell.processor.ts: never trust a
   // version id without re-verifying it belongs to data.teamId first.
-  const productionVersion = await versionsRepo.findByIdForTeam(production.versionId, data.teamId);
-  if (!productionVersion) {
-    throw new NotFoundError(`Prompt version ${production.versionId} not found`);
+  const baselineVersion = await versionsRepo.findByIdForTeam(baseline.versionId, data.teamId);
+  if (!baselineVersion) {
+    throw new NotFoundError(`Prompt version ${baseline.versionId} not found`);
   }
+  const baselineLabel = baseline.alias ?? `v${baseline.versionNumber}`;
 
   const optimizerMessages = compileOptimizePrompt({
-    productionMessages: productionVersion.messages,
+    productionMessages: baselineVersion.messages,
     // No `priorOutput`: this is a brand-new optimize attempt, so there is no
     // earlier cell result for these examples to cite yet.
-    cases: exampleSnapshot.map((example) => ({ input: example.input, criteria: example.criteria })),
+    cases: exampleSnapshot.map((example) => ({ input: example.input, criteria: example.criteria, history: example.history })),
     overallFeedback: dataset.overallFeedback,
     draftCount: data.draftCount,
   });
@@ -178,7 +184,7 @@ export async function processOptimize(data: OptimizeJobData): Promise<void> {
   // is otherwise indistinguishable from a valid one (both parse fine) — pass
   // the production template's own variable set so parseCandidates can drop
   // any candidate whose set doesn't match it exactly.
-  const originalVariables = extractVariables(productionVersion.messages as unknown as Array<{ content: string }>);
+  const originalVariables = extractVariables(baselineVersion.messages as unknown as Array<{ content: string }>);
   const { candidates, rejections } = parseCandidatesDetailed(
     assistantContent,
     data.draftCount,
@@ -231,10 +237,10 @@ export async function processOptimize(data: OptimizeJobData): Promise<void> {
   }
   for (const model of data.models) {
     grid.push({
-      cellKey: `production|${model}`,
+      cellKey: `${baselineLabel}|${model}`,
       variantKind: 'version',
-      promptVersionId: production.versionId,
-      variantLabel: 'production',
+      promptVersionId: baseline.versionId,
+      variantLabel: baselineLabel,
       model,
       isProductionBaseline: true,
     });

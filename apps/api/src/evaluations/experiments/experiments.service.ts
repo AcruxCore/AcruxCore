@@ -1,7 +1,14 @@
 import { Prisma } from '@prisma/client';
 import { ExperimentsRepository, ExperimentWithRuns } from './experiments.repository';
-import { CreateExperimentDto, ExperimentConfig, ExperimentDto, MAX_EXPERIMENT_GRID_SIZE } from './experiments.types';
+import {
+  CreateExperimentDto,
+  CreateExperimentResult,
+  ExperimentConfig,
+  ExperimentDto,
+  MAX_EXPERIMENT_GRID_SIZE,
+} from './experiments.types';
 import { DatasetsRepository } from '../datasets/datasets.repository';
+import { DatasetsService } from '../datasets/datasets.service';
 import { NotFoundError, ValidationError } from '../../shared/errors';
 
 /**
@@ -24,12 +31,14 @@ export class ExperimentsService {
    * @param teamId - Isolation boundary.
    * @param createdBy - The caller's user id (nullable for team-scoped API keys); becomes `createdBy`.
    * @param dto - Validated payload: dataset id, optional prompt id/name, and the version/model sweep.
-   * @returns The created experiment.
+   * @returns The created experiment, plus a non-blocking `promptMismatchWarning`
+   *   when `prompt_id` is given and some of the dataset's examples were sourced
+   *   from a different prompt (design "Prompt-mismatch warning").
    * @throws {NotFoundError} If the dataset does not exist or belongs to another team.
    * @throws {ValidationError} If `version_ids.length * models.length * datasetExampleCount`
    *   exceeds `MAX_EXPERIMENT_GRID_SIZE` — each cell is a real, paid provider call.
    */
-  async create(teamId: string, createdBy: string | null, dto: CreateExperimentDto): Promise<ExperimentDto> {
+  async create(teamId: string, createdBy: string | null, dto: CreateExperimentDto): Promise<CreateExperimentResult> {
     const dataset = await this.datasetsRepo.getDatasetById(teamId, dto.dataset_id);
     if (!dataset) throw new NotFoundError('Dataset not found.');
 
@@ -40,14 +49,22 @@ export class ExperimentsService {
       );
     }
 
-    const config: ExperimentConfig = { versionIds: dto.version_ids, models: dto.models };
+    const promptMismatchWarning = dto.prompt_id
+      ? await new DatasetsService(this.datasetsRepo).checkPromptMismatch(dataset.examples, dto.prompt_id, teamId)
+      : null;
+
+    const config: ExperimentConfig = {
+      versionIds: dto.version_ids,
+      models: dto.models,
+      ...(dto.alias ? { alias: dto.alias } : {}),
+    };
     const created = await this.repo.create(teamId, createdBy, {
       datasetId: dto.dataset_id,
       ...(dto.prompt_id ? { promptId: dto.prompt_id } : {}),
       ...(dto.name ? { name: dto.name } : {}),
       config: config as unknown as Prisma.InputJsonValue,
     });
-    return this.toDto(created);
+    return { ...this.toDto(created), ...(promptMismatchWarning ? { promptMismatchWarning } : {}) };
   }
 
   /**

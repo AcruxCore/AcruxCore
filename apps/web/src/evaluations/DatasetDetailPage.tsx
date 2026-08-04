@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button, Empty, PageSpinner } from '@/ui';
 import { useDataset } from '@/api';
 import { dateTime, timeAgo } from '@/lib/format';
 import type { DatasetExample } from '@/api/types';
+import { HistoryDisclosure } from './HistoryDisclosure';
+import { OptimizeDatasetDialog } from './OptimizeDatasetDialog';
 
 /** Renders an example's `input` variable bag as compact `key: value` pairs. */
 function InputPreview({ input }: { input: Record<string, unknown> }) {
@@ -26,6 +29,7 @@ function ExampleRow({ example }: { example: DatasetExample }) {
     <tr className="border-b border-line-soft bg-surface align-top last:border-b-0 hover:bg-elevated">
       <td className="px-4 py-2.5"><InputPreview input={example.input} /></td>
       <td className="px-4 py-2.5 text-ink">{example.criteria ?? <span className="text-faint">—</span>}</td>
+      <td className="px-4 py-2.5"><HistoryDisclosure history={example.history} /></td>
       <td className="px-4 py-2.5">
         {example.sourceTraceId ? (
           <Link to={`/traces/${example.sourceTraceId}`} className="font-mono text-[12px] text-varhi hover:underline">
@@ -49,6 +53,7 @@ export function DatasetDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data, isLoading, isError } = useDataset(id ?? null);
+  const [optimizeOpen, setOptimizeOpen] = useState(false);
 
   if (isLoading) return <PageSpinner />;
   if (isError || !data) {
@@ -70,9 +75,14 @@ export function DatasetDetailPage() {
             <span title={dateTime(data.createdAt)}>{timeAgo(data.createdAt)}</span>
           </div>
         </div>
-        <Button variant="primary" onClick={() => navigate(`/evaluations/datasets/${data.id}/run`)}>
-          Run experiment
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="ghost" onClick={() => setOptimizeOpen(true)}>
+            Optimize
+          </Button>
+          <Button variant="primary" onClick={() => navigate(`/evaluations/datasets/${data.id}/run`)}>
+            Run experiment
+          </Button>
+        </div>
       </header>
 
       {data.examples.length === 0 ? (
@@ -84,6 +94,7 @@ export function DatasetDetailPage() {
               <tr className="border-b border-line-soft text-[11px] uppercase tracking-[0.06em] text-faint">
                 <th className="px-4 py-2.5 font-medium">Input</th>
                 <th className="px-4 py-2.5 font-medium">Criteria</th>
+                <th className="px-4 py-2.5 font-medium">History</th>
                 <th className="px-4 py-2.5 font-medium">Source trace</th>
               </tr>
             </thead>
@@ -95,6 +106,8 @@ export function DatasetDetailPage() {
           </table>
         </div>
       )}
+
+      <OptimizeDatasetDialog open={optimizeOpen} onOpenChange={setOptimizeOpen} datasetId={data.id} />
     </div>
   );
 }

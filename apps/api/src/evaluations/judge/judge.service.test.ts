@@ -191,6 +191,31 @@ describe('JudgeService.scoreResult', () => {
     expect(row!.score).toBe(70);
   });
 
+  it('includes frozen history in the judge call when present', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const { resultId } = await arrangeResult(agent, teamId, { criteria: 'be nice' });
+
+    let sentBody = '';
+    jest.spyOn(global, 'fetch').mockImplementationOnce((async (_url: unknown, init: unknown) => {
+      sentBody = String((init as { body?: unknown } | undefined)?.body ?? '');
+      return {
+        ok: true,
+        status: 200,
+        json: async () => cannedJudge({ score: 90, passed: true, reason: 'ok' }),
+        text: async () => '',
+      } as unknown as Response;
+    }) as unknown as typeof fetch);
+
+    await judgeService.scoreResult(teamId, resultId, {
+      criteria: 'be nice',
+      overallFeedback: null,
+      history: [{ role: 'user', content: 'turn 1' }],
+    });
+
+    expect(sentBody).toContain('Conversation so far');
+    expect(sentBody).toContain('turn 1');
+  });
+
   it('malformed judge output -> unscored after one retry, run still usable', async () => {
     const { agent, teamId } = await authedAgent(app);
     const { resultId } = await arrangeResult(agent, teamId, { criteria: 'reply in third person' });

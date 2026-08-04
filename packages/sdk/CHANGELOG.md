@@ -12,12 +12,21 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+## 0.6.7 — 2026-08-04
+
 ### Added
 
 - **`tags` and `metadata` in trace options.** `chat()` and `runToolLoop()` now
   forward `tags` and `metadata` from the trace options as `x-trace-tags` /
   `x-trace-metadata` gateway headers. The `TraceOptions` type is exported for
   typing trace option dicts.
+
+### Changed
+
+- **The npm package page links the source repo again.** `package.json`'s
+  `repository` field points at
+  [github.com/AcruxCore/AcruxCore](https://github.com/AcruxCore/AcruxCore)
+  now that the repo is public — see 0.6.6 below for why it was removed.
 
 ## 0.6.6 — 2026-08-01
 

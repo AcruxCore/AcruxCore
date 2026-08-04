@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
+import type { ApiQuery } from './client';
 import { keys } from './queryClient';
 import type {
   CandidateDetail,
@@ -13,10 +14,13 @@ import type {
   Experiment,
   ExperimentListResponse,
   OptimizeInput,
+  Paginated,
   PromoteCandidateInput,
   PromoteCandidateResult,
   Run,
   RunCellDetail,
+  RunListFilters,
+  RunListItem,
   RunReport,
   RunStatus,
   StartRunResponse,
@@ -181,6 +185,30 @@ export function useStartRun() {
       qc.invalidateQueries({ queryKey: keys.experiment(experimentId) });
       qc.invalidateQueries({ queryKey: keys.experiments });
     },
+  });
+}
+
+/**
+ * Lists the team's runs newest-first for the run-history screen, with each
+ * run's dataset, grid shape and scores.
+ *
+ * Polls at {@link RUN_POLL_INTERVAL_MS} while **any** row on the page is still
+ * `queued`/`running`, and stops once every row has settled — a run started in
+ * another tab (or by a teammate) fills in without a manual refresh, and a page
+ * of finished runs costs nothing.
+ *
+ * @param filters - Wire-shaped (`snake_case`) status/dataset/prompt filters and
+ *   pagination. Empty values are dropped by the client's query serializer.
+ */
+export function useRuns(filters: RunListFilters) {
+  const query = filters as ApiQuery;
+  return useQuery({
+    queryKey: keys.runs(query),
+    queryFn: () => api<Paginated<RunListItem>>('/runs', { query }),
+    refetchInterval: (q) =>
+      (q.state.data?.data ?? []).some((run) => run.status === 'queued' || run.status === 'running')
+        ? RUN_POLL_INTERVAL_MS
+        : false,
   });
 }
 

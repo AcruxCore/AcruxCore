@@ -10,7 +10,9 @@ All endpoints verified working via curl against a real dev server (real
 Postgres, a real BullMQ worker process — `apps/worker` — consuming a real
 local Redis, and a real OpenAI account behind the gateway connection — no
 mocked `fetch`, no mocked queue). Document updated only after curl
-confirmation, per CLAUDE.md's API-reference rule.
+confirmation, per CLAUDE.md's API-reference rule — except the
+prompt-mismatch-warning field's shape, documented from source; see
+"Prompt-mismatch warning" below.
 
 The **optimize loop** closes the feedback → optimize → promote cycle: given
 a prompt's `production` version and a dataset of failing/target cases, an
@@ -48,6 +50,17 @@ the candidates (one gateway call to the optimizer model), resolving the
 real (candidate + production-baseline) x model grid, and enqueuing the
 cell/finalize BullMQ Flow all happen out of the request path, in the
 `optimizeWorker` process (`processOptimize`).
+
+Two more fields exist alongside `dataset_id`/`models`/`draft_count`, both
+optional:
+
+- `alias` (request) — resolves the comparison baseline to a named alias's
+  current version (e.g. `staging`). Omitted, the baseline resolves to the
+  prompt's `production` alias if one exists, otherwise its latest committed
+  version. See "Alias-based baseline" below.
+- `prompt_mismatch_warning` (response only) — a non-blocking notice
+  returned when the dataset's examples were sourced from a prompt other
+  than the one being optimized. See "Prompt-mismatch warning" below.
 
 Demo setup: prompt "support-reply-e6t6" v1 (`production`) is deliberately
 weak — a vague, unconstrained system message ("You are a friendly customer
@@ -121,6 +134,67 @@ itself never sends the production template's actual prior output to the
 optimizer on this (first) attempt for a prompt — it has no `priorOutput` to
 cite yet — so the quality of `overall_feedback` is what determines whether
 the optimizer's rewrite meaningfully changes model behavior.
+
+#### Alias-based baseline (`alias` field)
+
+By default (no `alias` given), the baseline is the prompt's `production`
+alias if one exists, otherwise its latest committed version. Passing
+`alias` resolves a different named alias's version instead — verified here
+against a prompt whose `production` alias is pinned to v1 while a `staging`
+alias was separately promoted to v2:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/prompts/e7ec9bcd-e5c1-4d28-bd48-1da7ad3c5027/optimize \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"dataset_id": "c4629544-565c-4e34-9d76-6074f525c596", "models": ["gpt-4o-mini"], "alias": "staging"}'
+```
+
+Response (status 202):
+
+```json
+{ "run_id": "f49ddf8c-dd1a-4490-b8c2-586e4d596033", "status": "queued" }
+```
+
+`alias` is resolved by `processOptimize` inside the worker, not
+synchronously in this request — the 202 response shape is identical with
+or without it. The difference only shows up in which version the run's
+grid uses for its baseline cell (`AliasesService.resolveBaselineVersion`).
+An `alias` that doesn't exist on this prompt fails the run asynchronously
+(`NotFoundError`, surfaced as the run's `error` on `GET /runs/:id`), not as
+a synchronous 4xx on this endpoint.
+
+#### Prompt-mismatch warning (`prompt_mismatch_warning`, response only)
+
+Not curl-verified in this environment: reproducing it needs a dataset whose
+examples were built via `POST /datasets/from-feedback`, which requires a
+real `POST /gateway/chat/completions` call against a configured LLM
+provider to populate a trace's `sourcePromptVersionId` — no provider key
+(`OPENAI_TEST_KEY`/`ANTHROPIC_TEST_KEY`) is configured in this
+environment. Documented from source instead (`optimize.service.ts` on this
+branch, where `StartOptimizeResult` and the `checkPromptMismatch` call
+both live): when the dataset's examples were sourced from a prompt other
+than the one being optimized, the 202 response carries an extra top-level
+`prompt_mismatch_warning` object alongside `run_id`/`status`:
+
+```json
+{
+  "run_id": "97584f62-79ca-4575-ab68-34c6ae5ada03",
+  "status": "queued",
+  "prompt_mismatch_warning": {
+    "mismatched_prompts": [
+      { "prompt_id": "1e5e7cd3-7570-402c-97ff-e5b0c4eadfb3", "name": "support-reply", "example_count": 2 }
+    ]
+  }
+}
+```
+
+`mismatched_prompts` groups by the *other* prompt each mismatched example
+was sourced from, with `example_count` counting only that prompt's
+examples in this dataset. It's informational only — the run is enqueued
+either way — and the field is omitted entirely (not `null`) when every
+example either matches the prompt being optimized or carries no resolvable
+lineage (manually-added examples, or a since-deleted source version).
 
 #### Error responses
 

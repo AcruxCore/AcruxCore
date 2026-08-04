@@ -44,9 +44,7 @@ export const DOCS = {
    * page, which describes the client surface and then links these.
    */
   tsSdk: `${DOCS_URL}/docs/guides/use-the-sdk-for-chat-and-feedback`,
-  pySdk: `${DOCS_URL}/docs/guides/build-a-tool-calling-agent-in-python-sdk`,
-  storeViaApi: `${DOCS_URL}/docs/guides/store-prompts-and-tools-via-api`,
-  pyNoSdk: `${DOCS_URL}/docs/guides/build-a-tool-calling-agent-in-python-no-sdk`,
+  pySdk: `${DOCS_URL}/docs/tutorials/build-a-tool-calling-agent-in-python-sdk`,
   // No trailing slashes: the docs site is built with `trailingSlash: false`, so a
   // trailing slash costs an extra redirect hop on every click.
   /** Per-pillar reference + guide targets used by the feature pages. */

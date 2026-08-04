@@ -166,6 +166,7 @@ export class DatasetsRepository {
     data: {
       input: Prisma.InputJsonValue;
       criteria?: string;
+      history?: Prisma.InputJsonValue;
       sourceTraceId?: string;
       sourceFeedbackId?: string;
       sourcePromptVersionId?: string;
@@ -179,6 +180,11 @@ export class DatasetsRepository {
         datasetId,
         input: data.input,
         criteria: data.criteria ?? null,
+        // `DbNull`, not `JsonNull`: "this example has no history" is the absence
+        // of a value, so the column must hold SQL NULL. `JsonNull` would store
+        // the JSON literal `null`, which reads back the same in JS but makes
+        // `history IS NULL` false for every row.
+        history: data.history ?? Prisma.DbNull,
         sourceTraceId: data.sourceTraceId ?? null,
         sourceFeedbackId: data.sourceFeedbackId ?? null,
         sourcePromptVersionId: data.sourcePromptVersionId ?? null,
@@ -273,6 +279,113 @@ export class DatasetsRepository {
   }
 
   /**
+   * Resolves each given prompt-version id to its parent prompt's id + name.
+   * Used by `DatasetsService.checkPromptMismatch` to tell whether a dataset
+   * example's lineage points at a different prompt than a run's target.
+   *
+   * @param versionIds - Prompt-version UUIDs to resolve (deduped by caller).
+   * @param teamId - Isolation boundary. A version whose prompt belongs to a
+   *   different team is treated as if it doesn't exist — this result feeds
+   *   straight into an API response (the mismatch warning's prompt name), so
+   *   it must never leak another team's data.
+   * @returns Map of versionId -> { promptId, promptName }. A version that no
+   *   longer exists (deleted), or belongs to another team, is simply absent
+   *   from the map.
+   */
+  async resolveVersionPrompts(
+    versionIds: string[],
+    teamId: string,
+  ): Promise<Map<string, { promptId: string; promptName: string }>> {
+    if (versionIds.length === 0) return new Map();
+    const rows = await prisma.promptVersion.findMany({
+      where: { id: { in: versionIds }, prompt: { teamId } },
+      select: { id: true, promptId: true, prompt: { select: { name: true } } },
+    });
+    return new Map(rows.map((r) => [r.id, { promptId: r.promptId, promptName: r.prompt.name }]));
+  }
+
+  /**
+   * Loads one trace's `sessionId` and `startedAt`, team-scoped. Used to seed
+   * a session-history reconstruction from the feedback trace.
+   *
+   * @param teamId - Isolation boundary.
+   * @param traceId - Trace UUID.
+   * @returns `{ sessionId, startedAt }`, or null if not found or in another team.
+   */
+  async getTraceById(
+    teamId: string,
+    traceId: string,
+  ): Promise<{ sessionId: string | null; startedAt: Date } | null> {
+    return prisma.trace.findFirst({
+      where: { id: traceId, teamId },
+      select: { sessionId: true, startedAt: true },
+    });
+  }
+
+  /**
+   * Lists the traces that share `sessionId` and started strictly before
+   * `beforeStartedAt`, oldest first, capped at `limit`. Used to walk a
+   * session backward from the feedback trace for history reconstruction.
+   *
+   * @param teamId - Isolation boundary.
+   * @param sessionId - The session to walk.
+   * @param beforeStartedAt - Exclusive upper bound (the feedback trace's own `startedAt`).
+   * @param limit - Max traces to return (most-recent-first among the eligible set, then re-ordered ascending).
+   * @returns Traces oldest first, each identified by id + startedAt.
+   */
+  async listPriorSessionTraces(
+    teamId: string,
+    sessionId: string,
+    beforeStartedAt: Date,
+    limit: number,
+  ): Promise<Array<{ id: string; startedAt: Date }>> {
+    const rows = await prisma.trace.findMany({
+      where: { teamId, sessionId, startedAt: { lt: beforeStartedAt } },
+      select: { id: true, startedAt: true },
+      // `id` breaks ties: a gateway trace's `startedAt` is DERIVED
+      // (createdAt - latencyMs), so two turns in one session can land on the
+      // same instant, and without a second key their order — and therefore the
+      // reconstructed conversation's order — would be undefined.
+      orderBy: [{ startedAt: 'desc' }, { id: 'desc' }],
+      take: limit,
+    });
+    return rows.reverse();
+  }
+
+  /**
+   * Loads one trace's `llm`-kind spans with captured payloads, oldest first —
+   * the raw material `buildTraceExchange` (`./history.builder`) reconstructs
+   * one turn's exchange from. Spans with no captured payload (capture was
+   * off) or a missing input/output are excluded — there is nothing to
+   * replay for them.
+   *
+   * Reads `input`/`output` only — not the whole span row and not the payload's
+   * `variables`, which can be as large again as the messages and is never used
+   * here. This runs once per prior trace in a session, so the saved transfer
+   * multiplies.
+   *
+   * @param teamId - Isolation boundary.
+   * @param traceId - Trace UUID.
+   * @returns Each span's captured `input`/`output`, oldest first. Typed
+   *   `unknown` deliberately: the payload is whatever its producer wrote (the
+   *   gateway hook, either SDK's auto-trace, or a hand-ingested span), so it
+   *   must be narrowed before use — `buildTraceExchange` does that.
+   */
+  async listLlmSpansForTrace(
+    teamId: string,
+    traceId: string,
+  ): Promise<Array<{ input: unknown; output: unknown }>> {
+    const spans = await prisma.span.findMany({
+      where: { teamId, traceId, kind: 'llm', payload: { isNot: null } },
+      select: { payload: { select: { input: true, output: true } } },
+      orderBy: [{ startedAt: 'asc' }, { id: 'asc' }],
+    });
+    return spans
+      .filter((s) => s.payload?.input != null && s.payload?.output != null)
+      .map((s) => ({ input: s.payload!.input as unknown, output: s.payload!.output as unknown }));
+  }
+
+  /**
    * Transaction helper: creates a dataset and N examples atomically.
    * Ensures that if the dataset is created but example creation fails, the entire
    * operation is rolled back.
@@ -290,6 +403,7 @@ export class DatasetsRepository {
     examples: Array<{
       input: Prisma.InputJsonValue;
       criteria?: string;
+      history?: Prisma.InputJsonValue;
       sourceTraceId?: string;
       sourceFeedbackId?: string;
       sourcePromptVersionId?: string;
@@ -325,6 +439,8 @@ export class DatasetsRepository {
           datasetId: createdDataset.id,
           input: example.input,
           criteria: example.criteria ?? null,
+          // SQL NULL, not the JSON literal `null` — see `createExample`.
+          history: example.history ?? Prisma.DbNull,
           sourceTraceId: example.sourceTraceId ?? null,
           sourceFeedbackId: example.sourceFeedbackId ?? null,
           sourcePromptVersionId: example.sourcePromptVersionId ?? null,

@@ -253,6 +253,146 @@ describe('processCell', () => {
     expect(JSON.stringify(sentBody.messages)).toContain('Al');
   });
 
+  it("freezes a dataset example's history into the run and replays it before the new turn", async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    const prompt = (await agent.post('/api/v1/prompts').send({ name: 'p' }).expect(201)).body;
+    const version = (
+      await agent
+        .post(`/api/v1/prompts/${prompt.id}/versions`)
+        .send({ messages: [{ role: 'user', content: 'Reply to {{ name }}' }] })
+        .expect(201)
+    ).body;
+    await agent.post(`/api/v1/prompts/${prompt.id}/aliases/production/promote`).send({ version_number: 1 }).expect(200);
+
+    const dataset = (await agent.post('/api/v1/datasets').send({ name: 'd' }).expect(201)).body;
+    const history = [
+      { role: 'user', content: 'turn 1' },
+      { role: 'assistant', content: 'reply 1' },
+    ];
+    const example = (
+      await agent.post(`/api/v1/datasets/${dataset.id}/examples`).send({ input: { name: 'Al' }, history }).expect(201)
+    ).body;
+
+    const experiment = (
+      await agent
+        .post('/api/v1/experiments')
+        .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [version.id], models: ['gpt-4o-mini'] })
+        .expect(201)
+    ).body;
+
+    // Real startRun flow — proves RunsService.startRun freezes the example's
+    // history into exampleSnapshot, not just that a hand-built snapshot works.
+    mockFetchOnce(CANNED_OPENAI);
+    const startRes = await agent.post(`/api/v1/experiments/${experiment.id}/runs`).expect(202);
+    const runRow = await prisma.experimentRun.findUnique({ where: { id: startRes.body.run_id } });
+    const grid = runRow!.grid as unknown as Array<{ cellKey: string; promptVersionId?: string; variantLabel: string; variantKind: string }>;
+    const cell = grid[0]!;
+
+    await processCell({
+      teamId,
+      runId: runRow!.id,
+      cellKey: cell.cellKey,
+      variantKind: cell.variantKind,
+      promptVersionId: cell.promptVersionId,
+      variantLabel: cell.variantLabel,
+      model: 'gpt-4o-mini',
+      exampleId: example.id,
+    });
+
+    // The gateway call must have received history-then-new-turn, in order.
+    const fetchMock = global.fetch as unknown as jest.Mock;
+    const sentBody = JSON.parse(fetchMock.mock.calls[fetchMock.mock.calls.length - 1]![1].body as string);
+    expect(sentBody.messages).toEqual([
+      { role: 'user', content: 'turn 1' },
+      { role: 'assistant', content: 'reply 1' },
+      { role: 'user', content: 'Reply to Al' },
+    ]);
+
+    const cellDetail = await agent.get(`/api/v1/runs/${runRow!.id}/cells/${encodeURIComponent(cell.cellKey)}`).expect(200);
+    expect(cellDetail.body.examples[0].history).toEqual(history);
+  });
+
+  // The template's system prompt has to stay at index 0: a system message
+  // buried after the replayed conversation is a different prompt, and some
+  // providers reject one that isn't first.
+  it("keeps the template's system message ahead of the replayed history", async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    const prompt = (await agent.post('/api/v1/prompts').send({ name: 'sys-p' }).expect(201)).body;
+    const version = (
+      await agent
+        .post(`/api/v1/prompts/${prompt.id}/versions`)
+        .send({
+          messages: [
+            { role: 'system', content: 'You are a terse support agent.' },
+            { role: 'user', content: 'Reply to {{ name }}' },
+          ],
+        })
+        .expect(201)
+    ).body;
+    await agent.post(`/api/v1/prompts/${prompt.id}/aliases/production/promote`).send({ version_number: 1 }).expect(200);
+
+    const dataset = (await agent.post('/api/v1/datasets').send({ name: 'd-sys' }).expect(201)).body;
+    // Ends on an UNANSWERED assistant tool_calls — a prior turn that was
+    // abandoned mid tool-loop. Replaying it verbatim is a provider 400, so the
+    // splice must drop it.
+    const example = (
+      await agent
+        .post(`/api/v1/datasets/${dataset.id}/examples`)
+        .send({
+          input: { name: 'Al' },
+          history: [
+            { role: 'user', content: 'turn 1' },
+            { role: 'assistant', content: 'reply 1' },
+            {
+              role: 'assistant',
+              content: '',
+              tool_calls: [{ id: 'c1', type: 'function', function: { name: 'lookup', arguments: '{}' } }],
+            },
+          ],
+        })
+        .expect(201)
+    ).body;
+
+    const experiment = (
+      await agent
+        .post('/api/v1/experiments')
+        .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [version.id], models: ['gpt-4o-mini'] })
+        .expect(201)
+    ).body;
+
+    mockFetchOnce(CANNED_OPENAI);
+    const startRes = await agent.post(`/api/v1/experiments/${experiment.id}/runs`).expect(202);
+    const runRow = await prisma.experimentRun.findUnique({ where: { id: startRes.body.run_id } });
+    const grid = runRow!.grid as unknown as Array<{ cellKey: string; promptVersionId?: string; variantLabel: string; variantKind: string }>;
+    const cell = grid[0]!;
+
+    await processCell({
+      teamId,
+      runId: runRow!.id,
+      cellKey: cell.cellKey,
+      variantKind: cell.variantKind,
+      promptVersionId: cell.promptVersionId,
+      variantLabel: cell.variantLabel,
+      model: 'gpt-4o-mini',
+      exampleId: example.id,
+    });
+
+    const fetchMock = global.fetch as unknown as jest.Mock;
+    const sentBody = JSON.parse(fetchMock.mock.calls[fetchMock.mock.calls.length - 1]![1].body as string);
+    expect(sentBody.messages).toEqual([
+      { role: 'system', content: 'You are a terse support agent.' },
+      { role: 'user', content: 'turn 1' },
+      { role: 'assistant', content: 'reply 1' },
+      { role: 'user', content: 'Reply to Al' },
+    ]);
+  });
+
   it('rethrows on a provider failure; writeResultError separately records the terminal row', async () => {
     const { agent, teamId } = await authedAgent(app);
     const { promptVersionId, exampleId, experimentId } = await arrangeBasics(agent);
