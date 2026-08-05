@@ -3,16 +3,39 @@ title: "Prompt Diff"
 description: "Get a unified diff between two versions of a prompt's raw template."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Diff API
 
 ## GET /api/v1/prompts/:id/versions/diff
 
 Returns a unified diff string between two versions of a prompt. The diff is computed on the raw nunjucks template strings — never rendered output.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X GET "$ACRUXCORE_BASE_URL/prompts/77afb6c5-8146-4fde-96e3-493ef3751374/versions/diff?from=1&to=2" \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const result = await hub.prompts.diff('77afb6c5-8146-4fde-96e3-493ef3751374', 1, 2);
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+result = await hub.prompts.diff('77afb6c5-8146-4fde-96e3-493ef3751374', 1, 2)
+```
+
+</TabItem>
+</Tabs>
 
 ### Query parameters
 

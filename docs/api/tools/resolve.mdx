@@ -3,13 +3,16 @@ title: "Tool Resolve"
 description: "Resolve tool names to model-ready function definitions, in one batched call."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Tool Resolve API
 
 All endpoints verified working via curl. Document updated only after curl confirmation.
 
 `POST /tools/resolve` turns a list of tool **names** into the `function` blocks you
 put in an LLM request. It is the read counterpart to
-[`sync.md`](./sync.md): the SDKs call sync on start-up to register what the code
+[`sync.mdx`](./sync.mdx): the SDKs call sync on start-up to register what the code
 defines, then call resolve to get back what the model should actually see.
 
 Names, not ids — the caller is a decorated function in a source file and has no id
@@ -23,12 +26,36 @@ would otherwise make a dozen round-trips before it can send its first prompt.
 
 ### POST /api/v1/tools/resolve
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/tools/resolve \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"refs":[{"name":"get_weather","alias":"production"}]}'
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const resolved = await hub.tools.resolve([
+  { name: 'get_weather', alias: 'production' },
+]);
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+resolved = await hub.tools.resolve([
+    {'name': 'get_weather', 'alias': 'production'},
+])
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 
@@ -114,7 +141,7 @@ Response (status 200):
 - `client` — your own code runs it. The loop looks the function up in its local
   registry and calls it.
 - `http` — the platform runs it. The loop posts the arguments to
-  [`execute.md`](./execute.md) and never touches the target service itself.
+  [`execute.mdx`](./execute.mdx) and never touches the target service itself.
 
 The executor **definition** is deliberately absent from the response. A tool's
 `http` executor holds its target url, its headers, and `{{secret.NAME}}`

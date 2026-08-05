@@ -3,6 +3,9 @@ title: "Trace Facets"
 description: "Discover the distinct tags and metadata keys/values a team has actually used, for populating filter pickers."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Trace Facets API
 
 All endpoints verified working via curl. Document updated only after curl confirmation.
@@ -22,10 +25,30 @@ Returns every distinct tag and every distinct metadata key currently in use
 across the team's traces. No query params. Returns empty arrays when the team
 has no traces (or none carry tags/metadata).
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   "$ACRUXCORE_BASE_URL/traces/facets"
 ```
+
+</TabItem>
+<TabItem value="typescript" label="TypeScript">
+
+```ts
+const facets = await hub.traces.listFacets();
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+facets = hub.traces.list_facets()
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200) — from a team with two traces, one tagged
 `["prod", "nl"]` with metadata `{"env": "prod", "lang": "nl"}`, the other
@@ -52,10 +75,30 @@ been chosen. `key` is a **required** query param.
 that was queried. A caller that expects the request's `key` reflected back in
 the body will not find it there.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   "$ACRUXCORE_BASE_URL/traces/facets/values?key=env"
 ```
+
+</TabItem>
+<TabItem value="typescript" label="TypeScript">
+
+```ts
+const values = await hub.traces.getFacetValues("env");
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+values = hub.traces.get_facet_values("env")
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200) — for the same seed data as above (`env` set to `prod`
 on one trace, `staging` on the other):

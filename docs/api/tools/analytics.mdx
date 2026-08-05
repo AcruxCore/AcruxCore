@@ -3,6 +3,9 @@ title: "Tools Analytics"
 description: "Read usage analytics for tool executions."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Tools Analytics API
 
 All endpoints verified working via curl. Document updated only after curl confirmation.
@@ -19,10 +22,30 @@ team, optionally windowed by `since`/`until` ISO-8601 timestamps (both optional;
 open bound leaves that side of the window unbounded). Any authenticated team member
 may read this (no role restriction).
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl $ACRUXCORE_BASE_URL/tools/analytics \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"
 ```
+
+</TabItem>
+<TabItem value="typescript" label="TypeScript">
+
+```ts
+const analytics = await hub.tools.analytics();
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+analytics = hub.tools.analytics()
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200) — no executions yet:
 
@@ -42,10 +65,36 @@ Response (status 200) — after 2 successful executions of one tool:
 
 With an explicit window that covers the executions, the result is the same.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl "$ACRUXCORE_BASE_URL/tools/analytics?since=2026-07-01T00:00:00.000Z&until=2026-12-31T00:00:00.000Z" \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"
 ```
+
+</TabItem>
+<TabItem value="typescript" label="TypeScript">
+
+```ts
+const analytics = await hub.tools.analytics({
+  since: "2026-07-01T00:00:00.000Z",
+  until: "2026-12-31T00:00:00.000Z",
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+analytics = hub.tools.analytics(
+    since="2026-07-01T00:00:00.000Z",
+    until="2026-12-31T00:00:00.000Z",
+)
+```
+
+</TabItem>
+</Tabs>
 
 With a `since` in the future, the window excludes every execution.
 

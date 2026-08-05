@@ -7,7 +7,7 @@ description: "Create scoped virtual keys that authenticate gateway calls without
 
 Base path: `/api/v1/gateway/keys`. Management (create/update/revoke) requires
 `owner` or `admin`; listing (masked) is allowed for any role. Calling the gateway
-with a key is documented in [gateway completions](index.md).
+with a key is documented in [gateway completions](index.mdx).
 
 Auth for these management endpoints is a session cookie or a personal/team API
 key (`requireAnyAuth`). The virtual key itself (`agh_sk_…`) authenticates calls to

@@ -234,6 +234,9 @@ that the alias resolved to v2's content:
 **2. The render API.** When your code calls the render endpoint, the alias
 determines everything:
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 # This returns v1's model + system prompt (quick → v1)
 curl -s -X POST "$ACRUXCORE_BASE_URL/prompts/web-research-agent/quick/render" \
@@ -247,6 +250,46 @@ curl -s -X POST "$ACRUXCORE_BASE_URL/prompts/web-research-agent/deep/render" \
   -d '{"variables":{"question":"What is new in AI?"}}'
 # -> { "model": "gpt-4o-mini", "messages": [...thorough persona...], "tools": [...] }
 ```
+
+</TabItem>
+<TabItem value="python-sdk" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+async with AcruxCore() as hub:
+    # This returns v1's model + system prompt (quick → v1)
+    rendered = await hub.prompts.render("web-research-agent", "quick",
+                                       {"question": "What is new in AI?"})
+    # rendered.model == "gemini-flash", rendered.messages == [...fast persona...]
+
+    # This returns v2's model + system prompt (deep → v2)
+    rendered = await hub.prompts.render("web-research-agent", "deep",
+                                       {"question": "What is new in AI?"})
+    # rendered.model == "gpt-4o-mini", rendered.messages == [...thorough persona...]
+```
+
+</TabItem>
+<TabItem value="node-sdk" label="Node (SDK)">
+
+```typescript
+import { acruxcore } from '@acruxcoreai/sdk';
+
+const hub = new acruxcore();
+
+// This returns v1's model + system prompt (quick → v1)
+const rendered = await hub.prompts.render("web-research-agent", "quick",
+  { question: "What is new in AI?" });
+// rendered.model == "gemini-flash", rendered.messages == [...fast persona...]
+
+// This returns v2's model + system prompt (deep → v2)
+const rendered2 = await hub.prompts.render("web-research-agent", "deep",
+  { question: "What is new in AI?" });
+// rendered2.model == "gpt-4o-mini", rendered2.messages == [...thorough persona...]
+```
+
+</TabItem>
+</Tabs>
 
 Same endpoint, same variables — the alias on the URL is the only thing that
 changed. The model, system prompt, and tool list all came from whichever version

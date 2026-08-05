@@ -26,6 +26,9 @@ A tool is a **shell** (name + description) plus an immutable **version** carryin
 You can also create tools through the [dashboard](../guides/build-and-attach-a-tool) (no code), or declare them in code with [`acrux.tool`](../guides/build-and-attach-a-tool) so the first run auto-registers them in the catalog.
 :::
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 # finance_research — takes a ticker symbol
 curl -X POST "$ACRUXCORE_BASE_URL/tools" \
@@ -71,6 +74,88 @@ curl -X POST "$ACRUXCORE_BASE_URL/tools/d0a800d5-a484-4d4f-a9e2-05a715775682/ver
 {"id":"ca59ea4a-d86b-45be-b424-263f97651f12","toolId":"d0a800d5-a484-4d4f-a9e2-05a715775682","versionNumber":1,"description":"Get today's date.","parametersSchema":{"type":"object","properties":{}},"executor":{"type":"client"},"aliases":[{"alias":"production","versionNumber":1},{"alias":"staging","versionNumber":1}]}
 ```
 
+</TabItem>
+<TabItem value="python-sdk" label="Python (SDK)">
+
+The `@acrux.tool` decorator derives the name, description, and JSON Schema from the function itself. `tools.sync()` reconciles the decorated function with the catalog — creating the tool if it doesn't exist, or committing a new version if the spec changed:
+
+```python
+from acruxcore import AcruxCore, acrux
+
+@acrux.tool
+async def finance_research(ticker_symbol: str) -> str:
+    """Search Yahoo Finance news for a ticker symbol.
+
+    Args:
+        ticker_symbol: Stock ticker symbol, e.g. "AAPL".
+    """
+    # Your implementation here
+    ...
+
+@acrux.tool
+async def get_todays_date() -> str:
+    """Get today's date."""
+    return datetime.now().strftime("%Y-%m-%d")
+
+async with AcruxCore() as hub:
+    results = await hub.tools.sync([finance_research, get_todays_date])
+    for fn, r in zip([finance_research, get_todays_date], results):
+        print(f"{fn.__name__}: tool_id={r.tool_id} v{r.version_number}")
+```
+
+```text
+finance_research: tool_id=c6ffbbff-7e5f-4e6e-acbe-1fd1a027632f v1 committed=True
+get_todays_date: tool_id=d0a800d5-a484-4d4f-a9e2-05a715775682 v1 committed=True
+```
+
+The docstring becomes the model-facing description, the signature becomes the JSON Schema, and `executor` is automatically set to `"client"`.
+
+</TabItem>
+<TabItem value="node-sdk" label="Node (SDK)">
+
+Use `hub.tools.create()` and `hub.tools.commitVersion()` to register tools. Node's SDK doesn't derive schemas from TypeScript signatures, so you pass the schema explicitly:
+
+```typescript
+import { acruxcore } from '@acruxcoreai/sdk';
+
+const hub = new acruxcore();
+
+// finance_research
+const tool1 = await hub.tools.create({
+  name: "finance_research",
+  description: "Search Yahoo Finance news for a ticker symbol.",
+});
+await hub.tools.commitVersion(tool1.id, {
+  description: "Search Yahoo Finance news for a ticker symbol.",
+  parametersSchema: {
+    type: "object",
+    properties: {
+      ticker_symbol: { type: "string", description: 'Stock ticker symbol, e.g. "AAPL".' },
+    },
+    required: ["ticker_symbol"],
+  },
+  executor: { type: "client" },
+});
+
+// get_todays_date
+const tool2 = await hub.tools.create({
+  name: "get_todays_date",
+  description: "Get today's date.",
+});
+await hub.tools.commitVersion(tool2.id, {
+  description: "Get today's date.",
+  parametersSchema: { type: "object", properties: {} },
+  executor: { type: "client" },
+});
+```
+
+```json
+{"id":"ca59ea4a-d86b-45be-b424-263f97651f12","toolId":"d0a800d5-a484-4d4f-a9e2-05a715775682","versionNumber":1,"description":"Get today's date.","parametersSchema":{"type":"object","properties":{}},"executor":{"type":"client"},"aliases":[{"alias":"production","versionNumber":1},{"alias":"staging","versionNumber":1}]}
+```
+
+</TabItem>
+</Tabs>
+
 ## 2. Create the prompt over the API
 
 The prompt's system message is what turns two tools into a ReAct-style agent: it tells the model to reason before acting, names both tools, and says when to reach for each. The version attaches both tools by id, so a single render call returns everything the loop needs.
@@ -78,6 +163,9 @@ The prompt's system message is what turns two tools into a ReAct-style agent: it
 :::tip[Other ways to create prompts]
 You can also author prompts in the [dashboard's visual editor](../guides/version-a-prompt), or declare tools in code with [`acrux.tool`](../guides/build-and-attach-a-tool) and have the first run auto-create the prompt.
 :::
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
 
 ```bash
 curl -X POST "$ACRUXCORE_BASE_URL/prompts" \
@@ -126,6 +214,126 @@ curl -X POST "$ACRUXCORE_BASE_URL/prompts/react-agent-finance/production/render"
 ```
 
 That `tools` array is already OpenAI's exact `tools[].function` shape — nothing to reformat before sending it to OpenAI.
+
+</TabItem>
+<TabItem value="python-sdk" label="Python (SDK)">
+
+`hub.prompts.create()` creates the shell, then `hub.prompts.commitVersion()` attaches the messages and tools. Use the tool ids from Step 3:
+
+```python
+from acruxcore import AcruxCore
+
+async with AcruxCore() as hub:
+    # Create the prompt shell
+    prompt = await hub.prompts.create({
+        "name": "react-agent-finance",
+        "description": "ReAct-style finance research agent, called directly against OpenAI (no gateway).",
+    })
+
+    # Commit a version with messages and tools
+    version = await hub.prompts.commitVersion(prompt.id, {
+        "messages": [
+            {"role": "system", "content": "You are a financial research assistant. Reason step by step about what the question actually needs before answering. Use the finance_research tool to look up recent Yahoo Finance news for a stock ticker, and the get_todays_date tool whenever the question depends on today's date (relative dates, whether markets are open, and similar). Only call a tool when its result is genuinely needed, then give a clear final answer grounded in what the tools returned."},
+            {"role": "user", "content": "{{ question }}"},
+        ],
+        "tools": [
+            {"toolId": "c6ffbbff-7e5f-4e6e-acbe-1fd1a027632f"},
+            {"toolId": "d0a800d5-a484-4d4f-a9e2-05a715775682"},
+        ],
+    })
+    print(f"prompt_id={prompt.id} v{version.version_number}")
+```
+
+```json
+{"id":"53df8bc8-0d4a-4c00-91c5-bfa7e9c8bbf4","promptId":"6611c5f6-7f34-4e5e-b3b1-cb325c8070bd","versionNumber":1,"variables":["question"],"model":null,"aliases":[{"alias":"production","versionNumber":1},{"alias":"staging","versionNumber":1}]}
+```
+
+No `model` is bound — that field points at the gateway's model registry, and this page never touches the gateway. The first version auto-creates `production`/`staging` aliases, so it's immediately renderable:
+
+```python
+rendered = await hub.prompts.render("react-agent-finance", "production",
+                                   {"question": "Is there any recent news on AAPL, and is today a weekday?"})
+```
+
+```json
+{
+  "messages": [
+    {"role":"system","content":"You are a financial research assistant. Reason step by step..."},
+    {"role":"user","content":"Is there any recent news on AAPL, and is today a weekday?"}
+  ],
+  "tools": [
+    {"type":"function","function":{"name":"finance_research","description":"Search Yahoo Finance news for a ticker symbol.","parameters":{"type":"object","required":["ticker_symbol"],"properties":{"ticker_symbol":{"type":"string","description":"Stock ticker symbol, e.g. \"AAPL\"."}}}}},
+    {"type":"function","function":{"name":"get_todays_date","description":"Get today's date.","parameters":{"type":"object","properties":{}}}}
+  ],
+  "model": null,
+  "versionId": "53df8bc8-0d4a-4c00-91c5-bfa7e9c8bbf4",
+  "versionNumber": 1
+}
+```
+
+That `tools` array is already OpenAI's exact `tools[].function` shape — nothing to reformat before sending it to OpenAI.
+
+</TabItem>
+<TabItem value="node-sdk" label="Node (SDK)">
+
+Same shape. `hub.prompts.create()` creates the shell, then `hub.prompts.commitVersion()` attaches the messages and tools:
+
+```typescript
+import { acruxcore } from '@acruxcoreai/sdk';
+
+const hub = new acruxcore();
+
+// Create the prompt shell
+const prompt = await hub.prompts.create({
+  name: "react-agent-finance",
+  description: "ReAct-style finance research agent, called directly against OpenAI (no gateway).",
+});
+
+// Commit a version with messages and tools
+const version = await hub.prompts.commitVersion(prompt.id, {
+  messages: [
+    { role: "system", content: "You are a financial research assistant. Reason step by step about what the question actually needs before answering. Use the finance_research tool to look up recent Yahoo Finance news for a stock ticker, and the get_todays_date tool whenever the question depends on today's date (relative dates, whether markets are open, and similar). Only call a tool when its result is genuinely needed, then give a clear final answer grounded in what the tools returned." },
+    { role: "user", content: "{{ question }}" },
+  ],
+  tools: [
+    { toolId: "c6ffbbff-7e5f-4e6e-acbe-1fd1a027632f" },
+    { toolId: "d0a800d5-a484-4d4f-a9e2-05a715775682" },
+  ],
+});
+console.log(`prompt_id=${prompt.id} v${version.versionNumber}`);
+```
+
+```json
+{"id":"53df8bc8-0d4a-4c00-91c5-bfa7e9c8bbf4","promptId":"6611c5f6-7f34-4e5e-b3b1-cb325c8070bd","versionNumber":1,"variables":["question"],"model":null,"aliases":[{"alias":"production","versionNumber":1},{"alias":"staging","versionNumber":1}]}
+```
+
+The first version auto-creates `production`/`staging` aliases, so it's immediately renderable:
+
+```typescript
+const rendered = await hub.prompts.render("react-agent-finance", "production",
+  { question: "Is there any recent news on AAPL, and is today a weekday?" });
+```
+
+```json
+{
+  "messages": [
+    {"role":"system","content":"You are a financial research assistant. Reason step by step..."},
+    {"role":"user","content":"Is there any recent news on AAPL, and is today a weekday?"}
+  ],
+  "tools": [
+    {"type":"function","function":{"name":"finance_research","description":"Search Yahoo Finance news for a ticker symbol.","parameters":{"type":"object","required":["ticker_symbol"],"properties":{"ticker_symbol":{"type":"string","description":"Stock ticker symbol, e.g. \"AAPL\"."}}}}},
+    {"type":"function","function":{"name":"get_todays_date","description":"Get today's date.","parameters":{"type":"object","properties":{}}}}
+  ],
+  "model": null,
+  "versionId": "53df8bc8-0d4a-4c00-91c5-bfa7e9c8bbf4",
+  "versionNumber": 1
+}
+```
+
+That `tools` array is already OpenAI's exact `tools[].function` shape — nothing to reformat before sending it to OpenAI.
+
+</TabItem>
+</Tabs>
 
 ## 3. Run the agent
 

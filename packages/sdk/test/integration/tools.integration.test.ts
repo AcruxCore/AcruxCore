@@ -407,6 +407,47 @@ describe('acruxcore SDK tools integration', () => {
     }
   });
 
+  describe('tools.execute', () => {
+    it('executes an http-executor tool via hub.tools.execute()', async () => {
+      const { apiKey } = await setupUserAndKey();
+      const { hub, close } = await startLiveClient(apiKey);
+
+      try {
+        const created = await hub.tools.create({
+          name: `httpbin-get-${Date.now()}`,
+          description: 'HTTP GET to httpbin',
+        });
+
+        const v1 = await hub.tools.commitVersion(created.id, {
+          parametersSchema: {
+            type: 'object',
+            properties: { city: { type: 'string' } },
+            required: ['city'],
+          },
+          executor: {
+            type: 'http',
+            url: 'https://httpbin.org/get',
+            method: 'GET',
+            headers: [],
+            query: [{ name: 'city', value: '{{city}}' }],
+            argMapping: [{ arg: 'city', in: 'query' }],
+          },
+          description: 'HTTP GET to httpbin',
+        });
+        expect(v1.versionNumber).toBe(1);
+
+        const result = await hub.tools.execute(created.id, { city: 'Berlin' });
+
+        expect(result).toHaveProperty('result');
+        expect(result.status).toBe(200);
+        expect(result.latencyMs).toBeGreaterThanOrEqual(0);
+        expect(result.toolVersionId).toEqual(expect.any(String));
+      } finally {
+        await close();
+      }
+    });
+  });
+
   it('surfaces VALIDATION_ERROR/TOOL_NAME_TAKEN/404 for the tool + version + analytics error paths', async () => {
     const { apiKey } = await setupUserAndKey();
     const { hub, close } = await startLiveClient(apiKey);

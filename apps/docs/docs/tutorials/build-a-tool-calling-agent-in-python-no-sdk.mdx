@@ -125,6 +125,77 @@ curl -X POST "$ACRUXCORE_BASE_URL/prompts/<prompt-id>/versions" \
 ```
 
 </TabItem>
+<TabItem value="python-sdk" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+async with AcruxCore() as hub:
+    tool = await hub.tools.create(
+        name="get_weather",
+        description="Get the current weather for a city.",
+    )
+    await hub.tools.commitVersion(
+        tool.id,
+        parameters_schema={
+            "type": "object",
+            "properties": {"city": {"type": "string", "description": 'City name, e.g. "Tokyo".'}},
+            "required": ["city"],
+        },
+        executor={"type": "client"},
+    )
+
+    prompt = await hub.prompts.create(
+        name="py-weather-agent",
+        description="Weather assistant driven by a plain-Python REST tool loop.",
+    )
+    await hub.prompts.commitVersion(
+        prompt.id,
+        messages=[
+            {"role": "system", "content": "You are a weather assistant. Use the get_weather tool to look up conditions before answering. Never guess."},
+            {"role": "user", "content": "What is the weather in {{ city }} right now?"},
+        ],
+        model="gpt-4o-mini",
+        tools=[{"toolId": tool.id}],
+    )
+```
+
+</TabItem>
+<TabItem value="node-sdk" label="Node (SDK)">
+
+```typescript
+import { acruxcore } from '@acruxcoreai/sdk';
+
+const hub = acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
+
+const tool = await hub.tools.create({
+  name: 'get_weather',
+  description: 'Get the current weather for a city.',
+});
+await hub.tools.commitVersion(tool.id, {
+  parametersSchema: {
+    type: 'object',
+    properties: { city: { type: 'string', description: 'City name, e.g. "Tokyo".' } },
+    required: ['city'],
+  },
+  executor: { type: 'client' },
+});
+
+const prompt = await hub.prompts.create({
+  name: 'py-weather-agent',
+  description: 'Weather assistant driven by a plain-Python REST tool loop.',
+});
+await hub.prompts.commitVersion(prompt.id, {
+  messages: [
+    { role: 'system', content: 'You are a weather assistant. Use the get_weather tool to look up conditions before answering. Never guess.' },
+    { role: 'user', content: 'What is the weather in {{ city }} right now?' },
+  ],
+  model: 'gpt-4o-mini',
+  tools: [{ toolId: tool.id }],
+});
+```
+
+</TabItem>
 </Tabs>
 
 The first version of each auto-creates `production` and `staging` aliases. Open
@@ -318,6 +389,48 @@ curl -X POST "$ACRUXCORE_BASE_URL/gateway/models" \
   "outputPricePerM": null,
   "fallbacks": []
 }
+```
+
+</TabItem>
+<TabItem value="python-sdk" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+async with AcruxCore() as hub:
+    credential = await hub.gateway.createConnection(
+        provider="openai_compatible",
+        label="OpenRouter",
+        apiKey="<your openrouter key>",
+        config={"base_url": "https://openrouter.ai/api/v1"},
+    )
+    model = await hub.gateway.createModel(
+        publicName="gpt-4o-mini",
+        upstreamModel="openai/gpt-4o-mini",
+        credentialId=credential.id,
+    )
+    print(f"credential={credential.id} model={model.id}")
+```
+
+</TabItem>
+<TabItem value="node-sdk" label="Node (SDK)">
+
+```typescript
+import { acruxcore } from '@acruxcoreai/sdk';
+
+const hub = acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
+const credential = await hub.gateway.createConnection({
+  provider: 'openai_compatible',
+  label: 'OpenRouter',
+  apiKey: '<your openrouter key>',
+  config: { base_url: 'https://openrouter.ai/api/v1' },
+});
+const model = await hub.gateway.createModel({
+  publicName: 'gpt-4o-mini',
+  upstreamModel: 'openai/gpt-4o-mini',
+  credentialId: credential.id,
+});
+console.log(`credential=${credential.id} model=${model.id}`);
 ```
 
 </TabItem>

@@ -255,6 +255,112 @@ curl -X POST "$ACRUXCORE_BASE_URL/traces" \
 ```
 
 </TabItem>
+<TabItem value="python-sdk" label="Python (SDK)">
+
+The SDK wraps all three calls. `hub.prompts.render()` returns the messages, tools, model, and `versionId` in one call. Pass the `provider` option to `hub.gateway.chat()` to call OpenRouter directly — the SDK mints a trace id, makes the call, and reports the `llm` span for you. You only need to report the `retrieval` span yourself (the SDK has no opinion on what you did before the model call):
+
+```python
+import acruxcore as acrux
+
+PROVIDER: acrux.ProviderConfig = {
+    "base_url": "https://openrouter.ai/api/v1",
+    "api_key": os.environ["OPENROUTER_API_KEY"],
+}
+
+async with AcruxCore() as hub:
+    # Report the retrieval span
+    reported = await hub.traces.ingest({
+        "name": "rag-linear",
+        "spans": [{
+            "spanId": "retrieval", "name": "search_docs", "kind": "retrieval",
+            "status": "ok", "startTime": started, "endTime": _now(),
+            "input": {"query": question}, "output": {"context": context},
+        }],
+    })
+
+    # Render the prompt (returns messages, tools, model, versionId)
+    rendered = await hub.prompts.render("rag-chat", "production",
+                                       {"context": context, "question": question})
+
+    # Call OpenRouter directly — SDK reports the llm span automatically
+    result = await hub.gateway.chat(
+        rendered.model or "openai/gpt-4o-mini",
+        rendered.messages,
+        provider=PROVIDER,
+        prompt_version_id=rendered.version_id,
+        trace={"trace_id": reported.trace_id},
+    )
+```
+
+```json
+{
+  "messages": [
+    { "role": "system", "content": "You answer questions about Acrux Core using only the documentation excerpts below..." },
+    { "role": "user", "content": "How do I attach a tool?" }
+  ],
+  "tools": [],
+  "model": null,
+  "versionId": "72bed36e-6d77-425e-878c-ec534ca43b8e",
+  "versionNumber": 1
+}
+```
+
+The SDK handles the trace id threading, the `llm` span report, and the prompt version linkage — three things the curl tab does by hand.
+
+</TabItem>
+<TabItem value="node-sdk" label="Node (SDK)">
+
+Same shape as the Python SDK. `hub.prompts.render()` returns messages, tools, model, and `versionId`. Pass the `provider` option to `hub.gateway.chat()` to call OpenRouter directly — the SDK mints a trace id, makes the call, and reports the `llm` span for you. You only need to report the `retrieval` span yourself:
+
+```typescript
+import { acruxcore } from '@acruxcoreai/sdk';
+
+const PROVIDER = {
+  baseUrl: "https://openrouter.ai/api/v1",
+  apiKey: process.env.OPENROUTER_API_KEY!,
+};
+
+const hub = new acruxcore();
+
+// Report the retrieval span
+const reported = await hub.traces.ingest({
+  name: "rag-linear",
+  spans: [{
+    spanId: "retrieval", name: "search_docs", kind: "retrieval",
+    status: "ok", startTime: started, endTime: _now(),
+    input: { query: question }, output: { context },
+  }],
+});
+
+// Render the prompt (returns messages, tools, model, versionId)
+const rendered = await hub.prompts.render("rag-chat", "production",
+  { context, question });
+
+// Call OpenRouter directly — SDK reports the llm span automatically
+const result = await hub.gateway.chat(
+  rendered.model ?? "openai/gpt-4o-mini",
+  rendered.messages,
+  { provider: PROVIDER, promptVersionId: rendered.versionId,
+    trace: { traceId: reported.traceId } },
+);
+```
+
+```json
+{
+  "messages": [
+    { "role": "system", "content": "You answer questions about Acrux Core using only the documentation excerpts below..." },
+    { "role": "user", "content": "How do I attach a tool?" }
+  ],
+  "tools": [],
+  "model": null,
+  "versionId": "72bed36e-6d77-425e-878c-ec534ca43b8e",
+  "versionNumber": 1
+}
+```
+
+The SDK handles the trace id threading, the `llm` span report, and the prompt version linkage — three things the curl tab does by hand.
+
+</TabItem>
 <TabItem value="python" label="Python (requests)">
 
 Embeddings come from the same host and key as the chat model:

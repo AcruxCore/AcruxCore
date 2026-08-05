@@ -3,14 +3,17 @@ title: "Gateway Chat Completions"
 description: "Call the OpenAI-compatible gateway endpoint with raw messages or a stored-prompt reference."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Gateway API — Chat Completions
 
 Phase 2 AI Gateway. Base path: `/api/v1/gateway`. An OpenAI client points its
 `baseURL` at `https://<host>/api/v1/gateway`.
 
-Related references: [provider connections](connections.md),
-[virtual keys](keys.md), [budgets](budgets.md),
-[usage analytics](usage.md).
+Related references: [provider connections](connections.mdx),
+[virtual keys](keys.mdx), [budgets](budgets.mdx),
+[usage analytics](usage.mdx).
 
 Auth for `POST /chat/completions` (`gatewayAuth`): a virtual key
 (`Authorization: Bearer agh_sk_…`) is the primary machine path; a session cookie or
@@ -27,12 +30,42 @@ using live OpenAI and Gemini connections.
 OpenAI-compatible chat completion. The gateway resolves the team's connection for
 the model's provider, calls it, prices the call, and records a request-log row.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
   -H "Content-Type: application/json" \
   --cookie "connect.sid=<session>" \
   -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Say hi in one word."}],"max_tokens":10}'
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const result = await hub.gateway.chat({
+  model: 'gpt-4o-mini',
+  messages: [{ role: 'user', content: 'Say hi in one word.' }],
+  maxTokens: 10,
+});
+console.log(result.content);
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+result = await hub.gateway.chat(
+    'gpt-4o-mini',
+    [{'role': 'user', 'content': 'Say hi in one word.'}],
+    max_tokens=10,
+)
+print(result.content)
+```
+
+</TabItem>
+</Tabs>
 
 Response headers (status 200):
 
@@ -111,7 +144,7 @@ Response body (status 200):
 ### POST /api/v1/gateway/chat/completions (via virtual key)
 
 Machine credential path — authenticate with a virtual key instead of a session.
-The virtual key was created via [POST /gateway/keys](keys.md); it is shown
+The virtual key was created via [POST /gateway/keys](keys.mdx); it is shown
 here redacted as `agh_sk_...REDACTED` (the real key was used and worked).
 
 ```bash
@@ -159,12 +192,47 @@ Set `"stream": true`. The response is `text/event-stream`: one OpenAI-compatible
 `x-gateway-cost-usd` is intentionally omitted from stream headers (cost is not
 known until the stream ends).
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl --no-buffer -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
   -H "Content-Type: application/json" \
   --cookie "connect.sid=<session>" \
   -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Count: one two three"}],"max_tokens":20,"stream":true}'
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const stream = await hub.gateway.chat({
+  model: 'gpt-4o-mini',
+  messages: [{ role: 'user', content: 'Count: one two three' }],
+  maxTokens: 20,
+  stream: true,
+});
+for await (const chunk of stream) {
+  process.stdout.write(chunk.delta.content ?? '');
+}
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+stream = await hub.gateway.chat(
+    'gpt-4o-mini',
+    [{'role': 'user', 'content': 'Count: one two three'}],
+    max_tokens=20,
+    stream=True,
+)
+async for chunk in stream:
+    print(chunk.delta.get('content', ''), end='')
+```
+
+</TabItem>
+</Tabs>
 
 Response headers (status 200):
 
@@ -206,14 +274,14 @@ data: [DONE]
 Enforcement happens before any provider call. Observed shapes:
 
 - **403 `MODEL_NOT_ALLOWED`** — a virtual key with an `allowedModels` allow-list
-  called a model outside it. See [virtual keys](keys.md).
+  called a model outside it. See [virtual keys](keys.mdx).
 
   ```json
   { "error": { "code": "MODEL_NOT_ALLOWED", "message": "Model 'gemini-2.5-flash-lite' is not allowed for this key." } }
   ```
 
 - **402 `BUDGET_EXCEEDED`** — the team-wide (or key-scoped) budget cap is reached.
-  See [budgets](budgets.md).
+  See [budgets](budgets.mdx).
 
   ```json
   { "error": { "code": "BUDGET_EXCEEDED", "message": "Team-wide budget exceeded." } }

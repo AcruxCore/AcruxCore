@@ -3,6 +3,9 @@ title: "Prompt Versions"
 description: "Commit immutable prompt versions and fetch them back by number."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Prompt Versions API
 
 All endpoints verified working via curl. Document updated only after curl
@@ -26,12 +29,37 @@ call that omits `model` falls back to it (an explicit request `model` always
 wins). Omitted = unbound. Every version response now carries `model`
 (the bound model's current `publicName`, or `null`).
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/prompts/a95ea910-c7fc-43c5-9c68-a8750e02a8f5/versions \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"messages":[{"role":"system","content":"Hello {{ name }}, welcome to {{ company }}."}]}'
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const version = await hub.prompts.commitVersion('a95ea910-c7fc-43c5-9c68-a8750e02a8f5', {
+  messages: [{ role: 'system', content: 'Hello {{ name }}, welcome to {{ company }}.' }],
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+version = await hub.prompts.commit_version(
+    'a95ea910-c7fc-43c5-9c68-a8750e02a8f5',
+    [{'role': 'system', 'content': 'Hello {{ name }}, welcome to {{ company }}.'}],
+)
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 201) — first commit: includes aliases:
 
@@ -128,6 +156,9 @@ curl -X POST $ACRUXCORE_BASE_URL/prompts/91f7b670-3305-47d0-af89-f46263cfabb7/ve
 Lists all versions for a prompt, newest first. The `messages` field is omitted
 from list items (fetch a specific version to get messages).
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl $ACRUXCORE_BASE_URL/prompts/a95ea910-c7fc-43c5-9c68-a8750e02a8f5/versions \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"
@@ -139,6 +170,27 @@ With pagination:
 curl "$ACRUXCORE_BASE_URL/prompts/a95ea910-c7fc-43c5-9c68-a8750e02a8f5/versions?page=1&limit=20" \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const result = await hub.prompts.listVersions('a95ea910-c7fc-43c5-9c68-a8750e02a8f5');
+// with pagination
+const page = await hub.prompts.listVersions('a95ea910-c7fc-43c5-9c68-a8750e02a8f5', { page: 1, limit: 20 });
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+result = await hub.prompts.list_versions('a95ea910-c7fc-43c5-9c68-a8750e02a8f5')
+# with pagination
+page = await hub.prompts.list_versions('a95ea910-c7fc-43c5-9c68-a8750e02a8f5', page=1, limit=20)
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 
@@ -174,10 +226,30 @@ Response (status 200):
 
 Fetches a specific version including its full `messages` array.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl $ACRUXCORE_BASE_URL/prompts/a95ea910-c7fc-43c5-9c68-a8750e02a8f5/versions/1 \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const version = await hub.prompts.getVersion('a95ea910-c7fc-43c5-9c68-a8750e02a8f5', 1);
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+version = await hub.prompts.get_version('a95ea910-c7fc-43c5-9c68-a8750e02a8f5', 1)
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 

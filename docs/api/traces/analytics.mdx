@@ -3,11 +3,14 @@ title: "Trace Analytics"
 description: "Read time-series analytics over every span ingested by the gateway or the SDK."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Trace Analytics API
 
 Read-only, team-scoped time-series analytics over the whole `spans` table —
 every span ingested via `POST /api/v1/traces` (gateway completions **and**
-SDK-posted spans). This is a **superset** of `docs/api/gateway/usage.md`'s
+SDK-posted spans). This is a **superset** of `docs/api/gateway/usage.mdx`'s
 `GET /gateway/usage`, which only aggregates `gateway_requests` (gateway
 traffic). Any team member can read (`requireAnyAuth` — session cookie or
 personal API key, no role gate). Base: `/api/v1/traces`.
@@ -50,7 +53,7 @@ Notes (verified below):
   are **omitted** from `buckets` — they still count towards `totals`.
 
 Data used in every example below was seeded via `POST /api/v1/traces` (see
-`docs/api/traces/traces.md`):
+`docs/api/traces/traces.mdx`):
 
 - `t4-support-run` (2026-06-20, session `t4-session-1`): `gpt-4o-mini` llm span,
   ok, 100/40/140 tokens, `$0.00002`, latency 1200ms; plus a `tool` span (200ms
@@ -68,10 +71,36 @@ group key omitted, `totals` still reflects all 4 spans).
 
 #### Default call (`group_by=day`, explicit window)
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -s -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   "$ACRUXCORE_BASE_URL/traces/analytics?from=2026-06-01&to=2026-07-01"
 ```
+
+</TabItem>
+<TabItem value="typescript" label="TypeScript">
+
+```ts
+const analytics = await hub.traces.analytics({
+  from: "2026-06-01",
+  to: "2026-07-01",
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+analytics = hub.traces.analytics(
+    from_="2026-06-01",
+    to="2026-07-01",
+)
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 

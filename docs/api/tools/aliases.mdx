@@ -3,6 +3,9 @@ title: "Tool Aliases"
 description: "List, render, and promote named pointers to a specific tool version."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Tool Aliases API
 
 All endpoints verified working via curl. Document updated only after curl confirmation.
@@ -43,12 +46,32 @@ any string; if it doesn't already exist, this call creates it.
 
 Promote production to v2.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/tools/8662ca24-69f2-4431-a7f4-82e9abc77ff1/aliases/production/promote \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"version_number":2}'
 ```
+
+</TabItem>
+<TabItem value="typescript" label="TypeScript">
+
+```ts
+const alias = await hub.tools.promoteAlias('8662ca24-69f2-4431-a7f4-82e9abc77ff1', 'production', 2);
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+alias = hub.tools.promote_alias('8662ca24-69f2-4431-a7f4-82e9abc77ff1', 'production', 2)
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 

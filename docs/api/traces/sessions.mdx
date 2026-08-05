@@ -3,6 +3,9 @@ title: "Sessions"
 description: "Group related traces under a shared session id and read them back as one rolled-up view."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Sessions API
 
 All endpoints verified working via curl. Document updated only after curl confirmation.
@@ -26,10 +29,30 @@ trace `startedAt` within the session). Query params:
 - `limit` — default 20, max 100
 - `q` — optional case-insensitive substring match on session_id
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   "$ACRUXCORE_BASE_URL/sessions"
 ```
+
+</TabItem>
+<TabItem value="typescript" label="TypeScript">
+
+```ts
+const sessions = await hub.sessions.list();
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+sessions = hub.sessions.list()
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 
@@ -60,7 +83,7 @@ Response (status 200):
 ```
 
 `alpha-session-1` above was built from two traces ingested via `POST /api/v1/traces`
-(see docs/api/traces/traces.md) sharing the same `sessionId`; `traceCount`, `totalCostUsd`
+(see docs/api/traces/traces.mdx) sharing the same `sessionId`; `traceCount`, `totalCostUsd`
 and `totalTokens` are rollups across those traces, and `firstAt`/`lastAt` are the
 earliest/latest trace `startedAt` in the session. A trace posted with no `sessionId`
 does not appear in any session.
@@ -149,10 +172,30 @@ One session's summary plus its traces (newest-first, capped at 100).
 NOT date-filtered — from/to query params are ignored on this route; the
 lookup is purely by session_id within the team.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   "$ACRUXCORE_BASE_URL/sessions/alpha-session-1"
 ```
+
+</TabItem>
+<TabItem value="typescript" label="TypeScript">
+
+```ts
+const session = await hub.sessions.get('alpha-session-1');
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+session = hub.sessions.get('alpha-session-1')
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 

@@ -3,6 +3,9 @@ title: "Trace Settings"
 description: "Configure team-wide trace capture behavior, such as whether payloads are stored."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Trace Settings API
 
 All endpoints verified working via curl. Document updated only after curl confirmation.
@@ -17,10 +20,30 @@ requires `owner` or `admin` (`requireRole('owner', 'admin')`).
 
 ### GET /api/v1/traces/settings
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl $ACRUXCORE_BASE_URL/traces/settings \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const settings = await hub.traces.getSettings();
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+settings = await hub.traces.get_settings()
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200) — before any write, lazy default:
 
@@ -38,6 +61,9 @@ Response (status 200) — before any write, lazy default:
 Requires owner/admin role. Toggles the team's default for whether trace
 payload bodies (inputs/outputs) get captured on ingest.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X PUT $ACRUXCORE_BASE_URL/traces/settings \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
@@ -45,34 +71,19 @@ curl -X PUT $ACRUXCORE_BASE_URL/traces/settings \
   -d '{"capturePayloads": true}'
 ```
 
-Response (status 200):
+</TabItem>
+<TabItem value="node" label="TypeScript">
 
-```json
-{
-  "capturePayloads": true,
-  "updatedAt": "2026-07-12T04:22:15.921Z"
-}
+```typescript
+const settings = await hub.traces.updateSettings(true);
 ```
 
-A subsequent GET reflects the same values. Emits a `trace_settings_updated`
-audit event on change.
+</TabItem>
+<TabItem value="python" label="Python">
 
-Invalid body (status 400):
-
-```bash
-curl -X PUT $ACRUXCORE_BASE_URL/traces/settings \
-  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"capturePayloads": "yes"}'
+```python
+settings = await hub.traces.update_settings(True)
 ```
 
-Response (status 400):
-
-```json
-{
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "capturePayloads must be a boolean."
-  }
-}
-```
+</TabItem>
+</Tabs>

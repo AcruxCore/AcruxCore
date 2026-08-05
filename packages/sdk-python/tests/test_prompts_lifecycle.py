@@ -226,6 +226,48 @@ async def test_full_prompt_version_lifecycle(
     assert exc_info.value.status_code == 404
 
 
+async def test_traces_for_version(hub: AcruxCore) -> None:
+    """Create a prompt, commit a version, ingest a trace stamped with that
+    version's id, flush, and query traces_for_version — the trace should
+    appear in the result set.
+    """
+    # 1. Create prompt
+    created = await hub.prompts.create(f"trace-link-test-{uuid.uuid4()}")
+    assert isinstance(created.id, str) and created.id
+
+    # 2. Commit version 1
+    v1 = await hub.prompts.commit_version(
+        created.id, [{"role": "system", "content": "Hello"}]
+    )
+    assert v1.version_number == 1
+
+    # 3. Ingest a trace with a span stamped with the prompt version
+    trace_result = await hub.traces.ingest(
+        {
+            "name": "test-trace",
+            "spans": [
+                {
+                    "spanId": "s1",
+                    "name": "llm",
+                    "kind": "llm",
+                    "startTime": "2026-08-05T12:00:00Z",
+                    "endTime": "2026-08-05T12:00:01Z",
+                    "promptVersionId": v1.id,
+                }
+            ],
+        }
+    )
+    assert trace_result.trace_id
+
+    # 4. Flush gateway so the trace is persisted before we query
+    await hub.gateway.flush()
+
+    # 5. Query traces for that prompt version — should contain our trace
+    result = await hub.prompts.traces_for_version(created.id, 1)
+    assert len(result.data) >= 1
+    assert any(t.id == trace_result.trace_id for t in result.data)
+
+
 async def test_error_paths(hub: AcruxCore) -> None:
     """An empty `name` on create surfaces VALIDATION_ERROR; a random UUID on
     get surfaces a 404 — both as `AcruxCoreError(code=API_ERROR)`.

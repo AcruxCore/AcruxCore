@@ -4,16 +4,39 @@ title: "Export"
 description: "Download a prompt version as a portable JSON file for backup or re-import."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Export API
 
 ## GET /api/v1/prompts/:id/versions/:version_number/export
 
 Returns a portable JSON export file for a specific prompt version. The response sets `Content-Disposition: attachment` so browsers offer it as a file download. The exported file can be re-imported via `POST /api/v1/prompts/import`.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X GET "$ACRUXCORE_BASE_URL/prompts/77afb6c5-8146-4fde-96e3-493ef3751374/versions/1/export" \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const exported = await hub.prompts.exportVersion('77afb6c5-8146-4fde-96e3-493ef3751374', 1);
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+exported = await hub.prompts.export_version('77afb6c5-8146-4fde-96e3-493ef3751374', 1)
+```
+
+</TabItem>
+</Tabs>
 
 ### Response headers (status 200)
 

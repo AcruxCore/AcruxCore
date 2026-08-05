@@ -3,6 +3,9 @@ title: "Traces Feedback"
 description: "Attach and read human feedback (rating, label, comment) on a trace or one of its spans."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Traces — User Feedback API
 
 All endpoints verified working via curl. Document updated only after curl confirmation.
@@ -29,7 +32,7 @@ has been edited.
 ### POST /api/v1/traces/:id/feedback
 
 Attaches feedback to a trace. Body accepts `rating` (integer -1..5), `label`
-(string, <=200 chars), `comment` (string, <=5000 chars), `spanId` (OTel ref,
+(string, `<=200` chars), `comment` (string, `<=5000` chars), `spanId` (OTel ref,
 optional — omit for whole-trace feedback), and `source` (one of `user`,
 `developer`, `end_user`, `api`; defaults to `user`). At least one of
 rating/label/comment is required. `createdBy` is the caller's user id;
@@ -37,12 +40,44 @@ verified non-null here for a personal API key (per the controller, it is
 `req.user?.id ?? null` — a team-scoped key with no associated user would
 yield null, though that path was not separately exercised).
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/traces/fbb5f16e-521b-4839-b9ab-78ace8c1f0a4/feedback \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"rating": -1, "label": "wrong_answer", "comment": "The tool call missed relevant docs.", "source": "end_user"}'
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const feedback = await hub.traces.submitFeedback({
+  traceId: 'fbb5f16e-521b-4839-b9ab-78ace8c1f0a4',
+  rating: -1,
+  label: 'wrong_answer',
+  comment: 'The tool call missed relevant docs.',
+  source: 'end_user',
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+feedback = await hub.traces.submit_feedback(
+    'fbb5f16e-521b-4839-b9ab-78ace8c1f0a4',
+    rating=-1,
+    label='wrong_answer',
+    comment='The tool call missed relevant docs.',
+    source='end_user',
+)
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 201):
 
@@ -131,11 +166,39 @@ edit it; rows posted via a team API key have `createdBy: null` and so cannot
 be edited by anyone). Fields omitted from the body keep their existing value;
 `null` explicitly clears a field. Deleting feedback is not supported.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
-curl -X POST $ACRUXCORE_BASE_URL/traces/a856684b-79cf-4a83-ac8f-f50294ec07dc/feedback \
+curl -X PATCH $ACRUXCORE_BASE_URL/traces/a856684b-79cf-4a83-ac8f-f50294ec07dc/feedback/7133430d-9e2c-4bb3-90b9-f56e95bde619 \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
-  -d '{"rating": -1, "label": "wrong_answer", "comment": "The tool call missed relevant docs."}'
+  -d '{"rating": 1}'
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const updated = await hub.traces.updateFeedback({
+  traceId: 'a856684b-79cf-4a83-ac8f-f50294ec07dc',
+  feedbackId: '7133430d-9e2c-4bb3-90b9-f56e95bde619',
+  rating: 1,
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+updated = await hub.traces.update_feedback(
+    'a856684b-79cf-4a83-ac8f-f50294ec07dc',
+    '7133430d-9e2c-4bb3-90b9-f56e95bde619',
+    rating=1,
+)
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 201):
 
@@ -289,7 +352,7 @@ Response (status 200):
 ```
 
 The same three feedback rows also appear, unchanged, in the additive
-`feedback` field of GET /api/v1/traces/:id (see docs/api/traces/traces.md) —
+`feedback` field of GET /api/v1/traces/:id (see docs/api/traces/traces.mdx) —
 verified byte-for-byte identical to the `data` array above.
 
 ---
@@ -299,7 +362,7 @@ verified byte-for-byte identical to the `data` array above.
 Average rating + counts, grouped by `model` or `prompt_version` (query param
 `group_by`, default `prompt_version`). Optional `from`/`to` (ISO 8601)
 restrict the window; default is the last 30 days. `downCount` is the number
-of rows with rating < 0 (thumbs-down) in that bucket; `avgRating` is null
+of rows with rating `< 0` (thumbs-down) in that bucket; `avgRating` is null
 for a bucket with no rated feedback.
 
 Attribution is per-TRACE, not per-span: every feedback row on a trace is
@@ -316,7 +379,7 @@ curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
 ```
 
 Response (status 200) — count 3; ratings -1, 5, null average (non-null only)
-to 2; downCount 1 (the one row with rating < 0):
+to 2; downCount 1 (the one row with rating `< 0`):
 
 ```json
 {

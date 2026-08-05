@@ -4,6 +4,9 @@ title: "Experiments & Runs"
 description: "Sweep a dataset across prompt versions and models, then read back per-cell results and reports."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Experiments & Runs API (Phase 5 E3)
 
 All endpoints verified working via curl against a real dev server (real
@@ -57,12 +60,44 @@ Two more fields exist alongside those, both optional:
   when the dataset's examples were sourced from a prompt other than
   `prompt_id`. See "Prompt-mismatch warning" below.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/experiments \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"dataset_id": "4595c340-d7fa-4d76-977e-76b60ebefb62", "prompt_id": "173ad5cd-969c-4a04-8896-fbf625bbc2e5", "name": "E3 Task7 greeting sweep", "version_ids": ["b5327b3e-3c45-4858-ac62-1e5852279624"], "models": ["gpt-4o-mini-e3t7"]}'
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const experiment = await hub.experiments.create({
+  datasetId: '4595c340-d7fa-4d76-977e-76b60ebefb62',
+  promptId: '173ad5cd-969c-4a04-8896-fbf625bbc2e5',
+  name: 'E3 Task7 greeting sweep',
+  versionIds: ['b5327b3e-3c45-4858-ac62-1e5852279624'],
+  models: ['gpt-4o-mini-e3t7'],
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+experiment = await hub.experiments.create(
+    dataset_id='4595c340-d7fa-4d76-977e-76b60ebefb62',
+    version_ids=['b5327b3e-3c45-4858-ac62-1e5852279624'],
+    models=['gpt-4o-mini-e3t7'],
+    prompt_id='173ad5cd-969c-4a04-8896-fbf625bbc2e5',
+    name='E3 Task7 greeting sweep',
+)
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 201) — `runs` is empty right after creation:
 
@@ -190,10 +225,34 @@ production still pointed at v1 — not among the explicit version_ids), and
 enqueues a BullMQ Flow. Returns immediately — the actual gateway calls
 happen asynchronously in the worker process.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/experiments/9462c9b7-62a7-4f01-80fe-71f142cdd02b/runs \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const run = await hub.runs.start({
+  experimentId: '9462c9b7-62a7-4f01-80fe-71f142cdd02b',
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+run = await hub.experiments.start_run(
+    '9462c9b7-62a7-4f01-80fe-71f142cdd02b',
+)
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 202):
 
@@ -241,9 +300,29 @@ Query params (all optional):
 | `page` | integer ≥ 1 | `1` | 1-based page number |
 | `limit` | integer 1–100 | `20` | Rows per page |
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" $ACRUXCORE_BASE_URL/runs
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const runs = await hub.runs.list();
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+runs = await hub.runs.list()
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200) — one optimize run and one evaluation run, both finished:
 
@@ -360,9 +439,29 @@ curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" "$ACRUXCORE_BASE_URL/runs?lim
 Polled immediately after starting the run above — the real worker had not
 yet picked up any of the 4 cell jobs (2 grid cells × 2 dataset examples):
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" $ACRUXCORE_BASE_URL/runs/891710e4-1ac4-4bb7-b618-0f81e31aa291
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const run = await hub.runs.get('891710e4-1ac4-4bb7-b618-0f81e31aa291');
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+run = await hub.runs.get('891710e4-1ac4-4bb7-b618-0f81e31aa291')
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200) — in-flight, `queued`, zero results so far:
 
@@ -421,7 +520,7 @@ entry above was missing from this doc's original example even though the
 live server includes it for runs started via `POST /experiments/:id/runs`
 — added back here to match observed behavior. By contrast, a run started
 via the optimize loop (`POST /prompts/:promptId/optimize`, documented in
-optimize.md) does NOT include `isProductionBaseline` on its `grid` entries
+optimize.mdx) does NOT include `isProductionBaseline` on its `grid` entries
 (only `GET /runs/:id/report`'s `variants`/`cells` carry that field for an
 optimize-originated run) — a real, observed difference between the two
 run-creation code paths, not a doc error.
@@ -474,9 +573,29 @@ other model) or every judge call fails with `Model 'gpt-4o-mini' is not
 registered.` (observed firsthand on a first attempt before registering it;
 see the cell drill-down section below for that raw error text).
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" $ACRUXCORE_BASE_URL/runs/6e8bcaaf-8b5b-40f5-9b59-6d83eec71596/report
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const report = await hub.runs.getReport('6e8bcaaf-8b5b-40f5-9b59-6d83eec71596');
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+report = await hub.runs.get_report('6e8bcaaf-8b5b-40f5-9b59-6d83eec71596')
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200) — v2 clearly beats the production baseline: avgScore
 85 vs 20, passRate 1 vs 0, deltaVsBaseline.label "improved" (+65 score
@@ -544,7 +663,7 @@ into the run's `grid`) and must be URL-encoded (`|` -> `%7C`) — decoded
 again by Express before it reaches the controller. Each example in the
 response also carries `history`: the same array frozen onto the dataset
 example at run-start time (see `history` on `GET /api/v1/datasets/:id` in
-the [datasets reference](./datasets.md)), or `null` for a single-turn
+the [datasets reference](./datasets.mdx)), or `null` for a single-turn
 example — this is the exact conversation that was replayed ahead of `input`
 for that cell's completion, not the live (possibly since-edited) dataset
 value. Not separately re-curled below: it's the same frozen JSON already
@@ -656,9 +775,29 @@ Lists the team's experiments. Note: unlike the JSDoc on `ExperimentDto`
 observed actually DOES populate `runs` per experiment (newest first) — this
 doc reflects the real observed response, not the comment.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" $ACRUXCORE_BASE_URL/experiments
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const experiments = await hub.experiments.list();
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+experiments = await hub.experiments.list()
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200) — abbreviated to one experiment with its 2 runs:
 
@@ -689,9 +828,29 @@ Response (status 200) — abbreviated to one experiment with its 2 runs:
 
 Fetches one experiment with its runs (newest first).
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" $ACRUXCORE_BASE_URL/experiments/9462c9b7-62a7-4f01-80fe-71f142cdd02b
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const experiment = await hub.experiments.get('9462c9b7-62a7-4f01-80fe-71f142cdd02b');
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+experiment = await hub.experiments.get('9462c9b7-62a7-4f01-80fe-71f142cdd02b')
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200) — same shape as the list entry above for this experiment.
 

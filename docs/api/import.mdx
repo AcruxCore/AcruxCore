@@ -4,6 +4,9 @@ title: "Import"
 description: "Create a new prompt and its first version from a previously exported JSON file."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Import API
 
 ## POST /api/v1/prompts/import
@@ -11,6 +14,9 @@ description: "Create a new prompt and its first version from a previously export
 Creates a new prompt with version 1 and two default aliases (`production`, `staging`) from a previously exported file. Variables are always re-derived from the message templates via nunjucks AST — the `variables` field in the import payload is ignored. Name collisions are resolved automatically by appending `-imported-<unix_ms>` to the prompt name.
 
 Requires auth (session or Bearer key). The authenticated user must have role `owner`, `admin`, or `editor`.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
 
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/prompts/import \
@@ -28,6 +34,35 @@ curl -X POST $ACRUXCORE_BASE_URL/prompts/import \
     }
   }'
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const result = await hub.prompts.importPrompt({
+  schemaVersion: 1,
+  prompt: { name: 'greet', description: null },
+  version: {
+    messages: [{ role: 'system', content: 'Hello {{ name }}, welcome to {{ company }}.' }],
+  },
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+result = await hub.prompts.import_prompt({
+    'schemaVersion': 1,
+    'prompt': {'name': 'greet', 'description': None},
+    'version': {
+        'messages': [{'role': 'system', 'content': 'Hello {{ name }}, welcome to {{ company }}.'}],
+    },
+})
+```
+
+</TabItem>
+</Tabs>
 
 ### Response (status 201)
 

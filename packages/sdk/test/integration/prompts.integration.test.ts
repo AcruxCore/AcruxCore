@@ -36,7 +36,7 @@ async function startLiveClient(apiKey: string): Promise<{ hub: acruxcore; close:
 }
 
 beforeEach(async () => {
-  await prisma.$executeRaw`TRUNCATE TABLE prompt_version_tools, tool_aliases, tool_versions, tools, prompt_aliases, prompt_versions, audit_log, prompts, api_keys, team_members, teams, users RESTART IDENTITY CASCADE`;
+  await prisma.$executeRaw`TRUNCATE TABLE span_payloads, spans, traces, prompt_version_tools, tool_aliases, tool_versions, tools, prompt_aliases, prompt_versions, audit_log, prompts, api_keys, team_members, teams, users RESTART IDENTITY CASCADE`;
 });
 
 afterAll(async () => {
@@ -162,5 +162,51 @@ describe('acruxcore SDK prompts integration', () => {
     } finally {
       await close();
     }
+  });
+
+  describe('prompts.tracesForVersion', () => {
+    it('returns traces stamped with that prompt version', async () => {
+      const { apiKey } = await setupUserAndKey();
+      const { hub, close } = await startLiveClient(apiKey);
+
+      try {
+        // 1. Create prompt
+        const created = await hub.prompts.create({
+          name: `trace-link-test-${Date.now()}`,
+        });
+
+        // 2. Commit version 1
+        const v1 = await hub.prompts.commitVersion(created.id, {
+          messages: [{ role: 'system', content: 'Hello' }],
+        });
+        expect(v1.versionNumber).toBe(1);
+
+        // 3. Ingest a trace with a span stamped with the prompt version
+        const { traceId } = await hub.traces.ingest({
+          name: 'test-trace',
+          spans: [
+            {
+              spanId: 's1',
+              name: 'llm',
+              kind: 'llm',
+              startTime: new Date().toISOString(),
+              endTime: new Date().toISOString(),
+              promptVersionId: v1.id,
+            },
+          ],
+        });
+        expect(traceId).toBeDefined();
+
+        // 4. Flush gateway so the trace is persisted before we query
+        await hub.gateway.flush();
+
+        // 5. Query traces for that prompt version — should contain our trace
+        const result = await hub.prompts.tracesForVersion(created.id, 1);
+        expect(result.data.length).toBeGreaterThanOrEqual(1);
+        expect(result.data.some((t) => t.id === traceId)).toBe(true);
+      } finally {
+        await close();
+      }
+    });
   });
 });

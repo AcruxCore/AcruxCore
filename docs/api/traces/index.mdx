@@ -3,6 +3,9 @@ title: "Traces"
 description: "Ingest and query traces — the record of one request, its spans, tokens, and cost."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Traces API
 
 All endpoints verified working via curl. Document updated only after curl confirmation.
@@ -15,6 +18,9 @@ Ingests a batch of OTel-shaped traces. Accepts EITHER a session cookie, a
 personal API key, or a virtual key (`requireAnyAuthOrVirtualKey` — no role gate).
 Each trace's spans form a tree via `spanId`/`parentSpanId`. Omit `traceId` to
 mint a new trace; supply a UUID to append spans to an existing one.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
 
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/traces \
@@ -34,6 +40,37 @@ curl -X POST $ACRUXCORE_BASE_URL/traces \
     ]
   }'
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const { traceId } = await hub.traces.ingest({
+  name: 'support-agent-run',
+  sessionId: 'session-abc-123',
+  spans: [
+    { spanId: 's1', name: 'gpt-4o-mini', kind: 'llm', startTime: '2026-07-04T10:00:00Z', endTime: '2026-07-04T10:00:01.200Z', model: 'gpt-4o-mini', provider: 'openai', usage: { promptTokens: 120, completionTokens: 40, totalTokens: 160 }, costUsd: 0.0000234 },
+    { spanId: 's2', parentSpanId: 's1', name: 'search_docs', kind: 'tool', startTime: '2026-07-04T10:00:00.100Z', endTime: '2026-07-04T10:00:00.300Z', status: 'ok' },
+  ],
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+result = await hub.traces.ingest({
+    'name': 'support-agent-run',
+    'sessionId': 'session-abc-123',
+    'spans': [
+        {'spanId': 's1', 'name': 'gpt-4o-mini', 'kind': 'llm', 'startTime': '2026-07-04T10:00:00Z', 'endTime': '2026-07-04T10:00:01.200Z', 'model': 'gpt-4o-mini', 'provider': 'openai', 'usage': {'promptTokens': 120, 'completionTokens': 40, 'totalTokens': 160}},
+        {'spanId': 's2', 'parentSpanId': 's1', 'name': 'search_docs', 'kind': 'tool', 'startTime': '2026-07-04T10:00:00.100Z', 'endTime': '2026-07-04T10:00:00.300Z', 'status': 'ok'},
+    ],
+})
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 
@@ -188,9 +225,33 @@ Paginated trace list, newest first. Query params (all optional):
   is treated as "no filter".
 - `page` (default 1), `limit` (default 20, max 100).
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" "$ACRUXCORE_BASE_URL/traces"
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const result = await hub.traces.list();
+// with filters
+const errors = await hub.traces.list({ status: 'error' });
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+result = await hub.traces.list()
+# with filters
+errors = await hub.traces.list(status='error')
+```
+
+</TabItem>
+</Tabs>
 
 ```json
 {
@@ -394,10 +455,30 @@ fields (`model`, `usage`, `costUsd`, …) plus `promptVersionId`/
 `output`) is present only on spans ingested with `capturePayloads: true` on
 their trace.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   "$ACRUXCORE_BASE_URL/traces/354d5268-197d-4a8d-a664-005e8d20bbbb"
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const trace = await hub.traces.get('354d5268-197d-4a8d-a664-005e8d20bbbb');
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+trace = await hub.traces.get('354d5268-197d-4a8d-a664-005e8d20bbbb')
+```
+
+</TabItem>
+</Tabs>
 
 ```json
 {
@@ -517,7 +598,7 @@ API key requests a trace id that belongs to the first team.
 
 Discovering the team's distinct tags and metadata keys/values (for populating
 a filter bar's pickers) is documented separately in
-[Trace Facets](./facets.md) — see that page for `GET /api/v1/traces/facets`
+[Trace Facets](./facets.mdx) — see that page for `GET /api/v1/traces/facets`
 and `GET /api/v1/traces/facets/values`.
 
 ---
@@ -539,10 +620,30 @@ so an unknown or cross-team prompt/version 404s before any trace query runs.
 > those in the (default or supplied) window. Use this route for a complete
 > version history, the `?prompt_version_id=` filter for a time-bounded slice.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   "$ACRUXCORE_BASE_URL/prompts/f5250666-5775-4198-b9ef-75068249529e/versions/1/traces"
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const traces = await hub.prompts.tracesForVersion('f5250666-5775-4198-b9ef-75068249529e', 1);
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+traces = await hub.prompts.traces_for_version('f5250666-5775-4198-b9ef-75068249529e', 1)
+```
+
+</TabItem>
+</Tabs>
 
 ```json
 {

@@ -177,6 +177,28 @@ curl -X POST "$ACRUXCORE_BASE_URL/secrets" \
 ```
 
 </TabItem>
+<TabItem value="python-sdk" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+async with AcruxCore() as hub:
+    secret = await hub.secrets.create(name="TMDB_KEY", value="<your tmdb key>")
+    print(f"secret_id={secret.id}")
+```
+
+</TabItem>
+<TabItem value="node-sdk" label="Node (SDK)">
+
+```typescript
+import { acruxcore } from '@acruxcoreai/sdk';
+
+const hub = acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
+const secret = await hub.secrets.create({ name: 'TMDB_KEY', value: '<your tmdb key>' });
+console.log(`secret_id=${secret.id}`);
+```
+
+</TabItem>
 </Tabs>
 
 Create the tool shell, then commit an HTTP version. The executor is the same shape the dashboard form produces — note the <code>&#123;&#123;arg.query&#125;&#125;</code> and <code>&#123;&#123;secret.TMDB_KEY&#125;&#125;</code> placeholders:
@@ -237,6 +259,69 @@ curl -X POST "$ACRUXCORE_BASE_URL/tools/<tool-id>/versions" \
 ```
 
 </TabItem>
+<TabItem value="python-sdk" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+async with AcruxCore() as hub:
+    tool = await hub.tools.create(
+        name="search_movies",
+        description="Search TMDB for movies matching a title query.",
+    )
+    await hub.tools.commitVersion(
+        tool.id,
+        parameters_schema={
+            "type": "object",
+            "properties": {"query": {"type": "string", "description": "The movie title to search for."}},
+            "required": ["query"],
+        },
+        executor={
+            "type": "http",
+            "method": "GET",
+            "url": "https://api.themoviedb.org/3/search/movie",
+            "query": [
+                {"name": "query", "value": "{{arg.query}}"},
+                {"name": "api_key", "value": "{{secret.TMDB_KEY}}"},
+            ],
+            "responseTransform": "function transform(input) { return (input.body.results || []).slice(0, 3).map((m) => ({ id: m.id, title: m.title, year: (m.release_date || '').slice(0, 4), rating: m.vote_average })); }",
+        },
+    )
+    print(f"tool_id={tool.id}")
+```
+
+</TabItem>
+<TabItem value="node-sdk" label="Node (SDK)">
+
+```typescript
+import { acruxcore } from '@acruxcoreai/sdk';
+
+const hub = acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
+const tool = await hub.tools.create({
+  name: 'search_movies',
+  description: 'Search TMDB for movies matching a title query.',
+});
+await hub.tools.commitVersion(tool.id, {
+  parametersSchema: {
+    type: 'object',
+    properties: { query: { type: 'string', description: 'The movie title to search for.' } },
+    required: ['query'],
+  },
+  executor: {
+    type: 'http',
+    method: 'GET',
+    url: 'https://api.themoviedb.org/3/search/movie',
+    query: [
+      { name: 'query', value: '{{arg.query}}' },
+      { name: 'api_key', value: '{{secret.TMDB_KEY}}' },
+    ],
+    responseTransform: 'function transform(input) { return (input.body.results || []).slice(0, 3).map((m) => ({ id: m.id, title: m.title, year: (m.release_date || "").slice(0, 4), rating: m.vote_average })); }',
+  },
+});
+console.log(`tool_id=${tool.id}`);
+```
+
+</TabItem>
 </Tabs>
 
 You can even run an HTTP tool directly to test it — the gateway resolves the secret, calls TMDB, and applies your transform:
@@ -262,6 +347,28 @@ curl -X POST "$ACRUXCORE_BASE_URL/tools/<tool-id>/execute" \
   "latencyMs": 514,
   "toolVersionId": "9bb90912-0b3e-4fec-b8b5-1a28ad29feb1"
 }
+```
+
+</TabItem>
+<TabItem value="python-sdk" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+async with AcruxCore() as hub:
+    result = await hub.tools.execute("<tool-id>", arguments={"query": "The Matrix"})
+    print(result)
+```
+
+</TabItem>
+<TabItem value="node-sdk" label="Node (SDK)">
+
+```typescript
+import { acruxcore } from '@acruxcoreai/sdk';
+
+const hub = acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
+const result = await hub.tools.execute('<tool-id>', { arguments: { query: 'The Matrix' } });
+console.log(result);
 ```
 
 </TabItem>

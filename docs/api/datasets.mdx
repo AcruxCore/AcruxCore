@@ -4,6 +4,9 @@ title: "Datasets"
 description: "Create and manage example sets used by experiments, evaluations, and the optimize loop."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Datasets API (Phase 5 E2)
 
 All endpoints verified working via curl against a real dev server (real
@@ -34,12 +37,38 @@ Creates an empty dataset — no examples yet. `overall_feedback` is optional
 (a dataset-level rubric applied on top of each example's own criteria).
 Examples are added afterwards via `POST /:id/examples` or `POST /from-feedback`.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/datasets \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"name": "manual-review-set", "overall_feedback": "Keep responses concise and polite"}'
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const dataset = await hub.datasets.create({
+  name: 'manual-review-set',
+  description: 'Keep responses concise and polite',
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+dataset = await hub.datasets.create(
+    'manual-review-set',
+    overall_feedback='Keep responses concise and polite',
+)
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 201):
 
@@ -91,12 +120,40 @@ person, do not say I"}`.
 synchronously and reads several rows per id. Split a larger selection into
 batches; each batch builds its own dataset.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/datasets/from-feedback \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"name": "unhappy-greetings", "overall_feedback": "Always third person", "feedback_ids": ["44c64fa2-8189-4ab0-a08a-a28a14893a06"]}'
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const result = await hub.datasets.createFromFeedback({
+  name: 'unhappy-greetings',
+  overallFeedback: 'Always third person',
+  feedbackIds: ['44c64fa2-8189-4ab0-a08a-a28a14893a06'],
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+result = await hub.datasets.build_from_feedback(
+    'unhappy-greetings',
+    ['44c64fa2-8189-4ab0-a08a-a28a14893a06'],
+    overall_feedback='Always third person',
+)
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 201):
 
@@ -261,7 +318,7 @@ call), it appears once in `history`.
 Every eval run freezes an example's `history` at run-start time and replays
 it ahead of the new turn, so a candidate prompt is judged against the same
 conversation the model actually saw — see `GET
-/api/v1/runs/:id/cells/:cellKey` in the [experiments reference](./experiments.md).
+/api/v1/runs/:id/cells/:cellKey` in the [experiments reference](./experiments.mdx).
 
 ---
 
@@ -270,10 +327,30 @@ conversation the model actually saw — see `GET
 Lists the team's non-deleted datasets, newest activity first. No pagination
 params observed in the controller (returns the full team list in `data`).
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl $ACRUXCORE_BASE_URL/datasets \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const datasets = await hub.datasets.list();
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+datasets = await hub.datasets.list()
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 
@@ -301,10 +378,30 @@ Response (status 200):
 Fetches one dataset with its full example list (unlike the list endpoint,
 which only returns `exampleCount`).
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl $ACRUXCORE_BASE_URL/datasets/4c979706-3e84-4e8f-a089-6ce4dd9f6e4a \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const dataset = await hub.datasets.get('4c979706-3e84-4e8f-a089-6ce4dd9f6e4a');
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+dataset = await hub.datasets.get('4c979706-3e84-4e8f-a089-6ce4dd9f6e4a')
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 
@@ -340,12 +437,39 @@ Response (status 200):
 Updates `name` and/or `overall_feedback`. Both fields optional; omitted
 fields keep their current value.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X PATCH $ACRUXCORE_BASE_URL/datasets/4c979706-3e84-4e8f-a089-6ce4dd9f6e4a \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"name": "unhappy-greetings-v2", "overall_feedback": "Always use third person, never first person"}'
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const updated = await hub.datasets.update('4c979706-3e84-4e8f-a089-6ce4dd9f6e4a', {
+  name: 'unhappy-greetings-v2',
+  description: 'Always use third person, never first person',
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+updated = await hub.datasets.update(
+    '4c979706-3e84-4e8f-a089-6ce4dd9f6e4a',
+    name='unhappy-greetings-v2',
+    overall_feedback='Always use third person, never first person',
+)
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 
@@ -373,12 +497,39 @@ also optional — an array of chat messages (`role`, `content`, and/or
 `input` during a run; capped at 20 messages / 32KB. Omit it for a
 single-turn example.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/datasets/4c979706-3e84-4e8f-a089-6ce4dd9f6e4a/examples \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"input": {"name": "Bob"}, "criteria": "Say hi politely, third person"}'
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const example = await hub.datasets.addExample(
+  '4c979706-3e84-4e8f-a089-6ce4dd9f6e4a',
+  { input: { name: 'Bob' }, criteria: 'Say hi politely, third person' }
+);
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+example = await hub.datasets.add_example(
+    '4c979706-3e84-4e8f-a089-6ce4dd9f6e4a',
+    input={'name': 'Bob'},
+    criteria='Say hi politely, third person',
+)
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 201) — sourceTraceId/sourceFeedbackId/sourcePromptVersionId
 are null for a manually-added example, and so is `history` when the request
@@ -447,10 +598,36 @@ Removes one example. Verified by re-fetching the dataset afterwards —
 `exampleCount` dropped from 2 back to 1 and the removed example is gone
 from `examples`.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X DELETE $ACRUXCORE_BASE_URL/datasets/4c979706-3e84-4e8f-a089-6ce4dd9f6e4a/examples/001d9f90-45fe-41f7-8f59-d1f833549fac \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+await hub.datasets.removeExample(
+  '4c979706-3e84-4e8f-a089-6ce4dd9f6e4a',
+  '001d9f90-45fe-41f7-8f59-d1f833549fac'
+);
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+await hub.datasets.remove_example(
+    '4c979706-3e84-4e8f-a089-6ce4dd9f6e4a',
+    '001d9f90-45fe-41f7-8f59-d1f833549fac',
+)
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 
@@ -464,10 +641,30 @@ Response (status 200):
 
 Soft-deletes a dataset.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X DELETE $ACRUXCORE_BASE_URL/datasets/4c979706-3e84-4e8f-a089-6ce4dd9f6e4a \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+await hub.datasets.delete('4c979706-3e84-4e8f-a089-6ce4dd9f6e4a');
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+await hub.datasets.delete('4c979706-3e84-4e8f-a089-6ce4dd9f6e4a')
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 

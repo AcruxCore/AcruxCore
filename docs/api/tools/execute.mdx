@@ -3,6 +3,9 @@ title: "Tool Execute"
 description: "Invoke an HTTP-backed tool version server-side and record the call."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Tool Execute API
 
 All endpoints verified working via curl. Document updated only after curl confirmation.
@@ -33,12 +36,37 @@ at `localhost`/`127.0.0.1` is rejected by design, even in dev.
 
 Executes the version behind the default ("production") alias.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/tools/8662ca24-69f2-4431-a7f4-82e9abc77ff1/execute \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"arguments":{"city":"Berlin"}}'
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const result = await hub.tools.execute('8662ca24-69f2-4431-a7f4-82e9abc77ff1', {
+  city: 'Berlin',
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+result = await hub.tools.execute(
+    '8662ca24-69f2-4431-a7f4-82e9abc77ff1',
+    {'city': 'Berlin'},
+)
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 

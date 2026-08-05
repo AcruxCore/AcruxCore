@@ -99,9 +99,8 @@ const config: Config = {
     },
   ],
 
-  // Parse `.md` as plain CommonMark (so the curl-verified API reference files,
-  // which contain literal `{...}` JSON and `{{ template }}` placeholders, are not
-  // treated as MDX expressions) while `.mdx` tutorials still get full MDX/JSX.
+  // `.mdx` files always get full MDX/JSX. `.md` files (blog, tutorials) stay
+  // as CommonMark so literal `{...}` JSON in curl examples is safe.
   markdown: {
     format: 'detect',
     hooks: {

@@ -3,6 +3,9 @@ title: "Prompts"
 description: "Read, search, and resolve prompts by API — create/edit/delete happen in the dashboard today."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Prompts API
 
 All endpoints verified working via curl. Document updated only after curl confirmation.
@@ -43,6 +46,39 @@ API key or a dashboard session. Role must be owner, admin, or editor (viewer
 returns 403). To add the actual messages, call
 [`POST /prompts/:id/versions`](/api-reference/prompts/versions) next.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/prompts \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"customer-support","description":"Handles customer support queries"}'
+```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const prompt = await hub.prompts.create({
+  name: 'customer-support',
+  description: 'Handles customer support queries',
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+prompt = await hub.prompts.create(
+    'customer-support',
+    description='Handles customer support queries',
+)
+```
+
+</TabItem>
+</Tabs>
+
 Response (status 201):
 
 ```json
@@ -74,6 +110,9 @@ Viewer role (status 403):
 
 Lists active (non-deleted) prompts for the current team. Supports `?search=`, `?page=`, `?limit=`.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   "$ACRUXCORE_BASE_URL/prompts"
@@ -85,6 +124,27 @@ Or with search:
 curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   "$ACRUXCORE_BASE_URL/prompts?search=customer"
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const result = await hub.prompts.list();
+// with search
+const filtered = await hub.prompts.list({ search: 'customer' });
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+result = await hub.prompts.list()
+# with search
+filtered = await hub.prompts.list(search='customer')
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 
@@ -108,10 +168,30 @@ Response (status 200):
 
 ### GET /api/v1/prompts/:id
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   "$ACRUXCORE_BASE_URL/prompts/5fd454e0-bdb2-4468-b369-7fbb3f252dca"
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const prompt = await hub.prompts.get('5fd454e0-bdb2-4468-b369-7fbb3f252dca');
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+prompt = await hub.prompts.get('5fd454e0-bdb2-4468-b369-7fbb3f252dca')
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 
@@ -139,6 +219,38 @@ Unknown id, soft-deleted, or belongs to another team (status 404):
 Partially updates name and/or description. Accepts a Bearer API key or a
 dashboard session. At least one field required. Role must be owner, admin, or editor.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X PATCH $ACRUXCORE_BASE_URL/prompts/5fd454e0-bdb2-4468-b369-7fbb3f252dca \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"customer-support-v2"}'
+```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const updated = await hub.prompts.update('5fd454e0-bdb2-4468-b369-7fbb3f252dca', {
+  name: 'customer-support-v2',
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+updated = await hub.prompts.update(
+    '5fd454e0-bdb2-4468-b369-7fbb3f252dca',
+    name='customer-support-v2',
+)
+```
+
+</TabItem>
+</Tabs>
+
 Response (status 200) — returns the updated prompt:
 
 ```json
@@ -164,6 +276,31 @@ Empty body (status 400):
 
 Soft-deletes the prompt (sets deleted_at). History is preserved. Accepts a Bearer
 API key or a dashboard session. Role must be owner, admin, or editor.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X DELETE $ACRUXCORE_BASE_URL/prompts/5fd454e0-bdb2-4468-b369-7fbb3f252dca \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+await hub.prompts.delete('5fd454e0-bdb2-4468-b369-7fbb3f252dca');
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+await hub.prompts.delete('5fd454e0-bdb2-4468-b369-7fbb3f252dca')
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 204) — no body. Prompt disappears from `GET /prompts` and `GET /prompts/:id`.
 

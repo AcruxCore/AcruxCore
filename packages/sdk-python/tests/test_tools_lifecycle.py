@@ -179,6 +179,37 @@ async def test_full_tool_lifecycle_create_versions_promote_analytics_delete(hub:
 
 
 @pytest.mark.asyncio
+async def test_execute_http_tool(hub: AcruxCore) -> None:
+    created = await hub.tools.create(
+        f"httpbin-get-{uuid.uuid4().hex[:8]}", description="HTTP GET to httpbin"
+    )
+    assert isinstance(created.id, str) and created.id
+
+    http_executor = {
+        "type": "http",
+        "url": "https://httpbin.org/get",
+        "method": "GET",
+        "headers": [],
+        "query": [{"name": "city", "value": "{{city}}"}],
+        "argMapping": [{"arg": "city", "in": "query"}],
+    }
+    v1 = await hub.tools.commit_version(
+        created.id,
+        {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+        http_executor,
+        description="HTTP GET to httpbin",
+    )
+    assert v1.version_number == 1
+
+    result = await hub.tools.execute(created.id, {"city": "Berlin"})
+
+    assert result.result is not None
+    assert result.status == 200
+    assert result.latency_ms >= 0
+    assert isinstance(result.tool_version_id, str) and result.tool_version_id
+
+
+@pytest.mark.asyncio
 async def test_tool_error_paths_validation_name_taken_404s(hub: AcruxCore) -> None:
     # create: VALIDATION_ERROR on a bad name
     with pytest.raises(AcruxCoreError) as exc:

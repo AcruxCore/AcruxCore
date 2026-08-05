@@ -1,0 +1,674 @@
+---
+title: Manage prompts via the SDK
+description: Create a prompt, commit versions with templated messages, diff, promote aliases, export/import, and delete — the full lifecycle through curl or the SDK, no dashboard required.
+sidebar_position: 11
+keywords: [prompts, prompt versions, prompt aliases, prompt diff, prompt export, prompt import, sdk, api]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Manage prompts via the SDK
+
+**What you'll build:** a prompt created, versioned, diffed, exported, imported,
+and deleted entirely through the API or SDK — no dashboard click anywhere in
+the flow.
+
+[Store prompts and tools via the API](./store-prompts-and-tools-via-api) covers
+the common case: you save a prompt through the REST API and then fetch it at
+runtime with `hub.prompts.render(...)`. That path assumes you already have
+messages in mind. Sometimes you need the full lifecycle — creating shells,
+committing multiple versions, comparing them with a diff, promoting aliases,
+and exporting prompts between teams — all without opening the dashboard. That's
+what `hub.prompts.create`, `.commitVersion`, `.diff`, and friends are for.
+Everything below works the same over raw `curl` or through either SDK.
+
+## 1. Create a prompt
+
+A prompt starts as a **shell**: just a `name` and an optional `description`,
+with no messages yet. `name` must be 1–255 characters and unique within your
+team.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/prompts" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"support-bot-1785860323","description":"Customer support bot"}'
+```
+
+```json
+{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "name": "support-bot-1785860323",
+  "description": "Customer support bot",
+  "teamId": "221e37aa-9a14-4a7f-ae10-2982247e6d38",
+  "versionCount": 0,
+  "createdBy": "b085d017-cf51-43f4-adb3-a7640337651c",
+  "createdAt": "2026-08-05T10:00:00.000Z"
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore();
+
+const prompt = await hub.prompts.create({
+  name: 'support-bot-1785860323',
+  description: 'Customer support bot',
+});
+console.log(prompt.id, prompt.name);
+```
+
+```text
+a1b2c3d4-e5f6-7890-abcd-ef1234567890 support-bot-1785860323
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+prompt = await hub.prompts.create("support-bot-1785860323", description="Customer support bot")
+print(prompt.id, prompt.name)
+```
+
+```text
+a1b2c3d4-e5f6-7890-abcd-ef1234567890 support-bot-1785860323
+```
+
+</TabItem>
+</Tabs>
+
+## 2. Commit a version
+
+A shell has no messages yet. Committing a version gives it a message list (the
+system and user messages the model receives) and optionally binds a default
+gateway model. The **first** version committed for a prompt auto-creates both
+the `production` and `staging` aliases pointing at it.
+
+Messages support Nunjucks template syntax — use `{{variable_name}}` to mark
+slots that get filled at render time.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/prompts/a1b2c3d4-e5f6-7890-abcd-ef1234567890/versions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      {"role": "system", "content": "You are a helpful customer support agent."},
+      {"role": "user", "content": "{{customer_message}}"}
+    ],
+    "model": "gpt-4o-mini"
+  }'
+```
+
+```json
+{
+  "id": "f3c068c4-e161-4ed8-9ccd-e27c6e51d07e",
+  "promptId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "versionNumber": 1,
+  "messages": [
+    {"role": "system", "content": "You are a helpful customer support agent."},
+    {"role": "user", "content": "{{customer_message}}"}
+  ],
+  "model": "gpt-4o-mini",
+  "tools": [],
+  "createdBy": "b085d017-cf51-43f4-adb3-a7640337651c",
+  "createdAt": "2026-08-05T10:01:00.000Z",
+  "aliases": [
+    {"id": "10186eee-2f2a-419a-8f01-e2478467ea1d", "alias": "production", "versionNumber": 1},
+    {"id": "f46a02f5-6065-4ea9-a229-8331605da355", "alias": "staging", "versionNumber": 1}
+  ]
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const v1 = await hub.prompts.commitVersion(prompt.id, {
+  messages: [
+    { role: 'system', content: 'You are a helpful customer support agent.' },
+    { role: 'user', content: '{{customer_message}}' },
+  ],
+  model: 'gpt-4o-mini',
+});
+console.log(v1.versionNumber, v1.aliases?.map((a) => `${a.alias}->v${a.versionNumber}`));
+```
+
+```text
+1 [ 'production->v1', 'staging->v1' ]
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+v1 = await hub.prompts.commit_version(
+    prompt.id,
+    [
+        {"role": "system", "content": "You are a helpful customer support agent."},
+        {"role": "user", "content": "{{customer_message}}"},
+    ],
+    model="gpt-4o-mini",
+)
+print(v1.version_number, [f"{a.alias}->v{a.version_number}" for a in (v1.aliases or [])])
+```
+
+```text
+1 ['production->v1', 'staging->v1']
+```
+
+</TabItem>
+</Tabs>
+
+:::note[First version creates aliases]
+When a prompt has no versions yet, the first `commitVersion` call returns an
+`aliases` array with `production` and `staging` both pointing at the new
+version. Every subsequent commit returns `aliases: undefined` — the aliases
+stay where they are until you explicitly promote them.
+:::
+
+## 3. List and get versions
+
+List items omit `messages` to keep pages small — fetch a specific version
+for full content.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+# List versions
+curl "$ACRUXCORE_BASE_URL/prompts/a1b2c3d4-e5f6-7890-abcd-ef1234567890/versions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "f3c068c4-e161-4ed8-9ccd-e27c6e51d07e",
+      "promptId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "versionNumber": 1,
+      "model": "gpt-4o-mini",
+      "createdBy": "b085d017-cf51-43f4-adb3-a7640337651c",
+      "createdAt": "2026-08-05T10:01:00.000Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 20
+}
+```
+
+```bash
+# Get a specific version (full content including messages)
+curl "$ACRUXCORE_BASE_URL/prompts/a1b2c3d4-e5f6-7890-abcd-ef1234567890/versions/1" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{
+  "id": "f3c068c4-e161-4ed8-9ccd-e27c6e51d07e",
+  "promptId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "versionNumber": 1,
+  "messages": [
+    {"role": "system", "content": "You are a helpful customer support agent."},
+    {"role": "user", "content": "{{customer_message}}"}
+  ],
+  "model": "gpt-4o-mini",
+  "tools": [],
+  "createdBy": "b085d017-cf51-43f4-adb3-a7640337651c",
+  "createdAt": "2026-08-05T10:01:00.000Z"
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+// List versions
+const versions = await hub.prompts.listVersions(prompt.id);
+console.log(versions.total, 'messages' in versions.data[0]);
+
+// Get a specific version (full content)
+const v1Full = await hub.prompts.getVersion(prompt.id, 1);
+console.log(v1Full.versionNumber, v1Full.model);
+```
+
+```text
+1 false
+1 gpt-4o-mini
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+# List versions
+versions = await hub.prompts.list_versions(prompt.id)
+print(versions.total, versions.data[0])
+
+# Get a specific version (full content)
+v1_full = await hub.prompts.get_version(prompt.id, 1)
+print(v1_full.version_number, v1_full.model)
+```
+
+```text
+1 VersionListItem(id='f3c068c4-e161-4ed8-9ccd-e27c6e51d07e', prompt_id='a1b2c3d4-e5f6-7890-abcd-ef1234567890', version_number=1, model='gpt-4o-mini', created_by='b085d017-cf51-43f4-adb3-a7640337651c', created_at='2026-08-05T10:01:00.000Z')
+1 gpt-4o-mini
+```
+
+</TabItem>
+</Tabs>
+
+## 4. Diff two versions
+
+Compute a unified diff between two versions' message content. Useful for
+reviewing what changed before promoting a version to production.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+First commit a second version, then diff:
+
+```bash
+# Commit v2
+curl -X POST "$ACRUXCORE_BASE_URL/prompts/a1b2c3d4-e5f6-7890-abcd-ef1234567890/versions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      {"role": "system", "content": "You are a friendly and empathetic support agent."},
+      {"role": "user", "content": "{{customer_message}}"}
+    ],
+    "model": "gpt-4o-mini"
+  }'
+
+# Diff v1 → v2
+curl "$ACRUXCORE_BASE_URL/prompts/a1b2c3d4-e5f6-7890-abcd-ef1234567890/versions/diff?from=1&to=2" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{
+  "from": 1,
+  "to": 2,
+  "diff": "--- v1\n+++ v2\n@@ -1 +1 @@\n-You are a helpful customer support agent.\n+You are a friendly and empathetic support agent.",
+  "changes": [
+    {
+      "role": "system",
+      "op": "modified",
+      "oldContent": "You are a helpful customer support agent.",
+      "newContent": "You are a friendly and empathetic support agent."
+    }
+  ]
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+// Commit v2
+const v2 = await hub.prompts.commitVersion(prompt.id, {
+  messages: [
+    { role: 'system', content: 'You are a friendly and empathetic support agent.' },
+    { role: 'user', content: '{{customer_message}}' },
+  ],
+  model: 'gpt-4o-mini',
+});
+
+// Diff v1 → v2
+const diff = await hub.prompts.diff(prompt.id, v1.versionNumber, v2.versionNumber);
+console.log(`diff v${diff.from}→v${diff.to}: ${diff.changes?.length ?? 0} change(s)`);
+```
+
+```text
+diff v1→v2: 1 change(s)
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+# Commit v2
+v2 = await hub.prompts.commit_version(
+    prompt.id,
+    [
+        {"role": "system", "content": "You are a friendly and empathetic support agent."},
+        {"role": "user", "content": "{{customer_message}}"},
+    ],
+    model="gpt-4o-mini",
+)
+
+# Diff v1 → v2
+diff = await hub.prompts.diff(prompt.id, v1.version_number, v2.version_number)
+print(f"diff v{diff.from_version}→v{diff.to_version}: {len(diff.changes or [])} change(s)")
+```
+
+```text
+diff v1→v2: 1 change(s)
+```
+
+</TabItem>
+</Tabs>
+
+## 5. Promote an alias
+
+Aliases (`production`, `staging`, or custom names) point at a version number.
+Promoting an alias moves it to a different version — e.g. rolling `production`
+forward to v2, or rolling it back to v1.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/prompts/a1b2c3d4-e5f6-7890-abcd-ef1234567890/aliases/production/promote" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"version_number": 2}'
+```
+
+```json
+{
+  "alias": "production",
+  "versionNumber": 2,
+  "promptId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "updatedAt": "2026-08-05T10:05:00.000Z"
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const alias = await hub.prompts.promoteAlias(prompt.id, 'production', v2.versionNumber);
+console.log(`promoted "${alias.alias}" → v${alias.versionNumber}`);
+```
+
+```text
+promoted "production" → v2
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+alias = await hub.prompts.promote_alias(prompt.id, "production", v2.version_number)
+print(f'promoted "{alias.alias}" → v{alias.version_number}')
+```
+
+```text
+promoted "production" → v2
+```
+
+</TabItem>
+</Tabs>
+
+:::tip[Rollback is just another promote]
+Pointing `production` back to an earlier version is the same call with a
+lower version number — the alias moves instantly, no re-deploy required.
+:::
+
+## 6. Export and import
+
+Export a version as a portable JSON document, then import it into another team
+or environment. The import creates a brand-new prompt (version 1) with fresh
+`production`/`staging` aliases — it never overwrites an existing prompt.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+# Export v1
+curl "$ACRUXCORE_BASE_URL/prompts/a1b2c3d4-e5f6-7890-abcd-ef1234567890/versions/1/export" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" > exported.json
+
+# Import into another team (or the same team — gets a suffixed name)
+curl -X POST "$ACRUXCORE_BASE_URL/prompts/import" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d @exported.json
+```
+
+```json
+{
+  "prompt": {
+    "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+    "name": "support-bot-1785860323-imported-1754390400000",
+    "description": "Customer support bot"
+  },
+  "version": {
+    "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+    "versionNumber": 1
+  }
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+// Export v1
+const exported = await hub.prompts.exportVersion(prompt.id, v1.versionNumber);
+console.log(`exported ${JSON.stringify(exported).length} chars`);
+
+// Import as a new prompt
+const imported = await hub.prompts.importPrompt(exported);
+console.log(`imported as "${imported.prompt.name}" v${imported.version.versionNumber}`);
+```
+
+```text
+exported 342 chars
+imported as "support-bot-1785860323-imported-1754390400000" v1
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+# Export v1
+exported = await hub.prompts.export_version(prompt.id, v1.version_number)
+print(f"exported {len(str(exported))} chars")
+
+# Import as a new prompt
+imported = await hub.prompts.import_prompt(exported.to_import_body())
+print(f'imported as "{imported.prompt.name}" v{imported.version.version_number}')
+```
+
+```text
+exported 342 chars
+imported as "support-bot-1785860323-imported-1754390400000" v1
+```
+
+</TabItem>
+</Tabs>
+
+:::note[Name collisions are resolved, not rejected]
+If a prompt with the same name already exists, the server appends
+`-imported-<unix_ms>` to the imported prompt's name rather than returning an
+error.
+:::
+
+## 7. List traces for a version
+
+Look up which traces were reported against a specific prompt version — the
+reverse lookup from version to actual calls.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl "$ACRUXCORE_BASE_URL/prompts/a1b2c3d4-e5f6-7890-abcd-ef1234567890/versions/1/traces" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{
+  "data": [],
+  "total": 0,
+  "page": 1,
+  "limit": 20
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const traces = await hub.prompts.tracesForVersion(prompt.id, v1.versionNumber);
+console.log(`${traces.total} trace(s) for v${v1.versionNumber}`);
+```
+
+```text
+0 trace(s) for v1
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+traces = await hub.prompts.traces_for_version(prompt.id, v1.version_number)
+print(f"{traces.total} trace(s) for v{v1.version_number}")
+```
+
+```text
+0 trace(s) for v1
+```
+
+</TabItem>
+</Tabs>
+
+:::tip[When traces appear]
+Traces show up here after your app calls `hub.gateway.chat(...)` or
+`hub.gateway.stream(...)` with a prompt fetched via `hub.prompts.render(...)`.
+The SDK automatically attaches the `promptVersionId` to the trace.
+:::
+
+## 8. Update and delete
+
+Updating a prompt only touches its `name`/`description` — versions are
+immutable and unaffected by renaming the shell they belong to. Deleting a
+prompt removes it and every version/alias under it.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+# Update the description
+curl -X PATCH "$ACRUXCORE_BASE_URL/prompts/a1b2c3d4-e5f6-7890-abcd-ef1234567890" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"description":"Customer support bot — updated description."}'
+```
+
+```json
+{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "name": "support-bot-1785860323",
+  "description": "Customer support bot — updated description.",
+  "teamId": "221e37aa-9a14-4a7f-ae10-2982247e6d38",
+  "versionCount": 2,
+  "createdBy": "b085d017-cf51-43f4-adb3-a7640337651c",
+  "createdAt": "2026-08-05T10:00:00.000Z"
+}
+```
+
+```bash
+# Delete (soft — versions are preserved but unreachable)
+curl -X DELETE "$ACRUXCORE_BASE_URL/prompts/a1b2c3d4-e5f6-7890-abcd-ef1234567890" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+# 204 No Content
+
+# Confirm it's gone
+curl "$ACRUXCORE_BASE_URL/prompts/a1b2c3d4-e5f6-7890-abcd-ef1234567890" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{"error":{"code":"NOT_FOUND","message":"Prompt not found."}}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+// Update
+const updated = await hub.prompts.update(prompt.id, {
+  description: 'Customer support bot — updated description.',
+});
+console.log(updated.description);
+
+// Delete
+await hub.prompts.delete(prompt.id);
+
+try {
+  await hub.prompts.get(prompt.id);
+} catch (err) {
+  console.log(err.code, err.statusCode);
+}
+```
+
+```text
+Customer support bot — updated description.
+API_ERROR 404
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCoreError
+
+# Update
+updated = await hub.prompts.update(
+    prompt.id, description="Customer support bot — updated description."
+)
+print(updated.description)
+
+# Delete
+await hub.prompts.delete(prompt.id)
+
+try:
+    await hub.prompts.get(prompt.id)
+except AcruxCoreError as err:
+    print(err.code, err.status_code)
+```
+
+```text
+Customer support bot — updated description.
+API_ERROR 404
+```
+
+</TabItem>
+</Tabs>
+
+:::tip[Delete is soft]
+Deleting a prompt stops it from appearing in list/get, but its versions and
+aliases are preserved in the database (just unreachable) rather than hard-deleted.
+This is a safety net — accidental deletes are recoverable by support.
+:::
+
+## What's next
+
+- Prompts declared in your own code should use
+  [Build and attach a tool](./build-and-attach-a-tool)'s `sync` path for tools,
+  and `hub.prompts.render(...)` to fetch and fill prompts at runtime.
+- Once a prompt has more than one version, use `diff` and `promoteAlias` to
+  manage a review/deploy workflow without the dashboard.
+- Full field reference: **Prompts** and **Prompt Versions** in the
+  [API Reference](/api-reference).

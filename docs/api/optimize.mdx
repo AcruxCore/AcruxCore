@@ -4,6 +4,9 @@ title: "Optimize Loop"
 description: "Draft, score, and promote LLM-generated prompt rewrites against a dataset."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Optimize Loop API (Phase 5 E6)
 
 All endpoints verified working via curl against a real dev server (real
@@ -22,7 +25,7 @@ through the exact same E3/E4/E5 machinery — grid resolution, BullMQ cell
 execution via `GatewayService.complete`, and judge scoring — so a
 candidate's score is directly comparable to production's. A human then
 inspects `GET /runs/:id/report` (E5, documented in
-[`experiments.md`](experiments.md) — not duplicated here) and, if a
+[`experiments.mdx`](experiments.mdx) — not duplicated here) and, if a
 candidate is a genuine improvement, promotes it with `POST
 /runs/:id/promote`. Promotion is the **only** path that turns a disposable
 `PromptCandidate` into a real, immutable `PromptVersion` — nothing is ever
@@ -64,7 +67,7 @@ optional:
 
 Demo setup: prompt "support-reply-e6t6" v1 (`production`) is deliberately
 weak — a vague, unconstrained system message ("You are a friendly customer
-support agent. Help the customer with their issue: {{ complaint }}") that
+support agent. Help the customer with their issue: `{{ complaint }}`) that
 in practice produces multi-sentence, exclamation-mark-laden replies with
 greetings/sign-offs. The dataset's two examples carry `criteria` demanding
 a strict, judge-checkable format (exactly two sentences, no exclamation
@@ -75,12 +78,44 @@ should embed in its candidates. (A first attempt with a milder
 the "first attempt" note below — so the dataset was rebuilt with more
 explicit feedback and re-run.)
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/prompts/f23200d4-22df-4d3f-a4ac-f704fc0bd2f3/optimize \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"dataset_id": "ef6525f8-4597-456b-8b17-5dc2dbb1a4f2", "models": ["gpt-4o-mini"], "draft_count": 2}'
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const result = await hub.optimize.start(
+  'f23200d4-22df-4d3f-a4ac-f704fc0bd2f3',
+  {
+    datasetId: 'ef6525f8-4597-456b-8b17-5dc2dbb1a4f2',
+    models: ['gpt-4o-mini'],
+    draftCount: 2,
+  }
+);
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+result = await hub.optimize.start(
+    'f23200d4-22df-4d3f-a4ac-f704fc0bd2f3',
+    dataset_id='ef6525f8-4597-456b-8b17-5dc2dbb1a4f2',
+    models=['gpt-4o-mini'],
+    draft_count=2,
+)
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 202):
 
@@ -89,7 +124,7 @@ Response (status 202):
 ```
 
 Polling `GET /api/v1/runs/97584f62-79ca-4575-ab68-34c6ae5ada03` (E3's run
-endpoint, documented in [`experiments.md`](experiments.md)) a few seconds
+endpoint, documented in [`experiments.mdx`](experiments.mdx)) a few seconds
 later shows the real grid the optimizer resolved — two drafted candidates
 plus the production baseline, all six cells (3 variants x 1 model x 2
 examples) succeeded:
@@ -217,7 +252,7 @@ curl -X POST $ACRUXCORE_BASE_URL/prompts/00000000-0000-0000-0000-000000000000/op
 
 The comparison-report endpoint itself is unchanged by E6 — it is the same
 `GET /runs/:id/report` built in Phase 5 E5 and already fully documented in
-[`experiments.md`](experiments.md#get-apiv1runsreport), including its
+[`experiments.mdx`](experiments.mdx#get-apiv1runsreport), including its
 response shape, the `deltaVsBaseline`/`leaderboard`/`winner` fields, and its
 404 error case. Not duplicated here. The only thing E6 changes is what can
 appear in `variants`/`cells`: a `variantKind: "candidate"` entry (an
@@ -412,7 +447,7 @@ Read-only: `requireAnyAuth` only, no role restriction — viewing a
 candidate does not require promote-right, only actually promoting it does.
 
 Demo setup for this verification: a fresh prompt ("e7t5-greeting", v1
-"Answer as {{ name }}" promoted to production) and a 2-example dataset
+"Answer as `{{ name }}`" promoted to production) and a 2-example dataset
 ("Reply in exactly one word."), optimized with `draft_count: 2` against
 `gpt-4o-mini`. The run resolved candidate-A + candidate-B + the production
 baseline, all 6 cells succeeded.

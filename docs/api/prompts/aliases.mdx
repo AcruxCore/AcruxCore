@@ -3,6 +3,9 @@ title: "Prompt Aliases"
 description: "List, render, and promote named pointers (production/staging) to a specific prompt version."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Prompt Aliases API
 
 All endpoints accept either a session cookie (`connect.sid`) or a Bearer API key.
@@ -51,12 +54,32 @@ string (`production`, `staging`, `canary`, etc.).
 
 Promote production to v2:
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/prompts/a95ea910-c7fc-43c5-9c68-a8750e02a8f5/aliases/production/promote \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"version_number":2}'
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const alias = await hub.prompts.promoteAlias('a95ea910-c7fc-43c5-9c68-a8750e02a8f5', 'production', 2);
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+alias = await hub.prompts.promote_alias('a95ea910-c7fc-43c5-9c68-a8750e02a8f5', 'production', 2)
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 

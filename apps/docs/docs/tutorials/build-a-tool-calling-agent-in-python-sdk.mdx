@@ -374,6 +374,51 @@ curl -X POST "$ACRUXCORE_BASE_URL/tools/<tool-id>/versions" \
 ```
 
 </TabItem>
+<TabItem value="python-sdk" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+async with AcruxCore() as hub:
+    tool = await hub.tools.create(
+        name="query_database",
+        description="Run a single read-only SQL SELECT against the store database and return the matching rows.",
+    )
+    version = await hub.tools.commitVersion(
+        tool.id,
+        parameters_schema={
+            "type": "object",
+            "properties": {"sql": {"type": "string", "description": "A single read-only SQLite SELECT statement."}},
+            "required": ["sql"],
+        },
+        executor={"type": "client"},
+    )
+    print(f"tool_id={tool.id} v{version.version_number}")
+```
+
+</TabItem>
+<TabItem value="node-sdk" label="Node (SDK)">
+
+```typescript
+import { acruxcore } from '@acruxcoreai/sdk';
+
+const hub = acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
+const tool = await hub.tools.create({
+  name: 'query_database',
+  description: 'Run a single read-only SQL SELECT against the store database and return the matching rows.',
+});
+const version = await hub.tools.commitVersion(tool.id, {
+  parametersSchema: {
+    type: 'object',
+    properties: { sql: { type: 'string', description: 'A single read-only SQLite SELECT statement.' } },
+    required: ['sql'],
+  },
+  executor: { type: 'client' },
+});
+console.log(`tool_id=${tool.id} v${version.versionNumber}`);
+```
+
+</TabItem>
 </Tabs>
 
 Then the prompt shell and a version that attaches the tool with `tools: [{ toolId }]`:
@@ -408,6 +453,45 @@ curl -X POST "$ACRUXCORE_BASE_URL/prompts/<prompt-id>/versions" \
     { "alias": "staging", "versionNumber": 1 }
   ]
 }
+```
+
+</TabItem>
+<TabItem value="python-sdk" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+async with AcruxCore() as hub:
+    prompt = await hub.prompts.create(
+        name="sql-analyst-agent",
+        description="Text-to-SQL data analyst.",
+    )
+    version = await hub.prompts.commitVersion(
+        prompt.id,
+        messages=[{"role": "system", "content": "You are a data analyst. Use query_database to answer."}],
+        model="gpt-4o-mini",
+        tools=[{"toolId": "<tool-id>"}],
+    )
+    print(f"prompt_id={prompt.id} v{version.version_number}")
+```
+
+</TabItem>
+<TabItem value="node-sdk" label="Node (SDK)">
+
+```typescript
+import { acruxcore } from '@acruxcoreai/sdk';
+
+const hub = acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
+const prompt = await hub.prompts.create({
+  name: 'sql-analyst-agent',
+  description: 'Text-to-SQL data analyst.',
+});
+const version = await hub.prompts.commitVersion(prompt.id, {
+  messages: [{ role: 'system', content: 'You are a data analyst. Use query_database to answer.' }],
+  model: 'gpt-4o-mini',
+  tools: [{ toolId: '<tool-id>' }],
+});
+console.log(`prompt_id=${prompt.id} v${version.versionNumber}`);
 ```
 
 </TabItem>
@@ -447,6 +531,32 @@ curl -X POST "$ACRUXCORE_BASE_URL/prompts/sql-analyst-agent/production/render" \
   ],
   "model": "gpt-4o-mini"
 }
+```
+
+</TabItem>
+<TabItem value="python-sdk" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+async with AcruxCore() as hub:
+    rendered = await hub.prompts.render("sql-analyst-agent", "production")
+    print(rendered.model)       # "gpt-4o-mini"
+    print(rendered.messages)    # [{"role": "system", "content": "..."}]
+    print(rendered.tools)       # [{"type": "function", "function": {...}}]
+```
+
+</TabItem>
+<TabItem value="node-sdk" label="Node (SDK)">
+
+```typescript
+import { acruxcore } from '@acruxcoreai/sdk';
+
+const hub = acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
+const rendered = await hub.prompts.render('sql-analyst-agent', 'production');
+console.log(rendered.model);       // "gpt-4o-mini"
+console.log(rendered.messages);    // [{ role: "system", content: "..." }]
+console.log(rendered.tools);       // [{ type: "function", function: {...} }]
 ```
 
 </TabItem>

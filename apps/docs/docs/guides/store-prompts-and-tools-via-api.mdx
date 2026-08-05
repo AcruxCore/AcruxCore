@@ -5,6 +5,9 @@ sidebar_position: 10
 keywords: [prompts, tools, rest api, sdk, streaming, renderprompt]
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Store prompts and tools via the API
 
 **What you'll build:** a `travel-assistant` prompt with three tools attached —
@@ -220,6 +223,9 @@ Now the run path. A single `hub.prompts.render(name, alias, variables)` call ret
 **both** the templated messages (variables already filled in server-side) and the
 attached tool schemas, already in OpenAI shape:
 
+<Tabs groupId="lang">
+<TabItem value="node" label="Node (SDK)">
+
 ```typescript
 import acruxcore from '@acruxcoreai/sdk';
 
@@ -232,6 +238,25 @@ const { messages, tools } = await hub.prompts.render('travel-assistant', 'produc
   to: 'JPY',
 });
 ```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+messages, tools = await hub.prompts.render('travel-assistant', 'production', {
+    'city': 'Tokyo',
+    'amount': 100,
+    'from': 'USD',
+    'to': 'JPY',
+})
+```
+
+</TabItem>
+</Tabs>
 
 `messages` comes back rendered and `tools` carries the three schemas you stored —
 neither is defined in your code. This is the real output of the example's fetch
@@ -249,8 +274,11 @@ Fetched from framework: 2 message(s) + 3 tool(s) [get_weather, convert_currency,
 answer. The **only** tool code left in your app is `dispatch`; the schemas and prompt
 text came from the server.
 
-Here is the complete, runnable `rest-defined-agent.ts` — it does the store (steps
+Here is the complete, runnable example — it does the store (steps
 2–3), the fetch (step 5), and the run in one idempotent file:
+
+<Tabs groupId="lang">
+<TabItem value="node" label="Node (SDK)">
 
 <details>
 <summary>Full source: <code>rest-defined-agent.ts</code></summary>
@@ -611,6 +639,227 @@ main().catch((err) => {
 
 </details>
 
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+<details>
+<summary>Full source: <code>rest_defined_agent.py</code></summary>
+
+```python
+"""Example: store the system prompt AND the tools in the framework via REST, then
+fetch both back through the SDK and run the agent — nothing about the prompt or
+the tool schemas is hardcoded on the run path.
+
+The flow is store → fetch → use:
+
+  STORE (REST, one-time setup):
+    1. Tools  → POST /tools (shell) + POST /tools/:id/versions (schema). Each
+       version stores the ``parameters_schema`` the model reads plus a
+       ``{"type": "client"}`` executor — "our own app runs this tool", so
+       {@link dispatch} below still runs locally.
+    2. Prompt → POST /prompts (shell) + POST /prompts/:id/versions with the
+       templated messages AND ``tools: [{"toolId": ...}]`` that ATTACH the catalog
+       tools to this immutable version.
+
+  FETCH + USE (SDK, at run time):
+    3. ``hub.prompts.render(name, 'production', vars)`` returns ``(messages, tools)``
+       in one call: the messages are templated server-side and ``tools`` are the
+       version's attached tool schemas, already in OpenAI shape. Both come from
+       the framework — this file no longer holds them.
+    4. ``hub.gateway.run_tool_loop(model, messages, tool_defs=tools, dispatch=dispatch)``
+       runs the loop with exactly what was fetched. The only tool code left in this
+       file is ``dispatch`` — the local implementations. Schemas, descriptions, and
+       the prompt text live on the server.
+
+Run:
+    ACRUXCORE_API_KEY=<your key> \\
+    ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1 \\
+    ACRUXCORE_MODEL=gpt-4o-mini \\
+    python packages/sdk-python/examples/rest_defined_agent.py
+"""
+
+from __future__ import annotations
+
+import asyncio
+import os
+from typing import Any
+
+import httpx
+
+from acruxcore import AcruxCore
+
+API_KEY = os.environ.get("ACRUXCORE_API_KEY", "")
+BASE_URL = os.environ.get("ACRUXCORE_BASE_URL", "")
+MODEL = os.environ.get("ACRUXCORE_MODEL", "gpt-4o-mini")
+
+if not API_KEY or not BASE_URL:
+    raise SystemExit("Set ACRUXCORE_API_KEY and ACRUXCORE_BASE_URL first.")
+
+REST_BASE = BASE_URL.rstrip("/")
+
+# ── Local tool implementations ──────────────────────────────────────────────
+
+WEATHER: dict[str, str] = {
+    "tokyo": "22°C, light rain",
+    "london": "15°C, overcast",
+    "new york": "27°C, sunny",
+}
+
+RATES: dict[str, float] = {
+    "USD:JPY": 157.0,
+    "USD:EUR": 0.92,
+    "EUR:USD": 1.09,
+}
+
+
+def dispatch(name: str, args: dict[str, Any]) -> Any:
+    """Route one tool call from the model to its local implementation."""
+    if name == "get_weather":
+        city = str(args.get("city", "")).lower()
+        return {"city": args.get("city"), "conditions": WEATHER.get(city, "no data for that city")}
+    if name == "convert_currency":
+        fr = str(args.get("from", "")).upper()
+        to = str(args.get("to", "")).upper()
+        amount = float(args.get("amount", 0))
+        rate = RATES.get(f"{fr}:{to}")
+        if rate is None:
+            return {"error": f"no rate for {fr}->{to}"}
+        return {"amount": amount, "from": fr, "to": to, "converted": round(amount * rate, 2), "rate": rate}
+    if name == "get_current_time":
+        timezone = str(args.get("timezone", "UTC"))
+        import datetime
+        now = datetime.datetime.now(datetime.timezone.utc)
+        return {"timezone": timezone, "time": now.strftime("%Y-%m-%d %H:%M UTC")}
+    raise ValueError(f"Unknown tool: {name}")
+
+
+# ── REST helpers ─────────────────────────────────────────────────────────────
+
+HEADERS = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
+
+
+async def api(method: str, path: str, body: Any = None) -> Any:
+    async with httpx.AsyncClient() as client:
+        kwargs: dict[str, Any] = {"headers": HEADERS, "timeout": 30}
+        if body is not None:
+            kwargs["json"] = body
+        resp = await client.request(method, f"{REST_BASE}{path}", **kwargs)
+        if resp.status_code >= 400:
+            raise RuntimeError(f"{method} {path} -> {resp.status_code}: {resp.text}")
+        if resp.status_code == 204:
+            return None
+        return resp.json()
+
+
+# ── Catalog definitions (STORE step) ────────────────────────────────────────
+
+TOOL_SPECS = [
+    {
+        "name": "get_weather",
+        "description": "Get the current weather for a city.",
+        "parameters_schema": {
+            "type": "object",
+            "properties": {"city": {"type": "string", "description": 'City name, e.g. "Tokyo".'}},
+            "required": ["city"],
+        },
+    },
+    {
+        "name": "convert_currency",
+        "description": "Convert an amount of money from one currency to another.",
+        "parameters_schema": {
+            "type": "object",
+            "properties": {
+                "amount": {"type": "number", "description": "The amount to convert."},
+                "from": {"type": "string", "description": 'ISO 4217 source currency, e.g. "USD".'},
+                "to": {"type": "string", "description": 'ISO 4217 target currency, e.g. "JPY".'},
+            },
+            "required": ["amount", "from", "to"],
+        },
+    },
+    {
+        "name": "get_current_time",
+        "description": "Get the current wall-clock time in an IANA timezone.",
+        "parameters_schema": {
+            "type": "object",
+            "properties": {"timezone": {"type": "string", "description": 'IANA timezone, e.g. "Asia/Tokyo".'}},
+            "required": ["timezone"],
+        },
+    },
+]
+
+PROMPT_NAME = "travel-assistant"
+
+PROMPT_MESSAGES = [
+    {"role": "system", "content": "You are a helpful travel assistant. Use the provided tools to answer with concrete, up-to-date facts instead of guessing."},
+    {"role": "user", "content": "What's the weather in {{ city }} right now, what time is it there, and how much is {{ amount }} {{ from }} in {{ to }}?"},
+]
+
+
+async def ensure_tool(spec: dict[str, Any]) -> str:
+    """Find-or-create a catalog tool and return its id."""
+    found = await api("GET", f"/tools?search={spec['name']}")
+    tool = next((t for t in found["data"] if t["name"] == spec["name"]), None)
+    if not tool:
+        tool = await api("POST", "/tools", {"name": spec["name"], "description": spec["description"]})
+        print(f'  + created tool "{spec["name"]}"')
+    versions = await api("GET", f"/tools/{tool['id']}/versions")
+    if versions["total"] == 0:
+        await api("POST", f"/tools/{tool['id']}/versions", {
+            "description": spec["description"],
+            "parametersSchema": spec["parameters_schema"],
+            "executor": {"type": "client"},
+        })
+        print(f'  + committed v1 for tool "{spec["name"]}"')
+    return tool["id"]
+
+
+async def ensure_prompt(tool_ids: list[str]) -> None:
+    """Find-or-create the prompt with tools attached."""
+    found = await api("GET", f"/prompts?search={PROMPT_NAME}")
+    prompt = next((p for p in found["data"] if p["name"] == PROMPT_NAME), None)
+    if not prompt:
+        prompt = await api("POST", "/prompts", {"name": PROMPT_NAME, "description": "Travel assistant used by the rest-defined-agent SDK example."})
+        print(f'  + created prompt "{PROMPT_NAME}"')
+    versions = await api("GET", f"/prompts/{prompt['id']}/versions")
+    if versions["total"] == 0:
+        await api("POST", f"/prompts/{prompt['id']}/versions", {
+            "messages": PROMPT_MESSAGES,
+            "tools": [{"toolId": tid} for tid in tool_ids],
+        })
+        print(f'  + committed v1 for prompt "{PROMPT_NAME}" ({len(tool_ids)} tools attached)')
+
+
+async def main() -> None:
+    print("Storing catalog tools and prompt in the framework…")
+    tool_ids = [await ensure_tool(spec) for spec in TOOL_SPECS]
+    await ensure_prompt(tool_ids)
+
+    async with AcruxCore() as hub:
+        # ── FETCH ──
+        rendered = await hub.prompts.render(PROMPT_NAME, "production", {
+            "city": "Tokyo", "amount": 100, "from": "USD", "to": "JPY",
+        })
+        messages, tools = rendered.messages, rendered.tools
+        print(f"\nFetched from framework: {len(messages)} message(s) + {len(tools)} tool(s) "
+              f"[{', '.join(t['function']['name'] for t in tools)}]")
+
+        # ── USE ──
+        result = await hub.gateway.run_tool_loop(
+            MODEL, messages, tool_defs=tools, dispatch=dispatch,
+        )
+        print(f"\nAssistant: {result.content}")
+        print(f"\n({result.iterations} round-trip(s), trace {result.trace_id or 'disabled'})")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+</details>
+
+</TabItem>
+</Tabs>
+
 Run it, pointing `ACRUXCORE_MODEL` at a model your team has registered in the
 gateway (see **Gateway → Models**):
 
@@ -668,6 +917,9 @@ streaming yields text deltas, and if the model chose to call a tool the first
 turn would stream tool-call fragments instead of a readable answer (streaming does
 not auto-run tools — that is what `runToolLoop` is for). Omitting `tools` keeps the
 streamed output clean prose.
+
+<Tabs groupId="lang">
+<TabItem value="node" label="Node (SDK)">
 
 ```typescript
 /**
@@ -741,6 +993,69 @@ main().catch((err) => {
   process.exit(1);
 });
 ```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+"""Example: fetch a stored prompt with the SDK, then STREAM the reply token by
+token instead of waiting for the whole completion.
+
+This reuses the same `travel-assistant` prompt that `rest_defined_agent.py`
+stores in the framework — run that example first (or store the prompt yourself)
+so `hub.prompts.render` has something to fetch.
+
+Run:
+    ACRUXCORE_API_KEY=<your key> \\
+    ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1 \\
+    ACRUXCORE_MODEL=<a model your team registered> \\
+    python packages/sdk-python/examples/stream_a_stored_prompt.py
+"""
+
+from __future__ import annotations
+
+import asyncio
+import os
+
+from acruxcore import AcruxCore
+
+API_KEY = os.environ.get("ACRUXCORE_API_KEY", "")
+BASE_URL = os.environ.get("ACRUXCORE_BASE_URL", "")
+MODEL = os.environ.get("ACRUXCORE_MODEL", "gpt-4o-mini")
+
+if not API_KEY or not BASE_URL:
+    raise SystemExit("Set ACRUXCORE_API_KEY and ACRUXCORE_BASE_URL first.")
+
+
+async def main() -> None:
+    async with AcruxCore() as hub:
+        # ── FETCH: the templated messages come from the stored prompt version.
+        rendered = await hub.prompts.render("travel-assistant", "production", {
+            "city": "Tokyo",
+            "amount": 100,
+            "from": "USD",
+            "to": "JPY",
+        })
+        messages = rendered.messages
+
+        # ── STREAM: print each token as it arrives.
+        stream = await hub.gateway.stream(MODEL, messages)
+
+        full = ""
+        async for chunk in stream:
+            piece = chunk.delta.get("content", "")
+            print(piece, end="", flush=True)
+            full += piece
+
+        print(f"\n\n(streamed {len(full)} characters)")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+</TabItem>
+</Tabs>
 
 Run it the same way:
 

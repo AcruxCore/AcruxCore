@@ -3,6 +3,9 @@ title: "Tools"
 description: "Create, list, update, and delete tools in the Tool Catalog."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Tools API
 
 All endpoints verified working via curl. Document updated only after curl confirmation.
@@ -15,15 +18,15 @@ domain lives alongside it:
 
 | Page | What it covers |
 |---|---|
-| [`versions.md`](./versions.md) | Commit immutable versions; `description` vs `changelog` vs `source`. |
-| [`aliases.md`](./aliases.md) | The `production` and `staging` pointers, and promoting between versions. |
-| [`sync.md`](./sync.md) | One-call reconcile for tools defined in code — what `@acrux.tool` uses. |
-| [`resolve.md`](./resolve.md) | Batch name → model-ready function definition, plus `executorType`. |
-| [`execute.md`](./execute.md) | Running an `http` executor server-side. |
-| [`analytics.md`](./analytics.md) | Per-tool call counts, latency, and error rates. |
+| [`versions.mdx`](./versions.mdx) | Commit immutable versions; `description` vs `changelog` vs `source`. |
+| [`aliases.mdx`](./aliases.mdx) | The `production` and `staging` pointers, and promoting between versions. |
+| [`sync.mdx`](./sync.mdx) | One-call reconcile for tools defined in code — what `@acrux.tool` uses. |
+| [`resolve.mdx`](./resolve.mdx) | Batch name → model-ready function definition, plus `executorType`. |
+| [`execute.mdx`](./execute.mdx) | Running an `http` executor server-side. |
+| [`analytics.mdx`](./analytics.mdx) | Per-tool call counts, latency, and error rates. |
 
 :::tip[Building a tool from code?]
-Reach for [`sync.md`](./sync.md) and [`resolve.md`](./resolve.md) rather than this
+Reach for [`sync.mdx`](./sync.mdx) and [`resolve.mdx`](./resolve.mdx) rather than this
 page. Creating the shell here and then committing a version separately is the
 dashboard's path; a decorated function does both in one call and stays idempotent
 across deploys.
@@ -42,12 +45,38 @@ The name must also be free within the team: `POST /tools/sync` and every
 resolution arbitrary. Soft-deleting a tool releases its name for reuse, and two
 different teams may each hold the same name.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/tools \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"name":"get_weather","description":"Fetch current weather for a city."}'
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const tool = await hub.tools.create({
+  name: 'get_weather',
+  description: 'Fetch current weather for a city.',
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+tool = await hub.tools.create(
+    'get_weather',
+    description='Fetch current weather for a city.',
+)
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 201):
 
@@ -82,10 +111,34 @@ Response (status 409) — an active tool in this team already holds the name.
 Returns a paginated list of active (non-deleted) tools for the current team.
 Supports `?search=`, `?page=`, `?limit=`.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl $ACRUXCORE_BASE_URL/tools \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const result = await hub.tools.list();
+// with search
+const filtered = await hub.tools.list({ search: 'weather' });
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+result = await hub.tools.list()
+# with search
+filtered = await hub.tools.list(search='weather')
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 
@@ -113,10 +166,30 @@ Response (status 200):
 
 Fetches a single active tool by ID.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl $ACRUXCORE_BASE_URL/tools/8662ca24-69f2-4431-a7f4-82e9abc77ff1 \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const tool = await hub.tools.get('8662ca24-69f2-4431-a7f4-82e9abc77ff1');
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+tool = await hub.tools.get('8662ca24-69f2-4431-a7f4-82e9abc77ff1')
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 
@@ -143,12 +216,37 @@ Response (status 404) — tool not found, deleted, or belongs to another team:
 
 Partially updates a tool's `name` and/or `description`. At least one field is required.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X PATCH $ACRUXCORE_BASE_URL/tools/8662ca24-69f2-4431-a7f4-82e9abc77ff1 \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"description":"Fetch current weather for a city (v2)."}'
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const updated = await hub.tools.update('8662ca24-69f2-4431-a7f4-82e9abc77ff1', {
+  description: 'Fetch current weather for a city (v2).',
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+updated = await hub.tools.update(
+    '8662ca24-69f2-4431-a7f4-82e9abc77ff1',
+    description='Fetch current weather for a city (v2).',
+)
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 
@@ -176,10 +274,30 @@ Response (status 400) — neither name nor description provided:
 Soft-deletes a tool (`deleted_at = now()`). Version and alias rows are preserved
 but the tool no longer appears in list/get, and a subsequent GET returns 404.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X DELETE $ACRUXCORE_BASE_URL/tools/8662ca24-69f2-4431-a7f4-82e9abc77ff1 \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+await hub.tools.delete('8662ca24-69f2-4431-a7f4-82e9abc77ff1');
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+await hub.tools.delete('8662ca24-69f2-4431-a7f4-82e9abc77ff1')
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 204) — no body.
 

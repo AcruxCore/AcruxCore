@@ -259,6 +259,9 @@ then a **version** (`POST /prompts/:id/versions`) with the actual messages and m
 [Store prompts and tools via the API](../guides/store-prompts-and-tools-via-api)
 for a deeper walkthrough of this pattern.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X POST "$ACRUXCORE_BASE_URL/prompts" \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
@@ -336,6 +339,104 @@ repeat the same two curl calls. Here is what each one needs:
 > requested format for the user, then return the final content to the supervisor agent.
 
 Both use `{{ task }}` as the user prompt variable, same as the finance agent.
+
+</TabItem>
+<TabItem value="python-sdk" label="Python (SDK)">
+
+Same shape via the SDK. `hub.prompts.create()` creates the shell, then `hub.prompts.commitVersion()` attaches the messages and tools. The router prompt has no tools; the subagent prompts attach tool ids:
+
+```python
+from acruxcore import AcruxCore
+
+async with AcruxCore() as hub:
+    # Router prompt (no tools)
+    router = await hub.prompts.create({
+        "name": "content-supervisor",
+        "description": "Classifies an incoming content request and routes it to one of three specialist subagents.",
+    })
+    await hub.prompts.commitVersion(router.id, {
+        "model": "claude-haiku-direct",
+        "messages": [
+            {"role": "system", "content": "You are the Executive Content Director orchestrating a team of specialized AI agents to produce exceptional content for clients.\n\nAvailable agents:\n- finance_research_agent: Specialized in financial data research and analysis using Yahoo Finance and other financial sources\n- general_research_agent: Expert at comprehensive web research on any topic using advanced search tools\n- writing_agent: Professional content writer that creates final polished content in any format\n\nRead the user's request and decide which single agent should handle it next."},
+            {"role": "user", "content": "{{ question }}"},
+        ],
+    })
+
+    # Finance research subagent
+    finance = await hub.prompts.create({
+        "name": "finance-research-agent",
+        "description": "Finance research subagent: Yahoo Finance news plus quick web lookups, for the content supervisor.",
+    })
+    await hub.prompts.commitVersion(finance.id, {
+        "model": "claude-haiku-direct",
+        "messages": [
+            {"role": "system", "content": "You are an expert finance research assistant for a digital content agency.\nYou have access to the following tools: finance_research, basic_research, and get_todays_date. \nFirst get today's date then continue. \nThe finance_research tool is used to search for financial data and news from Yahoo Finance. \nThe basic_research tool is used to search for general information. \nThe get_todays_date tool is used to get today's date. \nWhen you are done with your research, return the research to the supervisor agent."},
+            {"role": "user", "content": "{{ task }}"},
+        ],
+        "tools": [
+            {"toolId": "c6ffbbff-7e5f-4e6e-acbe-1fd1a027632f"},
+            {"toolId": "ab20959a-2651-4779-86f8-0714c967798e"},
+            {"toolId": "d0a800d5-a484-4d4f-a9e2-05a715775682"},
+        ],
+    })
+
+    # Repeat for general-research-agent and writing-agent...
+```
+
+The other two subagents follow the exact same shape — create the prompt shell, then commit a
+version with the system prompt, user prompt, and tool ids. Both use `{{ task }}` as the user
+prompt variable, same as the finance agent.
+
+</TabItem>
+<TabItem value="node-sdk" label="Node (SDK)">
+
+Same shape via the Node SDK. `hub.prompts.create()` creates the shell, then `hub.prompts.commitVersion()` attaches the messages and tools:
+
+```typescript
+import { acruxcore } from '@acruxcoreai/sdk';
+
+const hub = new acruxcore();
+
+// Router prompt (no tools)
+const router = await hub.prompts.create({
+  name: "content-supervisor",
+  description: "Classifies an incoming content request and routes it to one of three specialist subagents.",
+});
+await hub.prompts.commitVersion(router.id, {
+  model: "claude-haiku-direct",
+  messages: [
+    { role: "system", content: "You are the Executive Content Director orchestrating a team of specialized AI agents to produce exceptional content for clients.\n\nAvailable agents:\n- finance_research_agent: Specialized in financial data research and analysis using Yahoo Finance and other financial sources\n- general_research_agent: Expert at comprehensive web research on any topic using advanced search tools\n- writing_agent: Professional content writer that creates final polished content in any format\n\nRead the user's request and decide which single agent should handle it next." },
+    { role: "user", content: "{{ question }}" },
+  ],
+});
+
+// Finance research subagent
+const finance = await hub.prompts.create({
+  name: "finance-research-agent",
+  description: "Finance research subagent: Yahoo Finance news plus quick web lookups, for the content supervisor.",
+});
+await hub.prompts.commitVersion(finance.id, {
+  model: "claude-haiku-direct",
+  messages: [
+    { role: "system", content: "You are an expert finance research assistant for a digital content agency.\nYou have access to the following tools: finance_research, basic_research, and get_todays_date. \nFirst get today's date then continue. \nThe finance_research tool is used to search for financial data and news from Yahoo Finance. \nThe basic_research tool is used to search for general information. \nThe get_todays_date tool is used to get today's date. \nWhen you are done with your research, return the research to the supervisor agent." },
+    { role: "user", content: "{{ task }}" },
+  ],
+  tools: [
+    { toolId: "c6ffbbff-7e5f-4e6e-acbe-1fd1a027632f" },
+    { toolId: "ab20959a-2651-4779-86f8-0714c967798e" },
+    { toolId: "d0a800d5-a484-4d4f-a9e2-05a715775682" },
+  ],
+});
+
+// Repeat for general-research-agent and writing-agent...
+```
+
+The other two subagents follow the exact same shape — create the prompt shell, then commit a
+version with the system prompt, user prompt, and tool ids. Both use `{{ task }}` as the user
+prompt variable, same as the finance agent.
+
+</TabItem>
+</Tabs>
 
 ## 5. Run the two-step router → subagent flow
 

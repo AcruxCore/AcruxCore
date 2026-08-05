@@ -3,6 +3,9 @@ title: "Tool Sync"
 description: "Create-or-commit-or-nothing: reconcile a tool defined in code with the catalog in one call."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Tool Sync API
 
 All endpoints verified working via curl. Document updated only after curl confirmation.
@@ -27,7 +30,7 @@ in advance whether this is the first sync, and "did anything change" is answered
 `committed`, not by the status code.
 
 For an `http` executor, the same deep validation as
-[`versions.md`](./versions.md) runs before anything is written: transform JS is
+[`versions.mdx`](./versions.mdx) runs before anything is written: transform JS is
 syntax-checked, `{{secret.NAME}}` references must exist, and `url` must resolve to
 a public address.
 
@@ -36,6 +39,9 @@ a public address.
 ### POST /api/v1/tools/sync
 
 First sync — creates the tool, commits v1, and auto-creates both aliases:
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
 
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/tools/sync \
@@ -51,6 +57,27 @@ curl -X POST $ACRUXCORE_BASE_URL/tools/sync \
     "source": "code"
   }'
 ```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+// When using the @acrux.tool decorator, sync is called automatically.
+// For raw sync:
+const result = await hub.tools.sync([myTool]);
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+# When using the @acrux.tool decorator, sync is called automatically.
+# For raw sync:
+results = await hub.tools.sync([my_tool])
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 

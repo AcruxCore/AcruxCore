@@ -3,6 +3,9 @@ title: "Tool Versions"
 description: "Commit immutable tool versions and fetch them back by number."
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Tool Versions API
 
 All endpoints verified working via curl. Document updated only after curl confirmation.
@@ -14,13 +17,13 @@ authenticated role.
 A version's `executor` is a discriminated union: `{"type":"client"}` (the
 customer's own app runs the tool — nothing to validate) or a declarative
 `{"type":"http", ...}` executor that the platform itself can call (see
-[`execute.md`](./execute.md)). For an `http` executor, commit-time validation deep-checks
+[`execute.mdx`](./execute.mdx)). For an `http` executor, commit-time validation deep-checks
 `requestTransform`/`responseTransform` JS syntax, `{{secret.NAME}}` references,
 and that `url` resolves to a public (non-private/loopback) address.
 
 The **first** version committed for a tool (`versionNumber === 1`) auto-creates
 `production` and `staging` aliases pointing at it; later commits do not move
-any alias — use [`aliases.md`](./aliases.md)'s promote endpoint for that.
+any alias — use [`aliases.mdx`](./aliases.mdx)'s promote endpoint for that.
 
 ## `description`, `changelog`, and `source`
 
@@ -35,7 +38,7 @@ model does:
 
 `source` is one of `code`, `dashboard`, or `api`, and defaults to `api` on this
 endpoint. **`code` cannot be claimed here** — it means "derived from a decorated
-function" and is writable only by [`sync.md`](./sync.md). Without that
+function" and is writable only by [`sync.mdx`](./sync.mdx). Without that
 restriction a hand-rolled call could forge code ownership and make the dashboard
 warn about an edit that no deploy would ever supersede.
 
@@ -45,6 +48,9 @@ array saying so — a release note is not what the model reads. See the example 
 ---
 
 ### POST /api/v1/tools/:id/versions
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
 
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/tools/50c99ce0-cda1-4b49-81bc-d06e091fbcc5/versions \
@@ -63,6 +69,46 @@ curl -X POST $ACRUXCORE_BASE_URL/tools/50c99ce0-cda1-4b49-81bc-d06e091fbcc5/vers
     }
   }'
 ```
+
+</TabItem>
+<TabItem value="typescript" label="TypeScript">
+
+```ts
+const version = await hub.tools.commitVersion('50c99ce0-cda1-4b49-81bc-d06e091fbcc5', {
+  description: 'v1 - calls httpbin GET',
+  parametersSchema: { type: 'object', properties: { city: { type: 'string' } }, required: ['city'] },
+  executor: {
+    type: 'http',
+    url: 'https://httpbin.org/get',
+    method: 'GET',
+    headers: [],
+    query: [{ name: 'city', value: 'placeholder' }],
+    argMapping: [],
+  },
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+version = hub.tools.commit_version(
+    '50c99ce0-cda1-4b49-81bc-d06e091fbcc5',
+    parameters_schema={'type': 'object', 'properties': {'city': {'type': 'string'}}, 'required': ['city']},
+    executor={
+        'type': 'http',
+        'url': 'https://httpbin.org/get',
+        'method': 'GET',
+        'headers': [],
+        'query': [{'name': 'city', 'value': 'placeholder'}],
+        'argMapping': [],
+    },
+    description='v1 - calls httpbin GET',
+)
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 201) — first commit: includes auto-created aliases:
 
@@ -170,10 +216,30 @@ Lists all versions for a tool, newest first. `parametersSchema`/`executor` are
 omitted from list items (fetch a specific version for those), but `changelog` and
 `source` are included — they are what the dashboard's version list shows.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl $ACRUXCORE_BASE_URL/tools/4d9b768c-8ccb-414d-86ab-c629b3cafff5/versions \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"
 ```
+
+</TabItem>
+<TabItem value="typescript" label="TypeScript">
+
+```ts
+const versions = await hub.tools.listVersions('4d9b768c-8ccb-414d-86ab-c629b3cafff5');
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+versions = hub.tools.list_versions('4d9b768c-8ccb-414d-86ab-c629b3cafff5')
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200) — v1 came from a decorated function with no docstring, v2 and
 v3 were committed by hand:
@@ -224,10 +290,30 @@ v3 were committed by hand:
 
 Fetches a specific version, including its full `parametersSchema` and `executor`.
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl $ACRUXCORE_BASE_URL/tools/4d9b768c-8ccb-414d-86ab-c629b3cafff5/versions/2 \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"
 ```
+
+</TabItem>
+<TabItem value="typescript" label="TypeScript">
+
+```ts
+const version = await hub.tools.getVersion('4d9b768c-8ccb-414d-86ab-c629b3cafff5', 2);
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+version = hub.tools.get_version('4d9b768c-8ccb-414d-86ab-c629b3cafff5', 2)
+```
+
+</TabItem>
+</Tabs>
 
 Response (status 200):
 
