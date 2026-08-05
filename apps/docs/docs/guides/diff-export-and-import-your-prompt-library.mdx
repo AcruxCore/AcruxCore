@@ -62,6 +62,9 @@ Importing this file, whether in another team or the same one, always
 existing prompt to an older state, and it does not add a version to a
 prompt that already exists — there is no merge:
 
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
 ```bash
 curl -X POST "$ACRUXCORE_BASE_URL/prompts/import" \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
@@ -83,6 +86,38 @@ curl -X POST "$ACRUXCORE_BASE_URL/prompts/import" \
 }
 ```
 
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore();
+
+// `exported` is whatever hub.prompts.exportVersion(...) returned (see below) —
+// its shape is already what importPrompt expects.
+const imported = await hub.prompts.importPrompt(exported);
+// `imported.prompt.name` gets a `-imported-<unix_ms>` suffix on a name collision, never an error.
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+# `exported` is whatever hub.prompts.export_version(...) returned (see below).
+# Call .to_import_body() first — this dataclass's own attributes are snake_case,
+# but import_prompt() expects the API's camelCase wire shape.
+imported = await hub.prompts.import_prompt(exported.to_import_body())
+# `imported.prompt.name` gets a `-imported-<unix_ms>` suffix on a name collision, never an error.
+```
+
+</TabItem>
+</Tabs>
+
 Two things worth knowing before you rely on this as a backup mechanism:
 
 - **`variables` in the payload is ignored.** They're always re-derived from
@@ -93,6 +128,8 @@ Two things worth knowing before you rely on this as a backup mechanism:
   twice gives you two prompts, not an error and not an overwrite.
 
 ## Doing this over the API
+
+### Diff two versions
 
 <Tabs groupId="lang">
 <TabItem value="curl" label="curl">
@@ -107,10 +144,28 @@ curl "$ACRUXCORE_BASE_URL/prompts/<prompt-id>/versions/diff?from=1&to=2" \
 {"diff":"Index: welcome-message v1..v2\n===================================================================\n--- welcome-message v1..v2\n+++ welcome-message v1..v2\n@@ -1,2 +1,2 @@\n [system]\n-You are a friendly onboarding assistant. Greet {{ name }} and welcome them to the team.\n\\ No newline at end of file\n+You are a warm, concise onboarding assistant. Greet {{ name }} by name, welcome them to the {{ team }} team, and mention one thing they can do first.\n\\ No newline at end of file\n","fromVersion":1,"toVersion":2}
 ```
 
-```bash
-# Export a specific version
-curl "$ACRUXCORE_BASE_URL/prompts/<prompt-id>/versions/2/export" \
-  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore();
+
+const { diff } = await hub.prompts.diff(prompt.id, 1, 2);
+// `diff` is the unified diff text — `from === to` is a valid no-op, not an error.
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+result = await hub.prompts.diff(prompt.id, 1, 2)
+# `result.diff` is the unified diff text — from_version == to_version is a valid no-op, not an error.
 ```
 
 </TabItem>
@@ -119,6 +174,36 @@ curl "$ACRUXCORE_BASE_URL/prompts/<prompt-id>/versions/2/export" \
 Diffing a version against itself (`from=2&to=2`) returns a valid response
 with a header and no hunks — it's not an error, just a no-op diff.
 Comparing to a version number that doesn't exist on this prompt is a `404`.
+
+### Export a version
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+# Export a specific version
+curl "$ACRUXCORE_BASE_URL/prompts/<prompt-id>/versions/2/export" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const exported = await hub.prompts.exportVersion(prompt.id, 2);
+// `exported` is the portable JSON document — pass it straight to importPrompt (see above).
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+exported = await hub.prompts.export_version(prompt.id, 2)
+# `exported` is the portable document — call exported.to_import_body() before import_prompt() (see above).
+```
+
+</TabItem>
+</Tabs>
 
 ## What's next
 

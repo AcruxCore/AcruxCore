@@ -116,12 +116,12 @@ import AcruxCore from '@acruxcoreai/sdk';
 const hub = new AcruxCore();
 
 // Render the stored prompt to messages, then complete it.
-const { messages } = await hub.renderPrompt('support-reply', 'production', {
+const { messages } = await hub.prompts.render('support-reply', 'production', {
   company: 'Acme',
   customer_message: 'My order #123 has not arrived yet.',
 });
 
-const { content } = await hub.chat({ model: 'support-model', messages });
+const { content } = await hub.gateway.chat({ model: 'support-model', messages });
 
 console.log(content);
 ```
@@ -141,12 +141,12 @@ async def main():
     # Reads ACRUXCORE_API_KEY and ACRUXCORE_BASE_URL from the environment.
     async with AcruxCore() as hub:
         # Render the stored prompt to messages, then complete it.
-        rendered = await hub.render_prompt("support-reply", "production", {
+        rendered = await hub.prompts.render("support-reply", "production", {
             "company": "Acme",
             "customer_message": "My order #123 has not arrived yet.",
         })
 
-        reply = await hub.chat("support-model", rendered.messages)
+        reply = await hub.gateway.chat("support-model", rendered.messages)
         print(reply.content)
 
 asyncio.run(main())
@@ -197,17 +197,17 @@ SDKs — [`@acruxcoreai/sdk`](https://www.npmjs.com/package/@acruxcoreai/sdk) fo
 Node and [`acruxcore`](https://pypi.org/project/acruxcore/) for Python — cover the
 rest of the platform, with the same method names in each language's style:
 
-- **Streaming** — pass `stream: true` / `stream=True` to `chat()` and iterate the
-  response token by token instead of awaiting it whole.
+- **Streaming** — call `hub.gateway.stream()` (Node) / `hub.gateway.stream()` (Python)
+  and iterate the response token by token instead of awaiting it whole.
 - **Tool-calling loop** — declare a tool with `acrux.tool` and hand it to
-  `runToolLoop` / `run_tool_loop`. The loop syncs the tool into the catalog, calls
+  `hub.gateway.runToolLoop` / `hub.gateway.run_tool_loop`. The loop syncs the tool into the catalog, calls
   the model, runs your function, and repeats until the model stops asking. A catalog
   tool with an `http` executor runs on the platform instead, with no local code at
   all. Either way the whole run is one trace. See
   [Build and attach a tool](../guides/build-and-attach-a-tool).
-- **Read traces back** — `getTrace()` / `listTraces()` pull a trace's full span tree
+- **Read traces back** — `hub.traces.get()` / `hub.traces.list()` pull a trace's full span tree
   or a filtered list, without leaving your app.
-- **Feedback** — `submitFeedback()` / `updateFeedback()` attach a rating, label, or
+- **Feedback** — `hub.traces.submitFeedback()` / `hub.traces.updateFeedback()` attach a rating, label, or
   comment to a trace or a single span, e.g. surfacing an end user's thumbs-up/down.
 
 See [Chat, stream, and collect feedback with the SDK](../guides/use-the-sdk-for-chat-and-feedback)

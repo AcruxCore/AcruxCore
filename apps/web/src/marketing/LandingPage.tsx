@@ -310,39 +310,58 @@ export function LandingPage(): ReactNode {
               Wired in three steps.
             </h2>
           </div>
+          <div
+            role="tablist"
+            aria-label="Code sample language"
+            style={cssToStyle(
+              'display:flex;align-items:center;gap:4px;padding:0 0 14px;flex-wrap:wrap;',
+            )}
+          >
+            {tabButton('ts', 'TypeScript')}
+            {tabButton('py', 'Python')}
+            {tabButton('curl', 'curl')}
+          </div>
           <div style={cssToStyle('display:grid;grid-template-columns:repeat(auto-fit,minmax(min(250px,100%),1fr));gap:18px;')}>
-            {STEPS.map((s) => (
-              <div
-                key={s.n}
-                style={cssToStyle(
-                  'border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:24px 22px;display:flex;flex-direction:column;gap:14px;',
-                )}
-              >
-                <div style={cssToStyle('display:flex;align-items:center;gap:12px;')}>
-                  <span
-                    style={cssToStyle(
-                      'height:30px;width:30px;flex:none;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;background:var(--accent);color:var(--accent-ink);font-family:var(--mono);font-size:14px;font-weight:700;',
-                    )}
-                  >
-                    {s.n}
-                  </span>
-                  <div style={cssToStyle('flex:1;height:1px;background:var(--line);')} />
-                </div>
-                <h3 style={cssToStyle('font-size:16.5px;font-weight:650;letter-spacing:-.01em;margin:2px 0 0;')}>
-                  {s.title}
-                </h3>
-                <p style={cssToStyle('font-size:14.5px;line-height:1.6;color:var(--muted);margin:0;text-wrap:pretty;')}>
-                  {s.body}
-                </p>
-                <code
+            {STEPS.map((s) => {
+              const codeText = typeof s.code === 'string' ? s.code : (s.code[tab] ?? s.code.ts);
+              return (
+                <div
+                  key={s.n}
                   style={cssToStyle(
-                    'font-family:var(--mono);font-size:12.5px;color:var(--accent);background:var(--bg);border:1px solid var(--line-soft);border-radius:6px;padding:8px 10px;overflow-x:auto;white-space:pre;',
+                    'border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:24px 22px;display:flex;flex-direction:column;gap:14px;',
                   )}
                 >
-                  {s.code}
-                </code>
-              </div>
-            ))}
+                  <div style={cssToStyle('display:flex;align-items:center;gap:12px;')}>
+                    <span
+                      style={cssToStyle(
+                        'height:30px;width:30px;flex:none;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;background:var(--accent);color:var(--accent-ink);font-family:var(--mono);font-size:14px;font-weight:700;',
+                      )}
+                    >
+                      {s.n}
+                    </span>
+                    <div style={cssToStyle('flex:1;height:1px;background:var(--line);')} />
+                  </div>
+                  <h3 style={cssToStyle('font-size:16.5px;font-weight:650;letter-spacing:-.01em;margin:2px 0 0;')}>
+                    {s.title}
+                  </h3>
+                  <p style={cssToStyle('font-size:14.5px;line-height:1.6;color:var(--muted);margin:0;text-wrap:pretty;')}>
+                    {s.body}
+                  </p>
+                  <code
+                    style={cssToStyle(
+                      'font-family:var(--mono);font-size:12.5px;color:var(--accent);background:var(--bg);border:1px solid var(--line-soft);border-radius:6px;padding:8px 10px;overflow-x:auto;white-space:pre;',
+                    )}
+                    dangerouslySetInnerHTML={
+                      typeof codeText === 'string' && codeText.includes('<span')
+                        ? { __html: codeText }
+                        : undefined
+                    }
+                  >
+                    {!(typeof codeText === 'string' && codeText.includes('<span')) ? codeText : undefined}
+                  </code>
+                </div>
+              );
+            })}
           </div>
         </section>
 
@@ -587,7 +606,7 @@ const LoopArrow = (): ReactNode => (
   </Ic>
 );
 
-const STEPS: { n: string; title: string; body: string; code: string }[] = [
+const STEPS: { n: string; title: string; body: string; code: Record<string, string> | string }[] = [
   {
     n: '1',
     title: 'Install the SDK',
@@ -597,14 +616,36 @@ const STEPS: { n: string; title: string; body: string; code: string }[] = [
   {
     n: '2',
     title: 'Point your LLM calls at Acrux Core',
-    body: 'Swap your base URL for the gateway. Your existing OpenAI client keeps working.',
-    code: 'baseURL: "…/api/v1/gateway"',
+    body: 'One method routes, traces, and prices every call — or swap the base URL and your existing OpenAI client keeps working.',
+    code: {
+      ts: String.raw`const result = await hub.<span style="color:var(--accent);">chat</span>({
+  model: <span style="color:var(--str);">'gpt-4o'</span>,
+  messages: [{ role: <span style="color:var(--str);">'user'</span>, content: <span style="color:var(--str);">'Hi'</span> }],
+});`,
+      py: String.raw`result = <span style="color:var(--varhi);">await</span> hub.<span style="color:var(--accent);">chat</span>(
+    <span style="color:var(--str);">"gpt-4o"</span>,
+    [{<span style="color:var(--str);">"role"</span>: <span style="color:var(--str);">"user"</span>, <span style="color:var(--str);">"content"</span>: <span style="color:var(--str);">"Hi"</span>}],
+)`,
+      curl: String.raw`<span style="color:var(--accent);">curl</span> ${API_BASE_URL}/gateway/chat/completions \
+  -H <span style="color:var(--str);">"Authorization: Bearer $KEY"</span> \
+  -d <span style="color:var(--str);">'{"model":"gpt-4o",
+   "messages":[{"role":"user","content":"Hi"}]}'</span>`,
+    },
   },
   {
     n: '3',
     title: 'Watch it all in one dashboard',
     body: 'Prompts, cost, latency, and quality land in a single control plane — live.',
-    code: 'hub.renderPrompt("agent", …)',
+    code: {
+      ts: String.raw`<span style="color:var(--varhi);">const</span> { data } = <span style="color:var(--varhi);">await</span> hub.<span style="color:var(--accent);">listTraces</span>({
+  sessionId: <span style="color:var(--str);">'support-1234'</span>,
+});`,
+      py: String.raw`result = <span style="color:var(--varhi);">await</span> hub.<span style="color:var(--accent);">list_traces</span>(
+    session_id=<span style="color:var(--str);">"support-1234"</span>,
+)`,
+      curl: String.raw`<span style="color:var(--accent);">curl</span> <span style="color:var(--str);">"${API_BASE_URL}/traces?sessionId=support-1234"</span> \
+  -H <span style="color:var(--str);">"Authorization: Bearer $KEY"</span>`,
+    },
   },
 ];
 

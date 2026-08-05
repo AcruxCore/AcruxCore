@@ -1,0 +1,230 @@
+---
+title: Configure trace payload capture
+description: Read and toggle your team's default for whether a trace's request/response bodies get stored on ingest, and override that default for a single request.
+sidebar_position: 20
+keywords: [traces, settings, capture payloads, privacy, observability]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Configure trace payload capture
+
+**What you'll do:** read your team's `capturePayloads` default, toggle it, and
+see who's allowed to change it.
+
+`capturePayloads` controls whether a traced span's `input`/`output` bodies —
+the actual prompt and completion text, or the arguments and result of a tool
+call — get stored when the span is ingested. It's **on by default**: every
+span records its full payload unless a team turns this off. Turning it off
+still records everything else about the span (model, tokens, cost, latency,
+status) — only the request/response bodies themselves are dropped. See
+[Trace Settings](/api-reference) for the full field reference.
+
+This is a **team-wide default**, not an absolute. `POST /traces` accepts its
+own `capturePayloads` field on each trace, which overrides the team default
+for that one ingest call — so a caller that wants payloads captured (or
+withheld) for one sensitive trace doesn't need to flip the team setting back
+and forth to do it.
+
+## 1. Read the current default
+
+A team that has never written this setting reads back the lazy default:
+`capturePayloads: true`, `updatedAt: null`.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -s "$ACRUXCORE_BASE_URL/traces/settings" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+Response (status 200) — a team that has never written this setting:
+
+```json
+{ "capturePayloads": true, "updatedAt": null }
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore();
+
+const settings = await hub.traces.getSettings();
+console.log(settings);
+```
+
+Real output, same never-written team:
+
+```json
+{ "capturePayloads": true, "updatedAt": null }
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+settings = await hub.traces.get_settings()
+print(settings)
+```
+
+Real output:
+
+```python
+TraceSettings(capture_payloads=True, updated_at=None)
+```
+
+</TabItem>
+</Tabs>
+
+## 2. Turn it off
+
+Requires an **owner or admin** role. Any personal API key minted by an
+owner/admin works; a key minted by any other role is rejected (see the 403
+case below).
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -s -X PUT "$ACRUXCORE_BASE_URL/traces/settings" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"capturePayloads": false}'
+```
+
+Response (status 200):
+
+```json
+{ "capturePayloads": false, "updatedAt": "2026-08-04T19:35:25.879Z" }
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const updated = await hub.traces.updateSettings(false);
+console.log(updated);
+```
+
+Real output:
+
+```json
+{ "capturePayloads": false, "updatedAt": "2026-08-04T19:34:57.269Z" }
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+updated = await hub.traces.update_settings(False)
+print(updated)
+```
+
+Real output:
+
+```python
+TraceSettings(capture_payloads=False, updated_at='2026-08-04T19:35:43.554Z')
+```
+
+</TabItem>
+</Tabs>
+
+A subsequent `GET` reflects the new value, and a `trace_settings_updated`
+audit event is recorded.
+
+## 3. The 403 you'll hit with the wrong key
+
+`PUT` is gated to owner/admin. Two different callers get rejected here, and
+they are **two distinct errors**, not one:
+
+- A **team-scoped** API key (minted via `POST /teams/:id/api-keys` — it
+  carries no user identity at all) always fails role checks, since there's no
+  user to hold a role. This one returns `TEAM_KEY_NOT_PERMITTED`.
+- A **personal** key or dashboard session belonging to a member who isn't an
+  owner or admin fails the same role check for a different reason — the user
+  exists, but their role is insufficient. This one returns the generic
+  `FORBIDDEN` code.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+Response (status 403) — a real team-scoped key against this exact endpoint:
+
+```json
+{ "error": { "code": "TEAM_KEY_NOT_PERMITTED", "message": "Team API keys cannot perform this action." } }
+```
+
+Response (status 403) — a real personal key belonging to a `viewer`/`editor`
+member (not an owner or admin) against this exact endpoint:
+
+```json
+{ "error": { "code": "FORBIDDEN", "message": "Insufficient role for this action." } }
+```
+
+```bash
+curl -s -X PUT "$ACRUXCORE_BASE_URL/traces/settings" \
+  -H "Authorization: Bearer $ACRUXCORE_TEAM_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"capturePayloads": false}'
+```
+
+`GET /traces/settings` has no role gate, so the same team-scoped key reads the
+setting fine — only the `PUT` is blocked.
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+try {
+  await hub.traces.updateSettings(false);
+} catch (err) {
+  console.log(err.statusCode); // 403
+  console.log(err.message);    // acruxcore API error 403 updating trace settings
+}
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCoreError
+
+try:
+    await hub.traces.update_settings(False)
+except AcruxCoreError as err:
+    print(err.status_code)  # 403
+    print(err)               # acruxcore API error 403 updating trace settings
+```
+
+</TabItem>
+</Tabs>
+
+Both SDKs raise either 403 as a normal API error — there's no special
+exception type for either cause, just `statusCode`/`status_code` `403`. The
+SDK error message doesn't distinguish the two causes either; check the
+underlying `code` (`TEAM_KEY_NOT_PERMITTED` vs `FORBIDDEN`) if you need to
+tell them apart programmatically.
+
+## 4. In the dashboard
+
+This same toggle lives at **Observability → Settings** in the web app, under
+"Capture payloads." The switch is disabled (greyed out, with a "Only owners
+and admins can change this" note) for anyone who isn't an owner or admin,
+matching the API's role gate exactly — there's no separate UI-only permission
+model to learn.
+
+## What's next
+
+- See the payloads you're now capturing (or withholding) in context:
+  [View trace analytics](./view-trace-analytics.mdx) — the totals it reports
+  are unaffected by this setting, since `capturePayloads` only controls the
+  `input`/`output` bodies, not the token/cost/latency metrics analytics reads.

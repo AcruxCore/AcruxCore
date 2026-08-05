@@ -25,7 +25,7 @@ const openai = new OpenAI();
 
 async function runAgent(userMessage: string) {
   // Fetch the latest production prompt — no deploy needed to update it
-  const { messages } = await hub.renderPrompt('summarise-article', 'production', {
+  const { messages } = await hub.prompts.render('summarise-article', 'production', {
     article: userMessage,
   });
 
@@ -45,7 +45,7 @@ A single-request wrapper over acruxcore's gateway (`POST /gateway/chat/completio
 call, and traces it server-side. Use it for one completion, not a tool loop:
 
 ```typescript
-const result = await hub.chat({
+const result = await hub.gateway.chat({
   model: 'gpt-4o-mini',
   messages: [{ role: 'user', content: 'Say hi in one word.' }],
 });
@@ -69,14 +69,13 @@ the gateway's trace, once in yours.
 
 ## Streaming
 
-Pass `stream: true` to get an async iterable of chunks instead of a single
+Use `hub.gateway.stream()` to get an async iterable of chunks instead of a single
 result:
 
 ```typescript
-for await (const chunk of await hub.chat({
+for await (const chunk of await hub.gateway.stream({
   model: 'gpt-4o-mini',
   messages: [{ role: 'user', content: 'Count to three.' }],
-  stream: true,
 })) {
   process.stdout.write(chunk.delta.content ?? '');
   if (chunk.finishReason) console.log('\n(done:', chunk.finishReason, ')');
@@ -110,7 +109,7 @@ const getWeather = acrux.tool(
 );
 
 const hub = new AcruxCore();
-const result = await hub.runToolLoop({
+const result = await hub.gateway.runToolLoop({
   model: 'gpt-4o-mini',
   messages: [{ role: 'user', content: 'What is the weather in London?' }],
   tools: [getWeather],
@@ -162,7 +161,7 @@ all. Name it in `toolRefs` and the platform calls the endpoint, writes the
 `tool` span with the real payloads, and hands the result back to the loop:
 
 ```typescript
-const result = await hub.runToolLoop({
+const result = await hub.gateway.runToolLoop({
   model: 'gpt-4o-mini',
   messages,
   toolRefs: [{ name: 'search_orders', alias: 'production' }],
@@ -175,7 +174,7 @@ declared. If neither a declared tool nor `dispatch` can run it, the loop throws
 `MISSING_DISPATCH` **before** the first model call — no tokens spent.
 
 ```typescript
-const result = await hub.runToolLoop({
+const result = await hub.gateway.runToolLoop({
   model: 'gpt-4o-mini',
   messages,
   toolDefs: rawOpenAiToolDefinitions,
@@ -183,7 +182,7 @@ const result = await hub.runToolLoop({
 });
 ```
 
-Prompt-attached tools arrive this way too: `renderPrompt` returns
+Prompt-attached tools arrive this way too: `prompts.render` returns
 `{ messages, tools }` where `tools` are the version's attached catalog tools in
 OpenAI shape — those go in `toolDefs`.
 
@@ -203,7 +202,7 @@ twice. Turn tracing off with `trace: false`, or attach to a trace you already
 have with `trace: { traceId }`:
 
 ```typescript
-const result = await hub.runToolLoop({ model: 'gpt-4o-mini', messages, tools: [getWeather], trace: false });
+const result = await hub.gateway.runToolLoop({ model: 'gpt-4o-mini', messages, tools: [getWeather], trace: false });
 ```
 
 ### Catalog access without the loop
@@ -228,7 +227,7 @@ Skip our gateway and call your model provider's OpenAI-compatible endpoint
 directly — pass a `provider` option (or set one as a client-level default):
 
 ```typescript
-const result = await hub.chat({
+const result = await hub.gateway.chat({
   model: 'llama-3.1-70b-versatile',
   messages: [{ role: 'user', content: 'Hello!' }],
   provider: { baseUrl: 'https://api.groq.com/openai/v1', apiKey: process.env.GROQ_API_KEY! },
@@ -238,18 +237,18 @@ const result = await hub.chat({
 `provider.apiKey` goes only to `provider.baseUrl` — never to acruxcore's servers.
 Tracing and prompt lineage still work: a BYO call auto-reports its own `llm`
 span (tokens, latency, model, payloads — no dollar cost yet) plus any `tool`
-spans, and `promptVersionId` (from `renderPrompt()`) still links the trace to
+spans, and `promptVersionId` (from `prompts.render()`) still links the trace to
 the prompt version that produced it.
 
 ## Reporting traces
 
 Report your own traces — LLM calls, tool calls, retrieval, custom steps — so a
 whole agent run shows up as one trace. Omit `traceId` to start a new trace; pass
-one you already have (from a previous `trace()` call, or minted by the gateway)
+one you already have (from a previous `traces.ingest()` call, or minted by the gateway)
 to add more spans to it.
 
 ```typescript
-const { traceId } = await hub.trace({
+const { traceId } = await hub.traces.ingest({
   name: 'support-agent-run',
   spans: [
     {
@@ -273,7 +272,7 @@ const { traceId } = await hub.trace({
 });
 
 // Later, add another span to the same trace:
-await hub.trace({ traceId, spans: [{ spanId: 's3', parentSpanId: 's1', name: 'finalize', kind: 'chain', startTime: new Date().toISOString() }] });
+await hub.traces.ingest({ traceId, spans: [{ spanId: 's3', parentSpanId: 's1', name: 'finalize', kind: 'chain', startTime: new Date().toISOString() }] });
 ```
 
 `kind` is one of `llm | tool | retrieval | embedding | agent | chain | other`;
@@ -283,8 +282,8 @@ trace). Up to 200 spans per call.
 
 ### When automatic traces are sent
 
-`trace()` above is awaited — you get the `traceId` back. The **automatic**
-reports from `chat()`, streaming `chat()`, and `runToolLoop()` aren't: they go
+`traces.ingest()` above is awaited — you get the `traceId` back. The **automatic**
+reports from `gateway.chat()`, `gateway.stream()`, and `gateway.runToolLoop()` aren't: they go
 onto a background queue so a model call never waits on telemetry. There's no
 batching timer either — an idle client sends each span as soon as it's
 recorded, grouping into one request only while another is already in flight.
@@ -293,12 +292,12 @@ Two situations need one extra line:
 
 ```typescript
 // Reading the traces API back straight after a call
-const result = await hub.chat({ model, messages });
-await hub.flush();                       // wait for the spans to be written
-const { trace } = await hub.getTrace(result.gateway.traceId!);
+const result = await hub.gateway.chat({ model, messages });
+await hub.gateway.flush();                       // wait for the spans to be written
+const { trace } = await hub.traces.get(result.gateway.traceId!);
 
 // A long-running server, in the shutdown path you already have
-await hub.close();                       // flush, then stop accepting spans
+await hub.gateway.close();                       // flush, then stop accepting spans
 ```
 
 `close()` is idempotent, and `await using hub = new AcruxCore(...)` does the same on
@@ -314,7 +313,7 @@ it) — the same feedback your team can leave from the dashboard's trace detail
 page, but from code (e.g. surfacing an end-user's thumbs-up/down):
 
 ```typescript
-const feedback = await hub.submitFeedback({
+const feedback = await hub.traces.submitFeedback({
   traceId,
   rating: -1,               // -1..5
   label: 'wrong_answer',
@@ -323,27 +322,27 @@ const feedback = await hub.submitFeedback({
 });
 
 // Scope feedback to one span instead of the whole trace:
-await hub.submitFeedback({ traceId, spanId: 's1', rating: 5 });
+await hub.traces.submitFeedback({ traceId, spanId: 's1', rating: 5 });
 
 // Edit it later — only the original author's feedback can be edited;
 // omitted fields keep their existing value:
-await hub.updateFeedback({ traceId, feedbackId: feedback.id, rating: 1 });
+await hub.traces.updateFeedback({ traceId, feedbackId: feedback.id, rating: 1 });
 ```
 
 At least one of `rating`/`label`/`comment` is required per call.
 
 ## Reading traces back
 
-`trace()` only writes. To read a trace back — e.g. to show a user their own
-agent run, or to pull usage/cost after the fact — use `getTrace()` (one trace,
-full span tree) or `listTraces()` (a filtered, paginated list):
+`traces.ingest()` only writes. To read a trace back — e.g. to show a user their own
+agent run, or to pull usage/cost after the fact — use `traces.get()` (one trace,
+full span tree) or `traces.list()` (a filtered, paginated list):
 
 ```typescript
-const { trace, spans } = await hub.getTrace(traceId);
+const { trace, spans } = await hub.traces.get(traceId);
 console.log(trace.status, trace.totalCostUsd, trace.totalTokens);
 console.log(spans[0].model, spans[0].latencyMs);
 
-const { data } = await hub.listTraces({ sessionId: 'tokyo-trip-plan-01', limit: 10 });
+const { data } = await hub.traces.list({ sessionId: 'tokyo-trip-plan-01', limit: 10 });
 ```
 
 ## Configuration
@@ -365,7 +364,7 @@ const { data } = await hub.listTraces({ sessionId: 'tokyo-trip-plan-01', limit: 
 import { acruxcoreError } from '@acruxcoreai/sdk';
 
 try {
-  const messages = await hub.renderPrompt('my-prompt', 'production', vars);
+  const messages = await hub.prompts.render('my-prompt', 'production', vars);
 } catch (err) {
   if (err instanceof acruxcoreError) {
     switch (err.code) {
@@ -392,7 +391,7 @@ try {
 The SDK maintains an in-process LRU cache:
 
 - **Cache key:** `${apiKey}:${promptName}:${alias}:${variablesHash}` — scoped per team, per prompt, per alias, per set of variables. Rendering the same prompt with new variables always re-renders; the variable hash is independent of key order, so `{ a, b }` and `{ b, a }` share one entry.
-- **Turning it off:** `cacheTtl: 0` disables caching completely — every `renderPrompt` call goes to the API and nothing is stored (so the serve-stale-while-offline behaviour below no longer applies).
+- **Turning it off:** `cacheTtl: 0` disables caching completely — every `prompts.render` call goes to the API and nothing is stored (so the serve-stale-while-offline behaviour below no longer applies).
 - **Stale-while-revalidate:** On a stale hit, the cached value is returned immediately and a background refresh fires in the background.
 - **API unreachable + stale entry:** Serves the stale value and logs: `[acruxcore] Background refresh failed for "name/alias" — continuing to serve stale`.
 - **API unreachable + cold cache:** Throws `acruxcoreError` with `code: 'NETWORK_ERROR'` after exhausting retries.

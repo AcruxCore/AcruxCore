@@ -30,24 +30,24 @@ async def main():
         api_key="...",                               # or env ACRUXCORE_API_KEY
         base_url="https://api.acruxcore.com/api/v1",  # or env ACRUXCORE_BASE_URL
     ) as hub:
-        result = await hub.render_prompt("summarise-article", "production", {"article": "..."})
+        result = await hub.prompts.render("summarise-article", "production", {"article": "..."})
         print(result.messages)
 
 asyncio.run(main())
 ```
 
 `AcruxCore` owns an `httpx.AsyncClient`, so use it as an async context manager
-(`async with`) or call `await hub.aclose()` when done. Create one instance at
+(`async with`) or call `await hub.gateway.aclose()` when done. Create one instance at
 startup and reuse it — the render cache is a process-wide singleton.
 
 ## Chat
 
-`chat()` is a single, non-looping call to the gateway's OpenAI-compatible
+`gateway.chat()` is a single, non-looping call to the gateway's OpenAI-compatible
 `POST /gateway/chat/completions`. It routes to the right provider, prices the
 call, and records a trace server-side.
 
 ```python
-r = await hub.chat("gpt-4o-mini", [{"role": "user", "content": "Say hi in one word."}])
+r = await hub.gateway.chat("gpt-4o-mini", [{"role": "user", "content": "Say hi in one word."}])
 print(r.content)        # 'Hello!'
 print(r.finish_reason)  # 'stop'
 print(r.usage)          # ChatUsage(prompt_tokens=..., completion_tokens=..., total_tokens=...)
@@ -55,15 +55,15 @@ print(r.gateway)        # GatewayCallMeta(request_id=..., provider=..., cost_usd
 ```
 
 Pass `tools=` / `tool_refs=` / `tool_choice=` just like the raw endpoint. If the
-model calls a tool, `chat()` hands it back raw on `r.message["tool_calls"]` — it
-never dispatches. Use `run_tool_loop()` for that.
+model calls a tool, `gateway.chat()` hands it back raw on `r.message["tool_calls"]` — it
+never dispatches. Use `gateway.run_tool_loop()` for that.
 
 ## Streaming
 
-Pass `stream=True` to get an async iterator of chunks:
+Use `gateway.stream()` to get an async iterator of chunks:
 
 ```python
-async for chunk in await hub.chat("gpt-4o-mini", messages, stream=True):
+async for chunk in await hub.gateway.stream("gpt-4o-mini", messages):
     print(chunk.delta.get("content", ""), end="", flush=True)
     if chunk.finish_reason:
         print(f"\n(done: {chunk.finish_reason})")
@@ -96,7 +96,7 @@ async def get_weather(city: str) -> dict:
 
 
 async with AcruxCore() as hub:
-    result = await hub.run_tool_loop(
+    result = await hub.gateway.run_tool_loop(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": "Should I run in Lahore this evening?"}],
         tools=[get_weather],
@@ -139,7 +139,7 @@ rather than `int | None`; the `X | Y` form in an annotation is 3.10+.
 
 ### The catalog round-trip
 
-On the first call, `run_tool_loop` **syncs** each decorated tool into the Tool
+On the first call, `gateway.run_tool_loop` **syncs** each decorated tool into the Tool
 Catalog and then passes it to the model as a `tool_refs` entry rather than as an
 inline schema. So the schema the model sees is the one the catalog holds, the
 dashboard shows a version history for a tool defined in code, and every `tool`
@@ -155,7 +155,7 @@ all. Name it in `tool_refs=` and the platform calls the endpoint, writes the
 `tool` span with the real payloads, and hands the result back to the loop:
 
 ```python
-result = await hub.run_tool_loop(
+result = await hub.gateway.run_tool_loop(
     model="gpt-4o-mini",
     messages=messages,
     tool_refs=[{"name": "search_orders", "alias": "production"}],
@@ -174,18 +174,18 @@ async def dispatch(name: str, args: dict):
         return await fetch_weather_from_your_provider(args["city"])
     raise ValueError(f"Unknown tool: {name}")
 
-result = await hub.run_tool_loop(
+result = await hub.gateway.run_tool_loop(
     model="gpt-4o-mini", messages=messages, tool_defs=raw_defs, dispatch=dispatch
 )
 ```
 
-Prompt-attached tools arrive this way too: `render_prompt()` returns
+Prompt-attached tools arrive this way too: `prompts.render()` returns
 `RenderResult(messages, tools)` where `tools` are the version's attached catalog
 tools in OpenAI shape — those go in `tool_defs=`.
 
 ### The loop's behaviour
 
-`run_tool_loop()` stops when the model responds without calling a tool, or after
+`gateway.run_tool_loop()` stops when the model responds without calling a tool, or after
 `max_iterations` round-trips (default 10; `result.stopped_at_limit` is `True`
 then). When the model requests several tools in one turn they run
 **concurrently** (`asyncio.gather`); results are appended in call order, so a
@@ -218,12 +218,12 @@ experiment can never block a deploy.
 
 ## Bring your own provider (BYO)
 
-`chat()` and `run_tool_loop()` can skip our gateway entirely and call your model
+`gateway.chat()` and `gateway.run_tool_loop()` can skip our gateway entirely and call your model
 provider's OpenAI-compatible endpoint directly — pass a `provider=` argument (or
 set one as a client-level default):
 
 ```python
-result = await hub.chat(
+result = await hub.gateway.chat(
     "llama-3.1-70b-versatile",
     [{"role": "user", "content": "Hello!"}],
     provider={"base_url": "https://api.groq.com/openai/v1", "api_key": os.environ["GROQ_API_KEY"]},
@@ -234,8 +234,8 @@ This skips the extra network hop through the gateway, and `provider["api_key"]` 
 to `provider["base_url"]` — it never reaches acruxcore's servers. Tracing and prompt lineage
 still work: a BYO call auto-reports its own `llm` span (tokens, latency, model, payloads —
 dollar cost isn't computed for BYO spans yet) plus any `tool` spans, and passing
-`prompt_version_id` (from `render_prompt()`'s `version_id`/`version_number`) still links the
-trace back to the exact prompt version that produced it. In a BYO `run_tool_loop()`, each
+`prompt_version_id` (from `prompts.render()`'s `version_id`/`version_number`) still links the
+trace back to the exact prompt version that produced it. In a BYO `gateway.run_tool_loop()`, each
 round's `llm` span is reported as soon as that round returns rather than batched to the end,
 so a long loop is observable while it runs — and a platform-executed (`http`) tool's span
 nests under the round that called it.
@@ -247,7 +247,7 @@ so plain `http://` to a non-loopback host would send it in cleartext. Loopback U
 
 The gateway path stays untraced by default, because the gateway records its own span there.
 You *can* opt in with `trace=True` or `trace={"trace_id": ..., "session_id": ...}` — useful
-for threading several manual `chat()` calls into one trace. Be aware that on the gateway path
+for threading several manual `gateway.chat()` calls into one trace. Be aware that on the gateway path
 this always records a **second** `llm` span for the same completion (under an id of its own,
 next to the one the gateway already wrote), so the completion shows up twice: in the
 gateway's trace, or in yours plus the gateway's if you pass your own `trace_id`.
@@ -258,7 +258,7 @@ gateway's trace, or in yours plus the gateway's if you pass your own `trace_id`.
 from datetime import datetime, timezone
 now = datetime.now(timezone.utc).isoformat()
 
-res = await hub.trace({
+res = await hub.traces.ingest({
     "name": "support-agent-run",
     "spans": [
         {"spanId": "s1", "name": "gpt-4o-mini", "kind": "llm", "startTime": now, "endTime": now,
@@ -269,7 +269,7 @@ res = await hub.trace({
 })
 
 # Append another span to the same trace later:
-await hub.trace({"traceId": res.trace_id, "spans": [
+await hub.traces.ingest({"traceId": res.trace_id, "spans": [
     {"spanId": "s3", "parentSpanId": "s1", "name": "finalize", "kind": "chain", "startTime": now}]})
 ```
 
@@ -281,8 +281,8 @@ are sent to the API verbatim.
 
 ### When automatic traces are sent
 
-`trace()` above is awaited — you get the `trace_id` back. The **automatic** reports
-from `chat()`, streaming `chat()` and `run_tool_loop()` are not: they go onto a
+`traces.ingest()` above is awaited — you get the `trace_id` back. The **automatic** reports
+from `gateway.chat()`, streaming `gateway.stream()` and `gateway.run_tool_loop()` are not: they go onto a
 background queue so a model call never waits on telemetry. There is no batching
 timer, so they aren't delayed either — an idle client sends each span as soon as it
 records it, and spans group into one request only while another is already in flight.
@@ -291,12 +291,12 @@ One situation needs an extra line:
 
 ```python
 # Reading the traces API back straight after a call
-result = await hub.chat(model, messages)
-await hub.flush()                      # wait for the spans to be written
-detail = await hub.get_trace(result.gateway.trace_id)
+result = await hub.gateway.chat(model, messages)
+await hub.gateway.flush()                      # wait for the spans to be written
+detail = await hub.traces.get(result.gateway.trace_id)
 ```
 
-`aclose()` flushes before closing the HTTP client, so `async with AcruxCore(...)`
+`gateway.aclose()` flushes before closing the HTTP client, so `async with AcruxCore(...)`
 already handles shutdown. A script that finishes and exits needs nothing: an `atexit`
 hook drains the queue on a fresh event loop. The SDK installs **no**
 `SIGINT`/`SIGTERM` handlers — signal disposition belongs to your application — so a
@@ -305,7 +305,7 @@ process killed by a signal drops whatever spans were buffered.
 ## Feedback
 
 ```python
-fb = await hub.submit_feedback(
+fb = await hub.traces.submit_feedback(
     trace_id,
     rating=-1,                # -1..5
     label="wrong_answer",
@@ -313,10 +313,10 @@ fb = await hub.submit_feedback(
     source="end_user",        # 'user' | 'developer' | 'end_user' | 'api'
 )
 
-await hub.submit_feedback(trace_id, span_id="s1", rating=5)  # scope to one span
+await hub.traces.submit_feedback(trace_id, span_id="s1", rating=5)  # scope to one span
 
 # Edit later (author only). Pass a value to change, None to clear, omit to keep:
-await hub.update_feedback(trace_id, fb.id, rating=1)
+await hub.traces.update_feedback(trace_id, fb.id, rating=1)
 ```
 
 At least one of `rating` / `label` / `comment` is required per call.
@@ -324,11 +324,11 @@ At least one of `rating` / `label` / `comment` is required per call.
 ## Reading traces back
 
 ```python
-detail = await hub.get_trace(trace_id)
+detail = await hub.traces.get(trace_id)
 print(detail.trace.status, detail.trace.total_cost_usd, detail.trace.total_tokens)
 print(detail.spans[0].model, detail.spans[0].latency_ms)
 
-page = await hub.list_traces(session_id="tokyo-trip-plan-01", limit=10)
+page = await hub.traces.list(session_id="tokyo-trip-plan-01", limit=10)
 ```
 
 ## Configuration
@@ -349,7 +349,7 @@ page = await hub.list_traces(session_id="tokyo-trip-plan-01", limit=10)
 from acruxcore import AcruxCoreError
 
 try:
-    await hub.render_prompt("my-prompt", "production", vars)
+    await hub.prompts.render("my-prompt", "production", vars)
 except AcruxCoreError as err:
     if err.code == "MISSING_VARIABLES":
         print("Missing template variables:", err.body["error"]["missing"])
@@ -369,7 +369,7 @@ Error codes: `MISSING_API_KEY`, `MISSING_BASE_URL`, `NETWORK_ERROR`, `API_ERROR`
   prompt, alias, and set of variables, so new variables always re-render. The hash
   ignores key order, so `{"a": 1, "b": 2}` and `{"b": 2, "a": 1}` share one entry.
 - **Turning it off:** `cache_ttl=0` disables caching completely — every
-  `render_prompt` call hits the API and nothing is stored (so the serve-stale
+  `prompts.render` call hits the API and nothing is stored (so the serve-stale
   behaviour below no longer applies).
 - **Stale-while-revalidate:** a stale hit returns the cached value immediately and
   fires a background refresh (`asyncio` task).
@@ -380,17 +380,17 @@ Error codes: `MISSING_API_KEY`, `MISSING_BASE_URL`, `NETWORK_ERROR`, `API_ERROR`
 
 | TypeScript | Python |
 |------------|--------|
-| `renderPrompt(name, alias, vars)` | `render_prompt(name, alias, variables)` |
-| `chat({...})` | `chat(model, messages, *, ...)` |
-| `chat({stream: true})` | `chat(..., stream=True)` → async iterator |
-| `runToolLoop({...})` | `run_tool_loop(model, messages, *, tools=, tool_defs=, tool_refs=, dispatch=None, sync=True, ...)` |
-| `chat({provider: {baseUrl, apiKey}})` / `runToolLoop({provider})` — BYO | `chat(..., provider={"base_url", "api_key"})` / `run_tool_loop(..., provider=...)` — BYO |
+| `renderPrompt(name, alias, vars)` | `prompts.render(name, alias, variables)` |
+| `chat({...})` | `gateway.chat(model, messages, *, ...)` |
+| `chat({stream: true})` | `gateway.stream(model, messages, *, ...)` → async iterator |
+| `runToolLoop({...})` | `gateway.run_tool_loop(model, messages, *, tools=, tool_defs=, tool_refs=, dispatch=None, sync=True, ...)` |
+| `chat({provider: {baseUrl, apiKey}})` / `runToolLoop({provider})` — BYO | `gateway.chat(..., provider={"base_url", "api_key"})` / `gateway.run_tool_loop(..., provider=...)` — BYO |
 | `acrux.tool({name, parameters}, handler)` | `@acrux.tool` (or `@acrux.tool(parameters={...})`) |
 | `hub.tools.sync(tools, {onConflict})` | `hub.tools.sync(tools, on_conflict=...)` |
 | `hub.tools.resolve(refs)` | `hub.tools.resolve(refs)` |
 | `hub.tools.execute(toolId, args, {...})` | `hub.tools.execute(tool_id, args, ...)` |
-| `trace(input)` | `trace(input)` |
-| `submitFeedback({...})` | `submit_feedback(trace_id, *, ...)` |
-| `updateFeedback({...})` | `update_feedback(trace_id, feedback_id, *, ...)` |
-| `getTrace(id)` | `get_trace(trace_id)` |
-| `listTraces({...})` | `list_traces(*, ...)` |
+| `trace(input)` | `traces.ingest(input)` |
+| `submitFeedback({...})` | `traces.submit_feedback(trace_id, *, ...)` |
+| `updateFeedback({...})` | `traces.update_feedback(trace_id, feedback_id, *, ...)` |
+| `getTrace(id)` | `traces.get(trace_id)` |
+| `listTraces({...})` | `traces.list(*, ...)` |

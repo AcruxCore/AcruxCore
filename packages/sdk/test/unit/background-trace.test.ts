@@ -88,7 +88,7 @@ describe('trace reporting is off the critical path', () => {
     const hub = new acruxcore({ apiKey: 'k', baseUrl: `${acruxBase}/api/v1` });
 
     const started = Date.now();
-    const result = await hub.chat({
+    const result = await hub.gateway.chat({
       model: 'stub-model',
       messages: [{ role: 'user', content: 'ping' }],
       provider: { baseUrl: providerBase, apiKey: 'p' },
@@ -101,12 +101,12 @@ describe('trace reporting is off the critical path', () => {
     expect(elapsed).toBeLessThan(TRACE_DELAY_MS / 2);
     expect(traceBodies).toHaveLength(0); // in flight, not yet answered
 
-    await hub.flush();
+    await hub.gateway.flush();
 
     expect(traceBodies).toHaveLength(1); // nothing lost
     expect(traceBodies[0].traces).toHaveLength(1);
     expect(traceBodies[0].traces[0].spans).toHaveLength(1);
-    await hub.close();
+    await hub.gateway.close();
   });
 
   it('a tool loop with client-side tools awaits no trace write at all', async () => {
@@ -139,7 +139,7 @@ describe('trace reporting is off the critical path', () => {
     const hub = new acruxcore({ apiKey: 'k', baseUrl: `${acruxBase}/api/v1` });
 
     const started = Date.now();
-    const loop = await hub.runToolLoop({
+    const loop = await hub.gateway.runToolLoop({
       model: 'stub-model',
       messages: [{ role: 'user', content: 'what is 2 + 3?' }],
       tools: [add],
@@ -154,9 +154,9 @@ describe('trace reporting is off the critical path', () => {
     // Two rounds' llm spans plus the tool spans, none of them awaited.
     expect(elapsed).toBeLessThan(TRACE_DELAY_MS / 2);
 
-    await hub.flush();
+    await hub.gateway.flush();
     expect(traceRequests).toBeGreaterThanOrEqual(1);
-    await hub.close();
+    await hub.gateway.close();
   });
 
   it('close() flushes what is still buffered', async () => {
@@ -174,12 +174,12 @@ describe('trace reporting is off the critical path', () => {
     });
 
     const hub = new acruxcore({ apiKey: 'k', baseUrl: `${acruxBase}/api/v1` });
-    await hub.chat({
+    await hub.gateway.chat({
       model: 'stub-model',
       messages: [{ role: 'user', content: 'hi' }],
       provider: { baseUrl: providerBase, apiKey: 'p' },
     });
-    await hub.close();
+    await hub.gateway.close();
 
     expect(received).toBe(1);
   });
@@ -198,21 +198,21 @@ describe('trace reporting is off the critical path', () => {
     });
 
     const hub = new acruxcore({ apiKey: 'k', baseUrl: `${acruxBase}/api/v1`, maxRetries: 0 });
-    const result = await hub.chat({
+    const result = await hub.gateway.chat({
       model: 'stub-model',
       messages: [{ role: 'user', content: 'hi' }],
       provider: { baseUrl: providerBase, apiKey: 'p' },
     });
 
     expect(result.content).toBe('still fine');
-    await expect(hub.flush()).resolves.toBeUndefined();
+    await expect(hub.gateway.flush()).resolves.toBeUndefined();
     // The warning names the status AND the API's error code, so a rejected batch is
     // diagnosable from the one line it prints.
     const warned = warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('trace report failed'));
     expect(warned).toHaveLength(1);
     expect(warned[0]).toContain('400');
     expect(warned[0]).toContain('INVALID_SPAN_PARENT');
-    await hub.close();
+    await hub.gateway.close();
     warn.mockRestore();
   });
 
@@ -225,7 +225,7 @@ describe('trace reporting is off the critical path', () => {
     });
 
     const hub = new acruxcore({ apiKey: 'k', baseUrl: `${acruxBase}/api/v1` });
-    const result = await hub.trace({
+    const result = await hub.traces.ingest({
       name: 'manual',
       spans: [
         {
@@ -240,6 +240,6 @@ describe('trace reporting is off the critical path', () => {
     });
 
     expect(result.traceId).toBe('22222222-2222-4222-8222-222222222222');
-    await hub.close();
+    await hub.gateway.close();
   });
 });

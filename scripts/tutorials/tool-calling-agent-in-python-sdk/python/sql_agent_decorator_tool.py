@@ -28,9 +28,9 @@ async def query_database(sql: str) -> list[dict]:
 
 
 async def ask(hub: AcruxCore, question: str) -> str:
-    rendered = await hub.render_prompt(PROMPT, "production")
+    rendered = await hub.prompts.render(PROMPT, "production")
     messages = [*rendered.messages, {"role": "user", "content": question}]
-    result = await hub.run_tool_loop(
+    result = await hub.gateway.run_tool_loop(
         rendered.model,
         messages,
         tools=[query_database],

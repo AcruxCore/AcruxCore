@@ -103,6 +103,43 @@ curl "$ACRUXCORE_BASE_URL/tools/analytics" \
 ```
 
 </TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+`hub.tools` has no `listAliases` binding yet, so listing aliases still needs
+the raw API call above. Promoting one and reading analytics are both one call:
+
+```typescript
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore();
+
+const promoted = await hub.tools.promoteAlias(toolId, 'staging', 2);
+// promoted.versionNumber === 2 — staging now points at v2
+
+const usage = await hub.tools.analytics();
+// usage.data is one entry per tool with calls in the window — [] until a tool is called
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+`client.tools` has no `list_aliases` binding yet, so listing aliases still
+needs the raw API call above. Promoting one and reading analytics are both
+one call:
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+promoted = await hub.tools.promote_alias(tool_id, "staging", 2)
+# promoted.version_number == 2 — staging now points at v2
+
+usage = await hub.tools.analytics()
+# usage.data is one entry per tool with calls in the window — [] until a tool is called
+```
+
+</TabItem>
 </Tabs>
 
 Promoting an alias that doesn't exist yet creates it — there's no separate

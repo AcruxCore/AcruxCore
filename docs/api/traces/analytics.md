@@ -499,7 +499,7 @@ curl -s "$ACRUXCORE_BASE_URL/traces/analytics"
 ```
 
 ```json
-{ "error": { "code": "UNAUTHORIZED", "message": "API key required." } }
+{ "error": { "code": "UNAUTHORIZED", "message": "Authentication required." } }
 ```
 
 ---

@@ -264,13 +264,71 @@ curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
 
 ```json
 {
-  "key": "env",
   "values": ["prod", "staging", "dev"]
 }
 ```
 
+The response carries **no `key` field** — only `values`. A caller that
+expects the request's `key` echoed back in the body won't find it there.
+
 </TabItem>
-<TabItem value="python" label="Python">
+<TabItem value="node" label="Node (SDK)">
+
+The SDK's `hub.traces` namespace wraps both routes. Real output below, from a
+team tagged `prod`/`nl` with metadata `{"env": "prod", "lang": "nl"}` on one
+trace (plus an unrelated `trace-analytics-check` tag from other testing on the
+same team — `listFacets()` returns everything the team has ever used, not a
+scoped subset):
+
+```typescript
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore();
+
+const facets = await hub.traces.listFacets();
+console.log(facets);
+// { tags: [ 'nl', 'prod', 'trace-analytics-check' ], metadataKeys: [ 'checkRunId', 'env', 'lang' ] }
+
+const values = await hub.traces.getFacetValues('env');
+console.log(values);
+// { values: [ 'prod' ] }
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+facets = await hub.traces.list_facets()
+print(facets)
+# TraceFacets(tags=['nl', 'prod', 'trace-analytics-check'], metadata_keys=['checkRunId', 'env', 'lang'])
+
+values = await hub.traces.get_facet_values("env")
+print(values)
+# FacetValuesResult(values=['prod'])
+```
+
+</TabItem>
+<TabItem value="node-fetch" label="Node (fetch)">
+
+```typescript
+// List all tags and metadata keys
+const facets = await fetch(`${baseUrl}/traces/facets`, {
+  headers: { Authorization: `Bearer ${apiKey}` },
+}).then(r => r.json());
+
+// List all values for a metadata key
+const values = await fetch(
+  `${baseUrl}/traces/facets/values?key=env`,
+  { headers: { Authorization: `Bearer ${apiKey}` } }
+).then(r => r.json());
+```
+
+</TabItem>
+<TabItem value="python-httpx" label="Python (httpx)">
 
 ```python
 # List all tags and metadata keys
@@ -285,22 +343,6 @@ values = httpx.get(
     headers={"Authorization": f"Bearer {api_key}"},
     params={"key": "env"},
 ).json()
-```
-
-</TabItem>
-<TabItem value="node" label="Node.js">
-
-```typescript
-// List all tags and metadata keys
-const facets = await fetch(`${baseUrl}/traces/facets`, {
-  headers: { Authorization: `Bearer ${apiKey}` },
-}).then(r => r.json());
-
-// List all values for a metadata key
-const values = await fetch(
-  `${baseUrl}/traces/facets/values?key=env`,
-  { headers: { Authorization: `Bearer ${apiKey}` } }
-).then(r => r.json());
 ```
 
 </TabItem>

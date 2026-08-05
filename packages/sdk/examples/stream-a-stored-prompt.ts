@@ -9,7 +9,7 @@
  *   1. `renderPrompt(name, 'production', vars)` returns the templated `messages`
  *      (and the version's attached `tools`, which this example intentionally does
  *      NOT forward — see below).
- *   2. `chat({ ..., stream: true })` returns an async iterable. Each chunk carries
+ *   2. `gateway.stream({ ... })` returns an async iterable. Each chunk carries
  *      a `delta.content` string; concatenating them rebuilds the full answer as it
  *      is generated, so a UI can render tokens live.
  *
@@ -17,7 +17,7 @@
  * tool instead of answering, the first turn would stream tool-call fragments, not
  * prose — and streaming does not auto-run tools (that is what `runToolLoop` is
  * for). To keep the streamed output a clean, readable answer, this example omits
- * `tools` so the model replies directly. Use `runToolLoop` when you need the tools.
+ * `tools` so the model replies directly. Use `gateway.runToolLoop` when you need the tools.
  *
  * Run:
  *   ACRUXCORE_API_KEY=<your key> \
@@ -43,16 +43,16 @@ const hub = new acruxcore({ apiKey, baseUrl });
 
 async function main(): Promise<void> {
   // ── FETCH: the templated messages come from the stored prompt version.
-  const { messages } = await hub.renderPrompt('travel-assistant', 'production', {
+  const { messages } = await hub.prompts.render('travel-assistant', 'production', {
     city: 'Tokyo',
     amount: 100,
     from: 'USD',
     to: 'JPY',
   });
 
-  // ── STREAM: print each token as it arrives. `stream: true` changes the return
-  // type to an async iterable of chunks (no `tools` forwarded — see file header).
-  const stream = await hub.chat({ model, messages, stream: true });
+  // ── STREAM: print each token as it arrives. `gateway.stream()` returns an
+  // async iterable of chunks (no `tools` forwarded — see file header).
+  const stream = await hub.gateway.stream({ model, messages });
 
   let full = '';
   for await (const chunk of stream) {

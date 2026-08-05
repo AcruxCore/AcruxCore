@@ -57,5 +57,5 @@ prompt.name is empty or version.messages is empty (status 400):
 No auth provided (status 401):
 
 ```json
-{ "error": { "code": "UNAUTHORIZED", "message": "API key required." } }
+{ "error": { "code": "UNAUTHORIZED", "message": "Authentication required." } }
 ```

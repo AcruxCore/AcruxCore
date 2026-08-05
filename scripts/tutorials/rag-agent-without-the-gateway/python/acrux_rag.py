@@ -29,7 +29,7 @@ ACRUXCORE_BASE_URL = os.environ.get(
     "ACRUXCORE_BASE_URL", "https://api.acruxcore.com/api/v1"
 )
 
-# Bring your own key. Present on a chat() / run_tool_loop() call, the SDK POSTs
+# Bring your own key. Present on a gateway.chat() / gateway.run_tool_loop() call, the SDK POSTs
 # to base_url directly and skips our gateway. api_key is sent only to OpenRouter.
 PROVIDER: acrux.ProviderConfig = {
     "base_url": "https://openrouter.ai/api/v1",
@@ -160,7 +160,7 @@ async def ask_linear(hub: acrux.AcruxCore, collection: Any, question: str) -> st
     context = retrieve_context(collection, question)
     # Open the trace with the retrieval, then hand its id to chat() so the model
     # call lands in the same trace instead of minting its own.
-    reported = await hub.trace(
+    reported = await hub.traces.ingest(
         {
             "name": "rag-linear",
             "spans": [
@@ -178,10 +178,10 @@ async def ask_linear(hub: acrux.AcruxCore, collection: Any, question: str) -> st
         }
     )
 
-    rendered = await hub.render_prompt(
+    rendered = await hub.prompts.render(
         LINEAR_PROMPT, "production", {"context": context, "question": question}
     )
-    result = await hub.chat(
+    result = await hub.gateway.chat(
         rendered.model or CHAT_MODEL,
         rendered.messages,
         provider=PROVIDER,
@@ -214,8 +214,8 @@ async def ask_agentic(hub: acrux.AcruxCore, collection: Any, question: str) -> s
     global _COLLECTION
     _COLLECTION = collection
 
-    rendered = await hub.render_prompt(AGENT_PROMPT, "production", {"question": question})
-    result = await hub.run_tool_loop(
+    rendered = await hub.prompts.render(AGENT_PROMPT, "production", {"question": question})
+    result = await hub.gateway.run_tool_loop(
         rendered.model or CHAT_MODEL,
         rendered.messages,
         tools=[search_docs],

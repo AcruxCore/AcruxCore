@@ -228,7 +228,7 @@ curl -X PATCH $ACRUXCORE_BASE_URL/traces/a856684b-79cf-4a83-ac8f-f50294ec07dc/fe
 ```
 
 ```json
-{ "error": { "code": "UNAUTHORIZED", "message": "API key required." } }
+{ "error": { "code": "UNAUTHORIZED", "message": "Authentication required." } }
 ```
 
 ---
@@ -399,7 +399,7 @@ unknown, so the endpoint never confirms whether a foreign trace exists:
 No Authorization header, on either POST or the summary GET (status 401):
 
 ```json
-{ "error": { "code": "UNAUTHORIZED", "message": "API key required." } }
+{ "error": { "code": "UNAUTHORIZED", "message": "Authentication required." } }
 ```
 
 ---
@@ -457,5 +457,5 @@ this page shows the 2 newest:
 No Authorization header (status 401):
 
 ```json
-{ "error": { "code": "UNAUTHORIZED", "message": "API key required." } }
+{ "error": { "code": "UNAUTHORIZED", "message": "Authentication required." } }
 ```

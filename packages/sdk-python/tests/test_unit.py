@@ -89,7 +89,7 @@ async def test_render_prompt_basic_and_auth():
         return httpx.Response(200, json={"messages": [{"role": "system", "content": "Hi Alice"}], "tools": []})
 
     async with make_client(handler) as c:
-        result = await c.render_prompt("greeting", "production", {"name": "Alice"})
+        result = await c.prompts.render("greeting", "production", {"name": "Alice"})
 
     assert result.messages[0]["content"] == "Hi Alice"
     assert result.tools == []
@@ -103,7 +103,7 @@ async def test_render_prompt_returns_bound_model():
         return httpx.Response(200, json={"messages": [{"role": "system", "content": "x"}], "model": "gpt-4o-mini"})
 
     async with make_client(handler) as c:
-        result = await c.render_prompt("bound", "production")
+        result = await c.prompts.render("bound", "production")
     assert result.model == "gpt-4o-mini"
 
 
@@ -112,7 +112,7 @@ async def test_render_prompt_model_none_when_absent():
         return httpx.Response(200, json={"messages": []})
 
     async with make_client(handler) as c:
-        result = await c.render_prompt("nomodel", "production")
+        result = await c.prompts.render("nomodel", "production")
     assert result.model is None
 
 
@@ -124,8 +124,8 @@ async def test_render_prompt_caches_second_call():
         return httpx.Response(200, json={"messages": [{"role": "system", "content": "x"}]})
 
     async with make_client(handler) as c:
-        await c.render_prompt("p", "production", {"name": "Alice"})
-        await c.render_prompt("p", "production", {"name": "Alice"})  # fresh hit — no 2nd call
+        await c.prompts.render("p", "production", {"name": "Alice"})
+        await c.prompts.render("p", "production", {"name": "Alice"})  # fresh hit — no 2nd call
 
     assert calls["n"] == 1
 
@@ -136,8 +136,8 @@ async def test_render_prompt_different_variables_are_rendered_again():
         return httpx.Response(200, json={"messages": [{"role": "user", "content": f"Hello {name}"}]})
 
     async with make_client(handler) as c:
-        alice = await c.render_prompt("p", "production", {"name": "Alice"})
-        bob = await c.render_prompt("p", "production", {"name": "Bob"})
+        alice = await c.prompts.render("p", "production", {"name": "Alice"})
+        bob = await c.prompts.render("p", "production", {"name": "Bob"})
 
     assert alice.messages[0]["content"] == "Hello Alice"
     assert bob.messages[0]["content"] == "Hello Bob"
@@ -151,8 +151,8 @@ async def test_render_prompt_cache_key_ignores_variable_order():
         return httpx.Response(200, json={"messages": [{"role": "system", "content": "x"}]})
 
     async with make_client(handler) as c:
-        await c.render_prompt("p", "production", {"name": "Alice", "city": "Lahore"})
-        await c.render_prompt("p", "production", {"city": "Lahore", "name": "Alice"})
+        await c.prompts.render("p", "production", {"name": "Alice", "city": "Lahore"})
+        await c.prompts.render("p", "production", {"city": "Lahore", "name": "Alice"})
 
     assert calls["n"] == 1
 
@@ -165,8 +165,8 @@ async def test_render_prompt_cache_ttl_zero_disables_the_cache():
         return httpx.Response(200, json={"messages": [{"role": "system", "content": f"v{calls['n']}"}]})
 
     async with make_client(handler, cache_ttl=0) as c:
-        first = await c.render_prompt("p", "production")
-        second = await c.render_prompt("p", "production")
+        first = await c.prompts.render("p", "production")
+        second = await c.prompts.render("p", "production")
 
     assert first.messages[0]["content"] == "v1"
     assert second.messages[0]["content"] == "v2"
@@ -180,7 +180,7 @@ async def test_render_prompt_cache_ttl_zero_stores_nothing():
         return httpx.Response(200, json={"messages": [{"role": "system", "content": "x"}]})
 
     async with make_client(handler, cache_ttl=0) as c:
-        await c.render_prompt("p", "production")
+        await c.prompts.render("p", "production")
 
     assert list(get_cache(500)._store.keys()) == []
 
@@ -194,13 +194,13 @@ async def test_render_prompt_stale_while_revalidate():
 
     # cache_ttl=1ms → the entry is stale by the time of the second call
     async with make_client(handler, cache_ttl=1) as c:
-        r1 = await c.render_prompt("p", "production")
+        r1 = await c.prompts.render("p", "production")
         assert r1.messages[0]["content"] == "v1"
         await asyncio.sleep(0.01)
-        r2 = await c.render_prompt("p", "production")  # stale → serves v1, refreshes in bg
+        r2 = await c.prompts.render("p", "production")  # stale → serves v1, refreshes in bg
         assert r2.messages[0]["content"] == "v1"
-        await asyncio.gather(*list(c._bg_tasks))  # let the background refresh finish
-        r3 = await c.render_prompt("p", "production")
+        await asyncio.sleep(0.05)  # let the background refresh finish
+        r3 = await c.prompts.render("p", "production")
         assert r3.messages[0]["content"] == "v2"
 
     assert calls["n"] == 2
@@ -212,7 +212,7 @@ async def test_render_prompt_missing_variables():
 
     async with make_client(handler) as c:
         with pytest.raises(AcruxCoreError) as ei:
-            await c.render_prompt("p", "production")
+            await c.prompts.render("p", "production")
     assert ei.value.code == "MISSING_VARIABLES"
     assert ei.value.status_code == 400
     assert ei.value.body["error"]["missing"] == ["name"]
@@ -230,7 +230,7 @@ async def test_render_prompt_returns_version_lineage():
         )
 
     async with make_client(handler) as c:
-        result = await c.render_prompt("greeting", "production", {})
+        result = await c.prompts.render("greeting", "production", {})
     assert result.version_id == "v-123"
     assert result.version_number == 4
 
@@ -240,7 +240,7 @@ async def test_render_prompt_version_lineage_defaults_to_none():
         return httpx.Response(200, json={"messages": [{"role": "user", "content": "Hello"}]})
 
     async with make_client(handler) as c:
-        result = await c.render_prompt("greeting", "production", {})
+        result = await c.prompts.render("greeting", "production", {})
     assert result.version_id is None
     assert result.version_number is None
 
@@ -251,7 +251,7 @@ async def test_render_prompt_api_error():
 
     async with make_client(handler) as c:
         with pytest.raises(AcruxCoreError) as ei:
-            await c.render_prompt("nope", "production")
+            await c.prompts.render("nope", "production")
     assert ei.value.code == "API_ERROR"
     assert ei.value.status_code == 404
 
@@ -269,7 +269,7 @@ async def test_retry_on_5xx_then_success():
         return httpx.Response(200, json={"messages": []})
 
     async with make_client(handler, max_retries=1) as c:
-        result = await c.render_prompt("p", "production")
+        result = await c.prompts.render("p", "production")
     assert result.messages == []
     assert calls["n"] == 2  # retried once
 
@@ -283,7 +283,7 @@ async def test_no_retry_on_4xx():
 
     async with make_client(handler, max_retries=3) as c:
         with pytest.raises(AcruxCoreError):
-            await c.render_prompt("p", "production")
+            await c.prompts.render("p", "production")
     assert calls["n"] == 1  # never retried
 
 
@@ -293,7 +293,7 @@ async def test_network_error_maps_to_network_error_code():
 
     async with make_client(handler, max_retries=0) as c:
         with pytest.raises(AcruxCoreError) as ei:
-            await c.render_prompt("p", "production")
+            await c.prompts.render("p", "production")
     assert ei.value.code == "NETWORK_ERROR"
 
 
@@ -349,7 +349,7 @@ async def test_chat_non_streaming_and_gateway_meta():
         )
 
     async with make_client(handler) as c:
-        r = await c.chat("gpt-4o-mini", [{"role": "user", "content": "hi"}])
+        r = await c.gateway.chat("gpt-4o-mini", [{"role": "user", "content": "hi"}])
 
     assert r.content == "Hello!"
     assert r.finish_reason == "stop"
@@ -380,7 +380,7 @@ async def test_chat_gateway_trace_opt_in_mints_a_fresh_span_id():
         return httpx.Response(200, json={"accepted": 1, "traceIds": ["gw-trace-1"]})
 
     async with make_client(handler) as c:
-        await c.chat("m", [{"role": "user", "content": "hi"}], trace=True)
+        await c.gateway.chat("m", [{"role": "user", "content": "hi"}], trace=True)
 
     assert len(posted) == 1
     span = posted[0]["spans"][0]
@@ -402,7 +402,7 @@ async def test_chat_byo_trace_reuses_the_locally_minted_span_id():
         return httpx.Response(200, json={"accepted": 1, "traceIds": ["t1"]})
 
     async with make_client(handler) as c:
-        r = await c.chat(
+        r = await c.gateway.chat(
             "m", [{"role": "user", "content": "hi"}],
             provider={"base_url": "https://api.groq.com/openai/v1", "api_key": "k"},
         )
@@ -419,7 +419,7 @@ async def test_chat_body_snake_case_mapping():
         return httpx.Response(200, json={"id": "1", "model": "m", "choices": [{"message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"}]})
 
     async with make_client(handler) as c:
-        await c.chat(
+        await c.gateway.chat(
             "m",
             [{"role": "user", "content": "x"}],
             tool_refs=[{"name": "t", "alias": "production"}],
@@ -443,7 +443,7 @@ async def test_chat_sends_response_format():
         return httpx.Response(200, json={"id": "1", "model": "m", "choices": [{"message": {"role": "assistant", "content": '{"ok":true}'}, "finish_reason": "stop"}]})
 
     async with make_client(handler) as c:
-        await c.chat("m", [{"role": "user", "content": "x"}], response_format=schema)
+        await c.gateway.chat("m", [{"role": "user", "content": "x"}], response_format=schema)
 
     assert seen["response_format"] == schema
     assert "tools" not in seen
@@ -464,7 +464,7 @@ async def test_chat_streaming():
     text = ""
     finish = None
     async with make_client(handler) as c:
-        async for chunk in await c.chat("m", [{"role": "user", "content": "hi"}], stream=True):
+        async for chunk in await c.gateway.stream("m", [{"role": "user", "content": "hi"}]):
             text += chunk.delta.get("content", "")
             if chunk.finish_reason:
                 finish = chunk.finish_reason
@@ -488,7 +488,7 @@ async def test_chat_streaming_retries_on_429():
 
     text = ""
     async with make_client(handler) as c:
-        async for chunk in await c.chat("m", [{"role": "user", "content": "hi"}], stream=True):
+        async for chunk in await c.gateway.stream("m", [{"role": "user", "content": "hi"}]):
             text += chunk.delta.get("content", "")
 
     assert attempts["n"] == 2
@@ -512,7 +512,7 @@ async def test_chat_byo_calls_provider_directly_not_gateway():
         )
 
     async with make_client(handler) as c:
-        result = await c.chat(
+        result = await c.gateway.chat(
             "llama-3.1-70b",
             [{"role": "user", "content": "hi"}],
             provider={"base_url": "https://api.groq.com/openai/v1", "api_key": "groq-secret-key"},
@@ -535,7 +535,7 @@ async def test_chat_byo_gateway_meta_inferred_provider_null_cost_minted_ids():
         )
 
     async with make_client(handler) as c:
-        result = await c.chat(
+        result = await c.gateway.chat(
             "gpt-4o-mini",
             [{"role": "user", "content": "hi"}],
             provider={"base_url": "https://api.openai.com/v1", "api_key": "sk-real"},
@@ -561,7 +561,7 @@ async def test_chat_byo_client_level_default_used_when_no_per_call_provider():
         api_key="our-key", base_url="http://localhost:3000/api/v1", transport=transport,
         provider={"base_url": "https://api.groq.com/openai/v1", "api_key": "groq-key"},
     ) as c:
-        await c.chat("m", [{"role": "user", "content": "hi"}], trace=False)
+        await c.gateway.chat("m", [{"role": "user", "content": "hi"}], trace=False)
 
 
 async def test_chat_byo_per_call_provider_overrides_client_default():
@@ -574,7 +574,7 @@ async def test_chat_byo_per_call_provider_overrides_client_default():
         api_key="our-key", base_url="http://localhost:3000/api/v1", transport=transport,
         provider={"base_url": "https://api.groq.com/openai/v1", "api_key": "groq-key"},
     ) as c:
-        await c.chat(
+        await c.gateway.chat(
             "m", [{"role": "user", "content": "hi"}],
             provider={"base_url": "https://api.together.xyz/v1", "api_key": "together-key"},
             trace=False,
@@ -587,7 +587,7 @@ async def test_chat_byo_raises_provider_error_on_non_2xx():
 
     async with make_client(handler) as c:
         with pytest.raises(AcruxCoreError) as ei:
-            await c.chat(
+            await c.gateway.chat(
                 "m", [{"role": "user", "content": "hi"}],
                 provider={"base_url": "https://api.openai.com/v1", "api_key": "bad-key"},
                 trace=False,
@@ -618,7 +618,7 @@ async def test_chat_byo_auto_traces_with_one_llm_span():
         return httpx.Response(200, json={"accepted": 1, "traceIds": ["minted-trace"]})
 
     async with make_client(handler) as c:
-        await c.chat(
+        await c.gateway.chat(
             "m", [{"role": "user", "content": "hi"}],
             provider={"base_url": "https://api.openai.com/v1", "api_key": "sk-x"},
             prompt_version_id="v-42",
@@ -634,7 +634,7 @@ async def test_chat_byo_skips_trace_when_trace_false():
         return httpx.Response(200, json={"id": "c1", "model": "m", "choices": [{"index": 0, "message": {"role": "assistant", "content": "hi"}, "finish_reason": "stop"}]})
 
     async with make_client(handler) as c:
-        await c.chat(
+        await c.gateway.chat(
             "m", [{"role": "user", "content": "hi"}],
             provider={"base_url": "https://api.openai.com/v1", "api_key": "sk-x"},
             trace=False,
@@ -651,7 +651,7 @@ async def test_chat_byo_raises_missing_api_key_before_network_call():
 
     async with make_client(handler) as c:
         with pytest.raises(AcruxCoreError) as ei:
-            await c.chat(
+            await c.gateway.chat(
                 "m", [{"role": "user", "content": "hi"}],
                 provider={"base_url": "https://api.openai.com/v1", "api_key": ""},
             )
@@ -668,7 +668,7 @@ async def test_chat_byo_raises_missing_base_url_before_network_call():
 
     async with make_client(handler) as c:
         with pytest.raises(AcruxCoreError) as ei:
-            await c.chat(
+            await c.gateway.chat(
                 "m", [{"role": "user", "content": "hi"}],
                 provider={"base_url": "", "api_key": "k"},
             )
@@ -685,10 +685,9 @@ async def test_chat_byo_streaming_raises_missing_api_key_before_network_call():
 
     async with make_client(handler) as c:
         with pytest.raises(AcruxCoreError) as ei:
-            stream = await c.chat(
+            stream = await c.gateway.stream(
                 "m", [{"role": "user", "content": "hi"}],
                 provider={"base_url": "https://api.openai.com/v1", "api_key": ""},
-                stream=True,
             )
             # Actually iterate the generator to trigger the validation
             async for _ in stream:
@@ -706,10 +705,9 @@ async def test_chat_byo_streaming_raises_missing_base_url_before_network_call():
 
     async with make_client(handler) as c:
         with pytest.raises(AcruxCoreError) as ei:
-            stream = await c.chat(
+            stream = await c.gateway.stream(
                 "m", [{"role": "user", "content": "hi"}],
                 provider={"base_url": "", "api_key": "k"},
-                stream=True,
             )
             # Actually iterate the generator to trigger the validation
             async for _ in stream:
@@ -740,10 +738,9 @@ async def test_chat_byo_streaming_sends_include_usage_and_auto_traces():
 
     text = ""
     async with make_client(handler) as c:
-        stream = await c.chat(
+        stream = await c.gateway.stream(
             "m", [{"role": "user", "content": "hi"}],
             provider={"base_url": "https://api.groq.com/openai/v1", "api_key": "k"},
-            stream=True,
         )
         async for chunk in stream:
             text += chunk.delta.get("content", "")
@@ -783,10 +780,9 @@ async def test_chat_byo_streaming_accumulates_tool_call_fragments_into_trace():
         return httpx.Response(200, json={"accepted": 1, "traceIds": ["t1"]})
 
     async with make_client(handler) as c:
-        stream = await c.chat(
+        stream = await c.gateway.stream(
             "m", [{"role": "user", "content": "weather in Berlin?"}],
             provider={"base_url": "https://api.groq.com/openai/v1", "api_key": "k"},
-            stream=True,
         )
         async for _ in stream:
             pass
@@ -826,10 +822,9 @@ async def test_chat_byo_streaming_does_not_replay_the_completion_after_a_mid_str
 
     received = ""
     async with make_client(handler) as c:
-        stream = await c.chat(
+        stream = await c.gateway.stream(
             "m", [{"role": "user", "content": "hi"}],
             provider={"base_url": "https://api.groq.com/openai/v1", "api_key": "k"},
-            stream=True,
         )
         with pytest.raises(AcruxCoreError) as excinfo:
             async for chunk in stream:
@@ -855,15 +850,15 @@ async def test_chat_threads_trace_id_across_two_manual_calls():
         return httpx.Response(200, json={"accepted": 1, "traceIds": ["t1"]})
 
     async with make_client(handler) as c:
-        first = await c.chat("m", [{"role": "user", "content": "a"}], provider={"base_url": "https://api.openai.com/v1", "api_key": "k"})
-        await c.chat(
+        first = await c.gateway.chat("m", [{"role": "user", "content": "a"}], provider={"base_url": "https://api.openai.com/v1", "api_key": "k"})
+        await c.gateway.chat(
             "m", [{"role": "user", "content": "b"}],
             provider={"base_url": "https://api.openai.com/v1", "api_key": "k"},
             trace={"trace_id": first.gateway.trace_id},
         )
         # Auto-reports are backgrounded now, so wait for the queue before reading the
         # requests it made.
-        await c.flush()
+        await c.gateway.flush()
 
     # The first call auto-traces (BYO default) and mints its own trace id; the
     # second call's explicit trace={"trace_id": ...} must thread that same id through
@@ -917,7 +912,7 @@ async def test_run_tool_loop_threads_trace_and_reports_tool_spans():
         return {"tempC": 18, "condition": "clear"}
 
     async with make_client(handler) as c:
-        result = await c.run_tool_loop(
+        result = await c.gateway.run_tool_loop(
             "m",
             [{"role": "user", "content": "weather in Tokyo?"}],
             dispatch=dispatch,
@@ -963,7 +958,7 @@ async def test_run_tool_loop_threads_session_id_header():
         raise AssertionError("no tool should be dispatched")
 
     async with make_client(handler) as c:
-        await c.run_tool_loop(
+        await c.gateway.run_tool_loop(
             "m",
             [{"role": "user", "content": "hi"}],
             dispatch=dispatch,
@@ -994,7 +989,7 @@ async def test_run_tool_loop_concurrent_dispatch_order_preserved():
         return f"{name}-result"
 
     async with make_client(handler) as c:
-        result = await c.run_tool_loop("m", [{"role": "user", "content": "go"}], dispatch=dispatch, tool_defs=[])
+        result = await c.gateway.run_tool_loop("m", [{"role": "user", "content": "go"}], dispatch=dispatch, tool_defs=[])
 
     # Both tools were dispatched concurrently (fast started before slow finished).
     assert set(order_started) == {"slow", "fast"}
@@ -1016,7 +1011,7 @@ async def test_run_tool_loop_dispatch_error_propagates():
 
     async with make_client(handler) as c:
         with pytest.raises(ValueError, match="tool exploded"):
-            await c.run_tool_loop("m", [{"role": "user", "content": "go"}], dispatch=dispatch, tool_defs=[])
+            await c.gateway.run_tool_loop("m", [{"role": "user", "content": "go"}], dispatch=dispatch, tool_defs=[])
 
 
 async def test_run_tool_loop_stops_at_limit():
@@ -1029,7 +1024,7 @@ async def test_run_tool_loop_stops_at_limit():
         return "again"
 
     async with make_client(handler) as c:
-        result = await c.run_tool_loop("m", [{"role": "user", "content": "go"}], dispatch=dispatch, tool_defs=[], max_iterations=3)
+        result = await c.gateway.run_tool_loop("m", [{"role": "user", "content": "go"}], dispatch=dispatch, tool_defs=[], max_iterations=3)
 
     assert result.stopped_at_limit is True
     assert result.iterations == 3
@@ -1048,7 +1043,7 @@ async def test_run_tool_loop_threads_response_format_when_no_tools_attached():
         return httpx.Response(200, json={"accepted": 1, "traceIds": ["t"]})
 
     async with make_client(handler) as c:
-        result = await c.run_tool_loop("m", [{"role": "user", "content": "summarize"}], response_format=schema, trace=False)
+        result = await c.gateway.run_tool_loop("m", [{"role": "user", "content": "summarize"}], response_format=schema, trace=False)
 
     assert result.content == '{"answer":"ok"}'
     assert seen["response_format"] == schema
@@ -1084,7 +1079,7 @@ async def test_run_tool_loop_shapes_typed_answer_when_tools_and_response_format_
         return {"tempC": 18}
 
     async with make_client(handler) as c:
-        result = await c.run_tool_loop(
+        result = await c.gateway.run_tool_loop(
             "m",
             [{"role": "user", "content": "weather in Tokyo?"}],
             dispatch=dispatch,
@@ -1130,7 +1125,7 @@ async def test_chat_converts_pydantic_response_format():
         return httpx.Response(200, json={"id": "1", "model": "m", "choices": [{"message": {"role": "assistant", "content": '{"temp_c":18}'}, "finish_reason": "stop"}]})
 
     async with make_client(handler) as c:
-        await c.chat("m", [{"role": "user", "content": "x"}],
+        await c.gateway.chat("m", [{"role": "user", "content": "x"}],
                      response_format=pydantic_response_format(_WeatherAnswer, name="weather_answer"))
 
     # The wire body carries the converted OpenAI-shaped dict, not the pydantic class.
@@ -1158,7 +1153,7 @@ async def test_run_tool_loop_threads_pydantic_response_format_when_no_tools_atta
         return httpx.Response(200, json={"accepted": 1, "traceIds": ["t"]})
 
     async with make_client(handler) as c:
-        result = await c.run_tool_loop(
+        result = await c.gateway.run_tool_loop(
             "m", [{"role": "user", "content": "summarize"}],
             response_format=pydantic_response_format(_WeatherAnswer, name="weather_answer", strict=False),
             trace=False,
@@ -1200,7 +1195,7 @@ async def test_run_tool_loop_shapes_typed_answer_with_pydantic_response_format()
         return {"tempC": 18}
 
     async with make_client(handler) as c:
-        result = await c.run_tool_loop(
+        result = await c.gateway.run_tool_loop(
             "m",
             [{"role": "user", "content": "weather in Tokyo?"}],
             dispatch=dispatch,
@@ -1240,7 +1235,7 @@ async def test_run_tool_loop_trace_false_sends_no_headers_no_traces():
         return "x"
 
     async with make_client(handler) as c:
-        result = await c.run_tool_loop("m", [{"role": "user", "content": "go"}], dispatch=dispatch, trace=False)
+        result = await c.gateway.run_tool_loop("m", [{"role": "user", "content": "go"}], dispatch=dispatch, trace=False)
 
     assert result.trace_id is None
     assert trace_posted["n"] == 0
@@ -1269,7 +1264,7 @@ async def test_run_tool_loop_byo_calls_provider_directly_and_reports_llm_plus_to
         return httpx.Response(200, json={"accepted": 1, "traceIds": ["minted-trace"]})
 
     async with make_client(handler) as c:
-        result = await c.run_tool_loop(
+        result = await c.gateway.run_tool_loop(
             "m", [{"role": "user", "content": "weather in Paris?"}],
             tool_defs=[{"type": "function", "function": {"name": "get_weather"}}],
             dispatch=lambda name, args: {"tempC": 18},
@@ -1307,7 +1302,7 @@ async def test_run_tool_loop_byo_inlines_tool_schema_not_tool_refs():
         return httpx.Response(200, json={"accepted": 1, "traceIds": ["t1"]})
 
     async with make_client(handler) as c:
-        await c.run_tool_loop(
+        await c.gateway.run_tool_loop(
             "m", [{"role": "user", "content": "weather?"}],
             tool_refs=[{"name": "get_weather"}],
             dispatch=lambda name, args: {},
@@ -1350,7 +1345,7 @@ async def test_run_tool_loop_byo_reports_llm_span_before_dispatching_an_http_too
         return httpx.Response(200, json={"accepted": 1, "traceIds": ["minted-trace"]})
 
     async with make_client(handler) as c:
-        await c.run_tool_loop(
+        await c.gateway.run_tool_loop(
             "m", [{"role": "user", "content": "probe it"}],
             tool_refs=[{"name": "probe"}],
             provider={"base_url": "https://api.groq.com/openai/v1", "api_key": "k"},
@@ -1375,7 +1370,7 @@ async def test_run_tool_loop_byo_llm_span_times_the_completion_call():
         return httpx.Response(200, json={"accepted": 1, "traceIds": ["t1"]})
 
     async with make_client(handler) as c:
-        await c.run_tool_loop(
+        await c.gateway.run_tool_loop(
             "m", [{"role": "user", "content": "hi"}],
             provider={"base_url": "https://api.groq.com/openai/v1", "api_key": "k"},
         )
@@ -1398,7 +1393,7 @@ async def test_trace_write():
         return httpx.Response(200, json={"accepted": 2, "traceIds": ["trace_xyz"]})
 
     async with make_client(handler) as c:
-        r = await c.trace({"name": "run", "spans": [{"spanId": "s1", "name": "step", "kind": "chain", "startTime": "2026-01-01T00:00:00Z"}]})
+        r = await c.traces.ingest({"name": "run", "spans": [{"spanId": "s1", "name": "step", "kind": "chain", "startTime": "2026-01-01T00:00:00Z"}]})
 
     assert r.trace_id == "trace_xyz"
     assert seen["body"]["traces"][0]["name"] == "run"
@@ -1413,7 +1408,7 @@ async def test_submit_feedback():
         return httpx.Response(201, json={"id": "fb_1", "traceId": "trace_1", "spanId": None, "rating": 5, "label": None, "comment": None, "source": "end_user", "createdBy": "u1", "createdAt": "t", "updatedAt": "t"})
 
     async with make_client(handler) as c:
-        fb = await c.submit_feedback("trace_1", rating=5, source="end_user")
+        fb = await c.traces.submit_feedback("trace_1", rating=5, source="end_user")
 
     assert fb.id == "fb_1"
     assert fb.rating == 5
@@ -1429,7 +1424,7 @@ async def test_update_feedback_clear_vs_keep():
         return httpx.Response(200, json={"id": "fb_1", "traceId": "trace_1", "spanId": None, "rating": None, "label": None, "comment": "edited", "source": "user", "createdBy": "u1", "createdAt": "t", "updatedAt": "t2"})
 
     async with make_client(handler) as c:
-        fb = await c.update_feedback("trace_1", "fb_1", rating=None, comment="edited")
+        fb = await c.traces.update_feedback("trace_1", "fb_1", rating=None, comment="edited")
 
     assert fb.comment == "edited"
     assert fb.rating is None
@@ -1443,7 +1438,7 @@ async def test_get_trace_builds_span_tree():
         })
 
     async with make_client(handler) as c:
-        r = await c.get_trace("t1")
+        r = await c.traces.get("t1")
 
     assert r.trace.id == "t1"
     assert r.trace.total_cost_usd == 0.001
@@ -1460,7 +1455,7 @@ async def test_list_traces_query_params():
         return httpx.Response(200, json={"data": [{"id": "t1", "name": "n", "sessionId": "sess", "status": "ok", "startedAt": "a", "endedAt": "b", "spanCount": 1, "totalCostUsd": None, "totalTokens": None}], "total": 1, "page": 1, "limit": 10})
 
     async with make_client(handler) as c:
-        r = await c.list_traces(session_id="sess", model="gpt", limit=10, min_tokens=3)
+        r = await c.traces.list(session_id="sess", model="gpt", limit=10, min_tokens=3)
 
     assert seen["query"]["session_id"] == "sess"
     assert seen["query"]["model"] == "gpt"
@@ -1482,7 +1477,7 @@ async def test_cache_key_does_not_embed_raw_api_key():
     raw_key = "sk-super-secret-raw-key"
     transport = httpx.MockTransport(handler)
     async with AcruxCore(api_key=raw_key, base_url="http://localhost:3000/api/v1", transport=transport) as c:
-        await c.render_prompt("my-prompt", "production")
+        await c.prompts.render("my-prompt", "production")
 
     keys = list(get_cache(500)._store.keys())
     assert len(keys) > 0
@@ -1537,8 +1532,8 @@ async def test_warns_once_for_a_plain_http_provider_base_url():
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         async with make_client(handler) as c:
-            await c.chat("m", [{"role": "user", "content": "hi"}], provider=provider, trace=False)
-            await c.chat("m", [{"role": "user", "content": "hi"}], provider=provider, trace=False)
+            await c.gateway.chat("m", [{"role": "user", "content": "hi"}], provider=provider, trace=False)
+            await c.gateway.chat("m", [{"role": "user", "content": "hi"}], provider=provider, trace=False)
 
     cleartext = [w for w in caught if "not HTTPS" in str(w.message)]
     assert len(cleartext) == 1
@@ -1595,9 +1590,9 @@ async def test_auth_headers_consistent_across_render_trace_and_chat():
         raise AssertionError(f"unexpected path {path}")
 
     async with make_client(handler) as c:
-        await c.render_prompt("p", "production")
-        await c.trace({"spans": []})
-        await c.chat(model="m", messages=[{"role": "user", "content": "hi"}])
+        await c.prompts.render("p", "production")
+        await c.traces.ingest({"spans": []})
+        await c.gateway.chat(model="m", messages=[{"role": "user", "content": "hi"}])
 
     assert seen["render_auth"] == "Bearer test-key"
     assert seen["render_auth"] == seen["trace_auth"] == seen["chat_auth"]
@@ -1742,7 +1737,7 @@ async def test_loop_with_a_decorated_tool_syncs_then_runs_it_locally():
 
     paths: List[str] = []
     async with make_client(tool_loop_handler(calls=paths)) as client:
-        result = await client.run_tool_loop(
+        result = await client.gateway.run_tool_loop(
             model="m", messages=[{"role": "user", "content": "?"}], tools=[get_weather]
         )
 
@@ -1765,7 +1760,7 @@ async def test_loop_sends_tool_refs_not_an_inline_schema_for_decorated_tools():
         return inner(request)
 
     async with make_client(handler) as client:
-        await client.run_tool_loop(
+        await client.gateway.run_tool_loop(
             model="m", messages=[{"role": "user", "content": "?"}], tools=[get_weather]
         )
 
@@ -1777,7 +1772,7 @@ async def test_loop_sends_tool_refs_not_an_inline_schema_for_decorated_tools():
 async def test_loop_runs_an_http_executor_on_the_platform_and_writes_no_tool_span():
     paths: List[str] = []
     async with make_client(tool_loop_handler(executor_type="http", calls=paths)) as client:
-        result = await client.run_tool_loop(
+        result = await client.gateway.run_tool_loop(
             model="m",
             messages=[{"role": "user", "content": "?"}],
             tool_refs=[{"name": "get_weather", "alias": "production"}],
@@ -1794,7 +1789,7 @@ async def test_loop_raises_before_the_model_when_a_client_ref_has_no_dispatch():
     paths: List[str] = []
     async with make_client(tool_loop_handler(executor_type="client", calls=paths)) as client:
         with pytest.raises(AcruxCoreError) as exc:
-            await client.run_tool_loop(
+            await client.gateway.run_tool_loop(
                 model="m",
                 messages=[{"role": "user", "content": "?"}],
                 tool_refs=[{"name": "get_weather"}],
@@ -1811,7 +1806,7 @@ async def test_loop_still_accepts_a_dispatch_for_a_client_ref():
         return {"temp_c": 30}
 
     async with make_client(tool_loop_handler(executor_type="client")) as client:
-        result = await client.run_tool_loop(
+        result = await client.gateway.run_tool_loop(
             model="m",
             messages=[{"role": "user", "content": "?"}],
             tool_refs=[{"name": "get_weather"}],
@@ -1827,7 +1822,7 @@ async def test_a_decorated_function_wins_over_a_ref_of_the_same_name():
 
     paths: List[str] = []
     async with make_client(tool_loop_handler(executor_type="http", calls=paths)) as client:
-        result = await client.run_tool_loop(
+        result = await client.gateway.run_tool_loop(
             model="m",
             messages=[{"role": "user", "content": "?"}],
             tools=[get_weather],
@@ -1852,7 +1847,7 @@ async def test_loop_records_the_tool_version_on_a_locally_run_span():
         return inner(request)
 
     async with make_client(handler) as client:
-        await client.run_tool_loop(
+        await client.gateway.run_tool_loop(
             model="m", messages=[{"role": "user", "content": "?"}], tools=[get_weather]
         )
 
@@ -1879,7 +1874,7 @@ async def test_tool_defs_carries_raw_openai_definitions_and_needs_dispatch():
 
     raw = [{"type": "function", "function": {"name": "get_weather", "parameters": {}}}]
     async with make_client(handler) as client:
-        result = await client.run_tool_loop(
+        result = await client.gateway.run_tool_loop(
             model="m",
             messages=[{"role": "user", "content": "?"}],
             tool_defs=raw,
@@ -1895,7 +1890,7 @@ async def test_sync_false_skips_reconciliation():
 
     paths: List[str] = []
     async with make_client(tool_loop_handler(calls=paths)) as client:
-        await client.run_tool_loop(
+        await client.gateway.run_tool_loop(
             model="m",
             messages=[{"role": "user", "content": "?"}],
             tools=[get_weather],
@@ -1910,7 +1905,7 @@ async def test_tools_rejects_an_undecorated_function_and_points_at_tool_defs():
 
     async with make_client(tool_loop_handler()) as client:
         with pytest.raises(AcruxCoreError) as exc:
-            await client.run_tool_loop(
+            await client.gateway.run_tool_loop(
                 model="m", messages=[{"role": "user", "content": "?"}], tools=[plain]
             )
     assert "tool_defs=" in str(exc.value)

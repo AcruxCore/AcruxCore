@@ -1,0 +1,257 @@
+---
+title: View trace analytics
+description: Read aggregate volume, error-rate, token, cost, and latency metrics over every trace your team has recorded, grouped by day, model, session, or prompt version.
+sidebar_position: 19
+keywords: [traces, analytics, observability, cost, latency, error rate, dashboards]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# View trace analytics
+
+**What you'll do:** read time-series totals — request volume, error rate,
+tokens, cost, and latency percentiles — over every trace your team has
+recorded, and break that same data down by model to compare providers at a
+glance.
+
+Every span your team has ever recorded — whether it came from a **gateway
+completion** or was posted directly via `POST /traces` from the SDK — lands in
+one `spans` table. The analytics endpoint aggregates across all of it, which
+makes it a **superset** of [`GET /gateway/usage`](/api-reference), which only
+counts gateway traffic. If you also call the SDK's `trace()` to record work
+that never went through the gateway (a retrieval step, a tool call outside a
+traced loop), those spans show up here too, but not in gateway usage.
+
+:::tip[Full runnable script]
+A standalone script that ingests one trace and exercises every read in this
+guide — analytics, facets, settings, feedback, and sessions — lives at
+[scripts/guides/view-trace-analytics on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/view-trace-analytics/python/run_check.py)
+(Python) and its
+[TypeScript sibling](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/view-trace-analytics/typescript/run_check.mjs).
+:::
+
+## 1. Read totals for the default window
+
+With no query params, the window defaults to the **last 30 days** and the
+metrics are grouped by day.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -s -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces/analytics"
+```
+
+Response (status 200) — one team's real traffic over the trailing 30 days,
+across six spans recorded that day (five `llm` spans across two models, one
+`tool` span with no model):
+
+```json
+{
+  "from": "2026-07-05",
+  "to": "2026-08-04",
+  "groupBy": "day",
+  "totals": {
+    "requests": 6,
+    "errorRate": 0.16666666666666666,
+    "promptTokens": 404,
+    "completionTokens": 48,
+    "totalTokens": 452,
+    "costUsd": 0.0001146,
+    "latencyMs": { "p50": 0, "p95": 0, "p99": 0 }
+  },
+  "buckets": [
+    {
+      "key": "2026-08-04",
+      "requests": 6,
+      "errorRate": 0.16666666666666666,
+      "promptTokens": 404,
+      "completionTokens": 48,
+      "totalTokens": 452,
+      "costUsd": 0.0001146,
+      "latencyMs": { "p50": 0, "p95": 0, "p99": 0 }
+    }
+  ]
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore();
+
+const result = await hub.traces.analytics();
+console.log(result.totals.requests); // 6
+```
+
+Real output from the call above:
+
+```json
+{
+  "from": "2026-07-05",
+  "to": "2026-08-04",
+  "groupBy": "day",
+  "totals": {
+    "requests": 6,
+    "errorRate": 0.16666666666666666,
+    "promptTokens": 404,
+    "completionTokens": 48,
+    "totalTokens": 452,
+    "costUsd": 0.0001146,
+    "latencyMs": { "p50": 0, "p95": 0, "p99": 0 }
+  },
+  "buckets": [
+    {
+      "key": "2026-08-04",
+      "requests": 6,
+      "errorRate": 0.16666666666666666,
+      "promptTokens": 404,
+      "completionTokens": 48,
+      "totalTokens": 452,
+      "costUsd": 0.0001146,
+      "latencyMs": { "p50": 0, "p95": 0, "p99": 0 }
+    }
+  ]
+}
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+result = await hub.traces.analytics()
+print(result.totals.requests)  # 6
+```
+
+Real output — same team, same window, `AnalyticsResult` printed as returned:
+
+```python
+AnalyticsResult(from_='2026-07-05', to='2026-08-04', group_by='day', totals=AnalyticsTotals(requests=6, error_rate=0.16666666666666666, prompt_tokens=404, completion_tokens=48, total_tokens=452, cost_usd=0.0001146, latency_ms=LatencyPercentiles(p50=0, p95=0, p99=0)), buckets=[AnalyticsBucket(key='2026-08-04', requests=6, error_rate=0.16666666666666666, prompt_tokens=404, completion_tokens=48, total_tokens=452, cost_usd=0.0001146, latency_ms=LatencyPercentiles(p50=0, p95=0, p99=0))])
+```
+
+</TabItem>
+</Tabs>
+
+## 2. Group by model
+
+Pass `group_by=model` (`groupBy: 'model'` / `group_by="model"` in the SDKs) to
+see the same window broken down per model — the fastest way to compare cost,
+error rate, and latency across providers on one screen.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -s -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces/analytics?group_by=model"
+```
+
+Response (status 200):
+
+```json
+{
+  "from": "2026-07-05",
+  "to": "2026-08-04",
+  "groupBy": "model",
+  "totals": {
+    "requests": 6,
+    "errorRate": 0.16666666666666666,
+    "promptTokens": 404,
+    "completionTokens": 48,
+    "totalTokens": 452,
+    "costUsd": 0.0001146,
+    "latencyMs": { "p50": 0, "p95": 0, "p99": 0 }
+  },
+  "buckets": [
+    {
+      "key": "gpt-4o",
+      "requests": 1,
+      "errorRate": 1,
+      "promptTokens": 300,
+      "completionTokens": 0,
+      "totalTokens": 300,
+      "costUsd": 0.00009,
+      "latencyMs": { "p50": 0, "p95": 0, "p99": 0 }
+    },
+    {
+      "key": "gpt-4o-mini",
+      "requests": 4,
+      "errorRate": 0,
+      "promptTokens": 104,
+      "completionTokens": 48,
+      "totalTokens": 152,
+      "costUsd": 0.0000246,
+      "latencyMs": { "p50": 0, "p95": 0, "p99": 0 }
+    }
+  ]
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const byModel = await hub.traces.analytics({ groupBy: 'model' });
+for (const bucket of byModel.buckets) {
+  console.log(bucket.key, bucket.requests, bucket.costUsd, bucket.errorRate);
+}
+// gpt-4o 1 0.00009 1
+// gpt-4o-mini 4 0.0000246 0
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+by_model = await hub.traces.analytics(group_by="model")
+for bucket in by_model.buckets:
+    print(bucket.key, bucket.requests, bucket.cost_usd, bucket.error_rate)
+# gpt-4o 1 9e-05 1
+# gpt-4o-mini 4 2.46e-05 0
+```
+
+</TabItem>
+</Tabs>
+
+:::note[A null group key is counted, but not broken out]
+`totals.requests` is `6` above, but the two `buckets` only add up to `5`
+(`1 + 4`). The sixth span — a `tool`-kind span with no `model` — has a null
+group key under `group_by=model`, so it's counted in `totals` but **omitted**
+from `buckets` entirely, rather than showing up as a bucket with `key: null`.
+The same rule applies to `group_by=session` and `group_by=prompt_version` for
+a span with no session id or prompt version.
+:::
+
+Other supported dimensions and filters — `group_by=session` /
+`group_by=prompt_version`, `kind=llm|tool|retrieval|embedding|agent|chain|other`,
+`model=<exact-name>`, and an explicit `from`/`to` window — are documented with
+their own curl-verified examples in the
+[Traces API reference](/api-reference) under **Trace Analytics**.
+
+## 3. In the dashboard
+
+The same numbers back **Observability → Dashboards** in the web app: a
+date-range picker (last 7/30/90 days, month-to-date, year-to-date, or a custom
+range) plus a `group_by` control, rendered as time-series line charts for
+`day` or grouped bar charts for `model`/`session`/`prompt_version`. For the bar
+views, a chip-and-autocomplete filter narrows the charts down to a chosen
+subset of models or prompt versions without an extra request.
+
+## What's next
+
+- Haven't tagged or grouped your traces yet? Start with
+  [Tag and filter traces](./tag-and-filter-traces.mdx) and
+  [Using sessions and traces](./using-sessions-and-traces.mdx) — `group_by=session`
+  and `group_by=prompt_version` read the same tags and session ids those
+  guides set up.
+- Full parameter and error reference: the **Traces** section of the
+  [API Reference](/api-reference).

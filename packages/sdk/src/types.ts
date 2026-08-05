@@ -129,6 +129,360 @@ export interface ToolExecuteResult {
   toolVersionId: string;
 }
 
+// ── Prompts (PromptsNamespace, `hub.prompts`) ─────────────────────────────────
+
+/** A single chat message in a prompt version's template. Content is a nunjucks template string. */
+export interface PromptMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+/** One catalog tool to attach when committing a version. Resolves by `alias` unless `pinnedVersionNumber` is given. */
+export interface AttachToolInput {
+  /** The catalog tool's id, from `hub.tools.resolve` or the dashboard. */
+  toolId: string;
+  /** Which of the tool's aliases to resolve at render time; server defaults to `production`. */
+  alias?: string;
+  /** Pin an exact tool version instead of following an alias. */
+  pinnedVersionNumber?: number;
+}
+
+/** Shape of a prompt returned by `create`/`get`/`update`. */
+export interface PromptDetail {
+  id: string;
+  name: string;
+  description: string | null;
+  teamId: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+/** Shape of a prompt in {@link PromptListResult} — narrower than {@link PromptDetail} (no `teamId`/`createdBy`). */
+export interface PromptListItem {
+  id: string;
+  name: string;
+  description: string | null;
+  createdAt: string;
+}
+
+/** Result of {@link PromptsNamespace.list} — a page of prompts. */
+export interface PromptListResult {
+  data: PromptListItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+/** Body for {@link PromptsNamespace.create}. */
+export interface CreatePromptInput {
+  /** 1-255 chars, unique per team. */
+  name: string;
+  /** Up to 2000 chars. */
+  description?: string;
+}
+
+/** Body for {@link PromptsNamespace.update}. At least one field must be set. */
+export interface UpdatePromptInput {
+  name?: string;
+  /** Pass `null` to clear an existing description. */
+  description?: string | null;
+}
+
+/** Query params for {@link PromptsNamespace.list}. All optional. */
+export interface ListPromptsOptions {
+  /** Free-text match against the prompt name. */
+  search?: string;
+  /** 1-based. */
+  page?: number;
+  limit?: number;
+}
+
+/** Body for {@link PromptsNamespace.commitVersion}. */
+export interface CommitVersionInput {
+  /** The version's full message list — versions are immutable, so this replaces, never patches. */
+  messages: PromptMessage[];
+  /** Catalog tools to attach to this version (max 64). */
+  tools?: AttachToolInput[];
+  /** Binds a default gateway model by its `publicName`; omit to leave the version unbound. */
+  model?: string;
+}
+
+/** Shape of a version in {@link VersionListResult} — omits `messages`/`promptId` to keep list pages small. */
+export interface VersionListItem {
+  id: string;
+  versionNumber: number;
+  variables: string[];
+  createdBy: string;
+  createdAt: string;
+  /** The bound default model's current `publicName`, or `null` if unbound. */
+  model: string | null;
+}
+
+/** Result of {@link PromptsNamespace.listVersions} — a page of versions. */
+export interface VersionListResult {
+  data: VersionListItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+/** Query params for {@link PromptsNamespace.listVersions}. All optional. */
+export interface ListVersionsOptions {
+  /** 1-based. */
+  page?: number;
+  limit?: number;
+}
+
+/**
+ * Query params for {@link PromptsNamespace.tracesForVersion}. All optional.
+ * Same shape as {@link ListVersionsOptions} but kept as its own named type since
+ * the two paginate different resources (versions vs. traces).
+ */
+export interface PromptVersionTracesOptions {
+  /** 1-based. */
+  page?: number;
+  limit?: number;
+}
+
+/** An alias pointing at one immutable version, from a promote or list call. */
+export interface AliasDetail {
+  id: string;
+  alias: string;
+  versionId: string;
+  versionNumber: number;
+  updatedAt: string;
+}
+
+/** Shape of a version from {@link PromptsNamespace.commitVersion} or {@link PromptsNamespace.getVersion}. */
+export interface VersionDetail {
+  id: string;
+  promptId: string;
+  versionNumber: number;
+  /**
+   * Looser than {@link CommitVersionInput.messages} (`PromptMessage[]`) on purpose:
+   * `POST /prompts/import` validates a role as any non-empty string, not just
+   * `'system'|'user'|'assistant'`, so an imported version's messages can legitimately
+   * carry a role outside that set — matching the server's own `VersionDetail` DTO.
+   */
+  messages: Array<{ role: string; content: string }>;
+  variables: string[];
+  /** The bound default model's current `publicName`, or `null` if unbound. */
+  model: string | null;
+  createdBy: string;
+  createdAt: string;
+  /**
+   * Every alias created alongside this version. Present ONLY when this is the
+   * prompt's first version (both `production` and `staging` are minted and point
+   * at it) — every later commit returns no `aliases` at all, since committing
+   * never moves an alias by itself.
+   */
+  aliases?: AliasDetail[];
+}
+
+/** Result of {@link PromptsNamespace.diff} — a unified diff between two versions. */
+export interface DiffResult {
+  /** Unified diff string (as produced by the `diff` package's `createPatch`). */
+  diff: string;
+  fromVersion: number;
+  toVersion: number;
+}
+
+/** The portable export format for a single prompt version (`schemaVersion` is always `1`). */
+export interface ExportedPromptVersion {
+  schemaVersion: 1;
+  exportedAt: string;
+  prompt: {
+    name: string;
+    description: string | null;
+  };
+  version: {
+    versionNumber: number;
+    messages: Array<{ role: string; content: string }>;
+    variables: string[];
+    createdAt: string;
+  };
+}
+
+/**
+ * Body for {@link PromptsNamespace.importPrompt} — matches the API's `ImportBodySchema`.
+ * `version.messages` items are `{ role: string; content: string }`, looser than
+ * {@link PromptMessage}, since the API itself only requires non-empty strings there.
+ */
+export interface ImportPromptInput {
+  schemaVersion: 1;
+  exportedAt?: string;
+  prompt: {
+    name: string;
+    description?: string | null;
+  };
+  version: {
+    versionNumber?: number;
+    messages: Array<{ role: string; content: string }>;
+    variables?: string[];
+    createdAt?: string;
+  };
+}
+
+/**
+ * Result of {@link PromptsNamespace.importPrompt}. `prompt.name` may differ from
+ * the input on a name collision — the server appends `-imported-<unix_ms>` rather
+ * than rejecting the import.
+ */
+export interface ImportPromptResult {
+  prompt: { id: string; name: string };
+  version: { id: string; versionNumber: number };
+}
+
+/** A catalog tool's mutable shell — the shared shape for `create`/`get`/`update`/`list` items. */
+export interface ToolDetail {
+  id: string;
+  name: string;
+  description: string | null;
+  teamId: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+/** Result of {@link ToolsNamespace.list} — a page of tools. */
+export interface ToolListResult {
+  data: ToolDetail[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+/** Input to {@link ToolsNamespace.create}. */
+export interface CreateToolInput {
+  /** Must match `^[a-zA-Z0-9_-]{1,64}$` — the function name the model sees. */
+  name: string;
+  description?: string;
+}
+
+/** Input to {@link ToolsNamespace.update}. At least one field is required by the API. */
+export interface UpdateToolInput {
+  name?: string;
+  /** Pass `null` to clear an existing description; omit to leave it untouched. */
+  description?: string | null;
+}
+
+/** Query params for {@link ToolsNamespace.list}. All optional. */
+export interface ListToolsOptions {
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+/**
+ * A tool version's executor, as a discriminated union on `type`. `'client'` means the
+ * caller's own app runs the tool; `'http'` means the platform can call it directly.
+ */
+export type ToolExecutor =
+  | { type: 'client' }
+  | {
+      type: 'http';
+      url: string;
+      method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+      headers: { name: string; value: string }[];
+      query: { name: string; value: string }[];
+      bodyTemplate?: string;
+      argMapping: { arg: string; in: 'query' | 'path' | 'header' | 'body'; path?: string }[];
+      requestTransform?: string;
+      responseTransform?: string;
+    };
+
+/** Input to {@link ToolsNamespace.commitVersion}. */
+export interface CommitToolVersionInput {
+  description?: string;
+  changelog?: string;
+  /**
+   * Defaults server-side to `'api'`. `'code'` is rejected here — only `tools.sync`
+   * (`POST /tools/sync`) may write it, since that value means "derived from a
+   * decorated function" and a hand-rolled commit must not be able to forge it.
+   */
+  source?: 'dashboard' | 'api';
+  parametersSchema: Record<string, unknown>;
+  executor: ToolExecutor;
+}
+
+/** A committed tool version, as returned by {@link ToolsNamespace.commitVersion}/{@link ToolsNamespace.getVersion}. */
+export interface ToolVersionDetail {
+  id: string;
+  toolId: string;
+  versionNumber: number;
+  description: string | null;
+  /** Release note for humans. Never read by the resolver, so never seen by the model. */
+  changelog: string | null;
+  source: ToolVersionSource;
+  parametersSchema: unknown;
+  executor: ToolExecutor;
+  createdBy: string;
+  createdAt: string;
+  /**
+   * Present ONLY on the tool's first version — both `production` and `staging` are
+   * minted and point at it. Every later commit returns no `aliases` at all, and
+   * {@link ToolsNamespace.getVersion} never includes it either way.
+   */
+  aliases?: ToolAliasDetail[];
+  /** Present only when this commit has a `changelog` but no `description`. */
+  warnings?: string[];
+}
+
+/** A tool version in {@link ToolsNamespace.listVersions}'s page — omits `parametersSchema`/`executor`. */
+export interface ToolVersionListItem {
+  id: string;
+  toolId: string;
+  versionNumber: number;
+  description: string | null;
+  changelog: string | null;
+  source: ToolVersionSource;
+  createdBy: string;
+  createdAt: string;
+}
+
+/** Result of {@link ToolsNamespace.listVersions} — a page of a tool's versions, newest first. */
+export interface ToolVersionListResult {
+  data: ToolVersionListItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+/** Query params for {@link ToolsNamespace.listVersions}. All optional. */
+export interface ListToolVersionsOptions {
+  page?: number;
+  limit?: number;
+}
+
+/** A tool alias's resolved state, as returned by {@link ToolsNamespace.promoteAlias}. */
+export interface ToolAliasDetail {
+  id: string;
+  alias: string;
+  versionId: string;
+  versionNumber: number;
+  updatedAt: string;
+}
+
+/** Query params for {@link ToolsNamespace.analytics}. Both bounds are optional ISO-8601 datetimes. */
+export interface ToolAnalyticsOptions {
+  since?: string;
+  until?: string;
+}
+
+/** Aggregated call stats for one tool over the requested window. */
+export interface ToolStat {
+  toolName: string;
+  calls: number;
+  /** 0..1. */
+  errorRate: number;
+  p50Ms: number | null;
+  p95Ms: number | null;
+}
+
+/** Result of {@link ToolsNamespace.analytics} — one entry per tool that had calls in the window. */
+export interface ToolAnalyticsResult {
+  data: ToolStat[];
+}
+
 /** Trace options shared by `chat()` and `runToolLoop()`. */
 export interface TraceOptions {
   traceId?: string;
@@ -479,4 +833,191 @@ export interface TraceInput {
 /** Result of {@link acruxcore.trace} — the resolved trace id. */
 export interface TraceResult {
   traceId: string;
+}
+
+/** Options for {@link TracesNamespace.analytics}. All optional; window defaults to the last 30 days. */
+export interface AnalyticsOptions {
+  /** ISO date/datetime — inclusive lower bound on `startedAt`. */
+  from?: string;
+  /** ISO date/datetime — exclusive upper bound on `startedAt`. */
+  to?: string;
+  /** Aggregation dimension. Defaults server-side to `'day'`. */
+  groupBy?: 'day' | 'model' | 'session' | 'prompt_version';
+  /** Narrows to spans of one kind. */
+  kind?: SpanKind;
+  /** Narrows to spans reported with this exact model string. */
+  model?: string;
+}
+
+/** p50/p95/p99 latency in milliseconds. Each is `null` when the group has no timed spans. */
+export interface LatencyPercentiles {
+  p50: number | null;
+  p95: number | null;
+  p99: number | null;
+}
+
+/** Aggregate metrics shared by the range-wide totals and each grouped bucket. */
+export interface AnalyticsTotals {
+  requests: number;
+  /** Fraction (0..1) of spans with `status: 'error'` — NOT a percentage. */
+  errorRate: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  /** Null-cost spans sum as 0, so this is never null itself. */
+  costUsd: number;
+  latencyMs: LatencyPercentiles;
+}
+
+/** One grouped bucket — `key` is a day string, model name, session id, or prompt-version label. */
+export interface AnalyticsBucket extends AnalyticsTotals {
+  key: string;
+}
+
+/** Result of {@link TracesNamespace.analytics}. */
+export interface AnalyticsResult {
+  /** Resolved window start, `YYYY-MM-DD`. */
+  from: string;
+  /** Resolved window end, `YYYY-MM-DD`. */
+  to: string;
+  groupBy: 'day' | 'model' | 'session' | 'prompt_version';
+  totals: AnalyticsTotals;
+  /**
+   * One entry per distinct group key that occurred in the window. A bucket whose
+   * group key is null (e.g. a span with no model) is omitted here entirely, even
+   * though it is still counted in `totals`.
+   */
+  buckets: AnalyticsBucket[];
+}
+
+/** Result of {@link TracesNamespace.listFacets} — the team's distinct tags and metadata keys. */
+export interface TraceFacets {
+  tags: string[];
+  metadataKeys: string[];
+}
+
+/** Result of {@link TracesNamespace.getFacetValues} — the team's distinct values for one metadata key. */
+export interface FacetValuesResult {
+  values: string[];
+}
+
+/** Result of {@link TracesNamespace.getSettings} / {@link TracesNamespace.updateSettings}. */
+export interface TraceSettings {
+  capturePayloads: boolean;
+  /** Null until the team's settings row has ever been written (lazy default). */
+  updatedAt: string | null;
+}
+
+/** Options for {@link TracesNamespace.getFeedbackSummary}. All optional; window defaults to the last 30 days. */
+export interface FeedbackSummaryOptions {
+  /** ISO date/datetime — inclusive lower bound. */
+  from?: string;
+  /** ISO date/datetime — exclusive upper bound. */
+  to?: string;
+  /** Aggregation dimension. Defaults server-side to `'prompt_version'`. */
+  groupBy?: 'prompt_version' | 'model';
+}
+
+/** One grouped bucket in {@link FeedbackSummaryResult}. */
+export interface FeedbackBucket {
+  key: string;
+  count: number;
+  /** Mean of non-null ratings in the bucket; null when the bucket has no ratings. */
+  avgRating: number | null;
+  /** Count of feedback rows with `rating < 0` (thumbs-down). */
+  downCount: number;
+}
+
+/**
+ * Result of {@link TracesNamespace.getFeedbackSummary}. A group key with no
+ * feedback yet is simply absent from `buckets`, never a zeroed entry.
+ */
+export interface FeedbackSummaryResult {
+  groupBy: 'prompt_version' | 'model';
+  buckets: FeedbackBucket[];
+}
+
+/** Options for {@link TracesNamespace.listFeedback}. */
+export interface ListFeedbackOptions {
+  page?: number;
+  /** Capped at 100 server-side. */
+  limit?: number;
+}
+
+/** Result of {@link TracesNamespace.listFeedback} — team-wide, newest-first, paginated. */
+export interface FeedbackListResult {
+  data: FeedbackResult[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+/**
+ * Result of {@link TracesNamespace.getTraceFeedback} — every feedback row for one
+ * trace. Unlike {@link FeedbackListResult}, this envelope carries no `total`/`page`/
+ * `limit`: it is a full, unpaginated list scoped to a single trace.
+ */
+export interface TraceFeedbackResult {
+  data: FeedbackResult[];
+}
+
+/**
+ * One rolled-up session — a distinct `sessionId` for the team, with its trace
+ * count, summed cost/tokens, and activity time span.
+ */
+export interface SessionSummary {
+  sessionId: string;
+  traceCount: number;
+  /** Null when none of the session's traces carried a cost. */
+  totalCostUsd: number | null;
+  totalTokens: number;
+  /** ISO — earliest `startedAt` among the session's traces. */
+  firstAt: string;
+  /** ISO — latest `startedAt` among the session's traces. */
+  lastAt: string;
+}
+
+/**
+ * One trace inside a session, as returned nested in {@link SessionDetailResult}.
+ * Deliberately NOT {@link TraceSummary}: this shape additionally carries `tags`,
+ * which `TraceSummary` (from `GET /traces`/`GET /traces/:id`) does not have.
+ */
+export interface SessionTraceItem {
+  id: string;
+  name: string | null;
+  sessionId: string | null;
+  status: string;
+  startedAt: string;
+  endedAt: string | null;
+  spanCount: number;
+  totalCostUsd: number | null;
+  totalTokens: number;
+  tags: string[];
+}
+
+/** Options for {@link SessionsNamespace.list}. All optional; window defaults to the last 30 days. */
+export interface SessionListOptions {
+  /** ISO date/datetime — inclusive lower bound on trace activity. */
+  from?: string;
+  /** ISO date/datetime — exclusive upper bound on trace activity. */
+  to?: string;
+  page?: number;
+  /** Capped at 100 server-side; default 20. */
+  limit?: number;
+  /** Case-insensitive substring match on the session id. */
+  q?: string;
+}
+
+/** Result of {@link SessionsNamespace.list} — paginated, one entry per session. */
+export interface SessionListResult {
+  data: SessionSummary[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+/** Result of {@link SessionsNamespace.get} — one session's summary plus its traces. */
+export interface SessionDetailResult {
+  session: SessionSummary;
+  traces: SessionTraceItem[];
 }

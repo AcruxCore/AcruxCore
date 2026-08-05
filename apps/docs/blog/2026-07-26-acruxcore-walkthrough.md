@@ -88,7 +88,7 @@ This particular trace has exactly **one span** — the single LLM call — becau
 we called the gateway directly from the Playground rather than through a
 multi-step agent. Acrux Core's tracing model is: the gateway automatically
 records every model call as a span (model, tokens, latency, cost), and you can
-add your own spans via the SDK's `trace()` for anything that happens around
+add your own spans via the SDK's `hub.traces.ingest()` for anything that happens around
 it (tool calls, retries, business logic) so a real agent run shows up as a
 proper parent/child span tree, not just a flat log. Opening the span itself
 shows the model, provider, token counts, and the full request/response body:
@@ -141,12 +141,12 @@ const hub = new acruxcore({
   baseUrl: process.env.ACRUXCORE_BASE_URL,
 });
 
-const { messages } = await hub.renderPrompt('support-triage', 'production', {
+const { messages } = await hub.prompts.render('support-triage', 'production', {
   company: 'Harbor Systems',
   ticket: 'My export button is greyed out on the billing page.',
 });
 
-const result = await hub.chat({ model: 'gpt-4o-mini', messages });
+const result = await hub.gateway.chat({ model: 'gpt-4o-mini', messages });
 
 console.log(result.content);
 console.log(result.usage);
@@ -185,7 +185,7 @@ async def main():
         api_key=os.environ["ACRUXCORE_API_KEY"],
         base_url=os.environ["ACRUXCORE_BASE_URL"],
     ) as hub:
-        rendered = await hub.render_prompt(
+        rendered = await hub.prompts.render(
             "support-triage",
             "production",
             {
@@ -194,7 +194,7 @@ async def main():
             },
         )
 
-        result = await hub.chat("gpt-4o-mini", rendered.messages)
+        result = await hub.gateway.chat("gpt-4o-mini", rendered.messages)
 
         print(result.content)
         print(result.usage)
@@ -206,7 +206,7 @@ asyncio.run(main())
 
 Same prompt, same alias, same gateway — just an `async`/`await` shape instead
 of Node's `Promise` chain. No separate tracing call was needed in either
-language: `chat()` already goes through the gateway, which auto-traces every
+language: `hub.gateway.chat()` already goes through the gateway, which auto-traces every
 completion it serves. Both scripts' calls showed up in the dashboard seconds
 later as ordinary traces — the same single-span `OK` view shown in section 4
 above, just with a different token count and request ID each time.

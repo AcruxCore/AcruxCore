@@ -47,6 +47,38 @@ workspace starts empty.
 ![Empty Evaluations / Datasets page](/img/tutorials/evaluate-a-prompt/01-empty.png)
 
 <Tabs groupId="lang">
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore();
+
+const dataset = await hub.datasets.buildFromFeedback({
+  name: 'unhappy-support-replies',
+  overallFeedback: 'Warm, concise, always end with a next step',
+  feedbackIds: ['<feedback-id-1>', '<feedback-id-2>'],
+});
+console.log(dataset.id, dataset.exampleCount);
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+dataset = await hub.datasets.build_from_feedback(
+    name="unhappy-support-replies",
+    overall_feedback="Warm, concise, always end with a next step",
+    feedback_ids=["<feedback-id-1>", "<feedback-id-2>"],
+)
+print(dataset.id, dataset.example_count)
+```
+
+</TabItem>
 <TabItem value="curl" label="curl">
 
 ```bash
@@ -91,6 +123,38 @@ sweep: one or more `version_ids` × one or more `models`. Creating it is one cal
 starting a **run** is another (it returns `202 queued` and hands off to the worker).
 
 <Tabs groupId="lang">
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const experiment = await hub.experiments.create({
+  datasetId: '<dataset-id>',
+  promptId: '<prompt-id>',
+  name: 'support-reply v2 vs v1',
+  versionIds: ['<v2-version-id>'],
+  models: ['support-model'],
+});
+
+const run = await hub.experiments.startRun(experiment.id);
+console.log(run.runId, run.status); // -> queued
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+experiment = await hub.experiments.create(
+    dataset_id="<dataset-id>",
+    prompt_id="<prompt-id>",
+    name="support-reply v2 vs v1",
+    version_ids=["<v2-version-id>"],
+    models=["support-model"],
+)
+
+run = await hub.experiments.start_run(experiment.id)
+print(run.run_id, run.status)  # -> queued
+```
+
+</TabItem>
 <TabItem value="curl" label="curl">
 
 ```bash
@@ -150,6 +214,27 @@ so you know the comparison might not be apples-to-apples. It never blocks the ru
 Poll the run until it finishes, then read the report — per-cell scores across the
 dataset, so you can see whether v2 beat v1 (or the baseline).
 
+<Tabs groupId="lang">
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const detail = await hub.runs.get('<run-id>'); // status: queued → running → completed
+
+const report = await hub.runs.getReport('<run-id>'); // per-cell scores
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+detail = await hub.runs.get("<run-id>")  # status: queued → running → completed
+
+report = await hub.runs.get_report("<run-id>")  # per-cell scores
+```
+
+</TabItem>
+<TabItem value="curl" label="curl">
+
 ```bash
 curl "$ACRUXCORE_BASE_URL/runs/<run-id>" \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"          # status: queued → running → completed
@@ -158,10 +243,34 @@ curl "$ACRUXCORE_BASE_URL/runs/<run-id>/report" \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"          # per-cell scores
 ```
 
+</TabItem>
+</Tabs>
+
 In the web app, **Evaluations → Runs** lists every run your team has made —
 newest first, with each run's score, best variant and duration — and each row
 opens the same report as a comparison grid. The same history is available over
 the API:
+
+<Tabs groupId="lang">
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const { data: recentRuns, total } = await hub.runs.list({ limit: 20 });
+
+const datasetRuns = await hub.runs.list({ datasetId: '<dataset-id>' });
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+recent = await hub.runs.list(limit=20)
+
+dataset_runs = await hub.runs.list(dataset_id="<dataset-id>")
+```
+
+</TabItem>
+<TabItem value="curl" label="curl">
 
 ```bash
 curl "$ACRUXCORE_BASE_URL/runs?limit=20" \
@@ -170,6 +279,9 @@ curl "$ACRUXCORE_BASE_URL/runs?limit=20" \
 curl "$ACRUXCORE_BASE_URL/runs?dataset_id=<dataset-id>" \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"           # only this dataset's runs
 ```
+
+</TabItem>
+</Tabs>
 
 ## 5. Use this as a gate before you promote
 

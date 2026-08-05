@@ -101,6 +101,58 @@ prompt's output and the scoring may not be apples-to-apples.
 Over the API it is two calls — build the dataset, then start the run against the prompt:
 
 <Tabs groupId="lang">
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore();
+
+const dataset = await hub.datasets.buildFromFeedback({
+  name: 'ticket-router-misrouted',
+  overallFeedback:
+    'Follow our routing policy, not the customer tone: sign-in and password resets ' +
+    'are always account; a customer locked out entirely is P0; every billing ' +
+    'discrepancy is P1 even when they say it is not urgent; nobody blocked means P2.',
+  feedbackIds: ['<feedback-id-1>', '<feedback-id-2>', '<feedback-id-3>'],
+});
+
+const run = await hub.optimize.start('<prompt-id>', {
+  datasetId: dataset.id,
+  models: ['gpt-4o-mini'],
+  draftCount: 3,
+});
+console.log(run.runId, run.status); // -> queued
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+dataset = await hub.datasets.build_from_feedback(
+    name="ticket-router-misrouted",
+    overall_feedback=(
+        "Follow our routing policy, not the customer tone: sign-in and password resets "
+        "are always account; a customer locked out entirely is P0; every billing "
+        "discrepancy is P1 even when they say it is not urgent; nobody blocked means P2."
+    ),
+    feedback_ids=["<feedback-id-1>", "<feedback-id-2>", "<feedback-id-3>"],
+)
+
+run = await hub.optimize.start(
+    "<prompt-id>",
+    dataset_id=dataset.id,
+    models=["gpt-4o-mini"],
+    draft_count=3,
+)
+print(run.run_id, run.status)   # -> queued
+```
+
+</TabItem>
 <TabItem value="curl" label="curl">
 
 ```bash
@@ -213,6 +265,27 @@ the proposed one, and the judge evidence for that cell.
 ![The promote dialog showing the rationale, current production template beside the candidate, and judge verdicts](/img/tutorials/feedback-optimize-loop/06-promote-review.png)
 
 <Tabs groupId="lang">
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+await hub.runs.promoteCandidate('<run-id>', {
+  promptCandidateId: '<candidate-id>',
+  alias: 'production',
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+await hub.runs.promote_candidate(
+    "<run-id>",
+    prompt_candidate_id="<candidate-id>",
+    alias="production",
+)
+```
+
+</TabItem>
 <TabItem value="curl" label="curl">
 
 ```bash

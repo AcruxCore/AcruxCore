@@ -149,7 +149,7 @@ function dispatch(name: string, args: Record<string, unknown>): unknown {
 async function main(): Promise<void> {
   const hub = new acruxcore({ apiKey, baseUrl });
 
-  const result = await hub.runToolLoop({
+  const result = await hub.gateway.runToolLoop({
     model: 'gpt-4o-mini',
     tools,
     dispatch,

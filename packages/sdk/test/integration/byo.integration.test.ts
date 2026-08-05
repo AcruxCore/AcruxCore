@@ -178,14 +178,14 @@ describeLive('gateway vs BYO — latency (design §4.1)', () => {
     const gatewayTimes: number[] = [];
     for (let i = 0; i < N; i++) {
       const start = Date.now();
-      await hub.chat({ model: MODEL, messages, trace: false });
+      await hub.gateway.chat({ model: MODEL, messages, trace: false });
       gatewayTimes.push(Date.now() - start);
     }
 
     const byoTimes: number[] = [];
     for (let i = 0; i < N; i++) {
       const start = Date.now();
-      await hub.chat({ model: MODEL, messages, provider: providerConfig, trace: false });
+      await hub.gateway.chat({ model: MODEL, messages, provider: providerConfig, trace: false });
       byoTimes.push(Date.now() - start);
     }
 
@@ -209,7 +209,7 @@ describeLive('gateway vs BYO — tool-calling (design §4.2)', () => {
     ['gateway', undefined],
     ['BYO', providerConfig],
   ])('%s: calls the declared tool and produces a final answer', async (_label, provider) => {
-    const result = await hub.runToolLoop({
+    const result = await hub.gateway.runToolLoop({
       model: MODEL,
       messages: [{ role: 'user', content: 'What is the weather in Paris? Use the tool.' }],
       tools: [weatherTool],
@@ -225,7 +225,7 @@ describeLive('gateway vs BYO — tool-calling (design §4.2)', () => {
   // from a resolver-fed ref rather than a declared tool, and the only one whose tool
   // runs SERVER-side mid-loop (I5).
   it('BYO + a toolRefs tool with an http executor: trace is named runToolLoop and the tool span nests under the round llm span', async () => {
-    const result = await hub.runToolLoop({
+    const result = await hub.gateway.runToolLoop({
       model: MODEL,
       messages: [{ role: 'user', content: `What is the weather in Paris? Use the ${httpToolName} tool.` }],
       toolRefs: [{ name: httpToolName }],
@@ -237,8 +237,8 @@ describeLive('gateway vs BYO — tool-calling (design §4.2)', () => {
     expect(result.traceId).toBeTruthy();
 
     // Auto-reports are backgrounded — wait for the queue before reading them back.
-    await hub.flush();
-    const trace = await hub.getTrace(result.traceId!);
+    await hub.gateway.flush();
+    const trace = await hub.traces.get(result.traceId!);
 
     // I5 (a): the trace was created by the SDK's per-round llm span report, so it carries
     // the loop's name. Before the fix, `tools/execute` created it first and named it
@@ -272,8 +272,8 @@ describeLive('gateway vs BYO — result correctness (design §4.3)', () => {
   it('temperature-0 call: finishReason and token counts match between paths', async () => {
     const messages = [{ role: 'user' as const, content: 'Reply with exactly the word: pineapple' }];
 
-    const gatewayResult = await hub.chat({ model: MODEL, messages, temperature: 0, trace: false });
-    const byoResult = await hub.chat({ model: MODEL, messages, temperature: 0, trace: false, provider: providerConfig });
+    const gatewayResult = await hub.gateway.chat({ model: MODEL, messages, temperature: 0, trace: false });
+    const byoResult = await hub.gateway.chat({ model: MODEL, messages, temperature: 0, trace: false, provider: providerConfig });
 
     expect(byoResult.finishReason).toBe(gatewayResult.finishReason);
     // Allow a small tolerance — different request paths may tokenize a trailing
@@ -284,16 +284,16 @@ describeLive('gateway vs BYO — result correctness (design §4.3)', () => {
 
 describeLive('BYO trace read-back', () => {
   it('GET /traces/:id shows one trace with one llm span (promptVersionId set, costUsd null)', async () => {
-    const rendered = await hub.renderPrompt('greeting', 'production', { name: 'Alice' });
-    const result = await hub.chat({
+    const rendered = await hub.prompts.render('greeting', 'production', { name: 'Alice' });
+    const result = await hub.gateway.chat({
       model: MODEL,
       messages: rendered.messages,
       promptVersionId: rendered.versionId ?? undefined,
       provider: providerConfig,
     });
 
-    await hub.flush();
-    const trace = await hub.getTrace(result.gateway.traceId!);
+    await hub.gateway.flush();
+    const trace = await hub.traces.get(result.gateway.traceId!);
     expect(trace.spans).toHaveLength(1);
     expect(trace.spans[0].kind).toBe('llm');
     expect(trace.spans[0].costUsd).toBeNull();
@@ -301,11 +301,11 @@ describeLive('BYO trace read-back', () => {
   });
 
   it('two chained chat() calls with trace: { traceId } land in one trace as sibling spans', async () => {
-    const first = await hub.chat({ model: MODEL, messages: [{ role: 'user', content: 'a' }], provider: providerConfig });
-    await hub.chat({ model: MODEL, messages: [{ role: 'user', content: 'b' }], provider: providerConfig, trace: { traceId: first.gateway.traceId! } });
+    const first = await hub.gateway.chat({ model: MODEL, messages: [{ role: 'user', content: 'a' }], provider: providerConfig });
+    await hub.gateway.chat({ model: MODEL, messages: [{ role: 'user', content: 'b' }], provider: providerConfig, trace: { traceId: first.gateway.traceId! } });
 
-    await hub.flush();
-    const trace = await hub.getTrace(first.gateway.traceId!);
+    await hub.gateway.flush();
+    const trace = await hub.traces.get(first.gateway.traceId!);
     expect(trace.spans).toHaveLength(2);
     expect(trace.spans.every((s) => s.parentSpanId === null)).toBe(true);
   });
@@ -317,7 +317,7 @@ describeLive('BYO trace read-back', () => {
   it('gateway path with trace: true records a SECOND span instead of colliding with the gateway own span', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     try {
-      const result = await hub.chat({
+      const result = await hub.gateway.chat({
         model: MODEL,
         messages: [{ role: 'user', content: 'Say the word "test".' }],
         trace: true,
@@ -327,13 +327,13 @@ describeLive('BYO trace read-back', () => {
 
       // The report is backgrounded, so both the warning check and the read-back have to
       // wait for the queue — a failure would otherwise be warned about after the assert.
-      await hub.flush();
+      await hub.gateway.flush();
 
       // The best-effort trace report must not have failed.
       const traceWarnings = warn.mock.calls.filter((c) => String(c[0]).includes('trace report failed'));
       expect(traceWarnings).toEqual([]);
 
-      const trace = await hub.getTrace(result.gateway.traceId!);
+      const trace = await hub.traces.get(result.gateway.traceId!);
       const llmSpans = flattenSpans(trace.spans).filter((s) => s.kind === 'llm');
       // The gateway's own span for this completion + the client-reported one.
       expect(llmSpans).toHaveLength(2);
@@ -351,10 +351,9 @@ describeLive('BYO trace read-back', () => {
   // relative to `[DONE]` are all provider behaviour a mocked unit test cannot validate.
   it('BYO streaming chat() accumulates a real SSE stream and reports one llm span with usage', async () => {
     const traceId = randomUUID();
-    const stream = await hub.chat({
+    const stream = await hub.gateway.stream({
       model: MODEL,
       messages: [{ role: 'user', content: 'Count from one to five, words only.' }],
-      stream: true,
       provider: providerConfig,
       // The streaming path reports its span after the stream ends and returns no handle
       // to it, so the test supplies the trace id it will read back.
@@ -374,8 +373,8 @@ describeLive('BYO trace read-back', () => {
     expect(content.trim().length).toBeGreaterThan(0);
     expect(finishReason).toBe('stop');
 
-    await hub.flush();
-    const trace = await hub.getTrace(traceId);
+    await hub.gateway.flush();
+    const trace = await hub.traces.get(traceId);
     expect(trace.spans).toHaveLength(1);
     const span = trace.spans[0];
     expect(span.kind).toBe('llm');
@@ -411,7 +410,7 @@ describe('BYO 429 retry (design §4 additional coverage)', () => {
     await new Promise<void>((resolve) => retryServer.listen(0, resolve));
     const { port } = retryServer.address() as { port: number };
 
-    const result = await hub.chat({
+    const result = await hub.gateway.chat({
       model: 'm',
       messages: [{ role: 'user', content: 'hi' }],
       provider: { baseUrl: `http://localhost:${port}`, apiKey: 'k' },

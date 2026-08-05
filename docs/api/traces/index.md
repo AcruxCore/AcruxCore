@@ -88,7 +88,7 @@ Response (status 200):
 No Authorization header (status 401):
 
 ```json
-{ "error": { "code": "UNAUTHORIZED", "message": "API key required." } }
+{ "error": { "code": "UNAUTHORIZED", "message": "Authentication required." } }
 ```
 
 Empty spans array (status 400) — `spans` must have at least 1 element:
@@ -513,66 +513,12 @@ API key requests a trace id that belongs to the first team.
 
 ---
 
-### GET /api/v1/traces/facets
+### Trace facets
 
-Distinct tags and metadata keys in use for the team — a discovery endpoint that
-lets the filter bar populate its pickers from whatever the team has actually
-tagged/annotated, without a hardcoded list. Read-only, any member. Both lists
-are deduped and returned alphabetically (capped at 200 values each). Returns
-empty arrays when the team has no traces.
-
-```bash
-curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
-  "$ACRUXCORE_BASE_URL/traces/facets"
-```
-
-Response (status 200):
-
-```json
-{
-  "tags": ["nl", "prod"],
-  "metadataKeys": ["env", "lang"]
-}
-```
-
-Team-scoped: a second team's tags/keys never appear in the response.
-
----
-
-### GET /api/v1/traces/facets/values
-
-Distinct string values seen for one metadata key, for the team — populates the
-value picker for a chosen metadata-key filter. `key` is required and must be
-non-blank, else `400`. Values are deduped and alphabetical (capped at 200).
-
-```bash
-curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
-  "$ACRUXCORE_BASE_URL/traces/facets/values?key=env"
-```
-
-Response (status 200):
-
-```json
-{
-  "values": ["prod", "staging"]
-}
-```
-
-Missing/blank key returns 400:
-
-```bash
-curl -i "$ACRUXCORE_BASE_URL/traces/facets/values?key="
-```
-
-```text
-HTTP/1.1 400
-```
-
-```json
-{ "error": { "code": "VALIDATION_ERROR", "message": "key is required." } }
-```
-
-Team-scoped: another team's values for the same key never appear.
+Discovering the team's distinct tags and metadata keys/values (for populating
+a filter bar's pickers) is documented separately in
+[Trace Facets](./facets.md) — see that page for `GET /api/v1/traces/facets`
+and `GET /api/v1/traces/facets/values`.
 
 ---
 

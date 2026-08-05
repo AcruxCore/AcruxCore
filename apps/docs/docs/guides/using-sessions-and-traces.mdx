@@ -59,11 +59,11 @@ curl -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
 <TabItem value="node" label="Node (SDK)">
 
 The SDK doesn't call a stored prompt by name in one shot — render it first with
-`renderPrompt()`, then pass the templated messages to `chat()` (no tools) or
-`runToolLoop()` (if the prompt defines tools). Both accept `trace: { sessionId }`
+`hub.prompts.render()`, then pass the templated messages to `hub.gateway.chat()` (no tools) or
+`hub.gateway.runToolLoop()` (if the prompt defines tools). Both accept `trace: { sessionId }`
 to stamp the trace with the session id.
 
-**No tools — `chat()`:**
+**No tools — `hub.gateway.chat()`:**
 
 ```typescript
 import AcruxCore from '@acruxcoreai/sdk';
@@ -78,8 +78,8 @@ const prompts: [string, Record<string, string>][] = [
 ];
 
 for (const [name, variables] of prompts) {
-  const { messages, model, versionId } = await hub.renderPrompt(name, 'production', variables);
-  await hub.chat({
+  const { messages, model, versionId } = await hub.prompts.render(name, 'production', variables);
+  await hub.gateway.chat({
     model: model ?? 'gpt-4o-mini',
     messages,
     promptVersionId: versionId ?? undefined,
@@ -88,12 +88,12 @@ for (const [name, variables] of prompts) {
 }
 ```
 
-**With tools — `runToolLoop()`:**
+**With tools — `hub.gateway.runToolLoop()`:**
 
 ```typescript
 for (const [name, variables] of prompts) {
-  const { messages, model, versionId, tools } = await hub.renderPrompt(name, 'production', variables);
-  await hub.runToolLoop({
+  const { messages, model, versionId, tools } = await hub.prompts.render(name, 'production', variables);
+  await hub.gateway.runToolLoop({
     model: model ?? 'gpt-4o-mini',
     messages,
     tools,
@@ -109,7 +109,7 @@ for (const [name, variables] of prompts) {
 </TabItem>
 <TabItem value="python" label="Python (SDK)">
 
-**No tools — `chat()`:**
+**No tools — `hub.gateway.chat()`:**
 
 ```python
 import asyncio
@@ -126,8 +126,8 @@ async def main():
         ("tour-packing-list-generator", {"days": "3", "destination": "Tokyo"}),
     ]
     for name, variables in prompts:
-        rendered = await hub.render_prompt(name, "production", variables)
-        await hub.chat(
+        rendered = await hub.prompts.render(name, "production", variables)
+        await hub.gateway.chat(
             rendered.model or "gpt-4o-mini",
             rendered.messages,
             prompt_version_id=rendered.version_id,
@@ -138,7 +138,7 @@ async def main():
 asyncio.run(main())
 ```
 
-**With tools — `run_tool_loop()`:**
+**With tools — `hub.gateway.run_tool_loop()`:**
 
 ```python
 async def main():
@@ -150,8 +150,8 @@ async def main():
         ...
 
     for name, variables in prompts:
-        rendered = await hub.render_prompt(name, "production", variables)
-        await hub.run_tool_loop(
+        rendered = await hub.prompts.render(name, "production", variables)
+        await hub.gateway.run_tool_loop(
             rendered.model or "gpt-4o-mini",
             rendered.messages,
             tool_defs=rendered.tools,
@@ -309,10 +309,47 @@ curl -X POST "$ACRUXCORE_BASE_URL/traces/bede0c1b-3d8e-40ef-950d-f5198f453ee7/fe
 it also accepts `"developer"`, `"end_user"`, or `"api"` if you want to record
 where feedback actually came from.
 
+Feedback also aggregates: an average rating grouped by model or prompt
+version, and a team-wide raw feed across every trace.
+
+```bash
+# Average rating + counts, grouped by model
+curl "$ACRUXCORE_BASE_URL/traces/feedback/summary?group_by=model" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{
+  "groupBy": "model",
+  "buckets": [{ "key": "gpt-4o-mini", "count": 2, "avgRating": 0, "downCount": 1 }]
+}
+```
+
+```bash
+# Team-wide feedback feed, newest first
+curl "$ACRUXCORE_BASE_URL/traces/feedback?limit=5" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{
+  "data": [
+    { "id": "68812680-562a-4ef5-8c72-a076da209afe", "traceId": "d65be577-5701-4ea5-97b0-995815d89226", "spanId": null, "rating": -1, "label": "too-verbose", "comment": null, "source": "developer", "createdBy": "a41d471d-7752-4795-bf59-79ef44ac67f3", "createdAt": "2026-08-04T19:26:21.478Z", "updatedAt": "2026-08-04T19:26:21.478Z" },
+    { "id": "5dfcf43a-8ad5-480d-a244-12592542acaa", "traceId": "d65be577-5701-4ea5-97b0-995815d89226", "spanId": null, "rating": 1, "label": "helpful-answer", "comment": "Clear and accurate.", "source": "user", "createdBy": "a41d471d-7752-4795-bf59-79ef44ac67f3", "createdAt": "2026-08-04T19:26:21.459Z", "updatedAt": "2026-08-04T19:26:21.459Z" }
+  ],
+  "total": 2,
+  "page": 1,
+  "limit": 5
+}
+```
+
+`avgRating` counts non-null ratings only (`downCount` is the number rated
+below zero); a group with no feedback yet is simply absent from `buckets`.
+
 </TabItem>
 <TabItem value="node" label="Node (SDK)">
 
-The SDK's `chat()` and `runToolLoop()` take raw `model` + `messages`, not a
+The SDK's `hub.gateway.chat()` and `hub.gateway.runToolLoop()` take raw `model` + `messages`, not a
 stored-prompt reference — so to call a prompt *by name* under a session, use
 the gateway request above. To group your own SDK calls into a session instead,
 pass the same `sessionId` in `trace:` on every call. `runToolLoop` forwards it
@@ -325,17 +362,18 @@ import AcruxCore from '@acruxcoreai/sdk';
 const hub = new AcruxCore();
 
 // Each runToolLoop with the same sessionId lands in the same session.
-const { traceId } = await hub.runToolLoop({
+const { traceId } = await hub.gateway.runToolLoop({
   model: 'gpt-4o-mini',
   messages: [{ role: 'user', content: 'Plan a 3-day trip to Tokyo.' }],
   trace: { sessionId: 'tokyo-trip-plan-01' },
 });
 
-// Read the session back — every trace sharing this sessionId.
-const { data } = await hub.listTraces({ sessionId: 'tokyo-trip-plan-01', limit: 20 });
+// Read the session back — hub.sessions, not hub.traces.list.
+const { data } = await hub.sessions.list({ q: 'tokyo' });
+const detail = await hub.sessions.get('tokyo-trip-plan-01');
 
 // Leave feedback on the trace.
-await hub.submitFeedback({
+await hub.traces.submitFeedback({
   traceId,
   rating: 1,
   label: 'helpful-packing-list',
@@ -343,8 +381,43 @@ await hub.submitFeedback({
 });
 ```
 
-There's no `getSession` on the SDK — `listTraces({ sessionId })` is how you pull
-every trace in a session from code.
+Real output for the two session reads above, from a session with three
+tour-planner traces already in it:
+
+```json
+// hub.sessions.list({ q: 'tokyo' })
+{
+  "data": [
+    { "sessionId": "tokyo-trip-plan-01", "traceCount": 3, "totalCostUsd": null, "totalTokens": 387, "firstAt": "2026-08-04T19:28:33.000Z", "lastAt": "2026-08-04T19:38:26.000Z" }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 20
+}
+```
+
+```json
+// hub.sessions.get('tokyo-trip-plan-01')
+{
+  "session": { "sessionId": "tokyo-trip-plan-01", "traceCount": 3, "totalCostUsd": null, "totalTokens": 387, "firstAt": "2026-08-04T19:28:33.000Z", "lastAt": "2026-08-04T19:38:26.000Z" },
+  "traces": [
+    { "id": "725cc929-682a-455c-80c1-ce2cd6b92a08", "name": "tour-budget-estimator call", "sessionId": "tokyo-trip-plan-01", "status": "ok", "startedAt": "2026-08-04T19:38:26.000Z", "endedAt": "2026-08-04T19:38:26.000Z", "spanCount": 1, "totalCostUsd": null, "totalTokens": 90, "tags": [] },
+    { "id": "80b3dbaa-2429-421f-b9b5-71c1e1f43775", "name": "tour-packing-list-generator call", "sessionId": "tokyo-trip-plan-01", "status": "ok", "startedAt": "2026-08-04T19:38:26.000Z", "endedAt": "2026-08-04T19:38:26.000Z", "spanCount": 1, "totalCostUsd": null, "totalTokens": 177, "tags": [] },
+    { "id": "c59981ab-9c28-433c-b54f-cef6ca55accf", "name": "tour-itinerary-planner call", "sessionId": "tokyo-trip-plan-01", "status": "ok", "startedAt": "2026-08-04T19:28:33.000Z", "endedAt": "2026-08-04T19:28:33.000Z", "spanCount": 1, "totalCostUsd": null, "totalTokens": 120, "tags": [] }
+  ]
+}
+```
+
+Feedback aggregates the same way as the curl example above:
+
+```typescript
+const summary = await hub.traces.getFeedbackSummary({ groupBy: 'model' });
+console.log(summary);
+// { groupBy: 'model', buckets: [ { key: 'gpt-4o-mini', count: 2, avgRating: 0, downCount: 1 } ] }
+
+const feedback = await hub.traces.listFeedback({ limit: 5 });
+console.log(feedback.total); // 2
+```
 
 </TabItem>
 
@@ -359,29 +432,48 @@ async def main():
     hub = AcruxCore()
 
     # Each run_tool_loop with the same session_id lands in the same session.
-    result = await hub.run_tool_loop(
+    result = await hub.gateway.run_tool_loop(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": "Plan a 3-day trip to Tokyo."}],
         trace={"session_id": "tokyo-trip-plan-01"},
     )
 
-    # Read the session back — every trace sharing this session_id.
-    page = await hub.list_traces(session_id="tokyo-trip-plan-01", limit=20)
+    # Read the session back — hub.sessions, not hub.traces.list.
+    sessions = await hub.sessions.list(q="tokyo")
+    detail = await hub.sessions.get("tokyo-trip-plan-01")
 
     # Leave feedback on the trace.
-    await hub.submit_feedback(
+    await hub.traces.submit_feedback(
         result.trace_id,
         rating=1,
         label="helpful-packing-list",
         comment="Covers layering and rain gear well for Tokyo autumn.",
     )
 
+    # Feedback aggregates the same way as the curl example above.
+    summary = await hub.traces.get_feedback_summary(group_by="model")
+    feedback = await hub.traces.list_feedback(limit=5)
+
 
 asyncio.run(main())
 ```
 
-There's no `get_session` on the SDK — `list_traces(session_id=...)` is how you
-pull every trace in a session from code.
+Real output for `sessions`, `detail`, `summary`, and `feedback.total` above,
+same session as the Node example:
+
+```python
+>>> sessions
+SessionListResult(data=[SessionSummary(session_id='tokyo-trip-plan-01', trace_count=3, total_cost_usd=None, total_tokens=387, first_at='2026-08-04T19:28:33.000Z', last_at='2026-08-04T19:38:26.000Z')], total=1, page=1, limit=20)
+
+>>> detail
+SessionDetailResult(session=SessionSummary(session_id='tokyo-trip-plan-01', trace_count=3, total_cost_usd=None, total_tokens=387, first_at='2026-08-04T19:28:33.000Z', last_at='2026-08-04T19:38:26.000Z'), traces=[SessionTraceItem(id='725cc929-682a-455c-80c1-ce2cd6b92a08', name='tour-budget-estimator call', session_id='tokyo-trip-plan-01', status='ok', started_at='2026-08-04T19:38:26.000Z', ended_at='2026-08-04T19:38:26.000Z', span_count=1, total_cost_usd=None, total_tokens=90, tags=[]), SessionTraceItem(id='80b3dbaa-2429-421f-b9b5-71c1e1f43775', name='tour-packing-list-generator call', session_id='tokyo-trip-plan-01', status='ok', started_at='2026-08-04T19:38:26.000Z', ended_at='2026-08-04T19:38:26.000Z', span_count=1, total_cost_usd=None, total_tokens=177, tags=[]), SessionTraceItem(id='c59981ab-9c28-433c-b54f-cef6ca55accf', name='tour-itinerary-planner call', session_id='tokyo-trip-plan-01', status='ok', started_at='2026-08-04T19:28:33.000Z', ended_at='2026-08-04T19:28:33.000Z', span_count=1, total_cost_usd=None, total_tokens=120, tags=[])])
+
+>>> summary
+FeedbackSummaryResult(group_by='model', buckets=[FeedbackBucket(key='gpt-4o-mini', count=2, avg_rating=0, down_count=1)])
+
+>>> feedback.total
+2
+```
 
 </TabItem>
 </Tabs>
@@ -393,5 +485,8 @@ pull every trace in a session from code.
 - Turn feedback into training data: [evaluate a prompt](./evaluate-a-prompt).
 - Stream responses and run a traced tool-calling loop from Node:
   [chat, stream, and collect feedback with the SDK](./use-the-sdk-for-chat-and-feedback).
+- Now that you have traces and sessions, see the aggregate picture:
+  [View trace analytics](./view-trace-analytics) — `group_by=session`
+  reads the same session ids this guide sets up.
 - Full field reference: **Sessions** and **Traces** in the
   [API Reference](/api-reference).

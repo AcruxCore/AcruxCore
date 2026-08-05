@@ -170,28 +170,28 @@ describe('acruxcore.renderPrompt', () => {
 
   it('returns messages array on success', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(makeOkResponse());
-    const result = await hub.renderPrompt('my-prompt', 'production', { name: 'Alice' });
+    const result = await hub.prompts.render('my-prompt', 'production', { name: 'Alice' });
     expect(result.messages).toEqual([{ role: 'user', content: 'Hello' }]);
   });
 
   it('renders a prompt and returns messages + tools', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ messages: [{ role: 'user', content: 'Hello' }], tools: [{ type: 'function', function: { name: 'get_weather' } }] }), { status: 200, headers: { 'content-type': 'application/json' } }));
-    const result = await hub.renderPrompt('greeting', 'production', {});
+    const result = await hub.prompts.render('greeting', 'production', {});
     expect(result.messages).toEqual([{ role: 'user', content: 'Hello' }]);
     expect(result.tools).toEqual([{ type: 'function', function: { name: 'get_weather' } }]);
   });
 
   it('defaults tools to [] when the response omits them', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ messages: [{ role: 'user', content: 'Hi' }] }), { status: 200, headers: { 'content-type': 'application/json' } }));
-    const result = await hub.renderPrompt('greeting', 'production', {});
+    const result = await hub.prompts.render('greeting', 'production', {});
     expect(result.tools).toEqual([]);
   });
 
   it('returns the version bound model, and null when the response omits it', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ messages: [{ role: 'user', content: 'Hi' }], model: 'gpt-4o-mini' }), { status: 200, headers: { 'content-type': 'application/json' } }));
-    expect((await hub.renderPrompt('bound-model-prompt', 'production')).model).toBe('gpt-4o-mini');
+    expect((await hub.prompts.render('bound-model-prompt', 'production')).model).toBe('gpt-4o-mini');
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ messages: [{ role: 'user', content: 'Hi' }] }), { status: 200, headers: { 'content-type': 'application/json' } }));
-    expect((await hub.renderPrompt('no-model-prompt', 'production')).model).toBeNull();
+    expect((await hub.prompts.render('no-model-prompt', 'production')).model).toBeNull();
   });
 
   it('returns versionId and versionNumber from the render response', async () => {
@@ -203,7 +203,7 @@ describe('acruxcore.renderPrompt', () => {
       }),
       { status: 200, headers: { 'content-type': 'application/json' } },
     ));
-    const result = await hub.renderPrompt('greeting', 'production', {});
+    const result = await hub.prompts.render('greeting', 'production', {});
     expect(result.versionId).toBe('v-123');
     expect(result.versionNumber).toBe(4);
   });
@@ -213,14 +213,14 @@ describe('acruxcore.renderPrompt', () => {
       JSON.stringify({ messages: [{ role: 'user', content: 'Hello' }] }),
       { status: 200, headers: { 'content-type': 'application/json' } },
     ));
-    const result = await hub.renderPrompt('greeting', 'production', {});
+    const result = await hub.prompts.render('greeting', 'production', {});
     expect(result.versionId).toBeNull();
     expect(result.versionNumber).toBeNull();
   });
 
   it('calls POST /prompts/:name/:alias/render with correct headers and body', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(makeOkResponse());
-    await hub.renderPrompt('my-prompt', 'production', { name: 'Alice' });
+    await hub.prompts.render('my-prompt', 'production', { name: 'Alice' });
 
     const [url, init] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit];
     expect(url).toBe('http://localhost:3000/prompts/my-prompt/production/render');
@@ -231,15 +231,15 @@ describe('acruxcore.renderPrompt', () => {
 
   it('defaults variables to {} when not provided', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(makeOkResponse());
-    await hub.renderPrompt('my-prompt', 'production');
+    await hub.prompts.render('my-prompt', 'production');
     const [, init] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit];
     expect(JSON.parse(init.body as string)).toEqual({ variables: {} });
   });
 
   it('caches the result — repeating the same variables does not hit fetch', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(makeOkResponse());
-    await hub.renderPrompt('my-prompt', 'production', { name: 'Alice' });
-    await hub.renderPrompt('my-prompt', 'production', { name: 'Alice' });
+    await hub.prompts.render('my-prompt', 'production', { name: 'Alice' });
+    await hub.prompts.render('my-prompt', 'production', { name: 'Alice' });
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
@@ -248,8 +248,8 @@ describe('acruxcore.renderPrompt', () => {
       .mockResolvedValueOnce(makeOkResponse([{ role: 'user', content: 'Hello Alice' }]))
       .mockResolvedValueOnce(makeOkResponse([{ role: 'user', content: 'Hello Bob' }]));
 
-    const alice = await hub.renderPrompt('my-prompt', 'production', { name: 'Alice' });
-    const bob = await hub.renderPrompt('my-prompt', 'production', { name: 'Bob' });
+    const alice = await hub.prompts.render('my-prompt', 'production', { name: 'Alice' });
+    const bob = await hub.prompts.render('my-prompt', 'production', { name: 'Bob' });
 
     expect(alice.messages[0].content).toBe('Hello Alice');
     expect(bob.messages[0].content).toBe('Hello Bob');
@@ -258,8 +258,8 @@ describe('acruxcore.renderPrompt', () => {
 
   it('treats the same variables in a different key order as one cache entry', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(makeOkResponse());
-    await hub.renderPrompt('my-prompt', 'production', { name: 'Alice', city: 'Lahore' });
-    await hub.renderPrompt('my-prompt', 'production', { city: 'Lahore', name: 'Alice' });
+    await hub.prompts.render('my-prompt', 'production', { name: 'Alice', city: 'Lahore' });
+    await hub.prompts.render('my-prompt', 'production', { city: 'Lahore', name: 'Alice' });
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
@@ -274,8 +274,8 @@ describe('acruxcore.renderPrompt', () => {
       cacheTtl: 0,
     });
 
-    const first = await uncached.renderPrompt('my-prompt', 'production');
-    const second = await uncached.renderPrompt('my-prompt', 'production');
+    const first = await uncached.prompts.render('my-prompt', 'production');
+    const second = await uncached.prompts.render('my-prompt', 'production');
 
     expect(first.messages[0].content).toBe('v1');
     expect(second.messages[0].content).toBe('v2');
@@ -290,7 +290,7 @@ describe('acruxcore.renderPrompt', () => {
       cacheTtl: 0,
     });
 
-    await uncached.renderPrompt('my-prompt', 'production');
+    await uncached.prompts.render('my-prompt', 'production');
 
     expect(getCache(500).size).toBe(0);
   });
@@ -303,8 +303,8 @@ describe('acruxcore.renderPrompt', () => {
       Promise.resolve(makeOkResponse()),
     );
 
-    await hub.renderPrompt('my-prompt', 'production');
-    await hub2.renderPrompt('my-prompt', 'production');
+    await hub.prompts.render('my-prompt', 'production');
+    await hub2.prompts.render('my-prompt', 'production');
 
     expect(global.fetch).toHaveBeenCalledTimes(2);
   });
@@ -314,13 +314,13 @@ describe('acruxcore.renderPrompt', () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
       new Response(JSON.stringify(body), { status: 400 }),
     );
-    await expect(hub.renderPrompt('my-prompt', 'production', {}))
+    await expect(hub.prompts.render('my-prompt', 'production', {}))
       .rejects.toThrow(acruxcoreError);
     try {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
         new Response(JSON.stringify(body), { status: 400 }),
       );
-      await hub.renderPrompt('my-prompt', 'production', {});
+      await hub.prompts.render('my-prompt', 'production', {});
     } catch (err) {
       const e = err as acruxcoreError;
       expect(e.code).toBe('MISSING_VARIABLES');
@@ -333,7 +333,7 @@ describe('acruxcore.renderPrompt', () => {
       new Response('{"error":"Unauthorized"}', { status: 401 }),
     );
     try {
-      await hub.renderPrompt('my-prompt', 'production');
+      await hub.prompts.render('my-prompt', 'production');
     } catch (err) {
       const e = err as acruxcoreError;
       expect(e.code).toBe('API_ERROR');
@@ -346,7 +346,7 @@ describe('acruxcore.renderPrompt', () => {
       new Response('{"error":"Not found"}', { status: 404 }),
     );
     try {
-      await hub.renderPrompt('my-prompt', 'production');
+      await hub.prompts.render('my-prompt', 'production');
     } catch (err) {
       const e = err as acruxcoreError;
       expect(e.code).toBe('API_ERROR');
@@ -358,7 +358,7 @@ describe('acruxcore.renderPrompt', () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('ECONNREFUSED'));
     const hubNoRetry = new acruxcore({ apiKey: 'k', baseUrl: 'http://localhost:3000', maxRetries: 0, retryInterval: 0 });
     try {
-      await hubNoRetry.renderPrompt('my-prompt', 'production');
+      await hubNoRetry.prompts.render('my-prompt', 'production');
     } catch (err) {
       expect((err as acruxcoreError).code).toBe('NETWORK_ERROR');
     }
@@ -376,14 +376,14 @@ describe('acruxcore.renderPrompt', () => {
       maxRetries: 0,
       retryInterval: 0,
     });
-    await hub3.renderPrompt('my-prompt', 'production');
+    await hub3.prompts.render('my-prompt', 'production');
 
     // Wait for cacheTtl to expire
     await new Promise((r) => setTimeout(r, 5));
 
     (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('offline'));
 
-    const result = await hub3.renderPrompt('my-prompt', 'production');
+    const result = await hub3.prompts.render('my-prompt', 'production');
     expect(result.messages).toEqual([{ role: 'user', content: 'Hello' }]);
 
     // Drain the microtask queue so the background refresh .catch() fires
@@ -429,7 +429,7 @@ describe('runToolLoop', () => {
     vi.mocked(fetch).mockResolvedValueOnce(first).mockResolvedValueOnce(second).mockResolvedValueOnce(traceAcceptedResponse());
 
     const dispatched: { name: string; args: unknown }[] = [];
-    const result = await hub.runToolLoop({
+    const result = await hub.gateway.runToolLoop({
       model: 'm',
       messages: [{ role: 'user', content: 'weather in Paris?' }],
       toolDefs: [{ type: 'function', function: { name: 'get_weather' } }],
@@ -484,7 +484,7 @@ describe('runToolLoop', () => {
       return completions[cIdx++];
     });
 
-    const result = await hub.runToolLoop({
+    const result = await hub.gateway.runToolLoop({
       model: 'm',
       messages: [{ role: 'user', content: 'weather in Paris?' }],
       toolDefs: [{ type: 'function', function: { name: 'get_weather' } }],
@@ -522,7 +522,7 @@ describe('runToolLoop', () => {
     }), { status: 200, headers: { 'content-type': 'application/json', 'x-gateway-trace-id': 'gw' } });
     vi.mocked(fetch).mockResolvedValueOnce(done);
 
-    await hub.runToolLoop({
+    await hub.gateway.runToolLoop({
       model: 'm',
       messages: [{ role: 'user', content: 'hi' }],
       dispatch: () => ({}),
@@ -539,7 +539,7 @@ describe('runToolLoop', () => {
     }), { status: 200, headers: { 'content-type': 'application/json' } });
     vi.mocked(fetch).mockResolvedValueOnce(first);
 
-    const result = await hub.runToolLoop({
+    const result = await hub.gateway.runToolLoop({
       model: 'm',
       messages: [{ role: 'user', content: 'hi' }],
       dispatch: () => ({}),
@@ -558,7 +558,7 @@ describe('runToolLoop', () => {
     vi.mocked(fetch).mockResolvedValueOnce(done);
 
     const schema = { type: 'json_schema' as const, json_schema: { name: 'final_answer', schema: { type: 'object' }, strict: true } };
-    const result = await hub.runToolLoop({
+    const result = await hub.gateway.runToolLoop({
       model: 'm',
       messages: [{ role: 'user', content: 'summarize' }],
       responseFormat: schema,
@@ -581,7 +581,7 @@ describe('runToolLoop', () => {
       { status: 200, headers: { 'content-type': 'application/json' } },
     ));
 
-    await hub.chat({
+    await hub.gateway.chat({
       model: 'm',
       messages: [{ role: 'user', content: 'hi' }],
       responseFormat: { zod: weatherSchema, name: 'weather_answer' },
@@ -601,7 +601,7 @@ describe('runToolLoop', () => {
     }), { status: 200, headers: { 'content-type': 'application/json' } });
     vi.mocked(fetch).mockResolvedValueOnce(done);
 
-    const result = await hub.runToolLoop({
+    const result = await hub.gateway.runToolLoop({
       model: 'm',
       messages: [{ role: 'user', content: 'summarize' }],
       responseFormat: { zod: weatherSchema, name: 'weather_answer', strict: false },
@@ -636,7 +636,7 @@ describe('runToolLoop', () => {
       return completions[cIdx++];
     });
 
-    const result = await hub.runToolLoop({
+    const result = await hub.gateway.runToolLoop({
       model: 'm',
       messages: [{ role: 'user', content: 'weather in Paris?' }],
       toolDefs: [{ type: 'function', function: { name: 'get_weather' } }],
@@ -664,7 +664,7 @@ describe('runToolLoop', () => {
   it('stops at maxIterations and flags it', async () => {
     const calling = () => new Response(JSON.stringify({ id: 'x', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: null, tool_calls: [{ id: 't', type: 'function', function: { name: 'f', arguments: '{}' } }] }, finish_reason: 'tool_calls' }], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } }), { status: 200, headers: { 'content-type': 'application/json' } });
     vi.mocked(fetch).mockImplementation(async (url) => (typeof url === 'string' && url.endsWith('/traces') ? traceAcceptedResponse() : calling()));
-    const result = await hub.runToolLoop({ model: 'm', messages: [{ role: 'user', content: 'go' }], toolDefs: [{ type: 'function', function: { name: 'f' } }], dispatch: () => ({}), maxIterations: 3 });
+    const result = await hub.gateway.runToolLoop({ model: 'm', messages: [{ role: 'user', content: 'go' }], toolDefs: [{ type: 'function', function: { name: 'f' } }], dispatch: () => ({}), maxIterations: 3 });
     expect(result.stoppedAtLimit).toBe(true);
     expect(result.iterations).toBe(3);
   });
@@ -678,7 +678,7 @@ describe('runToolLoop', () => {
     }), { status: 200, headers: { 'content-type': 'application/json' } });
     vi.mocked(fetch).mockResolvedValueOnce(first).mockResolvedValueOnce(second).mockResolvedValueOnce(traceAcceptedResponse());
 
-    const result = await hub.runToolLoop({
+    const result = await hub.gateway.runToolLoop({
       model: 'm',
       messages: [{ role: 'user', content: 'log this' }],
       toolDefs: [{ type: 'function', function: { name: 'log_event' } }],
@@ -710,7 +710,7 @@ describe('runToolLoop', () => {
     const bStarted = new Promise<void>((res) => { markBStarted = res; });
     const events: string[] = [];
 
-    const result = await hub.runToolLoop({
+    const result = await hub.gateway.runToolLoop({
       model: 'm',
       messages: [{ role: 'user', content: 'go' }],
       toolDefs: [{ type: 'function', function: { name: 'a' } }, { type: 'function', function: { name: 'b' } }],
@@ -764,7 +764,7 @@ describe('runToolLoop with provider (BYO)', () => {
       .mockResolvedValueOnce(traceResp())
       .mockResolvedValueOnce(traceResp());
 
-    const result = await hub.runToolLoop({
+    const result = await hub.gateway.runToolLoop({
       model: 'm',
       messages: [{ role: 'user', content: 'weather in Paris?' }],
       toolDefs: [{ type: 'function', function: { name: 'get_weather' } }],
@@ -778,7 +778,7 @@ describe('runToolLoop with provider (BYO)', () => {
     // the wire by the time a tool could dispatch mid-loop (I5). Nothing is awaited, so
     // how many requests carry those spans is emergent — assert the spans and their
     // order across whichever requests carried them, not a fixed request count.
-    await hub.flush();
+    await hub.gateway.flush();
 
     const calls = vi.mocked(fetch).mock.calls as unknown as [string, RequestInit][];
     expect(calls.map(([url]) => url).filter((url) => url.endsWith('/chat/completions'))).toHaveLength(2);
@@ -816,7 +816,7 @@ describe('runToolLoop with provider (BYO)', () => {
     }), { status: 200, headers: { 'content-type': 'application/json' } }));
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ accepted: 1, traceIds: ['t1'] }), { status: 200, headers: { 'content-type': 'application/json' } }));
 
-    await hub.runToolLoop({
+    await hub.gateway.runToolLoop({
       model: 'm',
       messages: [{ role: 'user', content: 'weather?' }],
       toolRefs: [{ name: 'get_weather' }],
@@ -872,7 +872,7 @@ describe('acruxcore.chat', () => {
       },
     ));
 
-    const result = await hub.chat({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'Say hi' }] });
+    const result = await hub.gateway.chat({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'Say hi' }] });
 
     expect(result.content).toBe('Hello!');
     expect(result.finishReason).toBe('stop');
@@ -892,7 +892,7 @@ describe('acruxcore.chat', () => {
       { status: 200, headers: { 'content-type': 'application/json' } },
     ));
 
-    const result = await hub.chat({ model: 'm', messages: [{ role: 'user', content: 'weather?' }], tools: [{ type: 'function', function: { name: 'get_weather' } }] });
+    const result = await hub.gateway.chat({ model: 'm', messages: [{ role: 'user', content: 'weather?' }], tools: [{ type: 'function', function: { name: 'get_weather' } }] });
     expect(result.finishReason).toBe('tool_calls');
     expect(result.message.tool_calls).toEqual([{ id: 't1', type: 'function', function: { name: 'get_weather', arguments: '{"city":"Paris"}' } }]);
   });
@@ -903,7 +903,7 @@ describe('acruxcore.chat', () => {
       { status: 200, headers: { 'content-type': 'application/json' } },
     ));
 
-    await hub.chat({
+    await hub.gateway.chat({
       model: 'm',
       messages: [{ role: 'user', content: 'hi' }],
       tools: [{ type: 'function', function: { name: 'f' } }],
@@ -932,7 +932,7 @@ describe('acruxcore.chat', () => {
       { status: 200, headers: { 'content-type': 'application/json' } },
     ));
 
-    await hub.chat({
+    await hub.gateway.chat({
       model: 'm',
       messages: [{ role: 'user', content: 'hi' }],
       responseFormat: { type: 'json_schema', json_schema: { name: 'ok', schema: { type: 'object' }, strict: true } },
@@ -951,7 +951,7 @@ describe('acruxcore.chat', () => {
       JSON.stringify({ error: { code: 'MODEL_NOT_ALLOWED', message: 'nope' } }),
       { status: 403 },
     ));
-    await expect(hub.chat({ model: 'm', messages: [{ role: 'user', content: 'hi' }] })).rejects.toThrow(acruxcoreError);
+    await expect(hub.gateway.chat({ model: 'm', messages: [{ role: 'user', content: 'hi' }] })).rejects.toThrow(acruxcoreError);
   });
 
   it('streams SSE chunks and stops at [DONE]', async () => {
@@ -971,7 +971,7 @@ describe('acruxcore.chat', () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(stream, { status: 200, headers: { 'content-type': 'text/event-stream' } }));
 
     const chunks = [];
-    for await (const chunk of await hub.chat({ model: 'm', messages: [{ role: 'user', content: 'count' }], stream: true })) {
+    for await (const chunk of await hub.gateway.stream({ model: 'm', messages: [{ role: 'user', content: 'count' }] })) {
       chunks.push(chunk);
     }
 
@@ -1011,7 +1011,7 @@ describe('acruxcore.chat with provider (BYO)', () => {
       { status: 200, headers: { 'content-type': 'application/json' } },
     ));
 
-    const result = await hub.chat({
+    const result = await hub.gateway.chat({
       model: 'llama-3.1-70b',
       messages: [{ role: 'user', content: 'hi' }],
       provider: { baseUrl: 'https://api.groq.com/openai/v1', apiKey: 'groq-secret-key' },
@@ -1037,7 +1037,7 @@ describe('acruxcore.chat with provider (BYO)', () => {
       { status: 200, headers: { 'content-type': 'application/json' } },
     ));
 
-    const result = await hub.chat({
+    const result = await hub.gateway.chat({
       model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: 'hi' }],
       provider: { baseUrl: 'https://api.openai.com/v1', apiKey: 'sk-real' },
@@ -1064,7 +1064,7 @@ describe('acruxcore.chat with provider (BYO)', () => {
       JSON.stringify({ id: 'c1', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }] }),
       { status: 200, headers: { 'content-type': 'application/json' } },
     ));
-    await hubWithDefault.chat({ model: 'm', messages: [{ role: 'user', content: 'hi' }], trace: false });
+    await hubWithDefault.gateway.chat({ model: 'm', messages: [{ role: 'user', content: 'hi' }], trace: false });
     const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://api.groq.com/openai/v1/chat/completions');
   });
@@ -1079,7 +1079,7 @@ describe('acruxcore.chat with provider (BYO)', () => {
       JSON.stringify({ id: 'c1', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }] }),
       { status: 200, headers: { 'content-type': 'application/json' } },
     ));
-    await hubWithDefault.chat({
+    await hubWithDefault.gateway.chat({
       model: 'm',
       messages: [{ role: 'user', content: 'hi' }],
       provider: { baseUrl: 'https://api.together.xyz/v1', apiKey: 'together-key' },
@@ -1094,7 +1094,7 @@ describe('acruxcore.chat with provider (BYO)', () => {
       JSON.stringify({ error: { message: 'invalid_api_key' } }),
       { status: 401 },
     ));
-    await expect(hub.chat({
+    await expect(hub.gateway.chat({
       model: 'm',
       messages: [{ role: 'user', content: 'hi' }],
       provider: { baseUrl: 'https://api.openai.com/v1', apiKey: 'bad-key' },
@@ -1114,7 +1114,7 @@ describe('acruxcore.chat with provider (BYO)', () => {
       ))
       .mockResolvedValueOnce(new Response(JSON.stringify({ accepted: 1, traceIds: ['minted-trace'] }), { status: 200, headers: { 'content-type': 'application/json' } }));
 
-    await hub.chat({
+    await hub.gateway.chat({
       model: 'm',
       messages: [{ role: 'user', content: 'hi' }],
       provider: { baseUrl: 'https://api.openai.com/v1', apiKey: 'sk-x' },
@@ -1145,7 +1145,7 @@ describe('acruxcore.chat with provider (BYO)', () => {
       ))
       .mockResolvedValueOnce(new Response(JSON.stringify({ accepted: 1, traceIds: ['t1'] }), { status: 200, headers: { 'content-type': 'application/json' } }));
 
-    const result = await hub.chat({
+    const result = await hub.gateway.chat({
       model: 'm',
       messages: [{ role: 'user', content: 'hi' }],
       provider: { baseUrl: 'https://api.openai.com/v1', apiKey: 'k' },
@@ -1177,7 +1177,7 @@ describe('acruxcore.chat with provider (BYO)', () => {
       ))
       .mockResolvedValueOnce(new Response(JSON.stringify({ accepted: 1, traceIds: ['gw-trace'] }), { status: 200, headers: { 'content-type': 'application/json' } }));
 
-    await hub.chat({ model: 'm', messages: [{ role: 'user', content: 'hi' }], trace: true });
+    await hub.gateway.chat({ model: 'm', messages: [{ role: 'user', content: 'hi' }], trace: true });
 
     const body = JSON.parse((vi.mocked(fetch).mock.calls[1] as [string, RequestInit])[1].body as string);
     // Same trace (that is the point of opting in) but a DIFFERENT span id.
@@ -1191,7 +1191,7 @@ describe('acruxcore.chat with provider (BYO)', () => {
       JSON.stringify({ id: 'c1', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'hi' }, finish_reason: 'stop' }] }),
       { status: 200, headers: { 'content-type': 'application/json' } },
     ));
-    await hub.chat({
+    await hub.gateway.chat({
       model: 'm',
       messages: [{ role: 'user', content: 'hi' }],
       provider: { baseUrl: 'https://api.openai.com/v1', apiKey: 'sk-x' },
@@ -1213,8 +1213,8 @@ describe('acruxcore.chat with provider (BYO)', () => {
       ))
       .mockResolvedValueOnce(new Response(JSON.stringify({ accepted: 1, traceIds: ['t1'] }), { status: 200, headers: { 'content-type': 'application/json' } }));
 
-    const first = await hub.chat({ model: 'm', messages: [{ role: 'user', content: 'a' }], provider: { baseUrl: 'https://api.openai.com/v1', apiKey: 'k' } });
-    await hub.chat({
+    const first = await hub.gateway.chat({ model: 'm', messages: [{ role: 'user', content: 'a' }], provider: { baseUrl: 'https://api.openai.com/v1', apiKey: 'k' } });
+    await hub.gateway.chat({
       model: 'm',
       messages: [{ role: 'user', content: 'b' }],
       provider: { baseUrl: 'https://api.openai.com/v1', apiKey: 'k' },
@@ -1222,7 +1222,7 @@ describe('acruxcore.chat with provider (BYO)', () => {
     });
     // Auto-reports are backgrounded now, so wait for the queue before reading the
     // requests it made.
-    await hub.flush();
+    await hub.gateway.flush();
 
     // How many requests carried the two spans is emergent — the queue coalesces
     // whatever piles up behind a request already in flight, and two entries sharing a
@@ -1254,11 +1254,10 @@ describe('acruxcore.chat with provider (BYO)', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ accepted: 1, traceIds: ['t1'] }), { status: 200, headers: { 'content-type': 'application/json' } }));
 
     const chunks: string[] = [];
-    for await (const chunk of await hub.chat({
+    for await (const chunk of await hub.gateway.stream({
       model: 'm',
       messages: [{ role: 'user', content: 'hi' }],
       provider: { baseUrl: 'https://api.groq.com/openai/v1', apiKey: 'k' },
-      stream: true,
     })) {
       if (chunk.delta.content) chunks.push(chunk.delta.content);
     }
@@ -1295,11 +1294,10 @@ describe('acruxcore.chat with provider (BYO)', () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(stream, { status: 200, headers: { 'content-type': 'text/event-stream' } }));
 
     const chunks: string[] = [];
-    for await (const chunk of await hub.chat({
+    for await (const chunk of await hub.gateway.stream({
       model: 'm',
       messages: [{ role: 'user', content: 'hi' }],
       provider: { baseUrl: 'https://api.groq.com/openai/v1', apiKey: 'k' },
-      stream: true,
       trace: false,
     })) {
       if (chunk.delta.content) chunks.push(chunk.delta.content);
@@ -1330,11 +1328,10 @@ describe('acruxcore.chat with provider (BYO)', () => {
 
     // The raw chunks a caller sees still forward each delta as-is, unmerged.
     const rawToolCallDeltas: unknown[] = [];
-    for await (const chunk of await hub.chat({
+    for await (const chunk of await hub.gateway.stream({
       model: 'm',
       messages: [{ role: 'user', content: 'weather in NYC' }],
       provider: { baseUrl: 'https://api.groq.com/openai/v1', apiKey: 'k' },
-      stream: true,
     })) {
       const delta = chunk.delta as { tool_calls?: unknown[] };
       if (delta.tool_calls) rawToolCallDeltas.push(delta.tool_calls);
@@ -1353,7 +1350,7 @@ describe('acruxcore.chat with provider (BYO)', () => {
   });
 
   it('throws MISSING_API_KEY before any network call when provider.apiKey is empty', async () => {
-    await expect(hub.chat({
+    await expect(hub.gateway.chat({
       model: 'm',
       messages: [{ role: 'user', content: 'hi' }],
       provider: { baseUrl: 'https://api.openai.com/v1', apiKey: '' },
@@ -1362,7 +1359,7 @@ describe('acruxcore.chat with provider (BYO)', () => {
   });
 
   it('throws MISSING_BASE_URL before any network call when provider.baseUrl is empty', async () => {
-    await expect(hub.chat({
+    await expect(hub.gateway.chat({
       model: 'm',
       messages: [{ role: 'user', content: 'hi' }],
       provider: { baseUrl: '', apiKey: 'k' },
@@ -1371,11 +1368,10 @@ describe('acruxcore.chat with provider (BYO)', () => {
   });
 
   it('throws MISSING_API_KEY before streaming when provider.apiKey is empty', async () => {
-    const result = hub.chat({
+    const result = hub.gateway.stream({
       model: 'm',
       messages: [{ role: 'user', content: 'hi' }],
       provider: { baseUrl: 'https://api.openai.com/v1', apiKey: '' },
-      stream: true,
     });
 
     await expect((async () => {
@@ -1408,7 +1404,7 @@ describe('acruxcore feedback + trace read-back', () => {
     const row = { id: 'f1', traceId: 't1', spanId: null, rating: 1, label: null, comment: null, source: 'user', createdBy: 'u1', createdAt: 'x', updatedAt: 'x' };
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(row), { status: 201, headers: { 'content-type': 'application/json' } }));
 
-    const result = await hub.submitFeedback({ traceId: 't1', rating: 1 });
+    const result = await hub.traces.submitFeedback({ traceId: 't1', rating: 1 });
     expect(result).toEqual(row);
 
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
@@ -1420,7 +1416,7 @@ describe('acruxcore feedback + trace read-back', () => {
     const row = { id: 'f1', traceId: 't1', spanId: null, rating: -1, label: null, comment: null, source: 'user', createdBy: 'u1', createdAt: 'x', updatedAt: 'y' };
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(row), { status: 200, headers: { 'content-type': 'application/json' } }));
 
-    const result = await hub.updateFeedback({ traceId: 't1', feedbackId: 'f1', rating: -1 });
+    const result = await hub.traces.updateFeedback({ traceId: 't1', feedbackId: 'f1', rating: -1 });
     expect(result.rating).toBe(-1);
 
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
@@ -1433,7 +1429,7 @@ describe('acruxcore feedback + trace read-back', () => {
     const body = { trace: { id: 't1', name: 'run', sessionId: null, status: 'ok', startedAt: 'x', endedAt: 'y', spanCount: 1, totalCostUsd: null, totalTokens: null }, spans: [] };
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } }));
 
-    const result = await hub.getTrace('t1');
+    const result = await hub.traces.get('t1');
     expect(result).toEqual(body);
 
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
@@ -1444,7 +1440,7 @@ describe('acruxcore feedback + trace read-back', () => {
   it('listTraces GETs /traces with filters serialized as query params', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ data: [], total: 0, page: 1, limit: 20 }), { status: 200, headers: { 'content-type': 'application/json' } }));
 
-    await hub.listTraces({ status: 'ok', model: 'gpt-4o-mini', sessionId: 's1', page: 2, limit: 10 });
+    await hub.traces.list({ status: 'ok', model: 'gpt-4o-mini', sessionId: 's1', page: 2, limit: 10 });
 
     const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
     expect(url).toBe('http://localhost:3000/traces?status=ok&model=gpt-4o-mini&session_id=s1&page=2&limit=10');
@@ -1452,7 +1448,7 @@ describe('acruxcore feedback + trace read-back', () => {
 
   it('throws API_ERROR when getTrace is called with an unknown id', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 'NOT_FOUND', message: 'Trace not found.' } }), { status: 404 }));
-    await expect(hub.getTrace('unknown')).rejects.toThrow(acruxcoreError);
+    await expect(hub.traces.get('unknown')).rejects.toThrow(acruxcoreError);
   });
 });
 
@@ -1478,7 +1474,7 @@ describe('Finding #20: cache key does not embed the raw apiKey', () => {
       }),
     );
 
-    await hub.renderPrompt('my-prompt', 'production');
+    await hub.prompts.render('my-prompt', 'production');
 
     const cache = getCache(500);
     const keys = [...cache.keys()];
@@ -1547,7 +1543,7 @@ describe('Finding #22: auth-header construction is not duplicated/drifted', () =
         headers: { 'content-type': 'application/json' },
       }),
     );
-    await hub.renderPrompt('p', 'production');
+    await hub.prompts.render('p', 'production');
     const renderHeaders = (vi.mocked(fetch).mock.calls[0]![1] as RequestInit).headers as Record<string, string>;
 
     vi.mocked(fetch).mockResolvedValueOnce(
@@ -1556,7 +1552,7 @@ describe('Finding #22: auth-header construction is not duplicated/drifted', () =
         headers: { 'content-type': 'application/json' },
       }),
     );
-    await hub.trace({ spans: [] });
+    await hub.traces.ingest({ spans: [] });
     const traceHeaders = (vi.mocked(fetch).mock.calls[1]![1] as RequestInit).headers as Record<string, string>;
 
     vi.mocked(fetch).mockResolvedValueOnce(
@@ -1565,7 +1561,7 @@ describe('Finding #22: auth-header construction is not duplicated/drifted', () =
         { status: 200, headers: { 'content-type': 'application/json' } },
       ),
     );
-    await hub.chat({ model: 'm', messages: [{ role: 'user', content: 'hi' }] });
+    await hub.gateway.chat({ model: 'm', messages: [{ role: 'user', content: 'hi' }] });
     const chatHeaders = (vi.mocked(fetch).mock.calls[2]![1] as RequestInit).headers as Record<string, string>;
 
     expect(renderHeaders['Authorization']).toBe('Bearer test-key');

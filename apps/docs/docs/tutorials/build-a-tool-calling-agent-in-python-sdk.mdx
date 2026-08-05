@@ -142,7 +142,7 @@ version, so committing bakes them in — and because it's the first commit,
 
 ![The prompt Tools tab showing query_database under an Attached to v1 heading](/img/tutorials/build-a-tool-calling-agent-in-python-sdk/06-prompt-tools.png)
 
-Now one `render_prompt("sql-analyst-agent", "production")` call returns the system
+Now one `hub.prompts.render("sql-analyst-agent", "production")` call returns the system
 message **and** the `query_database` schema together.
 
 ## 5. Create a personal API key
@@ -179,7 +179,7 @@ async def query_database(sql: str) -> list[dict]:
     conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
     ...
 
-result = await hub.run_tool_loop(rendered.model, messages, tools=[query_database])
+result = await hub.gateway.run_tool_loop(rendered.model, messages, tools=[query_database])
 ```
 
 See
@@ -198,7 +198,7 @@ function to route calls to your local code — the catalog deliberately stores n
 body for client tools:
 
 ```python
-result = await hub.run_tool_loop(
+result = await hub.gateway.run_tool_loop(
     rendered.model,
     messages,
     tool_defs=rendered.tools,
@@ -214,7 +214,7 @@ decorated tool's spec overwrites the dashboard's on every run. See
 [Build and attach a tool](../guides/build-and-attach-a-tool) for the full decorator
 reference.
 
-Notice there's **no hardcoded model** in either option. `render_prompt` returns the
+Notice there's **no hardcoded model** in either option. `hub.prompts.render` returns the
 model you bound to the prompt in the dashboard as `rendered.model`, and you hand it
 straight to `run_tool_loop`. Change the model in the dashboard and your code follows —
 no code edit.
@@ -265,15 +265,14 @@ writable production database.
 ## 7. Stream a reply
 
 When you want tokens as they're generated instead of waiting for the whole answer,
-pass `stream=True` to `chat` and iterate the result. Streaming yields text deltas
+pass `stream=True` to `hub.gateway.stream` and iterate the result. Streaming yields text deltas
 and does **not** auto-run tools (that's what the loop in step 6 is for), so use it
 for plain, readable answers:
 
 ```python
-stream = await hub.chat(
+stream = await hub.gateway.stream(
     "gpt-4o-mini",
     [{"role": "user", "content": "In one sentence, what makes a good data analyst?"}],
-    stream=True,
 )
 async for chunk in stream:
     print(chunk.delta.get("content", "") or "", end="", flush=True)

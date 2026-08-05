@@ -226,7 +226,7 @@ curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
 No Authorization header on either route (status 401):
 
 ```json
-{ "error": { "code": "UNAUTHORIZED", "message": "API key required." } }
+{ "error": { "code": "UNAUTHORIZED", "message": "Authentication required." } }
 ```
 
 Invalid `from`/`to` on GET /sessions (status 400):

@@ -1,7 +1,24 @@
 import { createHash } from 'node:crypto';
 import { acruxcoreError } from './error';
 import { type AcruxTool, isAcruxTool, resolveParametersSchema } from './tools';
-import type { ResolvedTool, ToolExecuteResult, ToolSyncResult } from './types';
+import type {
+  CommitToolVersionInput,
+  CreateToolInput,
+  ListToolsOptions,
+  ListToolVersionsOptions,
+  ResolvedTool,
+  ToolAliasDetail,
+  ToolAnalyticsOptions,
+  ToolAnalyticsResult,
+  ToolDetail,
+  ToolExecuteResult,
+  ToolListResult,
+  ToolSyncResult,
+  ToolVersionDetail,
+  ToolVersionListResult,
+  UpdateToolInput,
+} from './types';
+import type { NamespaceHost } from './host';
 
 /**
  * The subset of the client this namespace needs.
@@ -9,17 +26,7 @@ import type { ResolvedTool, ToolExecuteResult, ToolSyncResult } from './types';
  * Declared structurally rather than importing `acruxcore`, which would be a runtime
  * circular import: the client constructs this namespace.
  */
-export interface ToolsNamespaceHost {
-  _request(
-    method: string,
-    path: string,
-    body: unknown,
-    errorContext: string,
-    extraHeaders?: Record<string, string>,
-  ): Promise<Response>;
-  _parseJsonOrThrow(response: Response, errorContext: string): Promise<unknown>;
-  _apiKeyFingerprint(): string;
-}
+export type ToolsNamespaceHost = NamespaceHost;
 
 /**
  * Max entries in the process-wide sync cache. A deploy syncs a handful of tools; the
@@ -264,5 +271,221 @@ export class ToolsNamespace {
       'executing tool',
     );
     return (await this.client._parseJsonOrThrow(response, 'executing tool')) as ToolExecuteResult;
+  }
+
+  /**
+   * Lists tools for the team, newest first.
+   *
+   * @param options - Optional free-text `search` and pagination.
+   * @returns One page of tools.
+   * @throws {acruxcoreError} API_ERROR on a non-2xx response.
+   * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries.
+   */
+  async list(options?: ListToolsOptions): Promise<ToolListResult> {
+    const params = new URLSearchParams();
+    if (options?.search !== undefined) params.set('search', options.search);
+    if (options?.page !== undefined) params.set('page', String(options.page));
+    if (options?.limit !== undefined) params.set('limit', String(options.limit));
+
+    const qs = params.toString();
+    const response = await this.client._request('GET', `/tools${qs ? `?${qs}` : ''}`, undefined, 'listing tools');
+    return this.client._parseJsonOrThrow(response, 'listing tools') as Promise<ToolListResult>;
+  }
+
+  /**
+   * Fetches one tool's shell by id.
+   *
+   * @param id - The tool's id (UUID).
+   * @returns The tool.
+   * @throws {acruxcoreError} API_ERROR with `statusCode` 404 if the tool doesn't
+   *   exist (or belongs to another team), including after a soft-delete.
+   * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries.
+   */
+  async get(id: string): Promise<ToolDetail> {
+    const response = await this.client._request('GET', `/tools/${encodeURIComponent(id)}`, undefined, 'fetching tool');
+    return this.client._parseJsonOrThrow(response, 'fetching tool') as Promise<ToolDetail>;
+  }
+
+  /**
+   * Creates a new tool shell. A tool has no schema/executor of its own — commit a
+   * version with {@link commitVersion} to give it one.
+   *
+   * @param input - `name` (required, must match `^[a-zA-Z0-9_-]{1,64}$` and be unique
+   *   per team) and optional `description`.
+   * @returns The created tool.
+   * @throws {acruxcoreError} API_ERROR with code `VALIDATION_ERROR` (e.g. a name that
+   *   doesn't match the pattern).
+   * @throws {acruxcoreError} API_ERROR with code `TOOL_NAME_TAKEN` (409) if a tool
+   *   with that name already exists in the team.
+   * @throws {acruxcoreError} API_ERROR 403 if the caller's role cannot create tools
+   *   (editor and above only).
+   * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries.
+   */
+  async create(input: CreateToolInput): Promise<ToolDetail> {
+    const response = await this.client._request('POST', '/tools', input, 'creating tool');
+    return this.client._parseJsonOrThrow(response, 'creating tool') as Promise<ToolDetail>;
+  }
+
+  /**
+   * Updates a tool's `name` and/or `description`. Does not touch its versions —
+   * versions are immutable and unaffected by renaming the tool they belong to.
+   *
+   * @param id - The tool's id.
+   * @param input - At least one of `name`/`description`; pass `description: null` to
+   *   clear it, or omit it to leave it untouched.
+   * @returns The updated tool.
+   * @throws {acruxcoreError} API_ERROR 404 unknown tool, or `VALIDATION_ERROR` if
+   *   neither field is set.
+   * @throws {acruxcoreError} API_ERROR 403 if the caller's role cannot update tools
+   *   (editor and above only).
+   * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries.
+   */
+  async update(id: string, input: UpdateToolInput): Promise<ToolDetail> {
+    const response = await this.client._request('PATCH', `/tools/${encodeURIComponent(id)}`, input, 'updating tool');
+    return this.client._parseJsonOrThrow(response, 'updating tool') as Promise<ToolDetail>;
+  }
+
+  /**
+   * Soft-deletes a tool: it stops appearing in {@link list}/{@link get}, but its
+   * versions and aliases are preserved (just unreachable) rather than removed.
+   *
+   * The endpoint replies `204 No Content` on success, which has no body — calling
+   * `_parseJsonOrThrow` unconditionally would throw trying to parse it, so the
+   * success path returns directly and only a non-2xx response is parsed (to get
+   * the typed error thrown).
+   *
+   * @param id - The tool's id.
+   * @throws {acruxcoreError} API_ERROR with `statusCode` 404 if the tool doesn't exist.
+   * @throws {acruxcoreError} API_ERROR 403 if the caller's role cannot delete tools
+   *   (editor and above only).
+   * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries.
+   */
+  async delete(id: string): Promise<void> {
+    const response = await this.client._request('DELETE', `/tools/${encodeURIComponent(id)}`, undefined, 'deleting tool');
+    if (!response.ok) {
+      await this.client._parseJsonOrThrow(response, 'deleting tool');
+    }
+  }
+
+  /**
+   * Commits a new immutable version for a tool.
+   *
+   * @param toolId - The tool's id.
+   * @param input - The version's schema and executor, plus optional `description`/
+   *   `changelog`. `source` defaults to `'api'` server-side; `'code'` is rejected here
+   *   — only `tools.sync` (`POST /tools/sync`) may write it.
+   * @returns The created version. `aliases` is present ONLY when this is the tool's
+   *   first version — both `production` and `staging` are minted and point at it;
+   *   every later commit returns no `aliases` at all. `warnings` is present only when
+   *   this commit has a `changelog` but no `description` (a likely omission, not an
+   *   error).
+   * @throws {acruxcoreError} API_ERROR 404 unknown tool, or `VALIDATION_ERROR` (e.g.
+   *   invalid `executor` shape, or a `source` of `'code'`).
+   * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries.
+   */
+  async commitVersion(toolId: string, input: CommitToolVersionInput): Promise<ToolVersionDetail> {
+    const response = await this.client._request(
+      'POST',
+      `/tools/${encodeURIComponent(toolId)}/versions`,
+      input,
+      'committing tool version',
+    );
+    return this.client._parseJsonOrThrow(response, 'committing tool version') as Promise<ToolVersionDetail>;
+  }
+
+  /**
+   * Lists a tool's versions, newest first. List items omit `parametersSchema`/
+   * `executor` to keep pages small — use {@link getVersion} for the full content.
+   *
+   * @param toolId - The tool's id.
+   * @param options - Pagination (`page` is 1-based).
+   * @returns One page of versions.
+   * @throws {acruxcoreError} API_ERROR 404 unknown tool.
+   * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries.
+   */
+  async listVersions(toolId: string, options?: ListToolVersionsOptions): Promise<ToolVersionListResult> {
+    const params = new URLSearchParams();
+    if (options?.page !== undefined) params.set('page', String(options.page));
+    if (options?.limit !== undefined) params.set('limit', String(options.limit));
+
+    const qs = params.toString();
+    const response = await this.client._request(
+      'GET',
+      `/tools/${encodeURIComponent(toolId)}/versions${qs ? `?${qs}` : ''}`,
+      undefined,
+      'listing tool versions',
+    );
+    return this.client._parseJsonOrThrow(response, 'listing tool versions') as Promise<ToolVersionListResult>;
+  }
+
+  /**
+   * Fetches one version with its full `parametersSchema`/`executor`. Unlike
+   * {@link commitVersion}'s response, this never includes `aliases`/`warnings` —
+   * only the commit response ever has either.
+   *
+   * @param toolId - The tool's id.
+   * @param versionNumber - The version's sequential number (1-based, immutable).
+   * @returns The version.
+   * @throws {acruxcoreError} API_ERROR 404 unknown tool or version number.
+   * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries.
+   */
+  async getVersion(toolId: string, versionNumber: number): Promise<ToolVersionDetail> {
+    const response = await this.client._request(
+      'GET',
+      `/tools/${encodeURIComponent(toolId)}/versions/${encodeURIComponent(String(versionNumber))}`,
+      undefined,
+      'fetching tool version',
+    );
+    return this.client._parseJsonOrThrow(response, 'fetching tool version') as Promise<ToolVersionDetail>;
+  }
+
+  /**
+   * Promotes an alias to point at a specific version — e.g. rolling `production`
+   * forward (or back) to a version already committed. Creates the alias if it does
+   * not exist yet.
+   *
+   * @param toolId - The tool's id.
+   * @param alias - The alias name (e.g. `'production'`, `'staging'`, or a custom one).
+   * @param versionNumber - The version to point the alias at.
+   * @returns The alias's new state.
+   * @throws {acruxcoreError} API_ERROR 404 unknown tool/version, or 403 if the
+   *   caller's role cannot promote (editor and above only).
+   * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries.
+   */
+  async promoteAlias(toolId: string, alias: string, versionNumber: number): Promise<ToolAliasDetail> {
+    const response = await this.client._request(
+      'POST',
+      `/tools/${encodeURIComponent(toolId)}/aliases/${encodeURIComponent(alias)}/promote`,
+      { version_number: versionNumber },
+      'promoting tool alias',
+    );
+    return this.client._parseJsonOrThrow(response, 'promoting tool alias') as Promise<ToolAliasDetail>;
+  }
+
+  /**
+   * Reads aggregated call analytics (count, error rate, p50/p95 latency) per tool,
+   * over an optional time window.
+   *
+   * @param options - Optional `since`/`until` ISO-8601 datetime bounds; either or both
+   *   may be omitted to leave that side of the window open.
+   * @returns One entry per tool that had calls in the window. Empty `data` when
+   *   nothing executed, or the window excludes every execution.
+   * @throws {acruxcoreError} API_ERROR with code `VALIDATION_ERROR` on a non-ISO-8601
+   *   `since`/`until`.
+   * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries.
+   */
+  async analytics(options?: ToolAnalyticsOptions): Promise<ToolAnalyticsResult> {
+    const params = new URLSearchParams();
+    if (options?.since !== undefined) params.set('since', options.since);
+    if (options?.until !== undefined) params.set('until', options.until);
+
+    const qs = params.toString();
+    const response = await this.client._request(
+      'GET',
+      `/tools/analytics${qs ? `?${qs}` : ''}`,
+      undefined,
+      'fetching tool analytics',
+    );
+    return this.client._parseJsonOrThrow(response, 'fetching tool analytics') as Promise<ToolAnalyticsResult>;
   }
 }

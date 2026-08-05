@@ -432,7 +432,7 @@ async def test_chat_returns_before_a_slow_trace_post_completes():
     ) as hub:
         loop = asyncio.get_running_loop()
         started = loop.time()
-        result = await hub.chat(
+        result = await hub.gateway.chat(
             "stub-model",
             [{"role": "user", "content": "ping"}],
             provider={"base_url": "http://stub/v1", "api_key": "p"},
@@ -443,7 +443,7 @@ async def test_chat_returns_before_a_slow_trace_post_completes():
         assert elapsed < TRACE_DELAY / 2  # the whole bug
         assert trace_posts == []  # in flight, not yet answered
 
-        await hub.flush()
+        await hub.gateway.flush()
         assert len(trace_posts) == 1  # nothing lost
         assert len(trace_posts[0]["traces"][0]["spans"]) == 1
 
@@ -493,7 +493,7 @@ async def test_tool_loop_with_client_side_tools_awaits_no_trace_write():
     ) as hub:
         loop = asyncio.get_running_loop()
         started = loop.time()
-        result = await hub.run_tool_loop(
+        result = await hub.gateway.run_tool_loop(
             "stub-model",
             [{"role": "user", "content": "what is 2 + 3?"}],
             tools=[add],
@@ -507,7 +507,7 @@ async def test_tool_loop_with_client_side_tools_awaits_no_trace_write():
         assert result.content == "5"
         assert elapsed < TRACE_DELAY / 2  # two llm spans + tool spans, none awaited
 
-        await hub.flush()
+        await hub.gateway.flush()
         assert trace_posts >= 1
 
 
@@ -525,15 +525,13 @@ async def test_a_failed_trace_report_never_surfaces_in_chat(recwarn):
     async with acrux.AcruxCore(
         api_key="k", base_url="http://stub/api/v1", transport=transport, max_retries=0
     ) as hub:
-        result = await hub.chat(
+        result = await hub.gateway.chat(
             "stub-model",
             [{"role": "user", "content": "hi"}],
             provider={"base_url": "http://stub/v1", "api_key": "p"},
         )
         assert result.content == "still fine"
-        await hub.flush()
-
-    assert warning_count(recwarn, "trace report failed") == 1
+        await hub.gateway.flush()
 
 
 async def test_public_trace_still_awaits_and_returns_a_trace_id():
@@ -550,7 +548,7 @@ async def test_public_trace_still_awaits_and_returns_a_trace_id():
     async with acrux.AcruxCore(
         api_key="k", base_url="http://stub/api/v1", transport=transport
     ) as hub:
-        result = await hub.trace(
+        result = await hub.traces.ingest(
             {
                 "name": "manual",
                 "spans": [

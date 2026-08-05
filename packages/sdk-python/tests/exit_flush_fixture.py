@@ -17,7 +17,7 @@ async def main() -> None:
     hub = acrux.AcruxCore(
         api_key=os.environ["FIXTURE_API_KEY"], base_url=os.environ["FIXTURE_BASE_URL"]
     )
-    await hub.chat(
+    await hub.gateway.chat(
         "stub-model",
         [{"role": "user", "content": "ping"}],
         provider={"base_url": os.environ["FIXTURE_PROVIDER_URL"], "api_key": "p"},

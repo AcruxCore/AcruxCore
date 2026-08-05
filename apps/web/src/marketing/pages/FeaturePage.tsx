@@ -6,6 +6,7 @@ import {
   Ic,
   Eyebrow,
   CodeCard,
+  RotatingCodeCard,
   CtaSection,
   btnPrimary,
   btnSecondary,
@@ -116,7 +117,9 @@ export function FeaturePage({ feature }: { feature: Feature }): ReactNode {
             </a>
           </div>
         </div>
-        <CodeCard filename={feature.code.filename} lang={feature.code.lang} html={feature.code.html} />
+        {feature.code.length > 1
+          ? <RotatingCodeCard variants={feature.code} />
+          : <CodeCard filename={feature.code[0].filename} lang={feature.code[0].lang} html={feature.code[0].html} />}
       </section>
 
       {/* ===== CAPABILITIES ===== */}

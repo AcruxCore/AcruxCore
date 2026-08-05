@@ -61,11 +61,11 @@ async def dispatch(name: str, args: dict, alias: str):
 
 
 async def ask(hub: AcruxCore, alias: str, question: str) -> None:
-    rendered = await hub.render_prompt(PROMPT, alias, {"question": question})
+    rendered = await hub.prompts.render(PROMPT, alias, {"question": question})
     print(f"Alias: {alias} -> model {rendered.model}")
     print(f"Question: {question}\n")
 
-    result = await hub.run_tool_loop(
+    result = await hub.gateway.run_tool_loop(
         rendered.model,  # bound to the prompt version in the dashboard, per alias
         [*rendered.messages],
         tool_defs=rendered.tools,

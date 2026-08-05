@@ -92,6 +92,43 @@ hand-written test case — has no source trace at all, so add `history` directly
 manually-added example instead:
 
 <Tabs groupId="lang">
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore();
+
+await hub.datasets.addExample('<dataset-id>', {
+  input: { question: 'What language do people speak there?' },
+  criteria: 'Must name Italian and refer to Rome/Italy from the prior turn, not ask which place.',
+  history: [
+    { role: 'user', content: 'What is the capital of Italy?' },
+    { role: 'assistant', content: 'The capital of Italy is Rome.' },
+  ],
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+await hub.datasets.add_example(
+    "<dataset-id>",
+    input={"question": "What language do people speak there?"},
+    criteria="Must name Italian and refer to Rome/Italy from the prior turn, not ask which place.",
+    history=[
+        {"role": "user", "content": "What is the capital of Italy?"},
+        {"role": "assistant", "content": "The capital of Italy is Rome."},
+    ],
+)
+```
+
+</TabItem>
 <TabItem value="curl" label="curl">
 
 ```bash
@@ -109,7 +146,7 @@ curl -X POST "$ACRUXCORE_BASE_URL/datasets/<dataset-id>/examples" \
 ```
 
 </TabItem>
-<TabItem value="python" label="Python (requests)">
+<TabItem value="python-requests" label="Python (requests)">
 
 ```python
 import os, requests
@@ -128,7 +165,7 @@ requests.post(f"{base}/datasets/<dataset-id>/examples", headers=h, json={
 ```
 
 </TabItem>
-<TabItem value="node" label="Node (fetch)">
+<TabItem value="node-fetch" label="Node (fetch)">
 
 ```javascript
 const base = process.env.ACRUXCORE_BASE_URL;
@@ -167,11 +204,78 @@ it rather than failing the cell.
 
 The dashboard covers building a dataset from feedback and reading a run's history
 back. Everything else — a manual example with explicit history, and the
-experiment/run calls themselves — is REST-only today: this domain isn't wrapped by
-either published SDK yet, so the examples below call the API directly instead of
-going through `@acruxcoreai/sdk` or `acruxcore`.
+experiment/run calls themselves — works through the SDK too:
 
 <Tabs groupId="lang">
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore();
+
+const dataset = await hub.datasets.buildFromFeedback({
+  name: 'geography-followups',
+  overallFeedback:
+    'When a question refers back to something asked earlier in the conversation, ' +
+    'answer about that earlier subject, not a fresh unrelated one.',
+  feedbackIds: ['<feedback-id>'],
+});
+
+const full = await hub.datasets.get(dataset.id);
+console.log(full.examples[0].history);
+
+const experiment = await hub.experiments.create({
+  datasetId: dataset.id,
+  promptId: '<prompt-id>',
+  name: 'history replay check',
+  versionIds: ['<version-id>'],
+  models: ['gpt-4o-mini'],
+});
+
+const run = await hub.experiments.startRun(experiment.id);
+console.log(run.runId, run.status); // -> queued
+
+const cell = await hub.runs.getCell(run.runId, 'v1|gpt-4o-mini');
+console.log(cell.examples[0].history);
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+dataset = await hub.datasets.build_from_feedback(
+    name="geography-followups",
+    overall_feedback=(
+        "When a question refers back to something asked earlier in the conversation, "
+        "answer about that earlier subject, not a fresh unrelated one."
+    ),
+    feedback_ids=["<feedback-id>"],
+)
+
+full = await hub.datasets.get(dataset.id)
+print(full.examples[0].history)
+
+experiment = await hub.experiments.create(
+    dataset_id=dataset.id,
+    prompt_id="<prompt-id>",
+    name="history replay check",
+    version_ids=["<version-id>"],
+    models=["gpt-4o-mini"],
+)
+
+run = await hub.experiments.start_run(experiment.id)
+print(run.run_id, run.status)  # -> queued
+
+cell = await hub.runs.get_cell(run.run_id, "v1|gpt-4o-mini")
+print(cell.examples[0].history)
+```
+
+</TabItem>
 <TabItem value="curl" label="curl">
 
 ```bash
@@ -254,7 +358,7 @@ curl "$ACRUXCORE_BASE_URL/runs/<run-id>/cells/v1%7Cgpt-4o-mini" \
 ```
 
 </TabItem>
-<TabItem value="python" label="Python (requests)">
+<TabItem value="python-requests" label="Python (requests)">
 
 ```python
 import os, requests
@@ -292,7 +396,7 @@ print(cell["examples"][0]["history"])  # the exact turns replayed for this cell
 ```
 
 </TabItem>
-<TabItem value="node" label="Node (fetch)">
+<TabItem value="node-fetch" label="Node (fetch)">
 
 ```javascript
 const base = process.env.ACRUXCORE_BASE_URL;

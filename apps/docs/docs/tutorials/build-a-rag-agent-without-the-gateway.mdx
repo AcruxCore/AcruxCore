@@ -93,10 +93,10 @@ Running this over the five guides gives 31 chunks:
 
 ## 4. Answer it linearly
 
-Retrieve first, then make exactly one model call. Report the retrieval as its own span and hand its trace id to `chat()`, so the passages and the answer land in the same trace:
+Retrieve first, then make exactly one model call. Report the retrieval as its own span and hand its trace id to `hub.gateway.chat()`, so the passages and the answer land in the same trace:
 
 ```python
-reported = await hub.trace({
+reported = await hub.traces.ingest({
     "name": "rag-linear",
     "spans": [{
         "spanId": "retrieval", "name": "search_docs", "kind": "retrieval",
@@ -105,9 +105,9 @@ reported = await hub.trace({
     }],
 })
 
-rendered = await hub.render_prompt("rag-chat", "production",
+rendered = await hub.prompts.render("rag-chat", "production",
                                    {"context": context, "question": question})
-result = await hub.chat(
+result = await hub.gateway.chat(
     rendered.model or CHAT_MODEL,
     rendered.messages,
     provider=PROVIDER,
@@ -124,7 +124,7 @@ Expand the LLM span and the BYO call is fully accounted for — tokens, latency,
 
 ![The expanded LLM span showing Model openai/gpt-4o-mini, Provider openrouter.ai, Tokens 1,064, Latency 2.97s, and a "View traces for this prompt version" link](/img/tutorials/build-a-rag-agent-without-the-gateway/04-llm-span-detail.png)
 
-Two things worth noticing. There is no **Linked gateway request** row, because no gateway was involved. And **View traces for this prompt version** works anyway: passing `prompt_version_id` from `render_prompt()` links the trace back to the exact prompt version that produced it, so you can still ask "how did v3 do?" after you ship v4.
+Two things worth noticing. There is no **Linked gateway request** row, because no gateway was involved. And **View traces for this prompt version** works anyway: passing `prompt_version_id` from `hub.prompts.render()` links the trace back to the exact prompt version that produced it, so you can still ask "how did v3 do?" after you ship v4.
 
 :::note[No dollar cost on BYO spans]
 Tokens, latency, model, and payloads are all recorded, but `costUsd` is empty — we only price calls that went through the gateway, where we know the rate card. Your provider's own dashboard has the bill.
@@ -145,8 +145,8 @@ async def search_docs(query: str) -> str:
     return retrieve_context(_COLLECTION, query)
 
 
-rendered = await hub.render_prompt("rag-chat-agent", "production", {"question": question})
-result = await hub.run_tool_loop(
+rendered = await hub.prompts.render("rag-chat-agent", "production", {"question": question})
+result = await hub.gateway.run_tool_loop(
     rendered.model or CHAT_MODEL,
     rendered.messages,
     tools=[search_docs],

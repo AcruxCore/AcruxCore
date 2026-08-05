@@ -216,7 +216,7 @@ Opening `get_weather` shows its committed v1:
 
 ## 5. Fetch them from the SDK
 
-Now the run path. A single `renderPrompt(name, alias, variables)` call returns
+Now the run path. A single `hub.prompts.render(name, alias, variables)` call returns
 **both** the templated messages (variables already filled in server-side) and the
 attached tool schemas, already in OpenAI shape:
 
@@ -225,7 +225,7 @@ import acruxcore from '@acruxcoreai/sdk';
 
 const hub = new acruxcore(); // reads ACRUXCORE_API_KEY + ACRUXCORE_BASE_URL from env
 
-const { messages, tools } = await hub.renderPrompt('travel-assistant', 'production', {
+const { messages, tools } = await hub.prompts.render('travel-assistant', 'production', {
   city: 'Tokyo',
   amount: 100,
   from: 'USD',
@@ -274,11 +274,11 @@ Here is the complete, runnable `rest-defined-agent.ts` — it does the store (st
  *        tools to this immutable version.
  *
  *   FETCH + USE (SDK, at run time):
- *     3. `renderPrompt(name, 'production', vars)` returns `{ messages, tools }` in
+ *     3. `hub.prompts.render(name, 'production', vars)` returns `{ messages, tools }` in
  *        one call: the messages are templated server-side and `tools` are the
  *        version's attached tool schemas, already in OpenAI shape. Both come from
  *        the framework — this file no longer holds them.
- *     4. `runToolLoop({ messages, toolDefs })` runs the loop with exactly what was
+ *     4. `hub.gateway.runToolLoop({ messages, toolDefs })` runs the loop with exactly what was
  *        fetched. The only tool code left in this file is `dispatch` — the local
  *        implementations. Schemas, descriptions, and the prompt text live on the
  *        server.
@@ -414,7 +414,7 @@ function dispatch(name: string, args: Record<string, unknown>): unknown {
 
 // ────────────────────────────────────────────────────────────────────────────
 // Catalog definitions used ONLY to seed the framework (the STORE step). At run
-// time the schemas come back from renderPrompt, not from here.
+// time the schemas come back from hub.prompts.render, not from here.
 // ────────────────────────────────────────────────────────────────────────────
 
 /** A tool we want in the catalog: its name/description plus the JSON-schema the model reads. */
@@ -470,7 +470,7 @@ const PROMPT_NAME = 'travel-assistant';
 /**
  * The prompt version's messages, with nunjucks `{{ variables }}` the server fills
  * at render time. Seed data only — after the first run this text lives in the
- * catalog and is fetched via renderPrompt.
+ * catalog and is fetched via hub.prompts.render.
  */
 const PROMPT_MESSAGES = [
   {
@@ -556,9 +556,9 @@ async function ensurePrompt(toolIds: string[]): Promise<void> {
 
   const versions = await api<ListResponse>('GET', `/prompts/${prompt.id}/versions`);
   if (versions.total === 0) {
-    // Attach the catalog tools to this immutable version. renderPrompt then
+    // Attach the catalog tools to this immutable version. hub.prompts.render then
     // returns them alongside the messages. First commit auto-creates the
-    // `production` alias renderPrompt reads below.
+    // `production` alias hub.prompts.render reads below.
     await api('POST', `/prompts/${prompt.id}/versions`, {
       messages: PROMPT_MESSAGES,
       tools: toolIds.map((toolId) => ({ toolId })),
@@ -581,7 +581,7 @@ async function main(): Promise<void> {
 
   // ── FETCH: one SDK call returns BOTH the templated messages and the attached
   // tool schemas. Neither is defined on this run path — they came from the server.
-  const { messages, tools } = await hub.renderPrompt(PROMPT_NAME, 'production', {
+  const { messages, tools } = await hub.prompts.render(PROMPT_NAME, 'production', {
     city: 'Tokyo',
     amount: 100,
     from: 'USD',
@@ -595,9 +595,9 @@ async function main(): Promise<void> {
   // ── USE: run the loop with exactly what was fetched. `dispatch` supplies the
   // local execution for each fetched tool.
   // `toolDefs`, not `tools`: these are raw OpenAI-shaped definitions from
-  // renderPrompt. `tools` is for tools declared with `acrux.tool`, which carry
+  // hub.prompts.render. `tools` is for tools declared with `acrux.tool`, which carry
   // their own body and need no dispatch.
-  const result = await hub.runToolLoop({ model, messages, toolDefs: tools, dispatch });
+  const result = await hub.gateway.runToolLoop({ model, messages, toolDefs: tools, dispatch });
 
   console.log('\nAssistant:', result.content);
   console.log(`\n(${result.iterations} round-trip(s), trace ${result.traceId ?? 'disabled'})`);
@@ -640,7 +640,7 @@ second run finds the existing prompt and tools and skips creating them.
 
 ## 7. Inspect the trace
 
-Every `runToolLoop` run is auto-traced, and the whole run lands in **one** trace.
+Every `hub.gateway.runToolLoop` run is auto-traced, and the whole run lands in **one** trace.
 Open **Observability → Traces** and click the newest `runToolLoop` entry: two
 model turns (`LLM`) with the three tool calls in between.
 
@@ -659,7 +659,7 @@ Input/output payloads appear only when payload capture is on for your team
 ## 8. Stream the reply
 
 Sometimes you want tokens as they are generated instead of waiting for the whole
-answer. Pass `stream: true` to `chat()` and it returns an async iterable — each
+answer. Call `hub.gateway.stream()` and it returns an async iterable — each
 chunk carries a `delta.content` string you can print as it arrives.
 
 This example reuses the **same** stored `travel-assistant` prompt: it renders it,
@@ -676,12 +676,12 @@ streamed output clean prose.
  *
  * This reuses the same `travel-assistant` prompt that `rest-defined-agent.ts`
  * stores in the framework — run that example first (or store the prompt yourself)
- * so `renderPrompt` has something to fetch. The flow here is fetch → stream:
+ * so `hub.prompts.render` has something to fetch. The flow here is fetch → stream:
  *
- *   1. `renderPrompt(name, 'production', vars)` returns the templated `messages`
+ *   1. `hub.prompts.render(name, 'production', vars)` returns the templated `messages`
  *      (and the version's attached `tools`, which this example intentionally does
  *      NOT forward — see below).
- *   2. `chat({ ..., stream: true })` returns an async iterable. Each chunk carries
+ *   2. `hub.gateway.stream({ ... })` returns an async iterable. Each chunk carries
  *      a `delta.content` string; concatenating them rebuilds the full answer as it
  *      is generated, so a UI can render tokens live.
  *
@@ -715,16 +715,16 @@ const hub = new acruxcore({ apiKey, baseUrl });
 
 async function main(): Promise<void> {
   // ── FETCH: the templated messages come from the stored prompt version.
-  const { messages } = await hub.renderPrompt('travel-assistant', 'production', {
+  const { messages } = await hub.prompts.render('travel-assistant', 'production', {
     city: 'Tokyo',
     amount: 100,
     from: 'USD',
     to: 'JPY',
   });
 
-  // ── STREAM: print each token as it arrives. `stream: true` changes the return
-  // type to an async iterable of chunks (no `tools` forwarded — see file header).
-  const stream = await hub.chat({ model, messages, stream: true });
+  // ── STREAM: print each token as it arrives. `hub.gateway.stream()` returns
+  // an async iterable of chunks (no `tools` forwarded — see file header).
+  const stream = await hub.gateway.stream({ model, messages });
 
   let full = '';
   for await (const chunk of stream) {

@@ -79,7 +79,7 @@ import AcruxCore from '@acruxcoreai/sdk';
 
 const hub = new AcruxCore();
 
-const { content } = await hub.chat({
+const { content } = await hub.gateway.chat({
   model: 'support-model',
   messages: [{ role: 'user', content: 'Say hi in three words.' }],
   maxTokens: 20,
@@ -87,7 +87,7 @@ const { content } = await hub.chat({
 console.log(content);
 ```
 
-`chat()` is a single request/response call — see
+`hub.gateway.chat()` is a single request/response call — see
 [chat, stream, and collect feedback with the SDK](./use-the-sdk-for-chat-and-feedback)
 for streaming and for `runToolLoop`, the SDK's traced tool-calling loop.
 
@@ -99,7 +99,7 @@ from acruxcore import AcruxCore
 
 hub = AcruxCore()
 
-result = await hub.chat(
+result = await hub.gateway.chat(
     "support-model",
     [{"role": "user", "content": "Say hi in three words."}],
     max_tokens=20,

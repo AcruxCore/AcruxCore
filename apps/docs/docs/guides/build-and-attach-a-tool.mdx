@@ -98,7 +98,7 @@ Pass the declared tool to the loop. Nothing else is needed.
 ```typescript
 const hub = new AcruxCore();
 
-const result = await hub.runToolLoop({
+const result = await hub.gateway.runToolLoop({
   model: 'support-model',
   messages: [{ role: 'user', content: 'What is the weather in London right now?' }],
   tools: [getWeather],
@@ -114,7 +114,7 @@ console.log(result.traceId);    // one trace covering both model calls and the t
 
 ```python
 async with AcruxCore() as hub:
-    result = await hub.run_tool_loop(
+    result = await hub.gateway.run_tool_loop(
         model="support-model",
         messages=[{"role": "user", "content": "What is the weather in London right now?"}],
         tools=[get_weather],
@@ -165,10 +165,10 @@ commit a new prompt version. That version now carries the tool.
 
 ![Attaching get_weather to the prompt's next version](/img/tutorials/build-and-attach-a-tool/03-attach.png)
 
-Now `renderPrompt` returns the tool alongside the messages:
+Now `hub.prompts.render` returns the tool alongside the messages:
 
 ```typescript
-const { messages, tools } = await hub.renderPrompt('support-reply', 'production', {
+const { messages, tools } = await hub.prompts.render('support-reply', 'production', {
   company: 'Acme',
   customer_message: 'What is the weather in London?',
 });
@@ -179,16 +179,16 @@ You already have the tool declared in code, so feed the rendered `messages` to t
 same loop as before and keep passing `tools: [getWeather]`:
 
 ```typescript
-const result = await hub.runToolLoop({ model: 'support-model', messages, tools: [getWeather] });
+const result = await hub.gateway.runToolLoop({ model: 'support-model', messages, tools: [getWeather] });
 ```
 
 The attachment still matters for callers that have no declared tool — the raw gateway
-endpoint, or another service reading the prompt. In that case `renderPrompt`'s `tools`
+endpoint, or another service reading the prompt. In that case `hub.prompts.render`'s `tools`
 are raw OpenAI-shaped definitions rather than declared tools, so they go to the loop
 as `toolDefs` with a `dispatch` to run them:
 
 ```typescript
-const result = await hub.runToolLoop({
+const result = await hub.gateway.runToolLoop({
   model: 'support-model',
   messages,
   toolDefs: tools,
@@ -216,7 +216,7 @@ with `MISSING_DISPATCH`, before the first model call, so the mistake costs no to
 A catalog tool with an `http` executor needs no local code at all:
 
 ```typescript
-const result = await hub.runToolLoop({
+const result = await hub.gateway.runToolLoop({
   model: 'support-model',
   messages,
   toolRefs: [{ name: 'search_orders' }],

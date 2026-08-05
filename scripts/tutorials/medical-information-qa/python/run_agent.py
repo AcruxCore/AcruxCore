@@ -162,7 +162,7 @@ async def main() -> None:
     tools = [get_drug_profile, get_inquiry, search_prescribing_info, check_safety_policy]
 
     async with AcruxCore() as hub:  # reads ACRUXCORE_API_KEY / ACRUXCORE_BASE_URL
-        rendered = await hub.render_prompt("medical-information-qa", "production", {"question": question})
+        rendered = await hub.prompts.render("medical-information-qa", "production", {"question": question})
 
         # One call, tools and response_format set together. result.content is the shaped
         # MedicalInformationAnswer JSON; result.iterations counts the tool-gathering rounds.
@@ -177,7 +177,7 @@ async def main() -> None:
                 "type": "json_schema",
                 "json_schema": {"name": "medical_information_answer", "schema": ANSWER_SCHEMA, "strict": True},
             }
-        result = await hub.run_tool_loop(
+        result = await hub.gateway.run_tool_loop(
             rendered.model,
             [*rendered.messages],
             tools=tools,

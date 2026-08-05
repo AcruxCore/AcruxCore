@@ -63,7 +63,7 @@ describe('acruxcore SDK — feedback + trace read-back', () => {
     const { hub: makeHub, close } = await startServer();
     const hub = makeHub(apiKey);
 
-    const { traceId } = await hub.trace({
+    const { traceId } = await hub.traces.ingest({
       name: 'feedback-target-run',
       spans: [
         {
@@ -74,22 +74,22 @@ describe('acruxcore SDK — feedback + trace read-back', () => {
       ],
     });
 
-    const feedback = await hub.submitFeedback({ traceId, rating: -1, label: 'wrong_answer', comment: 'Missed the point.' });
+    const feedback = await hub.traces.submitFeedback({ traceId, rating: -1, label: 'wrong_answer', comment: 'Missed the point.' });
     expect(feedback.traceId).toBe(traceId);
     expect(feedback.rating).toBe(-1);
     expect(feedback.spanId).toBeNull();
 
-    const updated = await hub.updateFeedback({ traceId, feedbackId: feedback.id, rating: 1 });
+    const updated = await hub.traces.updateFeedback({ traceId, feedbackId: feedback.id, rating: 1 });
     expect(updated.rating).toBe(1);
     expect(updated.label).toBe('wrong_answer'); // omitted field keeps its value
 
-    const detail = await hub.getTrace(traceId);
+    const detail = await hub.traces.get(traceId);
     expect(detail.trace.id).toBe(traceId);
     expect(detail.spans).toHaveLength(1);
     expect(detail.spans[0].spanId).toBe('s1');
     expect(detail.spans[0].model).toBe('gpt-4o-mini');
 
-    const list = await hub.listTraces({ sessionId: undefined, limit: 10 });
+    const list = await hub.traces.list({ sessionId: undefined, limit: 10 });
     expect(list.data.some((t) => t.id === traceId)).toBe(true);
 
     await close();
@@ -100,12 +100,12 @@ describe('acruxcore SDK — feedback + trace read-back', () => {
     const { hub: makeHub, close } = await startServer();
     const hub = makeHub(apiKey);
 
-    const { traceId } = await hub.trace({
+    const { traceId } = await hub.traces.ingest({
       name: 'span-feedback-run',
       spans: [{ spanId: 's1', name: 'gpt-4o-mini', kind: 'llm', startTime: '2026-07-13T10:00:00.000Z' }],
     });
 
-    const feedback = await hub.submitFeedback({ traceId, spanId: 's1', rating: 5 });
+    const feedback = await hub.traces.submitFeedback({ traceId, spanId: 's1', rating: 5 });
     expect(feedback.spanId).toBe('s1');
 
     await close();

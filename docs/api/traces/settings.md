@@ -9,7 +9,7 @@ All endpoints verified working via curl. Document updated only after curl confir
 
 Base path: `/api/v1/traces/settings`. Team-scoped, single row per team, lazily
 created on first write (`updatedAt` is `null` until the team has ever written a
-value — reads before that return the default `{ capturePayloads: false,
+value — reads before that return the default `{ capturePayloads: true,
 updatedAt: null }`). `GET` allows any team member (`requireAnyAuth`); `PUT`
 requires `owner` or `admin` (`requireRole('owner', 'admin')`).
 
@@ -26,7 +26,7 @@ Response (status 200) — before any write, lazy default:
 
 ```json
 {
-  "capturePayloads": false,
+  "capturePayloads": true,
   "updatedAt": null
 }
 ```

@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Ic, DOCS, API_BASE_URL } from './marketing-chrome';
+import { Ic, DOCS, API_BASE_URL, type CodeVariant } from './marketing-chrome';
 
 /**
  * The five platform pillars, each with its own public page at
@@ -40,8 +40,8 @@ export interface Feature {
   metaDescription: string;
   icon: ReactNode;
   capabilities: Capability[];
-  /** The hero code panel. */
-  code: { filename: string; lang: string; html: string };
+  /** The hero code panel — one or more language variants. */
+  code: CodeVariant[];
   /** Concrete things the dashboard does for this pillar. */
   dashboard: string[];
   docs: DocLink[];
@@ -69,11 +69,24 @@ ${kw('const')} { messages, tools } = ${kw('await')} hub.${fn('renderPrompt')}(
   ${st("'support-agent'")},
   ${st("'production'")},
   { ticket },
-);
+);`;
 
-${cm('// in the dashboard: commit v8, then point')}
-${cm("// 'production' at it. This call renders v8.")}
-${cm('// No deploy. No restart. No code change.')}`;
+const PROMPTS_CODE_PY = `${cm('# ask for the alias, not a version number')}
+messages, tools = ${kw('await')} hub.${fn('render_prompt')}(
+    ${st('"support-agent"')},
+    ${st('"production"')},
+    {${st('"ticket"')}: ticket},
+)`;
+
+const PROMPTS_CODE_CURL = `${cm('# ask for the alias, not a version number')}
+${fn('curl')} $ACRUX/prompts/support-agent/production/render \\
+  -H ${st('"Authorization: Bearer $API_KEY"')} \\
+  -H ${st('"Content-Type: application/json"')} \\
+  -d ${st(`'{
+    "variables": { "ticket": "…" }
+  }'`)}
+
+${cm('# response: rendered messages + attached tools')}`;
 
 const GATEWAY_CODE = `${cm('# ACRUX=' + API_BASE_URL)}
 ${cm('# OpenAI-compatible — point any client here')}
@@ -88,17 +101,57 @@ ${fn('curl')} $ACRUX/gateway/chat/completions \\
 ${cm('# response headers carry the accounting:')}
 ${cm('# request-id · provider · cost · cache hit')}`;
 
-const TRACING_CODE = `${cm('// one trace across a multi-turn tool loop')}
-${kw('const')} result = ${kw('await')} hub.${fn('runToolLoop')}({
-  model: ${st("'gpt-4o'")}, messages, toolDefs: tools, dispatch,
+const GATEWAY_CODE_TS = `${cm('// routes, prices & traces the call')}
+${kw('const')} result = ${kw('await')} hub.${fn('chat')}({
+  model: ${st("'gpt-4o'")},
+  messages: [{ role: ${st("'user'")}, content: ${st("'Hi'")} }],
 });
 
-${cm('// read it back: spans, tokens, latency, cost')}
-${kw('const')} trace = ${kw('await')} hub.${fn('getTrace')}(result.traceId);
+console.${fn('log')}(result.content);
+console.${fn('log')}(result.gateway.cost);`;
 
-${kw('for')} (${kw('const')} span ${kw('of')} trace.spans) {
-  console.${fn('log')}(span.name, span.costUsd);
-}`;
+const GATEWAY_CODE_PY = `${cm('# routes, prices & traces the call')}
+result = ${kw('await')} hub.${fn('chat')}(
+    ${st("'gpt-4o'")},
+    [{${st('"role"')}: ${st('"user"')}, ${st('"content"')}: ${st('"Hi"')}}],
+)
+
+${fn('print')}(result.content)
+${fn('print')}(result.gateway.cost)`;
+
+const TRACING_CODE_TS = `${cm('// every chat call is automatically traced')}
+${kw('const')} result = ${kw('await')} hub.${fn('chat')}({
+  model: ${st("'gpt-4o'")}, messages,
+  trace: { sessionId: ${st("'support-1234'")} },
+});
+
+${cm('// read traces back by session')}
+${kw('const')} { data } = ${kw('await')} hub.${fn('listTraces')}({
+  sessionId: ${st("'support-1234'")},
+});
+
+console.${fn('log')}(data.length + ${st("' traces'")});`;
+
+const TRACING_CODE_PY = `${cm('# every chat call is automatically traced')}
+result = ${kw('await')} hub.${fn('chat')}(
+    ${st("'gpt-4o'")}, messages,
+    trace={${st("'session_id'")}: ${st("'support-1234'")}},
+)
+
+${cm('# read traces back by session')}
+result = ${kw('await')} hub.${fn('list_traces')}(
+    session_id=${st("'support-1234'")},
+)
+
+${fn('print')}(result.total, ${st("'traces'")})`;
+
+const TRACING_CODE_CURL = `${cm('# every chat call is automatically traced')}
+${cm('# read traces back by session')}
+${fn('curl')} ${st('"$ACRUX/traces?sessionId=support-1234"')} \\
+  -H ${st('"Authorization: Bearer $API_KEY"')}
+
+${cm('# response: trace list with spans, cost')}
+${cm('# and latency per call')}`;
 
 const TOOLS_CODE = `${cm('# the function IS the tool definition')}
 @acrux.${fn('tool')}
@@ -115,17 +168,89 @@ result = ${kw('await')} hub.${fn('run_tool_loop')}(
 ${cm('# name, description and argument schema all')}
 ${cm('# came from the function — nothing to sync')}`;
 
+const TOOLS_CODE_TS = `${cm('// define the tool with acrux.tool')}
+${kw('const')} queryDatabase = ${fn('acrux')}.${fn('tool')}(
+  { name: ${st("'query_database'")} },
+  ${kw('async')} ({ sql }) => {
+    ${kw('return')} JSON.${fn('stringify')}(db.${fn('run')}(sql));
+  },
+);
+
+${cm('// first call registers it in the catalog')}
+${kw('const')} result = ${kw('await')} hub.${fn('runToolLoop')}({
+  model: ${st("'gpt-4o'")}, messages,
+  tools: [queryDatabase],
+});
+
+${cm('// name, description and argument schema')}
+${cm('// came from the function — nothing to sync')}`;
+
 const EVALUATION_CODE = `${cm('# sweep a dataset across two versions')}
 ${fn('curl')} -X POST $ACRUX/experiments \\
   -H ${st('"Authorization: Bearer $API_KEY"')} \\
   -H ${st('"Content-Type: application/json"')} \\
   -d ${st(`'{
     "dataset_id": "…",
-    "prompt_version_ids": ["v7", "v8"],
+    "prompt_id": "…",
+    "version_ids": ["v7", "v8"],
     "models": ["gpt-4o-mini"]
   }'`)}
 
-${cm('# then read per-cell scores, side by side')}`;
+${cm('# start a run (async, returns 202)')}
+${fn('curl')} -X POST $ACRUX/experiments/<id>/runs \\
+  -H ${st('"Authorization: Bearer $API_KEY"')}
+
+${cm('# poll until succeeded, then read the report')}
+${fn('curl')} $ACRUX/runs/<run-id>/report \\
+  -H ${st('"Authorization: Bearer $API_KEY"')}
+${cm('# → per-cell avgScore, passRate, deltaVsBaseline')}
+
+${cm('# drill into one cell')}
+${fn('curl')} $ACRUX/runs/<run-id>/cells/v8%7Cgpt-4o-mini \\
+  -H ${st('"Authorization: Bearer $API_KEY"')}
+${cm('# → per-example output, score, judge reason')}`;
+
+const EVALUATION_CODE_TS = `${cm('// sweep a dataset across two versions')}
+${kw('const')} exp = ${kw('await')} hub.experiments.${fn('create')}({
+  datasetId: ${st("'…'")},
+  promptId: ${st("'…'")},
+  versionIds: [${st("'v7'")}, ${st("'v8'")}],
+  models: [${st("'gpt-4o-mini'")}],
+});
+
+${cm('// start a run (async, returns queued)')}
+${kw('const')} run = ${kw('await')} hub.experiments.${fn('startRun')}(exp.id);
+
+${cm('// poll until succeeded, then read the report')}
+${kw('const')} report = ${kw('await')} hub.runs.${fn('getReport')}(run.runId);
+console.${fn('log')}(report.winner);
+
+${cm('// drill into one cell')}
+${kw('const')} cell = ${kw('await')} hub.runs.${fn('getCell')}(
+  run.runId, ${st("'v8|gpt-4o-mini'")},
+);
+console.${fn('log')}(cell.examples[0].score);`;
+
+const EVALUATION_CODE_PY = `${cm('# sweep a dataset across two versions')}
+exp = ${kw('await')} hub.experiments.${fn('create')}(
+    dataset_id=${st('"…"')},
+    prompt_id=${st('"…"')},
+    version_ids=[${st('"v7"')}, ${st('"v8"')}],
+    models=[${st('"gpt-4o-mini"')}],
+)
+
+${cm('# start a run (async, returns queued)')}
+run = ${kw('await')} hub.experiments.${fn('start_run')}(exp.id)
+
+${cm('# poll until succeeded, then read the report')}
+report = ${kw('await')} hub.runs.${fn('get_report')}(run.run_id)
+${fn('print')}(report.winner)
+
+${cm('# drill into one cell')}
+cell = ${kw('await')} hub.runs.${fn('get_cell')}(
+    run.run_id, ${st('"v8|gpt-4o-mini"')},
+)
+${fn('print')}(cell.examples[0][${st('"score"')}])`;
 
 /** The pillar definitions, in the order they appear everywhere on the site. */
 export const FEATURES: Record<FeatureSlug, Feature> = {
@@ -165,7 +290,11 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
         body: 'A unified diff between any two versions, plus a newest-first record of who changed what and when — so a regression has a paper trail.',
       },
     ],
-    code: { filename: 'render.ts', lang: 'TypeScript', html: PROMPTS_CODE },
+    code: [
+      { id: 'ts', filename: 'render.ts', label: 'TS', lang: 'TypeScript', html: PROMPTS_CODE },
+      { id: 'py', filename: 'render.py', label: 'PY', lang: 'Python', html: PROMPTS_CODE_PY },
+      { id: 'curl', filename: 'render.sh', label: 'CURL', lang: 'curl', html: PROMPTS_CODE_CURL },
+    ],
     dashboard: [
       'Edit a prompt and commit a new version straight from the browser.',
       'Set a default model per prompt so callers never have to pass one.',
@@ -216,7 +345,11 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
         body: 'x-gateway-* headers return the request id, the provider that served it, the priced cost, and whether it was a cache hit. Accounting is not a batch job you run later.',
       },
     ],
-    code: { filename: 'gateway.sh', lang: 'curl', html: GATEWAY_CODE },
+    code: [
+      { id: 'curl', filename: 'gateway.sh', label: 'CURL', lang: 'curl', html: GATEWAY_CODE },
+      { id: 'ts', filename: 'gateway.ts', label: 'TS', lang: 'TypeScript', html: GATEWAY_CODE_TS },
+      { id: 'py', filename: 'gateway.py', label: 'PY', lang: 'Python', html: GATEWAY_CODE_PY },
+    ],
     dashboard: [
       'Register a public model name that maps to a credential and an upstream model.',
       'Try any registered model in the Playground before it reaches your app.',
@@ -265,7 +398,11 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
         body: 'Metadata is always recorded. Storing full request and response bodies is a per-team switch you own, so sensitive content is only kept when you decide it should be.',
       },
     ],
-    code: { filename: 'trace.ts', lang: 'TypeScript', html: TRACING_CODE },
+    code: [
+      { id: 'ts', filename: 'trace.ts', label: 'TS', lang: 'TypeScript', html: TRACING_CODE_TS },
+      { id: 'py', filename: 'trace.py', label: 'PY', lang: 'Python', html: TRACING_CODE_PY },
+      { id: 'curl', filename: 'trace.sh', label: 'CURL', lang: 'curl', html: TRACING_CODE_CURL },
+    ],
     dashboard: [
       'Walk a span tree and see the input and output of each step.',
       'Filter traces by model, status, cost, or latency to find the slow tail.',
@@ -313,7 +450,10 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
         body: 'Every tool call is recorded as a span with its input, output, and duration — so a flaky tool is visible instead of hiding inside a model answer.',
       },
     ],
-    code: { filename: 'agent.py', lang: 'Python', html: TOOLS_CODE },
+    code: [
+      { id: 'py', filename: 'agent.py', label: 'PY', lang: 'Python', html: TOOLS_CODE },
+      { id: 'ts', filename: 'agent.ts', label: 'TS', lang: 'TypeScript', html: TOOLS_CODE_TS },
+    ],
     dashboard: [
       'Define a tool and its JSON-schema parameters without writing boilerplate.',
       'Attach a tool to any prompt and pick which version the alias points at.',
@@ -359,11 +499,15 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
         body: 'Read every combination back individually — scores, outputs, and the run report — so a win in the aggregate cannot hide a regression on the cases you care about.',
       },
       {
-        title: 'The optimize loop',
-        body: 'Have the platform draft candidate rewrites, score them against a dataset, and promote the one that wins. You stay the approver, not the copywriter.',
+        title: 'Feedback-driven improvement',
+        body: 'Collect thumbs-up, labels, and comments on any trace or span through the SDK or dashboard. That feedback becomes an evaluation dataset — score new prompt versions against it and promote the one that actually wins.',
       },
     ],
-    code: { filename: 'experiment.sh', lang: 'curl', html: EVALUATION_CODE },
+    code: [
+      { id: 'curl', filename: 'experiment.sh', label: 'CURL', lang: 'curl', html: EVALUATION_CODE },
+      { id: 'ts', filename: 'experiment.ts', label: 'TS', lang: 'TypeScript', html: EVALUATION_CODE_TS },
+      { id: 'py', filename: 'experiment.py', label: 'PY', lang: 'Python', html: EVALUATION_CODE_PY },
+    ],
     dashboard: [
       'Build a dataset from traces you have already collected.',
       'Configure a run across prompt versions and models in one form.',

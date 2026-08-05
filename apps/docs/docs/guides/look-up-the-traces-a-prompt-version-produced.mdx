@@ -1,0 +1,110 @@
+---
+title: Look up the traces a prompt version produced
+description: Find every trace a specific prompt version powered, from the Versions tab or the API, and know when an empty result is expected.
+sidebar_position: 19
+keywords: [prompt version, traces, trace lookup, prompt version id, debugging prompts]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Look up the traces a prompt version produced
+
+**What you'll build:** a lookup that answers "what actually ran against
+version 2 of this prompt?" — both from the dashboard and from your own code.
+
+Every version you commit is immutable and keeps its own `id`. Any trace or
+span produced by rendering that version through the gateway carries this id
+back as `promptVersionId` — so given a version, you can always ask "what ran
+against this, and when?" without guessing from timestamps or grepping logs.
+This is the reverse lookup: version → traces, rather than trace → version.
+
+## 1. Find a version's id
+
+A version's `id` shows up in a few places you've probably already seen: the
+response from committing it (see [Version a prompt](./version-a-prompt)),
+the response from fetching it directly (`getVersion`/`get_version`), and the
+`versionId` field `renderPrompt`/`render_prompt` returns alongside the
+rendered messages. You don't need to copy it by hand, though — the dashboard
+already knows it.
+
+## 2. View traces from the Versions tab
+
+Open a prompt and switch to the **Versions** tab. Each row has a **View
+traces** link that jumps straight to the trace list, pre-filtered to that
+exact version — no need to know or paste the id yourself.
+
+![Versions tab showing a committed v1 with production and staging aliases, and a View traces link on the version row](/img/tutorials/look-up-the-traces-a-prompt-version-produced/01-view-traces-link.png)
+
+Clicking it navigates to `/traces?prompt_version_id=<id>`, which is the same
+filtered view you'd land on by bookmarking a version's traces or sharing the
+link with a teammate.
+
+## 3. Look it up over the API
+
+Do this whenever you're debugging outside the dashboard — e.g. checking from
+a CI job whether a version has been exercised at all, or building your own
+dashboard on top of Acrux Core.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl "$ACRUXCORE_BASE_URL/prompts/<prompt-id>/versions/2/traces?page=1&limit=20" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{"data":[],"total":0,"page":1,"limit":20}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore();
+
+const { data, total } = await hub.prompts.tracesForVersion(prompt.id, 2);
+// `data` is a page of trace summaries; `total` is the count across all pages.
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+result = await hub.prompts.traces_for_version(prompt.id, 2)
+# `result.data` is a page of trace summaries; `result.total` is the count across all pages.
+```
+
+</TabItem>
+</Tabs>
+
+**`{"data":[],"total":0,...}` is the expected response for a version nothing
+has called yet** — a brand-new version, or one you've only ever tested from
+the dashboard's preview rather than through the gateway. It's not an error
+and it doesn't mean the lookup is broken; it means exactly what it says: zero
+traces so far. The count rises the moment something renders this version and
+sends the result through the gateway with `promptVersionId` attached.
+
+:::tip[Full runnable script]
+A standalone script that commits versions, promotes an alias, and then looks
+up traces for one of them — end to end — lives on GitHub:
+[`run_lifecycle.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/version-a-prompt/python/run_lifecycle.py)
+(Python) and
+[`run_lifecycle.mjs`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/version-a-prompt/typescript/run_lifecycle.mjs)
+(Node).
+:::
+
+## What's next
+
+- Commit and promote the version you're about to look up — see
+  [Version a prompt](./version-a-prompt).
+- Diff or export the version behind a trace you're investigating — see
+  [Diff, Export, and Import Your Prompt Library](./diff-export-and-import-your-prompt-library).
+- Full field reference: **Traces** in the [API Reference](/api-reference).

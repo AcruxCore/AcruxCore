@@ -1,4 +1,5 @@
-"""Shared fixtures for the live-API integration suite (``test_byo_integration.py``).
+"""Shared fixtures for the live-API integration suites (``test_byo_integration.py``,
+``test_prompts_lifecycle.py``).
 
 Unlike the rest of this package's tests (all mocked, no network — see
 ``test_unit.py``'s and ``test_tools_api.py``'s module docstrings), this file boots
@@ -10,6 +11,9 @@ language boundary, so a subprocess + real network calls is the equivalent here).
 Nothing in this file is imported by the rest of the package; it exists purely to
 give ``test_byo_integration.py`` a live server plus a fully self-provisioned team
 (user, API key, `greeting` prompt, gateway connection + model) to run against.
+``test_prompts_lifecycle.py`` also requests the ``api_server`` fixture directly,
+but provisions its own lighter-weight team (no prompt/gateway connection) rather
+than reusing ``provisioned_env`` — see that file's module docstring.
 
 CONCURRENCY WARNING: this suite is not wired into `turbo.json` or any CI
 workflow. Its subprocess `apps/api` server points at the SAME `TEST_DATABASE_URL`
@@ -128,9 +132,9 @@ def api_server() -> Iterator[str]:
         error so a real startup failure is never silent.
     """
     # Lazy on purpose — see this module's docstring: loading here (rather than
-    # at import time) keeps this file inert for every test file except
-    # `test_byo_integration.py`, whose tests are the only ones that request
-    # this fixture.
+    # at import time) keeps this file inert for every test file except the ones
+    # that actually request this fixture (`test_byo_integration.py` and
+    # `test_prompts_lifecycle.py`, at least, as of this writing).
     _load_root_env()
 
     root = _repo_root()
@@ -293,7 +297,7 @@ def provisioned_env(api_server: str) -> Iterator[Dict[str, Any]]:
             raise RuntimeError(f"api-key creation failed ({key_res.status_code}): {key_res.text}")
         api_key = key_res.json()["key"]
 
-        # Fixture for the trace read-back suite's `hub.render_prompt("greeting", ...)`.
+        # Fixture for the trace read-back suite's `hub.prompts.render("greeting", ...)`.
         prompt_res = c.post("/prompts", json={"name": "greeting"}, headers=headers)
         if prompt_res.status_code != 201:
             raise RuntimeError(f"prompt creation failed ({prompt_res.status_code}): {prompt_res.text}")
@@ -318,7 +322,7 @@ def provisioned_env(api_server: str) -> Iterator[Dict[str, Any]]:
 
         # Real gateway connection + model backed by the SAME OpenRouter credential
         # the BYO arm calls directly, under the SAME public name every test passes
-        # as `model` (TEST_MODEL) — so `hub.chat(model, messages)` with no
+        # as `model` (TEST_MODEL) — so `hub.gateway.chat(model, messages)` with no
         # `provider=` routes through the gateway to this connection instead of
         # failing with MODEL_NOT_REGISTERED. Pricing fields are omitted
         # deliberately, same reasoning as the Node suite: OpenRouter's
@@ -431,4 +435,4 @@ async def hub(provisioned_env: Dict[str, Any]) -> Any:
     try:
         yield client
     finally:
-        await client.aclose()
+        await client.gateway.aclose()

@@ -4,10 +4,9 @@ from acruxcore import AcruxCore
 
 async def main() -> None:
     async with AcruxCore() as hub:
-        stream = await hub.chat(
+        stream = await hub.gateway.stream(
             "gpt-4o-mini",
             [{"role": "user", "content": "In one sentence, what makes a good data analyst?"}],
-            stream=True,
         )
         async for chunk in stream:
             print(chunk.delta.get("content", "") or "", end="", flush=True)

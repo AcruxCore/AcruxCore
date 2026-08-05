@@ -16,11 +16,11 @@
  *        tools to this immutable version.
  *
  *   FETCH + USE (SDK, at run time):
- *     3. `renderPrompt(name, 'production', vars)` returns `{ messages, tools }` in
+ *     3. `prompts.render(name, 'production', vars)` returns `{ messages, tools }` in
  *        one call: the messages are templated server-side and `tools` are the
  *        version's attached tool schemas, already in OpenAI shape. Both come from
  *        the framework — this file no longer holds them.
- *     4. `runToolLoop({ messages, tools })` runs the loop with exactly what was
+ *     4. `gateway.runToolLoop({ messages, tools })` runs the loop with exactly what was
  *        fetched. The only tool code left in this file is `dispatch` — the local
  *        implementations. Schemas, descriptions, and the prompt text live on the
  *        server.
@@ -323,7 +323,7 @@ async function main(): Promise<void> {
 
   // ── FETCH: one SDK call returns BOTH the templated messages and the attached
   // tool schemas. Neither is defined on this run path — they came from the server.
-  const { messages, tools } = await hub.renderPrompt(PROMPT_NAME, 'production', {
+  const { messages, tools } = await hub.prompts.render(PROMPT_NAME, 'production', {
     city: 'Tokyo',
     amount: 100,
     from: 'USD',
@@ -339,7 +339,7 @@ async function main(): Promise<void> {
   // `toolDefs`, not `tools`: these are raw OpenAI-shaped definitions from
   // renderPrompt. `tools` is for tools declared with `acrux.tool`, which carry
   // their own body and need no dispatch.
-  const result = await hub.runToolLoop({ model, messages, toolDefs: tools, dispatch });
+  const result = await hub.gateway.runToolLoop({ model, messages, toolDefs: tools, dispatch });
 
   console.log('\nAssistant:', result.content);
   console.log(`\n(${result.iterations} round-trip(s), trace ${result.traceId ?? 'disabled'})`);

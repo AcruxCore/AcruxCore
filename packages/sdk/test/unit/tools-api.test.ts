@@ -378,7 +378,7 @@ describe('runToolLoop routing', () => {
     const paths: string[] = [];
     installLoopFetch({ paths });
 
-    const result = await hub.runToolLoop({
+    const result = await hub.gateway.runToolLoop({
       model: 'm',
       messages: [{ role: 'user', content: '?' }],
       tools: [weather],
@@ -399,7 +399,7 @@ describe('runToolLoop routing', () => {
     const paths: string[] = [];
     installLoopFetch({ paths });
 
-    await hub.runToolLoop({
+    await hub.gateway.runToolLoop({
       model: 'm',
       messages: [{ role: 'user', content: '?' }],
       tools: [weather],
@@ -418,7 +418,7 @@ describe('runToolLoop routing', () => {
     const paths: string[] = [];
     installLoopFetch({ executorType: 'http', paths });
 
-    const result = await hub.runToolLoop({
+    const result = await hub.gateway.runToolLoop({
       model: 'm',
       messages: [{ role: 'user', content: '?' }],
       toolRefs: [{ name: 'get_weather', alias: 'production' }],
@@ -436,7 +436,7 @@ describe('runToolLoop routing', () => {
     installLoopFetch({ executorType: 'client', paths });
 
     await expect(
-      hub.runToolLoop({
+      hub.gateway.runToolLoop({
         model: 'm',
         messages: [{ role: 'user', content: '?' }],
         toolRefs: [{ name: 'get_weather' }],
@@ -451,7 +451,7 @@ describe('runToolLoop routing', () => {
     const paths: string[] = [];
     installLoopFetch({ executorType: 'client', paths });
 
-    const result = await hub.runToolLoop({
+    const result = await hub.gateway.runToolLoop({
       model: 'm',
       messages: [{ role: 'user', content: '?' }],
       toolRefs: [{ name: 'get_weather' }],
@@ -472,7 +472,7 @@ describe('runToolLoop routing', () => {
     const paths: string[] = [];
     installLoopFetch({ executorType: 'http', paths });
 
-    await hub.runToolLoop({
+    await hub.gateway.runToolLoop({
       model: 'm',
       messages: [{ role: 'user', content: '?' }],
       tools: [weather],
@@ -492,7 +492,7 @@ describe('runToolLoop routing', () => {
     const paths: string[] = [];
     installLoopFetch({ paths });
 
-    await hub.runToolLoop({
+    await hub.gateway.runToolLoop({
       model: 'm',
       messages: [{ role: 'user', content: '?' }],
       tools: [weather],
@@ -517,7 +517,7 @@ describe('runToolLoop routing', () => {
     const paths: string[] = [];
     installLoopFetch({ paths });
 
-    await hub.runToolLoop({
+    await hub.gateway.runToolLoop({
       model: 'm',
       messages: [{ role: 'user', content: '?' }],
       tools: [weather],

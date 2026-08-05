@@ -148,7 +148,7 @@ describeBench('trace reporting latency, against the real API', () => {
       });
       const provider = { baseUrl: `http://127.0.0.1:${providerPort}`, apiKey: 'p' };
       const call = (extra: Record<string, unknown>) =>
-        hub.chat({ model: 'stub-model', messages: [{ role: 'user', content: 'ping' }], provider, ...extra });
+        hub.gateway.chat({ model: 'stub-model', messages: [{ role: 'user', content: 'ping' }], provider, ...extra });
 
       const traceIds: string[] = [];
 
@@ -163,7 +163,7 @@ describeBench('trace reporting latency, against the real API', () => {
         } else {
           // Exactly what the SDK used to do: answer the caller, then block on the write.
           const result = await call({ trace: false });
-          const { traceId } = await hub.trace({
+          const { traceId } = await hub.traces.ingest({
             name: 'chat',
             spans: [
               {
@@ -218,12 +218,12 @@ describeBench('trace reporting latency, against the real API', () => {
       expect(after).toBeLessThan(GATE_MS);
 
       // Nothing was traded away for the latency: every span reached real Postgres.
-      await hub.flush();
+      await hub.gateway.flush();
       const spans = await prisma.span.findMany({ where: { traceId: { in: traceIds } } });
       expect(traceIds).toHaveLength(ROUNDS * 2);
       expect(spans).toHaveLength(ROUNDS * 2);
 
-      await hub.close();
+      await hub.gateway.close();
     },
     ROUNDS * (PROVIDER_DELAY_MS * 3 + TRACE_DELAY_MS * 2) + 120_000,
   );

@@ -76,6 +76,49 @@ curl -X POST "$ACRUXCORE_BASE_URL/prompts/c7f36c65-9693-4264-86a5-e58c0d8acb13/v
 ```
 
 </TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore();
+
+const prompt = await hub.prompts.create({
+  name: 'support-reply',
+  description: 'Drafts a friendly support reply',
+});
+// `prompt.id` is what every later call (versions, aliases) is keyed on.
+
+// Versions are keyed by the prompt's id, not its name
+const v1 = await hub.prompts.commitVersion(prompt.id, {
+  messages: [
+    { role: 'system', content: 'You are a friendly, concise customer-support agent for {{ company }}. Reply warmly and help the customer resolve their issue in 2-3 sentences.' },
+    { role: 'user', content: '{{ customer_message }}' },
+  ],
+});
+// `v1.aliases` is minted on the FIRST version only — both `production` and `staging` now point at v1.
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+prompt = await hub.prompts.create("support-reply", description="Drafts a friendly support reply")
+# `prompt.id` is what every later call (versions, aliases) is keyed on.
+
+# Versions are keyed by the prompt's id, not its name
+v1 = await hub.prompts.commit_version(prompt.id, [
+    {"role": "system", "content": "You are a friendly, concise customer-support agent for {{ company }}. Reply warmly and help the customer resolve their issue in 2-3 sentences."},
+    {"role": "user", "content": "{{ customer_message }}"},
+])
+# `v1.aliases` is minted on the FIRST version only — both `production` and `staging` now point at v1.
+```
+
+</TabItem>
 <TabItem value="python-requests" label="Python (requests)">
 
 ```python
@@ -142,6 +185,22 @@ curl -X POST "$ACRUXCORE_BASE_URL/prompts/c7f36c65-9693-4264-86a5-e58c0d8acb13/a
 ```
 
 </TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const production = await hub.prompts.promoteAlias(prompt.id, 'production', 2);
+// `production.versionNumber` is now 2 — `staging` is untouched, still on v1.
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+production = await hub.prompts.promote_alias(prompt.id, "production", 2)
+# `production.version_number` is now 2 — `staging` is untouched, still on v1.
+```
+
+</TabItem>
 <TabItem value="python-requests" label="Python (requests)">
 
 ```python
@@ -188,7 +247,7 @@ import AcruxCore from '@acruxcoreai/sdk';
 
 const hub = new AcruxCore();
 
-const { messages, tools } = await hub.renderPrompt('support-reply', 'production', {
+const { messages, tools } = await hub.prompts.render('support-reply', 'production', {
   company: 'Acme',
   customer_message: 'Where is my order #123?',
 });
@@ -203,7 +262,7 @@ from acruxcore import AcruxCore
 
 hub = AcruxCore()
 
-render = await hub.render_prompt("support-reply", "production", {
+render = await hub.prompts.render("support-reply", "production", {
     "company": "Acme",
     "customer_message": "Where is my order #123?",
 })

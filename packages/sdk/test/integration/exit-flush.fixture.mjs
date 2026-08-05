@@ -10,7 +10,7 @@ const hub = new acruxcore({
   baseUrl: process.env.FIXTURE_BASE_URL,
 });
 
-await hub.chat({
+await hub.gateway.chat({
   model: 'stub-model',
   messages: [{ role: 'user', content: 'ping' }],
   provider: { baseUrl: process.env.FIXTURE_PROVIDER_URL, apiKey: 'p' },

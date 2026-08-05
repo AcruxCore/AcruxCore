@@ -46,7 +46,7 @@ The sections below go deep on each dimension with screenshots. If you just want 
 | Evaluation | Datasets + Experiments, hand-authored examples | Datasets + Experiments, hand-authored examples | A/B test on live traffic + ad-hoc model-comparison grid | Feedback-driven datasets only — no hand-authored examples |
 | Feedback → Playground → save loop | Feedback + Dataset + Annotation Queue exist, but no trace → Playground jump | Full loop: trace → Playground (pre-loaded) → Save as prompt | Full loop: Request → Playground (pre-loaded) → Save Template | Full loop, plus an automated version: feedback → drafted candidates → judged run → Promote to production |
 | Tool calling | Shows up as spans only; no catalog | Playground-scoped tool schema; no catalog | Per-request tool-call count; no catalog | Dedicated versioned Tool Catalog + a Tool analytics page |
-| Developer experience | `wrap_openai` + `@traceable` around your own OpenAI call | Drop-in OpenAI wrapper, built on OpenTelemetry | `pl_client.openai` wrapper around your own OpenAI call | `renderPrompt` + `chat` — no direct call to a provider at all, Node and Python |
+| Developer experience | `wrap_openai` + `@traceable` around your own OpenAI call | Drop-in OpenAI wrapper, built on OpenTelemetry | `pl_client.openai` wrapper around your own OpenAI call | `hub.prompts.render` + `hub.gateway.chat` — no direct call to a provider at all, Node and Python |
 | Pricing (what we actually saw) | Not verified hands-on | Not verified hands-on | Team Trial plan with visible quotas | Not verified hands-on |
 
 ## Prompt management
@@ -306,14 +306,14 @@ and it ships as both a Node and a Python package, so we ran the same call both w
 
 ```javascript
 // Node — npm install @acruxcoreai/sdk
-const { messages } = await hub.renderPrompt('support-triage', 'production', { ... });
-const result = await hub.chat({ model: 'gpt-4o-mini', messages });
+const { messages } = await hub.prompts.render('support-triage', 'production', { ... });
+const result = await hub.gateway.chat({ model: 'gpt-4o-mini', messages });
 ```
 
 ```python
 # Python — pip install acruxcore
-rendered = await hub.render_prompt("support-triage", "production", { ... })
-result = await hub.chat("gpt-4o-mini", rendered.messages)
+rendered = await hub.prompts.render("support-triage", "production", { ... })
+result = await hub.gateway.chat("gpt-4o-mini", rendered.messages)
 ```
 
 One call renders the stored prompt *and* routes it through the gateway — no separate
@@ -337,7 +337,7 @@ be clear, Acrux Core's gateway is BYOK too; this account just happened to alread
 
 ![PromptLayer Requests table with the SDK-originated call at the top, showing model and real generated response](/img/tutorials/promptlayer-walkthrough/11-sdk-request-log.jpg)
 
-**Acrux Core** — `renderPrompt` + `chat`, one gateway hop, no OpenAI client at all; both the
+**Acrux Core** — `hub.prompts.render` + `hub.gateway.chat`, one gateway hop, no OpenAI client at all; both the
 Node and Python scripts' calls land on this same single-span trace page (shown earlier in
 Tracing and observability), just with their own request ID and token count each run.
 

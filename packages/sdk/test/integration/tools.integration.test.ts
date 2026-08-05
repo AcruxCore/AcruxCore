@@ -52,6 +52,24 @@ async function setupUserAndKey(): Promise<{ apiKey: string; cookie: string }> {
   return { apiKey: ctx.apiKey, cookie: ctx.cookie };
 }
 
+/**
+ * Boots the real Express app on a real port and returns a live `acruxcore` client
+ * pointed at it, plus a closer. `ToolsNamespace`'s new lifecycle methods call
+ * `this.client._request` → real `fetch`, unlike supertest's `request(app)` wrapper, so
+ * the client needs an actual listening socket rather than an in-memory supertest binding.
+ */
+async function startLiveClient(apiKey: string): Promise<{ hub: acruxcore; close: () => Promise<void> }> {
+  const http = await import('http');
+  const server = http.createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const port = (server.address() as { port: number }).port;
+  const hub = new acruxcore({ apiKey, baseUrl: `http://localhost:${port}/api/v1`, maxRetries: 0 });
+  return {
+    hub,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  };
+}
+
 /** Creates a tool + a committed version (client-executed, per TC1) and returns its id. */
 async function createToolWithVersion(
   cookie: string,
@@ -124,7 +142,7 @@ describe('acruxcore SDK tools integration', () => {
 
     const hub = new acruxcore({ apiKey, baseUrl: `http://localhost:${port}/api/v1`, maxRetries: 0 });
 
-    const { messages, tools } = await hub.renderPrompt(promptName, 'production', { city: 'Paris' });
+    const { messages, tools } = await hub.prompts.render(promptName, 'production', { city: 'Paris' });
 
     // Real templated messages, exactly like the non-tools render path
     expect(messages).toHaveLength(2);
@@ -173,7 +191,7 @@ describe('acruxcore SDK tools integration', () => {
 
     const hub = new acruxcore({ apiKey, baseUrl: `http://localhost:${port}/api/v1`, maxRetries: 0 });
 
-    const result = await hub.renderPrompt(promptName, 'production');
+    const result = await hub.prompts.render(promptName, 'production');
 
     expect(result.tools).toEqual([]);
 
@@ -279,5 +297,157 @@ describe('acruxcore SDK tools integration', () => {
     ).rejects.toMatchObject({ statusCode: 404 });
 
     await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  it('runs the full tool lifecycle: create -> versions -> alias promote -> analytics -> delete', async () => {
+    const { apiKey } = await setupUserAndKey();
+    const { hub, close } = await startLiveClient(apiKey);
+
+    try {
+      // create -> get -> update
+      const created = await hub.tools.create({
+        name: `lifecycle_tool_${Date.now()}`,
+        description: 'Initial description',
+      });
+      expect(created.id).toEqual(expect.any(String));
+      expect(created.description).toBe('Initial description');
+
+      const fetched = await hub.tools.get(created.id);
+      expect(fetched).toEqual(created);
+
+      const updated = await hub.tools.update(created.id, { description: 'Updated description' });
+      expect(updated.description).toBe('Updated description');
+      expect(updated.name).toBe(created.name);
+
+      // list — the created tool appears
+      const listPage = await hub.tools.list();
+      expect(listPage.data.map((t) => t.id)).toContain(created.id);
+
+      // commitVersion v1 (client executor) — aliases present (first version mints both)
+      const v1 = await hub.tools.commitVersion(created.id, {
+        parametersSchema: { type: 'object', properties: { city: { type: 'string' } }, required: ['city'] },
+        executor: { type: 'client' },
+      });
+      expect(v1.versionNumber).toBe(1);
+      expect(v1.toolId).toBe(created.id);
+      expect(v1.aliases).toBeDefined();
+      expect(v1.aliases?.map((a) => a.alias).sort()).toEqual(['production', 'staging']);
+      expect(v1.aliases?.every((a) => a.versionNumber === 1)).toBe(true);
+      expect(v1.warnings).toBeUndefined();
+
+      // commitVersion v2 (http executor) — aliases absent (committing never moves an alias by itself)
+      const v2 = await hub.tools.commitVersion(created.id, {
+        description: 'Looks up the weather via a public API',
+        parametersSchema: { type: 'object', properties: { city: { type: 'string' } }, required: ['city'] },
+        executor: {
+          type: 'http',
+          url: 'https://httpbin.org/get',
+          method: 'GET',
+          headers: [],
+          query: [{ name: 'city', value: '{{city}}' }],
+          argMapping: [{ arg: 'city', in: 'query' }],
+        },
+      });
+      expect(v2.versionNumber).toBe(2);
+      expect(v2.aliases).toBeUndefined();
+      expect(v2.warnings).toBeUndefined();
+      expect(v2.executor).toEqual({
+        type: 'http',
+        url: 'https://httpbin.org/get',
+        method: 'GET',
+        headers: [],
+        query: [{ name: 'city', value: '{{city}}' }],
+        argMapping: [{ arg: 'city', in: 'query' }],
+      });
+
+      // commitVersion v3 (changelog only, no description) — warnings present
+      const v3 = await hub.tools.commitVersion(created.id, {
+        changelog: 'Tweaked argument mapping',
+        parametersSchema: { type: 'object', properties: { city: { type: 'string' } }, required: ['city'] },
+        executor: { type: 'client' },
+      });
+      expect(v3.versionNumber).toBe(3);
+      expect(v3.aliases).toBeUndefined();
+      expect(v3.warnings).toBeDefined();
+      expect(v3.warnings?.length).toBeGreaterThan(0);
+
+      // listVersions — newest first, no parametersSchema/executor on list items
+      const versionsPage = await hub.tools.listVersions(created.id);
+      expect(versionsPage.total).toBe(3);
+      expect(versionsPage.data.map((v) => v.versionNumber)).toEqual([3, 2, 1]);
+      expect(versionsPage.data[0]).not.toHaveProperty('parametersSchema');
+      expect(versionsPage.data[0]).not.toHaveProperty('executor');
+      expect(versionsPage.data[0]?.toolId).toBe(created.id);
+
+      // getVersion — full parametersSchema/executor present, never aliases/warnings
+      const gotV2 = await hub.tools.getVersion(created.id, 2);
+      expect(gotV2.parametersSchema).toEqual(v2.parametersSchema);
+      expect(gotV2.executor).toEqual(v2.executor);
+      expect(gotV2).not.toHaveProperty('aliases');
+      expect(gotV2).not.toHaveProperty('warnings');
+
+      // promoteAlias — move `production` to v2
+      const promoted = await hub.tools.promoteAlias(created.id, 'production', 2);
+      expect(promoted.alias).toBe('production');
+      expect(promoted.versionNumber).toBe(2);
+
+      // analytics — no executions happened in this test
+      const analytics = await hub.tools.analytics();
+      expect(analytics).toEqual({ data: [] });
+
+      // delete -> get on the deleted id throws API_ERROR / 404
+      await hub.tools.delete(created.id);
+      await expect(hub.tools.get(created.id)).rejects.toMatchObject({
+        name: 'acruxcoreError',
+        code: 'API_ERROR',
+        statusCode: 404,
+      });
+    } finally {
+      await close();
+    }
+  });
+
+  it('surfaces VALIDATION_ERROR/TOOL_NAME_TAKEN/404 for the tool + version + analytics error paths', async () => {
+    const { apiKey } = await setupUserAndKey();
+    const { hub, close } = await startLiveClient(apiKey);
+
+    try {
+      await expect(hub.tools.create({ name: 'bad name!' })).rejects.toMatchObject({
+        name: 'acruxcoreError',
+        code: 'API_ERROR',
+        statusCode: 400,
+        body: { error: { code: 'VALIDATION_ERROR' } },
+      });
+
+      const toolName = `taken_name_${Date.now()}`;
+      const first = await hub.tools.create({ name: toolName });
+      expect(first.id).toEqual(expect.any(String));
+
+      await expect(hub.tools.create({ name: toolName })).rejects.toMatchObject({
+        name: 'acruxcoreError',
+        code: 'API_ERROR',
+        statusCode: 409,
+        body: { error: { code: 'TOOL_NAME_TAKEN' } },
+      });
+
+      await hub.tools.commitVersion(first.id, {
+        parametersSchema: { type: 'object', properties: {} },
+        executor: { type: 'client' },
+      });
+      await expect(hub.tools.getVersion(first.id, 99)).rejects.toMatchObject({
+        name: 'acruxcoreError',
+        code: 'API_ERROR',
+        statusCode: 404,
+      });
+
+      await expect(hub.tools.analytics({ since: 'not-a-date' })).rejects.toMatchObject({
+        name: 'acruxcoreError',
+        code: 'API_ERROR',
+        statusCode: 400,
+        body: { error: { code: 'VALIDATION_ERROR' } },
+      });
+    } finally {
+      await close();
+    }
   });
 });

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "acruxcore"
-version = "0.6.7"
+version = "0.7.0"
 description = "Async Python SDK for Acrux Core — runtime prompt render, gateway chat, tool loops, traces, and feedback"
 readme = "README.md"
 license = { text = "MIT" }

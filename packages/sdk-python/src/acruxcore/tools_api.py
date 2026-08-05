@@ -6,10 +6,21 @@ import hashlib
 import json
 import warnings
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence
+from urllib.parse import quote, urlencode
 
 from .errors import API_ERROR, AcruxCoreError
 from .tooling import ToolSpec, spec_of
-from .types import ResolvedTool, ToolExecuteResult, ToolSyncResult
+from .types import (
+    ResolvedTool,
+    ToolAliasDetail,
+    ToolAnalyticsResult,
+    ToolDetail,
+    ToolExecuteResult,
+    ToolListResult,
+    ToolSyncResult,
+    ToolVersionDetail,
+    ToolVersionListResult,
+)
 
 if TYPE_CHECKING:  # avoids a circular import at runtime
     from .client import AcruxCore
@@ -17,6 +28,16 @@ if TYPE_CHECKING:  # avoids a circular import at runtime
 #: Max entries in the process-wide sync cache. A deploy syncs a handful of tools;
 #: the bound only exists so a pathological caller cannot grow it without limit.
 _MAX_SYNC_CACHE = 256
+
+#: Sentinel distinguishing "argument not passed" from "explicit `None`" on
+#: :meth:`ToolsNamespace.update`'s ``description`` parameter. The API's
+#: `UpdateToolSchema.description` is `nullable().optional()` — three wire states
+#: a plain `None` default cannot tell apart: omitting the key (leave the stored
+#: value untouched), sending explicit `null` (clear it), or sending a string
+#: (set it). A default of `None` would collapse "leave untouched" and "clear it"
+#: into the same call shape, so this object identity sentinel stands in for
+#: "not passed" instead.
+_UNSET: Any = object()
 
 #: spec-hash → ToolSyncResult, so a loop that starts many times per process pays for
 #: reconciliation once. Process-wide (not per-client) because the key includes the
@@ -97,10 +118,10 @@ class ToolsNamespace:
                     "raw OpenAI tool definition as tool_defs= instead of tools=.",
                     API_ERROR,
                 )
-            results.append(await self.sync_spec(spec, on_conflict=on_conflict))
+            results.append(await self.sync_one(spec, on_conflict=on_conflict))
         return results
 
-    async def sync_spec(self, spec: ToolSpec, *, on_conflict: str = "warn") -> ToolSyncResult:
+    async def sync_one(self, spec: ToolSpec, *, on_conflict: str = "warn") -> ToolSyncResult:
         """Reconcile one :class:`~acruxcore.tooling.ToolSpec`. See :meth:`sync`.
 
         :param spec: The spec to reconcile.
@@ -221,4 +242,292 @@ class ToolsNamespace:
         )
         return ToolExecuteResult.from_dict(
             self._client._parse_json_or_throw(response, "executing tool")
+        )
+
+    async def list(
+        self,
+        *,
+        search: Optional[str] = None,
+        page: Optional[int] = None,
+        limit: Optional[int] = None,
+    ) -> ToolListResult:
+        """Lists tools for the team, newest first.
+
+        :param search: Optional free-text filter over the tool's name.
+        :param page: 1-based page number.
+        :param limit: Page size.
+        :returns: One page of tools.
+        :raises AcruxCoreError: ``API_ERROR`` on a non-2xx response.
+        :raises AcruxCoreError: ``NETWORK_ERROR`` if the API is unreachable after
+            retries.
+        """
+        params: Dict[str, str] = {}
+        if search is not None:
+            params["search"] = search
+        if page is not None:
+            params["page"] = str(page)
+        if limit is not None:
+            params["limit"] = str(limit)
+        qs = urlencode(params)
+        path = f"/tools?{qs}" if qs else "/tools"
+
+        response = await self._client._request("GET", path, None, "listing tools")
+        return ToolListResult.from_dict(self._client._parse_json_or_throw(response, "listing tools"))
+
+    async def get(self, tool_id: str) -> ToolDetail:
+        """Fetches one tool's shell by id.
+
+        :param tool_id: The tool's id (UUID).
+        :returns: The tool.
+        :raises AcruxCoreError: ``API_ERROR`` with ``status_code`` 404 if the tool
+            doesn't exist (or belongs to another team), including after a soft-delete.
+        :raises AcruxCoreError: ``NETWORK_ERROR`` if the API is unreachable after
+            retries.
+        """
+        response = await self._client._request(
+            "GET", f"/tools/{quote(tool_id, safe='')}", None, "fetching tool"
+        )
+        return ToolDetail.from_dict(self._client._parse_json_or_throw(response, "fetching tool"))
+
+    async def create(self, name: str, *, description: Optional[str] = None) -> ToolDetail:
+        """Creates a new tool shell. A tool has no schema/executor of its own —
+        commit a version with :meth:`commit_version` to give it one.
+
+        :param name: Must match ``^[a-zA-Z0-9_-]{1,64}$`` and be unique per team.
+        :param description: Optional human-readable description.
+        :returns: The created tool.
+        :raises AcruxCoreError: ``API_ERROR`` with code ``VALIDATION_ERROR`` (e.g.
+            a name that doesn't match the pattern); code ``TOOL_NAME_TAKEN`` (409)
+            if a tool with that name already exists in the team; or 403 if the
+            caller's role cannot create tools (editor and above only).
+        :raises AcruxCoreError: ``NETWORK_ERROR`` if the API is unreachable after
+            retries.
+        """
+        body: Dict[str, Any] = {"name": name}
+        if description is not None:
+            body["description"] = description
+
+        response = await self._client._request("POST", "/tools", body, "creating tool")
+        return ToolDetail.from_dict(self._client._parse_json_or_throw(response, "creating tool"))
+
+    async def update(
+        self,
+        tool_id: str,
+        *,
+        name: Optional[str] = None,
+        description: Any = _UNSET,
+    ) -> ToolDetail:
+        """Updates a tool's ``name`` and/or ``description``. Does not touch its
+        versions — versions are immutable and unaffected by renaming the tool
+        they belong to.
+
+        :param tool_id: The tool's id.
+        :param name: New name, or omit to leave it untouched.
+        :param description: Omit to leave the stored description untouched, pass
+            ``None`` to clear it, or a string to set it (see the module-level
+            ``_UNSET`` sentinel this default resolves to).
+        :returns: The updated tool.
+        :raises AcruxCoreError: ``API_ERROR`` 404 unknown tool; ``VALIDATION_ERROR``
+            if neither ``name`` nor ``description`` is set; or 403 if the caller's
+            role cannot update tools (editor and above only).
+        :raises AcruxCoreError: ``NETWORK_ERROR`` if the API is unreachable after
+            retries.
+        """
+        body: Dict[str, Any] = {}
+        if name is not None:
+            body["name"] = name
+        if description is not _UNSET:
+            body["description"] = description
+
+        response = await self._client._request(
+            "PATCH", f"/tools/{quote(tool_id, safe='')}", body, "updating tool"
+        )
+        return ToolDetail.from_dict(self._client._parse_json_or_throw(response, "updating tool"))
+
+    async def delete(self, tool_id: str) -> None:
+        """Soft-deletes a tool: it stops appearing in :meth:`list`/:meth:`get`,
+        but its versions and aliases are preserved (just unreachable) rather than
+        removed.
+
+        The endpoint replies ``204 No Content`` on success, which has no body —
+        calling ``_parse_json_or_throw`` unconditionally would throw trying to
+        parse it, so the success path returns directly and only a non-2xx
+        response is parsed (to raise the typed error).
+
+        :param tool_id: The tool's id.
+        :raises AcruxCoreError: ``API_ERROR`` with ``status_code`` 404 if the tool
+            doesn't exist, or 403 if the caller's role cannot delete tools
+            (editor and above only).
+        :raises AcruxCoreError: ``NETWORK_ERROR`` if the API is unreachable after
+            retries.
+        """
+        response = await self._client._request(
+            "DELETE", f"/tools/{quote(tool_id, safe='')}", None, "deleting tool"
+        )
+        if response.status_code >= 400:
+            self._client._parse_json_or_throw(response, "deleting tool")
+
+    async def commit_version(
+        self,
+        tool_id: str,
+        parameters_schema: Dict[str, Any],
+        executor: Dict[str, Any],
+        *,
+        description: Optional[str] = None,
+        changelog: Optional[str] = None,
+        source: Optional[str] = None,
+    ) -> ToolVersionDetail:
+        """Commits a new immutable version for a tool.
+
+        :param tool_id: The tool's id.
+        :param parameters_schema: The version's JSON Schema for its arguments.
+        :param executor: ``{"type": "client"}`` (the caller's own app runs it) or
+            ``{"type": "http", "url", "method", "headers", "query",
+            "bodyTemplate"?, "argMapping", "requestTransform"?,
+            "responseTransform"?}``. Kept as a plain dict on both input and
+            output rather than a typed union — this SDK already keeps
+            :attr:`~acruxcore.types.ResolvedTool.function` untyped for the same
+            reason, and inventing a Python discriminated union here would be new
+            plumbing this codebase doesn't otherwise have.
+        :param description: Optional description for this version.
+        :param changelog: Optional changelog note for this version.
+        :param source: ``'dashboard'`` or ``'api'``; defaults to ``'api'``
+            server-side. ``'code'`` is rejected here — only :meth:`sync`
+            (``POST /tools/sync``) may write it.
+        :returns: The created version. ``aliases`` is present ONLY when this is
+            the tool's first version — both ``production`` and ``staging`` are
+            minted and point at it; every later commit returns no ``aliases`` at
+            all. ``warnings`` is present only when this commit has a
+            ``changelog`` but no ``description`` (a likely omission, not an
+            error).
+        :raises AcruxCoreError: ``API_ERROR`` 404 unknown tool, or
+            ``VALIDATION_ERROR`` (e.g. invalid ``executor`` shape, or a
+            ``source`` of ``'code'``).
+        :raises AcruxCoreError: ``NETWORK_ERROR`` if the API is unreachable after
+            retries.
+        """
+        body: Dict[str, Any] = {"parametersSchema": parameters_schema, "executor": executor}
+        if description is not None:
+            body["description"] = description
+        if changelog is not None:
+            body["changelog"] = changelog
+        if source is not None:
+            body["source"] = source
+
+        response = await self._client._request(
+            "POST", f"/tools/{quote(tool_id, safe='')}/versions", body, "committing tool version"
+        )
+        return ToolVersionDetail.from_dict(
+            self._client._parse_json_or_throw(response, "committing tool version")
+        )
+
+    async def list_versions(
+        self,
+        tool_id: str,
+        *,
+        page: Optional[int] = None,
+        limit: Optional[int] = None,
+    ) -> ToolVersionListResult:
+        """Lists a tool's versions, newest first. List items omit
+        ``parameters_schema``/``executor`` to keep pages small — use
+        :meth:`get_version` for the full content.
+
+        :param tool_id: The tool's id.
+        :param page: 1-based page number.
+        :param limit: Page size.
+        :returns: One page of versions.
+        :raises AcruxCoreError: ``API_ERROR`` 404 unknown tool.
+        :raises AcruxCoreError: ``NETWORK_ERROR`` if the API is unreachable after
+            retries.
+        """
+        params: Dict[str, str] = {}
+        if page is not None:
+            params["page"] = str(page)
+        if limit is not None:
+            params["limit"] = str(limit)
+        qs = urlencode(params)
+        path = f"/tools/{quote(tool_id, safe='')}/versions"
+        if qs:
+            path += f"?{qs}"
+
+        response = await self._client._request("GET", path, None, "listing tool versions")
+        return ToolVersionListResult.from_dict(
+            self._client._parse_json_or_throw(response, "listing tool versions")
+        )
+
+    async def get_version(self, tool_id: str, version_number: int) -> ToolVersionDetail:
+        """Fetches one version with its full ``parameters_schema``/``executor``.
+        Unlike :meth:`commit_version`'s response, this never includes
+        ``aliases``/``warnings`` — only the commit response ever has either.
+
+        :param tool_id: The tool's id.
+        :param version_number: The version's sequential number (1-based,
+            immutable).
+        :returns: The version.
+        :raises AcruxCoreError: ``API_ERROR`` 404 unknown tool or version number.
+        :raises AcruxCoreError: ``NETWORK_ERROR`` if the API is unreachable after
+            retries.
+        """
+        response = await self._client._request(
+            "GET",
+            f"/tools/{quote(tool_id, safe='')}/versions/{quote(str(version_number), safe='')}",
+            None,
+            "fetching tool version",
+        )
+        return ToolVersionDetail.from_dict(
+            self._client._parse_json_or_throw(response, "fetching tool version")
+        )
+
+    async def promote_alias(self, tool_id: str, alias: str, version_number: int) -> ToolAliasDetail:
+        """Promotes an alias to point at a specific version — e.g. rolling
+        ``production`` forward (or back) to a version already committed. Creates
+        the alias if it does not exist yet.
+
+        :param tool_id: The tool's id.
+        :param alias: The alias name (e.g. ``'production'``, ``'staging'``, or a
+            custom one).
+        :param version_number: The version to point the alias at.
+        :returns: The alias's new state.
+        :raises AcruxCoreError: ``API_ERROR`` 404 unknown tool/version, or 403 if
+            the caller's role cannot promote (editor and above only).
+        :raises AcruxCoreError: ``NETWORK_ERROR`` if the API is unreachable after
+            retries.
+        """
+        response = await self._client._request(
+            "POST",
+            f"/tools/{quote(tool_id, safe='')}/aliases/{quote(alias, safe='')}/promote",
+            {"version_number": version_number},
+            "promoting tool alias",
+        )
+        return ToolAliasDetail.from_dict(
+            self._client._parse_json_or_throw(response, "promoting tool alias")
+        )
+
+    async def analytics(
+        self, *, since: Optional[str] = None, until: Optional[str] = None
+    ) -> ToolAnalyticsResult:
+        """Reads aggregated call analytics (count, error rate, p50/p95 latency)
+        per tool, over an optional time window.
+
+        :param since: Optional ISO-8601 lower bound.
+        :param until: Optional ISO-8601 upper bound.
+        :returns: One entry per tool that had calls in the window. Empty
+            ``data`` when nothing executed, or the window excludes every
+            execution.
+        :raises AcruxCoreError: ``API_ERROR`` with code ``VALIDATION_ERROR`` on a
+            non-ISO-8601 ``since``/``until``.
+        :raises AcruxCoreError: ``NETWORK_ERROR`` if the API is unreachable after
+            retries.
+        """
+        params: Dict[str, str] = {}
+        if since is not None:
+            params["since"] = since
+        if until is not None:
+            params["until"] = until
+        qs = urlencode(params)
+        path = f"/tools/analytics?{qs}" if qs else "/tools/analytics"
+
+        response = await self._client._request("GET", path, None, "fetching tool analytics")
+        return ToolAnalyticsResult.from_dict(
+            self._client._parse_json_or_throw(response, "fetching tool analytics")
         )

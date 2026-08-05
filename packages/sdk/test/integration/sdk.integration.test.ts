@@ -62,7 +62,7 @@ describe('acruxcore SDK integration', () => {
 
     const hub = new acruxcore({ apiKey, baseUrl: `http://localhost:${port}/api/v1`, maxRetries: 0 });
 
-    const { messages } = await hub.renderPrompt(promptName, 'production', { name: 'Alice' });
+    const { messages } = await hub.prompts.render(promptName, 'production', { name: 'Alice' });
 
     expect(messages).toHaveLength(2);
     expect(messages[0]).toEqual({ role: 'system', content: 'You are a helpful assistant.' });
@@ -100,7 +100,7 @@ describe('acruxcore SDK integration', () => {
     });
 
     try {
-      await hub.renderPrompt(promptName, 'production', {});
+      await hub.prompts.render(promptName, 'production', {});
       throw new Error('Should have thrown');
     } catch (err) {
       expect(err).toBeInstanceOf(acruxcoreError);
@@ -139,8 +139,8 @@ describe('acruxcore SDK integration', () => {
       maxRetries: 0,
     });
 
-    const first = await hub.renderPrompt(promptName, 'production');
-    const second = await hub.renderPrompt(promptName, 'production');
+    const first = await hub.prompts.render(promptName, 'production');
+    const second = await hub.prompts.render(promptName, 'production');
 
     expect(first).toEqual(second);
     expect(first.messages[0].content).toBe('Static content');
@@ -178,9 +178,9 @@ describe('acruxcore SDK integration', () => {
       maxRetries: 0,
     });
 
-    const first = await hub.renderPrompt(promptName, 'production', { question: 'Where is my order?' });
-    const second = await hub.renderPrompt(promptName, 'production', { question: 'How do I refund?' });
-    const repeat = await hub.renderPrompt(promptName, 'production', { question: 'Where is my order?' });
+    const first = await hub.prompts.render(promptName, 'production', { question: 'Where is my order?' });
+    const second = await hub.prompts.render(promptName, 'production', { question: 'How do I refund?' });
+    const repeat = await hub.prompts.render(promptName, 'production', { question: 'Where is my order?' });
 
     expect(first.messages[0].content).toBe('Question: Where is my order?');
     expect(second.messages[0].content).toBe('Question: How do I refund?');
@@ -219,7 +219,7 @@ describe('acruxcore SDK integration', () => {
       maxRetries: 0,
     });
 
-    const before = await hub.renderPrompt(promptName, 'production');
+    const before = await hub.prompts.render(promptName, 'production');
     expect(before.messages[0].content).toBe('v1 content');
 
     // Commit v2 and point production at it — a caching client would still say "v1 content".
@@ -234,7 +234,7 @@ describe('acruxcore SDK integration', () => {
       .send({ version_number: 2 })
       .expect(200);
 
-    const after = await hub.renderPrompt(promptName, 'production');
+    const after = await hub.prompts.render(promptName, 'production');
     expect(after.messages[0].content).toBe('v2 content');
 
     await new Promise<void>((resolve) => server.close(() => resolve()));

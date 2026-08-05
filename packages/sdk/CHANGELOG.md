@@ -12,6 +12,54 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+## 0.7.0 — 2026-08-05
+
+### BREAKING
+
+- **Resource-based namespace pattern.** All flat client methods removed — use `hub.gateway.*`, `hub.prompts.render()`, `hub.traces.*` instead.
+  - `hub.chat(...)` → `hub.gateway.chat(...)`
+  - `hub.chat({stream: true, ...})` → `hub.gateway.stream(...)`
+  - `hub.runToolLoop(...)` → `hub.gateway.runToolLoop(...)`
+  - `hub.flush()` / `hub.close()` → `hub.gateway.flush()` / `hub.gateway.close()`
+  - `hub.renderPrompt(...)` → `hub.prompts.render(...)`
+  - `hub.trace(...)` → `hub.traces.ingest(...)`
+  - `hub.getTrace(...)` → `hub.traces.get(...)`
+  - `hub.listTraces(...)` → `hub.traces.list(...)`
+  - `hub.submitFeedback(...)` → `hub.traces.submitFeedback(...)`
+  - `hub.updateFeedback(...)` → `hub.traces.updateFeedback(...)`
+
+### Added
+
+- **`GatewayNamespace`** — new class at `src/gateway-api.ts` consolidating all gateway operations (chat, stream, runToolLoop, flush, close).
+- **`hub.prompts.render()`** — replaces `renderPrompt()` with built-in SWR cache.
+- **Trace CRUD on `hub.traces`** — `ingest`, `get`, `list`, `submitFeedback`, `updateFeedback`.
+- **`NamespaceHost` / `GatewayNamespaceHost` interfaces** — shared host contract (`src/host.ts`), all existing namespace host interfaces now extend it.
+- **`hub.traces` and `hub.sessions` namespaces.** Trace analytics, facet
+  discovery, payload-capture settings, feedback summary/list, and session
+  listing — ten endpoints that previously had no SDK binding.
+
+  ```ts
+  const stats = await hub.traces.analytics({ groupBy: 'model' });
+  const facets = await hub.traces.listFacets();
+  const sessions = await hub.sessions.list({ limit: 20 });
+  ```
+- **`hub.prompts` — prompt version lifecycle.** New namespace: create/read/update/delete
+  prompts, commit immutable versions, list/get them, diff two versions, promote
+  aliases, export/import versions, and look up a version's traces.
+
+  ```ts
+  const prompt = await hub.prompts.create({ name: 'support-agent' });
+  const version = await hub.prompts.commitVersion(prompt.id, {
+    messages: [{ role: 'system', content: 'You are a helpful support agent.' }],
+  });
+  await hub.prompts.promoteAlias(prompt.id, 'production', version.versionNumber);
+  const traces = await hub.prompts.tracesForVersion(prompt.id, version.versionNumber);
+  ```
+- **Tool catalog lifecycle via SDK.** `hub.tools` gained management for tool shells
+  (`create`, `list`, `get`, `update`, `delete`), versions (`commitVersion`,
+  `listVersions`, `getVersion`), alias promotion (`promoteAlias`), and analytics.
+- Evaluations domain: `hub.datasets`, `hub.experiments`, `hub.runs`, `hub.optimize` — 19 methods covering the full evaluations API (datasets, experiments, runs, prompt optimization).
+
 ## 0.6.7 — 2026-08-04
 
 ### Added
@@ -78,10 +126,10 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 #### Migrating from 0.6
 
-1. If you `chat()` and then **read the traces API back** — in a test, or code polling for the
-   span it just produced — insert `await hub.flush()` between the two. **Nothing in the type
-   system catches this**: grep for reads of `/traces` following a `chat()` or `runToolLoop()`.
-2. If your process is a **long-running server**, call `await hub.close()` in the shutdown path
+1. If you `gateway.chat()` and then **read the traces API back** — in a test, or code polling for the
+   span it just produced — insert `await hub.gateway.flush()` between the two. **Nothing in the type
+   system catches this**: grep for reads of `/traces` following a `gateway.chat()` or `gateway.runToolLoop()`.
+2. If your process is a **long-running server**, call `await hub.gateway.close()` in the shutdown path
    you already have. Scripts that finish and exit need no change — a `beforeExit` hook drains them.
 3. The SDK installs **no `SIGINT`/`SIGTERM` handlers**, because registering one suppresses
    Node's default terminate behaviour and would break Ctrl-C in your application. A

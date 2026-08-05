@@ -1,0 +1,554 @@
+---
+title: Manage a tool's lifecycle via the SDK
+description: Create a tool shell, commit versions with an http executor, and manage it directly via curl or the SDK — the path for tools your app manages outside the code-first sync flow.
+sidebar_position: 20
+keywords: [tool catalog, tool versions, tools api, tools sdk, manage tools]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Manage a tool's lifecycle via the SDK
+
+**What you'll build:** a tool created, versioned, listed, updated, and deleted
+entirely through the API or SDK — no dashboard click anywhere in the flow.
+
+[Build and attach a tool](./build-and-attach-a-tool) covers the common case:
+you write an `@acrux.tool`-decorated function, call `hub.tools.sync(...)`, and
+the platform reconciles the catalog to match your code. That path assumes the
+tool's definition **lives in your codebase**. Sometimes it doesn't — a tool
+defined by an external system, or a management UI your team is building on top
+of the catalog, needs to create tool shells and commit versions directly,
+without a decorated function to sync from. That's what `hub.tools.create`,
+`.commitVersion`, `.update`, and friends are for. Everything below works the
+same over raw `curl` or through either SDK.
+
+## 1. Create a tool shell
+
+A tool starts as a **shell**: just a `name` and an optional `description`, with
+no schema or executor yet. `name` must match `^[a-zA-Z0-9_-]{1,64}$` and be
+unique within your team.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/tools" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"order_status_1785860323","description":"Looks up the status of a customer order by id."}'
+```
+
+```json
+{
+  "id": "41fd848e-ad01-43bb-bb3c-44869616d321",
+  "name": "order_status_1785860323",
+  "description": "Looks up the status of a customer order by id.",
+  "teamId": "221e37aa-9a14-4a7f-ae10-2982247e6d38",
+  "createdBy": "b085d017-cf51-43f4-adb3-a7640337651c",
+  "createdAt": "2026-08-04T16:18:43.202Z"
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore();
+
+const tool = await hub.tools.create({
+  name: 'order_status_1785860360963',
+  description: 'Looks up the status of a customer order by id.',
+});
+console.log(tool.id, tool.name);
+```
+
+```text
+3121a964-f281-4215-a629-3664ff3251e6 order_status_1785860360963
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+tool = await hub.tools.create(
+    "order_status_1785860378689", description="Looks up the status of a customer order by id."
+)
+print(tool.id, tool.name)
+```
+
+```text
+86e69fe1-5576-48ca-a4aa-0bfbce3dcac8 order_status_1785860378689
+```
+
+</TabItem>
+</Tabs>
+
+## 2. Commit a version with an `http` executor
+
+A shell has nothing to call yet. Committing a version gives it a
+`parametersSchema` (the JSON Schema the model reads to decide how to call the
+tool) and an `executor` — here, an `http` executor that points at a public,
+no-auth endpoint (`https://httpbin.org/get`) so the example is runnable as-is.
+The **first** version committed for a tool auto-creates both the `production`
+and `staging` aliases pointing at it.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/tools/41fd848e-ad01-43bb-bb3c-44869616d321/versions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "Looks up the status of a customer order by id.",
+    "parametersSchema": {"type":"object","properties":{"order_id":{"type":"string","description":"The order id, e.g. \"ORD-1234\"."}},"required":["order_id"]},
+    "executor": {"type":"http","url":"https://httpbin.org/get","method":"GET","headers":[],"query":[{"name":"order_id","value":"{{order_id}}"}],"argMapping":[{"arg":"order_id","in":"query"}]}
+  }'
+```
+
+```json
+{
+  "id": "f3c068c4-e161-4ed8-9ccd-e27c6e51d07e",
+  "toolId": "41fd848e-ad01-43bb-bb3c-44869616d321",
+  "versionNumber": 1,
+  "description": "Looks up the status of a customer order by id.",
+  "changelog": null,
+  "source": "api",
+  "parametersSchema": {
+    "type": "object",
+    "required": ["order_id"],
+    "properties": { "order_id": { "type": "string", "description": "The order id, e.g. \"ORD-1234\"." } }
+  },
+  "executor": {
+    "url": "https://httpbin.org/get",
+    "type": "http",
+    "query": [{ "name": "order_id", "value": "{{order_id}}" }],
+    "method": "GET",
+    "headers": [],
+    "argMapping": [{ "in": "query", "arg": "order_id" }]
+  },
+  "createdBy": "b085d017-cf51-43f4-adb3-a7640337651c",
+  "createdAt": "2026-08-04T16:18:52.604Z",
+  "aliases": [
+    { "id": "10186eee-2f2a-419a-8f01-e2478467ea1d", "alias": "production", "versionId": "f3c068c4-e161-4ed8-9ccd-e27c6e51d07e", "versionNumber": 1, "updatedAt": "2026-08-04T16:18:52.613Z" },
+    { "id": "f46a02f5-6065-4ea9-a229-8331605da355", "alias": "staging", "versionId": "f3c068c4-e161-4ed8-9ccd-e27c6e51d07e", "versionNumber": 1, "updatedAt": "2026-08-04T16:18:52.613Z" }
+  ]
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const v1 = await hub.tools.commitVersion(tool.id, {
+  description: 'Looks up the status of a customer order by id.',
+  parametersSchema: {
+    type: 'object',
+    properties: { order_id: { type: 'string', description: 'The order id, e.g. "ORD-1234".' } },
+    required: ['order_id'],
+  },
+  executor: {
+    type: 'http',
+    url: 'https://httpbin.org/get',
+    method: 'GET',
+    headers: [],
+    query: [{ name: 'order_id', value: '{{order_id}}' }],
+    argMapping: [{ arg: 'order_id', in: 'query' }],
+  },
+});
+console.log(v1.versionNumber, v1.aliases?.map((a) => `${a.alias}->v${a.versionNumber}`));
+```
+
+```text
+1 [ 'production->v1', 'staging->v1' ]
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+v1 = await hub.tools.commit_version(
+    tool.id,
+    {
+        "type": "object",
+        "properties": {"order_id": {"type": "string", "description": 'The order id, e.g. "ORD-1234".'}},
+        "required": ["order_id"],
+    },
+    {
+        "type": "http",
+        "url": "https://httpbin.org/get",
+        "method": "GET",
+        "headers": [],
+        "query": [{"name": "order_id", "value": "{{order_id}}"}],
+        "argMapping": [{"arg": "order_id", "in": "query"}],
+    },
+    description="Looks up the status of a customer order by id.",
+)
+print(v1.version_number, [f"{a.alias}->v{a.version_number}" for a in (v1.aliases or [])])
+```
+
+```text
+1 ['production->v1', 'staging->v1']
+```
+
+</TabItem>
+</Tabs>
+
+:::note[`source: 'code'` is reserved for `sync`]
+This endpoint accepts `source: 'dashboard'` or `'api'` (it defaults to `'api'`
+if omitted). Sending `'code'` is rejected — that value means "derived from a
+decorated function" and is only writable by `POST /tools/sync`, so a direct
+commit can't forge code-ownership the dashboard would otherwise trust:
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/tools/41fd848e-ad01-43bb-bb3c-44869616d321/versions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"source":"code","parametersSchema":{"type":"object","properties":{"order_id":{"type":"string"}},"required":["order_id"]},"executor":{"type":"client"}}'
+```
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"Invalid enum value. Expected 'dashboard' | 'api', received 'code'"}}
+```
+:::
+
+## `description` vs. `changelog` vs. `source`
+
+Three fields are easy to mix up on a commit, and mixing them up changes what
+the model actually does:
+
+| Field | Who reads it | Effect |
+|---|---|---|
+| `description` | **The model.** It decides whether to call the tool from this text. | Changing it changes the model's behaviour. |
+| `changelog` | Your team, in the dashboard's version list. | None — the model never sees it. |
+| `source` | The dashboard and the audit log. | Records who authored the version, so the dashboard can warn before a deploy overwrites a hand-made edit. |
+
+If you commit a `changelog` with no `description`, the response carries a
+`warnings` array saying so — a release note is not what the model reads, and
+the warning exists so that omission doesn't go unnoticed.
+
+## 3. List versions
+
+List items omit `parametersSchema`/`executor` to keep pages small — fetch a
+specific version (next step) for those.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl "$ACRUXCORE_BASE_URL/tools/41fd848e-ad01-43bb-bb3c-44869616d321/versions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "f3c068c4-e161-4ed8-9ccd-e27c6e51d07e",
+      "toolId": "41fd848e-ad01-43bb-bb3c-44869616d321",
+      "versionNumber": 1,
+      "description": "Looks up the status of a customer order by id.",
+      "changelog": null,
+      "source": "api",
+      "createdBy": "b085d017-cf51-43f4-adb3-a7640337651c",
+      "createdAt": "2026-08-04T16:18:52.604Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 20
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const versions = await hub.tools.listVersions(tool.id);
+console.log(versions.total, 'executor' in versions.data[0]);
+```
+
+```text
+1 false
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+versions = await hub.tools.list_versions(tool.id)
+print(versions.total, versions.data[0])
+```
+
+```text
+1 ToolVersionListItem(id='5f526a6f-22d7-459b-a4e9-cbd7edaa4ac0', tool_id='86e69fe1-5576-48ca-a4aa-0bfbce3dcac8', version_number=1, description='Looks up the status of a customer order by id.', changelog=None, source='api', created_by='b085d017-cf51-43f4-adb3-a7640337651c', created_at='2026-08-04T16:19:38.713Z')
+```
+
+</TabItem>
+</Tabs>
+
+## 4. Get a specific version
+
+Fetching one version by number returns the full `parametersSchema` and
+`executor` that a list entry leaves out.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl "$ACRUXCORE_BASE_URL/tools/41fd848e-ad01-43bb-bb3c-44869616d321/versions/1" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{
+  "id": "f3c068c4-e161-4ed8-9ccd-e27c6e51d07e",
+  "toolId": "41fd848e-ad01-43bb-bb3c-44869616d321",
+  "versionNumber": 1,
+  "description": "Looks up the status of a customer order by id.",
+  "changelog": null,
+  "source": "api",
+  "parametersSchema": {
+    "type": "object",
+    "required": ["order_id"],
+    "properties": { "order_id": { "type": "string", "description": "The order id, e.g. \"ORD-1234\"." } }
+  },
+  "executor": {
+    "url": "https://httpbin.org/get",
+    "type": "http",
+    "query": [{ "name": "order_id", "value": "{{order_id}}" }],
+    "method": "GET",
+    "headers": [],
+    "argMapping": [{ "in": "query", "arg": "order_id" }]
+  },
+  "createdBy": "b085d017-cf51-43f4-adb3-a7640337651c",
+  "createdAt": "2026-08-04T16:18:52.604Z"
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const fetchedV1 = await hub.tools.getVersion(tool.id, 1);
+console.log(JSON.stringify(fetchedV1.executor));
+```
+
+```text
+{"url":"https://httpbin.org/get","type":"http","query":[{"name":"order_id","value":"{{order_id}}"}],"method":"GET","headers":[],"argMapping":[{"in":"query","arg":"order_id"}]}
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+fetched_v1 = await hub.tools.get_version(tool.id, 1)
+print(fetched_v1.executor)
+```
+
+```text
+{'url': 'https://httpbin.org/get', 'type': 'http', 'query': [{'name': 'order_id', 'value': '{{order_id}}'}], 'method': 'GET', 'headers': [], 'argMapping': [{'in': 'query', 'arg': 'order_id'}]}
+```
+
+</TabItem>
+</Tabs>
+
+## 5. Update the shell's description
+
+Updating a tool only touches its `name`/`description` — versions are
+immutable and unaffected by renaming the shell they belong to.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X PATCH "$ACRUXCORE_BASE_URL/tools/41fd848e-ad01-43bb-bb3c-44869616d321" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"description":"Looks up the status of a customer order by id. Now includes shipping carrier."}'
+```
+
+```json
+{
+  "id": "41fd848e-ad01-43bb-bb3c-44869616d321",
+  "name": "order_status_1785860323",
+  "description": "Looks up the status of a customer order by id. Now includes shipping carrier.",
+  "teamId": "221e37aa-9a14-4a7f-ae10-2982247e6d38",
+  "createdBy": "b085d017-cf51-43f4-adb3-a7640337651c",
+  "createdAt": "2026-08-04T16:18:43.202Z"
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const updated = await hub.tools.update(tool.id, {
+  description: 'Looks up the status of a customer order by id. Now includes shipping carrier.',
+});
+console.log(updated.description);
+```
+
+```text
+Looks up the status of a customer order by id. Now includes shipping carrier.
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+updated = await hub.tools.update(
+    tool.id, description="Looks up the status of a customer order by id. Now includes shipping carrier."
+)
+print(updated.description)
+```
+
+```text
+Looks up the status of a customer order by id. Now includes shipping carrier.
+```
+
+</TabItem>
+</Tabs>
+
+## 6. List tools
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl "$ACRUXCORE_BASE_URL/tools?search=order_status" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "41fd848e-ad01-43bb-bb3c-44869616d321",
+      "name": "order_status_1785860323",
+      "description": "Looks up the status of a customer order by id. Now includes shipping carrier.",
+      "teamId": "221e37aa-9a14-4a7f-ae10-2982247e6d38",
+      "createdBy": "b085d017-cf51-43f4-adb3-a7640337651c",
+      "createdAt": "2026-08-04T16:18:43.202Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 20
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const list = await hub.tools.list({ search: 'order_status' });
+console.log(list.total, list.data[0].name);
+```
+
+```text
+1 order_status_1785860360963
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+listed = await hub.tools.list(search="order_status")
+print(listed.total, listed.data[0].name)
+```
+
+```text
+1 order_status_1785860378689
+```
+
+</TabItem>
+</Tabs>
+
+## 7. Delete the tool
+
+Deleting is a **soft** delete: the tool stops appearing in list/get, but its
+versions and aliases are preserved (just unreachable) rather than removed.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X DELETE "$ACRUXCORE_BASE_URL/tools/41fd848e-ad01-43bb-bb3c-44869616d321" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+# 204 No Content
+
+curl "$ACRUXCORE_BASE_URL/tools/41fd848e-ad01-43bb-bb3c-44869616d321" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{"error":{"code":"NOT_FOUND","message":"Tool not found."}}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+await hub.tools.delete(tool.id);
+
+try {
+  await hub.tools.get(tool.id);
+} catch (err) {
+  console.log(err.code, err.statusCode);
+}
+```
+
+```text
+API_ERROR 404
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCoreError
+
+await hub.tools.delete(tool.id)
+
+try:
+    await hub.tools.get(tool.id)
+except AcruxCoreError as err:
+    print(err.code, err.status_code)
+```
+
+```text
+API_ERROR 404
+```
+
+</TabItem>
+</Tabs>
+
+:::tip[Runnable end-to-end scripts]
+A fuller version of this walkthrough — three commits, an alias promotion,
+and analytics — is one runnable script per language:
+
+- [`run_lifecycle.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/manage-a-tools-lifecycle-via-the-sdk/python/run_lifecycle.py)
+- [`run_lifecycle.mjs`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/manage-a-tools-lifecycle-via-the-sdk/typescript/run_lifecycle.mjs)
+
+Each needs only `pip install acruxcore` / `npm install @acruxcoreai/sdk` plus
+`ACRUXCORE_API_KEY`/`ACRUXCORE_BASE_URL` — no monorepo checkout required.
+:::
+
+## What's next
+
+- Tools declared in your own code should use
+  [Build and attach a tool](./build-and-attach-a-tool)'s `sync` path instead —
+  it reconciles the catalog to match a decorated function in one idempotent call.
+- Once a tool has more than one version, see
+  [Alias and track usage of tools in the catalog](./alias-and-track-usage-of-tools-in-the-catalog)
+  for promoting aliases and reading call analytics.
+- Full field reference: **Tools** and **Tool Versions** in the
+  [API Reference](/api-reference).

@@ -509,5 +509,5 @@ curl $ACRUXCORE_BASE_URL/datasets
 ```
 
 ```json
-{ "error": { "code": "UNAUTHORIZED", "message": "API key required." } }
+{ "error": { "code": "UNAUTHORIZED", "message": "Authentication required." } }
 ```

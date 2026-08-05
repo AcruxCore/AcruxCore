@@ -12,6 +12,56 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+## 0.7.0 — 2026-08-05
+
+### BREAKING
+
+- **Resource-based namespace pattern.** All flat client methods removed — use `hub.gateway.*`, `hub.prompts.render()`, `hub.traces.*` instead.
+  - `hub.chat(...)` → `hub.gateway.chat(...)`
+  - `hub.chat(stream=True, ...)` → `hub.gateway.stream(...)`
+  - `hub.run_tool_loop(...)` → `hub.gateway.run_tool_loop(...)`
+  - `hub.flush()` / `hub.aclose()` → `hub.gateway.flush()` / `hub.gateway.aclose()`
+  - `hub.render_prompt(...)` → `hub.prompts.render(...)`
+  - `hub.trace(...)` → `hub.traces.ingest(...)`
+  - `hub.get_trace(...)` → `hub.traces.get(...)`
+  - `hub.list_traces(...)` → `hub.traces.list(...)`
+  - `hub.submit_feedback(...)` → `hub.traces.submit_feedback(...)`
+  - `hub.update_feedback(...)` → `hub.traces.update_feedback(...)`
+
+### Added
+
+- **`GatewayNamespace`** — new class at `gateway_api.py` consolidating all gateway operations (chat, stream, run_tool_loop, flush, aclose).
+- **`hub.prompts.render()`** — replaces `render_prompt()` with built-in SWR cache.
+- **Trace CRUD on `hub.traces`** — `ingest`, `get`, `list`, `submit_feedback`, `update_feedback`.
+- **`NamespaceHost` / `GatewayNamespaceHost` protocols** — shared host contract (`host.py`), all existing namespace host interfaces now extend it.
+- **`tools.sync_one`** — renamed from `sync_spec` for TS parity.
+- **`hub.traces` and `hub.sessions` namespaces.** Trace analytics, facet
+  discovery, payload-capture settings, feedback summary/list, and session
+  listing — ten endpoints that previously had no SDK binding.
+
+  ```python
+  stats = await hub.traces.analytics(group_by="model")
+  facets = await hub.traces.list_facets()
+  sessions = await hub.sessions.list(limit=20)
+  ```
+- **`client.prompts` — prompt version lifecycle.** New namespace: create/read/update/delete
+  prompts, commit immutable versions, list/get them, diff two versions, promote
+  aliases, export/import versions, and look up a version's traces.
+
+  ```python
+  prompt = await client.prompts.create(name="support-agent")
+  version = await client.prompts.commit_version(
+      prompt.id,
+      messages=[{"role": "system", "content": "You are a helpful support agent."}],
+  )
+  await client.prompts.promote_alias(prompt.id, "production", version.version_number)
+  traces = await client.prompts.traces_for_version(prompt.id, version.version_number)
+  ```
+- **Tool catalog lifecycle via SDK.** `client.tools` gained management for tool
+  shells (`create`, `list`, `get`, `update`, `delete`), versions (`commit_version`,
+  `list_versions`, `get_version`), alias promotion (`promote_alias`), and analytics.
+- Evaluations domain: `hub.datasets`, `hub.experiments`, `hub.runs`, `hub.optimize` — 19 methods covering the full evaluations API (datasets, experiments, runs, prompt optimization).
+
 ## 0.6.7 — 2026-08-04
 
 ### Added
@@ -78,11 +128,11 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 #### Migrating from 0.6
 
-1. If you `chat()` and then **read the traces API back** — in a test, or code polling for the
-   span it just produced — insert `await hub.flush()` between the two. **Nothing catches this
-   for you**: grep for reads of `/traces` following a `chat()` or `run_tool_loop()` call.
+1. If you `gateway.chat()` and then **read the traces API back** — in a test, or code polling for the
+   span it just produced — insert `await hub.gateway.flush()` between the two. **Nothing catches this
+   for you**: grep for reads of `/traces` following a `gateway.chat()` or `gateway.run_tool_loop()` call.
 2. Code that only uses `async with` is already fine. A **long-running server** that builds the
-   client by hand should call `await hub.aclose()` in its shutdown path; scripts that finish and
+   client by hand should call `await hub.gateway.aclose()` in its shutdown path; scripts that finish and
    exit need no change — an `atexit` hook drains them on a fresh event loop.
 3. The SDK installs **no `SIGINT`/`SIGTERM` handlers** — signal disposition belongs to your
    application, not to a library. If you kill a process with a signal, buffered spans are

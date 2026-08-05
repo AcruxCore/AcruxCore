@@ -48,7 +48,7 @@ describe('acruxcore SDK — trace()', () => {
     const hub = new acruxcore({ apiKey, baseUrl: `http://localhost:${port}/api/v1`, maxRetries: 0 });
 
     // Mint a new trace with an llm span + a tool child.
-    const { traceId } = await hub.trace({
+    const { traceId } = await hub.traces.ingest({
       name: 'agent-run',
       spans: [
         {
@@ -66,7 +66,7 @@ describe('acruxcore SDK — trace()', () => {
     expect(typeof traceId).toBe('string');
 
     // Append a third span under the same trace id.
-    const second = await hub.trace({
+    const second = await hub.traces.ingest({
       traceId,
       spans: [
         { spanId: 's3', parentSpanId: 's1', name: 'finalize', kind: 'chain', startTime: '2026-07-04T10:00:00.500Z' },
@@ -94,7 +94,7 @@ describe('acruxcore SDK — trace()', () => {
 
     // Team's payload-capture default is off (no team_trace_settings row exists yet
     // for a freshly signed-up team), so this exercises the per-trace override.
-    const { traceId } = await hub.trace({
+    const { traceId } = await hub.traces.ingest({
       name: 'agent-run-with-capture',
       capturePayloads: true,
       spans: [
@@ -216,7 +216,7 @@ describe('background trace reporting (real API)', () => {
     const hub = new acruxcore({ apiKey, baseUrl: `http://127.0.0.1:${proxyPort}/api/v1`, maxRetries: 0 });
 
     const started = Date.now();
-    const result = await hub.chat({
+    const result = await hub.gateway.chat({
       model: 'stub-model',
       messages: [{ role: 'user', content: 'ping' }],
       provider: { baseUrl: `http://127.0.0.1:${providerPort}`, apiKey: 'p' },
@@ -229,7 +229,7 @@ describe('background trace reporting (real API)', () => {
     expect(elapsed).toBeLessThan(200);
     expect(await prisma.span.count({ where: { traceId } })).toBe(0);
 
-    await hub.flush();
+    await hub.gateway.flush();
 
     const spans = await prisma.span.findMany({ where: { traceId } });
     expect(spans).toHaveLength(1);
@@ -237,7 +237,7 @@ describe('background trace reporting (real API)', () => {
     expect(spans[0].model).toBe('stub-model');
     expect(spans[0].totalTokens).toBe(8);
 
-    await hub.close();
+    await hub.gateway.close();
   });
 
   it("a client-side tool loop nests its tool span under that round's llm span", async () => {
@@ -253,7 +253,7 @@ describe('background trace reporting (real API)', () => {
       ({ a, b }: { a: number; b: number }) => String(a + b),
     );
 
-    const loop = await hub.runToolLoop({
+    const loop = await hub.gateway.runToolLoop({
       model: 'stub-model',
       messages: [{ role: 'user', content: 'what is 2 + 3?' }],
       tools: [add],
@@ -261,7 +261,7 @@ describe('background trace reporting (real API)', () => {
     });
     expect(loop.content).toBe('5');
 
-    await hub.flush();
+    await hub.gateway.flush();
 
     const spans = await prisma.span.findMany({ where: { traceId: loop.traceId! }, orderBy: { startedAt: 'asc' } });
     const llmSpans = spans.filter((s) => s.kind === 'llm');
@@ -272,7 +272,7 @@ describe('background trace reporting (real API)', () => {
     // serial drain loop exists to preserve.
     expect(llmSpans.map((s) => s.spanRef)).toContain(toolSpan!.parentSpanRef);
 
-    await hub.close();
+    await hub.gateway.close();
   });
 
   it("an http-executor loop keeps the loop's trace name and nests the server-run tool span", async () => {
@@ -312,7 +312,7 @@ describe('background trace reporting (real API)', () => {
       .expect(201);
 
     const hub = new acruxcore({ apiKey, baseUrl: `http://localhost:${apiPort}/api/v1`, maxRetries: 0 });
-    const loop = await hub.runToolLoop({
+    const loop = await hub.gateway.runToolLoop({
       model: 'stub-model',
       messages: [{ role: 'user', content: 'weather in Berlin?' }],
       toolRefs: [{ name: 'get_weather_http' }],
@@ -321,7 +321,7 @@ describe('background trace reporting (real API)', () => {
     });
     expect(loop.messages.some((m) => m.role === 'tool')).toBe(true);
 
-    await hub.flush();
+    await hub.gateway.flush();
 
     // The whole point of the one surviving await: without it the platform would have
     // created this trace itself, named `tool:get_weather_http`, with a null parent on
@@ -337,7 +337,7 @@ describe('background trace reporting (real API)', () => {
     expect(toolSpan!.parentSpanRef).not.toBeNull();
     expect(spans.filter((s) => s.kind === 'llm').map((s) => s.spanRef)).toContain(toolSpan!.parentSpanRef);
 
-    await hub.close();
+    await hub.gateway.close();
   });
 
   it('a script that exits without close() still delivers its trace', async () => {

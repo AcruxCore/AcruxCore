@@ -93,7 +93,7 @@ async def main() -> None:
     )
 
     async with AcruxCore() as hub:  # reads ACRUXCORE_API_KEY / ACRUXCORE_BASE_URL
-        rendered_router = await hub.render_prompt(ROUTER_PROMPT, "production", {"question": question})
+        rendered_router = await hub.prompts.render(ROUTER_PROMPT, "production", {"question": question})
         resp = requests.post(
             f"{ACRUXCORE_BASE_URL}/gateway/chat/completions",
             headers=ACRUXCORE_HEADERS,
@@ -114,9 +114,9 @@ async def main() -> None:
         print(f"Step A -- routed to: {route_to}  (trace {trace_id})\n")
 
         subagent_prompt = SUBAGENT_PROMPTS[route_to]
-        rendered_sub = await hub.render_prompt(subagent_prompt, "production", {"task": question})
+        rendered_sub = await hub.prompts.render(subagent_prompt, "production", {"task": question})
 
-        result = await hub.run_tool_loop(
+        result = await hub.gateway.run_tool_loop(
             rendered_sub.model,
             [*rendered_sub.messages],
             tools=TOOLS_BY_ROUTE[route_to],

@@ -59,7 +59,7 @@ import AcruxCore from '@acruxcoreai/sdk';
 
 const hub = new AcruxCore();
 
-const { traceId } = await hub.trace({
+const { traceId } = await hub.traces.ingest({
   name: 'support-answer',
   tags: ['support'],
   spans: [
@@ -96,7 +96,7 @@ from acruxcore import AcruxCore
 
 hub = AcruxCore()
 
-result = await hub.trace({
+result = await hub.traces.ingest({
     "name": "support-answer",
     "tags": ["support"],
     "spans": [
@@ -125,7 +125,7 @@ result = await hub.trace({
 print("reported trace", result.trace_id)
 ```
 
-`trace()` takes the same dict shape as the raw endpoint — its keys stay
+`traces.ingest()` takes the same dict shape as the raw endpoint — its keys stay
 camelCase because they're sent to the API verbatim, unlike the rest of the
 Python client's snake_case options.
 

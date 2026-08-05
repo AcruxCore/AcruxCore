@@ -41,7 +41,7 @@ The five paths:
 
 1. **OpenAI direct** — call `api.openai.com` straight from the test machine. The
    baseline.
-2. **BYO, tracing off** — the SDK's `chat()` with a `provider` config, which posts
+2. **BYO, tracing off** — the SDK's `hub.gateway.chat()` with a `provider` config, which posts
    to OpenAI directly and skips our gateway, with auto-tracing switched off.
 3. **BYO, tracing on** — the same call with the SDK's *default* tracing, which
    reports a trace to Acrux Core after the model answers.
@@ -112,7 +112,7 @@ Hand the SDK a `provider` config and it posts to OpenAI directly — your provid
 key never reaches our servers, and there is no hop:
 
 ```ts
-const result = await hub.chat({
+const result = await hub.gateway.chat({
   model: 'gpt-4o-mini',
   messages,
   provider: { baseUrl: 'https://api.openai.com/v1', apiKey: process.env.OPENAI_API_KEY },
@@ -132,7 +132,7 @@ small — you get back the ~40 ms you were paying for routing and accounting, an
 that's the whole prize.
 
 **Tracing never blocks the response either way.** The SDK reports its own trace
-in the background — a queue that drains after `chat()` has already handed the
+in the background — a queue that drains after `hub.gateway.chat()` has already handed the
 answer back, on no fixed timer — so turning tracing on or off on the BYO path
 makes no measurable difference to the request:
 

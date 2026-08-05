@@ -23,9 +23,32 @@ called out in the week it ships and in the SDK release notes.
 
 ---
 
+## Week of 5 August 2026
+
+### Major
+
+#### SDK 0.7.0 — Resource-based namespace pattern
+
+- **Breaking:** All flat client methods removed. Use `hub.gateway.chat()`, `hub.prompts.render()`, `hub.traces.ingest()` etc. instead of `hub.chat()`, `hub.renderPrompt()`, `hub.trace()`.
+- `hub.gateway.stream()` is now a standalone method (previously `hub.chat({stream: true})`).
+- `hub.gateway.flush()` / `hub.gateway.close()` replace `hub.flush()` / `hub.close()`.
+
+#### Evaluations are now scriptable from both SDKs
+
+- `hub.datasets`, `hub.experiments`, `hub.runs`, and `hub.optimize` expose 19 methods for the full evaluations domain.
+- Create datasets, run experiments, poll results, read reports, and promote optimizer candidates without leaving your code.
+
+---
+
 ## Week of 3 August 2026
 
 ### Major
+
+#### SDK trace analytics and sessions bindings
+
+- New `hub.traces` namespace: analytics, facet discovery, and payload-capture settings.
+- New `hub.sessions` namespace lists sessions and reads one session's full trace history.
+- Feedback summary and the team-wide feedback feed are now reachable via `hub.traces` too.
 
 #### SDK 0.6.7 — trace tags and metadata
 
@@ -57,13 +80,29 @@ called out in the week it ships and in the SDK release notes.
 - Baseline still defaults to `production`, falling back to the latest version if none.
 - Feedback-built datasets now warn (never block) if examples came from a different prompt.
 
+#### SDK prompt version lifecycle
+
+- Both SDKs now manage prompts end to end: create, commit, list, diff, and promote versions.
+- Export and import move a version between teams or environments as one JSON document.
+- Look up every trace a specific prompt version produced, from either SDK.
+
+#### SDK tool catalog lifecycle
+
+- `hub.tools`/`client.tools` gained: create, list, get, update, delete, versions, promote, analytics.
+- Available in both TypeScript and Python SDKs — see the [Tool Catalog guide](/docs/guides/manage-a-tools-lifecycle-via-the-sdk).
+
 ### Minor
 
+- **Fixed** — the trace settings API reference showed the wrong payload-capture default.
+- **Fixed** — six API reference pages showed a stale 401 error message.
 - **`POST /datasets/from-feedback`** now accepts at most 100 feedback ids per request.
 - **Fixed** — the Python SDK tool-calling tutorial's decorator example had a broken import.
 - **Tutorial and guide pages** now show a short snippet plus a link to the full runnable script.
 - **Tutorial script links** now point to scripts that were actually run and verified.
 - **New guide** — [evaluate a prompt with conversation history](/docs/guides/evaluate-a-prompt-with-conversation-history).
+- **New guide** — [view trace analytics](/docs/guides/view-trace-analytics).
+- **New guide** — [configure trace payload capture](/docs/guides/configure-trace-payload-capture).
+- **New guide** — [look up the traces a prompt version produced](/docs/guides/look-up-the-traces-a-prompt-version-produced).
 - **A `LICENSE`, `TRADEMARK.md`, and `CLA.md`** now ship at the repo root, under
   [Elastic License 2.0](https://www.elastic.co/licensing/elastic-license).
 - **Fixed** — the `/sdk` page's Python tutorial links 404'd (wrong docs path).

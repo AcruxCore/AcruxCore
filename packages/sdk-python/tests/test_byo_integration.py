@@ -73,13 +73,13 @@ async def test_latency_p50_both_paths(hub):
     gateway_times_ms: List[float] = []
     for _ in range(n):
         start = time.monotonic()
-        await hub.chat(TEST_MODEL, messages, trace=False)
+        await hub.gateway.chat(TEST_MODEL, messages, trace=False)
         gateway_times_ms.append((time.monotonic() - start) * 1000)
 
     byo_times_ms: List[float] = []
     for _ in range(n):
         start = time.monotonic()
-        await hub.chat(TEST_MODEL, messages, provider=_BYO_PROVIDER, trace=False)
+        await hub.gateway.chat(TEST_MODEL, messages, provider=_BYO_PROVIDER, trace=False)
         byo_times_ms.append((time.monotonic() - start) * 1000)
 
     def p50(values: List[float]) -> float:
@@ -128,7 +128,7 @@ async def test_tool_calling_dispatches_and_answers(hub, label, provider_config):
     and produce a final answer — mirrors the Node suite's `it.each` over
     (gateway, BYO)."""
     kwargs: Dict[str, Any] = {"provider": provider_config} if provider_config else {}
-    result = await hub.run_tool_loop(
+    result = await hub.gateway.run_tool_loop(
         TEST_MODEL,
         [{"role": "user", "content": "What is the weather in Paris? Use the tool."}],
         tool_defs=[_WEATHER_TOOL_DEF],
@@ -149,8 +149,8 @@ async def test_temperature_zero_matches_between_paths(hub):
         {"role": "user", "content": "Reply with exactly the word: pineapple"}
     ]
 
-    gateway_result = await hub.chat(TEST_MODEL, messages, temperature=0, trace=False)
-    byo_result = await hub.chat(
+    gateway_result = await hub.gateway.chat(TEST_MODEL, messages, temperature=0, trace=False)
+    byo_result = await hub.gateway.chat(
         TEST_MODEL, messages, temperature=0, trace=False, provider=_BYO_PROVIDER
     )
 
@@ -168,15 +168,15 @@ async def test_temperature_zero_matches_between_paths(hub):
 
 async def test_byo_trace_readback_one_llm_span(hub):
     """`get_trace` shows one trace with one `llm` span: `costUsd` null, `promptVersionId` stamped."""
-    rendered = await hub.render_prompt("greeting", "production", {"name": "Alice"})
-    result = await hub.chat(
+    rendered = await hub.prompts.render("greeting", "production", {"name": "Alice"})
+    result = await hub.gateway.chat(
         TEST_MODEL,
         rendered.messages,
         prompt_version_id=rendered.version_id,
         provider=_BYO_PROVIDER,
     )
 
-    trace = await hub.get_trace(result.gateway.trace_id)
+    trace = await hub.traces.get(result.gateway.trace_id)
     assert len(trace.spans) == 1
     assert trace.spans[0].kind == "llm"
     assert trace.spans[0].cost_usd is None
@@ -185,16 +185,16 @@ async def test_byo_trace_readback_one_llm_span(hub):
 
 
 async def test_byo_chained_trace_two_sibling_spans(hub):
-    """Two chained BYO `chat()` calls sharing one `trace_id` land as sibling spans."""
-    first = await hub.chat(TEST_MODEL, [{"role": "user", "content": "a"}], provider=_BYO_PROVIDER)
-    await hub.chat(
+    """Two chained BYO `gateway.chat()` calls sharing one `trace_id` land as sibling spans."""
+    first = await hub.gateway.chat(TEST_MODEL, [{"role": "user", "content": "a"}], provider=_BYO_PROVIDER)
+    await hub.gateway.chat(
         TEST_MODEL,
         [{"role": "user", "content": "b"}],
         provider=_BYO_PROVIDER,
         trace={"trace_id": first.gateway.trace_id},
     )
 
-    trace = await hub.get_trace(first.gateway.trace_id)
+    trace = await hub.traces.get(first.gateway.trace_id)
     assert len(trace.spans) == 2
     assert all(span.parent_span_id is None for span in trace.spans)
 
@@ -219,14 +219,14 @@ async def test_gateway_trace_opt_in_writes_a_second_span_without_colliding(hub):
     """
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        result = await hub.chat(
+        result = await hub.gateway.chat(
             TEST_MODEL, [{"role": "user", "content": 'Say the word "test".'}], trace=True
         )
 
     reports = [str(w.message) for w in caught if "trace report failed" in str(w.message)]
     assert reports == []
 
-    trace = await hub.get_trace(result.gateway.trace_id)
+    trace = await hub.traces.get(result.gateway.trace_id)
     assert len(trace.spans) == 2
     assert all(span.kind == "llm" for span in trace.spans)
     span_ids = {span.span_id for span in trace.spans}
@@ -256,7 +256,7 @@ async def test_byo_tool_loop_llm_spans_record_real_latency(hub):
     exactly that difference) stored 0 ms for every BYO tool-loop round — the one
     number BYO exists to improve, reported as zero.
     """
-    result = await hub.run_tool_loop(
+    result = await hub.gateway.run_tool_loop(
         TEST_MODEL,
         [{"role": "user", "content": "What is the weather in Paris? Use the tool."}],
         tool_defs=[_WEATHER_TOOL_DEF],
@@ -264,7 +264,7 @@ async def test_byo_tool_loop_llm_spans_record_real_latency(hub):
         provider=_BYO_PROVIDER,
     )
 
-    trace = await hub.get_trace(result.trace_id)
+    trace = await hub.traces.get(result.trace_id)
     llm_spans = [span for span in _flatten(trace.spans) if span.kind == "llm"]
     assert len(llm_spans) >= 1
     assert all((span.latency_ms or 0) > 0 for span in llm_spans)
@@ -284,7 +284,7 @@ async def test_byo_tool_loop_http_tool_span_nests_under_the_round_llm_span(hub, 
     (`tool_refs` → resolved schema inlined for a BYO provider, which has no
     catalog to resolve refs against).
     """
-    result = await hub.run_tool_loop(
+    result = await hub.gateway.run_tool_loop(
         TEST_MODEL,
         [
             {
@@ -299,7 +299,7 @@ async def test_byo_tool_loop_http_tool_span_nests_under_the_round_llm_span(hub, 
         provider=_BYO_PROVIDER,
     )
 
-    trace = await hub.get_trace(result.trace_id)
+    trace = await hub.traces.get(result.trace_id)
     # The SDK named the trace, not the tool-execute endpoint.
     assert trace.trace.name == "runToolLoop"
 
@@ -327,10 +327,9 @@ async def test_byo_streaming_chat_accumulates_and_traces_one_llm_span(hub):
     is the documented way to read a streamed trace back.
     """
     trace_id = str(uuid.uuid4())
-    stream = await hub.chat(
+    stream = await hub.gateway.stream(
         TEST_MODEL,
         [{"role": "user", "content": "Count from 1 to 5, separated by single spaces."}],
-        stream=True,
         provider=_BYO_PROVIDER,
         trace={"trace_id": trace_id},
     )
@@ -348,7 +347,7 @@ async def test_byo_streaming_chat_accumulates_and_traces_one_llm_span(hub):
     assert len(content.strip()) > 0
     assert finish_reason == "stop"
 
-    trace = await hub.get_trace(trace_id)
+    trace = await hub.traces.get(trace_id)
     assert len(trace.spans) == 1
     span = trace.spans[0]
     assert span.kind == "llm"
@@ -415,7 +414,7 @@ async def test_byo_429_retries_once_and_succeeds(hub):
     thread.start()
 
     try:
-        result = await hub.chat(
+        result = await hub.gateway.chat(
             "m",
             [{"role": "user", "content": "hi"}],
             provider={"base_url": f"http://localhost:{port}", "api_key": "k"},
