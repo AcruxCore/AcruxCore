@@ -8,11 +8,15 @@ image: /img/social-card.png
 keywords: [anthropic api vs openai api, gemini api shape, llm provider comparison, unified llm api, chat completions translation]
 ---
 
-Send one `POST /gateway/chat/completions` request with an OpenAI-shaped body,
-and the gateway's provider adapters translate it into whatever the chosen
-model's real API expects before it goes anywhere. We took one fixed request —
-a system message, a user message, and one tool definition — and traced it
-through the three adapters that ship today: Anthropic, OpenAI, and Gemini.
+Your app sends one `POST /gateway/chat/completions` request with an
+OpenAI-shaped body; changing providers is a one-field edit to `model`. What
+that field hides is more interesting: underneath, Anthropic, OpenAI, and
+Gemini each expect a genuinely different request — a different auth header,
+different sampling-param nesting, and a different key for the same tool
+definition. We took one fixed request — a system message, a user message, and
+one tool definition — and traced it through all three adapters that ship
+today to show exactly what each one rewrites and why the gateway needs to do
+it at all.
 
 <!-- truncate -->
 
@@ -193,3 +197,6 @@ and user message (only the registered `model` name differed from the
 shapes themselves come from running the gateway's real, unmodified adapter
 classes directly against the one request at the top of this post.
 :::
+
+Want to try this yourself? The [Quickstart](/docs/getting-started/quickstart)
+gets you from sign-up to a traced, gateway-routed call in about ten minutes.

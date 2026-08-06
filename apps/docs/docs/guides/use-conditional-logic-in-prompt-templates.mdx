@@ -1,0 +1,187 @@
+---
+title: Use conditional logic in prompt templates
+description: Write Jinja2-style {% if %} conditionals and {% for %} loops inside a prompt template, rendered by Acrux Core's nunjucks-based engine.
+sidebar_position: 21
+keywords: [jinja2, nunjucks, prompt templating, conditional prompt, prompt loop, template variables]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Use conditional logic in prompt templates
+
+**What you'll build:** a `vip-support-triage` prompt whose system message changes
+shape depending on the caller's input — one paragraph for VIP customers, a
+loop that lists out an array of open tickets — using the same `{% if %}` /
+`{% for %}` syntax you'd write in Jinja2 or Django templates.
+
+Every prompt message in Acrux Core is a template, not a plain string.
+`{{ variable }}` substitutes a value, which covers most prompts. But a template
+can also carry logic: skip a paragraph when something doesn't apply, or repeat
+a block once per item in a list. Acrux Core renders templates with
+[nunjucks](https://mozilla.github.io/nunjucks/), a JavaScript templating
+engine that implements the same tag syntax as Python's Jinja2 — so `{% if %}`,
+`{% else %}`, `{% for %}`, and filters like `{{ x | default('...') }}` all work
+exactly as they do in either engine.
+
+## 1. Create the prompt
+
+On **Prompts**, click **New prompt** and name it `vip-support-triage`.
+
+![New prompt dialog with the name field filled in as vip-support-triage and a description about adapting to VIP status](/img/tutorials/use-conditional-logic-in-prompt-templates/01-new-prompt-dialog.png)
+
+## 2. Write the template with `{% if %}` and `{% for %}`
+
+In the **Editor**, the system message's placeholder text already hints at this:
+*"Use `{{ variables }}` and `{% logic %}`."* Write a system message that
+branches on a `is_vip` flag and loops over a `tickets` list:
+
+```jinja
+You are a support triage agent for {{ company }}.
+{% if is_vip %}This customer is VIP — prioritize them and skip standard hold times.{% else %}Standard support flow applies.{% endif %}
+{% if tickets and tickets.length %}Open tickets:
+{% for ticket in tickets %}- #{{ ticket.id }}: {{ ticket.title }}
+{% endfor %}{% else %}No open tickets.{% endif %}
+```
+
+The user message is just `{{ customer_message }}`. Set the **Default model**
+to whichever chat model you have configured, then **Commit new version**.
+
+![Prompt editor showing the system message with if/else and for-loop tags syntax-highlighted in a different color from the surrounding text, and a Default model dropdown set to gpt-4o-mini](/img/tutorials/use-conditional-logic-in-prompt-templates/02-editor-with-conditionals.png)
+
+The editor highlights `{{ }}` and `{% %}` the same way — both are template
+syntax, not plain text, and both get replaced or evaluated at render time.
+
+## 3. Preview the rendered output
+
+Switch to **Preview**. It lists every variable your template reads from the
+outside — `company`, `customer_message`, `is_vip`, `tickets` — and leaves out
+`ticket`, since that name is bound by the `{% for %}` loop itself, not
+something your app provides. Fill in a company, a message, and a truthy
+`is_vip`, and the VIP branch renders live:
+
+![Preview tab with company, customer_message, is_vip, and tickets variable fields, and rendered output showing the VIP branch: "This customer is VIP — prioritize them and skip standard hold times. No open tickets."](/img/tutorials/use-conditional-logic-in-prompt-templates/03-preview-vip-branch.png)
+
+Clear `is_vip` and the same template falls through to the `{% else %}` branch
+instead — no version change needed, just a different input:
+
+![Preview tab with is_vip cleared, showing the rendered output fall through to "Standard support flow applies."](/img/tutorials/use-conditional-logic-in-prompt-templates/04-preview-standard-branch.png)
+
+The Preview tab only accepts plain text per variable, so it can't exercise the
+`{% for %}` loop with a real list — `tickets` needs an actual array, not a
+string. Test the loop against the real render endpoint instead, covered next.
+
+## Doing this over the API
+
+Your app renders the same template server-side before sending it to a model —
+this is what the SDK's `render` call and the gateway's `promptVersionId` option
+both do under the hood. Passing a real array for `tickets` drives the
+`{% for %}` loop correctly:
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/prompts/vip-support-triage/production/render" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "variables": {
+      "company": "Acme",
+      "customer_message": "Can you check on my two open issues?",
+      "is_vip": true,
+      "tickets": [{"id": 101, "title": "Order delayed"}, {"id": 102, "title": "Refund request"}],
+      "ticket": null
+    }
+  }'
+```
+
+```json
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a support triage agent for Acme.\nThis customer is VIP — prioritize them and skip standard hold times.\nOpen tickets:\n- #101: Order delayed\n- #102: Refund request\n"
+    },
+    {"role": "user", "content": "Can you check on my two open issues?"}
+  ],
+  "tools": [],
+  "model": "gpt-4o-mini",
+  "versionId": "e0397984-a9ff-4665-935d-947b41c1f7ff",
+  "versionNumber": 1
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore();
+
+const { messages } = await hub.prompts.render('vip-support-triage', 'production', {
+  company: 'Acme',
+  customer_message: 'Can you check on my two open issues?',
+  is_vip: true,
+  tickets: [{ id: 101, title: 'Order delayed' }, { id: 102, title: 'Refund request' }],
+  ticket: null,
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+render = await hub.prompts.render("vip-support-triage", "production", {
+    "company": "Acme",
+    "customer_message": "Can you check on my two open issues?",
+    "is_vip": True,
+    "tickets": [{"id": 101, "title": "Order delayed"}, {"id": 102, "title": "Refund request"}],
+    "ticket": None,
+})
+```
+
+</TabItem>
+<TabItem value="python-requests" label="Python (requests)">
+
+```python
+import os, requests
+
+base, key = os.environ["ACRUXCORE_BASE_URL"], os.environ["ACRUXCORE_API_KEY"]
+h = {"Authorization": f"Bearer {key}"}
+
+resp = requests.post(f"{base}/prompts/vip-support-triage/production/render", headers=h, json={
+    "variables": {
+        "company": "Acme",
+        "customer_message": "Can you check on my two open issues?",
+        "is_vip": True,
+        "tickets": [{"id": 101, "title": "Order delayed"}, {"id": 102, "title": "Refund request"}],
+        "ticket": None,
+    },
+})
+messages = resp.json()["messages"]
+```
+
+</TabItem>
+</Tabs>
+
+One thing worth knowing: render currently requires a value for every name the
+template references, including a `{% for %}` loop's own loop variable
+(`ticket` above) — its value is never actually read, so any placeholder like
+`null` satisfies it. Leaving it out entirely returns a 400 naming it as
+missing.
+
+## What's next
+
+- [Version a prompt and ship it to production](./version-a-prompt) covers
+  committing, promoting, and rendering a prompt end to end — this guide only
+  focused on the template syntax itself.
+- [Route the rendered prompt through the gateway](./route-calls-through-the-gateway)
+  to send the rendered messages to a model.
+- API details: see **Prompts** and **Versions** in the
+  [API Reference](/api-reference).

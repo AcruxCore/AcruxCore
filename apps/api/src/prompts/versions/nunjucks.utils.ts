@@ -52,16 +52,60 @@ export interface RenderedMessage {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const njNodes = (nunjucks as unknown as { nodes: Record<string, new (...args: any[]) => object> }).nodes;
 
+// Adds the Symbol name(s) rooted at `node` to `bound` — handles a single
+// Symbol ({% for x in y %}) and a nunjucks Array/NodeList of Symbols
+// ({% for k, v in items %}, or comma-separated {% set %} targets).
+function addSymbolNames(node: unknown, bound: Set<string>): void {
+  if (!node || typeof node !== 'object') return;
+  if (njNodes['Symbol'] && node instanceof njNodes['Symbol']) {
+    bound.add((node as Record<string, unknown>)['value'] as string);
+    return;
+  }
+  const children = (node as Record<string, unknown>)['children'];
+  if (Array.isArray(children)) {
+    children.forEach((c) => addSymbolNames(c, bound));
+  }
+}
+
+// Walks the whole AST collecting every name bound by a {% for %} loop target
+// or a {% set %} target. These shadow any outer variable of the same name
+// within their scope and must not be treated as caller-supplied inputs.
+function collectBoundNames(node: unknown, bound: Set<string>): void {
+  if (!node || typeof node !== 'object') return;
+
+  if (njNodes['For'] && node instanceof njNodes['For']) {
+    addSymbolNames((node as Record<string, unknown>)['name'], bound);
+  } else if (njNodes['Set'] && node instanceof njNodes['Set']) {
+    const targets = (node as Record<string, unknown>)['targets'];
+    if (Array.isArray(targets)) {
+      targets.forEach((t) => addSymbolNames(t, bound));
+    }
+  }
+
+  for (const key of Object.keys(node as object)) {
+    if (key === 'parent') continue; // avoid circular refs
+    const child = (node as Record<string, unknown>)[key];
+    if (Array.isArray(child)) {
+      child.forEach((c) => collectBoundNames(c, bound));
+    } else if (child && typeof child === 'object') {
+      collectBoundNames(child, bound);
+    }
+  }
+}
+
 // Walks a nunjucks AST node and collects all referenced top-level variable names.
 // Handles simple {{ name }} and attribute access {{ user.name }} (captures root 'user').
-function walkAst(node: unknown, vars: Set<string>): void {
+// `bound` holds loop/set target names (see collectBoundNames) that shadow an
+// outer variable of the same name and so are never captured as inputs.
+function walkAst(node: unknown, vars: Set<string>, bound: Set<string>): void {
   if (!node || typeof node !== 'object') return;
 
   // Attribute access: {{ user.name }} — capture root 'user' only
   if (njNodes['LookupVal'] && node instanceof njNodes['LookupVal']) {
     const target = (node as Record<string, unknown>)['target'];
     if (target && njNodes['Symbol'] && target instanceof njNodes['Symbol']) {
-      vars.add((target as Record<string, unknown>)['value'] as string);
+      const name = (target as Record<string, unknown>)['value'] as string;
+      if (!bound.has(name)) vars.add(name);
     }
     // Don't descend into LookupVal — we already captured the root
     return;
@@ -69,7 +113,8 @@ function walkAst(node: unknown, vars: Set<string>): void {
 
   // Simple variable reference: {{ name }}
   if (njNodes['Symbol'] && node instanceof njNodes['Symbol']) {
-    vars.add((node as Record<string, unknown>)['value'] as string);
+    const name = (node as Record<string, unknown>)['value'] as string;
+    if (!bound.has(name)) vars.add(name);
     return;
   }
 
@@ -77,9 +122,9 @@ function walkAst(node: unknown, vars: Set<string>): void {
     if (key === 'parent') continue; // avoid circular refs
     const child = (node as Record<string, unknown>)[key];
     if (Array.isArray(child)) {
-      child.forEach((c) => walkAst(c, vars));
+      child.forEach((c) => walkAst(c, vars, bound));
     } else if (child && typeof child === 'object') {
-      walkAst(child, vars);
+      walkAst(child, vars, bound);
     }
   }
 }
@@ -203,21 +248,30 @@ async function renderInSandbox(templates: string[], variables: Record<string, un
  */
 export function extractVariables(messages: Array<{ content: string }>): string[] {
   const vars = new Set<string>();
+  const bound = new Set<string>();
 
   // nunjucks.parser is exported but not typed — cast to access parse()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const parser = (nunjucks as unknown as { parser: { parse(src: string, extensions: unknown[], opts: object): unknown } }).parser;
 
+  const asts: unknown[] = [];
   for (const msg of messages) {
     try {
       const ast = parser.parse(msg.content, [], {});
-      walkAst(ast, vars);
+      asts.push(ast);
+      collectBoundNames(ast, bound);
     } catch (err) {
       throw new NunjucksParseError(
         `Template parse error: ${err instanceof Error ? err.message : String(err)}`,
         err,
       );
     }
+  }
+
+  // Bound names must be known across all messages before the capturing walk,
+  // since a loop/set target in one message shadows the same name anywhere else.
+  for (const ast of asts) {
+    walkAst(ast, vars, bound);
   }
 
   return Array.from(vars).sort();

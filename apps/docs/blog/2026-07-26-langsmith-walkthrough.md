@@ -190,3 +190,18 @@ runs and Experiments both need it, since LangSmith doesn't run its own gateway
 in front of providers. That's a one-time setup cost, not a hard limitation:
 once a key is added, everything — live Playground runs, real traces, and full
 dataset Experiments — works as expected.
+
+## LangSmith vs Acrux Core
+
+| Feature | LangSmith | Acrux Core |
+| --- | --- | --- |
+| Framework integration | Deep LangChain/LangGraph-native instrumentation, plus a dedicated Studio for LangGraph agents | Framework-agnostic — plain REST or either published SDK, no LangChain dependency |
+| Prompt management | Git-like prompt commits with named Environments (Production/Staging) | Immutable versions with alias promotion (`production`/`staging`), no redeploy |
+| Gateway | No request-routing layer — bring your own provider key, call providers directly | Gateway sits in front of every provider call — one audited, cost-visible path |
+| Tool calling | Traces tool calls made through LangChain | First-class, versioned tool catalog, callable via a client-side tool loop in either SDK |
+| Evaluation | Rich, mature evaluation suite with many built-in evaluators and a Pairwise Experiments UI | Datasets built from real production feedback, not hand-authored examples |
+| Hosting & pricing | Self-hosting is an enterprise add-on | Open source and self-hostable by default |
+
+Want to see the same loop on Acrux Core? The
+[Quickstart](/docs/getting-started/quickstart) gets you from sign-up to a traced,
+gateway-routed call in about ten minutes.

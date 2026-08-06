@@ -1,7 +1,7 @@
 ---
 title: Core concepts
 description: The mental model behind Acrux Core — prompt versions and aliases, gateway model resolution, traces and spans, the tool catalog and its executors, and evaluation.
-sidebar_position: 3
+sidebar_position: 4
 keywords: [prompt versioning, prompt alias, ai gateway, llm trace span, tool calling, tool catalog, acrux.tool, llm evaluation]
 ---
 

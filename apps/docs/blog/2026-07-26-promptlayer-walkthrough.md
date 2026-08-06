@@ -188,3 +188,18 @@ template via `pl_client.templates.get(...)` first and feed its rendered messages
 - **A live, ad-hoc model-comparison table** — the Evaluate button builds a real spreadsheet that
   calls multiple models on the same input row and shows cost/latency/output side by side, without
   first requiring a saved, persistent dataset object.
+
+## PromptLayer vs Acrux Core
+
+| Feature | PromptLayer | Acrux Core |
+| --- | --- | --- |
+| Prompt versioning | Visible, git-style diff on every version save, before you even commit | Standing Diff tab, plus alias-based promotion with no redeploy |
+| Variables | Auto-detects `{{variable}}` syntax in the editor, no separate declaration step | Validates required variables at render time, errors clearly if one's missing |
+| Gateway | No request-routing layer — call providers yourself through their SDK wrapper, it logs the call | Gateway routes every provider call itself — one audited, cost-visible path |
+| Tracing | Multi-step tracing is a separate, opt-in SDK feature; default is a flat per-call log | Automatic the moment a call goes through the gateway |
+| Evaluation | Live, ad-hoc model-comparison tables and release-label A/B tests on live traffic | Datasets and experiments persist and build up over time, tied to real production feedback |
+| Hosting & pricing | Seat-based trial plan | Open source and self-hostable, free in beta |
+
+Want to see the same loop on Acrux Core? The
+[Quickstart](/docs/getting-started/quickstart) gets you from sign-up to a traced,
+gateway-routed call in about ten minutes.

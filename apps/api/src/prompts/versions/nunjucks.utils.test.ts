@@ -35,6 +35,39 @@ describe('extractVariables', () => {
   it('throws NunjucksParseError for invalid nunjucks syntax', () => {
     expect(() => extractVariables([{ content: '{{ unclosed' }])).toThrow(NunjucksParseError);
   });
+
+  it('excludes a {% for %} loop-bound name, keeping only the iterated source', () => {
+    const result = extractVariables([
+      { content: '{% for item in items %}{{ item.name }}{% endfor %}' },
+    ]);
+    expect(result).toEqual(['items']);
+  });
+
+  it('excludes both destructured loop-bound names ({% for k, v in items %})', () => {
+    const result = extractVariables([
+      { content: '{% for key, value in items %}{{ key }}: {{ value }}{% endfor %}' },
+    ]);
+    expect(result).toEqual(['items']);
+  });
+
+  it('excludes a {% set %} target from extracted variables', () => {
+    const result = extractVariables([
+      { content: '{% set greeting = "hi" %}{{ greeting }} {{ name }}' },
+    ]);
+    expect(result).toEqual(['name']);
+  });
+
+  it('extracts the outer variable referenced by a loop source alongside attribute access in its body', () => {
+    // Regression case from issue #256: a support-triage prompt looping over
+    // tickets and reading each ticket's fields must only require `tickets`.
+    const result = extractVariables([
+      {
+        content:
+          '{% for ticket in tickets %}- #{{ ticket.id }}: {{ ticket.title }}\n{% endfor %}',
+      },
+    ]);
+    expect(result).toEqual(['tickets']);
+  });
 });
 
 describe('renderMessages', () => {

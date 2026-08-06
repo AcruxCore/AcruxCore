@@ -77,8 +77,10 @@ route through the gateway.
 ## Tools
 
 - **Acrux Core** has a **tool catalog**: callable functions versioned exactly like
-  prompts, attached to a prompt version, with a client-side `runToolLoop` in the
-  SDK or a gateway-run HTTP executor.
+  prompts, attached to a prompt version, with a client-side tool loop in either
+  published SDK — `runToolLoop` in [`@acruxcoreai/sdk`](https://www.npmjs.com/package/@acruxcoreai/sdk)
+  (TypeScript) or `run_tool_loop` in [`acruxcore`](https://pypi.org/project/acruxcore/)
+  (Python) — or a gateway-run HTTP executor.
 - **LangSmith** leans on LangChain's large library of tool integrations.
 
 Different philosophies: a governed, versioned in-house catalog versus a broad
@@ -99,8 +101,8 @@ between the feedback you already collect and the datasets you evaluate against.
 
 ## Hosting
 
-- **Acrux Core** is a standard **Postgres + Node** stack you can **self-host**;
-  BYOK keeps provider keys under your control.
+- **Acrux Core** is **open source** and **self-hostable** — a standard
+  **Postgres + Node** stack; BYOK keeps provider keys under your control.
 - **LangSmith** is primarily a managed cloud service (with enterprise
   self-hosting options).
 
@@ -109,8 +111,8 @@ between the feedback you already collect and the datasets you evaluate against.
 - **Choose LangSmith** if you're deep in the LangChain/LangGraph ecosystem and
   want the most mature tracing and evaluation available today.
 - **Choose Acrux Core** if you want prompts, a provider gateway, tracing, tools,
-  and evaluation as **one integrated, self-hostable platform** — and you value
-  runtime prompt swaps and a single cost-visible path to every model.
+  and evaluation as **one integrated, open source, self-hostable platform** — and
+  you value runtime prompt swaps and a single cost-visible path to every model.
 
 Want to try the integrated story? The [Quickstart](/docs/getting-started/quickstart)
 gets you from sign-up to a traced, gateway-routed call in about ten minutes.

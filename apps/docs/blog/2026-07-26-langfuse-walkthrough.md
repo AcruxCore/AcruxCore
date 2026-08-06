@@ -49,10 +49,10 @@ only move the `production` label forward once you're happy with the new version.
 
 This label system (rather than aliases you name yourself) is Langfuse's take on
 "which version is live right now" — a smaller, more opinionated version of what most
-prompt-management tools call aliases. Browsing the account's other, older prompts
-(from real prior usage, not this walkthrough) turned up one using **Jinja-style
-`{% if %}` conditionals** inside the template text — a level of templating logic
-beyond simple `{{variable}}` substitution.
+prompt-management tools call aliases. Langfuse's templating itself is flat
+**`{{variable}}` substitution only** — an older prompt in the account had
+`{% if %}`-looking syntax in its template text, but a later hands-on test confirmed it
+renders as literal, inert characters rather than executing as a real conditional.
 
 ## 3. Reading a real trace
 
@@ -184,9 +184,6 @@ likely feed into Langfuse with minimal glue code.
 
 ## What's unique to Langfuse
 
-- **Open-source-first identity.** Langfuse leads with GitHub stars and self-hosting
-  front and center in the UI itself, not just in a docs page — self-hosting is a
-  first-class option, not an enterprise add-on bolted on later.
 - **Organization → project hierarchy** as a first-class structure, separate from a
   simple per-account workspace list.
 - **Session and user badges live directly on the trace header.** Other tools often
@@ -195,8 +192,6 @@ likely feed into Langfuse with minimal glue code.
 - **Prompts and traces share one "Add to datasets" action** — you can turn a real
   production trace into a dataset row with one click from the trace view itself,
   tying evaluation directly back to what actually happened in production.
-- **Jinja-style conditional templating** (`{% if %}`) inside prompt text, not just
-  flat `{{variable}}` substitution.
 - **Immutable, Git-like prompt versions with commit messages** — every save records
   what changed, building an audit trail almost by accident.
 
@@ -211,3 +206,24 @@ trial credit, so in an account without one configured, you can look at every scr
 but not press "go" without bringing your own working key. Once that key was added,
 both flows worked cleanly, with one worth-knowing quirk: Playground runs don't
 produce traces, only real instrumented calls and dataset/experiment runs do.
+
+## Langfuse vs Acrux Core
+
+Both are open source, so this comes down to shape, not access.
+
+| Feature | Langfuse | Acrux Core |
+| --- | --- | --- |
+| Tracing | OpenTelemetry-native SDKs — wrap your existing OpenAI client and get a trace with no manual span code | Automatic the moment a call goes through the gateway, no separate SDK step |
+| Gateway | No request-routing layer — call providers yourself, send the trace after the fact | Built-in OpenAI-compatible gateway sits in the request path — one audited, cost-visible route to every provider |
+| Prompt management | `production`/`latest` labels attached to versions; flat `{{variable}}` substitution only, no `{% if %}`/`{% for %}` support | `production`/`staging` aliases your app fetches at runtime, a standing Diff tab between any two versions, plus real `{% if %}`/`{% for %}` conditionals via its own nunjucks renderer |
+| Team structure | Organization → project hierarchy for teams running many separate workspaces | Prompts, gateway, tracing, tools, and evaluation on one team-scoped model |
+| Evaluation | Session/user badges on the trace header; datasets built manually or via API | Datasets built from real production feedback (thumbs up/down on traces) |
+| Hosting | Larger, more established self-hosting community | Single Postgres + Node stack — no separate OTel collector or ingestion service |
+
+Want the deep dive — the same prompt run for real on both platforms, screenshotted
+side by side? Read the
+[full Langfuse vs Acrux Core comparison](/blog/acruxcore-vs-langfuse).
+
+Want to see the same loop on Acrux Core? The
+[Quickstart](/docs/getting-started/quickstart) gets you from sign-up to a traced,
+gateway-routed call in about ten minutes.

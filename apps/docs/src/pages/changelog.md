@@ -38,6 +38,11 @@ called out in the week it ships and in the SDK release notes.
 - `hub.datasets`, `hub.experiments`, `hub.runs`, and `hub.optimize` expose 19 methods for the full evaluations domain.
 - Create datasets, run experiments, poll results, read reports, and promote optimizer candidates without leaving your code.
 
+### Minor
+
+- **New guide** — [Product tour](/docs/getting-started/product-tour): tools, streaming, traces, feedback, and evaluation in one walkthrough.
+- **Fixed** — rendering a prompt with a `{% for %}` loop no longer wrongly demands the loop variable as an input.
+
 ---
 
 ## Week of 3 August 2026

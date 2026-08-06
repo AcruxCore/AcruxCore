@@ -122,6 +122,18 @@ your evaluation set grows directly out of what real users flagged as good or
 bad in production, instead of living as a separate hand-maintained fixture you
 have to remember to update.
 
+## 6. Check the run history
+
+Every experiment run against a dataset — whether triggered by hand or by the
+"Improve from feedback" flow below — lands in a **Runs** tab next to Datasets,
+with status, score, the best-scoring variant, and duration for each one:
+
+![Acrux Core Runs tab listing past evaluation runs with status, score, best variant, and duration columns](/img/tutorials/acruxcore-walkthrough/10-runs-tab.png)
+
+It's a plain list, not a separate product area to learn — the same page you
+use to browse datasets is where you go to see what every past run actually
+scored.
+
 ## Doing this from code
 
 Everything above was clicked through the dashboard. The same flow — render a
@@ -230,3 +242,7 @@ above, just with a different token count and request ID each time.
   same Versions/Aliases treatment as prompts, plus their own analytics page —
   call volume, error rate, and P50/P95 latency per tool — instead of only ever
   showing up as a trace span.
+
+Want to run through this yourself? The
+[Quickstart](/docs/getting-started/quickstart) gets you from sign-up to a
+traced, gateway-routed call in about ten minutes.

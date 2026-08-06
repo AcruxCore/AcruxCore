@@ -1,0 +1,319 @@
+---
+title: Product tour
+description: Attach a tool, stream a response, inspect the trace, leave feedback, and turn it into an evaluation — the rest of the loop after your first call.
+sidebar_position: 3
+keywords: [llm tool calling, streaming llm response, llm tracing, llm feedback, prompt evaluation]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Product tour
+
+This picks up right after [Quickstart](./quickstart) — you should already have an
+account, an API key, and a registered model (`support-model`). By the end of this
+page you'll have authored a prompt, attached a tool to it, called it both streaming
+and non-streaming, read the trace back, left feedback, and turned that feedback
+into an evaluation run — the whole loop, start to finish.
+
+Every screenshot below is from a real run against a real team — nothing staged.
+
+## 1. Author the prompt
+
+A **prompt** is a versioned, templated set of messages — write it once, reuse it
+from every caller, and change it without redeploying anything. **Prompts → New
+prompt**, name it `support-reply`, and add a **system** message and a **user**
+message, using `{{ variables }}` where the input goes:
+
+```jinja
+system: You are a friendly, concise customer-support agent for {{ company }}.
+        Reply warmly and help the customer resolve their issue in 2-3 sentences.
+user:   {{ customer_message }}
+```
+
+Set **Default model** to `support-model` — the model the Playground and any
+caller that omits its own `model` will use — then click **Commit new version**.
+The first commit auto-creates the `production` and `staging` aliases, both
+pointing at v1:
+
+![Prompt editor for support-reply, with system and user messages, the default model, and the staging/production aliases](/img/tutorials/product-tour/01-prompt-editor.png)
+
+The screenshot above is this same demo team a few commits later — it already
+shows `STAGING → v2` and `PRODUCTION → v2`, from committing the tool attach in
+the next section. Yours will start at v1 on both aliases.
+
+:::tip[Authoring a prompt outside the dashboard]
+See [Manage prompts via the SDK](../guides/manage-prompts-via-the-sdk) or
+[Store prompts and tools via the API](../guides/store-prompts-and-tools-via-api)
+for the SDK/curl equivalent of everything above, and
+[Version a prompt](../guides/version-a-prompt) for the full commit/alias lifecycle.
+:::
+
+## 2. Attach a tool with `acrux.tool`
+
+A **tool** is a function you let the model call. The fastest way to give it one is
+to declare it in code — the decorator carries the name, description, and argument
+schema the model reads, all in one place:
+
+<Tabs groupId="lang">
+<TabItem value="node" label="Node">
+
+```typescript
+import AcruxCore, { acrux } from '@acruxcoreai/sdk';
+import { z } from 'zod/v4';
+
+const getWeather = acrux.tool(
+  {
+    name: 'get_weather',
+    description: 'Get the current weather for a city.',
+    parameters: z.object({ city: z.string().describe("City name, e.g. 'London'") }),
+  },
+  // wttr.in needs no API key, so this body runs as written.
+  async ({ city }) => {
+    const res = await fetch(`https://wttr.in/${encodeURIComponent(city)}?format=j1`);
+    if (!res.ok) throw new Error(`wttr.in returned ${res.status}`);
+    const data = (await res.json()) as {
+      current_condition: { temp_C: string; weatherDesc: { value: string }[] }[];
+    };
+    const current = data.current_condition[0];
+    return { city, tempC: Number(current.temp_C), summary: current.weatherDesc[0].value };
+  },
+);
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import httpx
+from acruxcore import AcruxCore, acrux
+
+
+@acrux.tool
+async def get_weather(city: str) -> dict:
+    """Get the current weather for a city.
+
+    Args:
+        city: City name, e.g. 'London'.
+    """
+    async with httpx.AsyncClient() as http:
+        res = await http.get(f"https://wttr.in/{city}", params={"format": "j1"})
+    res.raise_for_status()
+    current = res.json()["current_condition"][0]
+    return {
+        "city": city,
+        "temp_c": int(current["temp_C"]),
+        "summary": current["weatherDesc"][0]["value"],
+    }
+```
+
+</TabItem>
+</Tabs>
+
+Run it once through the tool-calling loop and the catalog fills itself in — no
+dashboard step needed to create the entry:
+
+```python
+async with AcruxCore() as hub:
+    result = await hub.gateway.run_tool_loop(
+        model="support-model",
+        messages=[{"role": "user", "content": "What is the weather in London right now?"}],
+        tools=[get_weather],
+    )
+    print(result.content)   # "The weather in London is currently sunny with a temperature of 24°C..."
+    print(result.trace_id)
+```
+
+Open **Gateway → Tools → get_weather** and it's there, with a **Defined in code**
+badge:
+
+![The get_weather tool after a sync, showing the Defined in code badge](/img/tutorials/product-tour/02-tool-catalog.png)
+
+Now attach it to `support-reply`: open the prompt's **Tools** tab, check
+`get_weather` under **Attach to next commit**, and commit a new version. That
+version now carries the tool, and `hub.prompts.render` returns it alongside the
+messages:
+
+![Attaching get_weather to support-reply's next version](/img/tutorials/product-tour/03-attach-tool.png)
+
+:::tip[No SDK? Attach a tool from the dashboard or curl]
+`acrux.tool` is the code-first path. Prefer clicking, or calling curl directly? See
+[Build and attach a tool](../guides/build-and-attach-a-tool) for the dashboard walkthrough,
+or [Store prompts and tools via the API](../guides/store-prompts-and-tools-via-api)
+for creating an HTTP-executor tool with `POST /tools` — no local code at all.
+:::
+
+## 3. Call it — streaming and non-streaming
+
+A plain, non-streaming call gets the whole answer back in one response:
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "support-model", "messages": [{"role": "user", "content": "Say hi in one word."}]}'
+```
+
+```json
+{
+  "id": "gen-1785952057-qwOwMLPMx0yaYnDKPFmT",
+  "model": "openai/gpt-4o-mini",
+  "object": "chat.completion",
+  "choices": [{ "index": 0, "message": { "role": "assistant", "content": "Hello!" }, "finish_reason": "stop" }],
+  "usage": { "prompt_tokens": 13, "completion_tokens": 2, "total_tokens": 15 }
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const result = await hub.gateway.chat({
+  model: 'support-model',
+  messages: [{ role: 'user', content: 'Say hi in one word.' }],
+});
+console.log(result.content); // "Hello!"
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+result = await hub.gateway.chat("support-model", [{"role": "user", "content": "Say hi in one word."}])
+print(result.content)  # "Hello!"
+```
+
+</TabItem>
+</Tabs>
+
+Streaming sends the same request but iterates the answer token by token —
+useful for piping to a UI as it arrives:
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -N -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "support-model", "stream": true, "messages": [{"role": "user", "content": "Count to three."}]}'
+```
+
+```text
+data: {"choices":[{"index":0,"delta":{"content":"One"},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"content":","},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"content":" two"},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"content":"three."},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+for await (const chunk of await hub.gateway.stream({
+  model: 'support-model',
+  messages: [{ role: 'user', content: 'Count to three.' }],
+})) {
+  process.stdout.write(chunk.delta.content ?? '');
+}
+// One, two, three.
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+async for chunk in await hub.gateway.stream("support-model", [{"role": "user", "content": "Count to three."}]):
+    print(chunk.delta.get("content", ""), end="", flush=True)
+# One, two, three.
+```
+
+</TabItem>
+</Tabs>
+
+The dashboard has a streaming toggle too, if you'd rather watch a call live without
+writing code — **Gateway → Playground**, flip **Stream** on, and send:
+
+![Playground after a streamed completion, showing the Stream completion button and live gateway telemetry](/img/tutorials/product-tour/04-playground-streaming.png)
+
+:::note[Streaming and tools don't mix in the Playground]
+The Playground's streaming toggle disables itself once a tool is attached to the
+call — the tool-calling loop always sends non-streamed, since it needs the full
+response to see whether the model asked for a tool. The screenshot above is the
+plain `support-reply` call; the tool-calling case is what section 2's code
+demonstrates instead.
+:::
+
+## 4. See the trace
+
+Every gateway call is traced automatically, and the tool-calling loop adds its own
+tool span to the same trace. Open **Observability → Traces**, find the call from
+section 2, and click in:
+
+![Trace detail showing an LLM span, a nested Tool span for get_weather, and a second LLM span](/img/tutorials/product-tour/05-trace-detail.png)
+
+One trace, three spans: the model asks for `get_weather`, your code runs it, and
+the model turns the result into an answer — all under one trace id, with real
+token counts and per-span latency.
+
+:::tip[Read a trace from your own code]
+See [Chat, stream, and collect feedback with the SDK](../guides/use-the-sdk-for-chat-and-feedback#4-read-the-trace-back-and-leave-feedback)
+or [Trace and inspect an LLM call](../guides/trace-an-llm-call) for the SDK/curl path
+— `hub.traces.get(traceId)` returns the same status, cost, and token counts shown here.
+:::
+
+## 5. Leave feedback
+
+On any trace, leave a thumbs up/down and an optional comment — this is the signal
+evaluation builds on next:
+
+![The Feedback panel on the get_weather trace, showing a thumbs-up entry with a comment](/img/tutorials/product-tour/06-feedback.png)
+
+:::tip[Submit feedback from your own code]
+```python
+feedback = await hub.traces.submit_feedback(
+    trace_id, rating=1, comment="Weather lookup worked, good answer",
+)
+```
+See [Chat, stream, and collect feedback with the SDK](../guides/use-the-sdk-for-chat-and-feedback#4-read-the-trace-back-and-leave-feedback)
+or [Using sessions and traces](../guides/using-sessions-and-traces) for the full SDK/curl path.
+:::
+
+## 6. Turn feedback into an evaluation
+
+Feedback on its own is a signal; a **dataset** freezes it into something you can
+test against repeatedly. **Evaluations → Datasets** lets you select feedback rows
+and build one:
+
+Then create an **experiment** — a prompt version (or two) × a model, run against
+that dataset — and start a run. Acrux Core always adds the prompt's `production`
+alias as an automatic baseline, so every run is a comparison, not just a score:
+
+![Run report leaderboard: v1 scores 80.0 and ranks #1, production scores 70.0 as the baseline](/img/tutorials/product-tour/07-eval-report.png)
+
+This run compared `support-reply` v1 against the current `production` version on
+two real weather-lookup examples — v1 scored 80.0 against production's 70.0, a
+real, data-backed answer to "did this version actually help?"
+
+:::tip[Build the dataset and run the experiment from code]
+See [Evaluate a prompt against a dataset](../guides/evaluate-a-prompt) for the full
+SDK/curl walkthrough of everything in this section — `hub.datasets.buildFromFeedback()`,
+`hub.experiments.create()`, and `hub.runs.getReport()`.
+:::
+
+## Where to next
+
+- [Core concepts](./core-concepts) for the full mental model
+- [Alias and track usage of tools in the catalog](../guides/alias-and-track-usage-of-tools-in-the-catalog)
+- [Improve a prompt from feedback](../guides/improve-a-prompt-from-feedback)
+- [Tutorials](../tutorials/) — eight agent builds from no-code to multi-agent

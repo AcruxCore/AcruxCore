@@ -47,7 +47,7 @@ The sections below go deep on each dimension with screenshots. If you just want 
 | Feedback → Playground → save loop | Feedback + Dataset + Annotation Queue exist, but no trace → Playground jump | Full loop: trace → Playground (pre-loaded) → Save as prompt | Full loop: Request → Playground (pre-loaded) → Save Template | Full loop, plus an automated version: feedback → drafted candidates → judged run → Promote to production |
 | Tool calling | Shows up as spans only; no catalog | Playground-scoped tool schema; no catalog | Per-request tool-call count; no catalog | Dedicated versioned Tool Catalog + a Tool analytics page |
 | Developer experience | `wrap_openai` + `@traceable` around your own OpenAI call | Drop-in OpenAI wrapper, built on OpenTelemetry | `pl_client.openai` wrapper around your own OpenAI call | `hub.prompts.render` + `hub.gateway.chat` — no direct call to a provider at all, Node and Python |
-| Pricing (what we actually saw) | Not verified hands-on | Not verified hands-on | Team Trial plan with visible quotas | Not verified hands-on |
+| Pricing (what we actually saw) | Not verified hands-on | Not verified hands-on | Team Trial plan with visible quotas | Open source, free during public beta — no trial, no quota |
 
 ## Prompt management
 
@@ -271,10 +271,16 @@ feedback page.
 **Acrux Core** — feedback selected, then the automated Improve-from-feedback run:
 
 ![Acrux Core Feedback page with one feedback row selected and a Create dataset button](/img/tutorials/acruxcore-walkthrough/08-feedback-selected.png)
-![Acrux Core Run report leaderboard showing 4 variants (3 drafted candidates plus production) each scored 100.0 against gpt-4o-mini](/img/tutorials/comparison/acx-improve-leaderboard.png)
+![Acrux Core Run report leaderboard showing 4 variants (3 drafted candidates plus production) scored 85.0-90.0 against gpt-4o-mini](/img/tutorials/comparison/acx-improve-leaderboard.png)
 ![Acrux Core candidate detail panel showing judge reasoning, a Passed verdict, and a Promote to production button](/img/tutorials/comparison/acx-improve-promote.png)
 
 </details>
+
+Every run above — whether triggered by hand or by Improve-from-feedback —
+lands in Acrux Core's **Runs** tab, next to Datasets, with status, score, the
+best-scoring variant, and duration for each one:
+
+![Acrux Core Runs tab listing past evaluation runs with status, score, best variant, and duration columns](/img/tutorials/comparison/acx-runs-tab.png)
 
 ## Developer experience
 
@@ -337,9 +343,12 @@ be clear, Acrux Core's gateway is BYOK too; this account just happened to alread
 
 ![PromptLayer Requests table with the SDK-originated call at the top, showing model and real generated response](/img/tutorials/promptlayer-walkthrough/11-sdk-request-log.jpg)
 
-**Acrux Core** — `hub.prompts.render` + `hub.gateway.chat`, one gateway hop, no OpenAI client at all; both the
-Node and Python scripts' calls land on this same single-span trace page (shown earlier in
-Tracing and observability), just with their own request ID and token count each run.
+**Acrux Core** — `hub.prompts.render` + `hub.gateway.chat`, one gateway hop, no OpenAI client at all:
+
+![Acrux Core trace detail for a script-generated call, showing the expanded LLM span with Model, Provider, Tokens, Latency, and the real request/response JSON](/img/tutorials/comparison/acx-sdk-trace.png)
+
+Both the Node and Python scripts' calls land on this same single-span trace page, just
+with their own request ID and token count each run.
 
 </details>
 
@@ -403,7 +412,11 @@ current pricing page than publish numbers that go stale. The one concrete thing 
 see directly: PromptLayer's workspace was on a **Team Trial** ("Trial ends in 7 days") with
 visible usage quotas (100,000 request logs/month, 7,500 evaluation cells/month, 10,000
 workflow node executions/month on that plan). We didn't verify equivalent numbers for
-LangSmith, Langfuse, or Acrux Core hands-on, so we're deliberately not guessing at them here.
+LangSmith or Langfuse hands-on, so we're deliberately not guessing at them here.
+
+**Acrux Core** is the one platform here where pricing isn't a moving target: it's open
+source and self-hostable, and free to use during the public beta — no trial clock, no
+seat count, no usage quota to run into.
 
 ## What's unique to one platform
 
@@ -420,14 +433,11 @@ platform does, not just a different button for the same idea.
   extra configuration.
 
 **Langfuse**
-- Open-source-first identity, with self-hosting front and center in the product itself,
-  not buried in an enterprise docs page.
 - Organization → project hierarchy as a first-class structure.
 - Session and user badges live directly on the trace header, clickable to jump to every
   other trace in that session/user.
 - One-click **"Add to datasets"** straight from a trace — turning real production
   behavior into eval data with no separate authoring step.
-- Jinja-style `{% if %}` conditional templating inside prompt text.
 
 **PromptLayer**
 - Release-label **A/B testing on live traffic**, instead of dataset-based offline
@@ -451,6 +461,10 @@ platform does, not just a different button for the same idea.
 - **A first-class, versioned Tool Catalog** with its own analytics page (call volume, error
   rate, latency per tool) — the other three only expose tool calls as trace spans or
   per-session schema attachments, never as governed, reusable objects.
+- **Gateway response caching** — cacheable calls can be served straight from the gateway,
+  something none of the other three do since they aren't in the request path to begin with.
+- **A second, full-parity SDK** — everything above is also available from Python
+  (`pip install acruxcore`), not just the TypeScript client.
 
 ## Where Acrux Core stands
 
@@ -495,3 +509,10 @@ Nothing here suggests Acrux Core needs a different architecture — the gateway-
 model is a real structural advantage none of the three competitors have. The gap is entirely
 in evaluation ergonomics for a brand-new account, which is a product feature to build, not a
 redesign.
+
+Want the deepest look at just the Langfuse side of this? We rebuilt one matched
+example on both platforms and ran it step for step — see the
+[full Langfuse vs Acrux Core comparison](/blog/acruxcore-vs-langfuse).
+
+Want to see it for yourself? The [Quickstart](/docs/getting-started/quickstart)
+gets you from sign-up to a traced, gateway-routed call in about ten minutes.
