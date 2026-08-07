@@ -18,12 +18,6 @@ export const GITHUB_URL = 'https://github.com/AcruxCore/AcruxCore';
  */
 export const SUPPORT_EMAIL = 'support@acruxcore.com';
 
-/**
- * Application form for the AI Agent Engineer role, used on the
- * {@link ../pages/CareersPage} page.
- */
-export const AI_AGENT_ENGINEER_FORM_URL = 'https://forms.gle/PpCFM5fRpdpnKeDB7';
-
 /** Hosted API origin + base path, as used in the public code samples. */
 export const API_BASE_URL = 'https://api.acruxcore.com/api/v1';
 

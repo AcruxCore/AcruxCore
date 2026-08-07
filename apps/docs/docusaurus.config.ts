@@ -1,3 +1,4 @@
+import nodePath from 'node:path';
 import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
@@ -18,6 +19,153 @@ const GA4_ENABLED = Boolean(GA4_MEASUREMENT_ID) && process.env.NODE_ENV === 'pro
 // `.acruxcore.com` cookie domain is what lets a choice on one subdomain cover
 // both, so an accept on the marketing site skips the prompt here too.
 const CONSENT_COOKIE = 'acx_analytics_consent';
+
+/**
+ * Relative crawl weighting for one sitemap URL, most specific prefix first.
+ *
+ * The sitemap spec defines `priority` as a page's importance *relative to other
+ * pages on the same site*, so the useful signal is the spread, not the absolute
+ * numbers. Tutorials, guides and blog posts sit at the top because they are the
+ * pages that answer a search query on their own; index and listing pages sit
+ * below them because a searcher wants the article, not the table of contents;
+ * API reference leaves sit lowest because they are terse curl blocks that rank
+ * for almost nothing and there are 30-odd of them competing with the 40 pages
+ * we do want crawled.
+ *
+ * `changefreq` is a hint about how often the content is rewritten: a published
+ * post is essentially frozen once it ships, whereas the changelog gains a
+ * section most weeks.
+ *
+ * @param path - Site-relative route path, always leading-slashed (`/blog/x`).
+ * @returns The `priority` (0-1) and `changefreq` to emit for that route.
+ */
+function classifySitemapRoute(path: string): {
+  priority: number;
+  changefreq: 'daily' | 'weekly' | 'monthly';
+} {
+  const rules: Array<[RegExp, number, 'daily' | 'weekly' | 'monthly']> = [
+    // Landing page — the site's single most important URL.
+    [/^\/$/, 1.0, 'weekly'],
+    // Entry points a newcomer lands on and we actively want ranking.
+    [/^\/docs\/getting-started\//, 0.9, 'weekly'],
+    // The long-form pages that carry the site: each one is a standalone answer.
+    [/^\/docs\/tutorials\/./, 0.9, 'monthly'],
+    [/^\/docs\/guides\//, 0.9, 'monthly'],
+    // Blog posts, but not the /blog index (matched below).
+    [/^\/blog\/./, 0.8, 'monthly'],
+    // SDK reference: valuable, but it mirrors what the guides already teach.
+    [/^\/docs\/sdk-reference\//, 0.7, 'monthly'],
+    // Gains an entry most weeks, so worth recrawling often despite being thin.
+    [/^\/changelog$/, 0.7, 'weekly'],
+    // Section landing pages — navigation, not answers.
+    [/^\/(blog|docs\/tutorials|api-reference)$/, 0.6, 'weekly'],
+    // API reference leaves.
+    [/^\/api-reference\//, 0.5, 'monthly'],
+  ];
+
+  for (const [pattern, priority, changefreq] of rules) {
+    if (pattern.test(path)) {
+      return {priority, changefreq};
+    }
+  }
+  // Anything new that lands outside the sections above: mid weight, so a page
+  // added later is never silently demoted below the API reference.
+  return {priority: 0.6, changefreq: 'weekly'};
+}
+
+/**
+ * Fills in each sitemap item's `lastmod` from its page's last git commit.
+ *
+ * Docusaurus can do this itself, but the result is silently empty here. With
+ * `future.v4` on, the active VCS strategy is the eager one, which preloads the
+ * whole repository into a map keyed by **absolute** path — while the sitemap
+ * plugin looks each page up by `sourceFilePath`, which is relative to the site
+ * directory. In a single-package site those happen to agree often enough to
+ * work; in this monorepo the site directory is `apps/docs`, so every lookup
+ * misses. A miss returns `null` rather than raising, so the build stays green
+ * and `<lastmod>` is simply absent from all 90 URLs — which is how this went
+ * unnoticed. Resolving the path against the site directory first is the whole
+ * fix; the same git data then comes back populated.
+ *
+ * Pages whose date cannot be resolved keep no `lastmod` at all: omitting the
+ * field lets a crawler fall back to its own judgement, whereas a guessed date
+ * actively misinforms it.
+ *
+ * @param items - Sitemap items already carrying url/priority/changefreq.
+ * @param params - The plugin's `routes` (source of `sourceFilePath`) and
+ *   `siteConfig` (source of the VCS strategy).
+ * @returns The same items, each with `lastmod` set where git knew the date.
+ * @throws {Error} In CI only, when not one page resolved a date — that means
+ *   this workaround has broken (or the checkout is shallow) and the sitemap
+ *   would ship without the one field Google reads. Locally it only warns, so
+ *   building outside a git checkout still works.
+ */
+async function addLastmod<T extends {url: string; lastmod?: string | null}>(
+  items: T[],
+  params: {routes: readonly unknown[]; siteConfig: {url: string; future: unknown}},
+): Promise<T[]> {
+  // `experimental_vcs` is not in the public SiteConfig type, hence the cast.
+  const vcs = (params.siteConfig.future as {
+    experimental_vcs: {
+      getFileLastUpdateInfo: (p: string) => Promise<{timestamp: number} | null>;
+    };
+  }).experimental_vcs;
+
+  // Route paths are nested (a blog post sits under the /blog parent), and only
+  // the leaves carry sourceFilePath — so walk the whole tree.
+  const sourceFileByRoute = new Map<string, string>();
+  const walk = (routes: readonly unknown[]): void => {
+    for (const route of routes as Array<{
+      path?: string;
+      routes?: readonly unknown[];
+      metadata?: {sourceFilePath?: string};
+    }>) {
+      if (route.path && route.metadata?.sourceFilePath) {
+        sourceFileByRoute.set(route.path, route.metadata.sourceFilePath);
+      }
+      if (route.routes) {
+        walk(route.routes);
+      }
+    }
+  };
+  walk(params.routes);
+
+  const withLastmod = await Promise.all(
+    items.map(async (item) => {
+      const routePath = item.url.slice(params.siteConfig.url.length) || '/';
+      const sourceFilePath = sourceFileByRoute.get(routePath);
+      if (!sourceFilePath) {
+        return item;
+      }
+      // The absolute-path resolution that the plugin itself is missing.
+      const info = await vcs.getFileLastUpdateInfo(
+        nodePath.resolve(__dirname, sourceFilePath),
+      );
+      if (!info) {
+        return item;
+      }
+      return {
+        ...item,
+        lastmod: new Date(info.timestamp).toISOString().split('T')[0],
+      };
+    }),
+  );
+
+  // Test the value, not the key: the plugin's own items always carry a
+  // `lastmod` property, set to null when it could not work the date out.
+  const resolved = withLastmod.filter((item) => item.lastmod != null).length;
+  if (resolved === 0) {
+    const message =
+      `Sitemap: resolved 0 of ${items.length} lastmod dates. Either the ` +
+      `Docusaurus VCS workaround in addLastmod has broken, or this build has ` +
+      `no git history (docs.yml needs fetch-depth: 0).`;
+    if (process.env.CI) {
+      throw new Error(message);
+    }
+    console.warn(`[WARNING] ${message}`);
+  }
+  return withLastmod;
+}
 
 const config: Config = {
   title: 'AcruxCore',
@@ -146,15 +294,57 @@ const config: Config = {
           customCss: './src/css/custom.css',
         },
         sitemap: {
-          changefreq: 'weekly',
-          priority: 0.5,
           filename: 'sitemap.xml',
+          // `lastmod` is the one field in a sitemap that Google actually reads —
+          // it uses it to schedule recrawls (changefreq and priority are
+          // ignored; see classifySitemapRoute). It is off by default in
+          // Docusaurus 3, so our sitemap shipped with no freshness signal at
+          // all, which is the likeliest reason new tutorials and posts sat
+          // unindexed.
+          //
+          // Setting it here only picks the date-only format (YYYY-MM-DD) — the
+          // values themselves are computed in createSitemapItems below, because
+          // the plugin's own lookup silently returns nothing in a monorepo. See
+          // addLastmod for the details.
+          //
+          // Values come from each page's last git commit, so
+          // .github/workflows/docs.yml must check out full history
+          // (fetch-depth: 0). With the default shallow clone every file reports
+          // the deploy date, so every page would look changed on every deploy —
+          // worse than sending nothing.
+          lastmod: 'date',
           // Blog tag pages are thin (1-3 post excerpts each with only 7 posts
           // total) — keep them navigable but out of what search engines crawl.
           // /search is already `noindex` (added by the local-search plugin);
           // listing a noindex page in the sitemap trips a Search Console
-          // warning, so exclude it here too.
-          ignorePatterns: ['/blog/tags/**', '/search'],
+          // warning, so exclude it here too. The rest are pagination, author
+          // and auto-generated category pages: they carry no text of their own
+          // beyond excerpts and links that already appear on the pages we do
+          // list, so listing them spends crawl budget we would rather spend on
+          // tutorials, guides and posts.
+          ignorePatterns: [
+            '/blog/tags/**',
+            '/search',
+            '/blog/archive',
+            '/blog/authors/**',
+            '/blog/page/**',
+            '/docs/category/**',
+          ],
+          // Google ignores both changefreq and priority (the plugin's own types
+          // say so, citing facebook/docusaurus#2604), so this is not what gets
+          // a page indexed — lastmod above is. It is still worth setting
+          // because Bing and Yandex do read them, and because the spec defines
+          // priority as *relative*: one flat 0.5 across every URL tells a
+          // crawler nothing about what matters here.
+          createSitemapItems: async ({defaultCreateSitemapItems, ...rest}) => {
+            const items = await defaultCreateSitemapItems(rest);
+            const weighted = items.map((item) => {
+              const routePath =
+                item.url.slice(rest.siteConfig.url.length) || '/';
+              return {...item, ...classifySitemapRoute(routePath)};
+            });
+            return addLastmod(weighted, rest);
+          },
         },
       } satisfies Preset.Options,
     ],
