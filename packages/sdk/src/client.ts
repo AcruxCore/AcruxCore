@@ -15,7 +15,7 @@ const DEFAULT_MAX_RETRIES = 1;
 const DEFAULT_RETRY_INTERVAL = 500;
 
 /**
- * Client for Acrux Core — prompt render, gateway chat, tool loops, traces,
+ * Client for AcruxCore — prompt render, gateway chat, tool loops, traces,
  * and feedback.
  *
  * Create one instance at process startup and reuse it — the cache is a

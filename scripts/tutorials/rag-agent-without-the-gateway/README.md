@@ -1,10 +1,10 @@
 # RAG Agent Without the Gateway Tutorial
 
-The runnable script for the [Build a RAG agent without the gateway](https://docs.acruxcore.com/docs/tutorials/build-a-rag-agent-without-the-gateway) tutorial — RAG over the Acrux Core docs, calling OpenRouter directly (BYO), with prompts, tools, and traces still going through Acrux Core.
+The runnable script for the [Build a RAG agent without the gateway](https://docs.acruxcore.com/docs/tutorials/build-a-rag-agent-without-the-gateway) tutorial — RAG over the AcruxCore docs, calling OpenRouter directly (BYO), with prompts, tools, and traces still going through AcruxCore.
 
 ## Prerequisites
 
-- An Acrux Core API key and base URL
+- An AcruxCore API key and base URL
 - An OpenRouter API key
 - Python 3.9+ (`pip install acruxcore chromadb requests beautifulsoup4`)
 

@@ -37,7 +37,7 @@ type CodeTab = 'ts' | 'py' | 'curl';
  * @returns The rendered landing page.
  */
 export function LandingPage(): ReactNode {
-  useDocumentTitle('Acrux Core — LLM-ops platform for engineering teams');
+  useDocumentTitle('AcruxCore — LLM-ops platform for engineering teams');
   const [tab, setTab] = useState<CodeTab>('ts');
 
   const tabBase =
@@ -127,7 +127,7 @@ export function LandingPage(): ReactNode {
                 'font-size:clamp(16px,1.6vw,18.5px);line-height:1.6;color:var(--muted);margin:0 0 34px;max-width:44ch;text-wrap:pretty;',
               )}
             >
-              Acrux Core sits between your app and every model provider — so you ship, change, and measure LLM features
+              AcruxCore sits between your app and every model provider — so you ship, change, and measure LLM features
               without redeploying to move a prompt.
             </p>
             <div style={cssToStyle('display:flex;flex-wrap:wrap;gap:12px;')}>
@@ -194,7 +194,7 @@ export function LandingPage(): ReactNode {
             <p style={cssToStyle('font-size:16.5px;line-height:1.6;color:var(--muted);margin:0;text-wrap:pretty;')}>
               Follow one thread across the whole platform. Land on a session, open its trace, rate the span that missed,
               and jump straight to the exact prompt version that produced it — edit, save, and move the production alias.
-              The next run picks up the change. No redeploy, no context-switch, no leaving Acrux Core.
+              The next run picks up the change. No redeploy, no context-switch, no leaving AcruxCore.
             </p>
           </div>
           <div style={cssToStyle('display:grid;grid-template-columns:repeat(auto-fit,minmax(min(166px,100%),1fr));gap:12px;')}>
@@ -454,7 +454,7 @@ export function LandingPage(): ReactNode {
                 Nothing about the platform is a black box.
               </h2>
               <p style={cssToStyle('font-size:16.5px;line-height:1.6;color:var(--muted);margin:0 0 26px;text-wrap:pretty;')}>
-                The API, gateway, dashboard, and both SDKs are public on GitHub under the Elastic License 2.0. Read exactly
+                The API, gateway, dashboard, and both SDKs are public on GitHub under the Apache License 2.0. Read exactly
                 how a call gets routed and priced, run the whole stack on your own infrastructure, or send a pull request.
               </p>
               <div style={cssToStyle('display:flex;flex-wrap:wrap;gap:12px;')}>
@@ -615,7 +615,7 @@ const STEPS: { n: string; title: string; body: string; code: Record<string, stri
   },
   {
     n: '2',
-    title: 'Point your LLM calls at Acrux Core',
+    title: 'Point your LLM calls at AcruxCore',
     body: 'One method routes, traces, and prices every call — or swap the base URL and your existing OpenAI client keeps working.',
     code: {
       ts: String.raw`const result = await hub.<span style="color:var(--accent);">chat</span>({
@@ -664,7 +664,7 @@ const REASONS: { lead: string; rest: string }[] = [
     rest: 'Spans for model, tokens, latency, and cost — no extra instrumentation.',
   },
   { lead: 'Own your keys and data.', rest: 'Bring your own provider keys, or self-host the whole platform.' },
-  { lead: 'Open source.', rest: 'Elastic License 2.0 — read the code, self-host it, or send a pull request.' },
+  { lead: 'Open source.', rest: 'Apache License 2.0 — read the code, self-host it, or send a pull request.' },
 ];
 
 /** The three cards in the {@link LandingPage} "Open source" section. */
@@ -691,8 +691,8 @@ const OPEN_SOURCE_POINTS: { label: string; body: string; icon: ReactNode }[] = [
     ),
   },
   {
-    label: 'Elastic License 2.0',
-    body: 'A standard, recognized license — fork it, contribute back, or just read the source.',
+    label: 'Apache License 2.0',
+    body: 'Permissive and OSI-approved, with nothing gated — fork it, contribute back, or just read the source.',
     icon: (
       <Ic size={17}>
         <path d="M12 3l8 3v6c0 5-3.5 8.5-8 9-4.5-.5-8-4-8-9V6Z" />

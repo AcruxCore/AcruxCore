@@ -20,7 +20,7 @@ platforms together.
 ## 1. Logging in and finding the workspace
 
 PromptLayer's dashboard opens straight to a home screen listing recent playground sessions and
-saved prompt items for the workspace ("Acrux Core Research", on a Team Trial Plan).
+saved prompt items for the workspace ("AcruxCore Research", on a Team Trial Plan).
 
 ![PromptLayer home screen showing recent playground sessions and two existing prompt items, with a "Trial ends in 7 days" banner top right](/img/tutorials/promptlayer-walkthrough/01-workspace-home.png)
 
@@ -50,7 +50,7 @@ plus an optional commit message field.
 
 After saving, the prompt's **Overview** tab lists every version with its commit message, author, and
 timestamp, and lets you attach a **Release Label** (e.g. `production`) to any version — the same
-alias-over-version idea Acrux Core uses, under a different name.
+alias-over-version idea AcruxCore uses, under a different name.
 
 ![PromptLayer's version history panel showing Version 2 and Version 1 with commit messages and a "Release Label +" control, next to an empty Traces panel](/img/tutorials/promptlayer-walkthrough/04-version-history-and-empty-traces.png)
 
@@ -189,9 +189,9 @@ template via `pl_client.templates.get(...)` first and feed its rendered messages
   calls multiple models on the same input row and shows cost/latency/output side by side, without
   first requiring a saved, persistent dataset object.
 
-## PromptLayer vs Acrux Core
+## PromptLayer vs AcruxCore
 
-| Feature | PromptLayer | Acrux Core |
+| Feature | PromptLayer | AcruxCore |
 | --- | --- | --- |
 | Prompt versioning | Visible, git-style diff on every version save, before you even commit | Standing Diff tab, plus alias-based promotion with no redeploy |
 | Variables | Auto-detects `{{variable}}` syntax in the editor, no separate declaration step | Validates required variables at render time, errors clearly if one's missing |
@@ -200,6 +200,6 @@ template via `pl_client.templates.get(...)` first and feed its rendered messages
 | Evaluation | Live, ad-hoc model-comparison tables and release-label A/B tests on live traffic | Datasets and experiments persist and build up over time, tied to real production feedback |
 | Hosting & pricing | Seat-based trial plan | Open source and self-hostable, free in beta |
 
-Want to see the same loop on Acrux Core? The
+Want to see the same loop on AcruxCore? The
 [Quickstart](/docs/getting-started/quickstart) gets you from sign-up to a traced,
 gateway-routed call in about ten minutes.

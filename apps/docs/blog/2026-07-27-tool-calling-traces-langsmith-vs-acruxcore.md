@@ -1,6 +1,6 @@
 ---
-title: "One tool, two platforms: tool-call traces in LangSmith vs Acrux Core"
-description: We built the same weather tool twice — once as a traced Python function on LangSmith, once as a versioned Tool Catalog entry on Acrux Core — ran both live on the same model, and counted the code.
+title: "One tool, two platforms: tool-call traces in LangSmith vs AcruxCore"
+description: We built the same weather tool twice — once as a traced Python function on LangSmith, once as a versioned Tool Catalog entry on AcruxCore — ran both live on the same model, and counted the code.
 slug: tool-calling-traces-langsmith-vs-acruxcore
 authors: [acrux]
 tags: [comparison, langsmith, tracing, tools, llm-ops]
@@ -15,7 +15,7 @@ did it take".
 
 So we built the same tool twice and ran it for real. Same tool, same question, same model
 (`openai/gpt-4o-mini` through OpenRouter on both sides, so nothing hides behind a model
-difference). One run traced by **LangSmith**, one by **Acrux Core**. Then we did it again
+difference). One run traced by **LangSmith**, one by **AcruxCore**. Then we did it again
 with streaming, which is where we found a bug in our own product.
 
 Every number and every output below comes from a run we actually executed, and
@@ -65,9 +65,9 @@ weather-tool-agent          3.72s   376 tokens
 └─ ChatOpenAI               1.28s   231
 ```
 
-## Acrux Core: the tool is a catalog artifact, declared in code
+## AcruxCore: the tool is a catalog artifact, declared in code
 
-There are two ways a tool gets into Acrux Core, and the choice follows from one question:
+There are two ways a tool gets into AcruxCore, and the choice follows from one question:
 **who runs the tool body?** A function in your own code gets an `@acrux.tool` decorator and
 runs in your process. An HTTP request to some API gets an `http` executor and the platform
 runs it. Either way you end up with the same artifact — a versioned catalog entry with
@@ -205,25 +205,25 @@ so 721ms is evidence of nothing except that wttr.in was reachable.
 
 One rule for this to mean anything: **each script must run on its own**, with no setup done
 beforehand in a terminal. The LangSmith scripts pass that trivially — the tool is a function
-in the file. The Acrux Core scripts have to register their tool in the catalog first, so
+in the file. The AcruxCore scripts have to register their tool in the catalog first, so
 that registration is in the code too, and it counts.
 
 Lines of real code, excluding docstrings, comments, and blank lines:
 
-| | LangSmith | Acrux Core |
+| | LangSmith | AcruxCore |
 |---|---|---|
 | Non-streaming agent | **63** | **105** |
 | Streaming agent | **83** | **113** |
 | Shared registration helper | — | **none** |
 
-**Acrux Core is more code in every mode**, and that is the honest total — there is no helper
+**AcruxCore is more code in every mode**, and that is the honest total — there is no helper
 hiding off-page. The extra ~40 lines are three things the LangSmith leg does not do: post the
 tool spec, resolve the live version back, and call `POST /tools/:id/execute` with a trace
 context instead of calling a local function.
 
 The shared module is excluded because both legs import it, and its two one-sided parts are
 about the same size: the `get_weather` function the LangSmith leg calls, and the `http`
-executor dictionary the Acrux Core leg posts. Read all three files in the toggles at the end
+executor dictionary the AcruxCore leg posts. Read all three files in the toggles at the end
 and check the count yourself.
 
 Two of those three are per-tool, not per-agent, and the third disappears entirely if you use
@@ -231,7 +231,7 @@ the SDK instead of a raw client. The [SDK comparison](/blog/tool-agent-sdk-langc
 measures that: `run_tool_loop` takes the same agent to **36 lines against LangChain's 50**.
 This post is the hand-rolled floor, not the recommended path.
 
-What Acrux Core buys with those lines is a different ownership model. The LangSmith tool is
+What AcruxCore buys with those lines is a different ownership model. The LangSmith tool is
 a function in one file in one language. The catalog tool is a versioned artifact with
 aliases, promotion, server-side execution, and per-version analytics, usable from any
 language that can make an HTTP request. Whether that trade is worth it depends entirely on
@@ -244,7 +244,7 @@ the id and function name in one frame, then the JSON arguments a few characters 
 Nothing reassembles that for you on **either** platform — we wrote a 28-line accumulator
 and both legs import it. If you are writing a streaming agent, budget for this.
 
-Then we ran the streaming Acrux Core leg and the trace was not there.
+Then we ran the streaming AcruxCore leg and the trace was not there.
 
 ```
 # streamed call, x-trace-id supplied, HTTP 200, content streamed fine
@@ -314,7 +314,7 @@ Core stored `costUsd: null`, because the model id in the payload was `openai/gpt
 OpenRouter-prefixed name that neither price table recognises, even though OpenRouter itself
 reported the cost in its usage payload.
 
-Acrux Core prices it now, as the `$0.0000854` in the screenshot above shows, and the reason is
+AcruxCore prices it now, as the `$0.0000854` in the screenshot above shows, and the reason is
 worth knowing: the price lives on the **model you registered in the gateway**, not on the id
 the provider returns. You register `gpt-4o-mini` once, with its per-million rates and the
 upstream id to call, and every request that names it is priced — whatever the aggregator calls
@@ -332,8 +332,8 @@ the accumulator wired in.
 pip install openai requests langsmith
 export OPENROUTER_API_KEY=sk-or-v1-...     # both legs use the same model, through OpenRouter
 export LANGSMITH_API_KEY=lsv2_pt_...       # LangSmith leg
-export ACRUXCORE_API_KEY=acx_sk_...        # Acrux Core leg: catalog + tool execute
-export ACRUXCORE_GATEWAY_KEY=agh_sk_...    # Acrux Core leg: gateway completions
+export ACRUXCORE_API_KEY=acx_sk_...        # AcruxCore leg: catalog + tool execute
+export ACRUXCORE_GATEWAY_KEY=agh_sk_...    # AcruxCore leg: gateway completions
 ```
 
 <details>
@@ -347,7 +347,7 @@ import from here, so the two runs differ ONLY in where the LLM call goes and
 how the run is traced — never in what the tool does or how the loop is shaped.
 
 The tool is `get_weather(city)`, backed by the public wttr.in JSON endpoint. It
-needs no API key, which is what makes it registerable as an Acrux Core `http`
+needs no API key, which is what makes it registerable as an AcruxCore `http`
 tool executor without also provisioning a secret.
 
 Needs: pip install openai requests langsmith
@@ -358,14 +358,14 @@ from typing import Any
 
 import requests
 
-# The model both legs must use. OpenRouter's id; the Acrux Core gateway resolves
+# The model both legs must use. OpenRouter's id; the AcruxCore gateway resolves
 # the bare `gpt-4o-mini` to this same OpenRouter connection upstream.
 MODEL_OPENROUTER = "openai/gpt-4o-mini"
 MODEL_ACRUXCORE = "gpt-4o-mini"
 
 WTTR_URL = "https://wttr.in/{city}"
 
-# The tool schema handed to the model. Identical on both legs — on the Acrux Core
+# The tool schema handed to the model. Identical on both legs — on the AcruxCore
 # leg this same JSON Schema is also what gets committed as the tool version's
 # `parametersSchema`, so the catalog and the model see one definition.
 WEATHER_TOOL_SCHEMA: dict[str, Any] = {
@@ -387,7 +387,7 @@ WEATHER_TOOL_SCHEMA: dict[str, Any] = {
     },
 }
 
-# The same tool, expressed as an Acrux Core catalog version. This is the Acrux Core
+# The same tool, expressed as an AcruxCore catalog version. This is the AcruxCore
 # counterpart to `get_weather` below: the URL, the argument templating, and the
 # response trimming that the platform performs on its side. Kept next to the Python
 # function on purpose — the two are two implementations of one contract, and a
@@ -432,7 +432,7 @@ QUESTION = "Should I go for a run in Lahore this evening?"
 def get_weather(city: str) -> dict[str, Any]:
     """Fetch current weather for a city and shrink wttr.in's payload to four fields.
 
-    The trimming matters for the comparison: it is exactly what the Acrux Core
+    The trimming matters for the comparison: it is exactly what the AcruxCore
     tool version does in its `responseTransform`, so both legs feed the model the
     same small JSON instead of wttr.in's ~40KB forecast blob.
     """
@@ -445,7 +445,7 @@ def get_weather(city: str) -> dict[str, Any]:
     payload = res.json()
     current = payload["current_condition"][0]
     # `location` comes from the response, not from the `city` argument, so that this
-    # function and the Acrux Core responseTransform (which never sees the arguments)
+    # function and the AcruxCore responseTransform (which never sees the arguments)
     # can return byte-identical shapes.
     return {
         "location": payload["nearest_area"][0]["areaName"][0]["value"],
@@ -658,10 +658,10 @@ if __name__ == "__main__":
 </details>
 
 <details>
-<summary><strong>tool_agent_acruxcore.py</strong> — the Acrux Core leg (105 lines of code)</summary>
+<summary><strong>tool_agent_acruxcore.py</strong> — the AcruxCore leg (105 lines of code)</summary>
 
 ```python title="tool_agent_acruxcore.py"
-"""Leg 2 of 2: run the same get_weather agent through Acrux Core.
+"""Leg 2 of 2: run the same get_weather agent through AcruxCore.
 
 Two things move off the client compared to the LangSmith leg:
 
@@ -720,7 +720,7 @@ session.headers["Authorization"] = f"Bearer {API_KEY}"
 def register_tool() -> dict[str, Any]:
     """Define the tool here and reconcile the catalog with it, in one request.
 
-    This is the Acrux Core equivalent of writing `get_weather` in the LangSmith
+    This is the AcruxCore equivalent of writing `get_weather` in the LangSmith
     example: the whole tool — arguments, target URL, response trimming — is
     declared in `weather_tool_shared` and committed from code, so this script
     needs no prior setup.
@@ -848,7 +848,7 @@ def run_agent() -> dict[str, Any]:
 if __name__ == "__main__":
     out = run_agent()
     print(json.dumps(out, indent=2))
-    print(f"\nAcrux Core trace: {BASE_URL.replace('/api/v1', '')}/traces/{out['trace_id']}")
+    print(f"\nAcruxCore trace: {BASE_URL.replace('/api/v1', '')}/traces/{out['trace_id']}")
 ```
 
 </details>
@@ -865,7 +865,7 @@ We would rather publish the run that found a bug in our own gateway than the one
 us look good. The three scripts are above in full — run them against your own keys and see.
 
 The [SDK-level comparison](/blog/tool-agent-sdk-langchain-vs-acruxcore) — LangChain's
-`create_agent` against the Acrux Core SDK's `run_tool_loop` — measures the same thing one
+`create_agent` against the AcruxCore SDK's `run_tool_loop` — measures the same thing one
 layer up, where the loop and the registration stop being your problem.
 
 And if you want the step-by-step version of getting a tool into the catalog rather than a

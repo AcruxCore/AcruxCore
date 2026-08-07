@@ -1,4 +1,4 @@
-"""Unit tests for the Acrux Core Python SDK.
+"""Unit tests for the AcruxCore Python SDK.
 
 Every test drives the real client through a mocked httpx transport — no network,
 but the full request-building / response-parsing / retry / cache / tool-loop code

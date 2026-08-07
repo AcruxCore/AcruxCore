@@ -4,7 +4,7 @@ Runnable scripts for the [Build a ReAct agent](https://docs.acruxcore.com/docs/t
 
 ## Prerequisites
 
-- An Acrux Core API key and base URL
+- An AcruxCore API key and base URL
 - An OpenAI API key (this tutorial calls OpenAI directly)
 - The `finance_research` and `get_todays_date` tools, and the `react-agent-finance` prompt, created via the tutorial's Steps 1–2
 - `curl`, `jq` (for the bash version) or Python 3.9+ (for the python version)

@@ -57,7 +57,7 @@ export function ContactPage(): ReactNode {
     <MarketingShell>
       <ContentHeader
         eyebrow="Contact"
-        docTitle="Contact — Acrux Core"
+        docTitle="Contact — AcruxCore"
         title="Get in touch."
         lead="Questions about the platform, a self-hosting deployment, pricing, or a security report — send them to one inbox and we'll get back to you."
       />

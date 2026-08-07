@@ -15,7 +15,7 @@ one or more (version × model) combinations across it, and a report comparing th
 — so "did this prompt change actually help?" has a data-backed answer.
 
 :::info[Requires the worker]
-Experiment runs are processed **asynchronously** by the Acrux Core worker process.
+Experiment runs are processed **asynchronously** by the AcruxCore worker process.
 The API calls below return immediately with a `queued` status; the worker performs
 the actual gateway calls and scoring in the background.
 :::
@@ -198,7 +198,7 @@ print(run["run_id"], run["status"])  # -> queued
 </TabItem>
 </Tabs>
 
-When a prompt is under test, Acrux Core also adds an automatic **baseline** cell, so you
+When a prompt is under test, AcruxCore also adds an automatic **baseline** cell, so you
 always compare your candidate against something rather than nothing — by default that's the
 prompt's `production` alias, falling back to its latest committed version if there's no
 `production` alias yet. Pick a different alias in the dashboard's **Baseline alias** field (or
@@ -206,7 +206,7 @@ pass `"alias": "staging"` over the API) if you want the comparison to be against
 `dev`, or any other alias instead.
 
 If the dataset's examples were captured against a different prompt than the one under test
-here, the run still starts — Acrux Core just adds a warning to the response and the run page
+here, the run still starts — AcruxCore just adds a warning to the response and the run page
 so you know the comparison might not be apples-to-apples. It never blocks the run.
 
 ## 4. Read the report

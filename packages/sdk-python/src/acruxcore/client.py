@@ -1,4 +1,4 @@
-"""The async Acrux Core client — resource-based namespace pattern."""
+"""The async AcruxCore client — resource-based namespace pattern."""
 
 from __future__ import annotations
 
@@ -70,7 +70,7 @@ def _warn_if_cleartext_url(url: str, what: str) -> None:
 
 
 class AcruxCore:
-    """Async client for Acrux Core — resource-based namespace pattern.
+    """Async client for AcruxCore — resource-based namespace pattern.
 
     Every method is accessed through its domain namespace:
     - ``client.prompts.*`` — prompt lifecycle + render

@@ -10,17 +10,17 @@ import TabItem from '@theme/TabItem';
 
 # Build a RAG agent without the gateway
 
-**What you'll build:** a Python script that indexes the Acrux Core docs, then answers a question about them two ways — retrieve-then-ask, and let-the-model-search — with every model call going straight to OpenRouter and every run showing up as a trace.
+**What you'll build:** a Python script that indexes the AcruxCore docs, then answers a question about them two ways — retrieve-then-ask, and let-the-model-search — with every model call going straight to OpenRouter and every run showing up as a trace.
 
 RAG means *retrieval-augmented generation*: before you ask the model a question, you look up the passages most likely to answer it and paste them into the prompt.
 
 :::tip[When to use BYO]
-The gateway path stores your provider key server-side and routes every call through Acrux Core — useful for budget controls, caching, and fallback routing. BYO skips that: you pass the SDK an OpenAI-compatible `base_url` and `api_key`, and it calls the endpoint directly. Your key never reaches our servers, you save a network hop, and you still get versioned prompts, a tool catalog, and full traces.
+The gateway path stores your provider key server-side and routes every call through AcruxCore — useful for budget controls, caching, and fallback routing. BYO skips that: you pass the SDK an OpenAI-compatible `base_url` and `api_key`, and it calls the endpoint directly. Your key never reaches our servers, you save a network hop, and you still get versioned prompts, a tool catalog, and full traces.
 :::
 
 ## 1. Store the two prompts
 
-Both answering styles need a prompt, and both belong in Acrux Core rather than hardcoded in the script — that way you can edit the wording and ship it without a redeploy. Create `rag-chat` for the linear path, with a system message that takes the retrieved passages as a `context` variable and a user message that takes the `question`.
+Both answering styles need a prompt, and both belong in AcruxCore rather than hardcoded in the script — that way you can edit the wording and ship it without a redeploy. Create `rag-chat` for the linear path, with a system message that takes the retrieved passages as a `context` variable and a user message that takes the `question`.
 
 ![The rag-chat editor with PRODUCTION → v1 and STAGING → v1, a "No default model" dropdown, a SYSTEM message ending in a highlighted context placeholder, and a USER message that is just a highlighted question placeholder](/img/tutorials/build-a-rag-agent-without-the-gateway/02-rag-chat-prompt.png)
 
@@ -29,7 +29,7 @@ Leave **Default model** empty. That field binds a model from the gateway's regis
 Then create `rag-chat-agent` the same way. Its system message tells the model to look things up with a tool instead of handing it context up front:
 
 ```text
-You answer questions about Acrux Core. Use the search_docs tool to look
+You answer questions about AcruxCore. Use the search_docs tool to look
 things up before answering — search more than once if the first result is
 thin, or if the question has several parts. Answer only from what the tool
 returns, and say so plainly when it comes back without the answer.
@@ -137,7 +137,7 @@ The linear version always retrieves, once, whether or not the question needs it.
 ```python
 @acrux.tool
 async def search_docs(query: str) -> str:
-    """Search Acrux Core's documentation for relevant information.
+    """Search AcruxCore's documentation for relevant information.
 
     Args:
         query: The search query — a question or topic to look up.
@@ -163,13 +163,13 @@ The tool span nests under the model call that requested it, so a loop that searc
 
 On the BYO path there is no gateway to look tool schemas up server-side, so the SDK inlines the full JSON Schema into the request for you. It also syncs the tool to your catalog on the first call, deriving the name, description, and parameters from the function itself:
 
-![The search_docs tool page marked "Defined in code", with v2 "Search Acrux Core's documentation for relevant information." tagged code, above v1 "Search the internal docs for a phrase." tagged dashboard](/img/tutorials/build-a-rag-agent-without-the-gateway/06-tool-catalog.png)
+![The search_docs tool page marked "Defined in code", with v2 "Search AcruxCore's documentation for relevant information." tagged code, above v1 "Search the internal docs for a phrase." tagged dashboard](/img/tutorials/build-a-rag-agent-without-the-gateway/06-tool-catalog.png)
 
 Tools are versioned like prompts. Here the docstring in the script became v2, and the earlier version someone wrote in the dashboard is still there to promote back to.
 
 ## Doing this over the API
 
-You don't need the SDK. The BYO path is three independent HTTP calls: render the prompt from us, call OpenRouter yourself, report the trace back to us. This is the route to take from a language with no Acrux Core SDK.
+You don't need the SDK. The BYO path is three independent HTTP calls: render the prompt from us, call OpenRouter yourself, report the trace back to us. This is the route to take from a language with no AcruxCore SDK.
 
 <Tabs groupId="lang">
 <TabItem value="curl" label="curl">
@@ -188,7 +188,7 @@ curl -X POST "$ACRUXCORE_BASE_URL/prompts/rag-chat/production/render" \
   "messages": [
     {
       "role": "system",
-      "content": "You answer questions about Acrux Core using only the documentation excerpts below. If the excerpts do not contain the answer, say so plainly instead of guessing.\n\nDocumentation:\n[tools.md]\nOpen the prompt and go to the Tools tab."
+      "content": "You answer questions about AcruxCore using only the documentation excerpts below. If the excerpts do not contain the answer, say so plainly instead of guessing.\n\nDocumentation:\n[tools.md]\nOpen the prompt and go to the Tools tab."
     },
     { "role": "user", "content": "How do I attach a tool?" }
   ],
@@ -199,7 +199,7 @@ curl -X POST "$ACRUXCORE_BASE_URL/prompts/rag-chat/production/render" \
 }
 ```
 
-Call OpenRouter directly — this request never touches Acrux Core:
+Call OpenRouter directly — this request never touches AcruxCore:
 
 ```bash
 curl -X POST "https://openrouter.ai/api/v1/chat/completions" \
@@ -295,7 +295,7 @@ async with AcruxCore() as hub:
 ```json
 {
   "messages": [
-    { "role": "system", "content": "You answer questions about Acrux Core using only the documentation excerpts below..." },
+    { "role": "system", "content": "You answer questions about AcruxCore using only the documentation excerpts below..." },
     { "role": "user", "content": "How do I attach a tool?" }
   ],
   "tools": [],
@@ -348,7 +348,7 @@ const result = await hub.gateway.chat(
 ```json
 {
   "messages": [
-    { "role": "system", "content": "You answer questions about Acrux Core using only the documentation excerpts below..." },
+    { "role": "system", "content": "You answer questions about AcruxCore using only the documentation excerpts below..." },
     { "role": "user", "content": "How do I attach a tool?" }
   ],
   "tools": [],
@@ -389,7 +389,7 @@ print(resp.json())
 }
 ```
 
-The prompt render and trace report are ordinary `requests.post` calls against the two Acrux Core endpoints shown in the curl tab.
+The prompt render and trace report are ordinary `requests.post` calls against the two AcruxCore endpoints shown in the curl tab.
 
 </TabItem>
 </Tabs>

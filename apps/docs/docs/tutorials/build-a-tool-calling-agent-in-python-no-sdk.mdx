@@ -17,7 +17,7 @@ feeds the result back, and the whole run lands in **one trace** you can open in
 the dashboard. You'll do it twice: once waiting for the full answer, and once
 streaming the reply token by token.
 
-There are two ways a tool can run in Acrux Core. An **HTTP tool** runs on the
+There are two ways a tool can run in AcruxCore. An **HTTP tool** runs on the
 gateway — you describe a request once and the platform makes it (see
 [Build a tool-calling agent in the dashboard](./build-a-tool-calling-agent-in-the-dashboard-no-code)).
 A **client tool** runs in *your* process: the platform only stores the tool's
@@ -282,7 +282,7 @@ the model decided to call one, the first turn would stream tool-call *fragments*
 instead of readable prose, and streaming does not auto-run tools (that's what the
 loop in step 5 is for). Omitting `tools` keeps the streamed output clean.
 
-Setting `stream: true` and reading the SSE frames is the one Acrux Core-specific part:
+Setting `stream: true` and reading the SSE frames is the one AcruxCore-specific part:
 
 ```python
 resp = requests.post(

@@ -1,6 +1,6 @@
 ---
 title: Use conditional logic in prompt templates
-description: Write Jinja2-style {% if %} conditionals and {% for %} loops inside a prompt template, rendered by Acrux Core's nunjucks-based engine.
+description: Write Jinja2-style {% if %} conditionals and {% for %} loops inside a prompt template, rendered by AcruxCore's nunjucks-based engine.
 sidebar_position: 21
 keywords: [jinja2, nunjucks, prompt templating, conditional prompt, prompt loop, template variables]
 ---
@@ -15,10 +15,10 @@ shape depending on the caller's input — one paragraph for VIP customers, a
 loop that lists out an array of open tickets — using the same `{% if %}` /
 `{% for %}` syntax you'd write in Jinja2 or Django templates.
 
-Every prompt message in Acrux Core is a template, not a plain string.
+Every prompt message in AcruxCore is a template, not a plain string.
 `{{ variable }}` substitutes a value, which covers most prompts. But a template
 can also carry logic: skip a paragraph when something doesn't apply, or repeat
-a block once per item in a list. Acrux Core renders templates with
+a block once per item in a list. AcruxCore renders templates with
 [nunjucks](https://mozilla.github.io/nunjucks/), a JavaScript templating
 engine that implements the same tag syntax as Python's Jinja2 — so `{% if %}`,
 `{% else %}`, `{% for %}`, and filters like `{{ x | default('...') }}` all work

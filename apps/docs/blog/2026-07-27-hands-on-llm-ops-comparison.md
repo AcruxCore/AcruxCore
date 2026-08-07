@@ -1,5 +1,5 @@
 ---
-title: "LangSmith vs Langfuse vs PromptLayer vs Acrux Core: a hands-on comparison"
+title: "LangSmith vs Langfuse vs PromptLayer vs AcruxCore: a hands-on comparison"
 description: We logged into all four hosted products ourselves — created prompts, ran live model calls, inspected traces, and ran real evals — instead of comparing marketing pages.
 slug: hands-on-llm-ops-comparison
 authors: [acrux]
@@ -10,7 +10,7 @@ keywords: [langsmith vs langfuse, langsmith vs promptlayer, llm ops comparison, 
 
 Most tool comparisons are written from docs and marketing pages. We didn't do that here.
 We logged into the real, hosted versions of **LangSmith**, **Langfuse**, and **PromptLayer**
-with real accounts, plus our own **Acrux Core** as the baseline, and did the same thing on
+with real accounts, plus our own **AcruxCore** as the baseline, and did the same thing on
 each one: create a prompt, version it, run it live (with a real OpenAI key, once we added
 one to each account), inspect the resulting trace, and try to build an eval. Then we wrote
 a small script against each platform's own SDK and ran that too.
@@ -21,15 +21,15 @@ lives:
 - [Hands-on with LangSmith](/blog/langsmith-hands-on-walkthrough)
 - [Hands-on with Langfuse](/blog/langfuse-hands-on-walkthrough)
 - [A hands-on walkthrough of PromptLayer](/blog/promptlayer-hands-on-walkthrough)
-- [A hands-on walkthrough of Acrux Core](/blog/acruxcore-hands-on-walkthrough)
+- [A hands-on walkthrough of AcruxCore](/blog/acruxcore-hands-on-walkthrough)
 
 This post is the synthesis: what's actually different, what's genuinely unique to one
-platform, and an honest read on where Acrux Core stands next to the other three.
+platform, and an honest read on where AcruxCore stands next to the other three.
 
 <!-- truncate -->
 
 :::note
-This is a companion to our earlier [Acrux Core vs LangSmith](/blog/acrux-core-vs-langsmith)
+This is a companion to our earlier [AcruxCore vs LangSmith](/blog/acrux-core-vs-langsmith)
 post, which compared product *shape* from documentation. This one is narrower in scope
 (LangSmith, Langfuse, PromptLayer only) but backed entirely by things we clicked, ran, and
 screenshotted ourselves.
@@ -39,7 +39,7 @@ screenshotted ourselves.
 
 The sections below go deep on each dimension with screenshots. If you just want the summary:
 
-| Dimension | LangSmith | Langfuse | PromptLayer | Acrux Core |
+| Dimension | LangSmith | Langfuse | PromptLayer | AcruxCore |
 |---|---|---|---|---|
 | Prompt versioning | Git-like commits + Environments | Immutable versions + labels | Immutable versions + Release Labels + inline diff | Immutable versions + Aliases + Diff tab |
 | Tracing | Span-based (SDK-wrapped) | Span-based (SDK-wrapped) | Flat Request Log by default; Traces are separate and opt-in | Span-based (gateway auto-traces every call) |
@@ -59,17 +59,17 @@ pointer** — just with different names and different amounts of ceremony around
 | LangSmith | Git-like commits with a hash per save | Named **Environments** (Production/Staging) | Not shown inline |
 | Langfuse | Immutable versions | **Labels** (`production`/`latest`) | Not shown inline |
 | PromptLayer | Immutable versions with commit messages | **Release Labels** attached to a version | Yes — colored line diff in the save dialog |
-| Acrux Core | Immutable versions | **Aliases** (`production`/`staging`) | Yes — dedicated Diff tab on the prompt page |
+| AcruxCore | Immutable versions | **Aliases** (`production`/`staging`) | Yes — dedicated Diff tab on the prompt page |
 
 Two things stood out. **PromptLayer auto-detects template variables** the moment you type
 `{{variable}}` in a message — no separate step to declare it — and Langfuse does the same
 for `{{variable}}` syntax while also supporting **Jinja-style `{% if %}` conditionals** in
-one of its real production prompts, a level of logic beyond plain substitution. Acrux Core's
+one of its real production prompts, a level of logic beyond plain substitution. AcruxCore's
 own prompt renderer is built on nunjucks (a Jinja2-compatible templating engine used across
 this repo instead of a Python dependency), so the same conditional-logic capability is
 already there — we just didn't happen to exercise it hands-on in this pass.
 
-On promotion itself: we actually clicked "promote" and watched the alias move on Acrux Core
+On promotion itself: we actually clicked "promote" and watched the alias move on AcruxCore
 (`production` v1 → v2) and on PromptLayer (Release Label). LangSmith's Environments feature
 exists but had nothing deployed on our test account, so we saw the UI, not a live promotion.
 
@@ -89,11 +89,11 @@ exists but had nothing deployed on our test account, so we saw the UI, not a liv
 ![PromptLayer save-new-version dialog showing a colored diff of the message changes](/img/tutorials/promptlayer-walkthrough/03-save-version-diff.png)
 ![PromptLayer version history panel showing versions with commit messages and a Release Label control](/img/tutorials/promptlayer-walkthrough/04-version-history-and-empty-traces.png)
 
-**Acrux Core** — the prompt editor, the Versions tab after promoting `production` to v2, and the Diff tab:
+**AcruxCore** — the prompt editor, the Versions tab after promoting `production` to v2, and the Diff tab:
 
-![Acrux Core prompt editor showing version tabs including Editor, Preview, Versions, Diff, Audit](/img/tutorials/acruxcore-walkthrough/02-prompt-editor.png)
-![Acrux Core Versions tab listing v2 tagged PRODUCTION and v1 tagged STAGING, each with a promote link and a View traces link](/img/tutorials/acruxcore-walkthrough/03-alias-promoted.png)
-![Acrux Core's Diff tab showing a line-level, colored diff between prompt version 1 and version 2](/img/tutorials/acruxcore-walkthrough/04-diff-tab.png)
+![AcruxCore prompt editor showing version tabs including Editor, Preview, Versions, Diff, Audit](/img/tutorials/acruxcore-walkthrough/02-prompt-editor.png)
+![AcruxCore Versions tab listing v2 tagged PRODUCTION and v1 tagged STAGING, each with a promote link and a View traces link](/img/tutorials/acruxcore-walkthrough/03-alias-promoted.png)
+![AcruxCore's Diff tab showing a line-level, colored diff between prompt version 1 and version 2](/img/tutorials/acruxcore-walkthrough/04-diff-tab.png)
 
 </details>
 
@@ -101,11 +101,11 @@ exists but had nothing deployed on our test account, so we saw the UI, not a liv
 
 This is where the four platforms split into two real camps, not just cosmetic differences.
 
-**Span-based, multi-step tracing is the default** on LangSmith, Langfuse, and Acrux Core —
+**Span-based, multi-step tracing is the default** on LangSmith, Langfuse, and AcruxCore —
 each shows a tree (parent run/trace with child spans), not just a single flat call record.
 On LangSmith, a real trace showed a parent run containing a tool-call span and a separate
 LLM-call span. On Langfuse, a trace groups a `chat-completion` generation under a
-top-level trace, with session and user badges right on the header. On Acrux Core, every
+top-level trace, with session and user badges right on the header. On AcruxCore, every
 gateway call is auto-traced as a span the moment it's routed through, with the SDK's
 `trace()` available to wrap additional steps into the same tree.
 
@@ -121,8 +121,8 @@ Playground run — only real SDK/API-instrumented calls show up there. If you're
 Langfuse by clicking around its Playground, you can easily conclude tracing "isn't working"
 when it's actually just not wired to that particular button.
 
-The structural reason Acrux Core's tracing needs no setup step at all is that the **gateway
-sits in the request path** — your call physically routes through Acrux Core's servers, so
+The structural reason AcruxCore's tracing needs no setup step at all is that the **gateway
+sits in the request path** — your call physically routes through AcruxCore's servers, so
 it's traced by construction. LangSmith and Langfuse, by contrast, trace by having their SDK
 wrap or observe a call you still make directly to the provider yourself. Neither approach is
 strictly "better" — the gateway model gives you tracing (and cost/routing control) for free
@@ -150,10 +150,10 @@ close to your callers.
 ![PromptLayer Request Log detail page for a live request, showing model, cost, and token counts](/img/tutorials/promptlayer-walkthrough/08-live-request-log-detail.jpg)
 ![PromptLayer Traces and Analytics page showing No traces found even after a live model call](/img/tutorials/promptlayer-walkthrough/09-live-traces-still-empty.jpg)
 
-**Acrux Core** — a gateway call auto-traced as a span, with model/provider fields visible on the span itself:
+**AcruxCore** — a gateway call auto-traced as a span, with model/provider fields visible on the span itself:
 
-![Acrux Core trace detail page showing 1 span, token count, and status OK](/img/tutorials/acruxcore-walkthrough/06-trace-detail.png)
-![Acrux Core's LLM span expanded, showing Model, Provider, Tokens, and Latency fields plus the full request Input and response Output JSON](/img/tutorials/acruxcore-walkthrough/07-trace-span-detail.png)
+![AcruxCore trace detail page showing 1 span, token count, and status OK](/img/tutorials/acruxcore-walkthrough/06-trace-detail.png)
+![AcruxCore's LLM span expanded, showing Model, Provider, Tokens, and Latency fields plus the full request Input and response Output JSON](/img/tutorials/acruxcore-walkthrough/07-trace-span-detail.png)
 
 </details>
 
@@ -177,7 +177,7 @@ not just descriptions of the UI.
   live: gpt-4o vs gpt-4o-mini, with cost/latency columns). It covers more eval ground than
   it first appears — just organized around one-off comparison grids rather than a
   save-once, run-many dataset object.
-- **Acrux Core**: the one platform with no "hand-author an example" form at all. Datasets
+- **AcruxCore**: the one platform with no "hand-author an example" form at all. Datasets
   are built by **selecting real production feedback rows** (thumbs up/down on traces) — the
   eval set grows out of what real users actually flagged, not a separate fixture you
   maintain by hand. We tested this end to end: thumbs-upped a real trace, went to the
@@ -204,10 +204,10 @@ not just descriptions of the UI.
 
 ![PromptLayer model-comparison table showing gpt-4o and gpt-4o-mini outputs side by side](/img/tutorials/promptlayer-walkthrough/10-live-model-comparison-eval.jpg)
 
-**Acrux Core** — selecting a real feedback row, then the resulting dataset it built:
+**AcruxCore** — selecting a real feedback row, then the resulting dataset it built:
 
-![Acrux Core Feedback page with one real feedback row checked, showing 1 feedback row selected and a Create dataset button](/img/tutorials/acruxcore-walkthrough/08-feedback-selected.png)
-![Acrux Core Evaluations page listing a real dataset named support-triage-regression with 1 example, created just now](/img/tutorials/acruxcore-walkthrough/09-dataset-created.png)
+![AcruxCore Feedback page with one real feedback row checked, showing 1 feedback row selected and a Create dataset button](/img/tutorials/acruxcore-walkthrough/08-feedback-selected.png)
+![AcruxCore Evaluations page listing a real dataset named support-triage-regression with 1 example, created just now](/img/tutorials/acruxcore-walkthrough/09-dataset-created.png)
 
 </details>
 
@@ -235,7 +235,7 @@ Playground → Save, three real clicks.
 which opens in a mode tied directly to the prompt that produced it. Edit the message, hit
 **Save Template** (`Ctrl+S`), and it commits a new version of that same prompt.
 
-**Acrux Core** has the same manual path — the LLM span on a trace carries its own **Open in
+**AcruxCore** has the same manual path — the LLM span on a trace carries its own **Open in
 Playground →** link — but also has something none of the other three do: an automated
 version of the entire loop. Select one or more feedback rows on the Feedback page and click
 **Improve from feedback**. It builds a dataset from the selected rows, drafts several
@@ -268,19 +268,19 @@ feedback page.
 ![PromptLayer Request Log page showing Open in Playground, Score N/A, and Add to Table controls above a real chat exchange](/img/tutorials/comparison/pl-request-loop.png)
 ![PromptLayer Playground pre-loaded from that request, with a Save Template button](/img/tutorials/comparison/pl-playground-save.png)
 
-**Acrux Core** — feedback selected, then the automated Improve-from-feedback run:
+**AcruxCore** — feedback selected, then the automated Improve-from-feedback run:
 
-![Acrux Core Feedback page with one feedback row selected and a Create dataset button](/img/tutorials/acruxcore-walkthrough/08-feedback-selected.png)
-![Acrux Core Run report leaderboard showing 4 variants (3 drafted candidates plus production) scored 85.0-90.0 against gpt-4o-mini](/img/tutorials/comparison/acx-improve-leaderboard.png)
-![Acrux Core candidate detail panel showing judge reasoning, a Passed verdict, and a Promote to production button](/img/tutorials/comparison/acx-improve-promote.png)
+![AcruxCore Feedback page with one feedback row selected and a Create dataset button](/img/tutorials/acruxcore-walkthrough/08-feedback-selected.png)
+![AcruxCore Run report leaderboard showing 4 variants (3 drafted candidates plus production) scored 85.0-90.0 against gpt-4o-mini](/img/tutorials/comparison/acx-improve-leaderboard.png)
+![AcruxCore candidate detail panel showing judge reasoning, a Passed verdict, and a Promote to production button](/img/tutorials/comparison/acx-improve-promote.png)
 
 </details>
 
 Every run above — whether triggered by hand or by Improve-from-feedback —
-lands in Acrux Core's **Runs** tab, next to Datasets, with status, score, the
+lands in AcruxCore's **Runs** tab, next to Datasets, with status, score, the
 best-scoring variant, and duration for each one:
 
-![Acrux Core Runs tab listing past evaluation runs with status, score, best variant, and duration columns](/img/tutorials/comparison/acx-runs-tab.png)
+![AcruxCore Runs tab listing past evaluation runs with status, score, best variant, and duration columns](/img/tutorials/comparison/acx-runs-tab.png)
 
 ## Developer experience
 
@@ -307,7 +307,7 @@ this entire exercise: LangSmith's Playground, Langfuse's Playground and Experime
 PromptLayer's live runs were all fully blocked until we added one. None of the three ship a
 trial model key or built-in provider access.
 
-Acrux Core's SDK looks different because the gateway is in the path, not just watching —
+AcruxCore's SDK looks different because the gateway is in the path, not just watching —
 and it ships as both a Node and a Python package, so we ran the same call both ways:
 
 ```javascript
@@ -325,8 +325,8 @@ result = await hub.gateway.chat("gpt-4o-mini", rendered.messages)
 One call renders the stored prompt *and* routes it through the gateway — no separate
 "wrap my OpenAI client" step, because there's no direct call to OpenAI in your code at all,
 in either language. The demo account we used already had a provider key configured from
-earlier work, so we didn't personally hit a BYOK wall on Acrux Core in this session — but to
-be clear, Acrux Core's gateway is BYOK too; this account just happened to already be set up.
+earlier work, so we didn't personally hit a BYOK wall on AcruxCore in this session — but to
+be clear, AcruxCore's gateway is BYOK too; this account just happened to already be set up.
 
 <details>
 <summary>See the actual screens: the trace each platform's SDK script produced</summary>
@@ -343,9 +343,9 @@ be clear, Acrux Core's gateway is BYOK too; this account just happened to alread
 
 ![PromptLayer Requests table with the SDK-originated call at the top, showing model and real generated response](/img/tutorials/promptlayer-walkthrough/11-sdk-request-log.jpg)
 
-**Acrux Core** — `hub.prompts.render` + `hub.gateway.chat`, one gateway hop, no OpenAI client at all:
+**AcruxCore** — `hub.prompts.render` + `hub.gateway.chat`, one gateway hop, no OpenAI client at all:
 
-![Acrux Core trace detail for a script-generated call, showing the expanded LLM span with Model, Provider, Tokens, Latency, and the real request/response JSON](/img/tutorials/comparison/acx-sdk-trace.png)
+![AcruxCore trace detail for a script-generated call, showing the expanded LLM span with Model, Provider, Tokens, Latency, and the real request/response JSON](/img/tutorials/comparison/acx-sdk-trace.png)
 
 Both the Node and Python scripts' calls land on this same single-span trace page, just
 with their own request ID and token count each run.
@@ -374,7 +374,7 @@ read "0 Tool Calls"), and its Playground has a **Tools & Output** control for at
 function schema to a run — the same per-session shape as Langfuse, just under a different
 name.
 
-**Acrux Core** is the only one with a dedicated **Tools** section in the main navigation,
+**AcruxCore** is the only one with a dedicated **Tools** section in the main navigation,
 separate from Prompts. A tool (we had one real one, `get_weather`) gets its own page with
 **Versions** and **Aliases** tabs — the identical versioning model prompts use — plus a
 standalone **Tool analytics** page that aggregates real call volume, error rate, and P50/P95
@@ -396,11 +396,11 @@ governed objects here, not a byproduct of tracing or a one-off Playground schema
 
 ![PromptLayer Playground toolbar showing a Tools & Output button next to Save Template](/img/tutorials/comparison/pl-playground-save.png)
 
-**Acrux Core** — a dedicated, versioned Tool Catalog with its own analytics page:
+**AcruxCore** — a dedicated, versioned Tool Catalog with its own analytics page:
 
-![Acrux Core Tools page listing the get_weather tool with a description and creation date](/img/tutorials/comparison/acx-tools-catalog.png)
-![Acrux Core tool detail page showing Versions and Aliases tabs, identical to the prompt versioning model](/img/tutorials/comparison/acx-tools-versions.png)
-![Acrux Core Tool analytics page showing call volume, error rate, and P50/P95 latency for get_weather](/img/tutorials/comparison/acx-tools-analytics.png)
+![AcruxCore Tools page listing the get_weather tool with a description and creation date](/img/tutorials/comparison/acx-tools-catalog.png)
+![AcruxCore tool detail page showing Versions and Aliases tabs, identical to the prompt versioning model](/img/tutorials/comparison/acx-tools-versions.png)
+![AcruxCore Tool analytics page showing call volume, error rate, and P50/P95 latency for get_weather](/img/tutorials/comparison/acx-tools-analytics.png)
 
 </details>
 
@@ -414,7 +414,7 @@ visible usage quotas (100,000 request logs/month, 7,500 evaluation cells/month, 
 workflow node executions/month on that plan). We didn't verify equivalent numbers for
 LangSmith or Langfuse hands-on, so we're deliberately not guessing at them here.
 
-**Acrux Core** is the one platform here where pricing isn't a moving target: it's open
+**AcruxCore** is the one platform here where pricing isn't a moving target: it's open
 source and self-hostable, and free to use during the public beta — no trial clock, no
 seat count, no usage quota to run into.
 
@@ -447,7 +447,7 @@ platform does, not just a different button for the same idea.
 - A live, ad-hoc **model-comparison table** (the Evaluate button) that calls multiple
   models on one input row without requiring a saved dataset first.
 
-**Acrux Core**
+**AcruxCore**
 - **Stored-prompt gateway calls** — send a prompt name + alias, and the gateway renders
   and routes it in one request, with no client-side templating step at all.
 - **Feedback-driven datasets** — eval data comes from real thumbs-up/down on production
@@ -466,17 +466,17 @@ platform does, not just a different button for the same idea.
 - **A second, full-parity SDK** — everything above is also available from Python
   (`pip install acruxcore`), not just the TypeScript client.
 
-## Where Acrux Core stands
+## Where AcruxCore stands
 
 **Matches:** the alias/label-promotion model that LangSmith, Langfuse, and PromptLayer all
-converge on is roughly where Acrux Core already is — immutable versions plus a movable
+converge on is roughly where AcruxCore already is — immutable versions plus a movable
 pointer, with a dedicated Diff tab covering the same ground as PromptLayer's inline diff.
-Span-based tracing puts Acrux Core level with LangSmith and Langfuse, and ahead of
+Span-based tracing puts AcruxCore level with LangSmith and Langfuse, and ahead of
 PromptLayer's flat-by-default request log.
 
 **Ahead:** two findings from this pass are genuine structural advantages, not just UI
 polish. First, the feedback → Playground → save loop that Langfuse and PromptLayer both
-have (and LangSmith doesn't) is fully present in Acrux Core too — plus a materially more
+have (and LangSmith doesn't) is fully present in AcruxCore too — plus a materially more
 automated version of it in **Improve from feedback**, which none of the three competitors
 match. Second, the **Tool Catalog** treats tools as versioned, aliased, analytics-backed
 objects, while all three competitors only ever show a tool call as a trace span or a
@@ -484,7 +484,7 @@ one-off Playground schema that doesn't persist.
 
 **Behind:** the real gap is first-run speed, not the evaluation model itself. LangSmith and
 Langfuse both let a fresh account go from zero to a scored experiment run in one session,
-because they accept hand-authored, synthetic examples. Acrux Core deliberately doesn't —
+because they accept hand-authored, synthetic examples. AcruxCore deliberately doesn't —
 its datasets are built only from real feedback on real production traces, so what you
 evaluate against is what your users actually flagged, not a fixture someone guessed at. We'd
 call that the more trustworthy long-term model, not a weaker one. The trade-off is
@@ -493,26 +493,33 @@ first dataset from until real traffic and real thumbs-up/down accumulate — tha
 gap is the thing worth fixing, not the "real feedback over synthetic examples" design choice
 behind it. LangSmith's Pairwise Experiments (comparing two runs directly) and PromptLayer's
 ad-hoc model-comparison grid (quick side-by-side without a saved dataset) are both things
-Acrux Core doesn't have an equivalent for today, independent of where the dataset comes from.
+AcruxCore doesn't have an equivalent for today, independent of where the dataset comes from.
 
 **Worth adopting:**
 - A lightweight, no-dataset-required comparison tool (PromptLayer's Model comparison) would
-  remove the "nothing to evaluate yet" wall for brand-new Acrux Core accounts, without
+  remove the "nothing to evaluate yet" wall for brand-new AcruxCore accounts, without
   displacing the feedback-driven dataset model as the deeper, long-term path.
-- A pairwise run-comparison view (LangSmith), once Acrux Core accounts typically have more
+- A pairwise run-comparison view (LangSmith), once AcruxCore accounts typically have more
   than one experiment run to compare.
 - Langfuse's session/user badges directly on the trace header are a small but genuinely
-  nice affordance — Acrux Core supports session grouping, but we didn't verify a
+  nice affordance — AcruxCore supports session grouping, but we didn't verify a
   one-click badge-to-filter interaction as smooth as Langfuse's in this pass.
 
-Nothing here suggests Acrux Core needs a different architecture — the gateway-as-tracing-source
+Nothing here suggests AcruxCore needs a different architecture — the gateway-as-tracing-source
 model is a real structural advantage none of the three competitors have. The gap is entirely
 in evaluation ergonomics for a brand-new account, which is a product feature to build, not a
 redesign.
 
 Want the deepest look at just the Langfuse side of this? We rebuilt one matched
 example on both platforms and ran it step for step — see the
-[full Langfuse vs Acrux Core comparison](/blog/acruxcore-vs-langfuse).
+
+[full Langfuse vs AcruxCore comparison](/blog/acruxcore-vs-langfuse). We did the same
+for the self-hosted Opik platform — see the
+[full Opik vs AcruxCore comparison](/blog/acruxcore-vs-opik).
+for the proxy-first alternative Helicone, including the real self-hosted bugs we hit
+along the way — see the
+[full Helicone vs AcruxCore comparison](/blog/acruxcore-vs-helicone).
+
 
 Want to see it for yourself? The [Quickstart](/docs/getting-started/quickstart)
 gets you from sign-up to a traced, gateway-routed call in about ten minutes.

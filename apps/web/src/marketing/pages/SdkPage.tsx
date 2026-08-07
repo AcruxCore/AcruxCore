@@ -206,7 +206,7 @@ const LANGUAGES: LanguageSection[] = [
  * @returns The rendered SDK page.
  */
 export function SdkPage(): ReactNode {
-  useDocumentTitle('TypeScript & Python SDKs — Acrux Core');
+  useDocumentTitle('TypeScript & Python SDKs — AcruxCore');
 
   return (
     <MarketingShell wide>
@@ -413,7 +413,7 @@ export function SdkPage(): ReactNode {
 
       <CtaSection
         title="Get a key and install it."
-        body="Free while Acrux Core is in beta. Bring your own provider keys and the first render is a few lines away."
+        body="Free while AcruxCore is in beta. Bring your own provider keys and the first render is a few lines away."
       />
     </MarketingShell>
   );

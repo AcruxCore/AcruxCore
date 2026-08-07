@@ -2,10 +2,10 @@
 ReAct finance agent — BYO direct to OpenAI, manual tool_calls loop, no gateway.
 
 Flow:
-  1. render  — POST /prompts/react-agent-finance/production/render (Acrux Core)
+  1. render  — POST /prompts/react-agent-finance/production/render (AcruxCore)
                -> {messages, tools, versionId}
   2. loop    — POST https://api.openai.com/v1/chat/completions DIRECTLY (never
-               through Acrux Core's gateway). Because no gateway sees this call,
+               through AcruxCore's gateway). Because no gateway sees this call,
                WE report the llm span ourselves: POST /traces after every turn,
                same shape run_tool_loop()/chat() would report on the BYO path
                (kind: llm, model, provider: the OpenAI host, usage, promptVersionId).
@@ -35,7 +35,7 @@ from langchain_community.tools.yahoo_finance_news import YahooFinanceNewsTool
 ACRUXCORE_API_KEY = os.environ["ACRUXCORE_API_KEY"]
 ACRUXCORE_BASE_URL = os.environ["ACRUXCORE_BASE_URL"].rstrip("/")
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
-OPENAI_BASE_URL = "https://api.openai.com/v1"  # BYO: called directly, never through Acrux Core
+OPENAI_BASE_URL = "https://api.openai.com/v1"  # BYO: called directly, never through AcruxCore
 MODEL = "gpt-4o-mini"
 
 ACRUXCORE_HEADERS = {"Authorization": f"Bearer {ACRUXCORE_API_KEY}", "Content-Type": "application/json"}
@@ -67,7 +67,7 @@ async def run_tool(name: str, args: dict) -> str:
     raise ValueError(f"Unknown tool: {name}")
 
 
-# ── Acrux Core: render + manual trace reporting ──────────────────────────────
+# ── AcruxCore: render + manual trace reporting ──────────────────────────────
 
 def render_prompt(name: str, alias: str, variables: dict) -> dict:
     r = requests.post(
@@ -143,7 +143,7 @@ def report_tool_span(trace_id, name, args, result, started, ended):
 # ── OpenAI: called directly, BYO ──────────────────────────────────────────────
 
 def complete(model: str, messages: list, tools: list) -> dict:
-    """One completion sent straight to OpenAI — never through Acrux Core."""
+    """One completion sent straight to OpenAI — never through AcruxCore."""
     r = requests.post(
         f"{OPENAI_BASE_URL}/chat/completions",
         headers={"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"},

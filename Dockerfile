@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 #
-# Images for Acrux Core — builds the whole npm-workspaces monorepo once in a
+# Images for AcruxCore — builds the whole npm-workspaces monorepo once in a
 # shared `builder` stage, then exposes runtime targets that reuse it:
 #   * target `api`    → the Express API (runs prisma migrate deploy, then serves)
 #   * target `worker` → the BullMQ eval worker

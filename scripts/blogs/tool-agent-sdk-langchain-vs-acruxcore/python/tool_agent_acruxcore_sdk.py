@@ -78,7 +78,7 @@ async def main() -> None:
             indent=2,
         )
     )
-    print(f"\nAcrux Core trace: {BASE_URL.replace('/api/v1', '')}/traces/{result.trace_id}")
+    print(f"\nAcruxCore trace: {BASE_URL.replace('/api/v1', '')}/traces/{result.trace_id}")
 
 
 if __name__ == "__main__":

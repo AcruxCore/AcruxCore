@@ -260,7 +260,7 @@ class TracesNamespace:
     # ── Trace CRUD (moved from flat client methods) ───────────────────────
 
     async def ingest(self, input: Dict[str, Any]) -> TraceResult:
-        """Report a trace (a group of spans) to Acrux Core.
+        """Report a trace (a group of spans) to AcruxCore.
 
         A single-trace convenience over the batch endpoint. Omit ``traceId`` to
         mint a new trace; pass one to append spans to it. Never cached.

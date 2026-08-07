@@ -1,4 +1,4 @@
-"""Complete, self-contained Acrux Core SDK tool agent.
+"""Complete, self-contained AcruxCore SDK tool agent.
 
 Copy-pasteable: no local imports, nothing to set up first. `@acrux.tool` carries the
 name, the model-facing description and the argument schema, and `run_tool_loop`
@@ -11,7 +11,7 @@ in the blog post, kept here so it can be run and stay honest.
 
 Registration is not a separate step any more. Nothing here is done out of band with
 curl — which is what made an earlier version of this comparison undercount the work
-on the Acrux Core side.
+on the AcruxCore side.
 """
 
 import asyncio

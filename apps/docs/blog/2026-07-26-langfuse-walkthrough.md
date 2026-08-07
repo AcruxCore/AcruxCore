@@ -16,7 +16,7 @@ through the whole loop ourselves — open a prompt, version it, inspect a real t
 and set up a dataset for testing. This post is a plain, factual account of what we
 found — the good and the rough edges. The
 [main comparison post](/blog/hands-on-llm-ops-comparison) pulls the findings from
-Langfuse, LangSmith, PromptLayer, and Acrux Core together.
+Langfuse, LangSmith, PromptLayer, and AcruxCore together.
 
 <!-- truncate -->
 
@@ -207,11 +207,11 @@ but not press "go" without bringing your own working key. Once that key was adde
 both flows worked cleanly, with one worth-knowing quirk: Playground runs don't
 produce traces, only real instrumented calls and dataset/experiment runs do.
 
-## Langfuse vs Acrux Core
+## Langfuse vs AcruxCore
 
 Both are open source, so this comes down to shape, not access.
 
-| Feature | Langfuse | Acrux Core |
+| Feature | Langfuse | AcruxCore |
 | --- | --- | --- |
 | Tracing | OpenTelemetry-native SDKs — wrap your existing OpenAI client and get a trace with no manual span code | Automatic the moment a call goes through the gateway, no separate SDK step |
 | Gateway | No request-routing layer — call providers yourself, send the trace after the fact | Built-in OpenAI-compatible gateway sits in the request path — one audited, cost-visible route to every provider |
@@ -222,8 +222,8 @@ Both are open source, so this comes down to shape, not access.
 
 Want the deep dive — the same prompt run for real on both platforms, screenshotted
 side by side? Read the
-[full Langfuse vs Acrux Core comparison](/blog/acruxcore-vs-langfuse).
+[full Langfuse vs AcruxCore comparison](/blog/acruxcore-vs-langfuse).
 
-Want to see the same loop on Acrux Core? The
+Want to see the same loop on AcruxCore? The
 [Quickstart](/docs/getting-started/quickstart) gets you from sign-up to a traced,
 gateway-routed call in about ten minutes.

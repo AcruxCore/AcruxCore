@@ -1,14 +1,14 @@
 ---
-title: "A hands-on walkthrough of Acrux Core"
-description: A step-by-step walkthrough of prompt versioning, gateway tracing, and evaluation in the hosted Acrux Core dashboard — the baseline for our LangSmith, Langfuse, and PromptLayer comparisons.
+title: "A hands-on walkthrough of AcruxCore"
+description: A step-by-step walkthrough of prompt versioning, gateway tracing, and evaluation in the hosted AcruxCore dashboard — the baseline for our LangSmith, Langfuse, and PromptLayer comparisons.
 slug: acruxcore-hands-on-walkthrough
 authors: [acrux]
 tags: [walkthrough, llm-ops]
 image: /img/social-card.png
-keywords: [acrux core walkthrough, prompt versioning, ai gateway, llm tracing, llm evaluation]
+keywords: [AcruxCore walkthrough, prompt versioning, ai gateway, llm tracing, llm evaluation]
 ---
 
-This is the Acrux Core leg of a hands-on comparison series. We ran the exact same
+This is the AcruxCore leg of a hands-on comparison series. We ran the exact same
 steps — create a prompt, version it, generate a trace, try to build a dataset —
 against the hosted product ourselves, so the [LangSmith](/blog/langsmith-hands-on-walkthrough),
 [Langfuse](/blog/langfuse-hands-on-walkthrough), and [PromptLayer](/blog/promptlayer-hands-on-walkthrough)
@@ -29,7 +29,7 @@ that sits between your app and model providers, so every call is routed,
 logged, and cost-tracked in one place) is a first-class section of the product,
 not a bolt-on.
 
-![Acrux Core sidebar showing the Prompts list and Workspace/Gateway navigation groups](/img/tutorials/acruxcore-walkthrough/01-login-prompts-list.png)
+![AcruxCore sidebar showing the Prompts list and Workspace/Gateway navigation groups](/img/tutorials/acruxcore-walkthrough/01-login-prompts-list.png)
 
 ## 2. Create a prompt, version it, and promote an alias
 
@@ -41,7 +41,7 @@ message. Editing and saving created version 2 automatically — versions are
 
 The prompt page shows two **aliases** — `production` and `staging` — each
 pointing at a specific version. We promoted `production` from v1 to v2 with
-one click. This is Acrux Core's core prompt-management idea: your app always
+one click. This is AcruxCore's core prompt-management idea: your app always
 asks for `support-triage@production`, so promoting a new version changes live
 behavior **with no redeploy**.
 
@@ -52,7 +52,7 @@ Versions. It shows a line-level, git-style diff between any two versions — in
 this case, exactly what changed between v1 and v2 of the system message,
 colored like a code review:
 
-![Acrux Core's Diff tab showing a line-level, colored diff between prompt version 1 and version 2](/img/tutorials/acruxcore-walkthrough/04-diff-tab.png)
+![AcruxCore's Diff tab showing a line-level, colored diff between prompt version 1 and version 2](/img/tutorials/acruxcore-walkthrough/04-diff-tab.png)
 
 This is the same "see exactly what changed before you promote it" idea
 PromptLayer's save dialog has, except here it's a standing tab you can return
@@ -86,7 +86,7 @@ token count and a timestamp.
 
 This particular trace has exactly **one span** — the single LLM call — because
 we called the gateway directly from the Playground rather than through a
-multi-step agent. Acrux Core's tracing model is: the gateway automatically
+multi-step agent. AcruxCore's tracing model is: the gateway automatically
 records every model call as a span (model, tokens, latency, cost), and you can
 add your own spans via the SDK's `hub.traces.ingest()` for anything that happens around
 it (tool calls, retries, business logic) so a real agent run shows up as a
@@ -100,7 +100,7 @@ page — this matters for the next step.
 
 ## 5. Build a dataset from real feedback
 
-Acrux Core's evaluation page is explicit about where datasets come from: they
+AcruxCore's evaluation page is explicit about where datasets come from: they
 aren't hand-typed, they're **built by selecting real feedback rows** — traces
 your team has already thumbs-up/thumbs-down'd in production. Unlike the other
 three platforms, there's no "add example" form here.
@@ -109,7 +109,7 @@ To see this end to end, we gave our trace above a real thumbs-up ("Correct
 classification and priority for this ticket") and went to the **Feedback**
 page, where it shows up as a real row, selectable via checkbox:
 
-![Acrux Core's Feedback page with one real feedback row checked, showing "1 feedback row selected" and Clear / Improve from feedback / Create dataset buttons](/img/tutorials/acruxcore-walkthrough/08-feedback-selected.png)
+![AcruxCore's Feedback page with one real feedback row checked, showing "1 feedback row selected" and Clear / Improve from feedback / Create dataset buttons](/img/tutorials/acruxcore-walkthrough/08-feedback-selected.png)
 
 Clicking **Create dataset**, naming it, and confirming turned that one
 selected row into a real dataset immediately — no empty state, no "coming
@@ -128,7 +128,7 @@ Every experiment run against a dataset — whether triggered by hand or by the
 "Improve from feedback" flow below — lands in a **Runs** tab next to Datasets,
 with status, score, the best-scoring variant, and duration for each one:
 
-![Acrux Core Runs tab listing past evaluation runs with status, score, best variant, and duration columns](/img/tutorials/acruxcore-walkthrough/10-runs-tab.png)
+![AcruxCore Runs tab listing past evaluation runs with status, score, best variant, and duration columns](/img/tutorials/acruxcore-walkthrough/10-runs-tab.png)
 
 It's a plain list, not a separate product area to learn — the same page you
 use to browse datasets is where you go to see what every past run actually
@@ -221,9 +221,47 @@ of Node's `Promise` chain. No separate tracing call was needed in either
 language: `hub.gateway.chat()` already goes through the gateway, which auto-traces every
 completion it serves. Both scripts' calls showed up in the dashboard seconds
 later as ordinary traces — the same single-span `OK` view shown in section 4
-above, just with a different token count and request ID each time.
+above, just with a different token count and request ID each time:
 
-## What's unique to Acrux Core
+![AcruxCore's trace for the script-generated call, linked back to the exact gateway request and prompt version that produced it](/img/comparison/acruxcore/acx-09-sdk-trace.png)
+
+## 7. A versioned Tool Catalog
+
+Tools (callable functions the model can invoke) get the same treatment as
+prompts: immutable versions, and a real catalog page instead of a one-off
+schema buried in a Playground dropdown.
+
+![AcruxCore's Tools page listing a dozen real, versioned tools including get_order_status, query_database, and get_weather](/img/comparison/acruxcore/acx-06-tools-catalog.png)
+
+Each tool has its own version history, promoted the same way a prompt alias
+is:
+
+![AcruxCore's tool Versions tab, showing numbered versions of a tool's JSON Schema with a promote-to-production control](/img/comparison/acruxcore/acx-07-tool-versions.png)
+
+And because every tool call routes through the gateway, it's a real,
+traced execution — not just a shape the model was told about — so a Tool
+Analytics page can aggregate real numbers per tool:
+
+![AcruxCore's Tool analytics page — call volume, error rate, and P50/P95 latency per tool, aggregated from traced executions](/img/comparison/acruxcore/acx-08-tool-analytics.png)
+
+## 8. Team, audit, and payload capture settings
+
+Everything account-level lives on one Team page — members, invites, and team
+API keys together, with no separate organization layer above it:
+
+![AcruxCore's single Team page — members, invites, and team API keys together, no org layer above](/img/comparison/acruxcore/acx-12-team.png)
+
+Whether the gateway stores full request/response bodies (not just metadata)
+is a team-wide toggle, on by default:
+
+![AcruxCore's team-wide Capture payloads toggle, on by default](/img/comparison/acruxcore/acx-13-capture-payloads.png)
+
+And every prompt carries its own Audit tab — a real, populated log of version
+commits and alias promotions, not an empty state waiting for an upgrade:
+
+![AcruxCore's per-prompt Audit tab with real entries — version commits and alias promotions](/img/comparison/acruxcore/acx-14-prompt-audit.png)
+
+## What's unique to AcruxCore
 
 - **Alias-based prompt promotion.** `production`/`staging` labels point at
   specific immutable versions; promoting a version is a one-click, no-redeploy

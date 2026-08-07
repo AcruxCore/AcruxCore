@@ -7,7 +7,7 @@ import { SUPPORT_EMAIL } from '../marketing-chrome';
  * Public "Privacy Policy" page. Linked from the footer Company column and the
  * legal bottom bar.
  *
- * This is a general privacy policy for the Acrux Core platform; it should be
+ * This is a general privacy policy for the AcruxCore platform; it should be
  * reviewed by counsel before being relied on for a specific jurisdiction.
  *
  * @returns The rendered Privacy Policy page.
@@ -18,16 +18,16 @@ export function PrivacyPage(): ReactNode {
       <ContentHeader
         eyebrow="Legal"
         title="Privacy Policy"
-        lead="This policy explains what information Acrux Core collects, how we use it, and the choices you have. It applies to the Acrux Core hosted platform and website."
+        lead="This policy explains what information AcruxCore collects, how we use it, and the choices you have. It applies to the AcruxCore hosted platform and website."
         updated="August 1, 2026"
       />
       <div className="acx-prose">
         <h2>1. Who we are</h2>
         <p>
-          Acrux Core, Inc. (“Acrux Core”, “we”, “us”) provides an LLM-ops platform that lets teams
+          AcruxCore, Inc. (“AcruxCore”, “we”, “us”) provides an LLM-ops platform that lets teams
           version prompts, route model calls through a gateway, trace requests, and evaluate quality.
           This policy covers information handled when you use the hosted service at acruxcore.com and
-          related sites. If you self-host Acrux Core, you are the controller of the data in your own
+          related sites. If you self-host AcruxCore, you are the controller of the data in your own
           deployment and this policy does not apply to it.
         </p>
 

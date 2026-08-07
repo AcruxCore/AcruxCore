@@ -1,6 +1,6 @@
 ---
-title: "The same agent in two SDKs: LangChain vs the Acrux Core SDK"
-description: We rewrote the same tool-calling agent with LangChain's create_agent and with the Acrux Core SDK's run_tool_loop, ran both live, and compared the code and the traces they produce.
+title: "The same agent in two SDKs: LangChain vs the AcruxCore SDK"
+description: We rewrote the same tool-calling agent with LangChain's create_agent and with the AcruxCore SDK's run_tool_loop, ran both live, and compared the code and the traces they produce.
 slug: tool-agent-sdk-langchain-vs-acruxcore
 authors: [acrux]
 tags: [comparison, langsmith, sdk, tools, tracing, llm-ops]
@@ -10,10 +10,10 @@ keywords: [langchain create_agent, langchain vs acruxcore sdk, run_tool_loop, ag
 
 In the [previous post](/blog/tool-calling-traces-langsmith-vs-acruxcore) we wrote the same
 tool-calling agent against a raw OpenAI-compatible client on both platforms and hand-rolled
-the loop. Acrux Core needed **105 lines** to LangSmith's **63** — we lost that one, and said so.
+the loop. AcruxCore needed **105 lines** to LangSmith's **63** — we lost that one, and said so.
 
 This post is the other half: what happens when you use each platform's own abstraction
-instead of writing the loop yourself. LangChain's `create_agent` against the Acrux Core
+instead of writing the loop yourself. LangChain's `create_agent` against the AcruxCore
 SDK's `run_tool_loop`. Same tool, same question, same model (`openai/gpt-4o-mini` via
 OpenRouter), both run live.
 
@@ -62,9 +62,9 @@ Seven runs for one agent turn. The `model` and `tools` wrappers are LangGraph's 
 Useful when you are debugging the graph itself; noise when you only want to know what the
 tool returned.
 
-## Acrux Core: the same decorator, and the tool becomes a catalog version
+## AcruxCore: the same decorator, and the tool becomes a catalog version
 
-The Acrux Core side is the LangChain shape with one word changed:
+The AcruxCore side is the LangChain shape with one word changed:
 
 ```python
 from acruxcore import AcruxCore, acrux
@@ -166,14 +166,14 @@ One rule for this to mean anything: **each script must run on its own**, with no
 beforehand in a terminal or a dashboard. Registration counts if it is required. Lines of
 real code, excluding docstrings, comments and blank lines:
 
-| | LangChain + LangSmith | Acrux Core SDK |
+| | LangChain + LangSmith | AcruxCore SDK |
 |---|---|---|
 | Agent with tracing | **50** | **36** |
 | Complete self-contained script (the two at the end of this post) | **40** | **40** |
 
 The first row differs because the LangChain leg wires the model client itself —
 `ChatOpenAI(model=..., api_key=..., base_url=...)` plus the tracing env vars — while the
-Acrux Core leg names a model the gateway already knows. On the fully self-contained scripts
+AcruxCore leg names a model the gateway already knows. On the fully self-contained scripts
 the two are level at 40 lines each.
 
 Both figures are checkable: the two self-contained scripts are at the end of this post, and
@@ -277,7 +277,7 @@ if __name__ == "__main__":
 </details>
 
 <details>
-<summary><strong>tool_agent_acruxcore_sdk.py</strong> — the Acrux Core SDK's <code>run_tool_loop</code>, 36 lines of code</summary>
+<summary><strong>tool_agent_acruxcore_sdk.py</strong> — the AcruxCore SDK's <code>run_tool_loop</code>, 36 lines of code</summary>
 
 ```python title="tool_agent_acruxcore_sdk.py"
 """SDK leg: the same get_weather agent using the `acruxcore` Python SDK.
@@ -357,7 +357,7 @@ async def main() -> None:
             indent=2,
         )
     )
-    print(f"\nAcrux Core trace: {BASE_URL.replace('/api/v1', '')}/traces/{result.trace_id}")
+    print(f"\nAcruxCore trace: {BASE_URL.replace('/api/v1', '')}/traces/{result.trace_id}")
 
 
 if __name__ == "__main__":
@@ -367,14 +367,14 @@ if __name__ == "__main__":
 </details>
 
 :::note[The counting rule matters more than the numbers]
-An earlier version of this post showed Acrux Core winning by a wider margin, because the
+An earlier version of this post showed AcruxCore winning by a wider margin, because the
 count left out getting the tool into the catalog — we had done that beforehand with curl, so
 the comparison charged LangChain for its `@tool` and charged us for nothing. If a benchmark
 shows a platform's own product winning, check what happened before the script ran.
 :::
 
 What you buy for those 40 lines still differs. LangChain gives you a graph and a large
-ecosystem of components. Acrux Core gives you a versioned catalog artifact your other
+ecosystem of components. AcruxCore gives you a versioned catalog artifact your other
 services can call, in any language, and a version you can promote without redeploying the
 caller.
 
@@ -383,7 +383,7 @@ caller.
 **On tool ergonomics they are now level.** Both decorators read the schema off your type
 hints and docstring, and neither needs a separate registration step.
 
-**Acrux Core wins on the loop and the trace.** One call replaces the loop, parallel tool
+**AcruxCore wins on the loop and the trace.** One call replaces the loop, parallel tool
 calls are dispatched concurrently for you, and the trace has one span per real event
 instead of a graph node per framework abstraction. Schema drift is also off the table: the
 model is handed whatever `production` points at, so the definition cannot fall out of step
@@ -393,7 +393,7 @@ with the code the way a hand-maintained schema can.
 four integrations, that ecosystem exists and ours does not.
 
 **On tracing setup they are effectively tied at zero.** LangChain needs an env var; the
-Acrux Core SDK needs nothing, because the trace is a property of the gateway call rather
+AcruxCore SDK needs nothing, because the trace is a property of the gateway call rather
 than something a client library has to be told to emit.
 
 :::tip[If you are choosing today]
@@ -505,7 +505,7 @@ Trace: smith.langchain.com → project 'weather-agent-standalone'
 </details>
 
 <details>
-<summary><strong>standalone_acruxcore_sdk_agent.py</strong> — Acrux Core SDK, 40 lines</summary>
+<summary><strong>standalone_acruxcore_sdk_agent.py</strong> — AcruxCore SDK, 40 lines</summary>
 
 ```bash
 pip install acruxcore requests
@@ -514,7 +514,7 @@ python standalone_acruxcore_sdk_agent.py
 ```
 
 ```python title="standalone_acruxcore_sdk_agent.py"
-"""Complete, self-contained Acrux Core SDK tool agent.
+"""Complete, self-contained AcruxCore SDK tool agent.
 
 Copy-pasteable: no local imports, nothing to set up first. `@acrux.tool` carries the
 name, the model-facing description and the argument schema, and `run_tool_loop`
@@ -601,6 +601,6 @@ Trace: https://acruxcore.com/traces/d29ff672-a065-4e7a-877f-104d4dce5685
 </details>
 
 The difference in what you had to write is the whole comparison in one place. LangChain: a
-decorated function and three lines of wiring. Acrux Core: a decorated function and three
+decorated function and three lines of wiring. AcruxCore: a decorated function and three
 lines of wiring — plus a versioned catalog artifact your other services can call and a
 version you can promote without touching this code.

@@ -55,7 +55,7 @@ apps/docs/*
 bruno
 examples
 *.png
-Acrux Core landing page
+AcruxCore landing page
 
 # Docker files themselves
 Dockerfile

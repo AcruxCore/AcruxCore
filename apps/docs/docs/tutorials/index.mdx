@@ -10,7 +10,7 @@ Eight tutorials build the same general shape of thing — an LLM agent that reas
 
 This page is the map. Follow the **learning path** below if you're new and want a sequence. Skip to **[how they compare](#how-they-compare)** if you already know what you're looking for and want to pick by mechanism.
 
-:::tip[New to Acrux Core?]
+:::tip[New to AcruxCore?]
 If you haven't yet, start with [Getting Started](/docs/getting-started/introduction) — it covers sign-up, your first API call, and the core concepts these tutorials build on.
 :::
 
@@ -35,7 +35,7 @@ The same tool-calling loop as Level 1, but now **you** drive it from a script. P
 
 You've got the core loop. These three each add one real-world concern: retrieval, the bare-metal BYO path, or runtime configurability.
 
-- **[Build a RAG agent without the gateway](/docs/tutorials/build-a-rag-agent-without-the-gateway)** — answer questions over the Acrux Core docs by indexing them and retrieving passages before each answer. Introduces: **RAG**, **embeddings**, retrieval, and the **BYO (bring your own key)** path that calls the provider directly.
+- **[Build a RAG agent without the gateway](/docs/tutorials/build-a-rag-agent-without-the-gateway)** — answer questions over the AcruxCore docs by indexing them and retrieving passages before each answer. Introduces: **RAG**, **embeddings**, retrieval, and the **BYO (bring your own key)** path that calls the provider directly.
 - **[Build a ReAct agent](/docs/tutorials/build-a-react-agent)** — a finance-research agent (Yahoo Finance news + today's date) with the gateway removed: the model call goes **straight to OpenAI** and every step is plain REST. Introduces: the **ReAct** pattern, BYO with a manual loop, prompt and tool creation over curl.
 - **[Build a configurable ReAct agent](/docs/tutorials/build-a-configurable-react-agent)** — one web-research agent that swaps persona, model, and search depth at call time by rendering a different **alias**. Introduces: **prompt versions + aliases** as a no-redeploy configuration mechanism, routed through the gateway.
 
@@ -83,7 +83,7 @@ Where a tool call physically **runs**. **HTTP (gateway)** — the gateway makes 
 
 ### Model call path
 
-What **sits between your code and the model provider**. **Gateway** — routed through Acrux Core, so you get budgets, fallbacks, secrets, per-call accounting, and `response_format` enforcement. **BYO (bring your own key)** — the gateway is skipped and you call the provider directly with your own key; the prompt is still versioned and a client-side trace is still recorded.
+What **sits between your code and the model provider**. **Gateway** — routed through AcruxCore, so you get budgets, fallbacks, secrets, per-call accounting, and `response_format` enforcement. **BYO (bring your own key)** — the gateway is skipped and you call the provider directly with your own key; the prompt is still versioned and a client-side trace is still recorded.
 
 ### Loop mechanism
 
@@ -113,7 +113,7 @@ The options above aren't equally right for every situation. Each is a real decis
 
 **Gateway or BYO (bring your own key)?**
 
-- **BYO (#4, #5)** when you want zero added latency and already have a provider key. Acrux Core still versions the prompt and records a trace, but nothing sits between you and the provider on the wire.
+- **BYO (#4, #5)** when you want zero added latency and already have a provider key. AcruxCore still versions the prompt and records a trace, but nothing sits between you and the provider on the wire.
 - **The gateway (#1, #2, #3, #6, #7, #8)** when you want routing, budgets, cost-per-call accounting, provider fallbacks, secrets management, and `response_format` enforcement. See [Route calls through the gateway](/docs/guides/route-calls-through-the-gateway).
 
 **HTTP tool or client tool?**
@@ -142,10 +142,10 @@ Recurring terms across the eight tutorials. Each is introduced in-line on first 
 - **Credential + model** — a credential is a provider API key (encrypted at rest); a model is a public name mapped to an upstream model on a credential. Introduced in **#2**.
 - **ReAct loop** — "reason + act": the same tool-calling loop, named, where the model reasons about what it needs before each tool call. Introduced in **#5**.
 - **Prompt version + alias** — a version is an immutable snapshot of a prompt's model, messages, and tools; an alias (`production`, `staging`, or any custom string) is a named pointer at a version. Swapping the alias your code renders is configuration without a redeploy. Introduced in **#6**; see [Version a prompt](/docs/guides/version-a-prompt).
-- **Gateway** — Acrux Core's model-routing layer: provider connections, budgets, rate limits, cost-per-call accounting, secrets, and `response_format` enforcement. Introduced in **#2**; see [Route calls through the gateway](/docs/guides/route-calls-through-the-gateway).
+- **Gateway** — AcruxCore's model-routing layer: provider connections, budgets, rate limits, cost-per-call accounting, secrets, and `response_format` enforcement. Introduced in **#2**; see [Route calls through the gateway](/docs/guides/route-calls-through-the-gateway).
 - **`run_tool_loop`** — the SDK helper that drives the tool-calling cycle so you don't write the loop by hand. Introduced in **#3**; see [Use the SDK for chat and feedback](/docs/guides/use-the-sdk-for-chat-and-feedback).
 - **RAG (retrieval-augmented generation)** — look up the passages most likely to answer a question and paste them into the prompt before asking the model. Introduces embeddings and a vector store. Introduced in **#4**.
-- **BYO (bring your own key)** — skipping the gateway and calling a provider directly with your own key; Acrux Core still versions the prompt and records a client-side trace. Introduced in **#4**.
+- **BYO (bring your own key)** — skipping the gateway and calling a provider directly with your own key; AcruxCore still versions the prompt and records a client-side trace. Introduced in **#4**.
 - **`response_format`** — a request-time gateway parameter that forces the model's reply into a typed JSON shape. How it's enforced differs by provider: native on OpenAI and Gemini, translated to a forced tool call on Anthropic. Introduced in **#7** for a routing decision; used for a full typed answer in **#8**.
 - **Supervisor / router** — a small model call whose only job is to classify an incoming request and hand it to a specialist subagent. Introduced in **#7**.
 - **Tool-description ownership** — a decorated tool's model-facing description can live in code (a docstring) or in the dashboard; omit the docstring and `tools.sync()` leaves the dashboard copy untouched. Introduced in **#7**; see [Build and attach a tool](/docs/guides/build-and-attach-a-tool).

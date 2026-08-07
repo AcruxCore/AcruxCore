@@ -1,4 +1,4 @@
-"""RAG over the Acrux Core docs — with a tool, and without the Acrux Core gateway.
+"""RAG over the AcruxCore docs — with a tool, and without the AcruxCore gateway.
 
 Setup:
     pip install acruxcore chromadb requests beautifulsoup4
@@ -201,7 +201,7 @@ _COLLECTION: Any = None
 
 @acrux.tool
 async def search_docs(query: str) -> str:
-    """Search Acrux Core's documentation for relevant information.
+    """Search AcruxCore's documentation for relevant information.
 
     Args:
         query: The search query — a question or topic to look up.
@@ -233,7 +233,7 @@ PROMPT_DEFINITIONS = {
         {
             "role": "system",
             "content": (
-                "You answer questions about Acrux Core using only the documentation "
+                "You answer questions about AcruxCore using only the documentation "
                 "excerpts below. If the excerpts do not contain the answer, say so "
                 "plainly instead of guessing.\n\n"
                 "Documentation:\n{{ context }}"
@@ -245,7 +245,7 @@ PROMPT_DEFINITIONS = {
         {
             "role": "system",
             "content": (
-                "You answer questions about Acrux Core. Use the search_docs tool to "
+                "You answer questions about AcruxCore. Use the search_docs tool to "
                 "look things up before answering — search more than once if the first "
                 "result is thin, or if the question has several parts. Answer only "
                 "from what the tool returns, and say so plainly when it comes back "
@@ -303,7 +303,7 @@ def setup_prompts(api_key: str) -> None:
 
 
 async def main() -> int:
-    parser = argparse.ArgumentParser(description="RAG over the Acrux Core docs.")
+    parser = argparse.ArgumentParser(description="RAG over the AcruxCore docs.")
     parser.add_argument(
         "question",
         nargs="?",
@@ -313,7 +313,7 @@ async def main() -> int:
     parser.add_argument(
         "--setup",
         action="store_true",
-        help="Create the two prompts in Acrux Core, then exit.",
+        help="Create the two prompts in AcruxCore, then exit.",
     )
     args = parser.parse_args()
 

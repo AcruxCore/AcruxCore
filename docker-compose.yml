@@ -1,4 +1,4 @@
-# Acrux Core stack for Docker.
+# AcruxCore stack for Docker.
 #
 # Auth is in-app (Better Auth, sessions in our own `auth_sessions` table), so
 # there is no identity vendor to configure — only BETTER_AUTH_SECRET. The

@@ -51,7 +51,7 @@ The source assigns three subagents four tools total, defined once in
 `finance_research` wraps `langchain_community`'s real `YahooFinanceNewsTool`; `advanced_research`
 and `basic_research` both wrap `TavilySearchResults` at different depths, the same two
 configurations [Build a configurable ReAct agent](./build-a-configurable-react-agent) uses.
-Run all four standalone first, before any of this touches Acrux Core:
+Run all four standalone first, before any of this touches AcruxCore:
 
 ```python
 import asyncio
@@ -126,7 +126,7 @@ SpaceX, although Elon Musk has firmly denied that such a merger is planned.
 
 ## 2. Get an API key
 
-The scripts below need one Acrux Core key to sync the tools, create the prompts, render
+The scripts below need one AcruxCore key to sync the tools, create the prompts, render
 each one, and run the loop. Open **Account & keys → New key**, name it something like
 `supervisor-multi-agent`, and copy the value — it's shown once.
 
@@ -150,7 +150,7 @@ interface," and paraphrasing would contradict that:
 
 ```python
 """
-Create the four supervisor tools in the Acrux Core catalog via @acrux.tool + tools.sync().
+Create the four supervisor tools in the AcruxCore catalog via @acrux.tool + tools.sync().
 
 Run once before supervisor_flow.py.  Requires:
   pip install acruxcore langchain_community tavily-python yfinance

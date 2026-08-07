@@ -10,4 +10,6 @@ export { PricingPage } from './pages/PricingPage';
 export { SdkPage } from './pages/SdkPage';
 export { NotFoundPage } from './pages/NotFoundPage';
 export { FeaturePage } from './pages/FeaturePage';
+export { ComparePage } from './pages/ComparePage';
 export { FEATURES, FEATURE_LIST, type Feature, type FeatureSlug } from './features';
+export { ACRUX_CORE, COMPARISONS, COMPARISON_LIST, type Comparison, type CompetitorSlug } from './comparisons';

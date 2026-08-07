@@ -1,4 +1,4 @@
-"""Error type raised by every Acrux Core SDK operation."""
+"""Error type raised by every AcruxCore SDK operation."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ PYDANTIC_NOT_AVAILABLE: ErrorCode = "PYDANTIC_NOT_AVAILABLE"
 
 
 class AcruxCoreError(Exception):
-    """Raised by every Acrux Core SDK operation.
+    """Raised by every AcruxCore SDK operation.
 
     Always branch on :attr:`code` for programmatic handling. For
     ``MISSING_VARIABLES`` errors, ``error.body["error"]["missing"]`` holds the

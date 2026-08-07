@@ -13,8 +13,8 @@ export function CareersPage(): ReactNode {
     <MarketingShell>
       <ContentHeader
         eyebrow="Careers"
-        docTitle="Careers — Acrux Core"
-        title="Join Acrux Core."
+        docTitle="Careers — AcruxCore"
+        title="Join AcruxCore."
         lead="We're a small team building an LLM-ops platform for engineering teams. Here's what's currently open."
       />
       <div className="acx-prose">

@@ -17,7 +17,7 @@ change.
 
 ## 1. Add a provider credential
 
-Go to **Gateway → Credentials → New credential**. Acrux Core is **BYOK** — you
+Go to **Gateway → Credentials → New credential**. AcruxCore is **BYOK** — you
 bring your own provider key and it's encrypted at rest (only the last four
 characters are ever shown again).
 
@@ -114,7 +114,7 @@ print(result.content)
 import os
 from openai import OpenAI
 
-# Point the official OpenAI client at the Acrux Core gateway.
+# Point the official OpenAI client at the AcruxCore gateway.
 client = OpenAI(
     api_key=os.environ["ACRUXCORE_API_KEY"],
     base_url=os.environ["ACRUXCORE_BASE_URL"] + "/gateway",

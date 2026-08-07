@@ -3,7 +3,7 @@ import { MarketingShell, ContentHeader } from '../MarketingShell';
 import { SUPPORT_EMAIL } from '../marketing-chrome';
 
 /**
- * Public "Security" page describing how Acrux Core protects team data and how to
+ * Public "Security" page describing how AcruxCore protects team data and how to
  * report a vulnerability. Linked from the footer Company column.
  *
  * @returns The rendered Security page.
@@ -13,15 +13,15 @@ export function SecurityPage(): ReactNode {
     <MarketingShell>
       <ContentHeader
         eyebrow="Security"
-        docTitle="Security — Acrux Core"
-        title="Security at Acrux Core."
-        lead="Acrux Core sits between your application and every model provider, so protecting your keys, prompts, and trace data is the core of the product — not an add-on."
+        docTitle="Security — AcruxCore"
+        title="Security at AcruxCore."
+        lead="AcruxCore sits between your application and every model provider, so protecting your keys, prompts, and trace data is the core of the product — not an add-on."
         updated="July 24, 2026"
       />
       <div className="acx-prose">
         <h2>Data isolation</h2>
         <p>
-          Every record in Acrux Core is scoped to a <strong>team</strong>. The platform enforces this
+          Every record in AcruxCore is scoped to a <strong>team</strong>. The platform enforces this
           on a shared database with row-level access controls, so one team can never read or write
           another team's prompts, keys, traces, or evaluations. API requests are authenticated per
           team and authorized on every call.

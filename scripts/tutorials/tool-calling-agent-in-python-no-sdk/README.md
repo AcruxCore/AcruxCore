@@ -4,7 +4,7 @@ Runnable scripts for the [Build a tool-calling agent in Python (no SDK)](https:/
 
 ## Prerequisites
 
-- An Acrux Core API key and base URL (see the tutorial's Step 3)
+- An AcruxCore API key and base URL (see the tutorial's Step 3)
 - A credential + model registered in the dashboard (see the tutorial's Steps 1–2) — an OpenRouter key works for any provider
 - Python 3.9+ with `requests` (`pip install requests`)
 

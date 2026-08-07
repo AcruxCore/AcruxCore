@@ -7,7 +7,7 @@ import { SUPPORT_EMAIL } from '../marketing-chrome';
  * Public "Terms of Service" page. Linked from the footer Company column and the
  * legal bottom bar.
  *
- * This is a general terms document for the Acrux Core platform; it should be
+ * This is a general terms document for the AcruxCore platform; it should be
  * reviewed by counsel before being relied on for a specific jurisdiction.
  *
  * @returns The rendered Terms of Service page.
@@ -18,14 +18,14 @@ export function TermsPage(): ReactNode {
       <ContentHeader
         eyebrow="Legal"
         title="Terms of Service"
-        lead="These terms govern your access to and use of the Acrux Core platform. By creating an account or using the service, you agree to them."
+        lead="These terms govern your access to and use of the AcruxCore platform. By creating an account or using the service, you agree to them."
         updated="July 26, 2026"
       />
       <div className="acx-prose">
         <h2>1. Agreement</h2>
         <p>
           These Terms of Service (“Terms”) are a legal agreement between you (and the team or
-          organization you represent) and Acrux Core, Inc. (“Acrux Core”). By accessing or using the
+          organization you represent) and AcruxCore, Inc. (“AcruxCore”). By accessing or using the
           hosted platform, SDKs, APIs, or website (together, the “Service”), you agree to these Terms.
           If you do not agree, do not use the Service.
         </p>
@@ -120,7 +120,7 @@ export function TermsPage(): ReactNode {
 
         <h2>13. Governing law</h2>
         <p>
-          These Terms are governed by the laws of the jurisdiction in which Acrux Core, Inc. is
+          These Terms are governed by the laws of the jurisdiction in which AcruxCore, Inc. is
           established, without regard to conflict-of-laws rules. Disputes will be resolved in the
           courts of that jurisdiction, unless applicable law requires otherwise.
         </p>

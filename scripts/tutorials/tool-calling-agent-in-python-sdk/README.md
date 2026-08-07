@@ -4,7 +4,7 @@ Runnable scripts for the [Build a tool-calling agent in Python (SDK)](https://do
 
 ## Prerequisites
 
-- An Acrux Core API key and base URL
+- An AcruxCore API key and base URL
 - The `gpt-4o-mini` model, the `query_database` tool, and the `sql-analyst-agent` prompt, all created via the tutorial's Steps 2–4
 - Python 3.9+ (`pip install acruxcore`)
 

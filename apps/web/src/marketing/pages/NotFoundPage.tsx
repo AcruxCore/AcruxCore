@@ -30,7 +30,7 @@ import { FEATURE_LIST } from '../features';
  * @returns The rendered 404 page.
  */
 export function NotFoundPage(): ReactNode {
-  useDocumentTitle('Page not found — Acrux Core');
+  useDocumentTitle('Page not found — AcruxCore');
 
   return (
     <MarketingShell>

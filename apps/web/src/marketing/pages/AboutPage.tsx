@@ -4,7 +4,7 @@ import { MarketingShell, ContentHeader } from '../MarketingShell';
 import { cssToStyle, DOCS_URL, GITHUB_URL } from '../marketing-chrome';
 
 /**
- * Public "About" marketing page describing what Acrux Core is and the principles
+ * Public "About" marketing page describing what AcruxCore is and the principles
  * behind it. Linked from the footer Company column.
  *
  * @returns The rendered About page.
@@ -14,9 +14,9 @@ export function AboutPage(): ReactNode {
     <MarketingShell>
       <ContentHeader
         eyebrow="About"
-        docTitle="About — Acrux Core"
+        docTitle="About — AcruxCore"
         title="One control plane for the whole LLM stack."
-        lead="Acrux Core is an LLM-ops platform for engineering teams — prompt versioning, an OpenAI-compatible gateway, tracing, a tool catalog, and evaluation, wired together so a fix flows from a bad answer back to a live prompt without a redeploy."
+        lead="AcruxCore is an LLM-ops platform for engineering teams — prompt versioning, an OpenAI-compatible gateway, tracing, a tool catalog, and evaluation, wired together so a fix flows from a bad answer back to a live prompt without a redeploy."
       />
       <div className="acx-prose">
         <h2>Why we built it</h2>
@@ -28,7 +28,7 @@ export function AboutPage(): ReactNode {
           half-blind.
         </p>
         <p>
-          Acrux Core closes that loop. Land on a session, open its trace, rate the span that missed,
+          AcruxCore closes that loop. Land on a session, open its trace, rate the span that missed,
           and jump to the exact prompt version behind it — edit, save, move the production alias, and
           the next run picks up the change. No redeploy, no context-switch.
         </p>
@@ -54,7 +54,7 @@ export function AboutPage(): ReactNode {
           <li>
             <strong>Open, by default.</strong> The platform is open source under the{' '}
             <a href={GITHUB_URL} target="_blank" rel="noreferrer">
-              Elastic License 2.0
+              Apache License 2.0
             </a>{' '}
             — read the code, self-host it, or send a pull request.
           </li>
@@ -62,7 +62,7 @@ export function AboutPage(): ReactNode {
 
         <h2>Built for developers</h2>
         <p>
-          Acrux Core ships first-class SDKs for both{' '}
+          AcruxCore ships first-class SDKs for both{' '}
           <Link to="/sdk#typescript">TypeScript</Link> and <Link to="/sdk#python">Python</Link>, plus a plain REST API
           for everything else. Read the{' '}
           <a href={DOCS_URL} target="_blank" rel="noreferrer">

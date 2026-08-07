@@ -1,4 +1,4 @@
-"""Leg 2 of 2: run the same get_weather agent through Acrux Core.
+"""Leg 2 of 2: run the same get_weather agent through AcruxCore.
 
 Two things move off the client compared to the LangSmith leg:
 
@@ -60,7 +60,7 @@ session.headers["Authorization"] = f"Bearer {API_KEY}"
 def register_tool() -> dict[str, Any]:
     """Define the tool here and reconcile the catalog with it, in one request.
 
-    This is the Acrux Core equivalent of writing `get_weather` in the LangSmith
+    This is the AcruxCore equivalent of writing `get_weather` in the LangSmith
     example: the whole tool — arguments, target URL, response trimming — is
     declared in `weather_tool_shared` and committed from code, so this script
     needs no prior setup.
@@ -188,4 +188,4 @@ def run_agent() -> dict[str, Any]:
 if __name__ == "__main__":
     out = run_agent()
     print(json.dumps(out, indent=2))
-    print(f"\nAcrux Core trace: {BASE_URL.replace('/api/v1', '')}/traces/{out['trace_id']}")
+    print(f"\nAcruxCore trace: {BASE_URL.replace('/api/v1', '')}/traces/{out['trace_id']}")

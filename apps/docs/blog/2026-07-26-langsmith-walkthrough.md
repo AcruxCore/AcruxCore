@@ -13,7 +13,7 @@ the same four steps we're using across every platform in this comparison: create
 prompt, run it and inspect the trace, and build a small eval dataset. This post is
 just the LangSmith leg — screenshots, actual UI, no marketing copy. The
 [main comparison post](/blog/hands-on-llm-ops-comparison) pulls the findings from
-LangSmith, Langfuse, PromptLayer, and Acrux Core together.
+LangSmith, Langfuse, PromptLayer, and AcruxCore together.
 
 <!-- truncate -->
 
@@ -191,9 +191,9 @@ in front of providers. That's a one-time setup cost, not a hard limitation:
 once a key is added, everything — live Playground runs, real traces, and full
 dataset Experiments — works as expected.
 
-## LangSmith vs Acrux Core
+## LangSmith vs AcruxCore
 
-| Feature | LangSmith | Acrux Core |
+| Feature | LangSmith | AcruxCore |
 | --- | --- | --- |
 | Framework integration | Deep LangChain/LangGraph-native instrumentation, plus a dedicated Studio for LangGraph agents | Framework-agnostic — plain REST or either published SDK, no LangChain dependency |
 | Prompt management | Git-like prompt commits with named Environments (Production/Staging) | Immutable versions with alias promotion (`production`/`staging`), no redeploy |
@@ -202,6 +202,6 @@ dataset Experiments — works as expected.
 | Evaluation | Rich, mature evaluation suite with many built-in evaluators and a Pairwise Experiments UI | Datasets built from real production feedback, not hand-authored examples |
 | Hosting & pricing | Self-hosting is an enterprise add-on | Open source and self-hostable by default |
 
-Want to see the same loop on Acrux Core? The
+Want to see the same loop on AcruxCore? The
 [Quickstart](/docs/getting-started/quickstart) gets you from sign-up to a traced,
 gateway-routed call in about ten minutes.

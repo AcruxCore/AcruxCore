@@ -1,4 +1,4 @@
-"""Async Python SDK for Acrux Core.
+"""Async Python SDK for AcruxCore.
 
 Runtime prompt render, gateway chat (with streaming), client-side tool loops,
 trace reporting, and feedback — full parity with the TypeScript SDK.

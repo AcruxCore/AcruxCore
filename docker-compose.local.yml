@@ -1,0 +1,143 @@
+# AcruxCore — local, one-command self-host.
+#
+# Everything the stack needs is IN this file: Postgres, Redis, the API, the
+# worker, and the web app. The whole setup:
+#
+#   1. cp .env.local.example .env
+#   2. docker compose -f docker-compose.local.yml up --build
+#
+#   Web: http://localhost:8080     API: http://localhost:3001/api/v1
+#
+# This is the fast/local counterpart to docker-compose.yml, which is the
+# production shape (your own Postgres, your own external network, real
+# secrets you generate). Every value below already has a fixed, committed,
+# INSECURE fallback baked in via `${VAR:-default}` — fine for trying Acrux
+# Core on your own machine, never for an install reachable from anywhere
+# else — so step 1 above is optional; skipping it still boots.
+#
+# NODE_ENV is deliberately NOT `production` here (it overrides the image's own
+# default). That is what makes BETTER_AUTH_SECRET and EMAIL_UNSUBSCRIBE_SECRET
+# optional — both fall back to a per-process random value outside production
+# — so this file only has to carry the one secret that has no such fallback:
+# GATEWAY_ENCRYPTION_KEY, which the API refuses to boot without in any
+# environment.
+#
+# EMAIL_TRANSPORT=none turns email off outright rather than pointing it at a
+# fake SMTP server: accounts are created already verified, and
+# AUTH_ALLOW_FIRST_RUN_CLAIM logs a one-time claim link for the first account
+# in `docker compose -f docker-compose.local.yml logs api` on first boot.
+#
+# The API applies pending Prisma migrations against the bundled Postgres on
+# every boot, same as the production file.
+#
+# Stop with:              docker compose -f docker-compose.local.yml down
+# Stop and wipe the DB:   docker compose -f docker-compose.local.yml down -v
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: acruxcore-local-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: acruxcore
+      POSTGRES_PASSWORD: acruxcore
+      POSTGRES_DB: acruxcore
+    volumes:
+      - acruxcore-local-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U acruxcore"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - acruxcore-local
+
+  redis:
+    image: redis:7-alpine
+    container_name: acruxcore-local-redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - acruxcore-local
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    container_name: acruxcore-local-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://acruxcore:acruxcore@postgres:5432/acruxcore
+      DIRECT_URL: postgresql://acruxcore:acruxcore@postgres:5432/acruxcore
+      REDIS_URL: redis://redis:6379
+      # AES-256 master key for provider-credential encryption — the one secret
+      # with no non-production fallback, so it must be set even here. Fixed on
+      # purpose: rotating it makes every stored provider credential
+      # undecryptable, which is pointless churn for a local trial.
+      GATEWAY_ENCRYPTION_KEY: ${GATEWAY_ENCRYPTION_KEY:-8+OYoRbp4QqUOmyEVqhXt5xBpkxhYCYGANO6tJVlubI=}
+      EMAIL_TRANSPORT: none
+      AUTH_REQUIRE_EMAIL_VERIFICATION: 'false'
+      AUTH_ALLOW_FIRST_RUN_CLAIM: 'true'
+      APP_URL: http://localhost:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - '3001:3001'
+    networks:
+      - acruxcore-local
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker
+    container_name: acruxcore-local-worker
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://acruxcore:acruxcore@postgres:5432/acruxcore
+      DIRECT_URL: postgresql://acruxcore:acruxcore@postgres:5432/acruxcore
+      REDIS_URL: redis://redis:6379
+      GATEWAY_ENCRYPTION_KEY: ${GATEWAY_ENCRYPTION_KEY:-8+OYoRbp4QqUOmyEVqhXt5xBpkxhYCYGANO6tJVlubI=}
+      EMAIL_TRANSPORT: none
+      APP_URL: http://localhost:8080
+      DIGEST_ENABLED: 'false'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    networks:
+      - acruxcore-local
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: web
+    container_name: acruxcore-local-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - '8080:80'
+    networks:
+      - acruxcore-local
+
+networks:
+  acruxcore-local:
+
+volumes:
+  acruxcore-local-pgdata:

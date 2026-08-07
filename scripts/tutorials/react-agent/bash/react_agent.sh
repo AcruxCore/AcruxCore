@@ -3,10 +3,10 @@
 # no SDK — plain curl and jq.
 #
 # Flow:
-#   1. render  — POST /prompts/react-agent-finance/production/render (Acrux Core)
+#   1. render  — POST /prompts/react-agent-finance/production/render (AcruxCore)
 #                -> {messages, tools, versionId}
 #   2. loop    — POST https://api.openai.com/v1/chat/completions DIRECTLY (never
-#                through Acrux Core's gateway). Because no gateway sees this call,
+#                through AcruxCore's gateway). Because no gateway sees this call,
 #                WE report the llm span ourselves: POST /traces after every turn
 #                (kind: llm, model, provider: the OpenAI host, usage, promptVersionId).
 #                When the model asks for a tool, we run it locally, report a `tool`
@@ -21,7 +21,7 @@
 set -euo pipefail
 
 QUESTION="${1:-Is there any recent news on AAPL, and is today a weekday?}"
-OPENAI_BASE_URL="https://api.openai.com/v1"   # BYO: called directly, never through Acrux Core
+OPENAI_BASE_URL="https://api.openai.com/v1"   # BYO: called directly, never through AcruxCore
 MODEL="gpt-4o-mini"
 TRACE_ID=$(python3 -c "import uuid; print(uuid.uuid4())")  # BYO: mint our own, no gateway trace to adopt
 
@@ -69,7 +69,7 @@ run_tool() {
   esac
 }
 
-# ── Acrux Core: render + manual trace reporting ──────────────────────────────
+# ── AcruxCore: render + manual trace reporting ──────────────────────────────
 
 render_prompt() {
   curl -s -X POST "$ACRUXCORE_BASE_URL/prompts/react-agent-finance/production/render" \

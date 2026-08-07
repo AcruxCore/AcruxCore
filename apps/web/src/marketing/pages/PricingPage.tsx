@@ -19,7 +19,7 @@ interface Plan {
   name: string;
   /** The headline figure or its honest stand-in. */
   price: string;
-  /** Qualifier under the price, e.g. "while Acrux Core is in beta". */
+  /** Qualifier under the price, e.g. "while AcruxCore is in beta". */
   priceNote: string;
   blurb: string;
   features: string[];
@@ -39,7 +39,7 @@ const PLANS: Plan[] = [
   {
     name: 'Beta',
     price: 'Free',
-    priceNote: 'while Acrux Core is in beta',
+    priceNote: 'while AcruxCore is in beta',
     blurb: 'The whole platform, unlocked. You connect your own provider keys, so the only model spend is the one you already have.',
     features: [
       'Prompts, gateway, tracing, tools, and evaluation',
@@ -55,12 +55,12 @@ const PLANS: Plan[] = [
     name: 'Self-hosted',
     price: 'Your infra',
     priceNote: 'clone the public repo, run it yourself',
-    blurb: 'Acrux Core is open source under the Elastic License 2.0 — clone the repo and run the API, gateway, and dashboard against your own database. No sales call required.',
+    blurb: 'AcruxCore is open source under the Apache License 2.0 — clone the repo and run the API, gateway, and dashboard against your own database. No sales call required.',
     features: [
       'Everything in Beta, on your infrastructure',
       'Your database, your keys, your network',
       'No trace or prompt data leaves your estate',
-      'Public source, Elastic License 2.0 — self-hosting guide in the README',
+      'Apache License 2.0, nothing gated — self-hosting guide in the README',
     ],
     cta: { label: 'View on GitHub', href: GITHUB_URL },
   },
@@ -85,7 +85,7 @@ const FAQ: { q: string; a: ReactNode }[] = [
     q: 'What does it cost right now?',
     a: (
       <>
-        Nothing. Acrux Core is in beta and the hosted platform is free to use, with no credit card at sign-up. You still
+        Nothing. AcruxCore is in beta and the hosted platform is free to use, with no credit card at sign-up. You still
         pay your model providers directly for the tokens you spend.
       </>
     ),
@@ -133,9 +133,9 @@ const FAQ: { q: string; a: ReactNode }[] = [
     q: 'Can I self-host without talking to sales first?',
     a: (
       <>
-        Yes. Acrux Core is open source under the{' '}
+        Yes. AcruxCore is open source under the{' '}
         <a href={GITHUB_URL} target="_blank" rel="noreferrer">
-          Elastic License 2.0
+          Apache License 2.0
         </a>{' '}
         — clone the repo and follow the README to run the whole stack against your own database. Contact us only if you
         want help with the deployment or a support agreement on top of it.
@@ -152,7 +152,7 @@ const FAQ: { q: string; a: ReactNode }[] = [
  * @returns The rendered Pricing page.
  */
 export function PricingPage(): ReactNode {
-  useDocumentTitle('Pricing — Acrux Core');
+  useDocumentTitle('Pricing — AcruxCore');
 
   return (
     <MarketingShell wide>

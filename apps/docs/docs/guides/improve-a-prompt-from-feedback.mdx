@@ -35,7 +35,7 @@ letting the customer's *tone* set the priority, because tone was the only signal
 given. No schema check finds that, and no exception fires.
 
 :::info[Requires the worker]
-Optimize runs are processed **asynchronously** by the Acrux Core worker. The call below
+Optimize runs are processed **asynchronously** by the AcruxCore worker. The call below
 returns `202 queued` and the worker does the drafting, the model calls and the scoring in the
 background. If a run sits at `queued`, the worker is not running or cannot reach Redis.
 :::
@@ -92,7 +92,7 @@ otherwise — pick `staging` or another alias instead if you want the comparison
 something other than what's currently live.
 
 If the dataset has examples captured from a *different* prompt than the one you're targeting
-here, Acrux Core doesn't stop you — it starts the run anyway and shows a warning next to the
+here, AcruxCore doesn't stop you — it starts the run anyway and shows a warning next to the
 result, since a mismatch usually just means the comment was written against a different
 prompt's output and the scoring may not be apples-to-apples.
 
@@ -220,7 +220,7 @@ Poll `GET /runs/<run-id>` until it leaves `running`, then open **Evaluations →
 
 **What you should see:** one row per candidate *plus* a baseline row — labeled `production` by
 default, or whichever alias you picked, or `vN` when the prompt has no alias to fall back on —
-each scored over every example in the dataset. Acrux Core always adds that baseline cell, so
+each scored over every example in the dataset. AcruxCore always adds that baseline cell, so
 the comparison is against a real version rather than against nothing.
 
 ![Run report leaderboard with candidates ranked above and below the production baseline](/img/tutorials/feedback-optimize-loop/03-run-report.png)

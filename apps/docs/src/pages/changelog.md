@@ -1,12 +1,12 @@
 ---
 title: Changelog
-description: What shipped in Acrux Core each week — new endpoints, SDK releases, dashboard changes, fixes, and new guides.
+description: What shipped in AcruxCore each week — new endpoints, SDK releases, dashboard changes, fixes, and new guides.
 hide_table_of_contents: false
 ---
 
 # Changelog
 
-What shipped, a week at a time. Acrux Core deploys continuously, so these are weekly
+What shipped, a week at a time. AcruxCore deploys continuously, so these are weekly
 summaries rather than numbered releases — the SDKs are the exception and follow semver.
 
 Each **major** change gets its own heading and up to three bullets, one line each. **Minor**
@@ -17,7 +17,7 @@ The two SDKs keep their own release notes, including migration steps for breakin
 `acruxcore` on [PyPI](https://pypi.org/project/acruxcore/).
 
 :::note[Beta]
-Acrux Core is in beta and pre-1.0. Breaking changes still happen; when one does, it is
+AcruxCore is in beta and pre-1.0. Breaking changes still happen; when one does, it is
 called out in the week it ships and in the SDK release notes.
 :::
 
@@ -26,6 +26,12 @@ called out in the week it ships and in the SDK release notes.
 ## Week of 5 August 2026
 
 ### Major
+
+#### Apache License 2.0
+
+- Permissive, OSI-approved, with nothing gated.
+- Fork it, self-host it, or sell what you build; the AcruxCore name and logo stay trademarked.
+- `@acruxcoreai/sdk` and `acruxcore` ship under the MIT license.
 
 #### SDK 0.7.0 — Resource-based namespace pattern
 
@@ -38,10 +44,17 @@ called out in the week it ships and in the SDK release notes.
 - `hub.datasets`, `hub.experiments`, `hub.runs`, and `hub.optimize` expose 19 methods for the full evaluations domain.
 - Create datasets, run experiments, poll results, read reports, and promote optimizer candidates without leaving your code.
 
+#### One-command local self-host
+
+- New `docker-compose.local.yml` bundles Postgres, Redis, API, worker and web in one file.
+- `docker compose -f docker-compose.local.yml up --build` — no `.env` to fill in first.
+
 ### Minor
 
 - **New guide** — [Product tour](/docs/getting-started/product-tour): tools, streaming, traces, feedback, and evaluation in one walkthrough.
 - **Fixed** — rendering a prompt with a `{% for %}` loop no longer wrongly demands the loop variable as an input.
+- `/compare` pages now show AcruxCore's real one-command Docker self-host.
+- `/compare`'s Self-hosting row now reads "docker compose up" for every column, matching the identical command.
 
 ---
 
@@ -60,7 +73,7 @@ called out in the week it ships and in the SDK release notes.
 - `chat()` and the tool loop now accept `tags`/`metadata` in trace options, sent as gateway headers.
 - Both SDK packages now link back to the public [GitHub repo](https://github.com/AcruxCore/AcruxCore).
 
-#### Acrux Core is now open source
+#### AcruxCore is now open source
 
 - Source is public at [github.com/AcruxCore/AcruxCore](https://github.com/AcruxCore/AcruxCore).
 - Licensed under [Elastic License 2.0](https://www.elastic.co/licensing/elastic-license); `packages/sdk` and `packages/sdk-python` stay MIT.
@@ -202,7 +215,7 @@ called out in the week it ships and in the SDK release notes.
 - **A product demo** plays on the home page.
 - **The home page's code panel** switches between TypeScript and Python, with a tab to pin one.
 - **New writing** — a [hands-on comparison](/blog) of LangSmith, Langfuse, PromptLayer and
-  Acrux Core.
+  AcruxCore.
 - **Re-measured** — [how much overhead an LLM gateway adds](/blog/llm-gateway-overhead) now
   benchmarks five paths including bring-your-own-key, on one fresh run.
 - **A real logo** — a crescent and compass rose, across the site, docs, browser tab and previews.

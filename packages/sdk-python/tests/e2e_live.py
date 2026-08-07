@@ -1,4 +1,4 @@
-"""Live end-to-end test of the Acrux Core Python SDK.
+"""Live end-to-end test of the AcruxCore Python SDK.
 
 Runs against a real local API (apps/api on :3001) and real OpenRouter LLM calls.
 Exercises every public method: render_prompt (+cache), chat, streaming chat,

@@ -1,4 +1,4 @@
-"""Type definitions for the Acrux Core SDK.
+"""Type definitions for the AcruxCore SDK.
 
 Wire-facing structures you *pass in* (messages, tool definitions, spans) are
 ``TypedDict``\\s — plain dicts at runtime, so they serialize straight to JSON.

@@ -1,5 +1,5 @@
 """
-Create the four supervisor tools in the Acrux Core catalog via @acrux.tool + tools.sync().
+Create the four supervisor tools in the AcruxCore catalog via @acrux.tool + tools.sync().
 
 Run once before supervisor_flow.py.  Requires:
   pip install acruxcore langchain_community tavily-python yfinance

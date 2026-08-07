@@ -11,6 +11,7 @@ import { TermsPage } from './pages/TermsPage';
 import { PricingPage } from './pages/PricingPage';
 import { SdkPage } from './pages/SdkPage';
 import { FeaturePage } from './pages/FeaturePage';
+import { ComparePage } from './pages/ComparePage';
 import { FEATURE_LIST } from './features';
 
 /** A public marketing route baked to static HTML at build time. */
@@ -41,69 +42,69 @@ export const ROUTES: PrerenderRoute[] = [
   {
     path: '/',
     out: 'index.html',
-    title: 'Acrux Core — LLM-ops platform for engineering teams',
+    title: 'AcruxCore — LLM-ops platform for engineering teams',
     description:
-      'Acrux Core is an LLM-ops platform for engineering teams: version prompts, route LLM calls through an OpenAI-compatible gateway, trace every request, catalog tools, and evaluate quality — one platform, no redeploy to change a prompt.',
+      'AcruxCore is an LLM-ops platform for engineering teams: version prompts, route LLM calls through an OpenAI-compatible gateway, trace every request, catalog tools, and evaluate quality — one platform, no redeploy to change a prompt.',
     component: LandingPage,
   },
   {
     path: '/about',
     out: 'about/index.html',
-    title: 'About — Acrux Core',
+    title: 'About — AcruxCore',
     description:
-      'Acrux Core is one control plane for the whole LLM stack: prompt versioning, an OpenAI-compatible gateway, tracing, a tool catalog, and evaluation — with first-class TypeScript and Python SDKs.',
+      'AcruxCore is one control plane for the whole LLM stack: prompt versioning, an OpenAI-compatible gateway, tracing, a tool catalog, and evaluation — with first-class TypeScript and Python SDKs.',
     component: AboutPage,
   },
   {
     path: '/contact',
     out: 'contact/index.html',
-    title: 'Contact — Acrux Core',
+    title: 'Contact — AcruxCore',
     description:
-      'Get in touch with the Acrux Core team about the platform, self-hosting, pricing, or security reports.',
+      'Get in touch with the AcruxCore team about the platform, self-hosting, pricing, or security reports.',
     component: ContactPage,
   },
   {
     path: '/careers',
     out: 'careers/index.html',
-    title: 'Careers — Acrux Core',
-    description: 'Open roles at Acrux Core, an LLM-ops platform for engineering teams.',
+    title: 'Careers — AcruxCore',
+    description: 'Open roles at AcruxCore, an LLM-ops platform for engineering teams.',
     component: CareersPage,
   },
   {
     path: '/security',
     out: 'security/index.html',
-    title: 'Security — Acrux Core',
+    title: 'Security — AcruxCore',
     description:
-      'How Acrux Core protects your provider keys, prompts, and trace data: team isolation, encryption, payload-capture controls, self-hosting, and responsible disclosure.',
+      'How AcruxCore protects your provider keys, prompts, and trace data: team isolation, encryption, payload-capture controls, self-hosting, and responsible disclosure.',
     component: SecurityPage,
   },
   {
     path: '/privacy',
     out: 'privacy/index.html',
-    title: 'Privacy Policy — Acrux Core',
+    title: 'Privacy Policy — AcruxCore',
     description:
-      'What information Acrux Core collects, how we use it, and the choices you have across the hosted platform and website.',
+      'What information AcruxCore collects, how we use it, and the choices you have across the hosted platform and website.',
     component: PrivacyPage,
   },
   {
     path: '/terms',
     out: 'terms/index.html',
-    title: 'Terms of Service — Acrux Core',
-    description: 'The terms that govern your access to and use of the Acrux Core platform, SDKs, APIs, and website.',
+    title: 'Terms of Service — AcruxCore',
+    description: 'The terms that govern your access to and use of the AcruxCore platform, SDKs, APIs, and website.',
     component: TermsPage,
   },
   {
     path: '/pricing',
     out: 'pricing/index.html',
-    title: 'Pricing — Acrux Core',
+    title: 'Pricing — AcruxCore',
     description:
-      'Acrux Core is free while in beta: the whole platform, with your own provider keys and no token markup. Self-hosted and enterprise options on request.',
+      'AcruxCore is free while in beta: the whole platform, with your own provider keys and no token markup. Self-hosted and enterprise options on request.',
     component: PricingPage,
   },
   {
     path: '/sdk',
     out: 'sdk/index.html',
-    title: 'TypeScript & Python SDKs — Acrux Core',
+    title: 'TypeScript & Python SDKs — AcruxCore',
     description:
       'One client for prompts, the gateway, and tracing, with the same surface in TypeScript and Python: cached prompt rendering, OpenAI-compatible chat, single-trace tool loops, and feedback.',
     component: SdkPage,
@@ -117,6 +118,14 @@ export const ROUTES: PrerenderRoute[] = [
     description: feature.metaDescription,
     component: () => <FeaturePage feature={feature} />,
   })),
+  {
+    path: '/compare',
+    out: 'compare/index.html',
+    title: 'Compare AcruxCore to Langfuse, Phoenix, Opik & Helicone',
+    description:
+      'License, self-hosting, pricing, team structure, security, and community stats for AcruxCore next to Langfuse, Phoenix, Opik, and Helicone — every fact sourced and dated.',
+    component: ComparePage,
+  },
 ];
 
 /**

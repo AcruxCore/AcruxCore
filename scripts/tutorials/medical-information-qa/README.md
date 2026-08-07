@@ -4,7 +4,7 @@ Runnable scripts for the [Build a Medical-Information QA Agent](https://docs.acr
 
 ## Prerequisites
 
-- An Acrux Core API key and base URL (see the tutorial's Step 2)
+- An AcruxCore API key and base URL (see the tutorial's Step 2)
 - The `medical-information-qa` prompt created in the dashboard
 - The four tools synced via `create_tools.py` (see Step 3)
 

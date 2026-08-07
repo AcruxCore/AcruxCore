@@ -10,7 +10,7 @@
  *   openai_direct    raw HTTPS POST to api.openai.com                  (baseline)
  *   byo_sdk_notrace  SDK chat({provider, trace:false}) -> OpenAI       (SDK cost)
  *   byo_sdk          SDK chat({provider})  -> OpenAI, tracing on       (BYO real)
- *   gateway_local    raw POST to a local production-build Acrux Core   (software)
+ *   gateway_local    raw POST to a local production-build AcruxCore   (software)
  *   gateway_hosted   raw POST to api.acruxcore.com                    (real world)
  *
  * Env vars: OPENAI_API_KEY, ACX_HOSTED_KEY, ACX_LOCAL_KEY, and optionally

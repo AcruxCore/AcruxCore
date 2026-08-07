@@ -1,4 +1,4 @@
-"""Interleaved latency benchmark backing "Langfuse vs Acrux Core" (aspect 8).
+"""Interleaved latency benchmark backing "Langfuse vs AcruxCore" (aspect 8).
 
 Same fixed prompt/model call ("Reply with the single word: pong.",
 openai/gpt-4o-mini via OpenRouter) measured three ways:
@@ -6,7 +6,7 @@ openai/gpt-4o-mini via OpenRouter) measured three ways:
   provider_direct   raw HTTPS POST to openrouter.ai/api/v1                (baseline)
   langfuse_otel     langfuse.openai-wrapped OpenAI client -> OpenRouter   (client-side
                     instrumentation cost)
-  acx_gateway       raw POST to a local Acrux Core gateway                (extra hop)
+  acx_gateway       raw POST to a local AcruxCore gateway                (extra hop)
 
 Every path ends at the same upstream, same key, same body, so the model's own think
 time is a shared constant and whatever is left over is the path. Rounds run in a
@@ -78,7 +78,7 @@ def acx_gateway():
 PATHS = [
     {"key": "provider_direct", "label": "OpenRouter direct", "run": provider_direct},
     {"key": "langfuse_otel", "label": "Langfuse OTel SDK", "run": langfuse_otel},
-    {"key": "acx_gateway", "label": "Acrux Core gateway", "run": acx_gateway},
+    {"key": "acx_gateway", "label": "AcruxCore gateway", "run": acx_gateway},
 ]
 
 samples = {p["key"]: [] for p in PATHS}

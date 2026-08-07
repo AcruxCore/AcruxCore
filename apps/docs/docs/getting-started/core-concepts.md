@@ -1,13 +1,13 @@
 ---
 title: Core concepts
-description: The mental model behind Acrux Core — prompt versions and aliases, gateway model resolution, traces and spans, the tool catalog and its executors, and evaluation.
+description: The mental model behind AcruxCore — prompt versions and aliases, gateway model resolution, traces and spans, the tool catalog and its executors, and evaluation.
 sidebar_position: 4
 keywords: [prompt versioning, prompt alias, ai gateway, llm trace span, tool calling, tool catalog, acrux.tool, llm evaluation]
 ---
 
 # Core concepts
 
-A short tour of the ideas you'll meet everywhere in Acrux Core.
+A short tour of the ideas you'll meet everywhere in AcruxCore.
 
 ## Prompts, versions, and aliases
 
@@ -66,7 +66,7 @@ and a JSON Schema for its arguments.
 
 ### The function is the definition
 
-Declare a tool where its code already lives, and Acrux Core derives the rest of it:
+Declare a tool where its code already lives, and AcruxCore derives the rest of it:
 
 ```python
 @acrux.tool

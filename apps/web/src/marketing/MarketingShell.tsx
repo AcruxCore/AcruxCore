@@ -48,7 +48,7 @@ export function MarketingShell({ children, wide = false }: { children: ReactNode
  * Standard header block for a content page: an eyebrow, an `<h1>` title, an
  * optional lead paragraph, and an optional "Last updated" line for legal pages.
  *
- * Also sets the browser tab title to `"{title} — Acrux Core"` (override with
+ * Also sets the browser tab title to `"{title} — AcruxCore"` (override with
  * `docTitle`) so client-side navigation between marketing pages keeps the tab
  * accurate; the prerendered HTML already carries the correct title on first load.
  *
@@ -72,7 +72,7 @@ export function ContentHeader({
   updated?: string;
   docTitle?: string;
 }): ReactNode {
-  useDocumentTitle(docTitle ?? `${title} — Acrux Core`);
+  useDocumentTitle(docTitle ?? `${title} — AcruxCore`);
   return (
     <header style={cssToStyle('padding:clamp(48px,8vw,88px) 0 clamp(24px,4vw,40px);border-bottom:1px solid var(--line-soft);margin-bottom:clamp(32px,5vw,48px);')}>
       <Eyebrow>{eyebrow}</Eyebrow>

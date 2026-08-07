@@ -5,7 +5,7 @@ slug: llm-gateway-overhead
 authors: [acrux]
 tags: [gateway, performance, llm-ops, byok]
 image: /img/social-card.png
-keywords: [llm gateway latency, ai gateway overhead, openai proxy latency, byok latency, acrux core gateway, llm ops performance]
+keywords: [llm gateway latency, ai gateway overhead, openai proxy latency, byok latency, AcruxCore gateway, llm ops performance]
 ---
 
 Putting a gateway in front of your model providers buys you a lot: one endpoint
@@ -44,8 +44,8 @@ The five paths:
 2. **BYO, tracing off** — the SDK's `hub.gateway.chat()` with a `provider` config, which posts
    to OpenAI directly and skips our gateway, with auto-tracing switched off.
 3. **BYO, tracing on** — the same call with the SDK's *default* tracing, which
-   reports a trace to Acrux Core after the model answers.
-4. **Local gateway** — the same call through an Acrux Core gateway running on the
+   reports a trace to AcruxCore after the model answers.
+4. **Local gateway** — the same call through an AcruxCore gateway running on the
    test machine, which forwards to OpenAI.
 5. **Hosted gateway** — the same call through our hosted gateway at
    `api.acruxcore.com`, which forwards to OpenAI.

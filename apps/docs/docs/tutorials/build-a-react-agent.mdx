@@ -12,7 +12,7 @@ import TabItem from '@theme/TabItem';
 
 **What you'll build:** a finance research assistant that looks up stock news and today's date on its own, then answers in plain language — traced end-to-end, but calling OpenAI directly (no gateway).
 
-This tutorial uses the **BYO (bring your own key)** path: model calls go straight to OpenAI with your own key, while Acrux Core still stores the prompt, tool catalog, and traces. Two **client tools** — `finance_research(ticker_symbol)` and `get_todays_date()` — are catalogued in Acrux Core but run by your own code.
+This tutorial uses the **BYO (bring your own key)** path: model calls go straight to OpenAI with your own key, while AcruxCore still stores the prompt, tool catalog, and traces. Two **client tools** — `finance_research(ticker_symbol)` and `get_todays_date()` — are catalogued in AcruxCore but run by your own code.
 
 :::note[What you'll need]
 An [OpenAI](https://platform.openai.com/api-keys) API key (this page calls OpenAI directly, so it needs a real one — no OpenRouter substitute here) and, for the Python tab, `pip install langchain-community yfinance`.
@@ -339,15 +339,15 @@ That `tools` array is already OpenAI's exact `tools[].function` shape — nothin
 
 There's no SDK call that does this loop for you here — `runToolLoop()` only exists for the gateway and BYO-via-SDK paths. On this page every tab drives the loop by hand:
 
-1. **Render** the prompt (Acrux Core) — one call, gets you messages + tool schemas + the version id.
-2. **Complete** — `POST https://api.openai.com/v1/chat/completions`, straight to OpenAI, with your own key. Never through Acrux Core.
+1. **Render** the prompt (AcruxCore) — one call, gets you messages + tool schemas + the version id.
+2. **Complete** — `POST https://api.openai.com/v1/chat/completions`, straight to OpenAI, with your own key. Never through AcruxCore.
 3. **Report the `llm` span yourself** — because no gateway saw that call, nothing records it unless you do. `POST /traces` with `kind: "llm"`, the model, `provider: "api.openai.com"` (the host you actually called), and the token usage OpenAI returned.
 4. **If the model asked for a tool**, run it locally, report a `kind: "tool"` span onto the *same* trace, feed the result back as a `role: "tool"` message, and go back to step 2.
 5. **Once the model stops asking for tools**, print its answer.
 
 This is exactly what the SDK's `chat()` does automatically on the BYO path — pass a
 `provider: { apiKey, baseUrl }` option (per-call, or once on the client) instead of routing
-through Acrux Core's gateway, and the SDK calls that provider directly, mints a fresh trace
+through AcruxCore's gateway, and the SDK calls that provider directly, mints a fresh trace
 id locally, and reports one `llm` span per round with `costUsd` always empty since the
 gateway never saw the call. See [Build a RAG agent without the
 gateway](./build-a-rag-agent-without-the-gateway) for a full worked example of that option.

@@ -30,7 +30,7 @@ Here's the full flow:
    the alias changed.
 
 An **alias** is a named pointer at a specific version — `production` and `staging`
-are the two Acrux Core creates for you automatically, but an alias is just a string,
+are the two AcruxCore creates for you automatically, but an alias is just a string,
 not a fixed enum. Nothing stops you from pointing others at whatever versions you
 want: `quick`, `deep`, a customer id, a region. Swapping which alias your code
 renders is the entire configuration mechanism: no redeploy, no code change, not even
@@ -66,13 +66,13 @@ async def basic_research(query: str):
 
 Both configurations are one real call to Tavily's REST API
 (`https://api.tavily.com/search`) with different parameters. Run them standalone
-first, before any of this touches Acrux Core, to see the two depths visibly
+first, before any of this touches AcruxCore, to see the two depths visibly
 differ:
 
 ```bash
 curl -s -X POST https://api.tavily.com/search \
   -H "Content-Type: application/json" \
-  -d '{"api_key":"'"$TAVILY_API_KEY"'","query":"Acrux Core LLM gateway pricing","search_depth":"advanced","max_results":10}' \
+  -d '{"api_key":"'"$TAVILY_API_KEY"'","query":"AcruxCore LLM gateway pricing","search_depth":"advanced","max_results":10}' \
   | python3 -c "import json,sys; d=json.load(sys.stdin); print('results:', len(d['results'])); print('images:', len(d.get('images', [])))"
 ```
 
@@ -108,7 +108,7 @@ the same kind of call, confirmed when building the Node tab below.
 
 ## 2. Get an API key
 
-The scripts below need one Acrux Core key to create the prompt and tool, render
+The scripts below need one AcruxCore key to create the prompt and tool, render
 each alias, and run the loop. Open **Account & keys → New key**, name it something
 like `configurable-react-agent`, and copy the value — it's shown once.
 
@@ -176,7 +176,7 @@ yet.
 An **alias** is a named pointer at a specific version. When your code calls
 `render_prompt("web-research-agent", "quick")`, the platform looks up which
 version `quick` points at, and returns that version's model, system prompt, and
-tools. `production` and `staging` are the two aliases Acrux Core creates
+tools. `production` and `staging` are the two aliases AcruxCore creates
 automatically on the first version — but an alias is just a string, not a fixed
 enum. You can create any name you want.
 

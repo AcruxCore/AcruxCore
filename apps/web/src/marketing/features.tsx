@@ -262,7 +262,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
     eyebrow: 'Prompt management',
     title: 'Prompts are versioned data, not code.',
     lead: 'Store every prompt as an immutable, templated message set. Move the production alias to a new version and the next call picks it up — no redeploy, no release, no code change.',
-    metaTitle: 'Prompt management & versioning — Acrux Core',
+    metaTitle: 'Prompt management & versioning — AcruxCore',
     metaDescription:
       'Store prompts as immutable, templated versions with named aliases. Promote production to a new version without a redeploy, diff any two versions, and read the full audit trail.',
     icon: (
@@ -316,8 +316,8 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
       'One OpenAI-compatible endpoint in front of every provider. Bring your own keys; get routing, cost, and caching.',
     eyebrow: 'AI gateway',
     title: 'One endpoint in front of every provider.',
-    lead: 'Point your existing OpenAI client at the gateway and keep your code. Acrux Core resolves the provider, calls it with your key, prices the result, and records the request — streaming included.',
-    metaTitle: 'OpenAI-compatible AI gateway — Acrux Core',
+    lead: 'Point your existing OpenAI client at the gateway and keep your code. AcruxCore resolves the provider, calls it with your key, prices the result, and records the request — streaming included.',
+    metaTitle: 'OpenAI-compatible AI gateway — AcruxCore',
     metaDescription:
       'A drop-in OpenAI-compatible gateway in front of OpenAI, Anthropic, Gemini, and any compatible provider. Bring your own keys, issue scoped virtual keys, cap spend with budgets, and get cost on every response.',
     icon: (
@@ -371,7 +371,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
     eyebrow: 'Tracing & observability',
     title: 'Every call is a trace you can open.',
     lead: 'The gateway records each request as a trace with spans for model, tokens, latency, and cost. There is nothing to instrument — it is already on by the time your first call lands.',
-    metaTitle: 'LLM tracing & observability — Acrux Core',
+    metaTitle: 'LLM tracing & observability — AcruxCore',
     metaDescription:
       'Every gateway call becomes a trace with spans for model, tokens, latency, and cost. Group traces into sessions, attach human feedback to any span, and control payload capture per team.',
     icon: (
@@ -424,7 +424,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
     eyebrow: 'Tool catalog',
     title: 'Tools, versioned like prompts.',
     lead: 'Define a callable function once, version it, and attach it to a prompt. Rendering that prompt hands the model its tools — and you choose whether the call runs in your process or server-side over HTTP.',
-    metaTitle: 'Tool catalog for LLM function calling — Acrux Core',
+    metaTitle: 'Tool catalog for LLM function calling — AcruxCore',
     metaDescription:
       'Version tool definitions the same way as prompts, attach them to a prompt so render returns both, and execute them either in your own process or server-side over HTTP with recorded analytics.',
     icon: (
@@ -475,7 +475,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
     eyebrow: 'Evaluation',
     title: 'Prove the new prompt is actually better.',
     lead: 'Build a dataset out of the traces and feedback you already have, sweep it across prompt versions and models, and read the results cell by cell — before you move the production alias.',
-    metaTitle: 'LLM evaluation & experiments — Acrux Core',
+    metaTitle: 'LLM evaluation & experiments — AcruxCore',
     metaDescription:
       'Build evaluation datasets from real traces and feedback, sweep them across prompt versions and models as experiments, and read per-cell results before promoting a prompt to production.',
     icon: (

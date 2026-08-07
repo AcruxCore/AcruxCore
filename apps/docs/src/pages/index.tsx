@@ -150,7 +150,7 @@ function Hero(): ReactNode {
             <span>Open source</span>
           </div>
           <Heading as="h1">
-            Build on <span className="accent">Acrux Core.</span>
+            Build on <span className="accent">AcruxCore.</span>
           </Heading>
           <p className="heroTagline">
             Guides, core concepts, and a complete API reference — from your first
@@ -227,7 +227,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title={`${siteConfig.title} documentation`}
-      description="Guides, core concepts, and a complete API reference for Acrux Core — version prompts, route LLM calls through a gateway, trace every request, catalog tools, and evaluate quality.">
+      description="Guides, core concepts, and a complete API reference for AcruxCore — version prompts, route LLM calls through a gateway, trace every request, catalog tools, and evaluate quality.">
       <div className="docLanding">
         <Hero />
         <main>

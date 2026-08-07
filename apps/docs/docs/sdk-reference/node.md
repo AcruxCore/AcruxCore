@@ -1,12 +1,12 @@
 ---
 title: Node SDK reference
-description: Every method and parameter in @acruxcoreai/sdk, the Node/TypeScript SDK for Acrux Core — render, chat, tool loops, tracing, feedback, and the tool catalog.
-keywords: [node sdk, typescript sdk, acrux core sdk, llm sdk typescript]
+description: Every method and parameter in @acruxcoreai/sdk, the Node/TypeScript SDK for AcruxCore — render, chat, tool loops, tracing, feedback, and the tool catalog.
+keywords: [node sdk, typescript sdk, AcruxCore sdk, llm sdk typescript]
 ---
 
 # Node SDK reference
 
-`@acruxcoreai/sdk` is the Node/TypeScript SDK for Acrux Core. It renders stored
+`@acruxcoreai/sdk` is the Node/TypeScript SDK for AcruxCore. It renders stored
 prompts, calls the gateway (with streaming, tools, and structured output), runs
 the tool-calling loop, reports and reads traces, and manages the tool catalog.
 Every method below has a 1:1 Python counterpart in
@@ -313,7 +313,7 @@ Throws `MISSING_DISPATCH` before the first model call if a tool has no runner.
 
 ## `traces.ingest(input)`
 
-Report a trace (a group of spans) to Acrux Core. A single-trace convenience over
+Report a trace (a group of spans) to AcruxCore. A single-trace convenience over
 the batch endpoint — omit `traceId` to mint a new trace, pass one to append.
 
 ```typescript
@@ -738,7 +738,7 @@ matters.
 
 Route a call directly to your own OpenAI-compatible endpoint instead of the
 gateway — the hop and its latency are skipped, and `apiKey` is sent only to
-`baseUrl`, never to Acrux Core.
+`baseUrl`, never to AcruxCore.
 
 ```typescript
 const hub = new AcruxCore({

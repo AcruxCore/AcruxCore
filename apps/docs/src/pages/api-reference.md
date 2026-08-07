@@ -1,12 +1,12 @@
 ---
 title: API Reference
-description: The Acrux Core REST API — every endpoint is curl-verified. Authentication, prompts and versions, the gateway, tracing, tools, and evaluation.
+description: The AcruxCore REST API — every endpoint is curl-verified. Authentication, prompts and versions, the gateway, tracing, tools, and evaluation.
 hide_table_of_contents: false
 ---
 
 # API Reference
 
-The Acrux Core REST API is organized by domain. **Every endpoint below is
+The AcruxCore REST API is organized by domain. **Every endpoint below is
 curl-verified** — the examples are copied from real requests against a running
 server, not written from a spec.
 

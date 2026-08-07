@@ -36,7 +36,7 @@ const CORE_PATH = 'M436 2Q417.7 2 406.9 -8.4Q396.1 -18.7 396.1 -38.1V-61.9Q396.1
 const LOCKUP_VIEW_BOX = '0 -117.5 883.27 135';
 
 /**
- * The Acrux Core mark alone — crescent plus compass rose, no wordmark.
+ * The AcruxCore mark alone — crescent plus compass rose, no wordmark.
  *
  * Fills with `currentColor`, so set `color` on this element or an ancestor. Use it
  * where the product name is already spelled out beside it; otherwise prefer the
@@ -73,7 +73,7 @@ export function BrandMark({ size = 26 }: { size?: number }): ReactNode {
  *
  * The wordmark is outlined paths rather than live text, so it needs no webfont and
  * renders identically on every OS. That also makes it invisible to a screen reader,
- * hence the explicit `aria-label` — spelled "Acrux Core", matching how the product
+ * hence the explicit `aria-label` — spelled "AcruxCore", matching how the product
  * is named in prose.
  *
  * @param height - Rendered height in px, including the mark's overhang above the cap
@@ -95,7 +95,7 @@ export function BrandLockup({
       viewBox={LOCKUP_VIEW_BOX}
       className={className}
       role="img"
-      aria-label="Acrux Core"
+      aria-label="AcruxCore"
       style={{ flex: 'none', display: 'block', width: 'auto' }}
     >
       <g transform="translate(-16.768 -142.726) scale(2.94695)" fill="var(--accent)">

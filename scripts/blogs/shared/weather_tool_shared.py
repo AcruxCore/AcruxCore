@@ -5,7 +5,7 @@ import from here, so the two runs differ ONLY in where the LLM call goes and
 how the run is traced — never in what the tool does or how the loop is shaped.
 
 The tool is `get_weather(city)`, backed by the public wttr.in JSON endpoint. It
-needs no API key, which is what makes it registerable as an Acrux Core `http`
+needs no API key, which is what makes it registerable as an AcruxCore `http`
 tool executor without also provisioning a secret.
 
 Needs: pip install openai requests langsmith
@@ -16,14 +16,14 @@ from typing import Any
 
 import requests
 
-# The model both legs must use. OpenRouter's id; the Acrux Core gateway resolves
+# The model both legs must use. OpenRouter's id; the AcruxCore gateway resolves
 # the bare `gpt-4o-mini` to this same OpenRouter connection upstream.
 MODEL_OPENROUTER = "openai/gpt-4o-mini"
 MODEL_ACRUXCORE = "gpt-4o-mini"
 
 WTTR_URL = "https://wttr.in/{city}"
 
-# The tool schema handed to the model. Identical on both legs — on the Acrux Core
+# The tool schema handed to the model. Identical on both legs — on the AcruxCore
 # leg this same JSON Schema is also what gets committed as the tool version's
 # `parametersSchema`, so the catalog and the model see one definition.
 WEATHER_TOOL_SCHEMA: dict[str, Any] = {
@@ -45,7 +45,7 @@ WEATHER_TOOL_SCHEMA: dict[str, Any] = {
     },
 }
 
-# The same tool, expressed as an Acrux Core catalog version. This is the Acrux Core
+# The same tool, expressed as an AcruxCore catalog version. This is the AcruxCore
 # counterpart to `get_weather` below: the URL, the argument templating, and the
 # response trimming that the platform performs on its side. Kept next to the Python
 # function on purpose — the two are two implementations of one contract, and a
@@ -90,7 +90,7 @@ QUESTION = "Should I go for a run in Lahore this evening?"
 def get_weather(city: str) -> dict[str, Any]:
     """Fetch current weather for a city and shrink wttr.in's payload to four fields.
 
-    The trimming matters for the comparison: it is exactly what the Acrux Core
+    The trimming matters for the comparison: it is exactly what the AcruxCore
     tool version does in its `responseTransform`, so both legs feed the model the
     same small JSON instead of wttr.in's ~40KB forecast blob.
     """
@@ -103,7 +103,7 @@ def get_weather(city: str) -> dict[str, Any]:
     payload = res.json()
     current = payload["current_condition"][0]
     # `location` comes from the response, not from the `city` argument, so that this
-    # function and the Acrux Core responseTransform (which never sees the arguments)
+    # function and the AcruxCore responseTransform (which never sees the arguments)
     # can return byte-identical shapes.
     return {
         "location": payload["nearest_area"][0]["areaName"][0]["value"],

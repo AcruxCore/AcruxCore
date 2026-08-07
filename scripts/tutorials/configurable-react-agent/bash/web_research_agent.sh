@@ -4,7 +4,7 @@
 # tabs do the same work with run_tool_loop()/runToolLoop().
 #
 # Flow:
-#   1. render  — POST /prompts/web-research-agent/:alias/render (Acrux Core)
+#   1. render  — POST /prompts/web-research-agent/:alias/render (AcruxCore)
 #                -> {messages, tools, model, versionId}. Model and system prompt
 #                come from whichever ALIAS you pass — that is the whole config swap.
 #   2. loop    — POST /gateway/chat/completions. First call sends x-trace-name to
@@ -52,7 +52,7 @@ web_research() {
   fi
 }
 
-# ── Acrux Core: render ────────────────────────────────────────────────────────
+# ── AcruxCore: render ────────────────────────────────────────────────────────
 render_prompt() {
   curl -s -X POST "$ACRUXCORE_BASE_URL/prompts/web-research-agent/$ALIAS/render" \
     -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \

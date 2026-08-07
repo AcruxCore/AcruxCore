@@ -12,7 +12,7 @@ import TabItem from '@theme/TabItem';
 
 **What you'll build:** a *movie assistant* that answers questions using live data from [The Movie Database (TMDB)](https://www.themoviedb.org/). You give it two **HTTP tools** and a model, ask it a question, and the platform calls TMDB for you and feeds the results back to the model — all assembled by clicking through the dashboard, with no code to write or run.
 
-A **tool** is a function you let the model call when it needs something it can't answer on its own — here, real movie data. Acrux Core has two kinds of tool executor. A **client** tool is one *your* app runs (see [Store prompts and tools via the API](../guides/store-prompts-and-tools-via-api) for that path). An **HTTP** tool is different: you describe an HTTP request once — the URL, where the model's arguments go, and where your API key goes — and the gateway makes that request itself whenever the model calls the tool. Nothing runs on your side. This guide uses the HTTP kind end to end.
+A **tool** is a function you let the model call when it needs something it can't answer on its own — here, real movie data. AcruxCore has two kinds of tool executor. A **client** tool is one *your* app runs (see [Store prompts and tools via the API](../guides/store-prompts-and-tools-via-api) for that path). An **HTTP** tool is different: you describe an HTTP request once — the URL, where the model's arguments go, and where your API key goes — and the gateway makes that request itself whenever the model calls the tool. Nothing runs on your side. This guide uses the HTTP kind end to end.
 
 Because TMDB needs an API key, you'll first store that key as a **secret** — an encrypted value your tools can reference by name without ever exposing it.
 

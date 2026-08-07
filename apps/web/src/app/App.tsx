@@ -47,6 +47,7 @@ import {
   NotFoundPage,
   FeaturePage,
   FEATURE_LIST,
+  ComparePage,
 } from '@/marketing';
 
 /** Top-level route table: public marketing + auth routes, then protected app shell routes. */
@@ -69,6 +70,7 @@ export function App() {
       {FEATURE_LIST.map((feature) => (
         <Route key={feature.slug} path={`/features/${feature.slug}`} element={<FeaturePage feature={feature} />} />
       ))}
+      <Route path="/compare" element={<ComparePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />

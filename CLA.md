@@ -1,6 +1,6 @@
-# Acrux Core Individual Contributor License Agreement
+# AcruxCore Individual Contributor License Agreement
 
-Thank you for your interest in contributing to Acrux Core ("We" or "Us").
+Thank you for your interest in contributing to AcruxCore ("We" or "Us").
 
 This Individual Contributor License Agreement ("Agreement") documents the
 rights granted by contributors to Us. This is a legally binding document, so

@@ -1,6 +1,6 @@
 # acruxcore (Python)
 
-Async Python SDK for Acrux Core. Fetch rendered prompts at runtime, call the AI
+Async Python SDK for AcruxCore. Fetch rendered prompts at runtime, call the AI
 gateway, run client-side tool loops, and report/read traces — full feature
 parity with the [TypeScript SDK](https://www.npmjs.com/package/@acruxcoreai/sdk),
 with a Pythonic `async`/`await` API.
@@ -335,7 +335,7 @@ page = await hub.traces.list(session_id="tokyo-trip-plan-01", limit=10)
 
 | Argument | Environment Variable | Default | Description |
 |----------|---------------------|---------|-------------|
-| `api_key` | `ACRUXCORE_API_KEY` | **required** | Your Acrux Core API key |
+| `api_key` | `ACRUXCORE_API_KEY` | **required** | Your AcruxCore API key |
 | `base_url` | `ACRUXCORE_BASE_URL` | **required** | API base URL (e.g. `https://api.acruxcore.com/api/v1`) |
 | `cache_ttl` | — | `60000` (60s) | Milliseconds before a cached render is stale. `0` disables caching |
 | `max_cache_size` | — | `500` | Max prompt entries in the in-process LRU cache |
@@ -354,9 +354,9 @@ except AcruxCoreError as err:
     if err.code == "MISSING_VARIABLES":
         print("Missing template variables:", err.body["error"]["missing"])
     elif err.code == "NETWORK_ERROR":
-        print("Acrux Core API unreachable. Check base_url.")
+        print("AcruxCore API unreachable. Check base_url.")
     elif err.code == "API_ERROR":
-        print(f"Acrux Core API error {err.status_code}")
+        print(f"AcruxCore API error {err.status_code}")
     raise
 ```
 

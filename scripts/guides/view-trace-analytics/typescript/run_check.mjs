@@ -2,7 +2,7 @@
  * View trace analytics -- Node verification script.
  *
  * Walks the View trace analytics guide's full read-chain in one pass, against
- * a real running Acrux Core API:
+ * a real running AcruxCore API:
  *
  *   1. Ingest one trace via a raw POST /traces call (fetch, not an SDK wrapper
  *      -- there isn't one for arbitrary spans), carrying a session id, a tag,

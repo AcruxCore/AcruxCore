@@ -1,4 +1,4 @@
-# Deploying the Acrux Core docs site
+# Deploying the AcruxCore docs site
 
 The docs site (`apps/docs`) is a **static** Docusaurus build. `npm run build -w
 @acruxcore/docs` produces `apps/docs/build/`, a folder of pre-rendered HTML that

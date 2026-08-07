@@ -20,7 +20,7 @@ const GA4_ENABLED = Boolean(GA4_MEASUREMENT_ID) && process.env.NODE_ENV === 'pro
 const CONSENT_COOKIE = 'acx_analytics_consent';
 
 const config: Config = {
-  title: 'Acrux Core',
+  title: 'AcruxCore',
   tagline: 'Version prompts, route LLM calls, trace and evaluate — one platform.',
   favicon: 'img/favicon.ico',
 
@@ -81,7 +81,7 @@ const config: Config = {
       innerHTML: JSON.stringify({
         '@context': 'https://schema.org',
         '@type': 'Organization',
-        name: 'Acrux Core',
+        name: 'AcruxCore',
         url: 'https://docs.acruxcore.com',
         description:
           'LLM-ops platform: version prompts, route LLM calls through a gateway, trace every request, catalog tools, and evaluate quality.',
@@ -93,7 +93,7 @@ const config: Config = {
       innerHTML: JSON.stringify({
         '@context': 'https://schema.org',
         '@type': 'WebSite',
-        name: 'Acrux Core Docs',
+        name: 'AcruxCore Docs',
         url: 'https://docs.acruxcore.com',
       }),
     },
@@ -123,15 +123,15 @@ const config: Config = {
         },
         blog: {
           showReadingTime: true,
-          blogTitle: 'Acrux Core blog',
+          blogTitle: 'AcruxCore blog',
           blogDescription:
-            'Comparisons, concepts, and release notes for the Acrux Core LLM-ops platform.',
+            'Comparisons, concepts, and release notes for the AcruxCore LLM-ops platform.',
           feedOptions: {
             type: ['rss', 'atom'],
             xslt: true,
-            title: 'Acrux Core blog',
-            description: 'LLM-ops articles and comparisons from the Acrux Core team.',
-            copyright: `Copyright © ${new Date().getFullYear()} Acrux Core.`,
+            title: 'AcruxCore blog',
+            description: 'LLM-ops articles and comparisons from the AcruxCore team.',
+            copyright: `Copyright © ${new Date().getFullYear()} AcruxCore.`,
           },
           onInlineTags: 'warn',
           onInlineAuthors: 'warn',
@@ -215,7 +215,7 @@ const config: Config = {
         width: 26,
         height: 23,
       },
-      title: 'Acrux Core',
+      title: 'AcruxCore',
       items: [
         {
           type: 'docSidebar',
@@ -263,7 +263,7 @@ const config: Config = {
           ],
         },
         {
-          title: 'Acrux Core',
+          title: 'AcruxCore',
           items: [
             {label: 'Product site', href: 'https://acruxcore.com'},
             {label: 'Pricing', href: 'https://acruxcore.com/pricing'},
@@ -273,7 +273,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Acrux Core. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} AcruxCore. Built with Docusaurus.`,
     },
     prism: {
       theme: prismThemes.github,

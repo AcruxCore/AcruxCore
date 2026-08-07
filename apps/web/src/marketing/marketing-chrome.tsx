@@ -8,7 +8,7 @@ import { BrandLockup } from './brand';
 /** Public docs site (see cross-cutting-faq: docs.acruxcore.com). */
 export const DOCS_URL = 'https://docs.acruxcore.com';
 
-/** Public source mirror — Elastic License 2.0, synced from every deploy to `main`. */
+/** Public source mirror — Apache License 2.0, synced from every deploy to `main`. */
 export const GITHUB_URL = 'https://github.com/AcruxCore/AcruxCore';
 
 /**
@@ -452,6 +452,7 @@ const FOOTER_COLS: { title: string; links: FooterLink[] }[] = [
       { label: 'Tools', to: '/features/tools' },
       { label: 'Evaluation', to: '/features/evaluation' },
       { label: 'Pricing', to: '/pricing' },
+      { label: 'Compare', to: '/compare' },
     ],
   },
   {
@@ -657,7 +658,7 @@ export function MarketingHeader({ onLanding = false }: { onLanding?: boolean }):
             href={GITHUB_URL}
             target="_blank"
             rel="noreferrer"
-            aria-label="Acrux Core on GitHub — open source, Elastic License 2.0"
+            aria-label="AcruxCore on GitHub — open source, Apache License 2.0"
             title="View source on GitHub"
             className="acx-nav-github acx-hover-faint"
             style={cssToStyle(
@@ -808,7 +809,7 @@ export function MarketingFooter(): ReactNode {
         )}
       >
         <p style={cssToStyle('font-size:12.5px;color:var(--faint);margin:0;')}>
-          © {new Date().getFullYear()} Acrux Core, Inc. All rights reserved.
+          © {new Date().getFullYear()} AcruxCore, Inc. All rights reserved.
         </p>
         <div style={cssToStyle('display:flex;gap:20px;flex-wrap:wrap;')}>
           <a

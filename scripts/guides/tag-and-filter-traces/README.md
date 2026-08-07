@@ -12,7 +12,7 @@ Each script walks the same five steps:
 
 ## Prerequisites
 
-- An Acrux Core API key and base URL
+- An AcruxCore API key and base URL
 - A model alias configured on your gateway
 - Python 3.11+ or Node 22+
 

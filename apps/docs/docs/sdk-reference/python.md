@@ -1,12 +1,12 @@
 ---
 title: Python SDK reference
-description: Every method and parameter in acruxcore, the Python SDK for Acrux Core — render, chat, tool loops, tracing, feedback, and the tool catalog.
-keywords: [python sdk, acrux core sdk, llm sdk python, async llm sdk]
+description: Every method and parameter in acruxcore, the Python SDK for AcruxCore — render, chat, tool loops, tracing, feedback, and the tool catalog.
+keywords: [python sdk, AcruxCore sdk, llm sdk python, async llm sdk]
 ---
 
 # Python SDK reference
 
-`acruxcore` is the async Python SDK for Acrux Core. It renders stored prompts,
+`acruxcore` is the async Python SDK for AcruxCore. It renders stored prompts,
 calls the gateway (with streaming, tools, and structured output), runs the
 tool-calling loop, reports and reads traces, and manages the tool catalog. Every
 method below has a 1:1 Node counterpart in [`@acruxcoreai/sdk`](./node) — only
@@ -313,7 +313,7 @@ Raises `MISSING_DISPATCH` before the first model call if a tool has no runner.
 
 ## `traces.ingest(input)`
 
-Report a trace (a group of spans) to Acrux Core. A single-trace convenience over
+Report a trace (a group of spans) to AcruxCore. A single-trace convenience over
 the batch endpoint — omit `traceId` to mint a new trace, pass one to append.
 
 ```python
@@ -739,7 +739,7 @@ pydantic is not installed.
 
 Route a call directly to your own OpenAI-compatible endpoint instead of the
 gateway — the hop and its latency are skipped, and `api_key` is sent only to
-`base_url`, never to Acrux Core.
+`base_url`, never to AcruxCore.
 
 ```python
 hub = AcruxCore(

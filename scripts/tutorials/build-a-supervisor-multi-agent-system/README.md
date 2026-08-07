@@ -4,7 +4,7 @@ Runnable scripts for the [Build a Supervisor Multi-Agent System](https://docs.ac
 
 ## Prerequisites
 
-- An Acrux Core API key and base URL (see the tutorial's Step 2)
+- An AcruxCore API key and base URL (see the tutorial's Step 2)
 - A Tavily API key (for `advanced_research` and `basic_research` tools)
 - Python 3.11+ or Node 22+
 

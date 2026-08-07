@@ -1,17 +1,17 @@
 ---
 title: Introduction
-description: Acrux Core is one platform to version prompts, route LLM calls through a gateway, trace every request, catalog tools, and evaluate quality.
+description: AcruxCore is one platform to version prompts, route LLM calls through a gateway, trace every request, catalog tools, and evaluate quality.
 sidebar_position: 1
 keywords: [llm ops, prompt management, ai gateway, llm tracing, prompt versioning, llm evaluation]
 ---
 
-# What is Acrux Core?
+# What is AcruxCore?
 
-Acrux Core is an **LLM-ops platform**: one place to manage the prompts your app
+AcruxCore is an **LLM-ops platform**: one place to manage the prompts your app
 sends to language models, route those calls through a smart gateway, see exactly
 what happened on every request, and measure whether changes made things better.
 
-Everything in Acrux Core is **team-scoped** — you sign up, get a workspace, and
+Everything in AcruxCore is **team-scoped** — you sign up, get a workspace, and
 invite teammates. You talk to it two ways: the **web app** (for authoring and
 inspection) and, from your running application, the **REST API** or one of the two
 SDKs — [`@acruxcoreai/sdk`](https://www.npmjs.com/package/@acruxcoreai/sdk) for Node
@@ -20,7 +20,7 @@ the same feature set, so nothing here is Node-only.
 
 ## The five building blocks
 
-Acrux Core is built from five pieces that each stand on their own but are
+AcruxCore is built from five pieces that each stand on their own but are
 designed to snap together.
 
 | Block | What it does |

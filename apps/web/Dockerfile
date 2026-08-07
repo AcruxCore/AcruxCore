@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 #
-# Web image for Acrux Core — builds the React/Vite SPA and serves the static
+# Web image for AcruxCore — builds the React/Vite SPA and serves the static
 # output with nginx. nginx also reverse-proxies /api to the `api` service, so
 # the browser talks to the API same-origin (no CORS, matching how the Vite dev
 # proxy behaves).

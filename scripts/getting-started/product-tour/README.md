@@ -6,7 +6,7 @@ and non-streaming, reading a trace back, and submitting feedback.
 
 ## Prerequisites
 
-- An Acrux Core API key and base URL
+- An AcruxCore API key and base URL
 - The `support-model` model and the `support-reply` prompt from
   [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart), already
   set up in the dashboard
