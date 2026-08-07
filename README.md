@@ -49,6 +49,27 @@ docker compose -f docker-compose.local.yml up --build
 
 Open **http://localhost:8080**, sign up, and you're in.
 
+## 📊 How it compares
+
+Checked by hand against each project's own docs and a live self-hosted instance, on **6–7 August 2026**. The rows we lose are in the table too — the full write-ups are linked below it.
+
+| | **AcruxCore** | Langfuse | Phoenix | Opik | Helicone |
+|---|---|---|---|---|---|
+| License | Apache 2.0 | MIT, gated `ee/` | Elastic 2.0 | Apache 2.0 | Apache 2.0 |
+| Self-host | `docker compose up` | `docker compose up` | `docker compose up` | `docker compose up` | `docker compose up` |
+| Gateway in the request path | ✅ | ❌ ingest-only | ❌ ingest-only | ❌ ingest-only | ✅ |
+| Versioned, executed tool catalog | ✅ | ⚠️ schema only | ❌ | ❌ | ❌ |
+| `{% if %}` / `{% for %}` in prompts | ✅ | ❌ substitution | ❌ substitution | ⚠️ SDK only | ❌ substitution |
+| Audit log without paying | ✅ | ❌ Enterprise | ❌ | ❌ | ❌ |
+| Organization → project hierarchy | ❌ single team | ✅ | ❌ | ❌ | ⚠️ org only |
+| GitHub stars | new project | 32.6k | 10.9k | 21.2k | 6.0k |
+
+**Where they beat us.** Langfuse has a real two-level organization/project hierarchy; AcruxCore is single-team, with no org layer above it. All four are far more established, and every one of them has a much larger community than a project this young. Opik and Helicone are Apache 2.0 with no gated directory, the same terms we ship, so the license row is a genuine tie for both, and all five self-host with the same one command.
+
+**Where we're different.** The gateway sits *in* the request path, so routing, caching, budgets and virtual keys apply before the provider is called, and a trace is written without separate instrumentation. Tools are a persistent versioned catalog the gateway actually executes, not a schema saved next to a prompt. Prompts are real templates with conditionals and loops. And the audit log is on by default rather than behind an upgrade.
+
+Full hands-on comparisons, each built by running the same prompt on both platforms: **[Langfuse](https://docs.acruxcore.com/blog/acruxcore-vs-langfuse)** · **[Phoenix](https://docs.acruxcore.com/blog/acruxcore-vs-phoenix)** · **[Opik](https://docs.acruxcore.com/blog/acruxcore-vs-opik)** · **[Helicone](https://docs.acruxcore.com/blog/acruxcore-vs-helicone)** — or the [side-by-side matrix](https://acruxcore.com/compare).
+
 ## 🏠 Self-hosting
 
 Two Compose files, for two different jobs:

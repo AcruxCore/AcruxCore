@@ -51,10 +51,15 @@ called out in the week it ships and in the SDK release notes.
 
 ### Minor
 
+- **Terms, Privacy and the site footer** now name AcruxCore without a corporate suffix.
+- **Privacy** names AcruxCore as the controller for the hosted service, with a contact address.
 - **New guide** — [Product tour](/docs/getting-started/product-tour): tools, streaming, traces, feedback, and evaluation in one walkthrough.
 - **Fixed** — rendering a prompt with a `{% for %}` loop no longer wrongly demands the loop variable as an input.
 - `/compare` pages now show AcruxCore's real one-command Docker self-host.
 - `/compare`'s Self-hosting row now reads "docker compose up" for every column, matching the identical command.
+- **The product name is now one word** — "AcruxCore" across the site, docs, and both SDKs.
+- **SDK 0.7.1** — the rename reaches both packages' metadata; no API or behaviour change.
+- **The repo README** now carries the competitor comparison table, losses and ties included.
 
 ---
 

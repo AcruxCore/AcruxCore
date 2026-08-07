@@ -12,6 +12,14 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+## 0.7.1 — 2026-08-07
+
+### Changed
+
+- The product name is now written as one word, "AcruxCore", in the package
+  description and in every docstring.
+- No API, behaviour, or type changes. Upgrading from 0.7.0 needs no code edits.
+
 ## 0.7.0 — 2026-08-05
 
 ### BREAKING

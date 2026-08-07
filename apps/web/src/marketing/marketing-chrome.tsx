@@ -809,7 +809,7 @@ export function MarketingFooter(): ReactNode {
         )}
       >
         <p style={cssToStyle('font-size:12.5px;color:var(--faint);margin:0;')}>
-          © {new Date().getFullYear()} AcruxCore, Inc. All rights reserved.
+          © {new Date().getFullYear()} AcruxCore. All rights reserved.
         </p>
         <div style={cssToStyle('display:flex;gap:20px;flex-wrap:wrap;')}>
           <a

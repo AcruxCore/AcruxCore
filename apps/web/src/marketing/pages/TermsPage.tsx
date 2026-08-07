@@ -25,7 +25,7 @@ export function TermsPage(): ReactNode {
         <h2>1. Agreement</h2>
         <p>
           These Terms of Service (“Terms”) are a legal agreement between you (and the team or
-          organization you represent) and AcruxCore, Inc. (“AcruxCore”). By accessing or using the
+          organization you represent) and AcruxCore (“AcruxCore”, “we”, “us”). By accessing or using the
           hosted platform, SDKs, APIs, or website (together, the “Service”), you agree to these Terms.
           If you do not agree, do not use the Service.
         </p>
@@ -120,9 +120,11 @@ export function TermsPage(): ReactNode {
 
         <h2>13. Governing law</h2>
         <p>
-          These Terms are governed by the laws of the jurisdiction in which AcruxCore, Inc. is
-          established, without regard to conflict-of-laws rules. Disputes will be resolved in the
-          courts of that jurisdiction, unless applicable law requires otherwise.
+          These Terms are governed by the laws of the jurisdiction in which AcruxCore is based,
+          without regard to conflict-of-laws rules. Disputes will be resolved in the courts of
+          that jurisdiction, unless applicable law requires otherwise. To ask which jurisdiction
+          that is, contact us at{' '}
+          <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
         </p>
 
         <h2>14. Changes to these Terms</h2>

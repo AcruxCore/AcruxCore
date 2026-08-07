@@ -24,11 +24,16 @@ export function PrivacyPage(): ReactNode {
       <div className="acx-prose">
         <h2>1. Who we are</h2>
         <p>
-          AcruxCore, Inc. (“AcruxCore”, “we”, “us”) provides an LLM-ops platform that lets teams
+          AcruxCore (“AcruxCore”, “we”, “us”) provides an LLM-ops platform that lets teams
           version prompts, route model calls through a gateway, trace requests, and evaluate quality.
           This policy covers information handled when you use the hosted service at acruxcore.com and
           related sites. If you self-host AcruxCore, you are the controller of the data in your own
           deployment and this policy does not apply to it.
+        </p>
+        <p>
+          For the hosted service, AcruxCore is the controller of the personal data described below.
+          You can reach us about anything in this policy — including a data-protection request — at{' '}
+          <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
         </p>
 
         <h2>2. Information we collect</h2>
