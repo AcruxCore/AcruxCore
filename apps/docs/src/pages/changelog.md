@@ -60,6 +60,9 @@ called out in the week it ships and in the SDK release notes.
 - **The product name is now one word** — "AcruxCore" across the site, docs, and both SDKs.
 - **SDK 0.7.1** — the rename reaches both packages' metadata; no API or behaviour change.
 - **The repo README** now carries the competitor comparison table, losses and ties included.
+- **The SDKs page** now links the full [TypeScript](/docs/sdk-reference/node) and [Python](/docs/sdk-reference/python) API reference.
+- **Fixed** — marketing pages answered on two addresses; `/pricing/` now redirects to `/pricing`.
+- **Fixed** — marketing pages showed the flat client methods SDK 0.7.0 removed.
 
 ---
 
@@ -134,6 +137,7 @@ called out in the week it ships and in the SDK release notes.
 - **Three SDK guides** — chat, tracing, and gateway routing — now show Python
   code alongside Node's.
 - **Added** — an "Optimize" button on a dataset's page starts a run without rebuilding it.
+- **Added** — `GET /api/v1/health` reports database and Redis reachability for load balancers and uptime monitors.
 
 ## Week of 27 July 2026
 

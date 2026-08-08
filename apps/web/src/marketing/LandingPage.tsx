@@ -618,11 +618,11 @@ const STEPS: { n: string; title: string; body: string; code: Record<string, stri
     title: 'Point your LLM calls at AcruxCore',
     body: 'One method routes, traces, and prices every call — or swap the base URL and your existing OpenAI client keeps working.',
     code: {
-      ts: String.raw`const result = await hub.<span style="color:var(--accent);">chat</span>({
+      ts: String.raw`const result = await hub.gateway.<span style="color:var(--accent);">chat</span>({
   model: <span style="color:var(--str);">'gpt-4o'</span>,
   messages: [{ role: <span style="color:var(--str);">'user'</span>, content: <span style="color:var(--str);">'Hi'</span> }],
 });`,
-      py: String.raw`result = <span style="color:var(--varhi);">await</span> hub.<span style="color:var(--accent);">chat</span>(
+      py: String.raw`result = <span style="color:var(--varhi);">await</span> hub.gateway.<span style="color:var(--accent);">chat</span>(
     <span style="color:var(--str);">"gpt-4o"</span>,
     [{<span style="color:var(--str);">"role"</span>: <span style="color:var(--str);">"user"</span>, <span style="color:var(--str);">"content"</span>: <span style="color:var(--str);">"Hi"</span>}],
 )`,
@@ -637,10 +637,10 @@ const STEPS: { n: string; title: string; body: string; code: Record<string, stri
     title: 'Watch it all in one dashboard',
     body: 'Prompts, cost, latency, and quality land in a single control plane — live.',
     code: {
-      ts: String.raw`<span style="color:var(--varhi);">const</span> { data } = <span style="color:var(--varhi);">await</span> hub.<span style="color:var(--accent);">listTraces</span>({
+      ts: String.raw`<span style="color:var(--varhi);">const</span> { data } = <span style="color:var(--varhi);">await</span> hub.traces.<span style="color:var(--accent);">list</span>({
   sessionId: <span style="color:var(--str);">'support-1234'</span>,
 });`,
-      py: String.raw`result = <span style="color:var(--varhi);">await</span> hub.<span style="color:var(--accent);">list_traces</span>(
+      py: String.raw`result = <span style="color:var(--varhi);">await</span> hub.traces.<span style="color:var(--accent);">list</span>(
     session_id=<span style="color:var(--str);">"support-1234"</span>,
 )`,
       curl: String.raw`<span style="color:var(--accent);">curl</span> <span style="color:var(--str);">"${API_BASE_URL}/traces?sessionId=support-1234"</span> \
@@ -795,7 +795,7 @@ const HERO_TS_CODE = String.raw`<span style="color:var(--varhi);">import</span> 
 </span>
 <span style="color:var(--faint);">// — no redeploy of your app
 </span>
-<span style="color:var(--varhi);">const</span> { messages, tools } = <span style="color:var(--varhi);">await</span> hub.<span style="color:var(--accent);">renderPrompt</span>(
+<span style="color:var(--varhi);">const</span> { messages, tools } = <span style="color:var(--varhi);">await</span> hub.prompts.<span style="color:var(--accent);">render</span>(
   <span style="color:var(--str);">'support-agent'</span>,
   <span style="color:var(--str);">'production'</span>,
   { ticket },
@@ -809,7 +809,7 @@ hub = <span style="color:var(--accent);">AcruxCore</span>(api_key=api_key)
 </span>
 <span style="color:var(--faint);"># — no redeploy of your app
 </span>
-render = <span style="color:var(--varhi);">await</span> hub.<span style="color:var(--accent);">render_prompt</span>(
+render = <span style="color:var(--varhi);">await</span> hub.prompts.<span style="color:var(--accent);">render</span>(
     <span style="color:var(--str);">"support-agent"</span>,
     <span style="color:var(--str);">"production"</span>,
     {<span style="color:var(--str);">"ticket"</span>: ticket},
@@ -828,11 +828,11 @@ const TS_CODE = String.raw`<span style="color:var(--varhi);">import</span> acrux
 <span style="color:var(--faint);">// rendered prompt + its attached tools
 </span>
 <span style="color:var(--varhi);">const</span> { messages, tools } =
-  <span style="color:var(--varhi);">await</span> hub.<span style="color:var(--accent);">renderPrompt</span>(<span style="color:var(--str);">'support-agent'</span>, <span style="color:var(--str);">'production'</span>, { ticket });
+  <span style="color:var(--varhi);">await</span> hub.prompts.<span style="color:var(--accent);">render</span>(<span style="color:var(--str);">'support-agent'</span>, <span style="color:var(--str);">'production'</span>, { ticket });
 
 <span style="color:var(--faint);">// gateway routes, prices &amp; traces the loop
 </span>
-<span style="color:var(--varhi);">const</span> result = <span style="color:var(--varhi);">await</span> hub.<span style="color:var(--accent);">runToolLoop</span>({
+<span style="color:var(--varhi);">const</span> result = <span style="color:var(--varhi);">await</span> hub.gateway.<span style="color:var(--accent);">runToolLoop</span>({
   model: <span style="color:var(--str);">'gpt-4o'</span>, messages, toolDefs: tools, dispatch,
 });
 
@@ -845,11 +845,11 @@ hub = <span style="color:var(--accent);">AcruxCore</span>(api_key=api_key)
 
 <span style="color:var(--faint);"># rendered prompt + its attached tools
 </span>
-render = <span style="color:var(--varhi);">await</span> hub.<span style="color:var(--accent);">render_prompt</span>(<span style="color:var(--str);">"support-agent"</span>, <span style="color:var(--str);">"production"</span>, {<span style="color:var(--str);">"ticket"</span>: ticket})
+render = <span style="color:var(--varhi);">await</span> hub.prompts.<span style="color:var(--accent);">render</span>(<span style="color:var(--str);">"support-agent"</span>, <span style="color:var(--str);">"production"</span>, {<span style="color:var(--str);">"ticket"</span>: ticket})
 
 <span style="color:var(--faint);"># gateway routes, prices &amp; traces the loop
 </span>
-result = <span style="color:var(--varhi);">await</span> hub.<span style="color:var(--accent);">run_tool_loop</span>(
+result = <span style="color:var(--varhi);">await</span> hub.gateway.<span style="color:var(--accent);">run_tool_loop</span>(
     model=<span style="color:var(--str);">"gpt-4o"</span>, messages=render.messages,
     tool_defs=render.tools, dispatch=dispatch,
 )

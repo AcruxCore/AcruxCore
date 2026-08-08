@@ -93,6 +93,16 @@ services:
         condition: service_healthy
     ports:
       - '3001:3001'
+    healthcheck:
+      # No curl/wget baked into the node:22-bookworm runtime image — Node
+      # itself makes the request instead. GET /api/v1/health pings Postgres
+      # and Redis, so a 200 here means the API can actually serve a request,
+      # not just that the process is up.
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/v1/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - acruxcore-local
 
@@ -118,7 +128,7 @@ services:
       redis:
         condition: service_healthy
       api:
-        condition: service_started
+        condition: service_healthy
     networks:
       - acruxcore-local
 

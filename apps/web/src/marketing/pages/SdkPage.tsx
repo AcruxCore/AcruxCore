@@ -47,20 +47,20 @@ ${kw('const')} lookupOrder = acrux.${fn('tool')}(
 );
 
 ${cm('// prompt + its tools, served from cache')}
-${kw('const')} render = ${kw('await')} hub.${fn('renderPrompt')}(
+${kw('const')} render = ${kw('await')} hub.prompts.${fn('render')}(
   ${st("'support-agent'")}, ${st("'production'")}, { ticket },
 );
 
 ${cm('// the whole tool loop, one trace + session')}
-${kw('const')} result = ${kw('await')} hub.${fn('runToolLoop')}({
+${kw('const')} result = ${kw('await')} hub.gateway.${fn('runToolLoop')}({
   model: ${st("'gpt-4o'")},
   messages: render.messages,
   tools: [lookupOrder],
   trace: { sessionId: ${st("'ticket-4471'")} },
 });
 
-${kw('await')} hub.${fn('submitFeedback')}({
-  traceId: result.traceId, rating: ${st("'up'")},
+${kw('await')} hub.traces.${fn('submitFeedback')}({
+  traceId: result.traceId, rating: 1,
 });`;
 
 const PY_CODE = `${kw('from')} acruxcore ${kw('import')} ${fn('AcruxCore')}, acrux
@@ -74,21 +74,21 @@ ${kw('async def')} lookup_order(order_id: str) -> dict:
     ${kw('return')} {${st('"order_id"')}: order_id, ${st('"status"')}: ${st('"shipped"')}}
 
 ${cm('# prompt + its tools, served from cache')}
-render = ${kw('await')} hub.${fn('render_prompt')}(
+render = ${kw('await')} hub.prompts.${fn('render')}(
     ${st('"support-agent"')}, ${st('"production"')},
     {${st('"ticket"')}: ticket},
 )
 
 ${cm('# the whole tool loop, one trace + session')}
-result = ${kw('await')} hub.${fn('run_tool_loop')}(
+result = ${kw('await')} hub.gateway.${fn('run_tool_loop')}(
     model=${st('"gpt-4o"')},
     messages=render.messages,
     tools=[lookup_order],
     trace={${st('"session_id"')}: ${st('"ticket-4471"')}},
 )
 
-${kw('await')} hub.${fn('submit_feedback')}(
-    trace_id=result.trace_id, rating=${st('"up"')},
+${kw('await')} hub.traces.${fn('submit_feedback')}(
+    trace_id=result.trace_id, rating=1,
 )`;
 
 /**
@@ -126,38 +126,38 @@ interface SdkCapability {
  */
 const CAPABILITIES: SdkCapability[] = [
   {
-    ts: 'renderPrompt()',
-    py: 'render_prompt()',
+    ts: 'prompts.render()',
+    py: 'prompts.render()',
     title: 'Resolve a prompt by name and alias',
     body: 'Returns the templated messages plus the version\'s attached tools. Cached locally per prompt and alias: a fresh entry answers with no network call, a stale one answers immediately and refreshes in the background, so promoting a new version never adds latency to the call that noticed.',
   },
   {
-    ts: 'chat()',
-    py: 'chat()',
+    ts: 'gateway.chat()',
+    py: 'gateway.chat()',
     title: 'Call any model through the gateway',
     body: 'One OpenAI-compatible completion. Pass stream for token-by-token output, and read the gateway metadata — provider, priced cost, cache status — off the same result.',
   },
   {
-    ts: 'runToolLoop()',
-    py: 'run_tool_loop()',
+    ts: 'gateway.runToolLoop()',
+    py: 'gateway.run_tool_loop()',
     title: 'Run the whole function-calling loop',
     body: 'Hand it messages, tools, and a dispatch map. It runs the turns, dispatches tool calls concurrently, and threads a single trace id through all of them — so a five-turn agent is one trace, not five orphans.',
   },
   {
-    ts: 'trace()',
-    py: 'trace()',
+    ts: 'traces.ingest()',
+    py: 'traces.ingest()',
     title: 'Record a step the gateway never saw',
     body: 'Report a span yourself for work that happens outside a model call — a retrieval step, a database read, a validation pass — and it joins the same trace tree.',
   },
   {
-    ts: 'submitFeedback()',
-    py: 'submit_feedback()',
+    ts: 'traces.submitFeedback()',
+    py: 'traces.submit_feedback()',
     title: 'Attach feedback in code',
     body: 'Send a rating, label, or comment against a trace or one span, then update it later. This is the raw material an evaluation dataset is built from.',
   },
   {
-    ts: 'getTrace() · listTraces()',
-    py: 'get_trace() · list_traces()',
+    ts: 'traces.get() · traces.list()',
+    py: 'traces.get() · traces.list()',
     title: 'Read traces back',
     body: 'Fetch one trace with its spans, tokens, latency, and cost, or list traces with filters — useful for assertions in your own test suite.',
   },
@@ -172,6 +172,8 @@ interface LanguageSection {
   packageLabel: string;
   code: { filename: string; lang: string; html: string };
   tutorials: { label: string; href: string }[];
+  /** This language's full API reference, linked once the task links run out. */
+  reference: string;
 }
 
 const LANGUAGES: LanguageSection[] = [
@@ -183,6 +185,7 @@ const LANGUAGES: LanguageSection[] = [
     packageLabel: '@acruxcoreai/sdk',
     code: { filename: 'agent.ts', lang: 'TypeScript', html: TS_CODE },
     tutorials: SDK_TUTORIALS,
+    reference: DOCS.nodeSdkReference,
   },
   {
     id: 'python',
@@ -192,6 +195,7 @@ const LANGUAGES: LanguageSection[] = [
     packageLabel: 'acruxcore',
     code: { filename: 'agent.py', lang: 'Python', html: PY_CODE },
     tutorials: SDK_TUTORIALS,
+    reference: DOCS.pythonSdkReference,
   },
 ];
 
@@ -361,6 +365,17 @@ export function SdkPage(): ReactNode {
                   </li>
                 ))}
               </ul>
+              <a
+                href={lang.reference}
+                target="_blank"
+                rel="noreferrer"
+                style={cssToStyle(
+                  'display:inline-flex;align-items:center;gap:6px;margin-top:14px;font-size:13.5px;font-weight:550;color:var(--accent);text-decoration:none;',
+                )}
+              >
+                Full {lang.name} API reference
+                <ExternalArrow />
+              </a>
             </div>
             <CodeCard filename={lang.code.filename} lang={lang.code.lang} html={lang.code.html} />
           </div>

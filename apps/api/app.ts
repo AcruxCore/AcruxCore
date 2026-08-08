@@ -19,6 +19,7 @@ import { aliasesRouter, renderRouter } from './src/prompts/aliases';
 import { diffRouter } from './src/prompts/diff';
 import { exportRouter } from './src/prompts/export';
 import { importRouter } from './src/prompts/import';
+import { healthRouter } from './src/health';
 import { auditRouter } from './src/audit';
 import { teamsRouter, inviteAcceptRouter } from './src/teams';
 import { connectionsRouter } from './src/gateway/connections';
@@ -81,6 +82,10 @@ export function createApp(): express.Application {
   app.use(express.json());
 
   // ── Routers ───────────────────────────────────────────────────────────────
+  // Health: GET /api/v1/health — unauthenticated on purpose, for load
+  // balancers, Docker HEALTHCHECK and uptime monitors, none of which carry an
+  // API key.
+  app.use('/api/v1', healthRouter);
   app.use('/api/v1', apiKeysRouter);
   // Import must be mounted BEFORE prompts/:id routes so "import" isn't matched as an ID
   app.use('/api/v1', importRouter);

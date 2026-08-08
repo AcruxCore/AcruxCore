@@ -172,7 +172,7 @@ export function ApiKeysPanel({
 {`import { acruxcore } from '@acruxcoreai/sdk';
 
 const hub = new acruxcore({ apiKey: '${revealed.key}' });
-const messages = await hub.renderPrompt('greeting', 'production', { name: 'Alice' });`}
+const { messages } = await hub.prompts.render('greeting', 'production', { name: 'Alice' });`}
               </pre>
             )}
           </div>

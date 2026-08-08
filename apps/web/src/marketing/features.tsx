@@ -65,14 +65,14 @@ const cm = (s: string): string => `<span style="color:var(--faint);">${s}</span>
 // Keep every line under ~48 characters: the hero code panel is roughly 430px wide
 // at desktop, and longer lines get clipped behind a scrollbar on first paint.
 const PROMPTS_CODE = `${cm('// ask for the alias, not a version number')}
-${kw('const')} { messages, tools } = ${kw('await')} hub.${fn('renderPrompt')}(
+${kw('const')} { messages, tools } = ${kw('await')} hub.prompts.${fn('render')}(
   ${st("'support-agent'")},
   ${st("'production'")},
   { ticket },
 );`;
 
 const PROMPTS_CODE_PY = `${cm('# ask for the alias, not a version number')}
-messages, tools = ${kw('await')} hub.${fn('render_prompt')}(
+messages, tools = ${kw('await')} hub.prompts.${fn('render')}(
     ${st('"support-agent"')},
     ${st('"production"')},
     {${st('"ticket"')}: ticket},
@@ -102,7 +102,7 @@ ${cm('# response headers carry the accounting:')}
 ${cm('# request-id · provider · cost · cache hit')}`;
 
 const GATEWAY_CODE_TS = `${cm('// routes, prices & traces the call')}
-${kw('const')} result = ${kw('await')} hub.${fn('chat')}({
+${kw('const')} result = ${kw('await')} hub.gateway.${fn('chat')}({
   model: ${st("'gpt-4o'")},
   messages: [{ role: ${st("'user'")}, content: ${st("'Hi'")} }],
 });
@@ -111,7 +111,7 @@ console.${fn('log')}(result.content);
 console.${fn('log')}(result.gateway.cost);`;
 
 const GATEWAY_CODE_PY = `${cm('# routes, prices & traces the call')}
-result = ${kw('await')} hub.${fn('chat')}(
+result = ${kw('await')} hub.gateway.${fn('chat')}(
     ${st("'gpt-4o'")},
     [{${st('"role"')}: ${st('"user"')}, ${st('"content"')}: ${st('"Hi"')}}],
 )
@@ -120,26 +120,26 @@ ${fn('print')}(result.content)
 ${fn('print')}(result.gateway.cost)`;
 
 const TRACING_CODE_TS = `${cm('// every chat call is automatically traced')}
-${kw('const')} result = ${kw('await')} hub.${fn('chat')}({
+${kw('const')} result = ${kw('await')} hub.gateway.${fn('chat')}({
   model: ${st("'gpt-4o'")}, messages,
   trace: { sessionId: ${st("'support-1234'")} },
 });
 
 ${cm('// read traces back by session')}
-${kw('const')} { data } = ${kw('await')} hub.${fn('listTraces')}({
+${kw('const')} { data } = ${kw('await')} hub.traces.${fn('list')}({
   sessionId: ${st("'support-1234'")},
 });
 
 console.${fn('log')}(data.length + ${st("' traces'")});`;
 
 const TRACING_CODE_PY = `${cm('# every chat call is automatically traced')}
-result = ${kw('await')} hub.${fn('chat')}(
+result = ${kw('await')} hub.gateway.${fn('chat')}(
     ${st("'gpt-4o'")}, messages,
     trace={${st("'session_id'")}: ${st("'support-1234'")}},
 )
 
 ${cm('# read traces back by session')}
-result = ${kw('await')} hub.${fn('list_traces')}(
+result = ${kw('await')} hub.traces.${fn('list')}(
     session_id=${st("'support-1234'")},
 )
 
@@ -160,7 +160,7 @@ ${kw('async def')} ${fn('query_database')}(sql: str) -> str:
     ${kw('return')} json.${fn('dumps')}(db.${fn('run')}(sql))
 
 ${cm('# the first run registers it in the catalog')}
-result = ${kw('await')} hub.${fn('run_tool_loop')}(
+result = ${kw('await')} hub.gateway.${fn('run_tool_loop')}(
     model=${st('"gpt-4o"')}, messages=messages,
     tools=[query_database],
 )
@@ -177,7 +177,7 @@ ${kw('const')} queryDatabase = ${fn('acrux')}.${fn('tool')}(
 );
 
 ${cm('// first call registers it in the catalog')}
-${kw('const')} result = ${kw('await')} hub.${fn('runToolLoop')}({
+${kw('const')} result = ${kw('await')} hub.gateway.${fn('runToolLoop')}({
   model: ${st("'gpt-4o'")}, messages,
   tools: [queryDatabase],
 });

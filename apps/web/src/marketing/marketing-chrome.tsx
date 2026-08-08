@@ -39,6 +39,16 @@ export const DOCS = {
    */
   tsSdk: `${DOCS_URL}/docs/guides/use-the-sdk-for-chat-and-feedback`,
   pySdk: `${DOCS_URL}/docs/tutorials/build-a-tool-calling-agent-in-python-sdk`,
+  /**
+   * The per-language API reference — every method, argument and return type.
+   * Distinct from the task-shaped guides above: those answer "how do I do this
+   * one thing?", these answer "what else can the client do?". The `/sdk` page
+   * described the six headline methods without ever linking the full surface.
+   */
+  nodeSdkReference: `${DOCS_URL}/docs/sdk-reference/node`,
+  pythonSdkReference: `${DOCS_URL}/docs/sdk-reference/python`,
+  /** The tutorials index — the build-an-outcome pages, as a set. */
+  tutorials: `${DOCS_URL}/docs/tutorials`,
   // No trailing slashes: the docs site is built with `trailingSlash: false`, so a
   // trailing slash costs an extra redirect hop on every click.
   /** Per-pillar reference + guide targets used by the feature pages. */
