@@ -1,6 +1,6 @@
 ---
-title: "Helicone vs AcruxCore: a request-path proxy, tested against another one"
-description: We rebuilt the same support-triage prompt on self-hosted Helicone and ran the identical sequence on AcruxCore — real screenshots, a real SDK trace attempt, and a measured latency benchmark, including the real errors we hit along the way.
+title: "Helicone vs AcruxCore: two request-path proxies compared"
+description: We rebuilt the same support-triage prompt on self-hosted Helicone and AcruxCore, ran it on both — real screenshots, an SDK trace, and a latency benchmark.
 slug: acruxcore-vs-helicone
 authors: [acrux]
 tags: [comparison, helicone, llm-ops]
@@ -267,6 +267,11 @@ only forwards to `api.openai.com`. There is no latency number to report for it, 
 we're not estimating one. AcruxCore's measured gap against the direct-call baseline
 is **-4ms, with a 95% bootstrap CI of [-136, +124]ms — the interval crosses zero**, so
 this run's overhead is statistically indistinguishable from zero at this sample size.
+
+For a broader run — real OpenAI billing instead of OpenRouter, six platforms in one
+interleaved benchmark, and four independent runs to check how stable the numbers
+are — see
+[full-cycle latency across six LLM-ops platforms](/blog/full-cycle-latency-benchmark).
 
 ## Friction hit during this run
 

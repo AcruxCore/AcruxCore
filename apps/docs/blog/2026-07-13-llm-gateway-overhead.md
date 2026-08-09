@@ -1,6 +1,6 @@
 ---
 title: "How much overhead does an LLM gateway add?"
-description: We benchmarked five ways to reach the same OpenAI model — through our gateway, around it with your own key, and raw. The gateway's software costs about 42 ms; almost everything else is network distance.
+description: We benchmarked five ways to reach the same OpenAI model — gateway, BYOK, and raw. The gateway's software costs about 42 ms; the rest is network distance.
 slug: llm-gateway-overhead
 authors: [acrux]
 tags: [gateway, performance, llm-ops, byok]
@@ -166,6 +166,11 @@ The tail is wider than the median suggests for every path — plan for the p99,
 not the median, when a call like this sits on a user-facing route. With only 60
 rounds per path, treat these tails as a rough shape rather than a precise claim;
 a larger run is on our list.
+
+Want the same median/p95/p99 shape against six other LLM-ops platforms, on real
+OpenAI billing, four independent runs, and every raw round plotted rather than
+summarized into three numbers? See
+[full-cycle latency across six LLM-ops platforms](/blog/full-cycle-latency-benchmark).
 
 ## What this means for you
 

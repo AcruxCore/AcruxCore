@@ -1,6 +1,6 @@
 ---
-title: "Langfuse vs AcruxCore: an org hierarchy, tested against a single flat team"
-description: We rebuilt the same support-triage prompt on Langfuse and AcruxCore and ran the identical sequence on both — real screenshots, a real SDK trace, and a measured latency benchmark, not a feature table copied from docs.
+title: "Langfuse vs AcruxCore: org hierarchy vs a flat team"
+description: We rebuilt the same support-triage prompt on Langfuse and AcruxCore, ran it on both — real screenshots, an SDK trace, and a measured latency benchmark.
 slug: acruxcore-vs-langfuse
 authors: [acrux]
 tags: [comparison, langfuse, llm-ops]
@@ -254,6 +254,11 @@ Langfuse's **+15ms is statistically indistinguishable from zero** (CI [-90, +150
 its instrumentation cost doesn't clear the noise floor at this sample size. Acrux
 Core's **+260ms is real** (CI [+157, +360]ms) — the cost of the extra hop, not a
 measurement artifact.
+
+For a broader run — real OpenAI billing instead of OpenRouter, six platforms in one
+interleaved benchmark, and four independent runs to check how stable the numbers
+are — see
+[full-cycle latency across six LLM-ops platforms](/blog/full-cycle-latency-benchmark).
 
 ## Friction hit during this run
 

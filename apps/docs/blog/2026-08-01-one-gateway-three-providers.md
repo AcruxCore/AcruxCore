@@ -1,6 +1,6 @@
 ---
-title: "One gateway, three providers: comparing Anthropic, OpenAI, and Gemini request shapes behind one API"
-description: The same chat request, translated into Anthropic's, Gemini's, and OpenAI's own native shapes by the gateway's provider adapters — system messages, sampling params, auth headers, and tool definitions, side by side.
+title: "One gateway, three providers: request shapes compared"
+description: The same chat request, translated into Anthropic, Gemini, and OpenAI's own shapes by the gateway's adapters — headers, params, and tool defs, side by side.
 slug: one-gateway-three-providers
 authors: [acrux]
 tags: [gateway, llm-ops]

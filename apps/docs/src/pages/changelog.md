@@ -63,6 +63,7 @@ called out in the week it ships and in the SDK release notes.
 - **The SDKs page** now links the full [TypeScript](/docs/sdk-reference/node) and [Python](/docs/sdk-reference/python) API reference.
 - **Fixed** — marketing pages answered on two addresses; `/pricing/` now redirects to `/pricing`.
 - **Fixed** — marketing pages showed the flat client methods SDK 0.7.0 removed.
+- **11 blog post titles and 12 descriptions** were shortened so search engines stop truncating them.
 
 ---
 

@@ -73,3 +73,8 @@ phoenix:
   permalink: /phoenix
   description: Posts that reference Arize Phoenix.
 
+mlflow:
+  label: MLflow
+  permalink: /mlflow
+  description: Posts that reference MLflow AI Gateway.
+

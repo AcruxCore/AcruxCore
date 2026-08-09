@@ -1,6 +1,6 @@
 ---
-title: "Phoenix vs AcruxCore: OpenTelemetry-native tracing, tested against a request-path gateway"
-description: We rebuilt the same support-triage prompt on Arize Phoenix and AcruxCore and ran the identical sequence on both — real screenshots, a real SDK trace, and a measured latency benchmark, not a feature table copied from docs.
+title: "Phoenix vs AcruxCore: OpenTelemetry tracing vs a gateway"
+description: We rebuilt the same support-triage prompt on Arize Phoenix and AcruxCore, ran it on both — real screenshots, an SDK trace, and a latency benchmark.
 slug: acruxcore-vs-phoenix
 authors: [acrux]
 tags: [comparison, phoenix, llm-ops, tracing]
@@ -277,6 +277,11 @@ straddle zero. That's the honest result: client-side OTel instrumentation and an
 network hop are different kinds of cost (CPU/serialization vs routing-and-caching
 capability), but at 100 rounds, network noise swamps both. Full script:
 [`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/phoenix-vs-acruxcore/python/latency_bench.py).
+
+For a broader run — real OpenAI billing instead of OpenRouter, six platforms in one
+interleaved benchmark, and four independent runs to check how stable the numbers
+are — see
+[full-cycle latency across six LLM-ops platforms](/blog/full-cycle-latency-benchmark).
 
 ## Friction hit during this run
 

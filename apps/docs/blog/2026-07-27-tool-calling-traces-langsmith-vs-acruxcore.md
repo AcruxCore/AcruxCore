@@ -1,6 +1,6 @@
 ---
-title: "One tool, two platforms: tool-call traces in LangSmith vs AcruxCore"
-description: We built the same weather tool twice — once as a traced Python function on LangSmith, once as a versioned Tool Catalog entry on AcruxCore — ran both live on the same model, and counted the code.
+title: "Tool-call traces: LangSmith vs AcruxCore"
+description: We built the same weather tool twice — a traced Python function on LangSmith, a versioned Tool Catalog entry on AcruxCore — ran both live, and counted the code.
 slug: tool-calling-traces-langsmith-vs-acruxcore
 authors: [acrux]
 tags: [comparison, langsmith, tracing, tools, llm-ops]

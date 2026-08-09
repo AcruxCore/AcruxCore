@@ -1,8 +1,11 @@
 """Runs the same vip-support-triage completion through the `acruxcore` Python SDK.
 
-Contrast with `lf_trace_run.py`: Langfuse has no stored-prompt concept, so that
-script inlines the system/user text and wraps a normal OpenAI call. Here the
-prompt lives on the platform — `hub.prompts.render()` fetches and fills the
+Contrast with `lf_trace_run.py`: that script inlines the system/user text and
+wraps a normal OpenAI call rather than fetching a stored prompt — not because
+Langfuse lacks prompt management (it doesn't; `langfuse.get_prompt()` /
+`create_prompt()` are real, confirmed against a live self-hosted instance),
+but because that script predates using it. Here the prompt lives on the
+platform — `hub.prompts.render()` fetches and fills the
 `vip-support-triage@production` template, `hub.gateway.chat()` sends it through
 the gateway, and the trace (with prompt-version lineage attached) is written
 server-side with no tracing code in this file at all.

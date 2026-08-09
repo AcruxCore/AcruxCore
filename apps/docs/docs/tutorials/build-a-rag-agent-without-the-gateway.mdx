@@ -404,5 +404,6 @@ Run `python acrux_rag.py --setup` once to create the two prompts, then
 
 - [Build a tool-calling agent in Python (SDK)](./build-a-tool-calling-agent-in-python-sdk) — the same `run_tool_loop`, on the gateway path, with several tools running concurrently.
 - [Route your app's LLM calls through the gateway](../guides/route-calls-through-the-gateway) — the other side of this trade: one hop more, in exchange for budgets, caching, fallback routing, and dollar cost on every span.
+- [Full-cycle latency across six LLM-ops platforms](/blog/full-cycle-latency-benchmark) — the measurements behind "you save a network hop": this BYO path came back statistically indistinguishable from calling OpenAI directly, in every one of four independent runs.
 - [Using sessions and traces](../guides/using-sessions-and-traces) — group several runs into one session and search across them.
 - API details: see **Prompts** and **Traces** in the [API Reference](/api-reference).

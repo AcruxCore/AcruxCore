@@ -80,7 +80,7 @@ const tdStyle = cssToStyle('padding:14px 12px;border-bottom:1px solid var(--line
  * @returns The rendered comparison matrix.
  */
 export function ComparePage(): ReactNode {
-  useDocumentTitle('Compare AcruxCore to Langfuse, Phoenix, Opik & Helicone');
+  useDocumentTitle('LLM Observability Tools Compared (2026) | AcruxCore');
 
   return (
     <MarketingShell wide>

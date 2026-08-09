@@ -1,6 +1,6 @@
 ---
-title: "LangSmith vs Langfuse vs PromptLayer vs AcruxCore: a hands-on comparison"
-description: We logged into all four hosted products ourselves — created prompts, ran live model calls, inspected traces, and ran real evals — instead of comparing marketing pages.
+title: "LangSmith vs Langfuse vs PromptLayer vs AcruxCore"
+description: We logged into all four hosted products ourselves — created prompts, ran live model calls, inspected traces, and ran real evals, not marketing pages.
 slug: hands-on-llm-ops-comparison
 authors: [acrux]
 tags: [comparison, langsmith, langfuse, promptlayer, walkthrough, llm-ops]
@@ -130,9 +130,12 @@ the moment you switch endpoints; the SDK-wrapper model works with any call path 
 have, gateway or not.
 
 The obvious follow-up question is whether routing through the gateway costs you latency.
-We [measured it](/blog/llm-gateway-overhead): the gateway's own software adds about 26 ms,
+We [measured it](/blog/llm-gateway-overhead): the gateway's own software adds about 42 ms,
 with the rest of what you'd see being ordinary network distance you control by deploying
-close to your callers.
+close to your callers. For a broader run — six platforms including Langfuse, real
+OpenAI billing instead of OpenRouter, and four independent runs to check how stable
+the numbers are — see
+[full-cycle latency across six LLM-ops platforms](/blog/full-cycle-latency-benchmark).
 
 <details>
 <summary>See the actual screens: trace views on all four platforms</summary>

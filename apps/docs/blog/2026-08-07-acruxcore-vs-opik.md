@@ -1,6 +1,6 @@
 ---
-title: "Opik vs AcruxCore: guardrails, PII detection, and online evaluation, put to the test"
-description: We rebuilt the same support-triage prompt on self-hosted Opik and AcruxCore and ran the identical sequence on both — real screenshots, a real SDK trace, and a measured latency benchmark, not a feature table copied from docs.
+title: "Opik vs AcruxCore: guardrails, PII, and online evaluation"
+description: We rebuilt the same support-triage prompt on self-hosted Opik and AcruxCore, ran it on both — real screenshots, an SDK trace, and a latency benchmark.
 slug: acruxcore-vs-opik
 authors: [acrux]
 tags: [comparison, opik, llm-ops]
@@ -295,6 +295,11 @@ size, unlike a competitor's client-side overhead we measured previously. AcruxCo
 measurement artifact.
 
 Full script: [`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/opik-vs-acruxcore/python/latency_bench.py).
+
+For a broader run — real OpenAI billing instead of OpenRouter, six platforms in one
+interleaved benchmark, and four independent runs to check how stable the numbers
+are — see
+[full-cycle latency across six LLM-ops platforms](/blog/full-cycle-latency-benchmark).
 
 ## Friction hit during this run
 

@@ -1,6 +1,6 @@
 ---
-title: "Exact-match gateway caching: how much latency and spend it actually saves"
-description: We measured the gateway's exact-match response cache against the same repeated calls it's built for — a ~100x latency drop on a hit, and zero cost, with the real numbers from a live run.
+title: "Exact-match gateway caching: latency and cost saved"
+description: We measured the gateway's exact-match response cache against the calls it's built for — a ~100x latency drop on a hit, and zero cost, from a live run.
 slug: exact-match-gateway-caching
 authors: [acrux]
 tags: [gateway, performance, llm-ops]

@@ -1,6 +1,6 @@
 ---
-title: "The same agent in two SDKs: LangChain vs the AcruxCore SDK"
-description: We rewrote the same tool-calling agent with LangChain's create_agent and with the AcruxCore SDK's run_tool_loop, ran both live, and compared the code and the traces they produce.
+title: "LangChain vs AcruxCore SDK: the same tool-calling agent"
+description: We rewrote the same tool-calling agent with LangChain's create_agent and the AcruxCore SDK's run_tool_loop, ran both live, and compared the code and traces.
 slug: tool-agent-sdk-langchain-vs-acruxcore
 authors: [acrux]
 tags: [comparison, langsmith, sdk, tools, tracing, llm-ops]

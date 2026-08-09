@@ -1,6 +1,6 @@
 ---
-title: "A hands-on walkthrough of AcruxCore"
-description: A step-by-step walkthrough of prompt versioning, gateway tracing, and evaluation in the hosted AcruxCore dashboard — the baseline for our LangSmith, Langfuse, and PromptLayer comparisons.
+title: "A hands-on walkthrough of the AcruxCore dashboard"
+description: A step-by-step walkthrough of prompt versioning, tracing, and evaluation in AcruxCore — the baseline for our competitor comparisons.
 slug: acruxcore-hands-on-walkthrough
 authors: [acrux]
 tags: [walkthrough, llm-ops]
