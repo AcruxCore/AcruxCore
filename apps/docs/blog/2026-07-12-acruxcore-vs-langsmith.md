@@ -3,7 +3,7 @@ title: "AcruxCore vs LangSmith: prompts, gateway, and tracing"
 description: An honest, feature-by-feature comparison of AcruxCore and LangSmith across prompt versioning, the model gateway, tracing, tools, and evaluation.
 slug: acrux-core-vs-langsmith
 authors: [acrux]
-tags: [comparison, langsmith, llm-ops]
+tags: [llmops-comparison, prompt-management, llm-tracing]
 image: /img/social-card.png
 keywords: [AcruxCore vs langsmith, langsmith alternative, llm ops, prompt management, ai gateway, llm tracing]
 ---

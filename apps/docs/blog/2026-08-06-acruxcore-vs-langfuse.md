@@ -3,7 +3,7 @@ title: "Langfuse vs AcruxCore: org hierarchy vs a flat team"
 description: We rebuilt the same support-triage prompt on Langfuse and AcruxCore, ran it on both — real screenshots, an SDK trace, and a measured latency benchmark.
 slug: acruxcore-vs-langfuse
 authors: [acrux]
-tags: [comparison, langfuse, llm-ops]
+tags: [llmops-comparison, prompt-management, llm-tracing]
 image: /img/social-card.png
 keywords: [langfuse vs AcruxCore, langfuse alternative, llm ops comparison, prompt versioning, ai gateway, llm tracing]
 ---

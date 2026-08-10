@@ -44,13 +44,32 @@ describe('OpenAiAdapter.chatCompletion', () => {
     expect(body.model).toBe('gpt-4o-mini');
     expect(body.messages).toEqual(req.messages);
     expect(body.temperature).toBe(0.7);
-    expect(body.max_tokens).toBe(50);
+    expect(body.max_completion_tokens).toBe(50);
+    expect(body.max_tokens).toBeUndefined();
 
     // Response assertions
     expect(res.id).toBe('chatcmpl-abc');
     expect(res.choices[0]?.message.content).toBe('Hi');
     expect(res.choices[0]?.finish_reason).toBe('stop');
     expect(res.usage).toEqual({ prompt_tokens: 12, completion_tokens: 1, total_tokens: 13 });
+  });
+
+  it('routes the max-tokens wire key by provider, not model name: real OpenAI sends max_completion_tokens for every model', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => CANNED_OPENAI,
+    } as unknown as Response);
+
+    // Model-agnostic by design: legacy (gpt-4o-mini) and reasoning (o1, gpt-5) alike
+    // get the renamed key on real OpenAI, so new model releases need no code change.
+    for (const model of ['gpt-4o-mini', 'gpt-4o', 'o1', 'o3-mini', 'gpt-5']) {
+      await openaiAdapter.chatCompletion({ ...req, model }, { apiKey: 'sk-test' });
+      const [, opts] = fetchMock.mock.calls[fetchMock.mock.calls.length - 1] as [string, RequestInit];
+      const body = JSON.parse(opts.body as string);
+      expect(body.max_completion_tokens).toBe(50);
+      expect(body.max_tokens).toBeUndefined();
+    }
   });
 
   it('passes response_format through untranslated', async () => {
@@ -71,12 +90,20 @@ describe('OpenAiAdapter.chatCompletion', () => {
     let server: http.Server;
     let baseUrl: string;
     let receivedAuth: string | undefined;
+    let receivedBody: { max_tokens?: number; max_completion_tokens?: number };
 
     beforeAll(async () => {
       server = http.createServer((httpReq, res) => {
         receivedAuth = httpReq.headers['authorization'];
-        res.setHeader('content-type', 'application/json');
-        res.end(JSON.stringify(CANNED_OPENAI));
+        let raw = '';
+        httpReq.on('data', (chunk) => {
+          raw += chunk;
+        });
+        httpReq.on('end', () => {
+          receivedBody = JSON.parse(raw);
+          res.setHeader('content-type', 'application/json');
+          res.end(JSON.stringify(CANNED_OPENAI));
+        });
       });
       await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
       const port = (server.address() as AddressInfo).port;
@@ -97,6 +124,12 @@ describe('OpenAiAdapter.chatCompletion', () => {
 
       expect(receivedAuth).toBe('Bearer sk-groq');
       expect(res.id).toBe('chatcmpl-abc');
+    });
+
+    it('openai_compatible keeps the legacy max_tokens key (provider-split: third-party servers expect the old name)', async () => {
+      await openaiCompatibleAdapter.chatCompletion(req, { apiKey: 'sk-groq', baseUrl });
+      expect(receivedBody.max_tokens).toBe(50);
+      expect(receivedBody.max_completion_tokens).toBeUndefined();
     });
   });
 

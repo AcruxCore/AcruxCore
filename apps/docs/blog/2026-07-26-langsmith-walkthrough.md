@@ -3,7 +3,7 @@ title: "Hands-on with LangSmith: a real walkthrough"
 description: A step-by-step, screenshot-backed walkthrough of creating a prompt, running a trace, and building an eval dataset in LangSmith's hosted product.
 slug: langsmith-hands-on-walkthrough
 authors: [acrux]
-tags: [langsmith, walkthrough, llm-ops]
+tags: [prompt-management, llm-tracing]
 image: /img/social-card.png
 keywords: [langsmith walkthrough, langsmith tracing, langsmith prompt hub, langsmith evaluation, llm ops]
 ---

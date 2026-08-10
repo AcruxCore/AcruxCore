@@ -71,7 +71,15 @@ export class OpenAiAdapter implements ProviderAdapter {
       messages: req.messages,
     };
     if (req.temperature !== undefined) payload['temperature'] = req.temperature;
-    if (req.max_tokens !== undefined) payload['max_tokens'] = req.max_tokens;
+    if (req.max_tokens !== undefined) {
+      // Real OpenAI renamed max_tokens → max_completion_tokens; the new key is
+      // accepted on every chat model and required by reasoning families
+      // (o1/o3/o4-mini/gpt-5), which 400 on the legacy name. Third-party
+      // openai_compatible servers (Groq/Together/Ollama/…) still expect the
+      // legacy name, so the wire key follows the provider boundary, not the model.
+      const maxTokensKey = this.provider === 'openai' ? 'max_completion_tokens' : 'max_tokens';
+      payload[maxTokensKey] = req.max_tokens;
+    }
     if (req.top_p !== undefined) payload['top_p'] = req.top_p;
     if (req.stop !== undefined) payload['stop'] = req.stop;
     if (req.tools !== undefined) payload['tools'] = req.tools;

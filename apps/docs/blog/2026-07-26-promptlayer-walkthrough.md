@@ -3,7 +3,7 @@ title: "A hands-on walkthrough of PromptLayer"
 description: Logging into hosted PromptLayer, creating and versioning a prompt, running it, and checking what its trace view and evaluation tooling actually show.
 slug: promptlayer-hands-on-walkthrough
 authors: [acrux]
-tags: [promptlayer, walkthrough, llm-ops]
+tags: [prompt-management]
 image: /img/social-card.png
 keywords: [promptlayer, promptlayer walkthrough, prompt management, llm ops, prompt versioning]
 ---

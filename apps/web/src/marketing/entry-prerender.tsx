@@ -164,7 +164,7 @@ export const ROUTES: PrerenderRoute[] = [
     out: 'compare/index.html',
     title: 'LLM Observability Tools Compared (2026) | AcruxCore',
     description:
-      'AcruxCore vs Langfuse, Phoenix, Opik, and Helicone on license, self-hosting, pricing, team structure, security, and community stats — every fact sourced and dated.',
+      'AcruxCore vs Langfuse, Phoenix, Opik, Helicone, and MLflow on license, self-hosting, pricing, team structure, security, and community stats — every fact sourced and dated.',
     component: ComparePage,
     sourceFile: 'src/marketing/pages/ComparePage.tsx',
     priority: 0.8,

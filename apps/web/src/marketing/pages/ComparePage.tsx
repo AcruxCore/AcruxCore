@@ -91,7 +91,7 @@ export function ComparePage(): ReactNode {
             'font-size:clamp(30px,4.4vw,48px);line-height:1.05;letter-spacing:-.026em;font-weight:700;margin:0 0 18px;max-width:22ch;text-wrap:balance;',
           )}
         >
-          AcruxCore next to four open-source alternatives.
+          AcruxCore next to five open-source alternatives.
         </h1>
         <p
           style={cssToStyle(
@@ -106,7 +106,7 @@ export function ComparePage(): ReactNode {
 
       <section style={cssToStyle('padding:0 0 clamp(40px,6vw,64px);')}>
         <p style={cssToStyle('font-size:12.5px;color:var(--faint);margin:0 4px 10px;')}>
-          Scroll right to see all four competitors →
+          Scroll right to see all five competitors →
         </p>
         <div style={cssToStyle('overflow-x:auto;border:1px solid var(--line);border-radius:14px;')}>
           <table style={cssToStyle('width:100%;border-collapse:collapse;background:var(--surface);')}>
@@ -135,7 +135,7 @@ export function ComparePage(): ReactNode {
               {ROWS.map((row) => {
                 // The shared AcruxCore cell appears once per row, next to every
                 // competitor column, so its own "Our edge" badge is only honest
-                // when the win holds against ALL four — a mixed row (an edge
+                // when the win holds against ALL of them — a mixed row (an edge
                 // against some competitors, not others) stays unbadged on the
                 // AcruxCore side; each competitor's own column still carries
                 // its individual "Their edge" badge where that holds.

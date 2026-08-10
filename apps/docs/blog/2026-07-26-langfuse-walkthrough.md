@@ -3,7 +3,7 @@ title: "Hands-on with Langfuse: prompts, tracing, and datasets"
 description: A step-by-step walkthrough of Langfuse's prompt management, trace view, and dataset/experiment flow, with screenshots and honest observations.
 slug: langfuse-hands-on-walkthrough
 authors: [acrux]
-tags: [langfuse, walkthrough, llm-ops]
+tags: [prompt-management, llm-tracing]
 image: /img/social-card.png
 keywords: [langfuse, langfuse walkthrough, llm tracing, prompt management, open source llm observability, opentelemetry tracing]
 ---

@@ -3,7 +3,7 @@ title: "How much overhead does an LLM gateway add?"
 description: We benchmarked five ways to reach the same OpenAI model — gateway, BYOK, and raw. The gateway's software costs about 42 ms; the rest is network distance.
 slug: llm-gateway-overhead
 authors: [acrux]
-tags: [gateway, performance, llm-ops, byok]
+tags: [llm-gateway, llm-latency]
 image: /img/social-card.png
 keywords: [llm gateway latency, ai gateway overhead, openai proxy latency, byok latency, AcruxCore gateway, llm ops performance]
 ---

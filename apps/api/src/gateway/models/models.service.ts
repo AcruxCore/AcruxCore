@@ -168,9 +168,13 @@ export class ModelsService {
   }
 
   /**
-   * Fires a minimal 1-token completion through the model's credential to verify
-   * it works. Never throws to the client; a provider failure returns `ok:false`.
-   * Does not touch budgets or the usage log.
+   * Fires a minimal completion through the model's credential to verify it works.
+   * No `max_tokens` cap is sent: reasoning models (o1/o3/o4-mini/gpt-5) spend
+   * tokens on internal thinking before emitting output, so a tiny cap makes them
+   * 400 with "max_tokens or model output limit was reached". Each provider
+   * applies its own default, and the trivial "ping" prompt keeps the response
+   * short on non-reasoning models. Never throws to the client; a provider failure
+   * returns `ok:false`. Does not touch budgets or the usage log.
    *
    * @param id - Model UUID.
    * @param teamId - Isolation boundary.
@@ -189,7 +193,7 @@ export class ModelsService {
     const startedAt = Date.now();
     try {
       await adapter.chatCompletion(
-        { model: row.upstreamModel, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1 },
+        { model: row.upstreamModel, messages: [{ role: 'user', content: 'ping' }] },
         creds,
       );
       return { ok: true, latencyMs: Date.now() - startedAt };

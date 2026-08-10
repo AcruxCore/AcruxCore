@@ -1,12 +1,12 @@
 {
-  "src/marketing/LandingPage.tsx": "2026-08-07",
+  "src/marketing/LandingPage.tsx": "2026-08-08",
   "src/marketing/pages/AboutPage.tsx": "2026-08-07",
   "src/marketing/pages/ContactPage.tsx": "2026-08-07",
   "src/marketing/pages/SecurityPage.tsx": "2026-08-07",
   "src/marketing/pages/PrivacyPage.tsx": "2026-08-07",
   "src/marketing/pages/TermsPage.tsx": "2026-08-07",
   "src/marketing/pages/PricingPage.tsx": "2026-08-07",
-  "src/marketing/pages/SdkPage.tsx": "2026-08-07",
-  "src/marketing/features.tsx": "2026-08-07",
-  "src/marketing/pages/ComparePage.tsx": "2026-08-07"
+  "src/marketing/pages/SdkPage.tsx": "2026-08-08",
+  "src/marketing/features.tsx": "2026-08-08",
+  "src/marketing/pages/ComparePage.tsx": "2026-08-09"
 }

@@ -1,80 +1,43 @@
-comparison:
-  label: Comparison
-  permalink: /comparison
-  description: Honest comparisons of AcruxCore with other LLM-ops tools.
+# Blog tags — deliberately kept to five.
+#
+# A Docusaurus tag page is a list of post titles with no content of its own, so
+# a tag holding one or two posts produces a thin page that targets the same
+# query as the post it links to. When Google picks the thin one, a searcher gets
+# a list of two links instead of the article. Competitor-name tags (langfuse,
+# opik, mlflow, …) were the worst case of this: /blog/tags/opik competed with
+# the Opik comparison post for "opik alternative" and could never win it.
+#
+# Rules for adding to this file:
+#  - A new tag needs three existing posts, or it stays out.
+#  - No competitor names, no product names, no single generic words
+#    ("performance", "comparison") — those carry no search intent alone and
+#    exist only to compete with the posts.
+#  - Three tags per post is the ceiling.
+#
+# Competitor and feature intent lives in each post's title, slug and `keywords`
+# frontmatter, which is where it converts.
 
-langsmith:
-  label: LangSmith
-  permalink: /langsmith
-  description: Posts that reference LangSmith.
+llmops-comparison:
+  label: LLMOps comparison
+  permalink: /llmops-comparison
+  description: Head-to-head comparisons of LLMOps platforms, run hands-on rather than read off docs pages.
 
-llm-ops:
-  label: LLM Ops
-  permalink: /llm-ops
-  description: Prompt management, gateways, tracing, and evaluation.
+prompt-management:
+  label: Prompt management
+  permalink: /prompt-management
+  description: Versioning prompts, promoting them between environments, and templating them without a redeploy.
 
-gateway:
-  label: Gateway
-  permalink: /gateway
-  description: The AcruxCore model gateway — routing, cost, caching, and performance.
+llm-tracing:
+  label: LLM tracing
+  permalink: /llm-tracing
+  description: Traces, spans, tool calls, and what an LLM run actually looks like in production.
 
-performance:
-  label: Performance
-  permalink: /performance
-  description: Benchmarks and latency analysis of AcruxCore.
+llm-gateway:
+  label: LLM gateway
+  permalink: /llm-gateway
+  description: One endpoint in front of every model provider — routing, caching, cost accounting, and virtual keys.
 
-langfuse:
-  label: Langfuse
-  permalink: /langfuse
-  description: Posts that reference Langfuse.
-
-helicone:
-  label: Helicone
-  permalink: /helicone
-  description: Posts that reference Helicone.
-
-promptlayer:
-  label: PromptLayer
-  permalink: /promptlayer
-  description: Posts that reference PromptLayer.
-
-opik:
-  label: Opik
-  permalink: /opik
-  description: Posts that reference Opik.
-
-walkthrough:
-  label: Walkthrough
-  permalink: /walkthrough
-  description: Hands-on, step-by-step walkthroughs with screenshots.
-
-tracing:
-  label: Tracing
-  permalink: /tracing
-  description: Traces, spans, and what an LLM run actually looks like in production.
-
-tools:
-  label: Tools
-  permalink: /tools
-  description: Tool calling and the AcruxCore Tool Catalog.
-
-sdk:
-  label: SDK
-  permalink: /sdk
-  description: Working with the AcruxCore SDKs and other platforms' client libraries.
-
-byok:
-  label: BYOK
-  permalink: /byok
-  description: Bringing your own provider key and calling the model provider directly.
-
-phoenix:
-  label: Phoenix
-  permalink: /phoenix
-  description: Posts that reference Arize Phoenix.
-
-mlflow:
-  label: MLflow
-  permalink: /mlflow
-  description: Posts that reference MLflow AI Gateway.
-
+llm-latency:
+  label: LLM latency
+  permalink: /llm-latency
+  description: Measured latency of LLMOps platforms and the overhead a gateway adds to a model call.

@@ -3,7 +3,7 @@ title: "Full-cycle latency across six LLM-ops platforms, measured against real O
 description: We timed prompt-fetch-plus-completion, not just the model call, across Opik, MLflow, Langfuse, Helicone, Phoenix, and AcruxCore's gateway and gateway-free BYOK modes, against a real OpenAI baseline — then ran it four times to see what's stable and what isn't.
 slug: full-cycle-latency-benchmark
 authors: [acrux]
-tags: [performance, gateway, byok, comparison, opik, mlflow, langfuse, helicone, phoenix]
+tags: [llmops-comparison, llm-latency, llm-gateway]
 image: /img/social-card.png
 keywords: [llm ops latency comparison, ai gateway latency, opik latency, mlflow ai gateway latency, langfuse latency, helicone latency, phoenix latency, byok latency, full cycle latency benchmark]
 ---

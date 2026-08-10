@@ -3,7 +3,7 @@ title: "Phoenix vs AcruxCore: OpenTelemetry tracing vs a gateway"
 description: We rebuilt the same support-triage prompt on Arize Phoenix and AcruxCore, ran it on both — real screenshots, an SDK trace, and a latency benchmark.
 slug: acruxcore-vs-phoenix
 authors: [acrux]
-tags: [comparison, phoenix, llm-ops, tracing]
+tags: [llmops-comparison, llm-tracing]
 image: /img/social-card.png
 keywords: [phoenix vs AcruxCore, arize phoenix alternative, llm ops comparison, prompt versioning, ai gateway, llm tracing, openinference]
 ---

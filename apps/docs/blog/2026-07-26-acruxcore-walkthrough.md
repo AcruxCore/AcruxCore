@@ -3,7 +3,7 @@ title: "A hands-on walkthrough of the AcruxCore dashboard"
 description: A step-by-step walkthrough of prompt versioning, tracing, and evaluation in AcruxCore — the baseline for our competitor comparisons.
 slug: acruxcore-hands-on-walkthrough
 authors: [acrux]
-tags: [walkthrough, llm-ops]
+tags: [prompt-management, llm-tracing]
 image: /img/social-card.png
 keywords: [AcruxCore walkthrough, prompt versioning, ai gateway, llm tracing, llm evaluation]
 ---

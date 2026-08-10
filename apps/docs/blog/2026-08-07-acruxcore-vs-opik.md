@@ -3,7 +3,7 @@ title: "Opik vs AcruxCore: guardrails, PII, and online evaluation"
 description: We rebuilt the same support-triage prompt on self-hosted Opik and AcruxCore, ran it on both — real screenshots, an SDK trace, and a latency benchmark.
 slug: acruxcore-vs-opik
 authors: [acrux]
-tags: [comparison, opik, llm-ops]
+tags: [llmops-comparison, prompt-management, llm-tracing]
 image: /img/social-card.png
 keywords: [opik vs AcruxCore, opik alternative, llm ops comparison, prompt versioning, ai gateway, llm tracing, comet opik]
 ---

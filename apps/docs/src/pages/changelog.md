@@ -23,6 +23,16 @@ called out in the week it ships and in the SDK release notes.
 
 ---
 
+## Week of 10 August 2026
+
+### Major
+
+### Minor
+
+- **Blog tag and author pages** (`/blog/tags`, `/blog/authors`, and their archives) are now marked `noindex` so they stop competing with the posts they link to in search results.
+
+---
+
 ## Week of 5 August 2026
 
 ### Major
@@ -52,6 +62,8 @@ called out in the week it ships and in the SDK release notes.
 ### Minor
 
 - **Terms, Privacy and the site footer** now name AcruxCore without a corporate suffix.
+- **Fixed** — routing requests to OpenAI reasoning models (`o1`, `o3`, `o4-mini`, `gpt-5`) no longer 400s with `Unsupported parameter: 'max_tokens'`; the gateway now sends `max_completion_tokens` to OpenAI, while `openai_compatible` providers keep `max_tokens`.
+- **Fixed** — the model-page "Test" button works for reasoning models (`o1`, `o3`, `o4-mini`, `gpt-5`); the connectivity ping no longer sends a 1-token cap those models can't meet.
 - **Privacy** names AcruxCore as the controller for the hosted service, with a contact address.
 - **New guide** — [Product tour](/docs/getting-started/product-tour): tools, streaming, traces, feedback, and evaluation in one walkthrough.
 - **Fixed** — rendering a prompt with a `{% for %}` loop no longer wrongly demands the loop variable as an input.

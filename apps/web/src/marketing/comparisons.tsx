@@ -6,7 +6,7 @@ import { DOCS_URL, GITHUB_URL } from './marketing-chrome';
  * `comparing-open-source-alternatives` skill's competitor set (see
  * cross-cutting-faq: LangWatch and LiteLLM dropped).
  */
-export type CompetitorSlug = 'langfuse' | 'phoenix' | 'opik' | 'helicone';
+export type CompetitorSlug = 'langfuse' | 'phoenix' | 'opik' | 'helicone' | 'mlflow';
 
 /** Where a fact came from, so a reader can check it themselves. */
 export interface Source {
@@ -264,6 +264,45 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     communityNote:
       'Acquired by Mintlify; per Helicone\'s own announcement, "services will remain live... in maintenance mode."',
   },
+
+  mlflow: {
+    slug: 'mlflow',
+    name: 'MLflow',
+    tagline: 'The open-source ML/GenAI platform — prompt registry, tracing, evaluation, and its own request-path AI Gateway.',
+    postHref: `${DOCS_URL}/blog/acruxcore-vs-mlflow`,
+    githubHref: 'https://github.com/mlflow/mlflow',
+    checkedOn: '2026-08-08',
+    license: {
+      value: 'Apache License 2.0, no gated directory found in the repo — the same terms as AcruxCore, a genuine tie',
+      source: { label: 'LICENSE', href: 'https://github.com/mlflow/mlflow/blob/main/LICENSE' },
+    },
+    selfHost: {
+      value: 'mlflow server (pip install mlflow), or docker compose for a Postgres-backed instance',
+      source: { label: 'GitHub', href: 'https://github.com/mlflow/mlflow' },
+    },
+    gateway: {
+      value:
+        'In the request path, same as AcruxCore — named endpoints route to 60+ providers with usage tracking, and add per-endpoint budgets and guardrails (PII/safety) AcruxCore does not have',
+      competitorWins: true,
+    },
+    toolCatalog: {
+      value: 'An MCP Registry (Beta) catalogs external MCP servers by their server.json manifest — a different shape than a per-tool schema catalog, and nothing here executes a tool call directly',
+    },
+    teamStructure: {
+      value: 'No team, member, invite, or org concept anywhere — no login screen at all in self-hosted OSS',
+      acruxWins: true,
+    },
+    pricingSummary: {
+      value: 'MLflow itself is free; Databricks-hosted Managed MLflow is usage-based (DBU consumption), no published flat price',
+      source: { label: 'databricks.com/product/managed-mlflow', href: 'https://www.databricks.com/product/managed-mlflow' },
+    },
+    rbac: { value: 'Not found — no auth at all in self-hosted OSS, checked across every Settings page', acruxWins: true },
+    auditLog: { value: 'Not found — Settings has only General, LLM Connections, and Webhooks', acruxWins: true },
+    promptTemplating: {
+      value: 'Full Jinja2 — {% if %} conditionals and {% for %} loops both render natively, plus a real version diff and @production/@staging aliases — the closest match of any competitor to AcruxCore\'s own templates',
+    },
+    communityStars: '27,416',
+  },
 };
 
 /** The competitors as an ordered array — matches the order they appear on `/compare`. */
@@ -272,4 +311,5 @@ export const COMPARISON_LIST: Comparison[] = [
   COMPARISONS.phoenix,
   COMPARISONS.opik,
   COMPARISONS.helicone,
+  COMPARISONS.mlflow,
 ];

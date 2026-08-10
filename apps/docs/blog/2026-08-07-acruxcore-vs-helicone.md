@@ -3,7 +3,7 @@ title: "Helicone vs AcruxCore: two request-path proxies compared"
 description: We rebuilt the same support-triage prompt on self-hosted Helicone and AcruxCore, ran it on both — real screenshots, an SDK trace, and a latency benchmark.
 slug: acruxcore-vs-helicone
 authors: [acrux]
-tags: [comparison, helicone, llm-ops]
+tags: [llmops-comparison, llm-gateway, llm-tracing]
 image: /img/social-card.png
 keywords: [helicone vs AcruxCore, helicone alternative, llm ops comparison, ai gateway, prompt versioning, llm tracing]
 ---
