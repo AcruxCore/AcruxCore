@@ -2,6 +2,7 @@
 title: "MLflow vs AcruxCore: two gateways, one built-in guardrails and PII detection"
 description: We rebuilt the same support-triage prompt on self-hosted MLflow and AcruxCore and ran the identical sequence on both — real screenshots, real SDK output, and a measured latency benchmark, not a feature table copied from docs.
 slug: acruxcore-vs-mlflow
+date: 2026-08-11
 authors: [acrux]
 tags: [llmops-comparison, llm-gateway, prompt-management]
 image: /img/social-card.png
