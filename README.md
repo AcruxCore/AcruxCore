@@ -25,7 +25,7 @@
 ---
 
 <p align="center">
-  <img src=".github/assets/product-demo.gif" width="820" alt="The AcruxCore dashboard: creating a prompt, committing a version, attaching a tool, running it through the gateway on a real model, and opening the resulting trace">
+  <img src="product-demo.gif" width="820" alt="The AcruxCore dashboard: creating a prompt, committing a version, attaching a tool, running it through the gateway on a real model, and opening the resulting trace">
 </p>
 
 <p align="center">
