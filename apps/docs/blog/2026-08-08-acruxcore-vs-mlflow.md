@@ -47,7 +47,7 @@ price change there is one edit instead of three.
 | Evaluation & datasets | Built-in LLM-as-judge + custom code judges; dataset list page didn't refresh after creating one | Version × model sweep from real trace feedback | Depends |
 | Measured overhead | −44ms (not distinguishable from zero) | −63ms (not distinguishable from zero) | Tie |
 | Guardrails | Safety + PII detection + custom, per gateway endpoint | None | MLflow |
-| Budgets | Spend limits + alerts, per endpoint | Cost is visible, not enforced | MLflow |
+| Spend controls | Budget policy per endpoint — reset period, on-exceeded action | Spend cap per team or virtual key, enforced before the provider call, plus RPM/TPM limits | Tie |
 
 License, pricing, team structure, security, and community stats: see
 [AcruxCore vs MLflow on the compare page](https://acruxcore.com/compare).
@@ -93,6 +93,37 @@ platforms we've compared has an equivalent of.
 | Provider/model picker | Curated list per provider (60+ providers) — some models absent even if the provider serves them | Any model string your registered credential supports |
 | Aggregate cost/usage view | Per-endpoint dashboard: requests, latency percentiles, tokens, cost by model | Team-wide Gateway Telemetry |
 | Per-call cost shown inline | No — see "Sending a live call" below | Yes |
+
+## Spend controls — both platforms stop the call
+
+Sitting in the request path is what makes a spend cap enforceable rather than
+advisory, and both platforms use it. MLflow's **Budgets** page (under AI Gateway)
+creates a policy per endpoint: a reset period, an action for when it's exceeded, and a
+spending window, tracked against real current spend. No policy existed on this build,
+so this is a comparison of the two configuration surfaces, not of two enforcement
+runs.
+
+AcruxCore's cap is scoped to a team or to a single virtual key, over a day, week,
+month, or the key's whole lifetime. Enforcement happens before the provider is called:
+the request reserves its estimated cost against the cap, and one that would cross it
+comes back `402 BUDGET_EXCEEDED` instead of being billed. Owners and admins get an
+email once at 80% of the cap and again when it's exhausted. Separately, a virtual key
+can carry RPM and TPM limits, which return `429` on the same pre-call path.
+
+<details>
+<summary>Show screenshot: Budgets on MLflow</summary>
+
+![MLflow's empty Budgets page: "No budget policies created. Set spending limits and control costs across your endpoints," with a Create budget policy button and columns for Reset period, On Exceeded, Window Start/End, and Current Spend](/img/comparison/mlflow/mf-11-budgets.png)
+
+</details>
+
+| Feature | MLflow | AcruxCore |
+|---|---|---|
+| Cap scope | Per Gateway endpoint | Per team, or per virtual key |
+| Reset period | Per-policy spending window | Day, week, month, or total |
+| When the cap is hit | Configurable on-exceeded action | `402 BUDGET_EXCEEDED` before the provider call |
+| Warning before the cap | Not found | Email to owners and admins at 80% |
+| Request rate limiting | Not found | Per-virtual-key RPM and TPM, `429` before the provider call |
 
 ## Prompt authoring & versioning
 
@@ -359,41 +390,30 @@ data before or after it reaches the model.
 
 </details>
 
-**Budgets — spend limits and alerts, enforced per endpoint.** The Budgets page (under
-AI Gateway) lets you create a policy with a reset period, an action for when it's
-exceeded, and a spending window, tracked against real current spend. AcruxCore shows
-cost on every call but doesn't enforce a spending cap anywhere.
-
-<details>
-<summary>Show screenshot: Budgets on MLflow</summary>
-
-![MLflow's empty Budgets page: "No budget policies created. Set spending limits and control costs across your endpoints," with a Create budget policy button and columns for Reset period, On Exceeded, Window Start/End, and Current Spend](/img/comparison/mlflow/mf-11-budgets.png)
-
-</details>
-
-**An MCP Registry, and a built-in AI assistant.** Beyond the two above: MLflow's MCP
+**An MCP Registry, and a built-in AI assistant.** Beyond guardrails: MLflow's MCP
 Registry (covered in "How tools are handled") has no AcruxCore equivalent at all, and
 every page ships a docked "MLflow Assistant" chat panel that can answer questions about
 your own experiments, traces, and evaluations, plus a one-click "Detect Issues" button
 on the experiment overview that uses AI to flag latency and correctness problems across
 recent traces. AcruxCore has no in-product assistant or automated issue detection.
 
-AcruxCore has no equivalent to any of the four — no guardrails, no budget enforcement,
-no MCP server catalog, and no in-product AI assistant.
+AcruxCore has no equivalent to any of the three — no guardrails, no MCP server catalog,
+and no in-product AI assistant.
 
 ## Verdict
 
 | | MLflow | AcruxCore |
 |---|---|---|
-| Strongest at | Guardrails and PII detection, budget enforcement, full Jinja2 prompt logic, a genuinely request-path gateway, LLM-as-judge evaluation | Cost shown on every call, automatic prompt-version lineage, a tool catalog that actually executes and measures calls |
-| Weakest at | No cost on individual traces, prompt-version linking needs a separate call, a real dataset-list UI bug hit hands-on | No guardrails, no budget enforcement, no MCP server registry |
-| Pick it if | You want guardrails, spend controls, and full templating logic layered onto a platform that's also a serious classical-ML tracker | You want the provider call itself — gateway, cost, tools, prompt lineage — traced for free, with nothing bolted on after the fact |
+| Strongest at | Guardrails and PII detection, full Jinja2 prompt logic, a genuinely request-path gateway, LLM-as-judge evaluation | Cost shown on every call, automatic prompt-version lineage, a tool catalog that actually executes and measures calls |
+| Weakest at | No cost on individual traces, prompt-version linking needs a separate call, a real dataset-list UI bug hit hands-on | No guardrails, no MCP server registry |
+| Pick it if | You want guardrails and full templating logic layered onto a platform that's also a serious classical-ML tracker | You want the provider call itself — gateway, cost, tools, prompt lineage — traced for free, with nothing bolted on after the fact |
 
 This is the closest structural match to AcruxCore of any competitor we've compared:
 both run a real gateway in the request path, and both trace as a side effect of that
-same call. Where they diverge is what sits *around* the call — MLflow layers on
-guardrails and budget enforcement that AcruxCore doesn't have (**What MLflow does that
-AcruxCore doesn't** above); AcruxCore keeps cost and prompt lineage automatic and
+same call. Both enforce a spend cap on that path (**Spend controls** above). Where they
+diverge is what sits *around* the call — MLflow layers on guardrails that AcruxCore
+doesn't have (**What MLflow does that AcruxCore doesn't** above); AcruxCore keeps cost
+and prompt lineage automatic and
 inline where MLflow makes you dashboard-hunt for cost or make a second SDK call for
 lineage (**Sending a live call** and **Tracing & observability** above). See the full
 picture, including license, pricing, and team structure, on the [compare

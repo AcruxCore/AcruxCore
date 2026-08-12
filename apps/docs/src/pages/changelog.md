@@ -30,6 +30,11 @@ called out in the week it ships and in the SDK release notes.
 ### Minor
 
 - **Blog tag and author pages** (`/blog/tags`, `/blog/authors`, and their archives) are now marked `noindex` so they stop competing with the posts they link to in search results.
+- **Corrected** — comparison posts now state the gateway's spend caps and rate limits correctly. [Reference →](/blog/acruxcore-vs-mlflow)
+- **Compare** — a row where a competitor lands in the same place as AcruxCore is now marked "Tie". [Reference →](https://acruxcore.com/compare)
+- **Compare** — the Tool catalog row now records our edge over MLflow's MCP server registry.
+- **Fixed** — the comparison table cut off its last column on wide screens, at any zoom level.
+- **Repo README** now opens with a 35-second demo: prompt, version, tool, a real model call, the trace.
 
 ---
 

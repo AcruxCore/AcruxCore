@@ -85,7 +85,7 @@ each platform compare to AcruxCore," not as one single eight-way race:
 | Prompt versioning | Git-like commits + Environments | Immutable versions + labels | Immutable versions + Release Labels + inline diff | Mustache sections (one construct for if *and* for) + real Diff view + tags | Flat `{{variable}}` only + real Diff view + Deploy-to labels | Full Jinja2 `{% if %}`/`{% for %}`, SDK-only creation + real diff + aliases | Flat `{{ hc:var:type }}` only; one version on this run, diff not reached | Immutable versions + Aliases + Diff tab |
 | Tracing | Span-based (SDK-wrapped) | Span-based (SDK-wrapped) | Flat Request Log by default; Traces are separate and opt-in | Single rich span, OTel semantic conventions; Playground relays via GraphQL, not a real call | Span tree via `track_openai()`; confirmed the Playground alone produces no trace | Single span, automatic; prompt-version link needs a separate explicit SDK call | Not reached this run — manual-log endpoint 500'd on a missing self-host env var | Span-based (gateway auto-traces every call) |
 | Where the platform sits | Beside the request path | Beside the request path | Beside the request path | Beside — Playground proxies via GraphQL, SDK calls go direct | Beside — ingests a trace after your own call | **In** the request path — a real AI Gateway | **In** the request path by design — but BYOK routing 501'd / hard-forwarded to the wrong host on this build | **In** the request path — every call routes through it |
-| Guardrails / spend controls | None found | None found | None found | None found | Topic + PII guardrails, per project | Safety + PII + custom guardrails, and spend Budgets, per gateway endpoint | Rate Limit Rules (not content-inspecting); no PII/safety guardrail found | None |
+| Guardrails / spend controls | None found | None found | None found | None found | Topic + PII guardrails, per project | Safety + PII + custom guardrails, and spend Budgets, per gateway endpoint | Rate Limit Rules (not content-inspecting); no PII/safety guardrail found | Spend caps and RPM/TPM limits enforced pre-call; no content guardrail |
 | Evaluation | Datasets + Experiments, hand-authored examples | Datasets + Experiments, hand-authored examples | A/B test on live traffic + ad-hoc model-comparison grid | Dataset from a trace span + LLM/Code evaluator split; a templated-prompt experiment failed on a variable-shape mismatch | Dataset from any trace + inline creation; UI experiments defer to the SDK; plus dedicated Test suites and rule-based Online evaluation | Built-in LLM-as-judge + custom code judges; hit a real dataset-list-page bug | Datasets curated from Request rows; none existed since no call was ever logged this run | Feedback-driven datasets only — no hand-authored examples |
 | Feedback → Playground → save loop | Feedback + Dataset + Annotation Queue exist, but no trace → Playground jump | Full loop: trace → Playground (pre-loaded) → Save as prompt | Full loop: Request → Playground (pre-loaded) → Save Template | Not run as this exact loop — see [Phoenix vs AcruxCore](/blog/acruxcore-vs-phoenix) | Not run as this exact loop — see [Opik vs AcruxCore](/blog/acruxcore-vs-opik) | Not run as this exact loop — see [MLflow vs AcruxCore](/blog/acruxcore-vs-mlflow) | Not run as this exact loop — see [Helicone vs AcruxCore](/blog/acruxcore-vs-helicone) | Full loop, plus an automated version: feedback → drafted candidates → judged run → Promote to production |
 | Tool calling | Shows up as spans only; no catalog | Playground-scoped tool schema; no catalog | Per-request tool-call count; no catalog | Ad-hoc JSON Schema per Playground prompt; nothing executes or gets measured | No tool-catalog concept at all; its "Agent playground" needs a live process wired in by code | MCP Registry — catalogs external MCP *servers* by manifest, doesn't execute an individual tool | No tool-catalog concept found in any nav section checked | Dedicated versioned Tool Catalog + a Tool analytics page |
@@ -461,14 +461,15 @@ and real bugs to show for it, not just descriptions of the UI.
 ## Guardrails and spend controls
 
 :::info[Quick take]
-Opik, MLflow, and Helicone each have a real, working guardrail or rate-limit feature.
-AcruxCore has none today.
+Opik and MLflow each have a real content guardrail; Helicone has a rate-limit rule builder.
+AcruxCore enforces spend caps and rate limits on its gateway, but has no content guardrail.
 :::
 
-None of LangSmith, Langfuse, PromptLayer, Phoenix, or AcruxCore have anything that inspects
-a call's input or output for restricted content, or enforces a spending cap — this is a
-dimension the original four-platform comparison had no reason to include, until three of
-the newer four turned out to have real answers for it.
+Two different dimensions sit behind this heading. Nothing on LangSmith, Langfuse,
+PromptLayer, Phoenix, or AcruxCore inspects a call's input or output for restricted
+content. Enforcing a spending cap is a separate question, and one only a platform in the
+request path can answer at all — MLflow and AcruxCore both do; the observability-first
+platforms have no call to stop.
 
 **Opik** has a "Set a guardrail" panel, configurable per project: a **Topic guardrail**
 (a sensitivity slider plus a restricted-topics list) and a **PII guardrail** that flags
@@ -499,12 +500,13 @@ of this run weren't.
 | Feature | Opik | MLflow | Helicone | AcruxCore |
 |---|---|---|---|---|
 | Content guardrails | Topic + PII, per project | Safety + PII + custom, per Gateway endpoint | Not found | None |
-| Spend enforcement | Not found | Real Budgets: reset period, on-exceeded action, spend tracking | Not found (cost is visible, not capped) | Cost visible, not enforced |
-| Rate limiting | Not found | Not found | Real Rate Limit Rules | Not found |
+| Spend enforcement | Not found | Real Budgets: reset period, on-exceeded action, spend tracking | Not found (cost is visible, not capped) | Cap per team or virtual key, `402` before the provider call |
+| Rate limiting | Not found | Not found | Real Rate Limit Rules, segmented per end user | Per-virtual-key RPM/TPM, `429` before the provider call |
 
-None of these are things AcruxCore has an answer for today — that's a real gap next to Opik,
-MLflow, and Helicone specifically, not a rebuttal to the request-path or tool-catalog
-advantages the rest of this post covers.
+Content guardrails are the row with no AcruxCore answer today — a real gap next to Opik and
+MLflow, not a rebuttal to the request-path or tool-catalog advantages the rest of this post
+covers. On rate limiting the difference is narrower than the row suggests: Helicone can
+scope a rule to an individual end user, where an AcruxCore limit stops at the virtual key.
 
 ## From feedback to a fixed prompt
 

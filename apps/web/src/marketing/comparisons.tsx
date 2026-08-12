@@ -2,7 +2,7 @@ import { DOCS_URL, GITHUB_URL } from './marketing-chrome';
 
 /**
  * The competitors with a row on `/compare` and a matched-example blog post. Kept
- * in sync with the four `acruxcore-vs-<slug>` posts and the
+ * in sync with the five `acruxcore-vs-<slug>` posts and the
  * `comparing-open-source-alternatives` skill's competitor set (see
  * cross-cutting-faq: LangWatch and LiteLLM dropped).
  */
@@ -16,10 +16,13 @@ export interface Source {
 
 /**
  * One fact in a comparison row, with its source and which side (if either) it
- * clearly favors. Both flags live on the competitor's own `Fact` object — there is
- * one shared `ACRUX_CORE` record reused across all four competitors, so it has no
+ * clearly favors. All three flags live on the competitor's own `Fact` object — there
+ * is one shared `ACRUX_CORE` record reused across all five competitors, so it has no
  * per-competitor notion of "wins"; the competitor's object is what varies row by
- * row and comparison by comparison, so that is where both directions get recorded.
+ * row and comparison by comparison, so that is where every verdict gets recorded.
+ *
+ * At most one flag should be set per fact. A fact with none is a row where the two
+ * sides differ without either being better — a design choice, not a scoreline.
  */
 export interface Fact {
   value: string;
@@ -28,6 +31,13 @@ export interface Fact {
   competitorWins?: boolean;
   /** Set when this row is a clear win for AcruxCore against this specific competitor — shown just as plainly. */
   acruxWins?: boolean;
+  /**
+   * Set when both platforms genuinely land in the same place on this row — the same
+   * licence terms, the same one-command self-host, the same templating engine. Marked
+   * as explicitly as a win, so a reader can tell "we checked and it's even" apart from
+   * "nobody scored this row."
+   */
+  tie?: boolean;
 }
 
 /** Everything needed to render one competitor's row in the `/compare` matrix. */
@@ -92,7 +102,7 @@ export const ACRUX_CORE = {
   },
 } as const;
 
-/** The four competitors with a published comparison, in the order they appear on `/compare`. */
+/** The five competitors with a published comparison, in the order they appear on `/compare`. */
 export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
   langfuse: {
     slug: 'langfuse',
@@ -110,9 +120,12 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     selfHost: {
       value: 'docker compose up',
       source: { label: 'GitHub', href: 'https://github.com/langfuse/langfuse' },
+      tie: true,
     },
     gateway: {
-      value: 'Not in the request path — ingests a trace after your own client calls the provider.',
+      value:
+        'Not in the request path — ingests a trace after your own client calls the provider, so a budget, a cache hit or a virtual key has no call to act on',
+      acruxWins: true,
     },
     toolCatalog: {
       value: 'A schema saved from the Playground, reusable project-wide — but no catalog page, no versioning, and nothing ever executes it',
@@ -156,9 +169,12 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     selfHost: {
       value: 'docker compose up',
       source: { label: 'GitHub', href: 'https://github.com/Arize-ai/phoenix' },
+      tie: true,
     },
     gateway: {
-      value: 'Not in the request path — the Playground relays through Phoenix\'s own backend; the SDK path calls the provider directly.',
+      value:
+        'Not in the request path — the Playground relays through Phoenix\'s own backend; the SDK path calls the provider directly, with nothing in between to route or cap it',
+      acruxWins: true,
     },
     toolCatalog: {
       value: 'No nav item at all — the closest thing is an ad-hoc JSON Schema per prompt in the Playground; nothing gets executed or measured',
@@ -190,15 +206,19 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     githubHref: 'https://github.com/comet-ml/opik',
     checkedOn: '2026-08-07',
     license: {
-      value: 'Apache License 2.0, no gated directory found in the repo — the same terms as AcruxCore, a genuine tie',
+      value: 'Apache License 2.0, no gated directory found in the repo — the same terms as AcruxCore',
       source: { label: 'LICENSE', href: 'https://github.com/comet-ml/opik/blob/main/LICENSE' },
+      tie: true,
     },
     selfHost: {
       value: 'docker compose up',
       source: { label: 'GitHub', href: 'https://github.com/comet-ml/opik' },
+      tie: true,
     },
     gateway: {
-      value: 'Not in the request path — ingests a trace after your own client calls the provider.',
+      value:
+        'Not in the request path — ingests a trace after your own client calls the provider, so a budget, a cache hit or a virtual key has no call to act on',
+      acruxWins: true,
     },
     toolCatalog: {
       value: 'No tool catalog concept at all — its "Agent playground" is a live-connection debugger for your own code, not a schema-definition UI',
@@ -230,12 +250,14 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     githubHref: 'https://github.com/Helicone/helicone',
     checkedOn: '2026-08-07',
     license: {
-      value: 'Apache-2.0, no ee/ split found — the same terms as AcruxCore, a genuine tie',
+      value: 'Apache-2.0, no ee/ split found — the same terms as AcruxCore',
       source: { label: 'LICENSE', href: 'https://github.com/Helicone/helicone/blob/main/LICENSE' },
+      tie: true,
     },
     selfHost: {
       value: 'docker compose up',
       source: { label: 'GitHub', href: 'https://github.com/Helicone/helicone' },
+      tie: true,
     },
     gateway: {
       value:
@@ -273,20 +295,23 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     githubHref: 'https://github.com/mlflow/mlflow',
     checkedOn: '2026-08-08',
     license: {
-      value: 'Apache License 2.0, no gated directory found in the repo — the same terms as AcruxCore, a genuine tie',
+      value: 'Apache License 2.0, no gated directory found in the repo — the same terms as AcruxCore',
       source: { label: 'LICENSE', href: 'https://github.com/mlflow/mlflow/blob/main/LICENSE' },
+      tie: true,
     },
     selfHost: {
       value: 'mlflow server (pip install mlflow), or docker compose for a Postgres-backed instance',
       source: { label: 'GitHub', href: 'https://github.com/mlflow/mlflow' },
+      tie: true,
     },
     gateway: {
       value:
-        'In the request path, same as AcruxCore — named endpoints route to 60+ providers with usage tracking, and add per-endpoint budgets and guardrails (PII/safety) AcruxCore does not have',
+        'In the request path, same as AcruxCore — named endpoints route to 60+ providers with usage tracking, and add per-endpoint content guardrails (PII/safety) AcruxCore does not have; both platforms enforce a spend cap on that path',
       competitorWins: true,
     },
     toolCatalog: {
-      value: 'An MCP Registry (Beta) catalogs external MCP servers by their server.json manifest — a different shape than a per-tool schema catalog, and nothing here executes a tool call directly',
+      value: 'An MCP Registry (Beta) catalogs external MCP servers by their server.json manifest — the unit is a whole server, not a tool, so there is no per-tool version history, nothing here executes a tool call, and no page measures one',
+      acruxWins: true,
     },
     teamStructure: {
       value: 'No team, member, invite, or org concept anywhere — no login screen at all in self-hosted OSS',
@@ -299,7 +324,8 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     rbac: { value: 'Not found — no auth at all in self-hosted OSS, checked across every Settings page', acruxWins: true },
     auditLog: { value: 'Not found — Settings has only General, LLM Connections, and Webhooks', acruxWins: true },
     promptTemplating: {
-      value: 'Full Jinja2 — {% if %} conditionals and {% for %} loops both render natively, plus a real version diff and @production/@staging aliases — the closest match of any competitor to AcruxCore\'s own templates',
+      value: 'Full Jinja2 — {% if %} conditionals and {% for %} loops both render natively, plus a real version diff and @production/@staging aliases — the one competitor that matches AcruxCore\'s own templates',
+      tie: true,
     },
     communityStars: '27,416',
   },

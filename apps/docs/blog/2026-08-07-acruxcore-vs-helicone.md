@@ -306,8 +306,9 @@ be read as "Helicone has nothing real to offer."
 
 **Rate Limit Rules — a real rule builder, separate from the broken BYOK gateway
 path.** Monitor → Rate Limits has two tabs: Rate Limited Requests (a live chart) and
-Rate Limit Rules, where "Create Rule" opens a genuine rule builder. AcruxCore has
-spend budgets, but no equivalent rate-limit-rule object.
+Rate Limit Rules, where "Create Rule" opens a genuine rule builder. AcruxCore enforces
+RPM and TPM limits per virtual key, but has no rule object that can scope a limit to an
+individual end user the way a Helicone rule can.
 
 <details>
 <summary>Show screenshot: Rate Limit Rules on Helicone</summary>

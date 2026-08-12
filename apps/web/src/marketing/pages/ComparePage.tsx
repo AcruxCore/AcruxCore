@@ -4,16 +4,70 @@ import { cssToStyle, Eyebrow, CtaSection, useDocumentTitle, ExternalArrow } from
 import { ACRUX_CORE, COMPARISON_LIST, type Fact } from '../comparisons';
 
 /**
- * A cell's fact plus an optional source link. `highlight`/`badgeLabel` are passed
- * in rather than read off `fact.competitorWins` directly, so the same cell can
- * render either side's edge (see {@link MatrixRow.acruxWinsEveryRow}).
+ * The verdict a single cell carries. Ties are marked as loudly as wins, so a reader
+ * can tell "we checked and it's even" apart from an unscored row — the same reason
+ * both win directions are marked rather than only ours.
  */
-function FactCell({ fact, highlight, badgeLabel }: { fact: Fact; highlight?: boolean; badgeLabel?: string }): ReactNode {
+type Verdict = 'ours' | 'theirs' | 'tie';
+
+/**
+ * Each verdict's pill: its label and the token it borrows. A tie takes `--faint`
+ * rather than an accent so it reads as the quiet outcome it is, and does not compete
+ * with the wins for attention when a column is scanned top to bottom.
+ */
+const VERDICTS: Record<Verdict, { label: string; color: string }> = {
+  ours: { label: 'Our edge', color: 'var(--accent)' },
+  theirs: { label: 'Their edge', color: 'var(--warn)' },
+  tie: { label: 'Tie', color: 'var(--faint)' },
+};
+
+/**
+ * The verdict for a whole row, shown once on the AcruxCore cell — set only when every
+ * competitor lands the same way. A verdict that holds against all five is a statement
+ * about the row, so it is made once; repeating "Our edge" in all five competitor
+ * columns said the same thing five times and drowned out the rows that differ.
+ *
+ * @returns The row-level verdict, or `undefined` when the competitors disagree — in
+ *   which case each competitor column speaks for itself via {@link cellVerdict}.
+ */
+function rowVerdict(row: MatrixRow): Verdict | undefined {
+  if (COMPARISON_LIST.every((c) => row.competitor(c).acruxWins)) return 'ours';
+  if (COMPARISON_LIST.every((c) => row.competitor(c).tie)) return 'tie';
+  return undefined;
+}
+
+/**
+ * The verdict for one competitor's cell on a row the competitors disagree about.
+ *
+ * "Our edge" is deliberately absent here: on a mixed row it is already implied by the
+ * columns that carry a "Their edge" or "Tie" and by the ones that carry nothing, and
+ * printing it per column is what made the matrix repetitive.
+ *
+ * @returns The cell's verdict, or `undefined` when the row already carries one.
+ */
+function cellVerdict(fact: Fact, row: Verdict | undefined): Verdict | undefined {
+  if (row) return undefined;
+  if (fact.competitorWins) return 'theirs';
+  if (fact.tie) return 'tie';
+  return undefined;
+}
+
+/**
+ * A cell's fact plus an optional source link and verdict pill. The verdict is passed
+ * in rather than read off the fact, because it depends on the whole row: the AcruxCore
+ * column shares one `Fact` across every competitor, so its pill can only be decided by
+ * looking at all five at once (see {@link rowVerdict}).
+ */
+function FactCell({ fact, verdict }: { fact: Fact; verdict?: Verdict }): ReactNode {
+  const pill = verdict ? VERDICTS[verdict] : undefined;
+  // A tie is information, not an advantage, so it does not promote the text to --ink
+  // the way a win on either side does.
+  const emphasised = verdict === 'ours' || verdict === 'theirs';
   return (
     <div style={cssToStyle('display:flex;flex-direction:column;gap:5px;')}>
       <span
         style={cssToStyle(
-          `font-size:13.5px;line-height:1.5;color:${highlight ? 'var(--ink)' : 'var(--muted)'};text-wrap:pretty;`,
+          `font-size:13.5px;line-height:1.5;color:${emphasised ? 'var(--ink)' : 'var(--muted)'};text-wrap:pretty;`,
         )}
       >
         {fact.value}
@@ -28,13 +82,13 @@ function FactCell({ fact, highlight, badgeLabel }: { fact: Fact; highlight?: boo
           {fact.source.label} ↗
         </a>
       ) : null}
-      {highlight && badgeLabel ? (
+      {pill ? (
         <span
           style={cssToStyle(
-            'display:inline-flex;width:fit-content;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:2px 7px;',
+            `display:inline-flex;width:fit-content;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:${pill.color};border:1px solid ${pill.color};border-radius:999px;padding:2px 7px;`,
           )}
         >
-          {badgeLabel}
+          {pill.label}
         </span>
       ) : null}
     </div>
@@ -99,13 +153,15 @@ export function ComparePage(): ReactNode {
           )}
         >
           Every fact below links to the competitor's own pricing page, license file, or docs, and carries the date it was
-          checked. Whichever side clearly wins a row is marked "Their edge" or "Our edge," not buried. For the hands-on
-          side — the same prompt, actually run on both platforms — read the full write-up linked in each column.
+          checked. A row we win against every one of them is marked "Our edge," a row a competitor wins is marked "Their
+          edge" in its own column, and a row where we land in the same place is marked "Tie" — nothing is buried. For
+          the hands-on side — the same prompt, actually run on both platforms — read the full write-up linked in each
+          column.
         </p>
       </header>
 
-      <section style={cssToStyle('padding:0 0 clamp(40px,6vw,64px);')}>
-        <p style={cssToStyle('font-size:12.5px;color:var(--faint);margin:0 4px 10px;')}>
+      <section className="acx-compare-matrix" style={cssToStyle('padding:0 0 clamp(40px,6vw,64px);')}>
+        <p className="acx-compare-hint" style={cssToStyle('font-size:12.5px;color:var(--faint);margin:0 4px 10px;')}>
           Scroll right to see all five competitors →
         </p>
         <div style={cssToStyle('overflow-x:auto;border:1px solid var(--line);border-radius:14px;')}>
@@ -133,24 +189,23 @@ export function ComparePage(): ReactNode {
             </thead>
             <tbody>
               {ROWS.map((row) => {
-                // The shared AcruxCore cell appears once per row, next to every
-                // competitor column, so its own "Our edge" badge is only honest
-                // when the win holds against ALL of them — a mixed row (an edge
-                // against some competitors, not others) stays unbadged on the
-                // AcruxCore side; each competitor's own column still carries
-                // its individual "Their edge" badge where that holds.
-                const acruxWinsEveryRow = COMPARISON_LIST.every((c) => row.competitor(c).acruxWins);
+                // A verdict that holds against every competitor is said once, on the
+                // AcruxCore cell; otherwise each competitor column speaks for itself.
+                const rowWide = rowVerdict(row);
                 return (
                   <tr key={row.label}>
                     <td style={tdLabelStyle}>{row.label}</td>
                     <td style={tdStyle}>
-                      <FactCell fact={row.acrux} highlight={acruxWinsEveryRow} badgeLabel="Our edge" />
+                      <FactCell fact={row.acrux} verdict={rowWide} />
                     </td>
-                    {COMPARISON_LIST.map((c) => (
-                      <td key={c.slug} style={tdStyle}>
-                        <FactCell fact={row.competitor(c)} highlight={row.competitor(c).competitorWins} badgeLabel="Their edge" />
-                      </td>
-                    ))}
+                    {COMPARISON_LIST.map((c) => {
+                      const fact = row.competitor(c);
+                      return (
+                        <td key={c.slug} style={tdStyle}>
+                          <FactCell fact={fact} verdict={cellVerdict(fact, rowWide)} />
+                        </td>
+                      );
+                    })}
                   </tr>
                 );
               })}
@@ -185,7 +240,7 @@ export function ComparePage(): ReactNode {
             </tbody>
           </table>
         </div>
-        <p style={cssToStyle('font-size:12.5px;color:var(--faint);margin:14px 4px 0;text-wrap:pretty;')}>
+        <p style={cssToStyle('font-size:12.5px;color:var(--faint);margin:14px 4px 0;max-width:78ch;text-wrap:pretty;')}>
           Community stats are a footnote, not a scored comparison — a young project is not a weak one, and a mature
           project is not automatically the better fit for your team.
         </p>
