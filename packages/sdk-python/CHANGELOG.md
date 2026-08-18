@@ -12,6 +12,17 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+## 0.8.0 — 2026-08-11
+
+### Added
+
+- `acruxcore.otel` — `register()` builds a `TracerProvider` + `BatchSpanProcessor` +
+  `OTLPSpanExporter` pointed at AcruxCore's OTLP endpoint in one call, and can
+  auto-instrument a named framework (`crewai`, `openai`, `openai_agents`,
+  `langchain`, `llama_index`) via `instrument=[...]`. Requires the new `otel`
+  extra: `pip install acruxcore[otel]`. See the [OTel helper
+  guide](https://docs.acruxcore.com/docs/guides/send-otel-traces-with-the-sdk-helper).
+
 ## 0.7.1 — 2026-08-07
 
 ### Changed

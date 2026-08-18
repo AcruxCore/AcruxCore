@@ -46,6 +46,18 @@ The hardest two. Both build on everything above and add either multi-agent orche
 - **[Build a supervisor multi-agent system](/docs/tutorials/build-a-supervisor-multi-agent-system)** — a router that classifies a request and hands it to one of three specialist subagents, all in one trace. Introduces: the **supervisor/router** pattern, multi-agent hand-off, `response_format` used for the routing decision itself, and the `@acrux.tool` decorator.
 - **[Build a Medical-Information QA agent](/docs/tutorials/build-a-medical-information-qa-agent)** — a typed, cited, policy-aware agent that refuses off-label questions and escalates adverse events, with every answer forced into one JSON shape. Introduces: `response_format` for a **typed answer**, citations, refusal/escalation policy, and mixed code/dashboard tool-description ownership. Fully keyless.
 
+## Already building with CrewAI or the OpenAI Agents SDK?
+
+The eight tutorials above all build the agent loop on top of AcruxCore's own gateway or SDK.
+If you're instead using a framework that has its **own** agents and its own way of tracing
+itself — CrewAI, the OpenAI Agents SDK, LangChain, LlamaIndex — you don't rebuild anything.
+Those frameworks speak [OpenTelemetry](https://opentelemetry.io/) (OTel), the same wire
+protocol AcruxCore's `POST /api/v1/traces/otlp` endpoint accepts directly, so pointing an
+already-working app at AcruxCore is an environment-variable change:
+
+- **[Trace a CrewAI Trip-Planning Crew](/docs/tutorials/trace-a-crewai-trip-planner)** — a Researcher + Planner crew with a real web-search tool, run twice in one conversation.
+- **[Trace an OpenAI Agents SDK Support-Triage System](/docs/tutorials/trace-an-openai-agents-sdk-triage-system)** — a Triage agent that hands off to a Billing or Tech Support specialist.
+
 ## How they compare
 
 The same five decisions every agent build makes. Each tutorial picks a different combination. Hover over a column header in the table below, or jump to [What the columns mean](#what-the-columns-mean).

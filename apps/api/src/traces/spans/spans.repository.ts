@@ -165,6 +165,74 @@ export class SpansRepository {
   }
 
   /**
+   * Idempotent span write for retry-safe callers (OTLP ingestion — the OTLP spec
+   * expects exporters to retry a whole export on failure). Upserts on
+   * `(traceId, spanRef)` instead of `create()`, and recomputes the trace's
+   * rollups from a fresh aggregate over all its spans rather than incrementing —
+   * a blind increment would double-count on a retried batch. Never used by the
+   * native JSON ingestion path, which keeps {@link appendSpan}'s stricter
+   * create-and-fail semantics unchanged.
+   *
+   * @param input - The span fields (see {@link CreateSpanInput}).
+   * @param tx - Optional transaction client.
+   * @returns The upserted span row.
+   */
+  async upsertSpan(input: CreateSpanInput, tx?: Prisma.TransactionClient): Promise<SpanRow> {
+    const client = tx ?? prisma;
+    const data = {
+      kind: input.kind,
+      name: input.name,
+      status: input.status ?? 'unset',
+      startedAt: input.startedAt,
+      endedAt: input.endedAt ?? null,
+      latencyMs: input.latencyMs ?? null,
+      model: input.model ?? null,
+      provider: input.provider ?? null,
+      promptTokens: input.promptTokens ?? null,
+      completionTokens: input.completionTokens ?? null,
+      totalTokens: input.totalTokens ?? null,
+      costUsd: input.costUsd ?? null,
+      promptVersionId: input.promptVersionId ?? null,
+      gatewayRequestId: input.gatewayRequestId ?? null,
+      errorMessage: input.errorMessage ?? null,
+      attributes: (input.attributes ?? {}) as Prisma.InputJsonValue,
+      tags: input.tags ?? [],
+      metadata: (input.metadata ?? {}) as Prisma.InputJsonValue,
+      parentSpanRef: input.parentSpanRef ?? null,
+    };
+
+    const span = await client.span.upsert({
+      where: { traceId_spanRef: { traceId: input.traceId, spanRef: input.spanRef } },
+      create: { teamId: input.teamId, traceId: input.traceId, spanRef: input.spanRef, ...data },
+      update: data,
+    });
+
+    const agg = await client.span.aggregate({
+      where: { traceId: input.traceId },
+      _count: { _all: true },
+      _sum: { totalTokens: true, costUsd: true },
+      _max: { endedAt: true },
+    });
+    const anyErrored = await client.span.findFirst({
+      where: { traceId: input.traceId, status: 'error' },
+      select: { id: true },
+    });
+
+    await client.trace.update({
+      where: { id: input.traceId },
+      data: {
+        spanCount: agg._count._all,
+        totalTokens: agg._sum.totalTokens ?? 0,
+        totalCostUsd: agg._sum.costUsd,
+        status: anyErrored ? 'error' : 'ok',
+        endedAt: agg._max.endedAt,
+      },
+    });
+
+    return span;
+  }
+
+  /**
    * Fetches a trace by primary key **without** a team filter, so the caller can
    * tell "absent" (null) apart from "belongs to another team"
    * (`row.teamId !== teamId`). Intentionally team-agnostic: T2 ingestion uses
@@ -204,6 +272,12 @@ export class SpansRepository {
    * ever written to disk; this is the single choke point every caller goes
    * through, so no call site can accidentally skip it.
    *
+   * Upserts rather than inserts: `spanId` is the table's PK, and an idempotent
+   * ingest retry (`IngestService`'s `upsertSpan` path) reuses the same span row,
+   * so a plain `create()` would throw a unique-constraint violation on replay.
+   * A fresh span from the non-idempotent `appendSpan` path always has a new id,
+   * so this is a strict superset of the old behavior there.
+   *
    * @param spanId - The span this payload belongs to (PK of span_payloads).
    * @param teamId - Isolation boundary.
    * @param io - `{ input?, output?, variables? }` — arbitrary JSON-serializable values.
@@ -216,15 +290,20 @@ export class SpansRepository {
     tx?: Prisma.TransactionClient,
   ): Promise<void> {
     const client = tx ?? prisma;
-    await client.spanPayload.create({
-      data: {
+    const data = {
+      input: io.input === undefined ? Prisma.DbNull : (redactPayloadValue(io.input) as Prisma.InputJsonValue),
+      output: io.output === undefined ? Prisma.DbNull : (redactPayloadValue(io.output) as Prisma.InputJsonValue),
+      variables:
+        io.variables === undefined ? Prisma.DbNull : (redactPayloadValue(io.variables) as Prisma.InputJsonValue),
+    };
+    await client.spanPayload.upsert({
+      where: { spanId },
+      create: {
         spanId,
         teamId,
-        input: io.input === undefined ? Prisma.DbNull : (redactPayloadValue(io.input) as Prisma.InputJsonValue),
-        output: io.output === undefined ? Prisma.DbNull : (redactPayloadValue(io.output) as Prisma.InputJsonValue),
-        variables:
-          io.variables === undefined ? Prisma.DbNull : (redactPayloadValue(io.variables) as Prisma.InputJsonValue),
+        ...data,
       },
+      update: data,
     });
   }
 }

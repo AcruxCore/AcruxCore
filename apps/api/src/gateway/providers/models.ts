@@ -61,15 +61,31 @@ export const MODELS: Record<string, ModelInfo> = {
 };
 
 /**
+ * Strips a trailing provider date-snapshot suffix (e.g. `-2024-07-18`) so a
+ * dated model id a provider actually served (`gpt-4o-mini-2024-07-18`) still
+ * matches the un-dated registry key (`gpt-4o-mini`) a caller requested by
+ * alias. Providers commonly echo the dated form back in the response — and
+ * OTLP-ingested traces from third-party frameworks report whatever string the
+ * provider returned, not the alias AcruxCore's own gateway users configure.
+ *
+ * @param model - A model id, possibly with a trailing `-YYYY-MM-DD` suffix.
+ * @returns `model` with any trailing date suffix removed; unchanged if none.
+ */
+function stripDateSuffix(model: string): string {
+  return model.replace(/-\d{4}-\d{2}-\d{2}$/, '');
+}
+
+/**
  * Compute the USD cost of a completion from provider-reported usage.
  *
- * @param model - The requested model name (registry key).
+ * @param model - The requested model name (registry key), or a provider-dated
+ *          variant of one (e.g. `gpt-4o-mini-2024-07-18`).
  * @param usage - Token counts reported by the provider.
- * @returns Cost in USD, or `null` if the model is not in the registry (the call is
- *          still served; the caller logs the null cost).
+ * @returns Cost in USD, or `null` if the model (dated or not) is not in the
+ *          registry (the call is still served; the caller logs the null cost).
  */
 export function computeCost(model: string, usage: Usage): number | null {
-  const m = MODELS[model];
+  const m = MODELS[model] ?? MODELS[stripDateSuffix(model)];
   if (!m) return null;
   return (usage.prompt_tokens / 1e6) * m.inputPricePerM + (usage.completion_tokens / 1e6) * m.outputPricePerM;
 }

@@ -31,6 +31,7 @@ import { cacheRouter } from './src/gateway/cache';
 import { usageRouter } from './src/gateway/usage';
 import { tracesRouter } from './src/traces';
 import { ingestRouter } from './src/traces/ingest';
+import { otlpRouter } from './src/traces/ingest/otlp';
 import { sessionsRouter } from './src/traces/sessions';
 import { traceQueryRouter, promptTracesRouter } from './src/traces/query';
 import { feedbackRouter } from './src/traces/feedback';
@@ -66,7 +67,7 @@ export function createApp(): express.Application {
   // is never a cross-site request. Adding CORS with credentials would widen
   // that for no gain.
   //
-  // ORDER IS LOAD-BEARING across the next three statements.
+  // ORDER IS LOAD-BEARING across the next four statements.
   //
   // 1. Our own auth routes (`me`, `teams`, `switch-team`) must be registered
   //    before Better Auth's catch-all, which answers everything else under
@@ -78,7 +79,13 @@ export function createApp(): express.Application {
   //    arrives empty and every sign-in silently fails validation.
   app.all(`${AUTH_BASE_PATH}/*`, toNodeHandler(getAuth()));
 
-  // 3. Body parsing for every other route.
+  // 3. OTLP trace receiver: POST /api/v1/traces/otlp. Mounted BEFORE
+  //    `express.json()` because it brings its own content-type-scoped parsers
+  //    with a 10MB limit — an OTel exporter's JSON batch routinely exceeds the
+  //    100KB default below, and being 413'd there is invisible to the endpoint.
+  app.use('/api/v1', otlpRouter);
+
+  // 4. Body parsing for every other route.
   app.use(express.json());
 
   // ── Routers ───────────────────────────────────────────────────────────────
@@ -150,6 +157,8 @@ export function createApp(): express.Application {
   app.use('/api/v1/traces', tracesRouter);
   // Traces — ingestion: POST /api/v1/traces
   app.use('/api/v1', ingestRouter);
+  // Traces — OTLP receiver (POST /api/v1/traces/otlp) is mounted further up,
+  // ahead of `express.json()`; see the body-parsing note there.
   // Traces — sessions (Phase 3 T3): GET /api/v1/sessions, /sessions/:id
   app.use('/api/v1/sessions', sessionsRouter);
   // Traces — user feedback (T6): /api/v1/traces/:id/feedback, /traces/feedback/summary.

@@ -38,6 +38,7 @@
   "scripts": {
     "dev": "tsx watch server.ts",
     "build": "tsc --project tsconfig.json",
+    "postbuild": "mkdir -p dist/src/traces/ingest/otlp/proto && cp -r src/traces/ingest/otlp/proto/. dist/src/traces/ingest/otlp/proto/",
     "start": "node dist/server.js",
     "test": "jest --runInBand",
     "db:setup": "tsx scripts/db-setup.ts",
@@ -67,6 +68,7 @@
     "nodemailer": "^9.0.3",
     "nunjucks": "^3.2.4",
     "pg": "^8.22.0",
+    "protobufjs": "^7.6.5",
     "undici": "^8.7.0",
     "zod": "^3.23.0"
   },

@@ -1,0 +1,261 @@
+---
+title: Trace an OpenAI Agents SDK Support-Triage System
+description: Build a support-triage system with the OpenAI Agents SDK's agent handoffs, and watch the full triage-to-specialist flow land in AcruxCore automatically over OTLP.
+sidebar_position: 10
+keywords: [openai agents sdk, opentelemetry, otlp, tracing, handoffs, openinference]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Trace an OpenAI Agents SDK Support-Triage System
+
+**What you'll build:** a support system built with the [OpenAI Agents
+SDK](https://github.com/openai/openai-agents-python) — a Triage agent that reads an incoming
+message and **hands off** to a Billing agent or a Tech Support agent, each with its own tool
+— run across a two-turn conversation. Every agent, handoff, tool, and model call lands in
+AcruxCore automatically, with no AcruxCore code anywhere in the agents themselves. The
+Agents SDK ships for both Python and TypeScript/Node, and this page builds the same system
+in either — pick a language tab wherever the code differs.
+
+The [previous tutorial](./trace-a-crewai-trip-planner) covered the same integration —
+OpenTelemetry (OTel) wire-protocol export straight to AcruxCore's `POST
+/api/v1/traces/otlp` — for CrewAI. This page uses the same endpoint for a different
+framework, on purpose: the point isn't CrewAI or the Agents SDK specifically, it's that
+**any** framework speaking OTel needs nothing from AcruxCore beyond an endpoint and a key.
+The Agents SDK's signature feature, a **handoff** — one agent transferring a conversation to
+another — also happens to produce a genuinely different-shaped trace worth seeing land
+correctly.
+
+## 1. Create an AcruxCore API key
+
+Open **Account & keys → New key**, name it `agents-sdk-tutorial`, and create it.
+
+Copy the key the moment it's shown — this is the only time the full value appears.
+
+## 2. Install the SDK's OTel helper
+
+```bash
+export ACRUXCORE_API_KEY=<your-acruxcore-key>
+export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
+```
+
+Both scripts below also load a `.env` file automatically, if you'd rather keep the keys
+out of your shell — `python-dotenv` for the Python script, `dotenv` for the Node one.
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python">
+
+`acruxcore.otel.register()`, a small helper the Python SDK ships for this, reads those
+two variables and builds a standard OTel pipeline pointed at
+`$ACRUXCORE_BASE_URL/traces/otlp`. If you'd rather not add the SDK as a dependency,
+the [OTLP API reference](/api-reference/traces/otlp) shows the same pipeline written
+out by hand.
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+`register()`, exported from `@acruxcoreai/sdk/otel`, reads those same two variables and
+builds the equivalent OTel Node pipeline — a `NodeTracerProvider`, a `BatchSpanProcessor`,
+and an `OTLPTraceExporter` pointed at `$ACRUXCORE_BASE_URL/traces/otlp`. If you'd rather
+not add the SDK as a dependency, the [OTLP API reference](/api-reference/traces/otlp)
+shows the same pipeline written out by hand.
+
+</TabItem>
+</Tabs>
+
+## 3. Build the triage system
+
+Three agents. The Triage agent never answers directly — it only decides who should:
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python">
+
+```python
+billing_agent = Agent(
+    name="Billing",
+    handoff_description="Handles subscription, billing, and charge questions.",
+    tools=[check_subscription],
+    model="gpt-4o-mini",
+)
+
+tech_support_agent = Agent(
+    name="Tech Support",
+    handoff_description="Handles app crashes, bugs, and order/delivery status.",
+    tools=[lookup_order],
+    model="gpt-4o-mini",
+)
+
+triage_agent = Agent(
+    name="Triage",
+    instructions="Route the customer to Billing or Tech Support. Do not answer directly.",
+    handoffs=[billing_agent, tech_support_agent],
+    model="gpt-4o-mini",
+)
+```
+
+The only AcruxCore-aware code in the whole file is one call, above the agent
+definitions — `acruxcore.otel.register()` reads the two env vars from Step 2 and
+turns on the Agents SDK's own OpenInference instrumentor:
+
+```python
+provider = register(
+    service_name="support-triage-agents-sdk",
+    instrument=["openai_agents"],
+)
+```
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+```typescript
+const billingAgent = new Agent({
+  name: 'Billing',
+  handoffDescription: 'Handles subscription, billing, and charge questions.',
+  tools: [checkSubscription],
+  model: 'gpt-4o-mini',
+});
+
+const techSupportAgent = new Agent({
+  name: 'Tech Support',
+  handoffDescription: 'Handles app crashes, bugs, and order/delivery status.',
+  tools: [lookupOrder],
+  model: 'gpt-4o-mini',
+});
+
+const triageAgent = new Agent({
+  name: 'Triage',
+  instructions: 'Route the customer to Billing or Tech Support. Do not answer directly.',
+  handoffs: [billingAgent, techSupportAgent],
+  model: 'gpt-4o-mini',
+});
+```
+
+The only AcruxCore-aware code in the whole file is one call, above the agent
+definitions — `register()` reads the two env vars from Step 2 and turns on the Agents
+SDK's own OpenInference instrumentor:
+
+```typescript
+const provider = await register({
+  serviceName: 'support-triage-agents-sdk',
+  instrument: ['openai_agents'],
+});
+```
+
+</TabItem>
+</Tabs>
+
+:::warning[Don't disable the Agents SDK's own tracing]
+The Agents SDK reports its own traces to platform.openai.com by default. It's tempting to
+turn that off first — Python's `set_tracing_disabled(True)`, or Node's `tracingDisabled:
+true` run option — don't. That disables the SDK's whole tracing pipeline, which starves
+the OpenInference processor too, and nothing reaches AcruxCore. `instrument:
+["openai_agents"]` already replaces the default processor with this one; no separate
+disable step is needed.
+:::
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python">
+
+The full script threads a `session.id` across both turns of the conversation with
+`openinference.instrumentation.using_session(session_id)`, and continues the conversation
+across `Runner.run()` calls with `turn1.to_input_list() + [...]` — see
+[triage_system.py on
+GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/trace-an-openai-agents-sdk-triage-system/python/triage_system.py)
+for the complete source.
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+The full script threads a `session.id` across both turns of the conversation with
+`@arizeai/openinference-core`'s `context.with(setSession(context.active(), {
+sessionId }), ...)`, and continues the conversation across `run()` calls with
+`turn1.history.concat([...])` — see [triage_system.mjs on
+GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/trace-an-openai-agents-sdk-triage-system/typescript/triage_system.mjs)
+for the complete source.
+
+</TabItem>
+</Tabs>
+
+## 4. Run it
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python">
+
+```bash
+pip install openai-agents 'acruxcore[otel]' openinference-instrumentation-openai-agents python-dotenv
+python triage_system.py
+```
+
+```text
+--- Turn 1 (expect Billing handoff) ---
+You are on the Pro plan, which renewed on August 1, 2026, and your last charge was $49.00.
+If you see two charges this month, it may be worth checking your account for another
+subscription or contacting billing support for clarification.
+
+--- Turn 2 (expect Tech Support handoff) ---
+Order #A1234 was delivered on app version 3.4.1, which has a known crash bug. This issue is
+fixed in the latest app version. I recommend updating your app to prevent further crashes.
+
+session.id used for both turns: support-triage-demo-session
+```
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+```bash
+npm install @acruxcoreai/sdk @openai/agents zod dotenv \
+  @arizeai/openinference-instrumentation-openai-agents @arizeai/openinference-core
+node triage_system.mjs
+```
+
+```text
+--- Turn 1 (expect Billing handoff) ---
+Your subscription on the Pro plan was renewed on August 1, 2026, with a last charge of
+$49.00. If you see another charge, please check your payment method for any additional
+transactions.
+
+--- Turn 2 (expect Tech Support handoff) ---
+Order #A1234 was delivered on app version 3.4.1, which has a known crash bug. Please update
+to the latest version to resolve the crashing issue.
+
+session.id used for both turns: support-triage-demo-session
+```
+
+</TabItem>
+</Tabs>
+
+Turn 1 triaged to Billing without being told to; turn 2, continuing the same conversation,
+triaged to Tech Support instead — the model routed both times based only on what was asked.
+
+## 5. See both turns grouped into one session
+
+Open **Observability → Sessions** and click `support-triage-demo-session`: both turns are
+there, each its own trace, with real token counts and cost.
+
+![The support-triage-demo-session showing two traces, each with 12 spans, real token counts, and real cost](/img/tutorials/trace-an-openai-agents-sdk-triage-system/02-session.png)
+
+## 6. Follow the handoff span tree
+
+Open the second trace — the one where Triage routes to Tech Support. A **handoff** lands as
+a `tool` span (AcruxCore has no dedicated handoff kind; OpenInference represents a handoff
+as the calling agent invoking a tool named for the target), sitting between the two agents'
+own spans:
+
+![Trace tree showing an agent span for Triage containing an LLM span and a tool span named "handoff to Tech Support", followed by a sibling agent span for Tech Support containing an LLM span, a tool span for lookup_order, and a second LLM span](/img/tutorials/trace-an-openai-agents-sdk-triage-system/03-trace-tree.png)
+
+Click the **lookup_order** span to see the real argument the Tech Support agent chose and the
+real (mocked) result it got back:
+
+![The expanded lookup_order span showing the order_id A1234 as input and the real delivery status and crash-bug note as output](/img/tutorials/trace-an-openai-agents-sdk-triage-system/04-tool-span.png)
+
+The Agents SDK's own OpenInference instrumentor — `openinference-instrumentation-openai-agents`
+in Python, `@arizeai/openinference-instrumentation-openai-agents` in Node — captured all of
+this: the two agents, the handoff between them, the tool call, and both model calls, from an
+app that has no idea AcruxCore exists.
+
+## What's next
+
+- **[Trace a CrewAI Trip-Planning Crew](./trace-a-crewai-trip-planner)** — the same OTLP integration, on a framework with its own multi-agent orchestration and a real web-search tool.
+- More `register()` examples — a bare pipeline, one framework, several at once, session grouping: [Send OTel traces to AcruxCore with the SDK helper](../guides/send-otel-traces-with-the-sdk-helper).
+- API details: see the [OTLP Trace Ingestion](/api-reference/traces/otlp) reference for the full endpoint contract, including gzip, batching, and error responses.

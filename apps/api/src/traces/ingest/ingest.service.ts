@@ -29,13 +29,31 @@ export class IngestService {
    *
    * @param teamId - Team scope from the authenticated principal.
    * @param traces - The validated batch (Zod-parsed at the controller boundary).
+   * @param opts - Optional flags.
+   *        `idempotent` — when true, retried batches with the same spanIds are
+   *        safe (used by the OTLP receiver); the native JSON path leaves this
+   *        false and keeps its stricter create-and-fail behavior.
+   *        `allowUnknownParents` — when true, a span whose `parentSpanId` is not
+   *        (yet) a known span in this trace is stored as-is instead of rejected.
+   *        Required by the OTLP receiver: OTel's `BatchSpanProcessor` queues a
+   *        span on `onEnd` and flushes on a timer, so children are exported
+   *        *before* their still-open parent for any trace outliving one flush
+   *        interval. `parent_span_ref` carries no FK, and `buildSpanTree` treats
+   *        a dangling ref as a root and re-parents once the parent lands, so the
+   *        late parent heals the tree. The native JSON path leaves this false —
+   *        there an unknown parent is a genuine client bug worth a 400.
    * @returns `{ accepted, traceIds }` — accepted is the total span count;
    *          traceIds are the resolved trace ids, one per input trace, in order.
    * @throws {PayloadTooLargeError} 413 if the batch exceeds the span cap.
    * @throws {NotFoundError} 404 if a supplied traceId belongs to another team.
-   * @throws {AppError} 400 `INVALID_SPAN_PARENT` if a parentSpanId resolves to nothing.
+   * @throws {AppError} 400 `INVALID_SPAN_PARENT` if a parentSpanId resolves to
+   *         nothing and `opts.allowUnknownParents` is not set.
    */
-  async ingest(teamId: string, traces: IngestTrace[]): Promise<IngestResponse> {
+  async ingest(
+    teamId: string,
+    traces: IngestTrace[],
+    opts?: { idempotent?: boolean; allowUnknownParents?: boolean },
+  ): Promise<IngestResponse> {
     const totalSpans = traces.reduce((n, t) => n + t.spans.length, 0);
     if (totalSpans > MAX_SPANS_PER_BATCH) {
       console.warn(
@@ -51,7 +69,12 @@ export class IngestService {
 
     const traceIds: string[] = [];
     for (const trace of traces) {
-      traceIds.push(await this.ingestTrace(teamId, trace, teamSetting));
+      traceIds.push(
+        await this.ingestTrace(teamId, trace, teamSetting, {
+          idempotent: opts?.idempotent ?? false,
+          allowUnknownParents: opts?.allowUnknownParents ?? false,
+        }),
+      );
     }
     return { accepted: totalSpans, traceIds };
   }
@@ -62,12 +85,16 @@ export class IngestService {
    * @param teamId - Team scope.
    * @param trace - One validated trace from the batch.
    * @param teamSetting - The team's default payload-capture flag.
+   * @param mode - `idempotent`: upsert spans (safe on retry) instead of
+   *        appending. `allowUnknownParents`: skip the parent-reference check —
+   *        see {@link IngestService.ingest} for why the OTLP path needs it.
    * @returns The resolved trace id.
    */
   private async ingestTrace(
     teamId: string,
     trace: IngestTrace,
     teamSetting: boolean,
+    mode: { idempotent: boolean; allowUnknownParents: boolean },
   ): Promise<string> {
     const capture = shouldCapture(teamSetting, trace.capturePayloads);
     const startedAt = this.earliestStart(trace.spans);
@@ -122,21 +149,27 @@ export class IngestService {
       }
 
       // ── Validate parent references (batch spanIds ∪ already-stored refs) ──
-      const known = new Set<string>(trace.spans.map((s) => s.spanId));
-      for (const ref of await this.spans.listSpanRefs(traceId, tx)) known.add(ref);
-      for (const s of trace.spans) {
-        if (s.parentSpanId && !known.has(s.parentSpanId)) {
-          throw new AppError(
-            `parentSpanId "${s.parentSpanId}" does not reference a known span in this trace.`,
-            400,
-            'INVALID_SPAN_PARENT',
-          );
+      // Skipped entirely for callers that legitimately receive children first
+      // (the OTLP receiver) — the ref is stored as-is and the tree heals later.
+      if (!mode.allowUnknownParents) {
+        const known = new Set<string>(trace.spans.map((s) => s.spanId));
+        for (const ref of await this.spans.listSpanRefs(traceId, tx)) known.add(ref);
+        for (const s of trace.spans) {
+          if (s.parentSpanId && !known.has(s.parentSpanId)) {
+            throw new AppError(
+              `parentSpanId "${s.parentSpanId}" does not reference a known span in this trace.`,
+              400,
+              'INVALID_SPAN_PARENT',
+            );
+          }
         }
       }
 
       // ── Append spans, writing payloads only when capture is on ───────────
       for (const s of trace.spans) {
-        const spanRow = await this.spans.appendSpan(this.toSpanInput(teamId, traceId, s), tx);
+        const spanRow = mode.idempotent
+          ? await this.spans.upsertSpan(this.toSpanInput(teamId, traceId, s), tx)
+          : await this.spans.appendSpan(this.toSpanInput(teamId, traceId, s), tx);
         if (capture && (s.input !== undefined || s.output !== undefined || s.variables !== undefined)) {
           await this.spans.writePayload(
             spanRow.id,

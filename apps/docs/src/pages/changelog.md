@@ -27,6 +27,29 @@ called out in the week it ships and in the SDK release notes.
 
 ### Major
 
+#### OTLP trace ingestion
+
+- New `POST /api/v1/traces/otlp` accepts real OpenTelemetry exports over OTLP/HTTP
+- Works with CrewAI, LangChain, LlamaIndex via `openinference-instrumentation-*` — no code change
+- [Reference →](/api-reference/traces/otlp)
+
+#### SDK 0.8.0 (Python) — `acruxcore.otel` helper
+
+- `acruxcore.otel.register()` wires the OTLP pipeline in one call, with `instrument=[...]` for CrewAI, LangChain, LlamaIndex, OpenAI, and the OpenAI Agents SDK
+- New optional extra: `pip install 'acruxcore[otel]'`
+- [Guide →](/docs/guides/send-otel-traces-with-the-sdk-helper)
+
+#### SDK 0.8.0 (Node) — `@acruxcoreai/sdk/otel` helper
+
+- New subpath export wires the OTLP pipeline in one call, with `instrument: [...]` for OpenAI and the OpenAI Agents SDK
+- `@opentelemetry/*` packages are new optional peer dependencies
+- [Guide →](/docs/guides/send-otel-traces-with-the-sdk-helper)
+
+### Minor
+
+- **Fixed** — OTLP exports with input/output data could fail on retry instead of succeeding.
+- **Fixed** — LLM cost showed blank for provider-dated model ids (e.g. `gpt-4o-mini-2024-07-18`).
+- New tutorials: trace a [CrewAI crew](/docs/tutorials/trace-a-crewai-trip-planner) and an [OpenAI Agents SDK](/docs/tutorials/trace-an-openai-agents-sdk-triage-system) app over OTLP.
 ### Minor
 
 - **Blog tag and author pages** (`/blog/tags`, `/blog/authors`, and their archives) are now marked `noindex` so they stop competing with the posts they link to in search results.

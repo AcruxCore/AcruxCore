@@ -1,7 +1,7 @@
 {
   "name": "@acruxcoreai/sdk",
-  "version": "0.7.1",
-  "description": "TypeScript SDK for AcruxCore \u2014 runtime prompt render, gateway chat, tool loops, traces, and feedback",
+  "version": "0.8.0",
+  "description": "TypeScript SDK for AcruxCore — runtime prompt render, gateway chat, tool loops, traces, and feedback",
   "license": "MIT",
   "keywords": [
     "acruxcore",
@@ -32,6 +32,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
+    },
+    "./otel": {
+      "types": "./dist/otel.d.ts",
+      "import": "./dist/otel.mjs",
+      "require": "./dist/otel.js"
     }
   },
   "main": "./dist/index.js",
@@ -55,6 +60,12 @@
     "lru-cache": "^10.2.2"
   },
   "devDependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.221.0",
+    "@opentelemetry/resources": "^2.10.0",
+    "@opentelemetry/sdk-trace-base": "^2.10.0",
+    "@opentelemetry/sdk-trace-node": "^2.10.0",
+    "@opentelemetry/semantic-conventions": "^1.43.0",
     "@swc/jest": "^0.2.39",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.14.0",
@@ -69,10 +80,31 @@
     "zod": "^3.25.76"
   },
   "peerDependencies": {
+    "@opentelemetry/api": ">=1.9.0",
+    "@opentelemetry/exporter-trace-otlp-http": ">=0.200.0",
+    "@opentelemetry/resources": ">=2.0.0",
+    "@opentelemetry/sdk-trace-base": ">=2.0.0",
+    "@opentelemetry/sdk-trace-node": ">=2.0.0",
+    "@opentelemetry/semantic-conventions": ">=1.30.0",
     "zod": ">=3.25.0"
   },
   "peerDependenciesMeta": {
     "zod": {
+      "optional": true
+    },
+    "@opentelemetry/api": {
+      "optional": true
+    },
+    "@opentelemetry/exporter-trace-otlp-http": {
+      "optional": true
+    },
+    "@opentelemetry/resources": {
+      "optional": true
+    },
+    "@opentelemetry/sdk-trace-base": {
+      "optional": true
+    },
+    "@opentelemetry/sdk-trace-node": {
       "optional": true
     }
   }

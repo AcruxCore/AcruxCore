@@ -778,7 +778,10 @@ export type acruxcoreErrorCode =
   | 'TOOL_SCHEMA_ERROR'  // tool(): parameters are neither a zod schema nor a JSON Schema object
   | 'MISSING_DISPATCH'   // runToolLoop: a tool has no implementation to run
   | 'ZOD_NOT_AVAILABLE'  // A zod schema was given but zod could not be imported
-  | 'PROVIDER_ERROR';    // BYO: non-2xx response from the caller's own provider endpoint
+  | 'PROVIDER_ERROR'     // BYO: non-2xx response from the caller's own provider endpoint
+  | 'OTEL_NOT_AVAILABLE'          // otel.register(): OTel peer dependencies not installed
+  | 'UNKNOWN_INSTRUMENTOR'        // otel.register(): instrument name outside SUPPORTED_FRAMEWORKS
+  | 'INSTRUMENTOR_NOT_INSTALLED'; // otel.register(): framework or OpenInference package missing
 
 /** What a reported span represents. Mirrors the API's `span_kind` enum. */
 export type SpanKind = 'llm' | 'tool' | 'retrieval' | 'embedding' | 'agent' | 'chain' | 'other';

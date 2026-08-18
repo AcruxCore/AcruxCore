@@ -1,0 +1,364 @@
+---
+title: "OTLP Trace Ingestion"
+description: "Point any OpenTelemetry exporter — CrewAI, LangChain, LlamaIndex, or a custom OTel SDK — straight at AcruxCore."
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# OTLP Trace Ingestion
+
+All endpoints verified working via curl. Document updated only after curl confirmation.
+
+This endpoint exists for frameworks that export traces over the OpenTelemetry
+(OTel) **wire protocol** rather than calling AcruxCore's native
+[`POST /api/v1/traces`](./index.mdx) JSON shape directly. CrewAI, LangChain, and
+LlamaIndex all ship an `openinference-instrumentation-*` package that does this
+automatically — pointing one at AcruxCore is an environment-variable change, not
+a code change:
+
+```bash
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://api.acruxcore.com/api/v1/traces/otlp
+OTEL_EXPORTER_OTLP_TRACES_HEADERS=Authorization=Bearer <acrux-key>
+```
+
+Use the **signal-specific** `_TRACES_` variable above, not the generic
+`OTEL_EXPORTER_OTLP_ENDPOINT` — the OTel spec auto-appends `/v1/traces` to the
+generic one, which would misroute to `/api/v1/v1/traces`. The signal-specific
+variable is used verbatim.
+
+For a full worked example, see
+[Trace a CrewAI Trip-Planning Crew](/docs/tutorials/trace-a-crewai-trip-planner) or
+[Trace an OpenAI Agents SDK Support-Triage System](/docs/tutorials/trace-an-openai-agents-sdk-triage-system).
+
+There is no SDK wrapper for this endpoint in `@acruxcoreai/sdk` or `acruxcore`
+(Python) — its entire purpose is interop with other frameworks' own OTel
+exporters, not something our own SDKs call.
+
+---
+
+### POST /api/v1/traces/otlp
+
+Accepts one OTLP `ExportTraceServiceRequest`, protobuf (`Content-Type:
+application/x-protobuf`, the default for every OTel HTTP exporter) or JSON
+(`Content-Type: application/json`), optionally gzip-compressed
+(`Content-Encoding: gzip`, also an OTel exporter default). Same auth as the
+native endpoint — a session cookie, personal API key, or virtual key
+(`requireAnyAuthOrVirtualKey`). Internally this is a thin translation layer in
+front of the same `IngestService` the native JSON endpoint uses: it decodes the
+OTLP body, maps each span's attributes (OpenInference vocabulary today — the
+attribute set CrewAI, LangChain, and LlamaIndex all use; OTel GenAI semantic
+conventions, used by some other frameworks, are not mapped yet), and stores it
+exactly like a native span.
+
+A request body here is protobuf-encoded binary, so it can't be inlined as JSON
+like the native endpoint's docs. The curl below sends a file produced by a
+small Node script built for this verification, using `protobufjs` against the
+vendored `.proto` files at
+`apps/api/src/traces/ingest/otlp/proto/` — the same files the decoder itself
+loads. Its key lines:
+
+```javascript
+const Type = root.lookupType('opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest');
+const message = Type.create({
+  resourceSpans: [{
+    resource: { attributes: [{ key: 'service.name', value: { stringValue: 'crewai-trip-planner' } }] },
+    scopeSpans: [{
+      spans: [{
+        traceId: Buffer.from('1a2b3c4d5e6f70819293a4b5c6d7e8f9', 'hex'),
+        spanId: Buffer.from('aabbccddeeff0011', 'hex'),
+        name: 'CrewAgentExecutor.invoke',
+        startTimeUnixNano: '1700000000000000000',
+        endTimeUnixNano: '1700000000500000000',
+        attributes: [
+          { key: 'openinference.span.kind', value: { stringValue: 'AGENT' } },
+          { key: 'input.value', value: { stringValue: 'Plan a 3-day trip to Rome' } },
+          { key: 'output.value', value: { stringValue: 'Day 1: Colosseum. Day 2: Vatican. Day 3: Trastevere.' } },
+        ],
+        status: { code: 1 }, // OTel STATUS_CODE_OK
+      }],
+    }],
+  }],
+});
+fs.writeFileSync('sample-otlp-request.bin', Buffer.from(Type.encode(message).finish()));
+```
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/traces/otlp \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/x-protobuf" \
+  --data-binary @sample-otlp-request.bin \
+  -i
+```
+
+</TabItem>
+</Tabs>
+
+Response (status 200) — an empty body, per the OTLP spec's
+`ExportTraceServiceResponse`:
+
+```json
+{}
+```
+
+The span landed exactly like a native one. `GET /api/v1/traces/:id` for the
+UUID form of the encoded `trace_id` (`1a2b3c4d5e6f70819293a4b5c6d7e8f9` →
+`1a2b3c4d-5e6f-7081-9293-a4b5c6d7e8f9`) confirms it:
+
+```json
+{
+  "trace": {
+    "id": "1a2b3c4d-5e6f-7081-9293-a4b5c6d7e8f9",
+    "status": "ok",
+    "spanCount": 1
+  },
+  "spans": [
+    {
+      "spanId": "aabbccddeeff0011",
+      "kind": "agent",
+      "name": "CrewAgentExecutor.invoke",
+      "status": "ok",
+      "attributes": {
+        "openinference.span.kind": "AGENT"
+      },
+      "payload": {
+        "input": "Plan a 3-day trip to Rome",
+        "output": "Day 1: Colosseum. Day 2: Vatican. Day 3: Trastevere.",
+        "variables": null
+      }
+    }
+  ]
+}
+```
+
+`openinference.span.kind: "AGENT"` mapped to AcruxCore's `kind: "agent"`, and
+`input.value`/`output.value` populated the span's `payload` — not
+`attributes`. `attributes` only ever holds the raw OTel attributes that
+**aren't** payload-bearing (here, just `openinference.span.kind` itself):
+`input.value`, `output.value`, and their OpenInference siblings
+(`llm.input_messages.*`, `llm.output_messages.*`, `retrieval.documents.*`)
+are stripped out and promoted into `payload` instead, so the team's payload
+capture setting and redaction rules apply to them exactly once, through the
+same channel a native `POST /api/v1/traces` call uses.
+
+---
+
+#### RETRIEVER spans: retrieved documents land in `payload.output`
+
+OpenInference flattens a RETRIEVER span's retrieved documents into indexed
+attributes — `retrieval.documents.{i}.document.content`,
+`.document.score`, and so on — rather than putting them in `output.value`
+(which, on a retriever, is usually absent; `input.value` is just the search
+query). This endpoint reassembles those indexed attributes into an ordered
+array and promotes it into `payload.output`, the same way `output.value`
+would be promoted on any other span kind. Verified by posting a
+LlamaIndex-shaped `VectorIndexRetriever.retrieve` span with two documents:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/traces/otlp \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/x-protobuf" \
+  --data-binary @sample-otlp-retriever.bin \
+  -i
+```
+
+Response (status 200):
+
+```json
+{}
+```
+
+```bash
+curl $ACRUXCORE_BASE_URL/traces/cafebabe-0000-cafe-babe-00000000babe \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{
+  "trace": {
+    "id": "cafebabe-0000-cafe-babe-00000000babe",
+    "status": "ok",
+    "spanCount": 1
+  },
+  "spans": [
+    {
+      "spanId": "aa11bb22cc33dd44",
+      "kind": "retrieval",
+      "name": "VectorIndexRetriever.retrieve",
+      "status": "ok",
+      "attributes": {
+        "openinference.span.kind": "RETRIEVER"
+      },
+      "payload": {
+        "input": "what is the refund policy?",
+        "output": [
+          { "score": 0.91, "content": "Refunds are issued within 30 days of purchase." },
+          { "score": 0.77, "content": "Store credit is offered after the 30-day window." }
+        ],
+        "variables": null
+      }
+    }
+  ]
+}
+```
+
+`kind: "retrieval"` (from `openinference.span.kind: "RETRIEVER"`),
+`payload.input` is the search query from `input.value`, and `payload.output`
+is the two retrieved documents in score order — reassembled from
+`retrieval.documents.0.document.*` / `retrieval.documents.1.document.*` and
+stripped out of `attributes` just like every other payload-bearing key.
+
+---
+
+#### gzip-compressed body
+
+The same request, gzipped, with `Content-Encoding: gzip` set:
+
+```bash
+gzip -c sample-otlp-request.bin > sample-otlp-request.bin.gz
+curl -X POST $ACRUXCORE_BASE_URL/traces/otlp \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/x-protobuf" \
+  -H "Content-Encoding: gzip" \
+  --data-binary @sample-otlp-request.bin.gz \
+  -i
+```
+
+Response (status 200):
+
+```json
+{}
+```
+
+Re-fetching the trace afterward still shows `spanCount: 1` — this was the same
+`(traceId, spanRef)` pair retried, and the endpoint's retry-safe `upsertSpan()`
+absorbed it without creating a duplicate. This matters because the OTLP spec
+expects exporters to retry a whole batch on any non-2xx response or network
+failure.
+
+---
+
+#### Error responses
+
+No Authorization header (status 401):
+
+```json
+{ "error": { "code": "UNAUTHORIZED", "message": "Authentication required." } }
+```
+
+Body is not a valid `ExportTraceServiceRequest` (status 400, not 500):
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/traces/otlp \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/x-protobuf" \
+  --data-binary "not a valid protobuf message" \
+  -i
+```
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "Malformed OTLP request: invalid wire type 6 at offset 1" } }
+```
+
+---
+
+#### Chunking a large batch (>200 spans)
+
+OTel exporters default to batches of up to 512 spans; AcruxCore's ingestion
+caps at 200 spans per call to `IngestService.ingest()`. This endpoint chunks a
+decoded request into ≤200-span groups automatically, transparent to the
+exporter. Verified by posting one trace with 250 spans:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/traces/otlp \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/x-protobuf" \
+  --data-binary @sample-otlp-250-spans.bin \
+  -i
+```
+
+Response (status 200):
+
+```json
+{}
+```
+
+```bash
+curl $ACRUXCORE_BASE_URL/traces/99999999-9999-9999-9999-999999999999 \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{
+  "trace": {
+    "id": "99999999-9999-9999-9999-999999999999",
+    "status": "ok",
+    "spanCount": 250
+  },
+  "spans": [
+    { "spanId": "0000000000000000", "kind": "chain", "name": "chain-step-0", "status": "ok" }
+  ]
+}
+```
+
+`trace.spanCount` is `250` and the trace's `spans` array returns all 250 — no
+protocol-level rejection, no truncation, despite exceeding the 200-span native
+cap in a single OTLP request.
+
+---
+
+#### Unmapped attribute vocabularies
+
+A span with neither `openinference.span.kind` nor a recognized `gen_ai.*`
+attribute is still stored — nothing from an unrecognized framework is silently
+dropped. Verified by posting a span whose only attribute is an arbitrary
+`custom.thing` key:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/traces/otlp \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/x-protobuf" \
+  --data-binary @sample-otlp-unmapped.bin \
+  -i
+```
+
+Response (status 200):
+
+```json
+{}
+```
+
+```bash
+curl $ACRUXCORE_BASE_URL/traces/77777777-7777-7777-7777-777777777777 \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{
+  "trace": { "id": "77777777-7777-7777-7777-777777777777", "status": "ok", "spanCount": 1 },
+  "spans": [
+    {
+      "spanId": "8888888888888888",
+      "kind": "other",
+      "name": "custom.step",
+      "status": "unset",
+      "attributes": { "custom.thing": "no recognized vocabulary here" }
+    }
+  ]
+}
+```
+
+`kind` fell back to `"other"`, `status` fell back to `"unset"` (no `status`
+code was recognized either), and the raw `custom.thing` attribute is preserved
+verbatim in `attributes` — nothing dropped, no semantic fields invented.
+
+---
+
+This endpoint accepts OTLP/HTTP only; gRPC transport is not implemented. Every
+OTel instrumentation package relevant here
+(`openinference-instrumentation-crewai`, `-langchain`, `-llama-index`) defaults
+to HTTP, so this is a scope statement about what's built, not a behavior
+confirmed by a curl call the way the responses above are.

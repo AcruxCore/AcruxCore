@@ -28,4 +28,17 @@ describe('model registry + computeCost', () => {
       computeCost('totally-made-up-model', { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 }),
     ).toBeNull();
   });
+
+  it('falls back to the un-dated registry key for a provider-dated model id', () => {
+    // OpenAI (and other providers) commonly report the dated snapshot actually
+    // served (e.g. `gpt-4o-mini-2024-07-18`) rather than the bare alias a caller
+    // requested — this is the model string OTLP-ingested traces from real
+    // OpenAI-backed frameworks carry.
+    const cost = computeCost('gpt-4o-mini-2024-07-18', {
+      prompt_tokens: 1_000_000,
+      completion_tokens: 1_000_000,
+      total_tokens: 2_000_000,
+    });
+    expect(cost).toBeCloseTo(0.15 + 0.6, 6);
+  });
 });

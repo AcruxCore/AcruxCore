@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "acruxcore"
-version = "0.7.1"
+version = "0.8.0"
 description = "Async Python SDK for AcruxCore — runtime prompt render, gateway chat, tool loops, traces, and feedback"
 readme = "README.md"
 license = { text = "MIT" }
@@ -34,6 +34,10 @@ classifiers = [
 dependencies = ["httpx>=0.27,<1"]
 
 [project.optional-dependencies]
+# acruxcore.otel.register() — see src/acruxcore/otel.py. Framework instrumentors
+# (openinference-instrumentation-crewai, etc.) are separate, per-framework installs;
+# this extra is only the generic OTel + OTLP-HTTP-export plumbing.
+otel = ["opentelemetry-sdk>=1.20,<2", "opentelemetry-exporter-otlp-proto-http>=1.20,<2"]
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.23",
@@ -45,6 +49,15 @@ dev = [
     # suite), to load the repo-root .env the same way the Node SDK's
     # jest.setup.ts does. No other test in this package touches the network.
     "python-dotenv>=1.0",
+    # Exercises acruxcore.otel.register() (tests/test_otel.py) — same otel extra
+    # a real user installs, plus one real instrumentor package so the framework
+    # registry is checked against an actual importable class, not a mock.
+    "opentelemetry-sdk>=1.20,<2",
+    "opentelemetry-exporter-otlp-proto-http>=1.20,<2",
+    # OpenAIInstrumentor checks the `openai` package is importable before
+    # instrumenting — no API key or network call needed for that check.
+    "openinference-instrumentation-openai>=0.1",
+    "openai>=1.69",
 ]
 
 [project.urls]

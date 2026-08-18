@@ -1,0 +1,372 @@
+---
+title: Send OTel traces to AcruxCore with the SDK helper
+description: Wire any OpenTelemetry-instrumented app to AcruxCore's OTLP endpoint in one call with register() — a bare pipeline, one framework, several frameworks, and session grouping, in Python or Node.
+sidebar_position: 22
+keywords: [opentelemetry, otel, otlp, tracing, crewai, openai agents sdk, python sdk, node sdk]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Send OTel traces to AcruxCore with the SDK helper
+
+**What you'll do:** wire the SDK's `register()` helper into a few different
+[OpenTelemetry](https://opentelemetry.io/) (OTel) setups — a bare pipeline, one
+auto-instrumented framework, several frameworks at once, and a multi-turn session —
+so traces reach AcruxCore's OTLP endpoint with no hand-written OTel plumbing. Both
+published SDKs ship this helper — `acruxcore.otel.register()` in Python,
+`register()` from `@acruxcoreai/sdk/otel` in Node — pick a language tab wherever
+the code differs.
+
+AcruxCore accepts traces from **any** OTel source at `POST /api/v1/traces/otlp` —
+that part isn't new, and `register()` doesn't change what the endpoint accepts. It
+collapses the `TracerProvider` + `BatchSpanProcessor` + `OTLPSpanExporter` wiring
+every OTLP integration needs into one call, and optionally turns on a named
+framework's own [OpenInference](https://github.com/Arize-ai/openinference)
+instrumentor against the result. If you'd rather not add the SDK as a dependency,
+the [OTLP API reference](/api-reference/traces/otlp) shows the same four lines
+written out by hand — both reach the identical endpoint.
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python">
+
+```bash
+pip install 'acruxcore[otel]'
+```
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+```bash
+npm install @acruxcoreai/sdk @opentelemetry/api @opentelemetry/sdk-trace-node \
+  @opentelemetry/sdk-trace-base @opentelemetry/exporter-trace-otlp-http \
+  @opentelemetry/resources @opentelemetry/semantic-conventions
+```
+
+</TabItem>
+</Tabs>
+
+```bash
+export ACRUXCORE_API_KEY=<your-acruxcore-key>
+export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
+```
+
+`register()` reads those two variables by default — pass `apiKey`/`baseUrl` (Python:
+`api_key`/`base_url`) instead if you'd rather not use env vars.
+
+## 1. A bare pipeline, no framework
+
+The plainest case: no instrumentor, just the pipeline, and a span you create and
+name yourself. Useful for a step no framework instrumentor covers — a retrieval
+call, a custom pre-processing stage:
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python">
+
+```python
+from acruxcore.otel import register
+from opentelemetry import trace
+
+tracer_provider = register(service_name="my-script")
+tracer = trace.get_tracer("my-script")
+
+with tracer.start_as_current_span("hello-otel") as span:
+    span.set_attribute("input.value", "hello from a hand-rolled span")
+    ...
+
+tracer_provider.force_flush()
+```
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+```typescript
+import { register } from '@acruxcoreai/sdk/otel';
+import { trace } from '@opentelemetry/api';
+
+const tracerProvider = await register({ serviceName: 'my-script' });
+const tracer = trace.getTracer('my-script');
+
+await tracer.startActiveSpan('hello-otel', async (span) => {
+  span.setAttribute('input.value', 'hello from a hand-rolled span');
+  // ...
+  span.end();
+});
+
+await tracerProvider.forceFlush();
+```
+
+</TabItem>
+</Tabs>
+
+That lands in AcruxCore exactly as written — no model, no cost, because there was
+none:
+
+```json
+{
+  "kind": "other",
+  "name": "hello-otel",
+  "status": "unset",
+  "durationMs": 100,
+  "payload": { "input": "hello from a hand-rolled span", "output": null }
+}
+```
+
+A span with no OpenInference span-kind attribute lands as `"other"` — set
+`openinference.span.kind` yourself (`"CHAIN"`, `"RETRIEVER"`, ...) if you want a
+more specific kind than that.
+
+## 2. Auto-instrument one framework
+
+Pass `instrument=[...]` (Node: `instrument: [...]`) and `register()` turns on that
+framework's own OpenInference instrumentor against the provider it just built —
+nothing else in your code needs to change:
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python">
+
+```python
+from openai import OpenAI
+from acruxcore.otel import register
+
+tracer_provider = register(service_name="my-script", instrument=["openai"])
+
+client = OpenAI()
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Say hi in exactly two words."}],
+)
+print(response.choices[0].message.content)
+
+tracer_provider.force_flush()
+```
+
+The resulting span carries the real model, provider, token counts, and cost —
+`openinference-instrumentation-openai` reads them straight off the OpenAI response:
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+```typescript
+import OpenAI from 'openai';
+import { register } from '@acruxcoreai/sdk/otel';
+
+const tracerProvider = await register({ serviceName: 'my-script', instrument: ['openai'] });
+
+const client = new OpenAI();
+const response = await client.chat.completions.create({
+  model: 'gpt-4o-mini',
+  messages: [{ role: 'user', content: 'Say hi in exactly two words.' }],
+});
+console.log(response.choices[0].message.content);
+
+await tracerProvider.forceFlush();
+```
+
+The resulting span carries the real model, provider, token counts, and cost —
+`@arizeai/openinference-instrumentation-openai` reads them straight off the
+OpenAI response:
+
+</TabItem>
+</Tabs>
+
+```json
+{
+  "kind": "llm",
+  "name": "ChatCompletion",
+  "model": "gpt-4o-mini-2024-07-18",
+  "provider": "openai",
+  "promptTokens": 14,
+  "completionTokens": 3,
+  "costUsd": 0.0000039
+}
+```
+
+`instrument=[...]` only instruments an already-installed package — it never
+installs anything for you. Passing a name whose package isn't installed raises
+`AcruxCoreError` naming the exact package to install; passing a name outside the
+supported list raises a different error listing the ones that are:
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python">
+
+```python
+from acruxcore.otel import SUPPORTED_FRAMEWORKS
+
+print(SUPPORTED_FRAMEWORKS)
+# ('crewai', 'langchain', 'llama_index', 'openai', 'openai_agents')
+```
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+```typescript
+import { SUPPORTED_FRAMEWORKS } from '@acruxcoreai/sdk/otel';
+
+console.log(SUPPORTED_FRAMEWORKS);
+// ['openai', 'openai_agents']
+```
+
+Shorter than the Python list on purpose: LangChain.js's OpenInference instrumentor
+patches `@langchain/core/callbacks/manager` rather than the top-level package, and
+LlamaIndex.TS's instrumentor package is an empty placeholder as of this writing.
+Both still work — see [section 5](#5-a-framework-not-in-supported_frameworks) for
+wiring one by hand.
+
+</TabItem>
+</Tabs>
+
+## 3. Auto-instrument several frameworks at once
+
+`instrument` takes a list because some frameworks need more than one instrumentor
+to see the whole picture. CrewAI is the clearest example: it orchestrates agents
+and tools itself, but calls the model through the plain `openai` Python SDK by
+default (the `litellm` integration is an opt-in extra most installs don't have) —
+so `"crewai"` alone sees the orchestration but not token counts or cost:
+
+```python
+tracer_provider = register(
+    service_name="my-crew",
+    instrument=["crewai", "openai"],
+)
+```
+
+This is exactly what the [CrewAI trip-planner
+tutorial](../tutorials/trace-a-crewai-trip-planner) does, end to end, with a real
+web-search tool and a real multi-agent crew.
+
+Node's shorter `SUPPORTED_FRAMEWORKS` (see [section 2](#2-auto-instrument-one-framework))
+has no framework needing this combination yet — the [OpenAI Agents SDK
+tutorial](../tutorials/trace-an-openai-agents-sdk-triage-system)'s Node version gets full
+model, token, and cost data from `instrument: ['openai_agents']` alone.
+
+## 4. Group multiple calls into one session
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python">
+
+`openinference.instrumentation.using_session()` sets a value on the current OTel
+context that OpenInference *instrumentors* read and stamp onto every span they
+create — so it works for free once you've auto-instrumented a framework:
+
+```python
+from openinference.instrumentation import using_session
+
+with using_session("customer-42-conversation"):
+    first = client.chat.completions.create(model="gpt-4o-mini", messages=[...])
+    second = client.chat.completions.create(model="gpt-4o-mini", messages=[...])
+```
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+`@arizeai/openinference-core`'s `setSession()` sets a value on the current OTel
+context that OpenInference *instrumentors* read and stamp onto every span they
+create — so it works for free once you've auto-instrumented a framework.
+`context.with()` needs the context manager `register()` installs by default
+(`setGlobal: true`, the default) — see the JSDoc on `register()` if you pass
+`setGlobal: false` and wire your own:
+
+```typescript
+import { context } from '@opentelemetry/api';
+import { setSession } from '@arizeai/openinference-core';
+
+await context.with(setSession(context.active(), { sessionId: 'customer-42-conversation' }), async () => {
+  const first = await client.chat.completions.create({ model: 'gpt-4o-mini', messages: [/* ... */] });
+  const second = await client.chat.completions.create({ model: 'gpt-4o-mini', messages: [/* ... */] });
+});
+```
+
+</TabItem>
+</Tabs>
+
+Both calls above land in AcruxCore as separate traces sharing one
+`session.id` — open **Observability → Sessions** and both show up grouped, the
+same way the [OpenAI Agents SDK
+tutorial](../tutorials/trace-an-openai-agents-sdk-triage-system) groups its
+two-turn conversation.
+
+Session grouping only affects spans an OpenInference instrumentor creates — a
+bare hand-rolled span like the one in [section 1](#1-a-bare-pipeline-no-framework)
+doesn't go through an instrumentor, so it won't pick up the context value. Set the
+attribute yourself instead:
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python">
+
+```python
+with tracer.start_as_current_span("first-call") as span:
+    span.set_attribute("session.id", "customer-42-conversation")
+```
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+```typescript
+await tracer.startActiveSpan('first-call', async (span) => {
+  span.setAttribute('session.id', 'customer-42-conversation');
+  span.end();
+});
+```
+
+</TabItem>
+</Tabs>
+
+## 5. A framework not in `SUPPORTED_FRAMEWORKS`
+
+If a framework you use ships an OpenInference or plain-OTel instrumentor that
+isn't in the registry, skip `instrument=[...]` and wire it yourself against the
+provider `register()` already built:
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python">
+
+```python
+from some_other_package import SomeInstrumentor
+
+tracer_provider = register(service_name="my-script")
+SomeInstrumentor().instrument(tracer_provider=tracer_provider)
+```
+
+This is the same object either path returns — `instrument=[...]` is a shortcut
+for the five frameworks in `SUPPORTED_FRAMEWORKS`, not a different mechanism.
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+LangChain.js is exactly this case today (see [section 2](#2-auto-instrument-one-framework)):
+its OpenInference instrumentor patches `@langchain/core/callbacks/manager` directly
+rather than taking a framework-name shortcut, so `manuallyInstrument()` needs that
+module namespace, not the top-level `langchain` package:
+
+```typescript
+import * as CallbackManagerModule from '@langchain/core/callbacks/manager';
+import { LangChainInstrumentation } from '@arizeai/openinference-instrumentation-langchain';
+import { register } from '@acruxcoreai/sdk/otel';
+
+const tracerProvider = await register({ serviceName: 'my-script' });
+
+const instrumentation = new LangChainInstrumentation({ tracerProvider });
+instrumentation.manuallyInstrument(CallbackManagerModule);
+```
+
+This is the same object either path returns — `instrument: [...]` is a shortcut
+for the two frameworks in `SUPPORTED_FRAMEWORKS`, not a different mechanism. Node's
+`instrument()`/`manuallyInstrument()` split exists because OTel's own instrumentation
+classes patch a framework via `require()` hooks, which never fire for an ESM
+`import` — `register()`'s own `instrument: [...]` path already does this dance for
+you (see the JSDoc on `register()` for why), so wiring a framework by hand is the
+one place it's visible directly.
+
+</TabItem>
+</Tabs>
+
+## What's next
+
+- **[Trace a CrewAI Trip-Planning Crew](../tutorials/trace-a-crewai-trip-planner)**
+  and **[Trace an OpenAI Agents SDK Support-Triage
+  System](../tutorials/trace-an-openai-agents-sdk-triage-system)** — both worked
+  examples this guide's snippets are drawn from.
+- API details: see the [OTLP Trace Ingestion](/api-reference/traces/otlp)
+  reference for the full endpoint contract, including gzip, batching, and error
+  responses.

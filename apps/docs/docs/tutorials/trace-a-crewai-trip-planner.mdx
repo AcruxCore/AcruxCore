@@ -1,0 +1,176 @@
+---
+title: Trace a CrewAI Trip-Planning Crew
+description: Build a two-agent CrewAI crew that plans and revises a trip, and watch every agent, tool, and LLM call land in AcruxCore automatically over OTLP — no code change to the crew itself.
+sidebar_position: 9
+keywords: [crewai, opentelemetry, otlp, tracing, multi-agent, openinference]
+---
+
+# Trace a CrewAI Trip-Planning Crew
+
+**What you'll build:** a two-agent [CrewAI](https://www.crewai.com/) crew — a Researcher who
+searches the web and a Planner who turns that research into an itinerary — run twice in the
+same conversation: once to plan a trip, once to revise it. Every agent, tool, and model call
+lands in AcruxCore automatically, with no AcruxCore code anywhere in the crew.
+
+Every tutorial so far on this site builds the agent loop yourself, on top of AcruxCore's
+gateway or SDK. CrewAI is different: it's a framework with its **own** agents, its own
+tool-calling loop, and its own way of instrumenting itself for observability — the
+[OpenTelemetry](https://opentelemetry.io/) (OTel) wire protocol, the same one nearly every
+agent framework speaks. AcruxCore's `POST /api/v1/traces/otlp` endpoint accepts that protocol
+directly, so pointing an already-working CrewAI app at AcruxCore is an environment-variable
+change, not a rewrite.
+
+## 1. Create an AcruxCore API key
+
+Open **Account & keys → New key**, name it `crewai-tutorial`, and create it.
+
+Copy the key the moment it's shown — this is the only time the full value appears.
+
+## 2. Install the SDK's OTel helper
+
+CrewAI doesn't know about AcruxCore, and it never will — the wiring lives entirely
+outside the crew, in `acruxcore.otel.register()`, a small convenience helper the
+Python SDK ships for exactly this: pointing a standard OpenTelemetry pipeline at
+AcruxCore's OTLP endpoint.
+
+```bash
+export ACRUXCORE_API_KEY=<your-acruxcore-key>
+export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
+```
+
+`register()` reads those two variables and does nothing you couldn't do by hand —
+it builds the same `TracerProvider` + `BatchSpanProcessor` + `OTLPSpanExporter`
+every OTel pipeline needs, pointed at `$ACRUXCORE_BASE_URL/traces/otlp`. If you'd
+rather not add the SDK as a dependency, the [OTLP API
+reference](/api-reference/traces/otlp) shows the same four lines written out by
+hand — both reach the identical endpoint.
+
+## 3. Build the crew
+
+Two agents, a shared model, and one line of code that decides how they hand work to each
+other — `context=[research_task]` tells the Planner's task to read the Researcher's output:
+
+```python
+researcher = Agent(
+    role="Destination Researcher",
+    goal="Find concrete, well-reviewed attractions, restaurants, and neighborhoods for a trip",
+    tools=[TavilySearchTool(max_results=5)],
+    llm="gpt-4o-mini",
+)
+
+planner = Agent(
+    role="Itinerary Planner",
+    goal="Turn research into a clear, day-by-day itinerary",
+    llm="gpt-4o-mini",
+)
+
+plan_task = Task(..., agent=planner, context=[research_task])
+crew = Crew(agents=[researcher, planner], tasks=[research_task, plan_task], process=Process.sequential)
+```
+
+The only AcruxCore-aware code in the whole file is one call, above the crew definition —
+`acruxcore.otel.register()` reads the two env vars from Step 2 and turns on both
+instrumentors this crew needs:
+
+```python
+from acruxcore.otel import register
+
+tracer_provider = register(
+    service_name="crewai-trip-planner",
+    instrument=["crewai", "openai"],
+)
+```
+
+:::note[Two instrumentors, not one]
+`"crewai"` traces the crew's own orchestration — which agent ran, which task, which
+tool. It does **not** see token counts or cost, because CrewAI calls the model through the
+plain `openai` Python SDK by default (the `litellm` integration is an opt-in `crewai[litellm]`
+extra most installs don't have). `"openai"`, from the same
+[OpenInference](https://github.com/Arize-ai/openinference) project, captures that layer —
+list both, or your LLM spans will be missing model, tokens, and cost.
+:::
+
+The full script also threads a `session.id` across both crew runs with
+`openinference.instrumentation.using_session(session_id)`, so AcruxCore groups them as one
+conversation — see [trip_planner.py on
+GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/trace-a-crewai-trip-planner/python/trip_planner.py)
+for the complete source.
+
+## 4. Run it
+
+```bash
+pip install crewai crewai-tools 'acruxcore[otel]' \
+  openinference-instrumentation-crewai openinference-instrumentation-openai
+python trip_planner.py
+```
+
+The second call passes the first call's real output back in as `prior_itinerary` — a genuine
+revision, not a second unrelated plan:
+
+```text
+=== Turn 1 itinerary ===
+
+### Day 1: Historical Architecture & Traditional Cuisine
+**Morning:** Start your day at Jerónimos Monastery. Arrive early to explore the intricate
+stonework of this UNESCO World Heritage site...
+**Dinner:** Experience fine dining at Belcanto, a Michelin-starred restaurant by renowned
+chef José Avillez...
+
+### Day 2: Contemporary Architecture & Gastronomic Exploration
+**Morning:** Start your day at the impressive Lisbon Oceanarium in the Parque das Nações...
+**Afternoon:** Explore LX Factory, a vibrant cultural space filled with shops, restaurants,
+and art installations...
+
+=== Turn 2 itinerary (refinement) ===
+
+### Revised 3-Day Lisbon Itinerary
+
+#### Day 2: A Relaxing Day with a Cooking Class
+
+**Morning:**
+- Start your day with a leisurely morning at **Cascais**. Take a train to this charming
+  coastal town and relax at **Praia da Rainha** or stroll through the quaint streets at your
+  own pace.
+
+**Cooking Class:**
+- Enrich your experience by joining a hands-on cooking class at **CookingLisbon**, where you
+  can learn to prepare traditional dishes such as codfish à Brás or pastel de nata.
+
+session.id used for both turns: crewai-trip-planner-demo
+```
+
+Day 2 of the revision is genuinely different — relaxed pace, a cooking class added — because
+the Planner agent read turn 1's actual itinerary, not just a text description of the request.
+
+## 5. See both turns grouped into one session
+
+Open **Observability → Sessions** and click `crewai-trip-planner-demo`: both crew runs are
+there, each its own trace, with real token counts and cost — CrewAI never told AcruxCore
+these two runs were related; the shared `session.id` attribute on every span did that.
+
+![The crewai-trip-planner-demo session showing two traces, each with 8 spans, real token counts, and real cost](/img/tutorials/trace-a-crewai-trip-planner/02-session.png)
+
+## 6. Follow the crew's own span tree
+
+Open the first trace. The tree is CrewAI's own execution order, captured without a single
+line of tracing code in the crew: the Researcher agent calls the model, searches Tavily
+twice, calls the model again to summarize, then hands off to the Planner agent for a final
+model call:
+
+![Trace tree showing a chain root span Crew.kickoff, an agent span for Destination Researcher containing an LLM span, two Tavily Search tool spans, and a second LLM span, followed by a sibling agent span for Itinerary Planner containing one LLM span](/img/tutorials/trace-a-crewai-trip-planner/03-trace-tree.png)
+
+Click a **Tavily Search** span to see the real query the Researcher chose and the real search
+results it got back:
+
+![The expanded Tavily Search span showing Input with the query "attractions in Lisbon architecture" and Output with real search results from visitportugal.com and other travel sites](/img/tutorials/trace-a-crewai-trip-planner/04-tool-span.png)
+
+Nothing here was reported by hand — `openinference-instrumentation-crewai` captured the
+orchestration, `openinference-instrumentation-openai` captured the model calls, and
+AcruxCore's OTLP endpoint mapped the OpenInference attributes it received onto the same
+`agent` / `tool` / `llm` span kinds every other tutorial on this site produces.
+
+## What's next
+
+- **[Trace an OpenAI Agents SDK Support-Triage System](./trace-an-openai-agents-sdk-triage-system)** — the same OTLP integration, this time on a framework whose signature feature (agent-to-agent handoffs) produces a different-shaped trace.
+- More `register()` examples — a bare pipeline, one framework, several at once, session grouping: [Send OTel traces to AcruxCore with the SDK helper](../guides/send-otel-traces-with-the-sdk-helper).
+- API details: see the [OTLP Trace Ingestion](/api-reference/traces/otlp) reference for the full endpoint contract, including gzip, batching, and error responses.

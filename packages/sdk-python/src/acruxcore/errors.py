@@ -19,6 +19,12 @@ MISSING_DISPATCH: ErrorCode = "MISSING_DISPATCH"
 PROVIDER_ERROR: ErrorCode = "PROVIDER_ERROR"
 #: A pydantic model was passed as ``response_format`` but pydantic is not installed.
 PYDANTIC_NOT_AVAILABLE: ErrorCode = "PYDANTIC_NOT_AVAILABLE"
+#: ``acruxcore.otel.register()`` was called but the ``otel`` extra is not installed.
+OTEL_NOT_AVAILABLE: ErrorCode = "OTEL_NOT_AVAILABLE"
+#: ``instrument=[...]`` named a framework :mod:`acruxcore.otel` doesn't recognize.
+UNKNOWN_INSTRUMENTOR: ErrorCode = "UNKNOWN_INSTRUMENTOR"
+#: ``instrument=[...]`` named a framework whose OpenInference package isn't installed.
+INSTRUMENTOR_NOT_INSTALLED: ErrorCode = "INSTRUMENTOR_NOT_INSTALLED"
 
 
 class AcruxCoreError(Exception):

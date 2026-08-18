@@ -12,6 +12,21 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+## 0.8.0 — 2026-08-11
+
+### Added
+
+- New `@acruxcoreai/sdk/otel` subpath export: `register()` collapses the
+  `NodeTracerProvider` + `BatchSpanProcessor` + `OTLPTraceExporter` wiring every
+  OTLP integration needs into one call, with `instrument: ['openai', 'openai_agents']`
+  to turn on a framework's own OpenInference instrumentor. `@opentelemetry/*`
+  packages are new optional peer dependencies — install them only if you use this.
+- `SUPPORTED_FRAMEWORKS` export lists the frameworks `instrument: [...]` accepts.
+  See [Send OTel traces to AcruxCore with the SDK
+  helper](https://docs.acruxcore.com/docs/guides/send-otel-traces-with-the-sdk-helper)
+  for worked examples: a bare pipeline, one framework, session grouping, and wiring
+  an unsupported framework (e.g. LangChain.js) by hand.
+
 ## 0.7.1 — 2026-08-07
 
 ### Changed
