@@ -59,7 +59,7 @@ def run_tool(name: str, args: dict):
 
 # ── REST helpers ─────────────────────────────────────────────────────────────
 def render_prompt(name: str, alias: str, variables: dict) -> dict:
-    """Fetch the stored prompt: rendered messages + attached tool schemas."""
+    """Fetch the stored prompt: rendered messages + bound tool schemas."""
     r = requests.post(
         f"{BASE_URL}/prompts/{name}/{alias}/render",
         headers=HEADERS,

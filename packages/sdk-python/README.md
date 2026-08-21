@@ -179,9 +179,146 @@ result = await hub.gateway.run_tool_loop(
 )
 ```
 
-Prompt-attached tools arrive this way too: `prompts.render()` returns
-`RenderResult(messages, tools)` where `tools` are the version's attached catalog
-tools in OpenAI shape — those go in `tool_defs=`.
+Prompt-bound tools need none of this plumbing: hand the whole render result to
+`gateway.run_prompt_with_tools()` and the refs, the model and the prompt lineage
+all come from it — see [Running a prompt with its bound
+tools](#running-a-prompt-with-its-bound-tools) below.
+
+### Connecting a tool to a prompt
+
+Which tools a prompt calls is decided per prompt alias, not per version — a
+commit changes the template only. `set_tool_binding()` writes the default every
+alias inherits; `set_alias_tool_binding()` gives one alias a binding of its own
+(`off=True` means "this alias deliberately has no such tool"):
+
+```python
+await hub.prompts.set_tool_binding(prompt_id, tool_id, tool_alias="production")
+await hub.prompts.set_alias_tool_binding(prompt_id, "staging", tool_id, tool_alias="staging")
+
+bindings = await hub.prompts.list_tool_bindings(prompt_id)
+```
+
+`remove_tool_binding()` disconnects the default, `remove_alias_tool_binding()`
+returns one alias to it, and `reset_alias_tool_bindings()` returns a whole alias
+to it.
+
+### Running a prompt with its bound tools
+
+`run_prompt_with_tools()` takes a render result and derives the model, the
+messages, the tool refs and the prompt version id from it — so nothing is
+restated at the call site, and the trace keeps its link back to the prompt:
+
+```python
+r = await hub.prompts.render("weather-brief", "staging", {"city": "Lisbon"})
+result = await hub.gateway.run_prompt_with_tools(r)
+
+print(result.content)
+```
+
+Every keyword `run_tool_loop()` takes still works and wins over the derived
+value — `model="gpt-4o"` overrides the bound model, `tool_refs=[]` runs the
+prompt with no tools. A binding pinned to an exact tool version travels as a
+pin, so a pinned prompt keeps running the build it was pinned to. A prompt with
+no tools bound runs as a plain completion rather than raising.
+
+If the version has no bound model and you pass none, the call raises
+`AcruxCoreError` with code `VALIDATION_ERROR`, naming both fixes.
+
+### Streaming a tool loop
+
+`stream=True` turns either loop into an async iterator of typed events, so a UI
+can show text as it arrives and render a running tool as its own state:
+
+```python
+async for event in await hub.gateway.run_prompt_with_tools(r, stream=True):
+    if event.type == "content":
+        print(event.delta, end="", flush=True)
+    elif event.type == "tool_call":
+        print(f"\n[calling {event.name}]")
+    elif event.type == "tool_result":
+        print(f"[{event.name} done]")
+    elif event.type == "done":
+        print(f"\ntrace: {event.result.trace_id}")
+```
+
+The `done` event carries the same `RunToolLoopResult` the unstreamed call
+returns, and the trace is identical: one `llm` span per round with the round's
+tool spans nested under it. `content` events arrive from every round, each
+carrying `round` — whether a round is the last is only knowable once its
+`finish_reason` arrives, so holding one back would delay the final answer.
+
+There is no `dispatch` above, and none is needed: a tool whose version has an
+`http` executor runs on the platform. Pass `dispatch=` only for a
+`client`-executor tool, whose code lives in your process — ask for one without an
+implementation and the loop stops before calling the model, naming the tool.
+
+### A complete streaming script
+
+Copy-paste runnable, against a local API. Change `base_url` to
+`https://api.acruxcore.com/api/v1` for the hosted platform:
+
+```python
+import asyncio
+import os
+
+from acruxcore import AcruxCore
+
+
+async def main() -> None:
+    async with AcruxCore(
+        api_key=os.environ["ACRUXCORE_API_KEY"],
+        base_url="http://localhost:3001/api/v1",
+    ) as hub:
+        rendered = await hub.prompts.render("weather-brief", "production", {"city": "Lisbon"})
+
+        stream = await hub.gateway.run_prompt_with_tools(rendered, stream=True)
+        async for chunk in stream:
+            print(chunk)
+
+        # The trace is written in a background task. In a script that exits right
+        # away, flush it or the write may not land.
+        await hub.gateway.flush()
+
+
+asyncio.run(main())
+```
+
+```text
+ToolLoopToolCallEvent(id='call_fXeXe6…', name='get_weather', arguments={'city': 'Lisbon'}, round=0, type='tool_call')
+ToolLoopToolResultEvent(id='call_fXeXe6…', name='get_weather', round=0, result={'location': 'Lisbon, Portugal', 'temperature_c': 26, …}, error=None, type='tool_result')
+ToolLoopContentEvent(delta='The', round=1, type='content')
+ToolLoopContentEvent(delta=' current', round=1, type='content')
+…
+ToolLoopDoneEvent(result=RunToolLoopResult(content='The current weather in Lisbon is 26°C with patchy rain nearby.', iterations=2, stopped_at_limit=False, trace_id='f48c543e-…'), type='done')
+```
+
+### Overriding one prompt-bound tool's alias for a single call
+
+Every prompt-bound tool follows its own tool alias — usually `production` —
+whatever the prompt's own alias happens to be. `render()` also returns
+`tool_resolutions`, reporting which alias (or pin) each tool actually resolved
+through and whether the prompt alias's own binding or the prompt default decided
+it, so you can see that before overriding it. `with_tool_override` does the
+override safely — sending the same tool in both `tools` and `tool_refs` is a
+400, so it removes it from `tools` and adds it to `tool_refs` for you:
+
+```python
+from acruxcore import with_tool_override
+
+rendered = await hub.prompts.render("weather-brief", "production", {"city": "Paris"})
+override = with_tool_override(rendered, name="get_weather", alias="staging")
+
+r = await hub.gateway.chat(
+    rendered.model or "gpt-4o-mini",
+    rendered.messages,
+    tools=override.tools,
+    tool_refs=override.tool_refs,
+)
+```
+
+This only affects this one call. If `get_weather` was already bound, it
+warns naming what the prompt currently has it set to — so the override doesn't
+get mistaken for the prompt's own configuration.
 
 ### The loop's behaviour
 
@@ -384,6 +521,8 @@ Error codes: `MISSING_API_KEY`, `MISSING_BASE_URL`, `NETWORK_ERROR`, `API_ERROR`
 | `chat({...})` | `gateway.chat(model, messages, *, ...)` |
 | `chat({stream: true})` | `gateway.stream(model, messages, *, ...)` → async iterator |
 | `runToolLoop({...})` | `gateway.run_tool_loop(model, messages, *, tools=, tool_defs=, tool_refs=, dispatch=None, sync=True, ...)` |
+| `runToolLoop({stream: true})` | `gateway.run_tool_loop(..., stream=True)` → async iterator of events |
+| `runPromptWithTools(rendered, {...})` | `gateway.run_prompt_with_tools(rendered, **kwargs)` |
 | `chat({provider: {baseUrl, apiKey}})` / `runToolLoop({provider})` — BYO | `gateway.chat(..., provider={"base_url", "api_key"})` / `gateway.run_tool_loop(..., provider=...)` — BYO |
 | `acrux.tool({name, parameters}, handler)` | `@acrux.tool` (or `@acrux.tool(parameters={...})`) |
 | `hub.tools.sync(tools, {onConflict})` | `hub.tools.sync(tools, on_conflict=...)` |

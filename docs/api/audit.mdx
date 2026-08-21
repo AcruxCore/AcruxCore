@@ -1,7 +1,7 @@
 ---
 sidebar_position: 12
 title: "Audit"
-description: "Read the paginated, newest-first audit trail of changes made to a prompt."
+description: "Read the paginated, newest-first audit trail of changes made to a prompt or a tool."
 ---
 
 # Audit API
@@ -79,4 +79,86 @@ Response (status 404) — prompt not found or belongs to another team:
 
 ```json
 { "error": { "code": "NOT_FOUND", "message": "Prompt not found." } }
+```
+
+---
+
+## GET /api/v1/tools/:id/audit
+
+Returns a paginated, newest-first list of audit events for a specific tool: version
+commits from [`POST /api/v1/tools/:id/sync`](./tools/sync) (`tool_version_committed`,
+`tool_version_superseded`), and any [prompt tool binding](./prompts/tool-bindings)
+set or removed against this tool (`prompt_tool_route_set`,
+`prompt_tool_route_removed`) — a binding event surfaces here even though its
+`promptId` points at the prompt that owns the binding, since the same JSON
+`metadata.toolId` filter that scopes prompt-side audit by prompt scopes this endpoint
+by tool.
+
+Requires auth (session or Bearer key). The tool must belong to the authenticated
+user's team. Same `page`/`limit` query parameters as the prompt audit endpoint above.
+
+```bash
+curl -X GET "$ACRUXCORE_BASE_URL/tools/0d84d6c3-dc86-4db2-aee3-776bdd35ea34/audit?limit=5" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+### Response (status 200)
+
+```json
+{
+  "data": [
+    {
+      "id": "aba700f7-581b-48b6-b806-9519c8fddd13",
+      "event": "prompt_tool_route_removed",
+      "actor": { "id": "18c76b52-ee0d-4001-be8e-c29976488fbb", "email": "demo@acruxcore.com" },
+      "metadata": {
+        "toolId": "0d84d6c3-dc86-4db2-aee3-776bdd35ea34",
+        "promptAlias": "production",
+        "fromToolAlias": "staging"
+      },
+      "createdAt": "2026-08-19T20:41:15.890Z",
+      "promptId": "bb19245b-408d-4b40-8782-9b2042c97929"
+    },
+    {
+      "id": "f178dcdd-75cc-4bfd-90e0-57895b833de4",
+      "event": "prompt_tool_route_set",
+      "actor": { "id": "18c76b52-ee0d-4001-be8e-c29976488fbb", "email": "demo@acruxcore.com" },
+      "metadata": {
+        "toolId": "0d84d6c3-dc86-4db2-aee3-776bdd35ea34",
+        "toolName": "get_weather",
+        "promptAlias": "production",
+        "toToolAlias": "staging",
+        "fromToolAlias": null
+      },
+      "createdAt": "2026-08-19T20:40:56.933Z",
+      "promptId": "bb19245b-408d-4b40-8782-9b2042c97929"
+    },
+    {
+      "id": "dc1f967e-a439-4f19-aa79-9d8e7fcd71bb",
+      "event": "tool_version_committed",
+      "actor": { "id": "18c76b52-ee0d-4001-be8e-c29976488fbb", "email": "demo@acruxcore.com" },
+      "metadata": { "via": "sync", "source": "code", "toolId": "0d84d6c3-dc86-4db2-aee3-776bdd35ea34", "versionNumber": 3 },
+      "createdAt": "2026-08-12T17:49:16.854Z",
+      "promptId": null
+    }
+  ],
+  "total": 5,
+  "page": 1,
+  "limit": 5
+}
+```
+
+`tool_version_committed` metadata's `via: "sync"` / `source: "code"` marks a version
+created by a `POST /api/v1/tools/:id/sync` call detecting changed code — this is the
+signal an admin uses to notice a tool changed underneath an alias that auto-moved.
+`tool_version_superseded` (not shown above) fires alongside it when that sync also
+moved an alias forward, with `supersededVersionNumber`/`newVersionNumber`/
+`supersededSource` metadata.
+
+### Error responses
+
+Response (status 404) — tool not found or belongs to another team:
+
+```json
+{ "error": { "code": "NOT_FOUND", "message": "Tool not found." } }
 ```

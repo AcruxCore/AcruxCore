@@ -342,19 +342,6 @@ output for restricted topics or personal data before or after it reaches the mod
 
 </details>
 
-**Online evaluation — rules that score production traffic automatically.** The
-"Online evaluation" page under Production lets you create a rule that scores every
-matching trace as it arrives, rather than waiting for someone to run an experiment.
-AcruxCore's evaluation is dataset-driven and on demand; nothing scores live traffic
-without an explicit run.
-
-<details>
-<summary>Show screenshot: online evaluation on Opik</summary>
-
-![Opik's "No online evaluations yet" empty state under Online evaluation, with "Create a rule to automatically score your model's outputs" and a Create your first rule button](/img/comparison/opik/op-13-online-evaluation.png)
-
-</details>
-
 **Test suites — a dedicated pre-deployment regression object.** Distinct from
 Experiments: import test cases from a CSV or JSON file, or define them in the SDK,
 each with an expected output and a scoring method, framed by Opik itself as
@@ -367,20 +354,21 @@ regression testing rather than dataset-driven experimentation.
 
 </details>
 
-AcruxCore has no equivalent to any of the three — no guardrails, no standing
-online-scoring rule, and no separate pre-deployment test-suite object. Its evaluations
-are dataset × model experiments, run on demand.
+AcruxCore has no equivalent to guardrails or a separate pre-deployment test-suite
+object. It does have its own rule-based online evaluation — a judge (built-in or your
+own prompt) scoring every matching live trace as it lands, not just a dataset run on
+demand.
 
 ## Verdict
 
 | | Opik | AcruxCore |
 |---|---|---|
-| Strongest at | Guardrails and PII detection, online evaluation on live traffic, dedicated test suites, self-host with zero setup friction, real diff/deploy on prompts | A request-path gateway with routing, caching, and budgets on every call; tools that actually execute and get measured; datasets built from real feedback |
-| Weakest at | No tool catalog at all; experiments default to the SDK, not the UI; Playground doesn't produce a trace | No guardrails, no standing online-scoring rule, no dedicated test-suite object |
-| Pick it if | You want guardrails, online scoring, and regression test suites layered onto a client you already own | You want the provider call itself — gateway, tools, feedback-driven datasets — traced for free, with nothing bolted on after the fact |
+| Strongest at | Guardrails and PII detection, dedicated test suites, self-host with zero setup friction, real diff/deploy on prompts | A request-path gateway with routing, caching, and budgets on every call; tools that actually execute and get measured; datasets built from real feedback; rule-based online evaluation with a real judge model and custom judge prompts |
+| Weakest at | No tool catalog at all; experiments default to the SDK, not the UI; Playground doesn't produce a trace | No guardrails, no dedicated test-suite object |
+| Pick it if | You want guardrails and regression test suites layered onto a client you already own | You want the provider call itself — gateway, tools, feedback-driven datasets, and online scoring rules — traced for free, with nothing bolted on after the fact |
 
-Opik's guardrails, online evaluation, and test suites (**What Opik does that AcruxCore
-doesn't** above) are real, and none of the four are things AcruxCore has an answer
+Opik's guardrails and test suites (**What Opik does that AcruxCore
+doesn't** above) are real, and neither is something AcruxCore has an answer
 for today. But on the loop that runs a production LLM app day to day, this comparison
 landed on AcruxCore's side: Opik has no tool catalog at all (**How tools are handled**
 above), and its Playground doesn't produce a trace, only a wrapped SDK call does

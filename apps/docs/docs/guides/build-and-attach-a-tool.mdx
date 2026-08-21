@@ -17,6 +17,12 @@ can ask for live data and your function supplies it.
 You will not open the dashboard until step 3. The catalog entry, its first version,
 and its `production` alias are all created by the first run.
 
+This is the code-first path, where your function owns the tool's definition. The
+other option is to define the tool in the catalog and give your code only the
+body to run —
+[Define a tool in code or in the catalog](./define-a-tool-in-code-or-in-the-catalog)
+compares the two and says when each is right.
+
 ## 1. Declare the tool in code
 
 `acrux.tool` puts the four things a tool needs in one place: its name, the
@@ -157,13 +163,14 @@ One exception is worth knowing: a function with **no** docstring (Python) or no
 wording to whoever writes it in the dashboard. Supply a description in code and code
 owns it. Pick per tool which side owns the words.
 
-## 4. Attach it to a prompt
+## 4. Connect it to a prompt
 
-Open your `support-reply` prompt and go to the **Tools** tab. Attachments are
-**fixed per version**, so check `get_weather` under *Attach to next commit*, then
-commit a new prompt version. That version now carries the tool.
+Open your `support-reply` prompt and go to the **Tools** tab, then choose
+**+ Connect a tool from the catalog** and pick `get_weather`. It saves straight
+away — no prompt version to commit — and lands in the **default** column, which
+every alias of the prompt inherits.
 
-![Attaching get_weather to the prompt's next version](/img/tutorials/build-and-attach-a-tool/03-attach.png)
+![Connecting get_weather to the prompt](/img/tutorials/build-and-attach-a-tool/03-attach.png)
 
 Now `hub.prompts.render` returns the tool alongside the messages:
 
@@ -182,7 +189,7 @@ same loop as before and keep passing `tools: [getWeather]`:
 const result = await hub.gateway.runToolLoop({ model: 'support-model', messages, tools: [getWeather] });
 ```
 
-The attachment still matters for callers that have no declared tool — the raw gateway
+The binding still matters for callers that have no declared tool — the raw gateway
 endpoint, or another service reading the prompt. In that case `hub.prompts.render`'s `tools`
 are raw OpenAI-shaped definitions rather than declared tools, so they go to the loop
 as `toolDefs` with a `dispatch` to run them:
@@ -207,11 +214,16 @@ Three cases, and the loop decides between them before it calls the model:
 |---|---|
 | `tools: [getWeather]` — a declared tool | Your process, via the declared handler |
 | `toolRefs: [{ name }]` resolving to an `http` executor | The platform, which calls the URL and writes the `tool` span itself |
-| `toolRefs: [{ name }]` resolving to a `client` executor | A declared tool of that name, otherwise `dispatch` |
+| `toolRefs: [{ name }]` resolving to a `client` executor | A declared tool of that name, else its `clientTools` entry, else `dispatch` |
 | `toolDefs: [rawDefinition]` | `dispatch` |
 
-A `client` tool with neither a declared handler nor a `dispatch` fails immediately
-with `MISSING_DISPATCH`, before the first model call, so the mistake costs no tokens.
+`clientTools` is the usual answer for the third row: `clientTools: { get_weather:
+fetchWeather }` runs the tool without letting your code take over its catalog
+definition, which `tools: [declared]` would. See
+[Call a prompt's tools from the SDK](./call-a-prompts-tools-from-the-sdk).
+
+A `client` tool with no runner at all fails immediately with `MISSING_DISPATCH`,
+before the first model call, so the mistake costs no tokens.
 
 A catalog tool with an `http` executor needs no local code at all:
 
@@ -232,6 +244,8 @@ The endpoints behind this are documented in the API reference:
 - Commit a second version, move `staging` ahead of `production`, and read
   real usage — see
   [Alias and Track Usage of Tools in the Catalog](./alias-and-track-usage-of-tools-in-the-catalog).
+- Give one prompt alias a different build of the tool — see
+  [Connect a tool to a prompt](./connect-a-tool-to-a-prompt).
 - Tools are versioned and aliased exactly like prompts — see **Tools**,
   **Tool versions**, and **Tool execute** in the [API Reference](/api-reference).
 - Measure whether a tool improved answers: [evaluate a prompt](./evaluate-a-prompt).

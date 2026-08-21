@@ -285,19 +285,6 @@ after wrapping a client and opening an observation context.
 Sourced from Langfuse's own dashboard, not from this post's earlier aspects — those
 carry the same bias any of our own feature list would.
 
-**LLM-as-a-judge, configured to score live traces automatically.** Langfuse's
-Evaluators page walks you through writing an eval template — a scoring prompt, a
-model, and the variables it reads from a trace — and running it against production
-traffic without a manual review step. AcruxCore's evaluation is dataset-driven, on
-demand; it has no standing rule that scores every new trace as it lands.
-
-<details>
-<summary>Show screenshot: LLM-as-a-judge evaluators on Langfuse</summary>
-
-![Langfuse's "Get Started with LLM-as-a-Judge Evaluations" screen, showing a real eval-template editor with a context-relevance scoring prompt, model/provider selection, and the variables it reads from a trace](/img/comparison/langfuse/lf-16-llm-judge-evaluators.png)
-
-</details>
-
 **Monitors — automated alerts on cost, quality, or latency, wired to Slack, Webhooks,
 or GitHub Actions.** Set a threshold once and get notified when a metric moves outside
 it, with the notification routed to a channel your team already watches. AcruxCore
@@ -319,11 +306,11 @@ it being a paid-plan feature rather than something to demo locally.
 
 | | Langfuse | AcruxCore |
 |---|---|---|
-| Strongest at | Tracing depth, org/project structure, automated LLM-as-a-judge scoring, threshold alerting | A request-path gateway with routing, caching, and budgets on every call; tools that actually execute and get measured, not just described; datasets built straight from real production feedback |
-| Weakest at | No request-path gateway; tools are a schema in a Playground dropdown, not a catalog; RBAC and audit gated behind paid tiers | No standing eval rule on live traces; no cost/quality/latency alerting; narrower eval ecosystem |
-| Pick it if | You want mature, OTel-native observability layered onto a client you already own, with automated scoring and alerting | You want the provider call itself — gateway, tools, feedback-driven datasets — traced for free, with nothing bolted on after the fact; AcruxCore also takes your own OTel-instrumented traces directly via its OTLP endpoint |
+| Strongest at | Tracing depth, org/project structure, threshold alerting | A request-path gateway with routing, caching, and budgets on every call; tools that actually execute and get measured, not just described; datasets built straight from real production feedback |
+| Weakest at | No request-path gateway; tools are a schema in a Playground dropdown, not a catalog; RBAC and audit gated behind paid tiers | No cost/quality/latency alerting |
+| Pick it if | You want mature, OTel-native observability layered onto a client you already own, with automated alerting | You want the provider call itself — gateway, tools, feedback-driven datasets, and a rule-based judge scoring live traffic — traced for free, with nothing bolted on after the fact; AcruxCore also takes your own OTel-instrumented traces directly via its OTLP endpoint |
 
-Tracing depth and automated evaluation are real Langfuse wins (**Tracing &
+Tracing depth and threshold-based alerting are real Langfuse wins (**Tracing &
 observability** and **What Langfuse does that AcruxCore doesn't** above). But on the
 three things that make up the actual day-to-day loop of running an LLM app — the
 gateway, the tool catalog, and building datasets from feedback — this comparison came

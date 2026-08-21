@@ -7,6 +7,8 @@ export type { ToolSyncOptions, ToolExecuteOptions } from './tools-api';
 export { TracesNamespace } from './traces-api';
 export { SessionsNamespace } from './sessions-api';
 export { PromptsNamespace } from './prompts-api';
+export { withToolOverride } from './tool-override';
+export type { ToolOverrideSource, ToolOverrideResult } from './tool-override';
 export { GatewayNamespace } from './gateway-api';
 export { DatasetsNamespace, ExperimentsNamespace, RunsNamespace, OptimizeNamespace } from './evaluations';
 export type { NamespaceHost, GatewayNamespaceHost } from './host';
@@ -26,9 +28,13 @@ export type {
   ToolChoice,
   ResponseFormat,
   RenderResult,
+  ToolResolution,
   ProviderConfig,
   RunToolLoopOptions,
   RunToolLoopResult,
+  RunPromptWithToolsOptions,
+  ToolLoopEvent,
+  ToolRef,
   TraceOptions,
   ChatOptions,
   ChatResult,
@@ -67,7 +73,11 @@ export type {
   SessionListResult,
   SessionDetailResult,
   PromptMessage,
-  AttachToolInput,
+  ToolBindingInput,
+  AliasToolBindingInput,
+  ToolBindingDetail,
+  AliasToolBindings,
+  PromptToolBindings,
   PromptDetail,
   PromptListItem,
   PromptListResult,

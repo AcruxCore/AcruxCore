@@ -23,3 +23,6 @@ export type { LineChartProps, LineSeries } from './LineChart';
 export { BarChart } from './BarChart';
 export type { BarChartProps } from './BarChart';
 export { CookieConsentBanner, REOPEN_COOKIE_BANNER_EVENT } from './CookieConsentBanner';
+export { MultiSelect } from './MultiSelect';
+export type { MultiSelectOption } from './MultiSelect';
+export { useClickOutside } from './useClickOutside';

@@ -1,7 +1,9 @@
 import request from 'supertest';
+import { randomUUID } from 'node:crypto';
 import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
 import { authedAgent } from '../../test-utils';
+import { EvalRuleRepository } from '../../evaluations/online';
 
 const app = createApp();
 
@@ -190,6 +192,57 @@ describe('GET /api/v1/traces/:id', () => {
     ]);
     const res = await agent.get(`/api/v1/traces/${traceId}`).expect(200);
     expect(res.body.feedback).toEqual([]);
+  });
+
+  it('includes online-eval rule scores with the scoring rule\'s name attached, newest-first', async () => {
+    const { agent, teamId, userId } = await authedAgent(app);
+    const now = new Date();
+    const [traceId] = await ingest(agent, [
+      { name: 'scored-run', spans: [{ spanId: 's1', name: 'gpt-4o', kind: 'llm', status: 'ok', startTime: iso(now) }] },
+    ]);
+
+    const evalRuleRepo = new EvalRuleRepository();
+    const rule = await evalRuleRepo.create(teamId, userId, {
+      name: 'answers the question',
+      criteria: 'the reply must answer the question asked',
+      judgeModel: 'gpt-4o-mini',
+      sampleRate: 1,
+      dailyLimit: null,
+      alertBelow: null,
+      filter: {},
+      enabled: true,
+    });
+    await evalRuleRepo.upsertScore({
+      teamId,
+      ruleId: rule.id,
+      traceId,
+      spanId: randomUUID(),
+      score: 92,
+      passed: true,
+      reason: 'directly answers the question',
+      judgeTraceId: randomUUID(),
+      costUsd: 0.001,
+    });
+
+    const res = await agent.get(`/api/v1/traces/${traceId}`).expect(200);
+
+    expect(res.body.evalScores).toHaveLength(1);
+    expect(res.body.evalScores[0].ruleId).toBe(rule.id);
+    expect(res.body.evalScores[0].ruleName).toBe('answers the question');
+    expect(res.body.evalScores[0].score).toBe(92);
+    expect(res.body.evalScores[0].passed).toBe(true);
+    expect(res.body.evalScores[0].reason).toBe('directly answers the question');
+    expect(res.body.evalScores[0].judgeTraceId).not.toBeNull();
+  });
+
+  it('returns an empty evalScores array when the trace has no rule scores', async () => {
+    const { agent } = await authedAgent(app);
+    const now = new Date();
+    const [traceId] = await ingest(agent, [
+      { name: 'unscored-run', spans: [{ spanId: 's1', name: 'gpt-4o', kind: 'llm', status: 'ok', startTime: iso(now) }] },
+    ]);
+    const res = await agent.get(`/api/v1/traces/${traceId}`).expect(200);
+    expect(res.body.evalScores).toEqual([]);
   });
 
   it('returns 404 for a trace not in the team', async () => {

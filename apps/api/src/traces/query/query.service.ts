@@ -3,12 +3,14 @@ import { NotFoundError } from '../../shared/errors';
 import { buildSpanTree } from './span-tree';
 import { VersionsService } from '../../prompts/versions';
 import { FeedbackService, FeedbackRepository } from '../feedback';
+import { EvalRuleRepository } from '../../evaluations/online';
 import type {
   TraceListQuery,
   TraceListResponse,
   TraceDetail,
   TraceSummary,
   PromptVersionTracesQuery,
+  EvalScoreDto,
 } from './query.types';
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -17,6 +19,7 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 export class TraceQueryService {
   private readonly versions = new VersionsService();
   private readonly feedbackService = new FeedbackService(new FeedbackRepository());
+  private readonly evalRuleRepo = new EvalRuleRepository();
 
   constructor(private readonly repo: TraceQueryRepository) {}
 
@@ -43,6 +46,9 @@ export class TraceQueryService {
       minLatencyMs: query.min_latency_ms,
       minCostUsd: query.min_cost_usd,
       minTokens: query.min_tokens,
+      minScore: query.min_score,
+      maxScore: query.max_score,
+      ruleId: query.rule_id,
       q: query.q,
       tags: query.tags,
       metadata: query.metadata,
@@ -55,12 +61,13 @@ export class TraceQueryService {
 
   /**
    * Assembles the full trace detail: the trace header, its spans built into a
-   * parent/child tree (with captured payloads inlined where present), and the
-   * trace's user feedback (newest-first).
+   * parent/child tree (with captured payloads inlined where present), the
+   * trace's user feedback (newest-first), and its online-eval rule scores
+   * (newest-first).
    *
    * @param teamId - Team scope.
    * @param traceId - Internal trace UUID.
-   * @returns The trace summary, its span tree, and its feedback list.
+   * @returns The trace summary, its span tree, its feedback list, and its eval scores.
    * @throws {NotFoundError} If the trace is not in this team.
    */
   async getTrace(teamId: string, traceId: string): Promise<TraceDetail> {
@@ -87,7 +94,21 @@ export class TraceQueryService {
     // read; FeedbackService.list re-checks team scope and returns [] when empty.
     const feedback = await this.feedbackService.list(teamId, traceId);
 
-    return { trace: summary, spans: buildSpanTree(spans, payloads), feedback };
+    // Online eval: surface this trace's rule scores the same way (additive).
+    // Mapped to a camelCase DTO here rather than leaking the Prisma include shape.
+    const scoreRows = await this.evalRuleRepo.findByTraceId(traceId, teamId);
+    const evalScores: EvalScoreDto[] = scoreRows.map((row) => ({
+      id: row.id,
+      ruleId: row.ruleId,
+      ruleName: row.rule.name,
+      score: row.score,
+      passed: row.passed,
+      reason: row.reason,
+      judgeTraceId: row.judgeTraceId,
+      createdAt: row.createdAt.toISOString(),
+    }));
+
+    return { trace: summary, spans: buildSpanTree(spans, payloads), feedback, evalScores };
   }
 
   /**

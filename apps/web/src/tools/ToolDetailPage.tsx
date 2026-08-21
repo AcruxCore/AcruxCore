@@ -6,10 +6,12 @@ import { timeAgo } from '@/lib/format';
 import { Badge, Button, Empty, Field, Input, PageSpinner, Select, Tabs, useToast } from '@/ui';
 import type { TabItem } from '@/ui';
 import { CommitVersionDialog } from './CommitVersionDialog';
+import { ToolAuditTab } from './audit/ToolAuditTab';
 
 const TABS: TabItem[] = [
   { value: 'versions', label: 'Versions' },
   { value: 'aliases', label: 'Aliases' },
+  { value: 'audit', label: 'Audit' },
 ];
 
 /**
@@ -269,6 +271,8 @@ export function ToolDetailPage() {
           )}
         </div>
       )}
+
+      {tab === 'audit' && <ToolAuditTab toolId={id} />}
 
       <CommitVersionDialog
         toolId={id}

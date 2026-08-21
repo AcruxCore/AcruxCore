@@ -55,7 +55,7 @@ async function createToolWithVersion(apiKey: string, name = `tool_${Date.now()}_
 }
 
 beforeEach(async () => {
-  await prisma.$executeRaw`TRUNCATE TABLE prompt_version_tools, tool_aliases, tool_versions, tools, prompt_aliases, prompt_versions, audit_log, prompts, api_keys, team_members, teams, users RESTART IDENTITY CASCADE`;
+  await prisma.$executeRaw`TRUNCATE TABLE prompt_tool_bindings, tool_aliases, tool_versions, tools, prompt_aliases, prompt_versions, audit_log, prompts, api_keys, team_members, teams, users RESTART IDENTITY CASCADE`;
 });
 
 afterAll(async () => {
@@ -309,15 +309,22 @@ describe('GET /api/v1/prompt-versions/:versionId', () => {
       .expect(404);
   });
 
-  it('includes the resolved OpenAI tools array for a version with an attachment', async () => {
+  it("includes the prompt's default-bound tools, resolved to OpenAI shape", async () => {
     const { apiKey, promptId } = await signupAndGetKey('with-tools');
     const toolId = await createToolWithVersion(apiKey);
 
     const { body: v1 } = await request(app)
       .post(`/api/v1/prompts/${promptId}/versions`)
       .set('Authorization', `Bearer ${apiKey}`)
-      .send({ messages: [{ role: 'system', content: 'hi {{ name }}' }], tools: [{ toolId }] })
+      .send({ messages: [{ role: 'system', content: 'hi {{ name }}' }] })
       .expect(201);
+
+    // Tools no longer travel with a version — bind at the prompt's default level.
+    await request(app)
+      .put(`/api/v1/prompts/${promptId}/tools/${toolId}`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ tool_alias: 'production' })
+      .expect(200);
 
     const res = await request(app)
       .get(`/api/v1/prompt-versions/${v1.id}`)
@@ -333,55 +340,90 @@ describe('GET /api/v1/prompt-versions/:versionId', () => {
   });
 });
 
-describe('commit with tools', () => {
-  it('attaches a tool to the committed version and persists join rows', async () => {
+describe('tool bindings', () => {
+  it('binds a tool at the default level and every alias inherits it', async () => {
+    const { apiKey, promptId } = await signupAndGetKey();
+    const toolId = await createToolWithVersion(apiKey);
+
+    await request(app)
+      .post(`/api/v1/prompts/${promptId}/versions`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ messages: [{ role: 'system', content: 'hi {{ name }}' }] })
+      .expect(201);
+
+    await request(app)
+      .put(`/api/v1/prompts/${promptId}/tools/${toolId}`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ tool_alias: 'production' })
+      .expect(200);
+
+    const rows = await prisma.promptToolBinding.findMany({ where: { promptId } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.promptAlias).toBeNull();
+    expect(rows[0]?.toolAlias).toBe('production');
+    expect(rows[0]?.pinnedVersionId).toBeNull();
+
+    // production and staging both exist from v1 and neither is customised, so
+    // both must render the tool without any per-alias row.
+    const listed = await request(app)
+      .get(`/api/v1/prompts/${promptId}/tools`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .expect(200);
+    expect(listed.body.data.default).toHaveLength(1);
+    expect(listed.body.data.aliases.every((a: { customised: boolean }) => a.customised === false)).toBe(true);
+  });
+
+  it('404s binding a tool from another team', async () => {
+    const a = await signupAndGetKey();
+    const b = await signupAndGetKey();
+    const toolId = await createToolWithVersion(b.apiKey);
+
+    await request(app)
+      .post(`/api/v1/prompts/${a.promptId}/versions`)
+      .set('Authorization', `Bearer ${a.apiKey}`)
+      .send({ messages: [{ role: 'system', content: 'x' }] })
+      .expect(201);
+
+    await request(app)
+      .put(`/api/v1/prompts/${a.promptId}/tools/${toolId}`)
+      .set('Authorization', `Bearer ${a.apiKey}`)
+      .send({ tool_alias: 'production' })
+      .expect(404);
+
+    expect(await prisma.promptToolBinding.count({ where: { promptId: a.promptId } })).toBe(0);
+  });
+
+  it('400s pinning a non-existent tool version and writes no row', async () => {
+    const { apiKey, promptId } = await signupAndGetKey();
+    const toolId = await createToolWithVersion(apiKey);
+
+    await request(app)
+      .post(`/api/v1/prompts/${promptId}/versions`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ messages: [{ role: 'system', content: 'x' }] })
+      .expect(201);
+
+    await request(app)
+      .put(`/api/v1/prompts/${promptId}/tools/${toolId}`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ pinned_version_number: 99 })
+      .expect(400);
+
+    expect(await prisma.promptToolBinding.count({ where: { promptId } })).toBe(0);
+  });
+
+  it('ignores a tools field in the commit body — a version no longer carries tools', async () => {
     const { apiKey, promptId } = await signupAndGetKey();
     const toolId = await createToolWithVersion(apiKey);
 
     const res = await request(app)
       .post(`/api/v1/prompts/${promptId}/versions`)
       .set('Authorization', `Bearer ${apiKey}`)
-      .send({ messages: [{ role: 'system', content: 'hi {{ name }}' }], tools: [{ toolId }] })
+      .send({ messages: [{ role: 'system', content: 'x' }], tools: [{ toolId }] })
       .expect(201);
 
-    const rows = await prisma.promptVersionTool.findMany({ where: { promptVersionId: res.body.id } });
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.toolId).toBe(toolId);
-    expect(rows[0]?.aliasName).toBe('production');
-    expect(rows[0]?.pinnedVersionId).toBeNull();
-  });
-
-  it('400s attaching a tool from another team, and leaves no phantom version behind', async () => {
-    const a = await signupAndGetKey();
-    const b = await signupAndGetKey();
-    const toolId = await createToolWithVersion(b.apiKey);
-
-    const countBefore = await prisma.promptVersion.count({ where: { promptId: a.promptId } });
-
-    await request(app)
-      .post(`/api/v1/prompts/${a.promptId}/versions`)
-      .set('Authorization', `Bearer ${a.apiKey}`)
-      .send({ messages: [{ role: 'system', content: 'x' }], tools: [{ toolId }] })
-      .expect(400);
-
-    const countAfter = await prisma.promptVersion.count({ where: { promptId: a.promptId } });
-    expect(countAfter).toBe(countBefore);
-  });
-
-  it('400s pinning a non-existent tool version, and leaves no phantom version behind', async () => {
-    const { apiKey, promptId } = await signupAndGetKey();
-    const toolId = await createToolWithVersion(apiKey);
-
-    const countBefore = await prisma.promptVersion.count({ where: { promptId } });
-
-    await request(app)
-      .post(`/api/v1/prompts/${promptId}/versions`)
-      .set('Authorization', `Bearer ${apiKey}`)
-      .send({ messages: [{ role: 'system', content: 'x' }], tools: [{ toolId, pinnedVersionNumber: 99 }] })
-      .expect(400);
-
-    const countAfter = await prisma.promptVersion.count({ where: { promptId } });
-    expect(countAfter).toBe(countBefore);
+    expect(res.body.versionNumber).toBe(1);
+    expect(await prisma.promptToolBinding.count({ where: { promptId } })).toBe(0);
   });
 });
 

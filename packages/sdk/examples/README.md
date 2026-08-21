@@ -15,7 +15,7 @@ npx tsx packages/sdk/examples/<file>.ts
 |------|-------|
 | [`call-with-bound-model.ts`](./call-with-bound-model.ts) | Call the LLM **without naming a model** — the prompt version's bound default model is used (issue #12). |
 | [`multi-tool-agent.ts`](./multi-tool-agent.ts) | A small agent with **three tools**, driven by `runToolLoop`. Tool schemas and messages are defined **inline** in the script. |
-| [`rest-defined-agent.ts`](./rest-defined-agent.ts) | The same agent, but the **prompt and tool schemas live on the server** — stored via the REST API (tools attached to the prompt version), then **fetched together** with one `renderPrompt` call and run. |
+| [`rest-defined-agent.ts`](./rest-defined-agent.ts) | The same agent, but the **prompt and tool schemas live on the server** — stored via the REST API (tools bound to the prompt), then **fetched together** with one `renderPrompt` call and run. |
 | [`stream-a-stored-prompt.ts`](./stream-a-stored-prompt.ts) | Fetch a stored prompt with `renderPrompt`, then **stream** the reply token by token with `chat({ stream: true })`. Reuses the `travel-assistant` prompt from `rest-defined-agent.ts`. |
 
 ### `call-with-bound-model.ts`
@@ -52,10 +52,10 @@ local `dispatch` logic. It goes **store → fetch → use**:
 
 - **Store** (REST): each tool is created with `POST /tools` + `/tools/:id/versions`
   (schema + a `{ type: 'client' }` executor, meaning your app runs it), and the
-  prompt with `POST /prompts` + `/prompts/:id/versions` — the version **attaches**
-  the catalog tools via `tools: [{ toolId }]`.
+  prompt with `POST /prompts` + `/prompts/:id/versions`, then one
+  `PUT /prompts/:id/tools/:toolId` per tool to **bind** it to the prompt.
 - **Fetch** (SDK): a single `renderPrompt()` returns `{ messages, tools }` — the
-  templated messages *and* the attached tool schemas, straight from the framework.
+  templated messages *and* the bound tool schemas, straight from the framework.
 - **Use**: `runToolLoop({ messages, tools })` runs on exactly what was fetched.
 
 The setup is idempotent (find-or-create by name), so it is safe to re-run. Accepts
@@ -65,6 +65,6 @@ an optional `ACRUXCORE_MODEL` env var (defaults to `gpt-4o-mini`).
 
 Reuses the `travel-assistant` prompt stored by `rest-defined-agent.ts` (run that
 first). It renders the stored prompt, then calls `chat({ stream: true })` and
-prints each token as it arrives. It intentionally omits the attached tools so the
+prints each token as it arrives. It intentionally omits the bound tools so the
 streamed output is clean prose — streaming yields text deltas and does not
 auto-run tools (use `runToolLoop` for that). Also accepts `ACRUXCORE_MODEL`.

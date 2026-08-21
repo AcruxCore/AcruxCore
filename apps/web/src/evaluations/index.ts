@@ -12,6 +12,9 @@ export { DatasetsPage } from './DatasetsPage';
 export { RunHistoryPage } from './RunHistoryPage';
 export { RunHistoryTable } from './RunHistoryTable';
 export type { RunHistoryTableProps } from './RunHistoryTable';
+export { RulesPage } from './RulesPage';
+export { RulesTable } from './RulesTable';
+export type { RulesTableProps } from './RulesTable';
 export { EvaluationsTabs } from './EvaluationsTabs';
 export type { EvaluationsTabsProps } from './EvaluationsTabs';
 export { DatasetDetailPage } from './DatasetDetailPage';
@@ -34,3 +37,4 @@ export {
   runTitle,
 } from './run-history.helpers';
 export type { RunStatusChip } from './run-history.helpers';
+export { formatDailyLimit, formatMeanScore, formatSampleRate } from './rules.helpers';

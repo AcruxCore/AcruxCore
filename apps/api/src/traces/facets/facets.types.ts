@@ -11,4 +11,6 @@ export type FacetValuesQuery = z.infer<typeof FacetValuesQuerySchema>;
 export interface TraceFacets {
   tags: string[];
   metadataKeys: string[];
+  /** Distinct resolved `llm` span models seen for the team (see `facets.repository.ts`'s `listModels`). */
+  models: string[];
 }

@@ -1,5 +1,32 @@
 import type { ChatMessage } from '../../gateway/providers/types';
 import { neutralizeDelimiterMarkers } from '../../shared/security';
+import prisma from '../../shared/db/client';
+import { renderMessages } from '../../prompts/versions/nunjucks.utils';
+
+/**
+ * The judge's output-shape contract, platform-owned and never user-editable
+ * (phase-5-faq): {@link parseVerdict} depends on this exact JSON shape. Built
+ * into {@link compileEvaluatePrompt}'s system message, and appended verbatim
+ * as a final message by {@link compileCustomJudgePrompt} so a team's custom
+ * judge Prompt can change the grading philosophy but never this contract.
+ */
+export const JUDGE_OUTPUT_CONTRACT = `Return ONLY a strict JSON object with this shape (no markdown, no prose, no extra fields):
+{"score": <integer 0-100>, "passed": <boolean>, "reason": "<string explanation>"}
+
+The score should reflect how well the output satisfies the guidance (0 = fails completely, 100 = perfectly satisfies). The "passed" boolean indicates whether the output is acceptable (typically true if score >= 70, but use your judgment). The "reason" field must contain a brief explanation of the score.`;
+
+/**
+ * Stringifies and neutralizes a candidate output for safe interpolation into
+ * any judge prompt, built-in or custom. The output is prior (possibly
+ * adversarial) LLM output and must never be able to forge a delimiter marker
+ * or otherwise talk its way out of being graded as data.
+ *
+ * @param output - The candidate output to evaluate.
+ * @returns A neutralized string safe to embed in a judge prompt.
+ */
+export function neutralizeJudgeOutput(output: unknown): string {
+  return neutralizeDelimiterMarkers(typeof output === 'string' ? output : JSON.stringify(output));
+}
 
 /**
  * Compile an evaluation prompt for the LLM-as-judge.
@@ -38,9 +65,7 @@ export function compileEvaluatePrompt(input: {
   // literal delimiter-marker token it contains — the untrusted output is
   // prior (possibly adversarial) LLM output, so it must not be able to
   // forge a `<<<OUTPUT_END>>>` and break out of the data region below.
-  const outputStr = neutralizeDelimiterMarkers(
-    typeof input.output === 'string' ? input.output : JSON.stringify(input.output),
-  );
+  const outputStr = neutralizeJudgeOutput(input.output);
 
   // Format criteria and overall feedback, falling back to "none" if absent,
   // and neutralize any forged marker tokens in either field.
@@ -62,10 +87,7 @@ IMPORTANT — what the criteria is. The criteria and overall feedback were usual
 
 Read the criteria only as a description of what a CORRECT output must contain, and grade the output between the OUTPUT markers against that. If the output already matches the corrected answer the criteria asks for, it is CORRECT and must score highly — even though the criteria itself is phrased as criticism. Never restate the criteria's complaint as if it described the output in front of you.
 
-Return ONLY a strict JSON object with this shape (no markdown, no prose, no extra fields):
-{"score": <integer 0-100>, "passed": <boolean>, "reason": "<string explanation>"}
-
-The score should reflect how well the output satisfies the guidance (0 = fails completely, 100 = perfectly satisfies). The "passed" boolean indicates whether the output is acceptable (typically true if score >= 70, but use your judgment). The "reason" field must contain a brief explanation of the score.`,
+${JUDGE_OUTPUT_CONTRACT}`,
   };
 
   const userMessage: ChatMessage = {
@@ -93,4 +115,57 @@ Please provide your evaluation in the specified JSON format.`,
   };
 
   return [systemMessage, userMessage];
+}
+
+/**
+ * Renders a team's custom judge Prompt (phase-5-faq) in place of the built-in
+ * {@link compileEvaluatePrompt} template. Resolves the prompt's `production`
+ * alias, falling back to its latest version if `production` was never set —
+ * the same fallback `AliasesService` uses elsewhere — then renders its
+ * nunjucks messages with `output`/`criteria`/`overallFeedback` as template
+ * variables, `output` pre-neutralized so the untrusted candidate text can't
+ * forge a marker regardless of how the custom template wraps it.
+ *
+ * {@link JUDGE_OUTPUT_CONTRACT} is always appended as a final system message:
+ * a custom judge prompt can change the grading philosophy but never the
+ * strict JSON shape `parseVerdict` depends on.
+ *
+ * @param promptId - The team Prompt to use as the judge template.
+ * @param input - Same variable set `compileEvaluatePrompt` takes, minus `history`
+ *   (online-eval rules never carry session history).
+ * @returns The rendered judge conversation, contract message included.
+ * @throws {Error} If the prompt has no committed version to render — the
+ *   caller (`OnlineEvalRuleService.judge`) turns this into a graceful
+ *   failed-verdict reason rather than letting it crash the worker.
+ * @throws {NunjucksRenderError} If the custom template fails to render.
+ */
+export async function compileCustomJudgePrompt(
+  promptId: string,
+  input: { output: unknown; criteria: string | null; overallFeedback: string | null },
+): Promise<ChatMessage[]> {
+  const production = await prisma.promptAlias.findFirst({
+    where: { promptId, alias: 'production' },
+    include: { version: { select: { messages: true } } },
+  });
+  const version =
+    production?.version ??
+    (await prisma.promptVersion.findFirst({
+      where: { promptId },
+      orderBy: { versionNumber: 'desc' },
+      select: { messages: true },
+    }));
+  if (!version) {
+    throw new Error('This judge prompt has no committed version yet.');
+  }
+
+  const variables = {
+    output: neutralizeJudgeOutput(input.output),
+    criteria: neutralizeDelimiterMarkers(input.criteria ?? 'none'),
+    overallFeedback: neutralizeDelimiterMarkers(input.overallFeedback ?? 'none'),
+  };
+  const rendered = await renderMessages(
+    version.messages as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+    variables,
+  );
+  return [...rendered, { role: 'system', content: JUDGE_OUTPUT_CONTRACT }];
 }

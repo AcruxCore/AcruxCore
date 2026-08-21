@@ -29,3 +29,13 @@ python python/react_agent.py "Is there any recent news on AAPL, and is today a w
 The model calls `finance_research` and `get_todays_date`, then answers in plain
 language. Every span (both `llm` and `tool`) is reported manually by the script,
 since this is the BYO path — there's no gateway to record them for you.
+
+## Set up the prompt first
+
+`setup_prompt.py` is the runnable version of the tutorial's Step 4 Python tab: it
+creates the `react-agent-finance` prompt and connects both tools. Find-or-create,
+so re-running it is a no-op.
+
+```bash
+python python/setup_prompt.py
+```

@@ -108,10 +108,10 @@ yet. Click **New version** to define its parameters and executor:
 Click **Commit version**. The first version automatically gets `production` and
 `staging` aliases.
 
-## 4. Attach the tool to a prompt
+## 4. Connect the tool to a prompt
 
 The prompt holds the **system instructions** (including the database schema, so
-the model knows what it can query) and the **attached tool**. The user's actual
+the model knows what it can query) and the **bound tool**. The user's actual
 question isn't stored here — your code adds it at runtime, so one prompt answers
 any question.
 
@@ -135,12 +135,14 @@ revenue = quantity * price; order_date is YYYY-MM-DD.
 
 ![The sql-analyst-agent prompt Editor tab showing default model gpt-4o-mini, a system message with the database schema, and production pointing at v1](/img/tutorials/build-a-tool-calling-agent-in-python-sdk/05-prompt-editor.png)
 
-Switch to the **Tools** tab and tick `query_database` under **Attach to next
-commit**, then click **Commit new version**. Tools and the model are fixed per
-version, so committing bakes them in — and because it's the first commit,
-`production` points at `v1` automatically.
+Click **Commit version** — the model is part of the version, so committing bakes it
+in, and because it's the first commit `production` points at `v1` automatically.
 
-![The prompt Tools tab showing query_database under an Attached to v1 heading](/img/tutorials/build-a-tool-calling-agent-in-python-sdk/06-prompt-tools.png)
+Then switch to the **Tools** tab and use **+ Connect a tool from the catalog** to
+pick `query_database`. It saves straight away, in the **default** column that every
+alias of the prompt inherits.
+
+![The prompt Tools tab showing query_database connected](/img/tutorials/build-a-tool-calling-agent-in-python-sdk/06-prompt-tools.png)
 
 Now one `hub.prompts.render("sql-analyst-agent", "production")` call returns the system
 message **and** the `query_database` schema together.
@@ -162,10 +164,10 @@ export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
 
 ## 6. Run the agent in Python
 
-Everything set up in the dashboard, the run is code. The SDK's `run_tool_loop`
-takes the model, the messages, and either a **decorated function** or a
-**tool definition + dispatch** pair — both do the same thing, just wired differently.
-The loop threads one trace automatically.
+Everything set up in the dashboard, the run is code. The tool's body can reach the
+loop two ways — as a **decorated function**, or as a **`client_tools` entry** keyed by
+the catalog tool name. Both do the same thing, and both thread one trace
+automatically. The difference is who owns the tool's definition.
 
 ### Option A — define the tool in code (`@acrux.tool`)
 
@@ -190,24 +192,26 @@ The tool still appears in the dashboard after the run — you define it in code,
 in the UI, but both places end up with the same schema.
 :::
 
-### Option B — dashboard-authored tool (`tool_defs` + `dispatch`)
+### Option B — dashboard-authored tool (`client_tools`)
 
-Same result, different wiring. Here the tool is defined in the dashboard and
-`rendered.tools` carries its raw OpenAI-shaped schema. You supply a `dispatch`
-function to route calls to your local code — the catalog deliberately stores no
-body for client tools:
+Same result, different wiring — and the better fit when the tool was authored in the
+dashboard, as it was in step 3. The catalog keeps the schema and deliberately no body,
+so your app supplies the body alone, keyed by the tool's name:
 
 ```python
-result = await hub.gateway.run_tool_loop(
-    rendered.model,
-    messages,
-    tool_defs=rendered.tools,
-    dispatch=dispatch,
+result = await hub.gateway.run_prompt_with_tools(
+    rendered,
+    messages=messages,
+    client_tools={'query_database': run_query_database},
 )
 ```
 
+Nothing is written back to the catalog, unlike Option A, and the model, the bound tool
+and the prompt version id all come from `rendered`. The function's parameters are the
+schema's own field names — here `sql` — because that is how it is called.
+
 See
-[sql_agent_dispatch.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/python/sql_agent_dispatch.py) for the complete source (named `sql_agent.py` in this page's prose, `sql_agent_dispatch.py` in the repo, to distinguish it from Option A above).
+[sql_agent_client_tools.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/python/sql_agent_client_tools.py) for the complete source (named `sql_agent.py` in this page's prose, `sql_agent_client_tools.py` in the repo, to distinguish it from Option A above).
 
 Both options produce the same trace. Don't do both for the same tool — a
 decorated tool's spec overwrites the dashboard's on every run. See
@@ -384,7 +388,7 @@ async with AcruxCore() as hub:
         name="query_database",
         description="Run a single read-only SQL SELECT against the store database and return the matching rows.",
     )
-    version = await hub.tools.commitVersion(
+    version = await hub.tools.commit_version(
         tool.id,
         parameters_schema={
             "type": "object",
@@ -421,7 +425,7 @@ console.log(`tool_id=${tool.id} v${version.versionNumber}`);
 </TabItem>
 </Tabs>
 
-Then the prompt shell and a version that attaches the tool with `tools: [{ toolId }]`:
+Then the prompt shell, a version with the messages, and a binding that connects the tool:
 
 <Tabs groupId="lang">
 <TabItem value="curl" label="curl">
@@ -432,14 +436,18 @@ curl -X POST "$ACRUXCORE_BASE_URL/prompts" \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
   -d '{"name":"sql-analyst-agent","description":"Text-to-SQL data analyst."}'
 
-# 4. Version — system message, default model, tool attached (use the ids above)
+# 4. Version — system message and default model
 curl -X POST "$ACRUXCORE_BASE_URL/prompts/<prompt-id>/versions" \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
   -d '{
     "messages": [{"role":"system","content":"You are a data analyst. Use query_database to answer."}],
-    "model": "gpt-4o-mini",
-    "tools": [{"toolId":"<tool-id>"}]
+    "model": "gpt-4o-mini"
   }'
+
+# 5. Bind the tool to the prompt — inherited by every alias
+curl -X PUT "$ACRUXCORE_BASE_URL/prompts/<prompt-id>/tools/<tool-id>" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"tool_alias":"production"}'
 ```
 
 ```json
@@ -466,14 +474,16 @@ async with AcruxCore() as hub:
         name="sql-analyst-agent",
         description="Text-to-SQL data analyst.",
     )
-    version = await hub.prompts.commitVersion(
+    version = await hub.prompts.commit_version(
         prompt.id,
         messages=[{"role": "system", "content": "You are a data analyst. Use query_database to answer."}],
         model="gpt-4o-mini",
-        tools=[{"toolId": "<tool-id>"}],
     )
+    await hub.prompts.set_tool_binding(prompt.id, "<tool-id>", tool_alias="production")
     print(f"prompt_id={prompt.id} v{version.version_number}")
 ```
+
+Full script: [`setup_prompt.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/python/setup_prompt.py).
 
 </TabItem>
 <TabItem value="node-sdk" label="Node (SDK)">
@@ -489,8 +499,8 @@ const prompt = await hub.prompts.create({
 const version = await hub.prompts.commitVersion(prompt.id, {
   messages: [{ role: 'system', content: 'You are a data analyst. Use query_database to answer.' }],
   model: 'gpt-4o-mini',
-  tools: [{ toolId: '<tool-id>' }],
 });
+await hub.prompts.setToolBinding(prompt.id, '<tool-id>', { toolAlias: 'production' });
 console.log(`prompt_id=${prompt.id} v${version.versionNumber}`);
 ```
 
@@ -498,7 +508,7 @@ console.log(`prompt_id=${prompt.id} v${version.versionNumber}`);
 </Tabs>
 
 Whether you clicked or curled, `render` returns the same thing the SDK fetches —
-the messages, the attached tool schema (already in OpenAI shape), and the bound
+the messages, the bound tool schema (already in OpenAI shape), and the bound
 `model`. A plain `curl` client reads `model` straight from here and passes it to
 `/gateway/chat/completions`, so it runs on the prompt's bound model too — no
 hardcoding, exactly like the SDK's `rendered.model`:

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rowsToSchema, schemaToRows } from './param-schema';
+import { builderAvailability, rowsToSchema, schemaRejectsUnknown, schemaToRows } from './param-schema';
 import type { ParamRow } from './param-schema';
 
 describe('rowsToSchema', () => {
@@ -67,10 +67,9 @@ describe('schemaToRows — bails to null (stays JSON) for anything it cannot rou
   it('array-typed property', () => {
     expect(schemaToRows({ type: 'object', properties: { a: { type: 'array' } } })).toBeNull();
   });
-  it('unknown top-level key (e.g. additionalProperties)', () => {
-    expect(
-      schemaToRows({ type: 'object', properties: {}, additionalProperties: false }),
-    ).toBeNull();
+  it('an unknown top-level key, e.g. a title or a $schema', () => {
+    expect(schemaToRows({ type: 'object', properties: {}, title: 'Args' })).toBeNull();
+    expect(schemaToRows({ type: 'object', properties: {}, $schema: 'https://json-schema.org/' })).toBeNull();
   });
   it('required naming a property that is not declared', () => {
     expect(
@@ -81,5 +80,101 @@ describe('schemaToRows — bails to null (stays JSON) for anything it cannot rou
     expect(schemaToRows({ type: 'string' })).toBeNull();
     expect(schemaToRows(null)).toBeNull();
     expect(schemaToRows([])).toBeNull();
+  });
+});
+
+describe('builderAvailability — why the "Back to builder" toggle is usable or not', () => {
+  it('is ready for a schema the rows can round-trip', () => {
+    expect(
+      builderAvailability('{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}'),
+    ).toBe('ready');
+  });
+
+  it('is ready for an empty box, so clearing it returns to an empty builder', () => {
+    expect(builderAvailability('')).toBe('ready');
+    expect(builderAvailability('   \n ')).toBe('ready');
+  });
+
+  it('reports invalid-json rather than pretending the builder could open', () => {
+    expect(builderAvailability('{"type":')).toBe('invalid-json');
+  });
+
+  it('reports unrepresentable for an additionalProperties the rows cannot re-emit', () => {
+    expect(
+      builderAvailability('{"type":"object","properties":{"city":{"type":"string"}},"additionalProperties":true}'),
+    ).toBe('unrepresentable');
+  });
+
+  it('reports unrepresentable for enum, minimum and nested objects', () => {
+    expect(builderAvailability('{"type":"object","properties":{"u":{"type":"string","enum":["c"]}}}')).toBe(
+      'unrepresentable',
+    );
+    expect(builderAvailability('{"type":"object","properties":{"n":{"type":"number","minimum":0}}}')).toBe(
+      'unrepresentable',
+    );
+    expect(
+      builderAvailability('{"type":"object","properties":{"o":{"type":"object","properties":{}}}}'),
+    ).toBe('unrepresentable');
+  });
+});
+
+describe('additionalProperties: false is a builder feature, not a JSON-only one', () => {
+  it('rowsToSchema emits it when unknown arguments are rejected', () => {
+    const rows: ParamRow[] = [{ name: 'city', type: 'string', description: '', required: true }];
+    expect(rowsToSchema(rows, true)).toEqual({
+      type: 'object',
+      properties: { city: { type: 'string' } },
+      required: ['city'],
+      additionalProperties: false,
+    });
+  });
+
+  it('rowsToSchema leaves it out by default', () => {
+    const rows: ParamRow[] = [{ name: 'city', type: 'string', description: '', required: false }];
+    expect(rowsToSchema(rows)).not.toHaveProperty('additionalProperties');
+  });
+
+  it('schemaToRows accepts a schema that only adds additionalProperties: false', () => {
+    expect(
+      schemaToRows({
+        type: 'object',
+        properties: { city: { type: 'string', description: 'A city.' } },
+        required: ['city'],
+        additionalProperties: false,
+      }),
+    ).toEqual([{ name: 'city', type: 'string', description: 'A city.', required: true }]);
+  });
+
+  it('schemaRejectsUnknown reads the flag back', () => {
+    expect(schemaRejectsUnknown({ type: 'object', properties: {}, additionalProperties: false })).toBe(true);
+    expect(schemaRejectsUnknown({ type: 'object', properties: {} })).toBe(false);
+  });
+
+  it('still bails on additionalProperties: true, which the rows cannot re-emit', () => {
+    expect(schemaToRows({ type: 'object', properties: {}, additionalProperties: true })).toBeNull();
+  });
+
+  it('still bails on a schema-valued additionalProperties', () => {
+    expect(
+      schemaToRows({ type: 'object', properties: {}, additionalProperties: { type: 'string' } }),
+    ).toBeNull();
+  });
+
+  it('the tutorial tools can now go back to the builder', () => {
+    expect(
+      builderAvailability(
+        '{"type":"object","required":["city"],"properties":{"city":{"type":"string"}},"additionalProperties":false}',
+      ),
+    ).toBe('ready');
+  });
+
+  it('round-trips rows -> schema -> rows with the flag on', () => {
+    const rows: ParamRow[] = [
+      { name: 'amount', type: 'number', description: 'How much.', required: true },
+      { name: 'to', type: 'string', description: 'ISO code.', required: true },
+    ];
+    const schema = rowsToSchema(rows, true);
+    expect(schemaToRows(schema)).toEqual(rows);
+    expect(schemaRejectsUnknown(schema)).toBe(true);
   });
 });

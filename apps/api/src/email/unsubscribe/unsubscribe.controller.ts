@@ -8,6 +8,7 @@ import { escapeHtml } from '../templates/layout';
 const LABELS: Record<string, string> = {
   budget_alerts: 'budget alerts',
   eval_runs: 'evaluation run results',
+  eval_rules: 'online evaluation alerts',
   membership: 'membership changes',
   weekly_digest: 'the weekly usage digest',
 };

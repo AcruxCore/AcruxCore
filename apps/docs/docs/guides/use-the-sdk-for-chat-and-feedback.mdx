@@ -139,69 +139,70 @@ call → run → respond round-trip until the model is done:
 <TabItem value="node" label="Node">
 
 ```typescript
-const { messages, tools } = await hub.prompts.render('support-agent', 'production', {
+const rendered = await hub.prompts.render('support-agent', 'production', {
   ticket: 'Where is my order #4471?',
 });
 
-const dispatch = async (name: string, args: Record<string, unknown>) => {
-  if (name === 'lookup_order') return { status: 'shipped', eta: '2 days' };
-  throw new Error(`Unknown tool: ${name}`);
-};
+const lookupOrder = async () => ({ status: 'shipped', eta: '2 days' });
 
-const result = await hub.gateway.runToolLoop({ model: 'support-model', messages, toolDefs: tools, dispatch });
+const result = await hub.gateway.runPromptWithTools(rendered, {
+  clientTools: { lookup_order: lookupOrder },
+});
 
 console.log(result.content);   // final assistant text
 console.log(result.traceId);   // one trace covering every round-trip + tool call
 ```
 
-Note `toolDefs`, not `tools`: what `hub.prompts.render` hands back are raw
-OpenAI-shaped definitions, and `toolDefs` is the option for those. `tools` is
-reserved for tools you declared with `acrux.tool` — those carry their own body,
-so they need no `dispatch` at all. See
-[Build and attach a tool](./build-and-attach-a-tool) for that shape, which is the
-better one when you author the tool in code.
+`clientTools` is keyed by catalog tool name and holds only the tools your process
+has to run — a bound tool with an `http` executor runs on the platform and needs no
+entry. Everything else the loop needs, including the model and the prompt version id
+for trace lineage, comes from the render.
+
+Two other inputs exist for tools the catalog does not hold: `tools` for tools you
+declared with `acrux.tool`, which carry their own body — see
+[Build and attach a tool](./build-and-attach-a-tool) — and `toolDefs` plus `dispatch`
+for raw OpenAI-shaped definitions you assembled yourself.
 
 </TabItem>
 <TabItem value="python" label="Python">
 
 ```python
-render = await hub.prompts.render("support-agent", "production", {
+rendered = await hub.prompts.render("support-agent", "production", {
     "ticket": "Where is my order #4471?",
 })
 
-async def dispatch(name, args):
-    if name == "lookup_order":
-        return {"status": "shipped", "eta": "2 days"}
-    raise ValueError(f"Unknown tool: {name}")
+async def lookup_order(order_id: str) -> dict:
+    return {"status": "shipped", "eta": "2 days"}
 
-result = await hub.gateway.run_tool_loop(
-    model="support-model",
-    messages=render.messages,
-    tool_defs=render.tools,
-    dispatch=dispatch,
+result = await hub.gateway.run_prompt_with_tools(
+    rendered,
+    client_tools={"lookup_order": lookup_order},
 )
 
 print(result.content)     # final assistant text
 print(result.trace_id)    # one trace covering every round-trip + tool call
 ```
 
-Note `tool_defs`, not `tools`: what `hub.prompts.render` hands back are raw
-OpenAI-shaped definitions, and `tool_defs` is the option for those. `tools` is
-reserved for functions decorated with `@acrux.tool` — those carry their own
-body, so they need no `dispatch` at all. See
-[Build and attach a tool](./build-and-attach-a-tool) for that shape, which is the
-better one when you author the tool in code.
+`client_tools` is keyed by catalog tool name and holds only the tools this process
+has to run — a bound tool with an `http` executor runs on the platform and needs no
+entry. Each function is called with the tool schema's own field names as keywords, so
+they have to match. Everything else the loop needs, including the model and the prompt
+version id for trace lineage, comes from the render.
+
+Two other inputs exist for tools the catalog does not hold: `tools` for functions
+decorated with `@acrux.tool`, which carry their own body — see
+[Build and attach a tool](./build-and-attach-a-tool) — and `tool_defs` plus
+`dispatch` for raw OpenAI-shaped definitions you assembled yourself.
 
 </TabItem>
 </Tabs>
 
-If the model asks for several tools in one turn, the loop runs your
-`dispatch` for all of them **in parallel** — independent tools don't wait on
-each other, and their results are appended in call order. So write `dispatch`
-to be safe to run concurrently.
+If the model asks for several tools in one turn, the loop runs all of them **in
+parallel** — independent tools don't wait on each other, and their results are
+appended in call order. So write a tool function to be safe to run concurrently.
 
 Unlike a standalone `hub.gateway.chat()` call, the tool loop **does** auto-report a trace —
-by default. Each model round-trip becomes an `llm` span, and each `dispatch`
+by default. Each model round-trip becomes an `llm` span, and each tool
 call becomes a `tool` span, timed for real. The gateway can only see its own
 requests; it has no way to see `lookup_order` running on your machine, so this
 is the one place the SDK adds tracing curl genuinely can't. Open

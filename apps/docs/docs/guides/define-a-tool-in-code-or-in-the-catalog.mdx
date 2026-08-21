@@ -1,0 +1,449 @@
+---
+title: Define a tool in code or in the catalog
+description: Two ways to own a tool's definition — a decorated Python function, or a catalog version your code only implements — and what changes in your app, your traces and your deploys when you pick one.
+sidebar_position: 25
+keywords: [tool definition, acrux tool decorator, client_tools, tool schema, tool versions]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Define a tool in code or in the catalog
+
+**What you'll build:** the same weather tool twice — once defined by a decorated
+Python function, once defined in the catalog and only implemented in your code —
+and a clear rule for which one a project should use.
+
+Every tool has two halves. The **definition** is what the model reads to decide
+whether and how to call the tool. The **implementation** is the code that runs
+when it does. Both have to live somewhere, and they do not have to live in the
+same place. AcruxCore lets your code own the definition, or lets the catalog own
+it while your code supplies only the body. This page builds both, side by side,
+using one weather tool and one prompt.
+
+:::tip[Prefer a notebook?]
+[`define_a_tool.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/define-a-tool-in-code-or-in-the-catalog/notebook/define_a_tool.ipynb)
+is this whole page as one runnable notebook — both paths, a preflight cell that
+checks a fresh account is ready, and two of the traps below triggered on purpose
+so you can read the real error. It renders on GitHub with its output, so you can
+read it through before running anything.
+:::
+
+## 1. What "the definition" actually means
+
+It is more than the name. The definition is exactly the object sent to the model
+on every call, plus two facts that travel with it:
+
+| Part | Who reads it | Why it matters |
+|---|---|---|
+| `name` | the model | how the model refers to the tool |
+| `description` | the model | whether the model picks this tool at all |
+| `parameters` (JSON Schema) | the model | which arguments it may send, and which are required |
+| `executor` | the platform | whether your process runs the tool, or the gateway calls a URL |
+| version identity | the platform | which build ran, and what gets stamped on the trace |
+
+The parameter schema is the one with teeth. Name and description only influence
+*whether* the tool gets picked; the schema decides the shape of the call. So
+"who owns the definition" is really "who decides the call shape, and who has to
+fit it".
+
+:::note[The executor is not a free choice on both paths]
+A `client` executor means your app runs the tool. An `http` executor means the
+gateway calls a URL, and your process does nothing. A decorator wraps a Python
+function, so it can only ever produce `client`. Only a catalog-defined tool can
+be `http`.
+:::
+
+## 2. Path A — your code owns the definition
+
+`@acrux.tool` reads the function and attaches the definition to it. The name
+comes from the function name, the description from the first line of the
+docstring, and the parameter schema from the type hints. No network call happens
+at import time.
+
+```python
+from acruxcore import AcruxCore, acrux
+
+@acrux.tool
+async def get_weather_code(city: str) -> dict:
+    """Get today's weather for a city.
+
+    Args:
+        city: City name, e.g. 'Lahore'.
+    """
+    return {"city": city, "temp_c": 34, "sky": "hazy sun"}
+```
+
+That decorator produced this, with nothing else written by hand:
+
+```json
+{
+  "name": "get_weather_code",
+  "description": "Get today's weather for a city.",
+  "parameters": {
+    "type": "object",
+    "properties": { "city": { "type": "string", "description": "City name, e.g. 'Lahore'." } },
+    "required": ["city"]
+  }
+}
+```
+
+Publishing that definition to the catalog is a separate, explicit step, and then
+the tool goes in front of the model with `tools=[fn]`:
+
+```python
+async with AcruxCore() as hub:
+    await hub.tools.sync([get_weather_code])          # publish the definition
+    rendered = await hub.prompts.render("weather-brief-code", "production")
+    run = await hub.gateway.run_tool_loop(
+        rendered.model,
+        [*rendered.messages, {"role": "user", "content": "What is the weather in Karachi?"}],
+        tools=[get_weather_code],
+        sync=False,                                   # already synced above
+        prompt_version_id=rendered.version_id,
+    )
+```
+
+Two details worth noticing. The prompt in this path has **no tool binding at
+all** — `rendered.tools` is `[]`, and the tool reaches the model straight from
+your process. And `sync` defaults to `True`, so leaving it out makes the loop
+publish the definition on first use instead.
+
+Run it and the catalog shows where the definition came from:
+
+![Tool detail page for get_weather_code, with a "Defined in code" badge under the name and one version v1 tagged "code"](/img/tutorials/define-a-tool-in-code-or-in-the-catalog/01-tool-defined-in-code.png)
+
+The badge and the `code` tag are not decoration. They record that this version
+was written by `tools.sync`, and that editing the function is how you change it.
+
+Full script:
+[`code_defined_tool.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/define-a-tool-in-code-or-in-the-catalog/python/code_defined_tool.py).
+
+## 3. Path B — the catalog owns the definition
+
+Here nothing in your code defines a tool, so the definition has to exist in the
+platform before the run. A tool is created in two steps: a **shell** carries the
+name, and a **version** carries the schema and the executor.
+
+![New tool dialog with the name field set to get_weather_catalog and the description "Weather lookup."](/img/tutorials/define-a-tool-in-code-or-in-the-catalog/02-new-tool-shell.png)
+
+The shell has no schema yet — the tool page says "No versions yet" until you
+commit one. On the version form, the description is the text the model reads,
+each parameter is one row, and the executor stays **Client**, meaning your app
+runs the body.
+
+![New version dialog with description "Get today's weather for a city.", one parameter row named city of type string marked required, and the Executor select showing "Client — the caller's app runs it"](/img/tutorials/define-a-tool-in-code-or-in-the-catalog/03-commit-tool-version.png)
+
+![Tool detail page for get_weather_catalog with one version v1 tagged "dashboard" and no "Defined in code" badge](/img/tutorials/define-a-tool-in-code-or-in-the-catalog/04-tool-defined-in-catalog.png)
+
+Compare that page with the one in path A. Same tool, same schema, no "Defined in
+code" badge, and the version is tagged `dashboard` instead of `code`. The tag
+records who wrote the version — `dashboard`, `api`, or `code`.
+
+Now connect it to the prompt, on the prompt's **Tools** tab. A cell can follow a
+tool alias or pin an exact version; this one pins **v1**, so the prompt keeps
+running that build even after someone commits v2.
+
+![Prompt Tools tab for weather-brief-catalog showing one row, get_weather_catalog, with the default column set to "pinned v1"](/img/tutorials/define-a-tool-in-code-or-in-the-catalog/05-bind-tool-pinned.png)
+
+With the definition and the binding in place, the run is short, because the
+render already carries the model, the messages and the tools:
+
+```python
+from acruxcore import AcruxCore
+
+def get_weather(city: str) -> dict:                   # no decorator
+    return {"city": city, "temp_c": 34, "sky": "hazy sun"}
+
+async with AcruxCore() as hub:
+    rendered = await hub.prompts.render("weather-brief-catalog", "production")
+    run = await hub.gateway.run_prompt_with_tools(
+        rendered,
+        messages=[*rendered.messages, {"role": "user", "content": "What is the weather in Karachi?"}],
+        client_tools={"get_weather_catalog": get_weather},
+    )
+```
+
+### How your function gets matched to the tool
+
+The map's key is the whole wiring. Nothing else takes part — not the function's
+name, not the module it lives in, not the order of the entries.
+
+At run time the name travels like this:
+
+```
+the prompt's binding  ->  the catalog tool's name  ->  your map's key  ->  your function
+```
+
+The model asks for the tool by that same catalog name, so the key has to match
+what the dashboard shows, exactly, including case.
+
+The **value** is any callable you like. In the snippet above the tool is
+`get_weather_catalog` while the function is `get_weather`, and that is deliberate:
+the platform owns one name, your codebase owns the other, and the map is the one
+place they meet. Renaming the Python function changes nothing on the platform.
+Renaming the tool in the dashboard means updating one string here.
+
+With several tools it is one entry each:
+
+```python
+CLIENT_TOOLS = {
+    "get_weather_catalog": lookup_weather,
+    "search_flights": find_flights,
+    "convert_currency": fx,
+}
+```
+
+Write the keys as literal strings rather than deriving them from `fn.__name__`.
+The file then states which catalog tools this app implements, and it keeps working
+when an implementation is a wrapped function or a `functools.partial` — neither of
+which has a name you can rely on.
+
+Two more rules follow from the same idea, that the definition is the catalog's:
+
+- **The parameter names are not yours either.** The function is called with the
+  schema's own field names as keywords, so `lookup_weather(city=...)`. A function
+  that cannot accept `city` is rejected before the first model call.
+- **Only `client` tools belong in the map.** A prompt's `http` tools run on the
+  platform and need nothing from you. A key that matches nothing bound to the
+  prompt is ignored, so one app-wide map can serve several prompts.
+
+Full scripts:
+[`setup_catalog_tool.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/define-a-tool-in-code-or-in-the-catalog/python/setup_catalog_tool.py)
+does the dashboard work above over the API, if you would rather not click, and
+[`catalog_defined_tool.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/define-a-tool-in-code-or-in-the-catalog/python/catalog_defined_tool.py)
+is the run.
+
+## 4. What changes when you switch owner
+
+| | Code owns it (`@acrux.tool`) | Catalog owns it (`client_tools`) |
+|---|---|---|
+| Schema comes from | your type hints | the catalog version |
+| Description comes from | your docstring | the catalog version |
+| Parameter names | your function decides | the schema decides, your function must fit |
+| Executor | always `client` | `client` or `http` |
+| Changing what the model reads | edit the function, sync, redeploy | edit a version in the dashboard, no deploy |
+| Version pin on a prompt | dropped when `tools=[fn]` syncs | kept, and travels as a pin |
+| Trace tool span | stamped only when the loop syncs | always stamped with `toolId:version` |
+
+That last row is visible in a trace. The tool span on a catalog-defined run
+carries the exact version that ran:
+
+![Trace detail for catalog-defined-tool, with the tool span expanded showing three attributes — the city argument, executorType client, and a toolVersionId ending in colon one](/img/tutorials/define-a-tool-in-code-or-in-the-catalog/06-trace-tool-version-stamp.png)
+
+On path A the same attribute appears only when the loop actually synced the
+tool. Running with `sync=False`, as the snippet above does, leaves the span with
+no `toolVersionId` — there is no catalog version that this particular run can
+honestly point at.
+
+## 5. Four ways to get this wrong
+
+**A catalog tool that nothing points at fails silently.** If the definition
+exists but no binding and no `tool_refs` name it, `render` returns no tools and
+the run becomes a plain completion. The model answers from its own knowledge, no
+error is raised, and your function is never called. If a tool "does nothing",
+check the prompt's Tools tab first.
+
+**A bound `client` tool with no implementation fails loudly.** You get a
+`MISSING_DISPATCH` error before the first model call, and it lists the keys you
+did supply, so a typo in the map is a one-second fix.
+
+**`tools=[fn]` on a name that already exists rewrites it.** Passing a decorated
+function whose name matches a catalog tool commits a new version from your local
+schema and moves its alias — and a prompt that pinned an exact version loses the
+pin. That is the failure that looks like nothing happened: the run works, and
+the pinned prompt silently starts following your laptop.
+
+:::caution[Use `client_tools` to run, `tools=` to publish]
+`client_tools` writes nothing to the catalog. Reach for `tools=[fn]` only when
+your code is meant to be the source of truth for that tool's definition.
+:::
+
+**A decorated function inside `client_tools` keeps its decorator, and loses it.**
+It runs fine, but the definition is ignored — the schema and description come
+from the catalog. Someone can edit the docstring, redeploy, and wonder why the
+model's behaviour never changed.
+
+## 6. Which one to use
+
+Default to the catalog owning the definition whenever a prompt binds its tools.
+Version pinning then means something, the model-facing text can be fixed without
+a deploy, and the same prompt can move from a `client` tool in staging to an
+`http` tool in production without touching your app.
+
+Choose the decorator when the tool exists only in code and the repository should
+be the source of truth — an internal agent, a CLI, no dashboard step in the
+loop. Deriving a schema from type hints is worth a lot when the tool is yours
+alone.
+
+The two combine well. Run `hub.tools.sync([...])` in your deploy step so the
+definitions are published from code, and run with `client_tools` at runtime so
+execution stays pinned to a catalog version. You get schemas generated from code
+and traces that name the exact version that ran.
+
+## Doing this over the API
+
+Both paths are plain HTTP, and the call count is the clearest summary of the
+difference. Publishing from code is **one** call, because the definition is
+already complete.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/tools/sync" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"get_weather_curl_sync","description":"Get today'\''s weather for a city.","parametersSchema":{"type":"object","properties":{"city":{"type":"string","description":"City name, e.g. Lahore."}},"required":["city"]},"executor":{"type":"client"},"alias":"production","source":"code"}'
+```
+
+```json
+{
+  "toolId": "4305e3f7-af4b-4bb3-b726-f21af51d42ee",
+  "versionNumber": 1,
+  "committed": true,
+  "alias": "production"
+}
+```
+
+One request created the shell, committed version 1, and moved the `production`
+alias. `source: "code"` is accepted only on this endpoint — it is what earns the
+"Defined in code" badge.
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+result = (await hub.tools.sync([get_weather_code]))[0]
+print(result.tool_id, result.version_number, result.alias, result.committed)
+```
+
+`sync` derives the body above from the decorated function, and caches per
+process on the definition's hash — calling it twice with an unchanged function
+makes one request.
+
+</TabItem>
+</Tabs>
+
+Defining the same tool in the catalog takes **three** calls, because the shell,
+the version and the binding are three separate decisions.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+# 1. the shell — a name, no schema
+curl -X POST "$ACRUXCORE_BASE_URL/tools" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"get_weather_curl","description":"Weather lookup."}'
+```
+
+```json
+{
+  "id": "a82a7c9d-3ee7-4956-8a99-326e0c97e171",
+  "name": "get_weather_curl",
+  "description": "Weather lookup.",
+  "teamId": "8d3ceb9b-39d0-463b-8b91-aa2ef20ac9ba",
+  "createdBy": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+  "createdAt": "2026-08-21T04:55:23.969Z"
+}
+```
+
+```bash
+# 2. the version — the schema and the executor
+curl -X POST "$ACRUXCORE_BASE_URL/tools/a82a7c9d-3ee7-4956-8a99-326e0c97e171/versions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"description":"Get today'\''s weather for a city.","parametersSchema":{"type":"object","properties":{"city":{"type":"string","description":"City name, e.g. Lahore."}},"required":["city"]},"executor":{"type":"client"}}'
+```
+
+```json
+{
+  "id": "4d878b1d-64e7-433f-a770-f35128b5023d",
+  "toolId": "a82a7c9d-3ee7-4956-8a99-326e0c97e171",
+  "versionNumber": 1,
+  "description": "Get today's weather for a city.",
+  "changelog": null,
+  "source": "api",
+  "parametersSchema": {
+    "type": "object",
+    "required": ["city"],
+    "properties": { "city": { "type": "string", "description": "City name, e.g. Lahore." } }
+  },
+  "executor": { "type": "client" },
+  "createdBy": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+  "createdAt": "2026-08-21T04:55:33.109Z",
+  "aliases": [
+    { "id": "58c39a04-e10d-4125-91ab-4a30528b01c3", "alias": "production", "versionId": "4d878b1d-64e7-433f-a770-f35128b5023d", "versionNumber": 1, "updatedAt": "2026-08-21T04:55:33.119Z" },
+    { "id": "7f381d4d-a8a1-4303-9226-4d745b902eb1", "alias": "staging", "versionId": "4d878b1d-64e7-433f-a770-f35128b5023d", "versionNumber": 1, "updatedAt": "2026-08-21T04:55:33.119Z" }
+  ]
+}
+```
+
+The first version of a tool mints both aliases; later commits return no
+`aliases` at all.
+
+```bash
+# 3. the binding — pin this prompt to version 1
+curl -X PUT "$ACRUXCORE_BASE_URL/prompts/$PROMPT_ID/tools/a82a7c9d-3ee7-4956-8a99-326e0c97e171" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"pinned_version_number":1}'
+```
+
+```json
+{
+  "toolId": "a82a7c9d-3ee7-4956-8a99-326e0c97e171",
+  "toolName": "get_weather_curl",
+  "toolAlias": null,
+  "pinnedVersionNumber": 1,
+  "off": false,
+  "resolvedVersionNumber": 1,
+  "position": 2
+}
+```
+
+The request field is `pinned_version_number` and the response field is
+`pinnedVersionNumber`. Send exactly one of `tool_alias`, `pinned_version_number`
+or `off`, or the call returns a `VALIDATION_ERROR`.
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+tool = await hub.tools.create(name="get_weather_catalog", description="Weather lookup.")
+await hub.tools.commit_version(
+    tool.id,
+    parameters_schema={
+        "type": "object",
+        "properties": {"city": {"type": "string", "description": "City name, e.g. 'Lahore'."}},
+        "required": ["city"],
+    },
+    executor={"type": "client"},
+    description="Get today's weather for a city.",
+)
+await hub.prompts.set_tool_binding(prompt_id, tool.id, pinned_version_number=1)
+```
+
+Pass `tool_alias="production"` instead of `pinned_version_number` to follow the
+tool's alias rather than pin a build.
+
+</TabItem>
+</Tabs>
+
+:::note[In the Node SDK]
+There is no decorator. `acrux.tool({ name, description, parameters }, handler)`
+builds the same definition from a factory call, and `clientTools` is the same
+map — except each handler receives one arguments object, not keyword arguments.
+:::
+
+## What's next
+
+- [Build and attach a tool](./build-and-attach-a-tool) — the code-first path end
+  to end, from decorated function to a prompt that calls it.
+- [Call a prompt's tools from the SDK](./call-a-prompts-tools-from-the-sdk) —
+  every way to run a bound tool, including the streamed loop.
+- [Manage a tool's lifecycle via the SDK](./manage-a-tools-lifecycle-via-the-sdk)
+  — versions, aliases and `http` executors without a dashboard click.
+- API details: see **Tools** and **Prompts** in the [API Reference](/api-reference).

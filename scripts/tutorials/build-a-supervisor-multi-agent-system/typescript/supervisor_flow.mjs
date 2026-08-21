@@ -60,16 +60,18 @@ async function getTodaysDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
-async function dispatch(name, args) {
-  if (name === 'finance_research') return financeResearch(args.ticker_symbol);
-  if (name === 'advanced_research') return advancedResearch(args.query);
-  if (name === 'basic_research') return basicResearch(args.query);
-  if (name === 'get_todays_date') return getTodaysDate();
-  throw new Error(`Unknown tool: ${name}`);
-}
+// Every tool this flow can run, keyed by catalog tool name. One map covers all three
+// routes: `toolRefs` decides which subset the model is offered on a given turn, and any
+// entry the chosen route does not bind is simply never called.
+const CLIENT_TOOLS = {
+  finance_research: ({ ticker_symbol }) => financeResearch(ticker_symbol),
+  advanced_research: ({ query }) => advancedResearch(query),
+  basic_research: ({ query }) => basicResearch(query),
+  get_todays_date: () => getTodaysDate(),
+};
 
 async function route(hub, question) {
-  const rendered = await hub.renderPrompt(ROUTER_PROMPT, 'production', { question });
+  const rendered = await hub.prompts.render(ROUTER_PROMPT, 'production', { question });
   const res = await fetch(`${ACRUXCORE_BASE_URL}/gateway/chat/completions`, {
     method: 'POST',
     headers: ACRUXCORE_HEADERS,
@@ -95,13 +97,13 @@ async function main() {
   console.log(`Step A -- routed to: ${routeTo}  (trace ${traceId})\n`);
 
   const subagentPrompt = SUBAGENT_PROMPTS[routeTo];
-  const rendered = await hub.renderPrompt(subagentPrompt, 'production', { task: question });
+  const rendered = await hub.prompts.render(subagentPrompt, 'production', { task: question });
 
-  const result = await hub.runToolLoop({
+  const result = await hub.gateway.runToolLoop({
     model: rendered.model,
     messages: [...rendered.messages],
     toolRefs: TOOL_REFS_BY_ROUTE[routeTo],
-    dispatch,
+    clientTools: CLIENT_TOOLS,
     sync: false,
     promptVersionId: rendered.versionId,
     trace: { traceId },

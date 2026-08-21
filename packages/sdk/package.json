@@ -1,6 +1,6 @@
 {
   "name": "@acruxcoreai/sdk",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "TypeScript SDK for AcruxCore — runtime prompt render, gateway chat, tool loops, traces, and feedback",
   "license": "MIT",
   "keywords": [

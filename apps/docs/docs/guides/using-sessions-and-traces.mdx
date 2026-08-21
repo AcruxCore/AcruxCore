@@ -92,16 +92,12 @@ for (const [name, variables] of prompts) {
 
 ```typescript
 for (const [name, variables] of prompts) {
-  const { messages, model, versionId, tools } = await hub.prompts.render(name, 'production', variables);
-  await hub.gateway.runToolLoop({
-    model: model ?? 'gpt-4o-mini',
-    messages,
-    tools,
-    promptVersionId: versionId ?? undefined,
+  const rendered = await hub.prompts.render(name, 'production', variables);
+  // The model, the messages, the bound tools and the version id all come from the
+  // render — `clientTools` adds only the tools your own process has to run.
+  await hub.gateway.runPromptWithTools(rendered, {
     trace: { sessionId },
-    dispatch: async (toolName, args) => {
-      // handle tool calls
-    },
+    clientTools: { get_current_time: getCurrentTime },
   });
 }
 ```
@@ -145,18 +141,13 @@ async def main():
     hub = AcruxCore()
     session_id = "tokyo-trip-plan-01"
 
-    async def dispatch(tool_name, args):
-        # handle tool calls
-        ...
-
     for name, variables in prompts:
         rendered = await hub.prompts.render(name, "production", variables)
-        await hub.gateway.run_tool_loop(
-            rendered.model or "gpt-4o-mini",
-            rendered.messages,
-            tool_defs=rendered.tools,
-            dispatch=dispatch,
-            prompt_version_id=rendered.version_id,
+        # The model, the messages, the bound tools and the version id all come from
+        # the render -- `client_tools` adds only the tools this process has to run.
+        await hub.gateway.run_prompt_with_tools(
+            rendered,
+            client_tools={"get_current_time": get_current_time},
             trace={"session_id": session_id},
         )
 

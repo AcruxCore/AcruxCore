@@ -79,7 +79,7 @@ export function ToolDialog({ open, onOpenChange }: ToolDialogProps) {
         <Field
           label="Description"
           htmlFor="tool-description"
-          hint="Optional — shown to the model as the tool's summary."
+          hint="Optional — a fallback the model reads only while a version has no description of its own."
         >
           <Textarea
             id="tool-description"

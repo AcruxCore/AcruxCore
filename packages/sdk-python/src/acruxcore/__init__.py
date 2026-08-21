@@ -18,7 +18,8 @@ Example::
 
 from . import tooling as acrux  # noqa: F401 — enables the `@acrux.tool` spelling
 from .client import AcruxCore
-from .gateway_api import AsyncChatStream, GatewayNamespace
+from .gateway_api import AsyncChatStream, AsyncToolLoopStream, GatewayNamespace
+from .tool_override import ToolOverrideResult, with_tool_override
 from .errors import (
     API_ERROR,
     MISSING_API_KEY,
@@ -57,6 +58,7 @@ from .response_format import pydantic_response_format
 from .tooling import ToolSpec, spec_of, tool
 from .types import (
     AliasDetail,
+    AliasToolBindings,
     AnalyticsBucket,
     AnalyticsResult,
     AnalyticsTotals,
@@ -84,8 +86,10 @@ from .types import (
     PromptDetail,
     PromptListItem,
     PromptListResult,
+    PromptToolBindings,
     ProviderConfig,
     RenderResult,
+    ToolResolution,
     ResolvedTool,
     ResponseFormat,
     RunToolLoopResult,
@@ -95,12 +99,18 @@ from .types import (
     SessionTraceItem,
     ToolAliasDetail,
     ToolAnalyticsResult,
+    ToolBindingDetail,
     ToolCall,
     ToolChoice,
     ToolDefinition,
     ToolDetail,
     ToolExecuteResult,
     ToolListResult,
+    ToolLoopContentEvent,
+    ToolLoopDoneEvent,
+    ToolLoopEvent,
+    ToolLoopToolCallEvent,
+    ToolLoopToolResultEvent,
     ToolRef,
     ToolStat,
     ToolSyncResult,
@@ -119,11 +129,12 @@ from .types import (
     VersionListResult,
 )
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 
 __all__ = [
     "AcruxCore",
     "AsyncChatStream",
+    "AsyncToolLoopStream",
     "GatewayNamespace",
     "AcruxCoreError",
     "acrux",
@@ -159,6 +170,9 @@ __all__ = [
     "Message",
     "ProviderConfig",
     "RenderResult",
+    "ToolResolution",
+    "ToolOverrideResult",
+    "with_tool_override",
     "ResolvedTool",
     "ResponseFormat",
     "RunToolLoopResult",
@@ -174,6 +188,11 @@ __all__ = [
     "ToolDetail",
     "ToolExecuteResult",
     "ToolListResult",
+    "ToolLoopContentEvent",
+    "ToolLoopDoneEvent",
+    "ToolLoopEvent",
+    "ToolLoopToolCallEvent",
+    "ToolLoopToolResultEvent",
     "ToolRef",
     "ToolStat",
     "ToolSyncResult",
@@ -212,6 +231,9 @@ __all__ = [
     "VersionListItem",
     "VersionListResult",
     "AliasDetail",
+    "ToolBindingDetail",
+    "AliasToolBindings",
+    "PromptToolBindings",
     "DiffResult",
     "ExportedPromptVersion",
     "ExportedPromptDetail",

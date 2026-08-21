@@ -36,7 +36,7 @@ async function startLiveClient(apiKey: string): Promise<{ hub: acruxcore; close:
 }
 
 beforeEach(async () => {
-  await prisma.$executeRaw`TRUNCATE TABLE span_payloads, spans, traces, prompt_version_tools, tool_aliases, tool_versions, tools, prompt_aliases, prompt_versions, audit_log, prompts, api_keys, team_members, teams, users RESTART IDENTITY CASCADE`;
+  await prisma.$executeRaw`TRUNCATE TABLE span_payloads, spans, traces, prompt_tool_bindings, tool_aliases, tool_versions, tools, prompt_aliases, prompt_versions, audit_log, prompts, api_keys, team_members, teams, users RESTART IDENTITY CASCADE`;
 });
 
 afterAll(async () => {
@@ -162,6 +162,117 @@ describe('acruxcore SDK prompts integration', () => {
     } finally {
       await close();
     }
+  });
+
+  describe('prompt tool bindings', () => {
+    it('binds a tool by default, diverges one alias, and reports the source render() resolved through', async () => {
+      const { apiKey } = await setupUserAndKey();
+      const { hub, close } = await startLiveClient(apiKey);
+
+      try {
+        // A prompt with one committed version, so both aliases exist and can render.
+        const prompt = await hub.prompts.create({ name: `binding-test-${Date.now()}` });
+        await hub.prompts.commitVersion(prompt.id, {
+          messages: [{ role: 'system', content: 'Answer with the weather.' }],
+        });
+
+        // A tool with two versions, so `staging` and `production` can point at
+        // different builds — the whole point of binding by alias rather than by version.
+        const tool = await hub.tools.create({ name: `binding_tool_${Date.now()}` });
+        await hub.tools.commitVersion(tool.id, {
+          parametersSchema: { type: 'object', properties: { city: { type: 'string' } } },
+          executor: { type: 'client' },
+        });
+        await hub.tools.commitVersion(tool.id, {
+          parametersSchema: { type: 'object', properties: { city: { type: 'string' } } },
+          executor: { type: 'client' },
+        });
+        await hub.tools.promoteAlias(tool.id, 'staging', 2);
+
+        // Default binding — inherited by every prompt alias with no row of its own.
+        const bound = await hub.prompts.setToolBinding(prompt.id, tool.id, { toolAlias: 'production' });
+        expect(bound).toMatchObject({ toolId: tool.id, toolAlias: 'production', off: false, resolvedVersionNumber: 1 });
+
+        let bindings = await hub.prompts.listToolBindings(prompt.id);
+        expect(bindings.default.map((b) => b.toolId)).toEqual([tool.id]);
+        expect(bindings.aliases.map((a) => a.alias).sort()).toEqual(['production', 'staging']);
+        expect(bindings.aliases.every((a) => a.customised === false)).toBe(true);
+
+        // `production` inherits, so its resolution reports the default as the source.
+        const inherited = await hub.prompts.render(prompt.name, 'production');
+        expect(inherited.tools.map((t) => t.function.name)).toEqual([tool.name]);
+        expect(inherited.toolResolutions).toEqual([
+          { name: tool.name, alias: 'production', versionNumber: 1, source: 'default' },
+        ]);
+
+        // `staging` takes a binding of its own, onto the tool's own staging build.
+        const own = await hub.prompts.setAliasToolBinding(prompt.id, 'staging', tool.id, { toolAlias: 'staging' });
+        expect(own).toMatchObject({ toolAlias: 'staging', resolvedVersionNumber: 2 });
+
+        bindings = await hub.prompts.listToolBindings(prompt.id);
+        expect(bindings.aliases.find((a) => a.alias === 'staging')?.customised).toBe(true);
+        expect(bindings.aliases.find((a) => a.alias === 'production')?.customised).toBe(false);
+
+        const diverged = await hub.prompts.render(prompt.name, 'staging');
+        expect(diverged.toolResolutions).toEqual([
+          { name: tool.name, alias: 'staging', versionNumber: 2, source: 'alias' },
+        ]);
+
+        // `off` contradicts the default: staging must not call the tool at all.
+        const off = await hub.prompts.setAliasToolBinding(prompt.id, 'staging', tool.id, { off: true });
+        expect(off).toMatchObject({ off: true, toolAlias: null, resolvedVersionNumber: null });
+        expect((await hub.prompts.render(prompt.name, 'staging', { _bust: 'off' })).tools).toEqual([]);
+        // The default is untouched, so production still calls it.
+        expect((await hub.prompts.render(prompt.name, 'production', { _bust: 'off' })).tools).toHaveLength(1);
+
+        // Resetting the alias returns it to the default, tool and all.
+        await hub.prompts.resetAliasToolBindings(prompt.id, 'staging');
+        bindings = await hub.prompts.listToolBindings(prompt.id);
+        expect(bindings.aliases.every((a) => a.customised === false)).toBe(true);
+        expect((await hub.prompts.render(prompt.name, 'staging', { _bust: 'reset' })).toolResolutions).toEqual([
+          { name: tool.name, alias: 'production', versionNumber: 1, source: 'default' },
+        ]);
+
+        // Removing the default unbinds the tool everywhere that inherited it.
+        await hub.prompts.removeToolBinding(prompt.id, tool.id);
+        bindings = await hub.prompts.listToolBindings(prompt.id);
+        expect(bindings.default).toEqual([]);
+        expect((await hub.prompts.render(prompt.name, 'production', { _bust: 'removed' })).tools).toEqual([]);
+      } finally {
+        await close();
+      }
+    });
+
+    it('returns one alias to the default with removeAliasToolBinding, and 404s an unbound pair', async () => {
+      const { apiKey } = await setupUserAndKey();
+      const { hub, close } = await startLiveClient(apiKey);
+
+      try {
+        const prompt = await hub.prompts.create({ name: `binding-404-test-${Date.now()}` });
+        await hub.prompts.commitVersion(prompt.id, { messages: [{ role: 'user', content: 'Hi' }] });
+        const tool = await hub.tools.create({ name: `binding_404_tool_${Date.now()}` });
+        await hub.tools.commitVersion(tool.id, {
+          parametersSchema: { type: 'object', properties: {} },
+          executor: { type: 'client' },
+        });
+
+        // Nothing is bound yet, so both deletes have no row to remove.
+        await expect(hub.prompts.removeToolBinding(prompt.id, tool.id)).rejects.toMatchObject({ statusCode: 404 });
+        await expect(
+          hub.prompts.removeAliasToolBinding(prompt.id, 'staging', tool.id),
+        ).rejects.toMatchObject({ statusCode: 404 });
+
+        await hub.prompts.setToolBinding(prompt.id, tool.id, { toolAlias: 'production' });
+        await hub.prompts.setAliasToolBinding(prompt.id, 'staging', tool.id, { pinnedVersionNumber: 1 });
+        await hub.prompts.removeAliasToolBinding(prompt.id, 'staging', tool.id);
+
+        const bindings = await hub.prompts.listToolBindings(prompt.id);
+        expect(bindings.default).toHaveLength(1);
+        expect(bindings.aliases.find((a) => a.alias === 'staging')?.customised).toBe(false);
+      } finally {
+        await close();
+      }
+    });
   });
 
   describe('prompts.tracesForVersion', () => {

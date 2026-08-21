@@ -150,6 +150,21 @@ example inputs. An **experiment** runs a prompt/model combination across the
 dataset and produces a **run report** you can compare against another version.
 Experiment runs are processed asynchronously by a worker.
 
+That whole loop — trace → feedback → dataset → run — starts with a person
+noticing a bad answer and rating it. That works at a trickle of traffic. It
+stops working once a prompt is handling thousands of calls a day: nobody is
+reading all of them, so a quality drop can sit unnoticed until a customer
+reports it.
+
+An **evaluation rule** is a standing instruction ("does this reply follow up
+correctly?") that a background worker checks against a sample of matching
+`llm` spans as they happen, using the same LLM-as-judge the offline runs use —
+no dataset, no run, no person rating anything. Its scores land on the trace
+next to feedback, and its lowest scorers can be sent straight into a dataset,
+so a quality drop a rule catches feeds the same fix loop a human-rated one
+would. See [Score live traffic with an evaluation
+rule](../guides/score-live-traffic-with-an-evaluation-rule) to set one up.
+
 ## Where to go next
 
 - **[Quickstart](./quickstart)** — make your first traced gateway call in ten minutes.

@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
-import { authedAgent } from '../../test-utils';
+import { authedAgent, registerTestModel } from '../../test-utils';
 
 const app = createApp();
 
@@ -319,5 +319,53 @@ describe('GET /api/v1/traces — filters', () => {
 
     const res = await agent.get('/api/v1/traces').expect(200);
     expect(res.body.data[0].tags).toEqual(['prod']);
+  });
+
+  it('min_score/rule_id filters only return traces that rule scored at or above the threshold', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const now = new Date();
+    const judgeModel = await registerTestModel(agent);
+    const rule = await agent.post('/api/v1/eval-rules').send({ name: 'quality', criteria: 'helpful', judgeModel }).expect(201);
+    const ruleId = rule.body.id;
+
+    const [traceAId] = await ingest(agent, [
+      { name: 'scored-high', spans: [{ spanId: 's1', name: 'gpt-4o', kind: 'llm', status: 'ok', startTime: iso(now) }] },
+    ]);
+    await ingest(agent, [
+      { name: 'unscored', spans: [{ spanId: 's2', name: 'gpt-4o', kind: 'llm', status: 'ok', startTime: iso(now) }] },
+    ]);
+
+    // `spanId` on EvalRuleScore is a bare scalar with no FK (see
+    // online-eval-rule.test.ts), so reusing the trace's own id as a stand-in
+    // span id is fine for this filter-only arrangement.
+    await prisma.evalRuleScore.create({
+      data: { teamId, ruleId, traceId: traceAId, spanId: traceAId, score: 90 },
+    });
+
+    const res = await agent.get(`/api/v1/traces?min_score=80&rule_id=${ruleId}`).expect(200);
+    expect(res.body.data.map((t: { id: string }) => t.id)).toEqual([traceAId]);
+    expect(res.body.total).toBe(1);
+  });
+
+  it('never matches another team eval_rule_scores row via the min_score/rule_id EXISTS filter (cross-tenant score leak)', async () => {
+    const a = await authedAgent(app);
+    const now = new Date();
+    const aJudgeModel = await registerTestModel(a.agent);
+    const aRule = await a.agent
+      .post('/api/v1/eval-rules')
+      .send({ name: 'quality', criteria: 'helpful', judgeModel: aJudgeModel })
+      .expect(201);
+    const ruleId = aRule.body.id;
+    const [traceAId] = await ingest(a.agent, [
+      { name: 'a-run', spans: [{ spanId: 'a1', name: 'gpt-4o', kind: 'llm', status: 'ok', startTime: iso(now) }] },
+    ]);
+    await prisma.evalRuleScore.create({
+      data: { teamId: a.teamId, ruleId, traceId: traceAId, spanId: traceAId, score: 95 },
+    });
+
+    const b = await authedAgent(app);
+    const res = await b.agent.get(`/api/v1/traces?min_score=80&rule_id=${ruleId}`).expect(200);
+    expect(res.body.total).toBe(0);
+    expect(res.body.data).toHaveLength(0);
   });
 });

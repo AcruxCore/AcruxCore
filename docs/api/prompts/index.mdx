@@ -27,13 +27,17 @@ messages of its own — those live in **versions**. Creating a prompt is a
 two-step flow:
 
 1. **`POST /prompts`** — create the container (this endpoint).
-2. **`POST /prompts/:id/versions`** — commit a version with the actual `model`,
-   `messages`, and optional `tools`. The first version auto-creates `production`
-   and `staging` aliases pointing at v1.
+2. **`POST /prompts/:id/versions`** — commit a version with the actual `model` and
+   `messages`. The first version auto-creates `production` and `staging` aliases
+   pointing at v1.
 
 Think of it like a Git repo: the prompt is the repo name, each version is a
 commit. Consumers reference the prompt by name and alias; you publish new
 versions without changing the prompt's identity.
+
+Tools are not part of a version. A version holds the template; which tools the
+prompt calls is a separate, live setting per prompt alias — see
+[Prompt Tool Bindings](/api-reference/prompts/tool-bindings).
 
 For a worked example see [Store prompts and tools via the API](/docs/guides/store-prompts-and-tools-via-api).
 

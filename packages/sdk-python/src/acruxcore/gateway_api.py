@@ -11,7 +11,22 @@ import uuid
 import warnings
 import weakref
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+    overload,
+)
 from urllib.parse import quote, urlparse
 
 import httpx
@@ -23,6 +38,7 @@ from .errors import (
     MISSING_DISPATCH,
     NETWORK_ERROR,
     PROVIDER_ERROR,
+    VALIDATION_ERROR,
     AcruxCoreError,
 )
 from .http import request_with_retry
@@ -36,14 +52,21 @@ from .types import (
     ChatUsage,
     GatewayCallMeta,
     IngestSpan,
+    Literal,
     Message,
     ProviderConfig,
+    RenderResult,
     ResolvedTool,
     ResponseFormat,
     RunToolLoopResult,
     ToolCall,
     ToolChoice,
     ToolDefinition,
+    ToolLoopContentEvent,
+    ToolLoopDoneEvent,
+    ToolLoopEvent,
+    ToolLoopToolCallEvent,
+    ToolLoopToolResultEvent,
     ToolRef,
     TraceInput,
 )
@@ -55,8 +78,13 @@ if TYPE_CHECKING:
 # A dispatch function may be sync or async.
 DispatchFn = Callable[[str, Dict[str, Any]], Union[Any, "Awaitable[Any]"]]
 
+#: Tool name → the function that runs it, for catalog tools with a ``client`` executor.
+#: The functions may be sync or async, and are called with the tool schema's own
+#: parameter names as keywords — not with one ``args`` dict.
+ClientToolsMap = Mapping[str, Callable[..., Any]]
+
 # Re-export so callers can ``from acruxcore import AsyncChatStream``.
-__all__ = ["GatewayNamespace", "AsyncChatStream"]
+__all__ = ["GatewayNamespace", "AsyncChatStream", "AsyncToolLoopStream"]
 
 
 def _now_iso() -> str:
@@ -97,6 +125,74 @@ def _warn_if_cleartext_url(url: str, what: str) -> None:
     )
 
 
+def _parse_tool_arguments(call: Dict[str, Any]) -> Dict[str, Any]:
+    """Parse one tool call's ``arguments`` JSON string into a dict.
+
+    A model that emits malformed or non-object arguments gets ``{}`` rather than an
+    exception: the tool then fails (or not) on its own terms, which reads far better
+    than a JSON error from inside the SDK.
+    """
+    try:
+        parsed = json.loads(call["function"].get("arguments") or "{}")
+    except (ValueError, TypeError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _client_tool_arity_error(
+    name: str, fn: Callable[..., Any], function_def: Dict[str, Any]
+) -> Optional[str]:
+    """Message when ``fn`` cannot receive the tool's required arguments, else ``None``.
+
+    A ``client_tools`` function is called with the schema's own parameter names as
+    keywords, so a function written to take one ``args`` dict raises ``TypeError``
+    mid-loop — after a model round has already been paid for. Checking the signature up
+    front turns that into a wiring error at the call site.
+
+    Deliberately conservative: anything it cannot read confidently — ``**kwargs``, a
+    callable with no introspectable signature, a schema with no ``required`` list —
+    returns ``None`` rather than guessing, because a false positive here blocks a call
+    that would have worked.
+
+    :param name: The tool name, for the message.
+    :param fn: The function supplied in ``client_tools``.
+    :param function_def: The resolved tool's OpenAI ``function`` object.
+    :returns: The error message, or ``None`` when the signature can take the arguments.
+    """
+    required = ((function_def.get("parameters") or {}).get("required")) or []
+    if not required:
+        return None
+
+    try:
+        signature = inspect.signature(fn)
+    except (TypeError, ValueError):
+        return None
+
+    accepted: List[str] = []
+    for param in signature.parameters.values():
+        if param.kind is inspect.Parameter.VAR_KEYWORD:
+            return None
+        if param.kind in (
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        ):
+            accepted.append(param.name)
+
+    missing = [field for field in required if field not in accepted]
+    if not missing:
+        return None
+
+    # Required fields keep the schema's own order: that is the order the reader sees in
+    # the dashboard, and the order the suggested signature should be written in.
+    return (
+        f"acruxcore: the function passed in client_tools for '{name}' cannot receive this "
+        f"tool's arguments — the catalog schema requires {list(required)} and the function "
+        f"accepts {accepted}. A client_tools function is called with the schema's own "
+        f"parameter names, so define it as {name}({', '.join(required)}), or accept "
+        f"**kwargs."
+    )
+
+
 @dataclass
 class _ToolRoute:
     """How one tool name gets executed during a loop."""
@@ -105,6 +201,8 @@ class _ToolRoute:
     fn: Optional[Callable[..., Any]] = None
     tool_id: Optional[str] = None
     alias: Optional[str] = None
+    #: Set instead of ``alias`` when the ref pinned one exact version.
+    version_number: Optional[int] = None
     tool_version_id: Optional[str] = None
 
 
@@ -256,7 +354,8 @@ class GatewayNamespace:
         """
         provider_config = provider or self._host._provider_default
         body = self._build_chat_body(
-            model, messages, tools, tool_refs, tool_choice, response_format, temperature, max_tokens, stream
+            model, messages, tools, tool_refs, tool_choice, response_format, temperature, max_tokens, stream,
+            prompt_version_id=None if provider_config is not None else prompt_version_id,
         )
         if stream:
             if provider_config is not None:
@@ -371,8 +470,19 @@ class GatewayNamespace:
         temperature: Optional[float],
         max_tokens: Optional[int],
         stream: bool,
+        prompt_version_id: Optional[str] = None,
     ) -> Dict[str, Any]:
+        """Build the JSON body for one completion.
+
+        :param prompt_version_id: Which prompt version these messages were rendered
+            from. Only ever passed for a GATEWAY call — it is our field, not
+            OpenAI's, so sending it to a BYO provider would be sending a stranger a
+            field it never asked for. On a BYO call the SDK writes the span itself
+            and stamps the lineage there instead.
+        """
         body: Dict[str, Any] = {"model": model, "messages": messages}
+        if prompt_version_id:
+            body["prompt_version_id"] = prompt_version_id
         if tools:
             body["tools"] = tools
         if tool_refs:
@@ -401,9 +511,11 @@ class GatewayNamespace:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         extra_headers: Optional[Dict[str, str]] = None,
+        prompt_version_id: Optional[str] = None,
     ) -> ChatResult:
         body = self._build_chat_body(
-            model, messages, tools, tool_refs, tool_choice, response_format, temperature, max_tokens, False
+            model, messages, tools, tool_refs, tool_choice, response_format, temperature, max_tokens, False,
+            prompt_version_id=prompt_version_id,
         )
         response = await self._host._request(
             "POST", "/gateway/chat/completions", body, "calling chat completions", extra_headers
@@ -514,8 +626,21 @@ class GatewayNamespace:
             ),
         )
 
-    async def _stream_chat(self, body: Dict[str, Any], extra_headers: Optional[Dict[str, str]] = None) -> Any:
-        """Yield one :class:`ChatChunk` per SSE frame until ``data: [DONE]``."""
+    async def _stream_chat(
+        self,
+        body: Dict[str, Any],
+        extra_headers: Optional[Dict[str, str]] = None,
+        meta_out: Optional[Dict[str, GatewayCallMeta]] = None,
+    ) -> Any:
+        """Yield one :class:`ChatChunk` per SSE frame until ``data: [DONE]``.
+
+        :param body: The completion body, already carrying ``stream: True``.
+        :param extra_headers: Trace-correlation headers to send with the request.
+        :param meta_out: When given, ``meta_out["gateway"]`` is filled with the
+            response's ``x-gateway-*`` metadata *before* the first chunk is yielded.
+            The streaming tool loop needs it that early: the trace id it threads
+            through the following rounds comes off these headers.
+        """
         url = f"{self._host._base_url}/gateway/chat/completions"
         headers = self._host._auth_headers(extra_headers)
         content = json.dumps(body).encode("utf-8")
@@ -541,6 +666,9 @@ class GatewayNamespace:
                             response.status_code,
                             self._host._safe_json(response),
                         )
+
+                    if meta_out is not None:
+                        meta_out["gateway"] = self._read_gateway_meta(response)
 
                     decoder = codecs.getincrementaldecoder("utf-8")()
                     buffer = ""
@@ -572,16 +700,29 @@ class GatewayNamespace:
                     NETWORK_ERROR,
                 )
 
-    async def _stream_via_provider(
+    async def _stream_round_via_provider(
         self,
         model: str,
-        messages: List[Message],
         body: Dict[str, Any],
         provider_config: ProviderConfig,
-        prompt_version_id: Optional[str],
-        trace_opt: Union[bool, Dict[str, Any]],
+        state: Dict[str, Any],
     ) -> Any:
-        """Stream a BYO provider's ``/chat/completions`` directly."""
+        """Stream ONE completion straight from a BYO provider, yielding raw chunks.
+
+        Shared by the public BYO stream and the streaming tool loop, which need the same
+        wire handling but file different spans — so the accumulated turn is handed back
+        through ``state`` instead of being written to a span here.
+
+        :param model: Requested model, used as the fallback when no frame names one.
+        :param body: The completion body; ``stream_options.include_usage`` is added.
+        :param provider_config: Where to send it and which key to use.
+        :param state: Filled as the stream runs and complete once it ends —
+            ``start_time``, ``content``, ``tool_calls``, ``model``, ``finish_reason``
+            and ``usage`` (already camelCased for a span payload).
+        :raises AcruxCoreError: ``MISSING_API_KEY``/``MISSING_BASE_URL`` on a bad
+            config, ``PROVIDER_ERROR`` on a 4xx/5xx, ``NETWORK_ERROR`` on transport
+            failure.
+        """
         if not provider_config.get("api_key"):
             raise AcruxCoreError(
                 "acruxcore: provider api_key is required for a BYO (direct-provider) call.",
@@ -689,33 +830,40 @@ class GatewayNamespace:
                     f"acruxcore: network error streaming from provider — {err}", NETWORK_ERROR
                 )
 
+        state["start_time"] = start_time
+        state["content"] = accumulated_content
+        state["model"] = final_model
+        state["finish_reason"] = final_finish_reason
+        state["usage"] = usage
+        state["tool_calls"] = [
+            {"id": p["id"], "type": "function", "function": {"name": p["name"], "arguments": p["arguments"]}}
+            for _, p in sorted(tool_call_parts.items())
+        ]
+
+    async def _stream_via_provider(
+        self,
+        model: str,
+        messages: List[Message],
+        body: Dict[str, Any],
+        provider_config: ProviderConfig,
+        prompt_version_id: Optional[str],
+        trace_opt: Union[bool, Dict[str, Any]],
+    ) -> Any:
+        """Stream a BYO provider's ``/chat/completions`` directly, then file the span.
+
+        The gateway is bypassed, so nothing server-side records this call — the client
+        writes the one ``llm`` span itself, once the stream has ended and the turn is
+        fully assembled.
+        """
+        state: Dict[str, Any] = {}
+        async for chunk in self._stream_round_via_provider(model, body, provider_config, state):
+            yield chunk
+
         if trace_opt is not False:
             trace_conf: Dict[str, Any] = trace_opt if isinstance(trace_opt, dict) else {}
-            assembled_tool_calls: List[ToolCall] = [
-                {"id": p["id"], "type": "function", "function": {"name": p["name"], "arguments": p["arguments"]}}
-                for _, p in sorted(tool_call_parts.items())
-            ]
-            output: Dict[str, Any] = {"role": "assistant", "content": accumulated_content}
-            if assembled_tool_calls:
-                output["tool_calls"] = assembled_tool_calls
-            span: IngestSpan = {
-                "spanId": str(uuid.uuid4()),
-                "name": final_model,
-                "kind": "llm",
-                "status": "ok",
-                "startTime": start_time,
-                "endTime": _now_iso(),
-                "model": final_model,
-                "provider": infer_provider_name(provider_config["base_url"]),
-                "input": {"messages": messages},
-                "output": output,
-            }
-            if usage is not None:
-                span["usage"] = usage
-            if final_finish_reason:
-                span["attributes"] = {"finishReason": final_finish_reason}
-            if prompt_version_id:
-                span["promptVersionId"] = prompt_version_id
+            span = self._byo_llm_span(
+                state, messages, provider_config, prompt_version_id, span_id=str(uuid.uuid4())
+            )
             trace_payload: TraceInput = {"name": "chat", "spans": [span]}
             if trace_conf.get("trace_id"):
                 trace_payload["traceId"] = trace_conf["trace_id"]
@@ -723,12 +871,58 @@ class GatewayNamespace:
                 trace_payload["sessionId"] = trace_conf["session_id"]
             self._host._span_queue.enqueue(trace_payload)
 
+    def _byo_llm_span(
+        self,
+        state: Dict[str, Any],
+        messages: List[Message],
+        provider_config: ProviderConfig,
+        prompt_version_id: Optional[str],
+        *,
+        span_id: str,
+    ) -> IngestSpan:
+        """Build the ``llm`` span for one streamed BYO-provider turn.
+
+        Shared by the public BYO stream and the streaming tool loop so a streamed turn
+        records the same span either way — the failure mode this avoids is streaming
+        silently costing observability.
+
+        :param state: A completed :meth:`_stream_round_via_provider` state dict.
+        :param messages: The conversation sent for this turn (the span's input).
+        :param provider_config: Used only to name the provider.
+        :param prompt_version_id: Prompt lineage to stamp, when the caller has it.
+        :param span_id: Id for the span.
+        """
+        output: Dict[str, Any] = {"role": "assistant", "content": state.get("content") or ""}
+        tool_calls: List[ToolCall] = state.get("tool_calls") or []
+        if tool_calls:
+            output["tool_calls"] = tool_calls
+        span: IngestSpan = {
+            "spanId": span_id,
+            "name": state["model"],
+            "kind": "llm",
+            "status": "ok",
+            "startTime": state["start_time"],
+            "endTime": _now_iso(),
+            "model": state["model"],
+            "provider": infer_provider_name(provider_config["base_url"]),
+            "input": {"messages": messages},
+            "output": output,
+        }
+        if state.get("usage") is not None:
+            span["usage"] = state["usage"]
+        if state.get("finish_reason"):
+            span["attributes"] = {"finishReason": state["finish_reason"]}
+        if prompt_version_id:
+            span["promptVersionId"] = prompt_version_id
+        return span
+
     # ── run_tool_loop ──────────────────────────────────────────────────────
 
     async def _prepare_tool_routes(
         self,
         tools: Optional[Sequence[Callable[..., Any]]],
         tool_refs: Optional[List[ToolRef]],
+        client_tools: Optional[ClientToolsMap],
         dispatch: Optional[DispatchFn],
         sync: bool,
     ) -> Tuple[Dict[str, _ToolRoute], List[ToolRef], List[ToolDefinition]]:
@@ -774,30 +968,108 @@ class GatewayNamespace:
                 version_id = f"{item.tool_id}:{item.version_number}"
                 if name in routes:
                     continue
+                supplied = (client_tools or {}).get(name)
                 if item.executor_type == "http":
+                    # An entry in client_tools for an http tool is ignored, not flagged: the
+                    # platform runs the tool, and one map is expected to serve aliases whose
+                    # executor differs — production http, staging client — so warning here
+                    # would fire on every correct run of a two-alias script.
                     routes[name] = _ToolRoute(
                         kind="http",
                         tool_id=item.tool_id,
                         alias=ref.get("alias"),
+                        version_number=ref.get("version"),
+                        tool_version_id=version_id,
+                    )
+                elif supplied is not None:
+                    arity_error = _client_tool_arity_error(name, supplied, item.function)
+                    if arity_error is not None:
+                        raise AcruxCoreError(arity_error, VALIDATION_ERROR)
+                    # A local route, but the definition and the version stamp stay the
+                    # catalog's — unlike tools=[fn], which would commit a new version from
+                    # the local schema and drop the binding's pin.
+                    routes[name] = _ToolRoute(
+                        kind="local",
+                        fn=supplied,
+                        alias=ref.get("alias"),
+                        version_number=ref.get("version"),
                         tool_version_id=version_id,
                     )
                 elif dispatch is not None:
                     routes[name] = _ToolRoute(
-                        kind="dispatch", alias=ref.get("alias"), tool_version_id=version_id
+                        kind="dispatch",
+                        alias=ref.get("alias"),
+                        version_number=ref.get("version"),
+                        tool_version_id=version_id,
                     )
                 else:
+                    # Naming the keys that *were* supplied is what turns a typo'd key from a
+                    # puzzle into a one-second fix.
+                    held = (
+                        f" client_tools held: {sorted(client_tools)}."
+                        if client_tools is not None
+                        else ""
+                    )
                     raise AcruxCoreError(
                         f"acruxcore: tool '{name}' has a client executor, so something has to run "
-                        "it, but no implementation was supplied. Pass the decorated function in "
-                        "tools=[...], or pass dispatch=.",
+                        f"it, but no implementation was supplied. Pass it in "
+                        f"client_tools={{'{name}': ...}}, or pass dispatch=.{held}",
                         MISSING_DISPATCH,
                     )
                 refs.append(
-                    {"name": name, **({"alias": ref["alias"]} if ref.get("alias") else {})}
+                    {
+                        "name": name,
+                        **({"alias": ref["alias"]} if ref.get("alias") else {}),
+                        **({"version": ref["version"]} if ref.get("version") is not None else {}),
+                    }
                 )
                 inlined_schemas.append({"type": "function", "function": item.function})
 
         return routes, refs, inlined_schemas
+
+    @overload
+    async def run_tool_loop(
+        self,
+        model: str,
+        messages: List[Message],
+        *,
+        stream: Literal[False] = False,
+        tools: Optional[Sequence[Callable[..., Any]]] = ...,
+        tool_defs: Optional[List[ToolDefinition]] = ...,
+        tool_refs: Optional[List[ToolRef]] = ...,
+        client_tools: Optional[ClientToolsMap] = ...,
+        dispatch: Optional[DispatchFn] = ...,
+        sync: bool = ...,
+        max_iterations: int = ...,
+        temperature: Optional[float] = ...,
+        max_tokens: Optional[int] = ...,
+        response_format: Optional[ResponseFormat] = ...,
+        trace: Union[bool, Dict[str, Any]] = ...,
+        provider: Optional[ProviderConfig] = ...,
+        prompt_version_id: Optional[str] = ...,
+    ) -> RunToolLoopResult: ...
+
+    @overload
+    async def run_tool_loop(
+        self,
+        model: str,
+        messages: List[Message],
+        *,
+        stream: Literal[True],
+        tools: Optional[Sequence[Callable[..., Any]]] = ...,
+        tool_defs: Optional[List[ToolDefinition]] = ...,
+        tool_refs: Optional[List[ToolRef]] = ...,
+        client_tools: Optional[ClientToolsMap] = ...,
+        dispatch: Optional[DispatchFn] = ...,
+        sync: bool = ...,
+        max_iterations: int = ...,
+        temperature: Optional[float] = ...,
+        max_tokens: Optional[int] = ...,
+        response_format: Optional[ResponseFormat] = ...,
+        trace: Union[bool, Dict[str, Any]] = ...,
+        provider: Optional[ProviderConfig] = ...,
+        prompt_version_id: Optional[str] = ...,
+    ) -> "AsyncToolLoopStream": ...
 
     async def run_tool_loop(
         self,
@@ -807,6 +1079,7 @@ class GatewayNamespace:
         tools: Optional[Sequence[Callable[..., Any]]] = None,
         tool_defs: Optional[List[ToolDefinition]] = None,
         tool_refs: Optional[List[ToolRef]] = None,
+        client_tools: Optional[ClientToolsMap] = None,
         dispatch: Optional[DispatchFn] = None,
         sync: bool = True,
         max_iterations: int = 10,
@@ -816,16 +1089,50 @@ class GatewayNamespace:
         trace: Union[bool, Dict[str, Any]] = True,
         provider: Optional[ProviderConfig] = None,
         prompt_version_id: Optional[str] = None,
-    ) -> RunToolLoopResult:
+        stream: bool = False,
+    ) -> Union[RunToolLoopResult, "AsyncToolLoopStream"]:
         """Run the full tool-calling loop, then — when ``response_format`` is also
         given — shape the gathered facts into one typed answer.
+
+        :param client_tools: ``{tool_name: function}`` for catalog tools whose executor is
+            ``client``, so the loop can run them without a hand-written dispatcher. Only
+            ``client`` tools belong here — an ``http`` tool runs on the platform, and
+            naming one warns that the function will never be called. Unlike ``tools=``,
+            nothing is written to the catalog: the definition, the binding's alias or pin,
+            and the version stamp on the tool span all stay the catalog's. Each function is
+            called with the schema's own parameter names as keywords, so
+            ``search_flights(origin=..., destination=...)`` — not one ``args`` dict.
+        :param stream: ``True`` returns an :class:`AsyncToolLoopStream` of typed events
+            instead of the finished result, so a UI can show model text as it arrives and
+            render "running get_weather…" as its own state::
+
+                async for event in await hub.gateway.run_tool_loop(model, msgs, tools=[fn], stream=True):
+                    if event.type == "content":     print(event.delta, end="")
+                    elif event.type == "tool_call": print(f"[{event.name}]")
+
+            The last event of a successful stream is ``done``, carrying the same
+            :class:`~acruxcore.types.RunToolLoopResult` this method returns unstreamed.
+            The trace is identical either way — the gateway files one ``llm`` span per
+            round, streamed or not, and the SDK's tool spans hang off it.
         """
+        if stream:
+            return AsyncToolLoopStream(
+                self._run_tool_loop_stream(
+                    model, messages, tools=tools, tool_defs=tool_defs, tool_refs=tool_refs,
+                    client_tools=client_tools, dispatch=dispatch, sync=sync,
+                    max_iterations=max_iterations,
+                    temperature=temperature, max_tokens=max_tokens,
+                    response_format=response_format, trace=trace, provider=provider,
+                    prompt_version_id=prompt_version_id,
+                )
+            )
+
         has_tools = bool(tools or tool_defs or tool_refs)
         shaping = response_format is not None and has_tools
 
         gathered = await self._run_tool_loop_gather(
             model, messages, tools=tools, tool_defs=tool_defs, tool_refs=tool_refs,
-            dispatch=dispatch, sync=sync, max_iterations=max_iterations,
+            client_tools=client_tools, dispatch=dispatch, sync=sync, max_iterations=max_iterations,
             temperature=temperature, max_tokens=max_tokens,
             response_format=None if shaping else response_format,
             trace=trace, provider=provider, prompt_version_id=prompt_version_id,
@@ -863,6 +1170,155 @@ class GatewayNamespace:
             trace_id=gathered.trace_id or shaped.trace_id,
         )
 
+    @overload
+    async def run_prompt_with_tools(
+        self,
+        rendered: RenderResult,
+        *,
+        stream: Literal[False] = False,
+        model: Optional[str] = ...,
+        messages: Optional[List[Message]] = ...,
+        tools: Optional[Sequence[Callable[..., Any]]] = ...,
+        tool_defs: Optional[List[ToolDefinition]] = ...,
+        tool_refs: Optional[List[ToolRef]] = ...,
+        client_tools: Optional[ClientToolsMap] = ...,
+        dispatch: Optional[DispatchFn] = ...,
+        sync: bool = ...,
+        max_iterations: int = ...,
+        temperature: Optional[float] = ...,
+        max_tokens: Optional[int] = ...,
+        response_format: Optional[ResponseFormat] = ...,
+        trace: Union[bool, Dict[str, Any]] = ...,
+        provider: Optional[ProviderConfig] = ...,
+        prompt_version_id: Optional[str] = ...,
+    ) -> RunToolLoopResult: ...
+
+    @overload
+    async def run_prompt_with_tools(
+        self,
+        rendered: RenderResult,
+        *,
+        stream: Literal[True],
+        model: Optional[str] = ...,
+        messages: Optional[List[Message]] = ...,
+        tools: Optional[Sequence[Callable[..., Any]]] = ...,
+        tool_defs: Optional[List[ToolDefinition]] = ...,
+        tool_refs: Optional[List[ToolRef]] = ...,
+        client_tools: Optional[ClientToolsMap] = ...,
+        dispatch: Optional[DispatchFn] = ...,
+        sync: bool = ...,
+        max_iterations: int = ...,
+        temperature: Optional[float] = ...,
+        max_tokens: Optional[int] = ...,
+        response_format: Optional[ResponseFormat] = ...,
+        trace: Union[bool, Dict[str, Any]] = ...,
+        provider: Optional[ProviderConfig] = ...,
+        prompt_version_id: Optional[str] = ...,
+    ) -> "AsyncToolLoopStream": ...
+
+    async def run_prompt_with_tools(
+        self,
+        rendered: RenderResult,
+        *,
+        model: Optional[str] = None,
+        messages: Optional[List[Message]] = None,
+        tools: Optional[Sequence[Callable[..., Any]]] = None,
+        tool_defs: Optional[List[ToolDefinition]] = None,
+        tool_refs: Optional[List[ToolRef]] = None,
+        client_tools: Optional[ClientToolsMap] = None,
+        dispatch: Optional[DispatchFn] = None,
+        sync: bool = True,
+        max_iterations: int = 10,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        response_format: Optional[ResponseFormat] = None,
+        trace: Union[bool, Dict[str, Any]] = True,
+        provider: Optional[ProviderConfig] = None,
+        prompt_version_id: Optional[str] = None,
+        stream: bool = False,
+    ) -> Union[RunToolLoopResult, "AsyncToolLoopStream"]:
+        """Run a rendered prompt's own tools in the loop — the two-line way::
+
+            r = await hub.prompts.render("weather-brief", "staging", {"city": "Lisbon"})
+            result = await hub.gateway.run_prompt_with_tools(r)
+
+        Everything the loop needs is already in the render result, so nothing is restated
+        at the call site: the model comes from the prompt version's bound model, the
+        messages from the render, the tools from the prompt's bindings, and
+        ``prompt_version_id`` from the resolved version — that last one is the easy one to
+        forget by hand, and forgetting it costs trace lineage silently, since the call
+        still works.
+
+        A binding pinned to an exact tool version travels as a pin, not as its alias, so a
+        pinned prompt keeps running the build it was pinned to.
+
+        Every keyword is optional and wins over the derived value when passed, so
+        ``run_prompt_with_tools(r, model="gpt-4o-mini")`` overrides the bound model. The
+        rest pass straight through to :meth:`run_tool_loop`.
+
+        **A prompt with no tools bound still runs**, as a plain completion — the name reads
+        slightly wrong there, but erroring would fail an unconfigured prompt for no reason.
+
+        :param rendered: A :class:`~acruxcore.types.RenderResult` from
+            :meth:`AcruxCore.render_prompt`.
+        :param model: Overrides the version's bound model.
+        :param messages: Overrides the rendered messages.
+        :param tool_refs: Overrides the prompt's bindings entirely — pass ``[]`` to run the
+            prompt with no tools at all.
+        :param client_tools: ``{tool_name: function}`` for the prompt's ``client``-executor
+            tools — the way to run them without writing a dispatcher::
+
+                run_prompt_with_tools(r, client_tools={"search_flights": search_flights})
+
+            Only ``client`` tools appear here; the prompt's ``http`` tools run on the
+            platform and need nothing from you. See :meth:`run_tool_loop` for the full
+            contract.
+        :param stream: ``True`` returns an :class:`AsyncToolLoopStream` of typed events,
+            exactly as on :meth:`run_tool_loop`.
+        :returns: The loop's result, or an event stream when ``stream=True``.
+        :raises AcruxCoreError: ``VALIDATION_ERROR`` when the prompt version has no bound
+            model and no ``model=`` was passed, or when a ``client_tools`` function cannot
+            receive its tool's required arguments; ``MISSING_DISPATCH`` when a bound tool
+            has a ``client`` executor and neither ``client_tools`` nor ``dispatch`` can run
+            it. Both are raised before the first model call.
+        """
+        effective_model = model or rendered.model
+        if not effective_model:
+            raise AcruxCoreError(
+                "acruxcore: this prompt version has no bound model, so there is nothing to "
+                "run it on. Either bind a default model on the prompt version, or pass "
+                "model= to run_prompt_with_tools().",
+                VALIDATION_ERROR,
+            )
+
+        derived_refs: List[ToolRef] = [
+            (
+                {"name": r.name, "version": r.pinned_version_number}
+                if r.pinned_version_number is not None
+                else ({"name": r.name, "alias": r.alias} if r.alias else {"name": r.name})
+            )
+            for r in rendered.tool_resolutions
+        ]
+
+        return await self.run_tool_loop(  # type: ignore[call-overload,no-any-return]
+            effective_model,
+            messages if messages is not None else rendered.messages,
+            tools=tools,
+            tool_defs=tool_defs,
+            tool_refs=tool_refs if tool_refs is not None else derived_refs,
+            client_tools=client_tools,
+            dispatch=dispatch,
+            sync=sync,
+            max_iterations=max_iterations,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
+            trace=trace,
+            provider=provider,
+            prompt_version_id=prompt_version_id or rendered.version_id,
+            stream=stream,
+        )
+
     async def _run_tool_loop_gather(
         self,
         model: str,
@@ -871,6 +1327,7 @@ class GatewayNamespace:
         tools: Optional[Sequence[Callable[..., Any]]] = None,
         tool_defs: Optional[List[ToolDefinition]] = None,
         tool_refs: Optional[List[ToolRef]] = None,
+        client_tools: Optional[ClientToolsMap] = None,
         dispatch: Optional[DispatchFn] = None,
         sync: bool = True,
         max_iterations: int = 10,
@@ -882,7 +1339,7 @@ class GatewayNamespace:
         prompt_version_id: Optional[str] = None,
     ) -> RunToolLoopResult:
         routes, effective_refs, inlined_schemas = await self._prepare_tool_routes(
-            tools, tool_refs, dispatch, sync
+            tools, tool_refs, client_tools, dispatch, sync
         )
 
         provider_config = provider or self._host._provider_default
@@ -929,6 +1386,7 @@ class GatewayNamespace:
                     model, convo, tools=tool_defs, tool_refs=effective_refs or None,
                     response_format=response_format,
                     temperature=temperature, max_tokens=max_tokens, extra_headers=extra_headers,
+                    prompt_version_id=prompt_version_id,
                 )
 
             if trace_enabled and not trace_id:
@@ -991,94 +1449,21 @@ class GatewayNamespace:
                     trace_id=trace_id,
                 )
 
-            async def _run_call(call: Dict[str, Any], call_index: int) -> Message:
-                name = call["function"]["name"]
-                args: Dict[str, Any] = {}
-                try:
-                    parsed = json.loads(call["function"].get("arguments") or "{}")
-                    if isinstance(parsed, dict):
-                        args = parsed
-                except (ValueError, TypeError):
-                    pass
-
-                route = routes.get(name)
-
-                if route is not None and route.kind == "http":
-                    executed = await self._host.tools.execute(
-                        route.tool_id or "",
-                        args,
-                        alias=route.alias,
-                        trace_id=trace_id if trace_enabled else None,
-                        parent_span_id=llm_span_ref,
-                    )
-                    ret = executed.result
-                    content = ret if isinstance(ret, str) else json.dumps(ret)
-                    return {"role": "tool", "tool_call_id": call["id"], "content": content}
-
-                if route is not None and route.kind == "local" and route.fn is not None:
-                    local_fn = route.fn
-
-                    def runner() -> Any:
-                        return local_fn(**args)
-
-                elif dispatch is not None:
-                    caller_dispatch = dispatch
-
-                    def runner() -> Any:
-                        return caller_dispatch(name, args)
-
-                else:
-                    raise AcruxCoreError(
-                        f"acruxcore: the model called '{name}', which has no implementation. Pass "
-                        "the decorated function in tools=[...], or pass dispatch=.",
-                        MISSING_DISPATCH,
-                    )
-
-                tool_span_id = f"tool-{i}-{call_index}"
-                tool_start = _now_iso()
-                attributes: Dict[str, Any] = {"arguments": args, "executorType": "client"}
-                if route is not None and route.tool_version_id:
-                    attributes["toolVersionId"] = route.tool_version_id
-                try:
-                    ret = runner()
-                    if inspect.isawaitable(ret):
-                        ret = await ret
-                except Exception as err:
-                    tool_spans.append(
-                        {
-                            "spanId": tool_span_id,
-                            "parentSpanId": llm_span_ref,
-                            "name": name,
-                            "kind": "tool",
-                            "status": "error",
-                            "startTime": tool_start,
-                            "endTime": _now_iso(),
-                            "input": args,
-                            "attributes": attributes,
-                            "error": str(err),
-                        }
-                    )
-                    raise
-
-                tool_spans.append(
-                    {
-                        "spanId": tool_span_id,
-                        "parentSpanId": llm_span_ref,
-                        "name": name,
-                        "kind": "tool",
-                        "status": "ok",
-                        "startTime": tool_start,
-                        "endTime": _now_iso(),
-                        "input": args,
-                        "output": ret,
-                        "attributes": attributes,
-                    }
-                )
-                content = ret if isinstance(ret, str) else json.dumps(ret)
-                return {"role": "tool", "tool_call_id": call["id"], "content": content}
-
             settled = await asyncio.gather(
-                *[_run_call(call, idx) for idx, call in enumerate(calls)],
+                *[
+                    self._dispatch_tool_call(
+                        call,
+                        call_index=idx,
+                        round_index=i,
+                        routes=routes,
+                        dispatch=dispatch,
+                        trace_enabled=trace_enabled,
+                        trace_id=trace_id,
+                        llm_span_ref=llm_span_ref,
+                        tool_spans=tool_spans,
+                    )
+                    for idx, call in enumerate(calls)
+                ],
                 return_exceptions=True,
             )
 
@@ -1099,6 +1484,477 @@ class GatewayNamespace:
             content="", messages=convo, iterations=max_iterations,
             stopped_at_limit=True, trace_id=trace_id,
         )
+
+    async def _run_tool_loop_stream(
+        self,
+        model: str,
+        messages: List[Message],
+        *,
+        tools: Optional[Sequence[Callable[..., Any]]],
+        tool_defs: Optional[List[ToolDefinition]],
+        tool_refs: Optional[List[ToolRef]],
+        client_tools: Optional[ClientToolsMap],
+        dispatch: Optional[DispatchFn],
+        sync: bool,
+        max_iterations: int,
+        temperature: Optional[float],
+        max_tokens: Optional[int],
+        response_format: Optional[ResponseFormat],
+        trace: Union[bool, Dict[str, Any]],
+        provider: Optional[ProviderConfig],
+        prompt_version_id: Optional[str],
+    ) -> AsyncGenerator[ToolLoopEvent, None]:
+        """The streaming twin of :meth:`_run_tool_loop_gather`, as an event stream.
+
+        Same rounds, same routing, same spans — the only difference is that each round's
+        completion is streamed, so model text can be forwarded while the round is still
+        running. Tool calls are dispatched through :meth:`_dispatch_tool_call`, the one
+        place either loop runs a tool.
+        """
+        routes, effective_refs, inlined_schemas = await self._prepare_tool_routes(
+            tools, tool_refs, client_tools, dispatch, sync
+        )
+
+        provider_config = provider or self._host._provider_default
+        byo_tool_schemas: Optional[List[ToolDefinition]] = (
+            [*(tool_defs or []), *inlined_schemas]
+            if provider_config is not None and (tool_defs or inlined_schemas)
+            else None
+        )
+
+        # With tools AND a response_format, the gathered answer is re-asked for as JSON in
+        # a final round (the gateway rejects both on one request). Only that round's text
+        # is the answer, so the gather rounds' prose is not forwarded — a caller who asked
+        # for JSON should not be handed the prose draft first.
+        has_tools = bool(routes or tool_defs)
+        shaping = response_format is not None and has_tools
+        gather_response_format = None if shaping else response_format
+
+        trace_enabled = trace is not False
+        trace_conf: Dict[str, Any] = trace if isinstance(trace, dict) else {}
+        trace_name = trace_conf.get("name") or "runToolLoop"
+        session_id = trace_conf.get("session_id")
+
+        convo: List[Message] = list(messages)
+        tool_spans: List[IngestSpan] = []
+        state: Dict[str, Any] = {"trace_id": trace_conf.get("trace_id")}
+        gathered: Optional[RunToolLoopResult] = None
+
+        for i in range(max_iterations):
+            round_out: Dict[str, Any] = {}
+            async for event in self._stream_one_round(
+                model=model,
+                convo=convo,
+                round_index=i,
+                emit_content=not shaping,
+                tool_defs=tool_defs,
+                effective_refs=effective_refs,
+                byo_tool_schemas=byo_tool_schemas,
+                response_format=gather_response_format,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                provider_config=provider_config,
+                prompt_version_id=prompt_version_id,
+                trace_enabled=trace_enabled,
+                trace_conf=trace_conf,
+                trace_name=trace_name,
+                session_id=session_id,
+                state=state,
+                out=round_out,
+            ):
+                yield event
+
+            message: Message = round_out["message"]
+            calls: List[Dict[str, Any]] = list(message.get("tool_calls") or [])
+            trace_id: Optional[str] = state["trace_id"]
+
+            if round_out["finish_reason"] != "tool_calls" or not calls:
+                gathered = RunToolLoopResult(
+                    content=message.get("content") or "",
+                    messages=[*convo, message],
+                    iterations=i + 1,
+                    stopped_at_limit=False,
+                    trace_id=trace_id,
+                )
+                break
+
+            for call in calls:
+                yield ToolLoopToolCallEvent(
+                    id=call["id"],
+                    name=call["function"]["name"],
+                    arguments=_parse_tool_arguments(call),
+                    round=i,
+                )
+
+            # One queue entry per call, whichever way it ended, so a tool that raises
+            # before it ever runs (nothing to dispatch it) cannot leave this waiting.
+            done_queue: "asyncio.Queue[str]" = asyncio.Queue()
+            outcomes: Dict[str, Tuple[Any, Optional[str]]] = {}
+
+            def note(call_id: str, _name: str, result: Any, error: Optional[str]) -> None:
+                outcomes[call_id] = (result, error)
+
+            async def run_one(call: Dict[str, Any], index: int) -> Message:
+                try:
+                    return await self._dispatch_tool_call(
+                        call,
+                        call_index=index,
+                        round_index=i,
+                        routes=routes,
+                        dispatch=dispatch,
+                        trace_enabled=trace_enabled,
+                        trace_id=trace_id,
+                        llm_span_ref=round_out["span_ref"],
+                        tool_spans=tool_spans,
+                        on_settled=note,
+                    )
+                except BaseException as err:
+                    outcomes.setdefault(call["id"], (None, str(err)))
+                    raise
+                finally:
+                    done_queue.put_nowait(call["id"])
+
+            tasks = [asyncio.ensure_future(run_one(c, idx)) for idx, c in enumerate(calls)]
+            names = {c["id"]: c["function"]["name"] for c in calls}
+            for _ in range(len(tasks)):
+                call_id = await done_queue.get()
+                result, error = outcomes.get(call_id, (None, None))
+                yield ToolLoopToolResultEvent(
+                    id=call_id, name=names.get(call_id, ""), round=i, result=result, error=error
+                )
+
+            settled = await asyncio.gather(*tasks, return_exceptions=True)
+            failure = next((s for s in settled if isinstance(s, BaseException)), None)
+            if failure is not None:
+                self._report_tool_spans(trace_enabled, trace_id, trace_name, session_id, tool_spans)
+                raise failure
+
+            convo = [*convo, message, *[s for s in settled]]  # type: ignore[list-item]
+        else:
+            gathered = RunToolLoopResult(
+                content="",
+                messages=convo,
+                iterations=max_iterations,
+                stopped_at_limit=True,
+                trace_id=state["trace_id"],
+            )
+
+        self._report_tool_spans(
+            trace_enabled, state["trace_id"], trace_name, session_id, tool_spans
+        )
+        assert gathered is not None  # every path above assigns it
+
+        if not shaping:
+            yield ToolLoopDoneEvent(result=gathered)
+            return
+
+        # ── shaping round: same nudge as the blocking loop, streamed ────────────
+        shape_nudge = (
+            "Produce your final response now, as the JSON object defined by the response schema."
+        )
+        shape_convo = list(gathered.messages)
+        if (
+            shape_convo
+            and shape_convo[-1].get("role") == "assistant"
+            and not shape_convo[-1].get("tool_calls")
+        ):
+            shape_convo = shape_convo[:-1]
+        shape_convo.append({"role": "user", "content": shape_nudge})
+
+        shape_out: Dict[str, Any] = {}
+        async for event in self._stream_one_round(
+            model=model,
+            convo=shape_convo,
+            round_index=gathered.iterations,
+            emit_content=True,
+            tool_defs=None,
+            effective_refs=[],
+            byo_tool_schemas=None,
+            response_format=response_format,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            provider_config=provider_config,
+            prompt_version_id=prompt_version_id,
+            trace_enabled=trace_enabled,
+            trace_conf=trace_conf,
+            trace_name=trace_name,
+            session_id=session_id,
+            state=state,
+            out=shape_out,
+        ):
+            yield event
+
+        shaped: Message = shape_out["message"]
+        yield ToolLoopDoneEvent(
+            result=RunToolLoopResult(
+                content=shaped.get("content") or "",
+                messages=[*gathered.messages, {"role": "user", "content": shape_nudge}, shaped],
+                iterations=gathered.iterations,
+                stopped_at_limit=gathered.stopped_at_limit,
+                trace_id=state["trace_id"],
+            )
+        )
+
+    async def _stream_one_round(
+        self,
+        *,
+        model: str,
+        convo: List[Message],
+        round_index: int,
+        emit_content: bool,
+        tool_defs: Optional[List[ToolDefinition]],
+        effective_refs: List[ToolRef],
+        byo_tool_schemas: Optional[List[ToolDefinition]],
+        response_format: Optional[ResponseFormat],
+        temperature: Optional[float],
+        max_tokens: Optional[int],
+        provider_config: Optional[ProviderConfig],
+        prompt_version_id: Optional[str],
+        trace_enabled: bool,
+        trace_conf: Dict[str, Any],
+        trace_name: str,
+        session_id: Optional[str],
+        state: Dict[str, Any],
+        out: Dict[str, Any],
+    ) -> AsyncGenerator[ToolLoopEvent, None]:
+        """Stream one round of a tool loop, yielding its ``content`` events.
+
+        Fills ``out`` with ``message`` (the assembled assistant turn), ``finish_reason``
+        and ``span_ref`` (the round's ``llm`` span, which its tool spans parent onto), and
+        seeds ``state["trace_id"]`` on the first round so every later round joins the same
+        trace.
+
+        :param emit_content: ``False`` accumulates the round's text without forwarding it,
+            for the gather rounds of a ``response_format`` run.
+        """
+        body = self._build_chat_body(
+            model,
+            convo,
+            byo_tool_schemas if provider_config is not None else tool_defs,
+            None if provider_config is not None else (effective_refs or None),
+            None,
+            response_format,
+            temperature,
+            max_tokens,
+            True,
+            prompt_version_id=None if provider_config is not None else prompt_version_id,
+        )
+
+        content_parts: List[str] = []
+        tool_call_parts: Dict[int, Dict[str, str]] = {}
+        finish_reason: Optional[str] = None
+
+        def take(chunk: ChatChunk) -> Optional[str]:
+            """Fold one chunk into the round's accumulators; return new text, if any."""
+            nonlocal finish_reason
+            if chunk.finish_reason:
+                finish_reason = chunk.finish_reason
+            delta = chunk.delta or {}
+            for tc in delta.get("tool_calls") or []:
+                part = tool_call_parts.setdefault(
+                    tc.get("index", 0), {"id": "", "name": "", "arguments": ""}
+                )
+                if tc.get("id"):
+                    part["id"] = tc["id"]
+                fn = tc.get("function") or {}
+                if fn.get("name"):
+                    part["name"] = fn["name"]
+                if fn.get("arguments"):
+                    part["arguments"] += fn["arguments"]
+            text = delta.get("content")
+            if text:
+                content_parts.append(text)
+            return text
+
+        if provider_config is not None:
+            provider_state: Dict[str, Any] = {}
+            async for chunk in self._stream_round_via_provider(
+                model, body, provider_config, provider_state
+            ):
+                text = take(chunk)
+                if text and emit_content:
+                    yield ToolLoopContentEvent(delta=text, round=round_index)
+
+            # No gateway on this path, so nothing server-side recorded the round — the
+            # client writes its `llm` span itself, exactly as the blocking BYO loop does.
+            if state.get("trace_id") is None:
+                state["trace_id"] = str(uuid.uuid4())
+            span_ref = str(uuid.uuid4())
+            if trace_enabled:
+                span = self._byo_llm_span(
+                    provider_state, convo, provider_config, prompt_version_id, span_id=span_ref
+                )
+                payload: TraceInput = {"name": trace_name, "spans": [span]}
+                payload["traceId"] = state["trace_id"]
+                if session_id:
+                    payload["sessionId"] = session_id
+                self._host._span_queue.enqueue(payload)
+        else:
+            extra_headers: Optional[Dict[str, str]] = None
+            if trace_enabled:
+                extra_headers = {"x-trace-name": quote(trace_name, safe="")}
+                if state.get("trace_id"):
+                    extra_headers["x-trace-id"] = state["trace_id"]
+                if session_id:
+                    extra_headers["x-session-id"] = session_id
+                tags = trace_conf.get("tags")
+                if tags:
+                    extra_headers["x-trace-tags"] = ", ".join(tags)
+                metadata = trace_conf.get("metadata")
+                if metadata:
+                    extra_headers["x-trace-metadata"] = json.dumps(metadata)
+
+            meta: Dict[str, GatewayCallMeta] = {}
+            async for chunk in self._stream_chat(body, extra_headers, meta):
+                text = take(chunk)
+                if text and emit_content:
+                    yield ToolLoopContentEvent(delta=text, round=round_index)
+
+            gateway_meta = meta.get("gateway")
+            span_ref = gateway_meta.span_ref if gateway_meta else None
+            if trace_enabled and state.get("trace_id") is None and gateway_meta:
+                state["trace_id"] = gateway_meta.trace_id
+
+        assembled: List[ToolCall] = [
+            {
+                "id": p["id"],
+                "type": "function",
+                "function": {"name": p["name"], "arguments": p["arguments"]},
+            }
+            for _, p in sorted(tool_call_parts.items())
+        ]
+        message: Message = {"role": "assistant", "content": "".join(content_parts)}
+        if assembled:
+            message["tool_calls"] = assembled
+        out["message"] = message
+        out["finish_reason"] = finish_reason
+        out["span_ref"] = span_ref
+
+    async def _dispatch_tool_call(
+        self,
+        call: Dict[str, Any],
+        *,
+        call_index: int,
+        round_index: int,
+        routes: Dict[str, _ToolRoute],
+        dispatch: Optional[DispatchFn],
+        trace_enabled: bool,
+        trace_id: Optional[str],
+        llm_span_ref: Optional[str],
+        tool_spans: List[IngestSpan],
+        on_settled: Optional[Callable[[str, str, Any, Optional[str]], None]] = None,
+    ) -> Message:
+        """Run one tool call the model asked for and return its ``role: "tool"`` message.
+
+        The single place any tool call is executed, shared by the blocking loop and the
+        streaming one — routing (``http`` executor on the platform, decorated function
+        in-process, or the caller's ``dispatch``), the ``tool`` span, and the error span
+        all live here so the two loops cannot drift apart in what they run or record.
+
+        A ``http`` route is executed by the platform, which writes that span itself, so
+        this appends nothing to ``tool_spans`` for it — recording one here would show the
+        same execution twice in the trace.
+
+        :param call: One entry of the assistant message's ``tool_calls``.
+        :param call_index: Position within the round, used to build a unique span id.
+        :param round_index: 0-based loop round, likewise part of the span id.
+        :param routes: Name → route table from :meth:`_prepare_tool_routes`.
+        :param dispatch: The caller's fallback dispatcher, or ``None``.
+        :param trace_enabled: ``False`` suppresses trace correlation on a platform execute.
+        :param trace_id: Trace the loop is reporting under, for a platform execute.
+        :param llm_span_ref: The round's ``llm`` span, which tool spans parent onto.
+        :param tool_spans: Accumulator the caller reports once the loop ends.
+        :param on_settled: Called as ``(id, name, result, error)`` the moment the tool
+            finishes, before this coroutine returns — how the streaming loop emits a
+            ``tool_result`` event per tool instead of one batch after all of them.
+        :returns: The tool message to append to the conversation.
+        :raises AcruxCoreError: ``MISSING_DISPATCH`` when nothing can run the tool.
+        """
+        name = call["function"]["name"]
+        args = _parse_tool_arguments(call)
+        route = routes.get(name)
+
+        if route is not None and route.kind == "http":
+            executed = await self._host.tools.execute(
+                route.tool_id or "",
+                args,
+                alias=route.alias,
+                version_number=route.version_number,
+                trace_id=trace_id if trace_enabled else None,
+                parent_span_id=llm_span_ref,
+            )
+            ret = executed.result
+            if on_settled is not None:
+                on_settled(call["id"], name, ret, None)
+            content = ret if isinstance(ret, str) else json.dumps(ret)
+            return {"role": "tool", "tool_call_id": call["id"], "content": content}
+
+        if route is not None and route.kind == "local" and route.fn is not None:
+            local_fn = route.fn
+
+            def runner() -> Any:
+                return local_fn(**args)
+
+        elif dispatch is not None:
+            caller_dispatch = dispatch
+
+            def runner() -> Any:
+                return caller_dispatch(name, args)
+
+        else:
+            raise AcruxCoreError(
+                f"acruxcore: the model called '{name}', which has no implementation. Pass it "
+                f"in client_tools={{'{name}': ...}}, the decorated function in tools=[...], "
+                "or pass dispatch=.",
+                MISSING_DISPATCH,
+            )
+
+        tool_span_id = f"tool-{round_index}-{call_index}"
+        tool_start = _now_iso()
+        attributes: Dict[str, Any] = {"arguments": args, "executorType": "client"}
+        if route is not None and route.tool_version_id:
+            attributes["toolVersionId"] = route.tool_version_id
+        try:
+            ret = runner()
+            if inspect.isawaitable(ret):
+                ret = await ret
+        except Exception as err:
+            tool_spans.append(
+                {
+                    "spanId": tool_span_id,
+                    "parentSpanId": llm_span_ref,
+                    "name": name,
+                    "kind": "tool",
+                    "status": "error",
+                    "startTime": tool_start,
+                    "endTime": _now_iso(),
+                    "input": args,
+                    "attributes": attributes,
+                    "error": str(err),
+                }
+            )
+            if on_settled is not None:
+                on_settled(call["id"], name, None, str(err))
+            raise
+
+        tool_spans.append(
+            {
+                "spanId": tool_span_id,
+                "parentSpanId": llm_span_ref,
+                "name": name,
+                "kind": "tool",
+                "status": "ok",
+                "startTime": tool_start,
+                "endTime": _now_iso(),
+                "input": args,
+                "output": ret,
+                "attributes": attributes,
+            }
+        )
+        if on_settled is not None:
+            on_settled(call["id"], name, ret, None)
+        content = ret if isinstance(ret, str) else json.dumps(ret)
+        return {"role": "tool", "tool_call_id": call["id"], "content": content}
 
     def _report_tool_spans(
         self,
@@ -1176,3 +2032,42 @@ class AsyncChatStream:
 
     async def __anext__(self) -> ChatChunk:
         return await self._gen.__anext__()
+
+
+class AsyncToolLoopStream:
+    """Async iterator over a streaming tool loop's events.
+
+    Returned by ``run_tool_loop(..., stream=True)`` and
+    ``run_prompt_with_tools(r, stream=True)``. Iterate it with ``async for``::
+
+        async for event in await client.gateway.run_prompt_with_tools(r, stream=True):
+            if event.type == "content":
+                print(event.delta, end="", flush=True)
+            elif event.type == "tool_call":
+                print(f"\\n[calling {event.name}]")
+            elif event.type == "tool_result":
+                print(f"[{event.name} done]")
+            elif event.type == "done":
+                final = event.result
+
+    Every event carries ``type``, so a ``match`` or an ``if/elif`` chain on it is the
+    intended way to read the stream. A tool that raises ends the iteration by re-raising
+    the exception, right after emitting its ``tool_result`` event with ``error`` set.
+    """
+
+    def __init__(self, gen: AsyncGenerator[ToolLoopEvent, None]) -> None:
+        self._gen = gen
+
+    def __aiter__(self) -> "AsyncToolLoopStream":
+        return self
+
+    async def __anext__(self) -> ToolLoopEvent:
+        return await self._gen.__anext__()
+
+    async def aclose(self) -> None:
+        """Stop the loop early and release the underlying stream.
+
+        Only needed when abandoning a stream part-way — iterating it to its ``done``
+        event closes it on its own.
+        """
+        await self._gen.aclose()

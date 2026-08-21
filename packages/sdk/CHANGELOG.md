@@ -12,6 +12,103 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+### Added
+
+- `clientTools` on `gateway.runToolLoop` and `gateway.runPromptWithTools`: a
+  `{ toolName: fn }` map that runs a catalog tool whose executor is `client`, without
+  the hand-written `dispatch` router that was previously the only way.
+- Unlike `tools: [declared]`, it writes nothing to the catalog: the tool's definition,
+  its binding's alias or pin, and the `toolVersionId` stamped on the tool span all stay
+  the catalog's. Each function receives one arguments object.
+- A bound `client` tool with no runner still throws `MISSING_DISPATCH` before the first
+  model call, and the message now lists the `clientTools` keys that were supplied — which
+  is how a mistyped key shows itself.
+
+### Changed
+
+- An `http` tool named in `clientTools` is ignored in silence. The platform runs it, and
+  one map is meant to serve prompt aliases whose executor differs — `production` on
+  `http`, `staging` on `client`.
+- `dispatch` is unchanged and not deprecated. It stays the right input for a tool set
+  whose names are only known at runtime.
+
+## 0.9.0 — 2026-08-20
+
+### Added
+
+- New `gateway.runPromptWithTools(rendered, options?)`: takes a `render()` result and
+  derives `model`, `messages`, `toolRefs` and `promptVersionId` from it, so a call
+  site no longer restates any of them. Any option passed wins over the derived value.
+- **`stream: true` on `gateway.runToolLoop` (and on `runPromptWithTools`)** yields an
+  async iterable of typed `ToolLoopEvent`s — `content` / `tool_call` / `tool_result` /
+  `done` — instead of awaiting the whole loop. The trace is identical to a
+  non-streamed run: one `llm` span per round, with the round's tool spans under it.
+- `toolRefs` entries (and `tools.resolve` refs) accept `version` to pin one exact
+  tool build instead of following an alias. A binding pinned on the platform now
+  travels as a pin through `runPromptWithTools`, rather than as its alias.
+- `ChatChunk.delta` now declares `tool_calls`. The gateway has always forwarded
+  those fragments; the type omitted them, so a hand-rolled streaming tool loop
+  needed a cast to see them.
+- New exported types `ToolLoopEvent`, `ToolRef` and `RunPromptWithToolsOptions`.
+- `prompts.render()` now also returns `toolResolutions` — per-tool metadata (the
+  alias or pin actually resolved, its version number, and which binding decided
+  it) alongside the existing `tools` array.
+- New `withToolOverride(rendered, { name, alias })` helper: overrides one bound
+  tool's alias for a single `gateway.chat()`/`runToolLoop()` call. Handles the
+  tools/toolRefs name-collision removal for you and warns (naming the prompt's
+  current setting) when the tool was already bound, so the override doesn't
+  read as the prompt's own configuration.
+- Six new prompt→tool binding methods, replacing the removed `tool-routes`
+  endpoints: `prompts.listToolBindings`, `setToolBinding`, `removeToolBinding`,
+  `setAliasToolBinding`, `removeAliasToolBinding`, `resetAliasToolBindings`.
+- `setToolBinding` writes the default every prompt alias inherits;
+  `setAliasToolBinding` gives one alias its own binding, including `{ off: true }`
+  for "this alias deliberately has no such tool".
+- New types `ToolBindingInput`, `AliasToolBindingInput`, `ToolBindingDetail`,
+  `AliasToolBindings`, `PromptToolBindings`, and a `VALIDATION_ERROR` error code
+  for a binding the SDK rejects before sending.
+
+### BREAKING
+
+- **`commitVersion` no longer takes `tools`.** A version decides the template
+  only; tools are bound per prompt alias. `AttachToolInput` is removed with it.
+  1. *Migrating from 0.8:* delete the `tools: [...]` property from every
+     `prompts.commitVersion(id, { ... })` call, and replace each entry with
+     `await hub.prompts.setToolBinding(promptId, toolId, { toolAlias })` (or
+     `{ pinnedVersionNumber }`) — once per tool, not once per commit.
+  2. The compiler catches this: `tools` is an excess property on
+     `CommitVersionInput`, and `AttachToolInput` no longer resolves as an import.
+- **The `tool-routes` endpoints are gone** —
+  `PUT`/`DELETE /prompts/:id/aliases/:alias/tool-routes/:toolId` and
+  `/prompts/:id/tool-routes` return 404. The binding endpoints replace them.
+  1. *Migrating from 0.8:* swap any raw request to
+     `PUT /prompts/:id/aliases/:alias/tool-routes/:toolId` for
+     `prompts.setAliasToolBinding(promptId, alias, toolId, { toolAlias })`, and
+     the matching `DELETE` for `prompts.removeAliasToolBinding(...)`.
+  2. Nothing catches this for you: no SDK method ever wrapped those paths, so
+     grep your code for `tool-routes` — a stale caller fails at runtime with a 404.
+
+### Changed
+
+- **`toolResolutions[].overridden` (boolean) is now `source: 'alias' | 'default'`.**
+  `'alias'` means the prompt alias had a binding of its own, `'default'` that it
+  inherited the prompt's default.
+  1. *Migrating from 0.8:* replace `r.overridden` with `r.source === 'alias'`.
+     The old `true` and the new `'alias'` do not mean the same thing — `true` used
+     to mean "a live override outranked the version's attachment", a distinction
+     the single binding table no longer has.
+  2. The compiler catches this: `overridden` is gone from `ToolResolution`, so
+     reading it is an error rather than a silently `undefined` (falsy) value.
+- **`promptVersionId` now actually reaches the gateway.** It used to be stamped only
+  on client-written spans, so on the gateway path — where the gateway writes the
+  `llm` span — passing it did nothing and the span had no link back to the prompt.
+  It is sent as `prompt_version_id` on the request body now, and never to a BYO
+  provider. Needs an API deployed on 2026-08-20 or later; an older one ignores the
+  field, exactly as before.
+- `withToolOverride`'s warning now names which binding holds the current setting
+  ("the prompt's default binding" / "this prompt alias's own binding") instead of
+  saying "via a routing override". Same helper, same name, same behaviour.
+
 ## 0.8.0 — 2026-08-11
 
 ### Added

@@ -8,6 +8,7 @@ import { teamInviteEmail } from './team-invite';
 import { budgetThresholdEmail } from './budget-threshold';
 import { budgetExhaustedEmail } from './budget-exhausted';
 import { evalRunFinishedEmail } from './eval-run-finished';
+import { evalRuleAlertEmail } from './eval-rule-alert';
 import { memberJoinedEmail } from './member-joined';
 import { memberRemovedEmail } from './member-removed';
 import { memberRolesChangedEmail } from './member-roles-changed';
@@ -23,6 +24,7 @@ export * from './team-invite';
 export * from './budget-threshold';
 export * from './budget-exhausted';
 export * from './eval-run-finished';
+export * from './eval-rule-alert';
 export * from './member-joined';
 export * from './member-removed';
 export * from './member-roles-changed';
@@ -58,6 +60,8 @@ export function renderEmail(payload: EmailPayload): RenderedEmail {
       return budgetExhaustedEmail(payload.props);
     case 'eval_run_finished':
       return evalRunFinishedEmail(payload.props);
+    case 'eval_rule_alert':
+      return evalRuleAlertEmail(payload.props);
     case 'member_joined':
       return memberJoinedEmail(payload.props);
     case 'member_removed':

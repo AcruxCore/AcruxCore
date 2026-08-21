@@ -45,6 +45,7 @@ describe('notification preferences API', () => {
     expect(res.body.preferences).toEqual({
       budget_alerts: true,
       eval_runs: true,
+      eval_rules: true,
       membership: true,
       weekly_digest: true,
     });

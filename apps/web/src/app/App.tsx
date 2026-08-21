@@ -33,7 +33,14 @@ import {
   TraceSettingsPage,
   FeedbackListPage,
 } from '@/traces';
-import { DatasetsPage, DatasetDetailPage, ExperimentConfigPage, RunHistoryPage, RunReportPage } from '@/evaluations';
+import {
+  DatasetsPage,
+  DatasetDetailPage,
+  ExperimentConfigPage,
+  RunHistoryPage,
+  RunReportPage,
+  RulesPage,
+} from '@/evaluations';
 import {
   RootRoute,
   AboutPage,
@@ -109,6 +116,7 @@ export function App() {
         <Route path="/evaluations/datasets/:id/run" element={<ExperimentConfigPage />} />
         <Route path="/evaluations/runs" element={<RunHistoryPage />} />
         <Route path="/evaluations/runs/:id" element={<RunReportPage />} />
+        <Route path="/evaluations/rules" element={<RulesPage />} />
       </Route>
 
       {/* A genuinely unknown path gets a real 404 page. It used to redirect to

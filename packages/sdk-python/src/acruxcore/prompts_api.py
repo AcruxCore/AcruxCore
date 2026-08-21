@@ -14,6 +14,7 @@ from .errors import (
     API_ERROR,
     MISSING_VARIABLES,
     NETWORK_ERROR,
+    VALIDATION_ERROR,
     AcruxCoreError,
 )
 from .types import (
@@ -25,7 +26,10 @@ from .types import (
     PromptDetail,
     PromptListResult,
     PromptMessage,
+    PromptToolBindings,
     RenderResult,
+    ToolBindingDetail,
+    ToolResolution,
     VersionDetail,
     VersionListResult,
 )
@@ -59,6 +63,50 @@ def _hash_variables(variables: Dict[str, Any]) -> str:
     """
     canonical = json.dumps(variables, sort_keys=True, default=str)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+
+
+def _binding_body(
+    tool_alias: Optional[str],
+    pinned_version_number: Optional[int],
+    off: bool,
+    *,
+    allow_off: bool,
+) -> Dict[str, Any]:
+    """Builds the wire body for a tool binding, which is snake_case
+    (``tool_alias``, ``pinned_version_number``, ``off``) like the rest of the
+    prompts API's request bodies.
+
+    The API takes exactly one of the three and 400s otherwise. Checking here
+    turns "zero or two targets" into a local ``VALIDATION_ERROR`` naming the
+    keyword arguments, instead of an opaque 400 from a round-trip.
+
+    :param allow_off: ``True`` only on the per-alias endpoint — a default binding
+        has no default of its own to contradict, so ``off`` is meaningless there.
+    """
+    given = [
+        tool_alias is not None,
+        pinned_version_number is not None,
+        bool(off),
+    ]
+    if off and not allow_off:
+        raise AcruxCoreError(
+            "acruxcore: off=True is only valid for a prompt alias's own binding. To stop "
+            "every alias from calling the tool, remove the default binding with "
+            "prompts.remove_tool_binding().",
+            VALIDATION_ERROR,
+        )
+    if sum(given) != 1:
+        options = "tool_alias=, pinned_version_number=" + (", or off=True" if allow_off else "")
+        raise AcruxCoreError(
+            f"acruxcore: a tool binding needs exactly one of {options}.",
+            VALIDATION_ERROR,
+        )
+
+    if tool_alias is not None:
+        return {"tool_alias": tool_alias}
+    if pinned_version_number is not None:
+        return {"pinned_version_number": pinned_version_number}
+    return {"off": True}
 
 
 class PromptsNamespace:
@@ -217,10 +265,14 @@ class PromptsNamespace:
         prompt_id: str,
         messages: List[PromptMessage],
         *,
-        tools: Optional[List[Dict[str, Any]]] = None,
         model: Optional[str] = None,
     ) -> VersionDetail:
         """Commits a new immutable version for a prompt.
+
+        A version decides the template only — it says nothing about tools. Which
+        tools the prompt calls is decided per prompt alias by
+        :meth:`set_tool_binding` and :meth:`set_alias_tool_binding`, so
+        committing never changes a tool set.
 
         :param prompt_id: The prompt's id.
         :param messages: The version's full message list — versions are
@@ -229,21 +281,16 @@ class PromptsNamespace:
             "content": str}`` — a template-eligible role only, matching the
             API's ``MessageSchema`` (unlike the gateway's chat ``Message``,
             this never accepts ``"tool"``, ``None`` content, or ``tool_calls``).
-        :param tools: Catalog tools to attach to this version (max 64), each
-            ``{"toolId": <uuid>, "alias": <str, optional>, "pinnedVersionNumber":
-            <int, optional>}`` — only ``toolId`` is required.
         :param model: Binds a default gateway model by its ``publicName``; omit
             to leave the version unbound.
         :returns: The created version. ``aliases`` is present ONLY when this is
             the prompt's first version — both ``production`` and ``staging`` are
             minted and point at it; every later commit returns ``aliases=None``.
         :raises AcruxCoreError: ``API_ERROR`` 404 unknown prompt, or ``VALIDATION_ERROR``
-            (e.g. empty ``messages``, more than 64 ``tools``).
+            (e.g. empty ``messages``).
         :raises AcruxCoreError: ``NETWORK_ERROR`` if the API is unreachable after retries.
         """
         body: Dict[str, Any] = {"messages": messages}
-        if tools is not None:
-            body["tools"] = tools
         if model is not None:
             body["model"] = model
         response = await self._client._request(
@@ -465,6 +512,191 @@ class PromptsNamespace:
             self._client._parse_json_or_throw(response, "listing traces for prompt version")
         )
 
+    # ── tool bindings ─────────────────────────────────────────────────────
+
+    async def list_tool_bindings(self, prompt_id: str) -> PromptToolBindings:
+        """Reads every tool binding for a prompt: the default that aliases
+        inherit, plus one entry per prompt alias with the rows that alias owns.
+
+        An alias with ``customised=False`` has no rows of its own and calls
+        exactly the ``default`` list — its own ``bindings`` list is empty rather
+        than a copy of it.
+
+        :param prompt_id: The prompt's id.
+        :returns: The default bindings and every prompt alias.
+        :raises AcruxCoreError: ``API_ERROR`` with ``status_code`` 404 if the
+            prompt doesn't exist.
+        :raises AcruxCoreError: ``NETWORK_ERROR`` if the API is unreachable after retries.
+        """
+        response = await self._client._request(
+            "GET",
+            f"/prompts/{quote(prompt_id, safe='')}/tools",
+            None,
+            "listing prompt tool bindings",
+        )
+        body = self._client._parse_json_or_throw(response, "listing prompt tool bindings")
+        return PromptToolBindings.from_dict(body.get("data") or {})
+
+    async def set_tool_binding(
+        self,
+        prompt_id: str,
+        tool_id: str,
+        *,
+        tool_alias: Optional[str] = None,
+        pinned_version_number: Optional[int] = None,
+        off: bool = False,
+    ) -> ToolBindingDetail:
+        """Connects a tool to the prompt as its **default** binding — the one
+        every prompt alias uses unless it has a row of its own. Idempotent:
+        calling it again for the same tool replaces the target rather than
+        adding a second binding.
+
+        :param prompt_id: The prompt's id.
+        :param tool_id: The catalog tool's id, from ``tools.resolve`` or the dashboard.
+        :param tool_alias: Tool alias to resolve when the prompt runs, e.g.
+            ``"production"``. Mutually exclusive with ``pinned_version_number``.
+        :param pinned_version_number: Pin an exact tool version instead of
+            following one of the tool's aliases.
+        :param off: Always rejected here — accepted only so the error can name
+            what to use instead. "Off" contradicts a default, and a default has
+            no default of its own; use :meth:`remove_tool_binding` to stop every
+            alias calling the tool, or :meth:`set_alias_tool_binding` to switch
+            it off for one alias.
+        :returns: The stored binding, including the tool version it resolves to today.
+        :raises AcruxCoreError: ``VALIDATION_ERROR`` if neither or both of
+            ``tool_alias``/``pinned_version_number`` is given, or if ``off`` is
+            set (rejected locally, before any request).
+        :raises AcruxCoreError: ``API_ERROR`` 404 unknown prompt, tool, tool alias
+            or pinned version, or 403 if the caller's role cannot bind tools
+            (editor and above only).
+        :raises AcruxCoreError: ``NETWORK_ERROR`` if the API is unreachable after retries.
+        """
+        body = _binding_body(tool_alias, pinned_version_number, off, allow_off=False)
+        response = await self._client._request(
+            "PUT",
+            f"/prompts/{quote(prompt_id, safe='')}/tools/{quote(tool_id, safe='')}",
+            body,
+            "setting prompt tool binding",
+        )
+        return ToolBindingDetail.from_dict(
+            self._client._parse_json_or_throw(response, "setting prompt tool binding")
+        )
+
+    async def remove_tool_binding(self, prompt_id: str, tool_id: str) -> None:
+        """Disconnects a tool from the prompt's default binding, so no alias
+        inheriting the default calls it any more. Per-alias rows for the same
+        tool are left alone — an alias that set its own binding keeps calling
+        the tool.
+
+        The endpoint replies ``204 No Content``, which has no body, so a
+        response is only parsed on the error branch (to get the typed error
+        thrown).
+
+        :param prompt_id: The prompt's id.
+        :param tool_id: The catalog tool's id.
+        :raises AcruxCoreError: ``API_ERROR`` 404 unknown prompt, or if the prompt
+            has no default binding for that tool; 403 if the caller's role cannot
+            bind tools.
+        :raises AcruxCoreError: ``NETWORK_ERROR`` if the API is unreachable after retries.
+        """
+        response = await self._client._request(
+            "DELETE",
+            f"/prompts/{quote(prompt_id, safe='')}/tools/{quote(tool_id, safe='')}",
+            None,
+            "removing prompt tool binding",
+        )
+        if response.status_code >= 400:
+            self._client._parse_json_or_throw(response, "removing prompt tool binding")
+
+    async def set_alias_tool_binding(
+        self,
+        prompt_id: str,
+        alias: str,
+        tool_id: str,
+        *,
+        tool_alias: Optional[str] = None,
+        pinned_version_number: Optional[int] = None,
+        off: bool = False,
+    ) -> ToolBindingDetail:
+        """Connects a tool for **one prompt alias only**, overriding whatever the
+        default says for that alias. This is how a tool gets rolled out
+        (``dev`` gets it first) or runs a different build per environment
+        (``dev`` on the tool's ``staging`` alias).
+
+        :param prompt_id: The prompt's id.
+        :param alias: The prompt alias this binding applies to, e.g. ``"staging"``.
+        :param tool_id: The catalog tool's id.
+        :param tool_alias: Tool alias to resolve for this prompt alias.
+        :param pinned_version_number: Pin an exact tool version for this prompt alias.
+        :param off: ``True`` means this alias deliberately has no such tool, even
+            though the default does. Mutually exclusive with the other two.
+        :returns: The stored binding for this alias.
+        :raises AcruxCoreError: ``VALIDATION_ERROR`` unless exactly one of
+            ``tool_alias``/``pinned_version_number``/``off`` is given (rejected
+            locally, before any request).
+        :raises AcruxCoreError: ``API_ERROR`` 404 unknown prompt, alias, tool, tool
+            alias or pinned version, or 403 if the caller's role cannot bind tools.
+        :raises AcruxCoreError: ``NETWORK_ERROR`` if the API is unreachable after retries.
+        """
+        body = _binding_body(tool_alias, pinned_version_number, off, allow_off=True)
+        response = await self._client._request(
+            "PUT",
+            f"/prompts/{quote(prompt_id, safe='')}/aliases/{quote(alias, safe='')}"
+            f"/tools/{quote(tool_id, safe='')}",
+            body,
+            "setting prompt alias tool binding",
+        )
+        return ToolBindingDetail.from_dict(
+            self._client._parse_json_or_throw(response, "setting prompt alias tool binding")
+        )
+
+    async def remove_alias_tool_binding(
+        self, prompt_id: str, alias: str, tool_id: str
+    ) -> None:
+        """Drops one alias's own binding for a tool, returning that (alias, tool)
+        pair to the prompt's default. It does NOT stop the alias calling the tool
+        — if the default binds it, the alias inherits it again. Use
+        ``set_alias_tool_binding(..., off=True)`` for that.
+
+        :param prompt_id: The prompt's id.
+        :param alias: The prompt alias to return to the default.
+        :param tool_id: The catalog tool's id.
+        :raises AcruxCoreError: ``API_ERROR`` 404 unknown prompt, or if that alias
+            has no row of its own for the tool; 403 if the caller's role cannot
+            bind tools.
+        :raises AcruxCoreError: ``NETWORK_ERROR`` if the API is unreachable after retries.
+        """
+        response = await self._client._request(
+            "DELETE",
+            f"/prompts/{quote(prompt_id, safe='')}/aliases/{quote(alias, safe='')}"
+            f"/tools/{quote(tool_id, safe='')}",
+            None,
+            "removing prompt alias tool binding",
+        )
+        if response.status_code >= 400:
+            self._client._parse_json_or_throw(response, "removing prompt alias tool binding")
+
+    async def reset_alias_tool_bindings(self, prompt_id: str, alias: str) -> None:
+        """Drops every binding one prompt alias owns in a single call, returning
+        it wholesale to the prompt's default. Succeeds even when the alias
+        already had no rows of its own — it is a reset, not a delete of a
+        specific row.
+
+        :param prompt_id: The prompt's id.
+        :param alias: The prompt alias to reset.
+        :raises AcruxCoreError: ``API_ERROR`` 404 unknown prompt, or 403 if the
+            caller's role cannot bind tools (editor and above only).
+        :raises AcruxCoreError: ``NETWORK_ERROR`` if the API is unreachable after retries.
+        """
+        response = await self._client._request(
+            "DELETE",
+            f"/prompts/{quote(prompt_id, safe='')}/aliases/{quote(alias, safe='')}/tools",
+            None,
+            "resetting prompt alias tool bindings",
+        )
+        if response.status_code >= 400:
+            self._client._parse_json_or_throw(response, "resetting prompt alias tool bindings")
+
     # ── render (SWR cache) ────────────────────────────────────────────────
 
     async def render(
@@ -486,7 +718,8 @@ class PromptsNamespace:
         :param alias: Alias to resolve (e.g. ``production``).
         :param variables: Template variables.
         :returns: ``RenderResult(messages, tools, model)``; ``tools`` is ``[]`` if
-            none, and ``model`` is the version's bound default model (or ``None``).
+            the alias binds none, and ``model`` is the version's bound default
+            model (or ``None``).
         :raises AcruxCoreError: ``MISSING_VARIABLES`` if required variables are
             absent; ``API_ERROR`` for other HTTP errors; ``NETWORK_ERROR`` if the
             API is unreachable and no stale entry exists.
@@ -577,6 +810,16 @@ class PromptsNamespace:
         value = RenderResult(
             messages=data.get("messages", []),
             tools=data.get("tools") or [],
+            tool_resolutions=[
+                ToolResolution(
+                    name=r["name"],
+                    alias=r.get("alias"),
+                    pinned_version_number=r.get("pinnedVersionNumber"),
+                    version_number=r["versionNumber"],
+                    source=r.get("source", "default"),
+                )
+                for r in (data.get("toolResolutions") or [])
+            ],
             model=data.get("model"),
             version_id=data.get("versionId"),
             version_number=data.get("versionNumber"),

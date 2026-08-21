@@ -12,14 +12,15 @@
  *        `{ type: 'client' }` executor — "our own app runs this tool", so
  *        {@link dispatch} below still runs locally.
  *     2. Prompt → POST /prompts (shell) + POST /prompts/:id/versions with the
- *        templated messages AND `tools: [{ toolId }]` that ATTACH the catalog
- *        tools to this immutable version.
+ *        templated messages, then PUT /prompts/:id/tools/:toolId per tool to BIND
+ *        the catalog tools. Bindings are per prompt alias, not per version — the
+ *        default written here is what every alias inherits.
  *
  *   FETCH + USE (SDK, at run time):
  *     3. `prompts.render(name, 'production', vars)` returns `{ messages, tools }` in
  *        one call: the messages are templated server-side and `tools` are the
- *        version's attached tool schemas, already in OpenAI shape. Both come from
- *        the framework — this file no longer holds them.
+ *        schemas of the tools bound to that alias, already in OpenAI shape. Both
+ *        come from the framework — this file no longer holds them.
  *     4. `gateway.runToolLoop({ messages, tools })` runs the loop with exactly what was
  *        fetched. The only tool code left in this file is `dispatch` — the local
  *        implementations. Schemas, descriptions, and the prompt text live on the
@@ -32,7 +33,7 @@
  * The setup is written as idempotent "ensure" helpers (find-by-name, create only
  * if missing) because names are NOT unique in the catalog — a naive re-run would
  * create duplicate rows and make name resolution ambiguous. Run it as many times
- * as you like; it converges to one prompt (with the three tools attached) + three
+ * as you like; it converges to one prompt (with the three tools bound) + three
  * tools.
  *
  * Run:
@@ -118,7 +119,7 @@ const RATES: Record<string, number> = {
 
 /**
  * Routes one tool call from the model to its local implementation. The tool
- * *names* here must match the catalog tools attached to the prompt version.
+ * *names* here must match the catalog tools bound to the prompt.
  *
  * @param name - The tool name the model asked for (a catalog tool name).
  * @param args - The parsed JSON arguments object for this call.
@@ -169,7 +170,7 @@ interface ToolSpec {
 /**
  * The three tools, in the shape the catalog stores. Note there is no OpenAI
  * `{ type: 'function', function: {...} }` wrapper here — the catalog stores the
- * bare `parametersSchema`, and render wraps it when it returns attached tools.
+ * bare `parametersSchema`, and render wraps it when it returns bound tools.
  */
 const TOOL_SPECS: ToolSpec[] = [
   {
@@ -239,7 +240,7 @@ const PROMPT_MESSAGES = [
  * by exact name and only creates the shell/version that is missing.
  *
  * @param spec - The tool name, description, and parameters schema to converge to.
- * @returns The tool's id (used to attach it to the prompt version).
+ * @returns The tool's id (used to bind it to the prompt).
  * @throws {Error} On any non-2xx REST response.
  */
 async function ensureTool(spec: ToolSpec): Promise<string> {
@@ -261,7 +262,7 @@ async function ensureTool(spec: ToolSpec): Promise<string> {
   if (versions.total === 0) {
     // `{ type: 'client' }` = our own app executes the tool (see dispatch); the
     // platform stores the schema but never calls it itself. The first version
-    // auto-creates the `production` alias the prompt attachment resolves against.
+    // auto-creates the `production` alias the prompt binding resolves against.
     await api('POST', `/tools/${tool.id}/versions`, {
       description: spec.description,
       parametersSchema: spec.parametersSchema,
@@ -275,10 +276,10 @@ async function ensureTool(spec: ToolSpec): Promise<string> {
 
 /**
  * Ensures a prompt named {@link PROMPT_NAME} exists with a committed version that
- * carries {@link PROMPT_MESSAGES} and has the given catalog tools attached.
+ * carries {@link PROMPT_MESSAGES} and the given catalog tools are bound to it.
  * Idempotent, like {@link ensureTool}.
  *
- * @param toolIds - Catalog tool ids to attach to the version (from {@link ensureTool}).
+ * @param toolIds - Catalog tool ids to bind to the prompt (from {@link ensureTool}).
  * @throws {Error} On any non-2xx REST response.
  */
 async function ensurePrompt(toolIds: string[]): Promise<void> {
@@ -298,19 +299,23 @@ async function ensurePrompt(toolIds: string[]): Promise<void> {
 
   const versions = await api<ListResponse>('GET', `/prompts/${prompt.id}/versions`);
   if (versions.total === 0) {
-    // Attach the catalog tools to this immutable version. renderPrompt then
-    // returns them alongside the messages. First commit auto-creates the
+    // The version carries the template only. The first commit auto-creates the
     // `production` alias renderPrompt reads below.
-    await api('POST', `/prompts/${prompt.id}/versions`, {
-      messages: PROMPT_MESSAGES,
-      tools: toolIds.map((toolId) => ({ toolId })),
-    });
-    console.log(`  + committed v1 for prompt "${PROMPT_NAME}" (${toolIds.length} tools attached)`);
+    await api('POST', `/prompts/${prompt.id}/versions`, { messages: PROMPT_MESSAGES });
+    console.log(`  + committed v1 for prompt "${PROMPT_NAME}"`);
   }
+
+  // Bind the catalog tools to the prompt, once per tool. These are the prompt's
+  // DEFAULT bindings, which every prompt alias inherits — including `production`,
+  // which renderPrompt resolves below. PUT is idempotent, so re-running is safe.
+  for (const toolId of toolIds) {
+    await api('PUT', `/prompts/${prompt.id}/tools/${toolId}`, { tool_alias: 'production' });
+  }
+  console.log(`  + bound ${toolIds.length} tools to prompt "${PROMPT_NAME}"`);
 }
 
 async function main(): Promise<void> {
-  // ── STORE: push the tools and the prompt (with tools attached) to the framework.
+  // ── STORE: push the tools and the prompt (with tools bound) to the framework.
   console.log('Storing catalog tools and prompt in the framework…');
   const toolIds: string[] = [];
   for (const spec of TOOL_SPECS) {
@@ -321,7 +326,7 @@ async function main(): Promise<void> {
 
   const hub = new acruxcore({ apiKey, baseUrl });
 
-  // ── FETCH: one SDK call returns BOTH the templated messages and the attached
+  // ── FETCH: one SDK call returns BOTH the templated messages and the bound
   // tool schemas. Neither is defined on this run path — they came from the server.
   const { messages, tools } = await hub.prompts.render(PROMPT_NAME, 'production', {
     city: 'Tokyo',

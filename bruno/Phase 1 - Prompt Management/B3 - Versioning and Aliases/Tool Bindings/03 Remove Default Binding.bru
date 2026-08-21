@@ -1,0 +1,15 @@
+meta {
+  name: Remove Default Binding
+  type: http
+  seq: 3
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/prompts/{{promptId}}/tools/{{toolId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}

@@ -3,7 +3,13 @@ import type { Executor, HttpHeader, ToolVersionSource } from '@/api';
 import { ApiError, useCommitToolVersion, useToolVersion } from '@/api';
 import { Button, Dialog, DialogFooter, Field, Input, Select, Textarea, useToast } from '@/ui';
 import type { ParamRow, ParamType } from './param-schema';
-import { PARAM_TYPES, rowsToSchema, schemaToRows } from './param-schema';
+import {
+  PARAM_TYPES,
+  builderAvailability,
+  rowsToSchema,
+  schemaRejectsUnknown,
+  schemaToRows,
+} from './param-schema';
 
 type HttpMethod = NonNullable<Executor['method']>;
 const HTTP_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
@@ -168,6 +174,15 @@ function ParamRows({ rows, onChange }: ParamRowsProps) {
   );
 }
 
+/** `JSON.parse` that yields `undefined` instead of throwing, for already-validated text. */
+function safeParse(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
 /** The blank JSON shown when switching an empty builder to raw-JSON mode. */
 const EMPTY_SCHEMA_TEXT = '{\n  "type": "object",\n  "properties": {}\n}';
 
@@ -210,10 +225,12 @@ export function CommitVersionDialog({
   const [description, setDescription] = useState('');
   const [changelog, setChangelog] = useState('');
   const [schemaMode, setSchemaMode] = useState<'builder' | 'json'>('builder');
+  // The builder's `additionalProperties: false` checkbox. Kept beside the rows
+  // rather than inside them: it is one property of the whole object, not of a row.
+  const [rejectUnknown, setRejectUnknown] = useState(false);
   const [paramRows, setParamRows] = useState<ParamRow[]>([]);
   const [schemaText, setSchemaText] = useState(EMPTY_SCHEMA_TEXT);
   const [schemaError, setSchemaError] = useState<string | null>(null);
-  const [jsonFallbackNote, setJsonFallbackNote] = useState<string | null>(null);
   const [executorType, setExecutorType] = useState<'client' | 'http'>('client');
   const [url, setUrl] = useState('');
   const [method, setMethod] = useState<HttpMethod>('GET');
@@ -236,9 +253,9 @@ export function CommitVersionDialog({
     setChangelog('');
     setSchemaMode('builder');
     setParamRows([]);
+    setRejectUnknown(false);
     setSchemaText(EMPTY_SCHEMA_TEXT);
     setSchemaError(null);
-    setJsonFallbackNote(null);
     setExecutorType('client');
     setUrl('');
     setMethod('GET');
@@ -270,10 +287,10 @@ export function CommitVersionDialog({
     if (rows) {
       setSchemaMode('builder');
       setParamRows(rows);
+      setRejectUnknown(schemaRejectsUnknown(v.parametersSchema));
     } else {
       setSchemaMode('json');
       setSchemaText(JSON.stringify(v.parametersSchema, null, 2));
-      setJsonFallbackNote('This schema uses features the builder can’t show — editing as raw JSON.');
     }
 
     if (v.executor.type === 'http') {
@@ -292,31 +309,36 @@ export function CommitVersionDialog({
 
   /** Switch to raw-JSON mode, seeding it from the current builder rows. */
   function switchToJson() {
-    setSchemaText(JSON.stringify(rowsToSchema(paramRows), null, 2));
-    setJsonFallbackNote(null);
+    setSchemaText(JSON.stringify(rowsToSchema(paramRows, rejectUnknown), null, 2));
     setSchemaError(null);
     setSchemaMode('json');
   }
 
-  /** Switch to the builder, parsing the JSON back into rows if it's simple enough. */
+  /**
+   * Switch to the builder. Only reachable when {@link builderAvailability} says
+   * `'ready'` — the toggle is disabled otherwise, so a click can never look like
+   * it did nothing. The guards stay as a safety net.
+   */
   function switchToBuilder() {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(schemaText);
-    } catch {
-      setSchemaError('Fix the JSON before switching to the builder.');
-      return;
-    }
-    const rows = schemaToRows(parsed);
-    if (!rows) {
-      setJsonFallbackNote('This schema uses features the builder can’t show — keep editing as raw JSON.');
-      return;
-    }
+    const parsed = schemaText.trim().length === 0 ? {} : safeParse(schemaText);
+    const rows = schemaText.trim().length === 0 ? [] : schemaToRows(parsed);
+    if (!rows) return;
     setParamRows(rows);
+    setRejectUnknown(schemaRejectsUnknown(parsed));
     setSchemaError(null);
-    setJsonFallbackNote(null);
     setSchemaMode('builder');
   }
+
+  // Whether the raw JSON currently in the box could go back to the row builder.
+  // Derived, not stored, so it follows every keystroke — the toggle is disabled
+  // when it cannot, instead of swallowing the click silently.
+  const availability = schemaMode === 'json' ? builderAvailability(schemaText) : 'ready';
+  const builderBlockedReason =
+    availability === 'invalid-json'
+      ? 'Fix the JSON to switch back to the row builder.'
+      : availability === 'unrepresentable'
+        ? 'The row builder can’t show this schema — it uses enum, minimum, a nested object, or additionalProperties. Keep editing it as JSON.'
+        : null;
 
   const httpUrlFilled = url.trim().length > 0;
   const canSubmit =
@@ -326,7 +348,7 @@ export function CommitVersionDialog({
   async function handleSubmit() {
     let parsedSchema: Record<string, unknown>;
     if (schemaMode === 'builder') {
-      parsedSchema = rowsToSchema(paramRows);
+      parsedSchema = rowsToSchema(paramRows, rejectUnknown);
     } else {
       try {
         const parsed: unknown = JSON.parse(schemaText);
@@ -430,15 +452,32 @@ export function CommitVersionDialog({
               </span>
               <button
                 type="button"
-                className="text-[12px] text-accent hover:underline"
+                className={
+                  builderBlockedReason
+                    ? 'cursor-not-allowed text-[12px] text-faint'
+                    : 'text-[12px] text-accent hover:underline'
+                }
+                disabled={builderBlockedReason !== null}
+                title={builderBlockedReason ?? undefined}
                 onClick={schemaMode === 'builder' ? switchToJson : switchToBuilder}
               >
                 {schemaMode === 'builder' ? 'Edit as JSON' : 'Back to builder'}
               </button>
             </div>
-            {jsonFallbackNote && <p className="text-[12px] text-faint">{jsonFallbackNote}</p>}
+            {builderBlockedReason && <p className="text-[12px] text-faint">{builderBlockedReason}</p>}
             {schemaMode === 'builder' ? (
-              <ParamRows rows={paramRows} onChange={setParamRows} />
+              <>
+                <ParamRows rows={paramRows} onChange={setParamRows} />
+                <label className="flex items-center gap-2 text-[12px] text-muted">
+                  <input
+                    type="checkbox"
+                    checked={rejectUnknown}
+                    onChange={(e) => setRejectUnknown(e.target.checked)}
+                    className="h-3.5 w-3.5 accent-[var(--accent)]"
+                  />
+                  Reject arguments not listed above (<code>additionalProperties: false</code>)
+                </label>
+              </>
             ) : (
               <Textarea
                 id="cv-schema"

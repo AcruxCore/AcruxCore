@@ -1,0 +1,33 @@
+meta {
+  name: Resolve Tools
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/tools/resolve
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "refs": [
+      { "name": "{{toolName}}", "alias": "production" }
+    ]
+  }
+}
+
+docs {
+  Turns tool names into model-ready `function` blocks, plus the `executorType` a
+  tool loop needs in order to know who runs each tool. Up to 50 refs per call;
+  `alias` defaults to `production`.
+}

@@ -24,8 +24,21 @@ export const ToolCallSchema = z.object({
   function: z.object({ name: z.string().min(1), arguments: z.string() }),
 });
 
-/** Catalog reference: resolve a stored tool version to an OpenAI tool definition. */
-export const ToolRefSchema = z.object({ name: z.string().min(1), alias: z.string().optional() });
+/**
+ * Catalog reference: resolve a stored tool version to an OpenAI tool definition.
+ *
+ * Either follow an `alias` (defaulting to `production`) or pin one exact `version` —
+ * never both, since a ref carrying both names two different builds.
+ */
+export const ToolRefSchema = z
+  .object({
+    name: z.string().min(1),
+    alias: z.string().optional(),
+    version: z.number().int().positive().optional(),
+  })
+  .refine((r) => !(r.alias !== undefined && r.version !== undefined), {
+    message: 'a tool_ref takes either alias or version, not both.',
+  });
 
 /** A single chat message (canonical OpenAI shape), including tool calls and tool results. */
 export const ChatMessageSchema = z
@@ -114,6 +127,17 @@ export const ChatCompletionRequestSchema = z
     messages: z.array(ChatMessageSchema).min(1, 'messages must be a non-empty array').optional(),
     /** G8: resolve a stored prompt instead of sending raw messages. */
     prompt: PromptRefSchema.optional(),
+    /**
+     * Lineage for a caller that rendered the prompt itself and is sending the rendered
+     * `messages`: which prompt version they came from. Stamped on the request row and the
+     * `llm` span, so a client-side tool loop is as traceable back to its prompt as a
+     * server-rendered `prompt` reference is.
+     *
+     * Ignored (not rejected) alongside `prompt`, which renders server-side and therefore
+     * knows the exact version it used. Must belong to the calling team — another team's id
+     * is a 400, never a stamp.
+     */
+    prompt_version_id: z.string().uuid('prompt_version_id must be a UUID').optional(),
     temperature: z.number().min(0).max(2).optional(),
     max_tokens: z.number().int().positive().optional(),
     top_p: z.number().min(0).max(1).optional(),
@@ -187,11 +211,13 @@ export type GatewayCompletionRequest = Omit<NormalizedRequest, 'messages' | 'mod
   messages?: ChatMessage[];
   /** G8 prompt reference; the pipeline renders it into `messages` and strips it. */
   prompt?: PromptRef;
+  /** Client-supplied lineage for pre-rendered `messages`; verified, then stripped. */
+  prompt_version_id?: string;
   /** B1: values for `{{ }}` in ad-hoc `messages`; rendered then stripped. */
   variables?: Record<string, unknown>;
   gateway?: GatewayControl;
   /** Q5: catalog references, resolved+merged into `tools` in the service (Task 5). */
-  tool_refs?: { name: string; alias?: string }[];
+  tool_refs?: { name: string; alias?: string; version?: number }[];
 };
 
 /**
@@ -232,6 +258,8 @@ export interface GatewayCallContext {
   spanTags?: string[];
   /** T9: caller-supplied JSON metadata for THIS call's span (FAQ Q13). */
   spanMetadata?: Record<string, unknown>;
+  /** Set by an internal caller (e.g. the online-eval judge) to attribute this call's spend if it crosses a budget threshold. Never set by an external API caller. */
+  contributingSource?: string;
 }
 
 /** Result of a completed gateway call: the OpenAI body plus metadata for headers/logging. */

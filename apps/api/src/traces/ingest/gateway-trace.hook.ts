@@ -4,6 +4,7 @@ import { SpansRepository } from '../spans/spans.repository';
 import { TraceSettingsRepository } from '../settings/settings.repository';
 import { shouldCapture } from '../settings/should-capture';
 import { GatewayRepository } from '../../gateway/completions/gateway.repository';
+import { enqueueOnlineEval } from '../../evaluations/online/enqueue-online-eval';
 import type {
   GatewayCallContext,
   GatewayCompletionRequest,
@@ -77,10 +78,10 @@ export async function recordGatewaySpan(args: {
   gatewayRequestId: string;
   promptVariables?: Record<string, unknown> | null;
   spanRef?: string;
-}): Promise<{ traceId: string; spanRef: string } | undefined> {
+}): Promise<{ traceId: string; spanRef: string; spanId: string } | undefined> {
   const { ctx, result, request, gatewayRequestId, promptVariables } = args;
   try {
-    return await runInTransaction(async (tx) => {
+    const written = await runInTransaction(async (tx) => {
       const reqRow = await gatewayRepo.findById(gatewayRequestId, tx);
       if (!reqRow) return undefined; // nothing to mirror — ledger row not found
 
@@ -154,8 +155,13 @@ export async function recordGatewaySpan(args: {
         );
       }
 
-      return { traceId: trace.id, spanRef };
+      return { traceId: trace.id, spanRef, spanId: span.id };
     });
+
+    if (written) {
+      enqueueOnlineEval({ teamId: ctx.teamId, traceId: written.traceId, spanId: written.spanId, spanKind: 'llm' });
+    }
+    return written;
   } catch (err) {
     console.error('[trace] span write failed', err);
     return undefined;

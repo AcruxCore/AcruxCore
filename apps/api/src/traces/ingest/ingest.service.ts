@@ -3,6 +3,7 @@ import { SpansRepository } from '../spans';
 import type { CreateSpanInput } from '../spans';
 import { TraceSettingsRepository, shouldCapture } from '../settings';
 import { AppError, NotFoundError, PayloadTooLargeError } from '../../shared/errors';
+import { enqueueOnlineEval } from '../../evaluations/online/enqueue-online-eval';
 import type { IngestSpan, IngestTrace, IngestResponse } from './ingest.types';
 
 /** Maximum spans accepted in one ingestion request (Phase-3 guard, FAQ / spec). */
@@ -98,8 +99,9 @@ export class IngestService {
   ): Promise<string> {
     const capture = shouldCapture(teamSetting, trace.capturePayloads);
     const startedAt = this.earliestStart(trace.spans);
+    const llmSpanIds: string[] = [];
 
-    return runInTransaction(async (tx) => {
+    const traceId = await runInTransaction(async (tx) => {
       // ── Resolve or create the trace ───────────────────────────────────────
       let traceId: string;
       if (trace.traceId) {
@@ -170,6 +172,7 @@ export class IngestService {
         const spanRow = mode.idempotent
           ? await this.spans.upsertSpan(this.toSpanInput(teamId, traceId, s), tx)
           : await this.spans.appendSpan(this.toSpanInput(teamId, traceId, s), tx);
+        if (spanRow.kind === 'llm') llmSpanIds.push(spanRow.id);
         if (capture && (s.input !== undefined || s.output !== undefined || s.variables !== undefined)) {
           await this.spans.writePayload(
             spanRow.id,
@@ -182,6 +185,11 @@ export class IngestService {
 
       return traceId;
     });
+
+    for (const spanId of llmSpanIds) {
+      enqueueOnlineEval({ teamId, traceId, spanId, spanKind: 'llm' });
+    }
+    return traceId;
   }
 
   /** Earliest span startTime in the trace — the created trace's `startedAt`. */

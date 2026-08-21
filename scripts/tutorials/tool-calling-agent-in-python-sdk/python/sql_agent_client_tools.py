@@ -22,22 +22,28 @@ def query_database(sql: str) -> list[dict]:
         conn.close()
 
 
-async def dispatch(name: str, args: dict):
-    """Route a tool call from the model to its local implementation."""
-    if name == "query_database":
-        print(f"  → query_database: {args['sql']}")
-        return query_database(args["sql"])
-    raise ValueError(f"Unknown tool: {name}")
+def run_query_database(sql: str) -> list[dict]:
+    """The `client_tools` entry for the dashboard-authored tool.
+
+    The parameter name is the catalog schema's own field, `sql`, because that is how
+    the function is called -- `run_query_database(sql=...)`, not one args dict.
+    """
+    print(f"  → query_database: {sql}")
+    return query_database(sql)
+
+
+#: Keyed by catalog tool name. The catalog holds this tool's schema and deliberately no
+#: body, so the map is the whole of what this app contributes.
+CLIENT_TOOLS = {"query_database": run_query_database}
 
 
 async def ask(hub: AcruxCore, question: str) -> str:
     rendered = await hub.prompts.render(PROMPT, "production")
     messages = [*rendered.messages, {"role": "user", "content": question}]
-    result = await hub.gateway.run_tool_loop(
-        rendered.model,
-        messages,
-        tool_defs=rendered.tools,
-        dispatch=dispatch,
+    result = await hub.gateway.run_prompt_with_tools(
+        rendered,
+        messages=messages,
+        client_tools=CLIENT_TOOLS,
         trace={"name": "sql-analyst-agent", "session_id": "sql-agent-demo"},
     )
     print(f"  (trace {result.trace_id})")

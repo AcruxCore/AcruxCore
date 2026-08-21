@@ -1,0 +1,46 @@
+meta {
+  name: Chat Completion (Tool Refs + Lineage)
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/v1/gateway/chat/completions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "model": "{{model}}",
+    "messages": [
+      { "role": "user", "content": "What's the weather in Lisbon right now?" }
+    ],
+    "tool_refs": [
+      { "name": "{{toolName}}", "alias": "production" }
+    ],
+    "prompt_version_id": "{{promptVersionId}}"
+  }
+}
+
+docs {
+  The shape an SDK tool loop sends: the caller rendered the prompt itself, so it
+  passes its own `messages`, names the catalog tools by ref, and hands over the
+  prompt version those messages came from.
+
+  - `tool_refs[]` takes either `alias` (default `production`) or `version` to pin
+    one exact build — both on one ref is a 400.
+  - `prompt_version_id` stamps the request row and the `llm` span, so the trace
+    links back to the prompt. It must be a prompt version in your own team;
+    another team's id is a 400, not a silent drop.
+  - Tool calls come back raw. Nothing is executed for you — that is what
+    `run_prompt_with_tools()` in either SDK is for.
+}

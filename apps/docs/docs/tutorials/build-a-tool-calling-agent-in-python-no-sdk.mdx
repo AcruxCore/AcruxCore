@@ -84,9 +84,9 @@ export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
 Both a prompt and a tool are created in two steps: a **shell** (name +
 description) and then an immutable **version**. For the tool, the version carries
 the JSON schema the model reads and an `executor` of `{ "type": "client" }` —
-"my own app runs this." For the prompt, the version carries the templated
-messages, a default `model`, and `tools: [{ toolId }]` that **attach** the tool so
-one render call returns both together.
+"my own app runs this." For the prompt, the version carries the templated messages
+and a default `model`. One more call **binds** the tool to the prompt, so a single
+render returns messages and tool schema together.
 
 <Tabs groupId="lang">
 <TabItem value="curl" label="curl">
@@ -111,7 +111,7 @@ curl -X POST "$ACRUXCORE_BASE_URL/prompts" \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
   -d '{"name":"py-weather-agent","description":"Weather assistant driven by a plain-Python REST tool loop."}'
 
-# 4d. Prompt version — messages, default model, and the tool attached (use the ids above)
+# 4d. Prompt version — the templated messages and a default model
 curl -X POST "$ACRUXCORE_BASE_URL/prompts/<prompt-id>/versions" \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
   -d '{
@@ -119,9 +119,13 @@ curl -X POST "$ACRUXCORE_BASE_URL/prompts/<prompt-id>/versions" \
       {"role":"system","content":"You are a weather assistant. Use the get_weather tool to look up conditions before answering. Never guess."},
       {"role":"user","content":"What is the weather in {{ city }} right now?"}
     ],
-    "model": "gpt-4o-mini",
-    "tools": [{"toolId":"<tool-id>"}]
+    "model": "gpt-4o-mini"
   }'
+
+# 4e. Bind the tool to the prompt — every alias inherits this default binding
+curl -X PUT "$ACRUXCORE_BASE_URL/prompts/<prompt-id>/tools/<tool-id>" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"tool_alias":"production"}'
 ```
 
 </TabItem>
@@ -135,7 +139,7 @@ async with AcruxCore() as hub:
         name="get_weather",
         description="Get the current weather for a city.",
     )
-    await hub.tools.commitVersion(
+    await hub.tools.commit_version(
         tool.id,
         parameters_schema={
             "type": "object",
@@ -149,16 +153,18 @@ async with AcruxCore() as hub:
         name="py-weather-agent",
         description="Weather assistant driven by a plain-Python REST tool loop.",
     )
-    await hub.prompts.commitVersion(
+    await hub.prompts.commit_version(
         prompt.id,
         messages=[
             {"role": "system", "content": "You are a weather assistant. Use the get_weather tool to look up conditions before answering. Never guess."},
             {"role": "user", "content": "What is the weather in {{ city }} right now?"},
         ],
         model="gpt-4o-mini",
-        tools=[{"toolId": tool.id}],
     )
+    await hub.prompts.set_tool_binding(prompt.id, tool.id, tool_alias="production")
 ```
+
+Full script: [`setup_prompt.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-no-sdk/python/setup_prompt.py).
 
 </TabItem>
 <TabItem value="node-sdk" label="Node (SDK)">
@@ -191,8 +197,8 @@ await hub.prompts.commitVersion(prompt.id, {
     { role: 'user', content: 'What is the weather in {{ city }} right now?' },
   ],
   model: 'gpt-4o-mini',
-  tools: [{ toolId: tool.id }],
 });
+await hub.prompts.setToolBinding(prompt.id, tool.id, { toolAlias: 'production' });
 ```
 
 </TabItem>
@@ -204,9 +210,10 @@ the bound default model, and `PRODUCTION → v1`.
 
 ![The py-weather-agent prompt Editor tab showing default model gpt-4o-mini, a system and user message, and production pointing at v1](/img/tutorials/build-a-tool-calling-agent-in-python-no-sdk/04-prompt-editor.png)
 
-The **Tools** tab confirms `get_weather` is attached to v1:
+The **Tools** tab confirms `get_weather` is connected, in the **default** column
+that every alias of the prompt inherits:
 
-![The prompt Tools tab showing get_weather under an Attached to v1 heading](/img/tutorials/build-a-tool-calling-agent-in-python-no-sdk/05-prompt-tools.png)
+![The prompt Tools tab showing get_weather connected](/img/tutorials/build-a-tool-calling-agent-in-python-no-sdk/05-prompt-tools.png)
 
 :::tip[Prefer the dashboard?]
 You can also create the prompt and tool by clicking — see
@@ -219,7 +226,7 @@ The UI and the REST API write to the same catalog.
 Now the run path — plain `requests`, no SDK. Two REST endpoints do the work:
 
 - **`POST /prompts/{name}/{alias}/render`** returns the rendered `messages` and the
-  attached `tools`, already in OpenAI shape. Neither is hard-coded in your file.
+  bound `tools`, already in OpenAI shape. Neither is hard-coded in your file.
 - **`POST /gateway/chat/completions`** is the OpenAI-compatible completion. Send
   the messages and tools; the gateway calls OpenRouter and **records the LLM span
   itself**.
@@ -392,44 +399,65 @@ curl -X POST "$ACRUXCORE_BASE_URL/gateway/models" \
 ```
 
 </TabItem>
-<TabItem value="python-sdk" label="Python (SDK)">
+<TabItem value="python-sdk" label="Python (requests)">
+
+Credentials and models are platform configuration, so neither SDK wraps them —
+call the two endpoints directly, the same ones the curl tab shows.
 
 ```python
-from acruxcore import AcruxCore
+import os, requests
 
-async with AcruxCore() as hub:
-    credential = await hub.gateway.createConnection(
-        provider="openai_compatible",
-        label="OpenRouter",
-        apiKey="<your openrouter key>",
-        config={"base_url": "https://openrouter.ai/api/v1"},
-    )
-    model = await hub.gateway.createModel(
-        publicName="gpt-4o-mini",
-        upstreamModel="openai/gpt-4o-mini",
-        credentialId=credential.id,
-    )
-    print(f"credential={credential.id} model={model.id}")
+BASE_URL = os.environ["ACRUXCORE_BASE_URL"]
+headers = {"Authorization": f"Bearer {os.environ['ACRUXCORE_API_KEY']}",
+           "Content-Type": "application/json"}
+
+credential = requests.post(f"{BASE_URL}/gateway/connections", headers=headers, json={
+    "provider": "openai_compatible",
+    "label": "OpenRouter",
+    "apiKey": "<your openrouter key>",
+    "config": {"base_url": "https://openrouter.ai/api/v1"},
+}).json()
+
+model = requests.post(f"{BASE_URL}/gateway/models", headers=headers, json={
+    "publicName": "gpt-4o-mini",
+    "upstreamModel": "openai/gpt-4o-mini",
+    "credentialId": credential["id"],
+}).json()
+
+print(f"credential={credential['id']} model={model['id']}")
 ```
 
 </TabItem>
-<TabItem value="node-sdk" label="Node (SDK)">
+<TabItem value="node-sdk" label="Node (fetch)">
 
 ```typescript
-import { acruxcore } from '@acruxcoreai/sdk';
+const BASE_URL = process.env.ACRUXCORE_BASE_URL!;
+const headers = {
+  Authorization: `Bearer ${process.env.ACRUXCORE_API_KEY}`,
+  'Content-Type': 'application/json',
+};
 
-const hub = acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
-const credential = await hub.gateway.createConnection({
-  provider: 'openai_compatible',
-  label: 'OpenRouter',
-  apiKey: '<your openrouter key>',
-  config: { base_url: 'https://openrouter.ai/api/v1' },
-});
-const model = await hub.gateway.createModel({
-  publicName: 'gpt-4o-mini',
-  upstreamModel: 'openai/gpt-4o-mini',
-  credentialId: credential.id,
-});
+const credential = await fetch(`${BASE_URL}/gateway/connections`, {
+  method: 'POST',
+  headers,
+  body: JSON.stringify({
+    provider: 'openai_compatible',
+    label: 'OpenRouter',
+    apiKey: '<your openrouter key>',
+    config: { base_url: 'https://openrouter.ai/api/v1' },
+  }),
+}).then((r) => r.json());
+
+const model = await fetch(`${BASE_URL}/gateway/models`, {
+  method: 'POST',
+  headers,
+  body: JSON.stringify({
+    publicName: 'gpt-4o-mini',
+    upstreamModel: 'openai/gpt-4o-mini',
+    credentialId: credential.id,
+  }),
+}).then((r) => r.json());
+
 console.log(`credential=${credential.id} model=${model.id}`);
 ```
 

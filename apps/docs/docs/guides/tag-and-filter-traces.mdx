@@ -420,15 +420,15 @@ loop inherits the session.
 </TabItem>
 </Tabs>
 
-Read it back from a trace with `get_trace()` / `getTrace()`:
+Read it back from a trace with `hub.traces.get()`:
 
 ```python
-detail = await client.get_trace(trace_id)
+detail = await hub.traces.get(trace_id)
 print(detail.trace.session_id)   # "support-ticket-421"
 ```
 
 ```typescript
-const detail = await client.getTrace(traceId);
+const detail = await hub.traces.get(traceId);
 console.log(detail.trace.sessionId); // "support-ticket-421"
 ```
 

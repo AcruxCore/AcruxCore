@@ -1,0 +1,33 @@
+meta {
+  name: Resolve Tools - Pinned Version
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/tools/resolve
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "refs": [
+      { "name": "{{toolName}}", "version": 1 }
+    ]
+  }
+}
+
+docs {
+  `version` pins one exact build and never consults an alias — what a prompt's
+  pinned tool binding resolves through. `alias` and `version` on the same ref is
+  a 400: a ref carrying both names two different builds.
+}

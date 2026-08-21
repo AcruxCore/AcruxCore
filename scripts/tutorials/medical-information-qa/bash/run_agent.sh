@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Medical-information QA agent -- bash + curl + jq + awk, gateway, manual tool_calls loop.
 #
-# Phase 1: render the prompt (tools attached), loop tool_calls by hand until the
+# Phase 1: render the prompt (tools bound), loop tool_calls by hand until the
 #          model stops calling tools -- gathers grounding facts via the real
 #          token-overlap search + fixture lookups (implemented in awk/jq below,
 #          same logic as the Python/Node tabs).

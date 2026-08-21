@@ -32,6 +32,33 @@ export async function listAuditEvents(
 }
 
 /**
+ * GET /api/v1/tools/:id/audit
+ * Returns a paginated, reverse-chronological audit log for a tool — its own
+ * version commits, alias promotions, and code-sync supersedes.
+ */
+export async function listToolAuditEvents(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const parsed = AuditQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: parsed.error.errors[0]?.message ?? 'Invalid query parameters.' },
+      });
+      return;
+    }
+
+    const { page, limit } = parsed.data;
+    const result = await auditService.listForTool(req.params.id!, req.teamId!, page, limit);
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * GET /api/v1/teams/:id/audit
  * Returns a paginated, reverse-chronological audit log for an entire team
  * (Finding #13) — not scoped to a single prompt. `:id` is the target team,

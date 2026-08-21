@@ -122,19 +122,10 @@ export interface VersionDetail {
   model: string | null;
 }
 
-/** A single tool attachment on a committed prompt version (TC3 FAQ Q4). */
-export interface AttachToolInput {
-  toolId: string;
-  alias?: string;
-  pinnedVersionNumber?: number;
-}
-
 /** Body for POST /prompts/:id/versions. */
 export interface CommitVersionInput {
   promptId: string;
   messages: Message[];
-  /** Catalog tools to attach to this immutable version (TC3 FAQ Q4); omitted/empty attaches none. */
-  tools?: AttachToolInput[];
   /** Optional default model publicName to bind on this version (#12); omitted = unbound. */
   model?: string | null;
 }
@@ -510,10 +501,28 @@ export interface Feedback {
   updatedAt: string;
 }
 
+/**
+ * One online-eval rule score attached to a trace (mirrors the backend's
+ * `EvalScoreDto`). `score`/`passed`/`reason`/`judgeTraceId` are all `null`
+ * when the rule matched a span but payload capture was off for the team, so
+ * the judge was never called.
+ */
+export interface EvalScoreDto {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  score: number | null;
+  passed: boolean | null;
+  reason: string | null;
+  judgeTraceId: string | null;
+  createdAt: string;
+}
+
 export interface TraceDetail {
   trace: TraceSummary;
   spans: Span[];
   feedback: Feedback[];
+  evalScores: EvalScoreDto[];
 }
 
 /** Frontend filter shape; the URL is the source of truth and hooks map these to snake_case query params. */
@@ -538,6 +547,8 @@ export interface TraceFilters {
 export interface TraceFacets {
   tags: string[];
   metadataKeys: string[];
+  /** Distinct resolved `llm` span models seen for the team — NOT `GatewayModel.publicName`. */
+  models: string[];
 }
 
 export interface SessionSummary {
@@ -1018,6 +1029,7 @@ export interface UpdateTraceSettingsInput {
 export type NotificationCategory =
   | 'budget_alerts'
   | 'eval_runs'
+  | 'eval_rules'
   | 'membership'
   | 'weekly_digest';
 
@@ -1184,4 +1196,91 @@ export interface ToolStat {
   errorRate: number;
   p50Ms: number | null;
   p95Ms: number | null;
+}
+
+// ── Online Evaluation Rules ──────────────────────────────────────────────────
+/** Match conditions for an online-eval rule, all ANDed. Empty matches every `llm` span. */
+export interface EvalRuleFilter {
+  promptId?: string;
+  promptAlias?: string;
+  model?: string;
+  tags?: string[];
+  sessionOnly?: boolean;
+}
+
+/** GET/POST/PATCH `/eval-rules` response shape — a rule plus today's aggregate stats. */
+export interface EvalRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  kind: 'llm_judge';
+  criteria: string;
+  judgeModel: string | null;
+  judgePromptId: string | null;
+  sampleRate: number;
+  dailyLimit: number | null;
+  alertBelow: number | null;
+  filter: EvalRuleFilter;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  todayCount: number;
+  todayMeanScore: number | null;
+}
+
+/** Body for `POST /eval-rules`. `PATCH /eval-rules/:id` accepts a `Partial` of the same shape. */
+export interface CreateEvalRuleInput {
+  name: string;
+  criteria: string;
+  judgeModel: string;
+  judgePromptId?: string | null;
+  sampleRate?: number;
+  dailyLimit?: number | null;
+  alertBelow?: number | null;
+  filter?: EvalRuleFilter;
+  enabled?: boolean;
+}
+
+/** One row from `GET /eval-rules/:id/scores` — a persisted judge verdict for one matched span. */
+export interface EvalRuleScore {
+  id: string;
+  ruleId: string;
+  traceId: string;
+  spanId: string;
+  score: number | null;
+  passed: boolean | null;
+  reason: string | null;
+  judgeTraceId: string | null;
+  costUsd: number | null;
+  createdAt: string;
+}
+
+/** Query params for `GET /eval-rules/:id/scores` — already camelCase, no wire-shape mapping needed. */
+export interface EvalRuleScoreFilters {
+  page?: number;
+  limit?: number;
+  minScore?: number;
+  maxScore?: number;
+}
+
+/** One dry-run verdict from `POST /eval-rules/:id/preview`. Scored live against recent spans; never persisted. */
+export interface EvalRulePreviewVerdict {
+  spanId: string;
+  traceId: string;
+  score: number | null;
+  passed: boolean | null;
+  reason: string | null;
+}
+
+/** Body for `POST /eval-rules/:id/to-dataset` — builds a dataset from this rule's low-scoring verdicts. */
+export interface ToDatasetInput {
+  datasetName: string;
+  threshold: number;
+  limit?: number;
+}
+
+/** Response for `POST /eval-rules/:id/to-dataset`. */
+export interface ToDatasetResult {
+  id: string;
+  exampleCount: number;
 }

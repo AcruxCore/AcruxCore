@@ -16,3 +16,5 @@ export * from './notifications';
 export * from './evaluations';
 export * from './tools';
 export * from './secrets';
+export * from './eval-rules';
+export * from './tool-bindings';

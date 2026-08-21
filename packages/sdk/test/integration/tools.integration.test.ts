@@ -6,6 +6,10 @@ import { _resetSyncCacheForTesting } from '../../src/tools-api';
 import { _resetCacheForTesting } from '../../src/cache';
 import prisma from '../../../../apps/api/src/shared/db/client';
 import { signupTestUserWithApiKey } from '../../../../apps/api/src/test-utils/auth';
+import {
+  allowLoopbackForTests,
+  resetSsrfAllowlist,
+} from '../../../../apps/api/src/tools/execute/safe-fetch';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { createApp } = require('../../../../apps/api/app');
@@ -57,15 +61,22 @@ async function setupUserAndKey(): Promise<{ apiKey: string; cookie: string }> {
  * pointed at it, plus a closer. `ToolsNamespace`'s new lifecycle methods call
  * `this.client._request` → real `fetch`, unlike supertest's `request(app)` wrapper, so
  * the client needs an actual listening socket rather than an in-memory supertest binding.
+ *
+ * `baseUrl` is returned as well so a test can point a server-side `http` executor
+ * back at this same server instead of at a third party (issue #331).
  */
-async function startLiveClient(apiKey: string): Promise<{ hub: acruxcore; close: () => Promise<void> }> {
+async function startLiveClient(
+  apiKey: string,
+): Promise<{ hub: acruxcore; baseUrl: string; close: () => Promise<void> }> {
   const http = await import('http');
   const server = http.createServer(app);
   await new Promise<void>((resolve) => server.listen(0, resolve));
   const port = (server.address() as { port: number }).port;
-  const hub = new acruxcore({ apiKey, baseUrl: `http://localhost:${port}/api/v1`, maxRetries: 0 });
+  const baseUrl = `http://localhost:${port}/api/v1`;
+  const hub = new acruxcore({ apiKey, baseUrl, maxRetries: 0 });
   return {
     hub,
+    baseUrl,
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };
 }
@@ -102,7 +113,7 @@ async function createToolWithVersion(
 beforeEach(async () => {
   _resetCacheForTesting();
   _resetSyncCacheForTesting();
-  await prisma.$executeRaw`TRUNCATE TABLE prompt_version_tools, tool_aliases, tool_versions, tools, prompt_aliases, prompt_versions, audit_log, prompts, api_keys, team_members, teams, users RESTART IDENTITY CASCADE`;
+  await prisma.$executeRaw`TRUNCATE TABLE prompt_tool_bindings, tool_aliases, tool_versions, tools, prompt_aliases, prompt_versions, audit_log, prompts, api_keys, team_members, teams, users RESTART IDENTITY CASCADE`;
 });
 
 afterAll(async () => {
@@ -110,7 +121,7 @@ afterAll(async () => {
 });
 
 describe('acruxcore SDK tools integration', () => {
-  it('renderPrompt returns the attached tool in `tools`, alongside the rendered messages', async () => {
+  it('renderPrompt returns the bound tool in `tools`, alongside the rendered messages', async () => {
     const { apiKey, cookie } = await setupUserAndKey();
 
     const toolId = await createToolWithVersion(cookie, `get_weather_${Date.now()}`, 'Looks up current weather for a city');
@@ -131,9 +142,16 @@ describe('acruxcore SDK tools integration', () => {
           { role: 'system', content: 'You are a helpful weather assistant.' },
           { role: 'user', content: "What's the weather in {{ city }}?" },
         ],
-        tools: [{ toolId }],
       })
       .expect(201);
+
+    // Tools are bound per prompt alias, not per version — this default binding is what
+    // every alias inherits, and what the render below resolves through.
+    await request(app)
+      .put(`/api/v1/prompts/${promptId}/tools/${toolId}`)
+      .set('Cookie', cookie)
+      .send({ tool_alias: 'production' })
+      .expect(200);
 
     const http = await import('http');
     const server = http.createServer(app);
@@ -149,7 +167,7 @@ describe('acruxcore SDK tools integration', () => {
     expect(messages[0]).toEqual({ role: 'system', content: 'You are a helpful weather assistant.' });
     expect(messages[1]).toEqual({ role: 'user', content: "What's the weather in Paris?" });
 
-    // Real attached tool, resolved through the Tools Catalog + PromptToolResolver
+    // Real bound tool, resolved through the Tools Catalog + PromptToolResolver
     expect(tools).toHaveLength(1);
     expect(tools[0]).toEqual({
       type: 'function',
@@ -279,6 +297,45 @@ describe('acruxcore SDK tools integration', () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
+  it('tools.resolve pins an exact version, ignoring where the alias points', async () => {
+    const { apiKey, cookie } = await setupUserAndKey();
+    const toolName = `get_weather_${Date.now()}`;
+    const toolId = await createToolWithVersion(cookie, toolName, 'v1 description');
+    await request(app)
+      .post(`/api/v1/tools/${toolId}/versions`)
+      .set('Cookie', cookie)
+      .send({
+        description: 'v2 description',
+        parametersSchema: { type: 'object', properties: { zip: { type: 'string' } } },
+        executor: { type: 'client' },
+      })
+      .expect(201);
+    // Committing a version mints no alias, so production is moved explicitly — after
+    // which a ref that follows the alias gets v2 and only a pin can still reach v1.
+    await request(app)
+      .post(`/api/v1/tools/${toolId}/aliases/production/promote`)
+      .set('Cookie', cookie)
+      .send({ version_number: 2 })
+      .expect(200);
+
+    const http = await import('http');
+    const server = http.createServer(app);
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const port = (server.address() as { port: number }).port;
+    const hub = new acruxcore({ apiKey, baseUrl: `http://localhost:${port}/api/v1`, maxRetries: 0 });
+
+    const [pinned] = await hub.tools.resolve([{ name: toolName, version: 1 }]);
+    const [followed] = await hub.tools.resolve([{ name: toolName }]);
+
+    // This is what a prompt's pinned tool binding relies on: the pin wins over the
+    // alias, so a pinned prompt keeps running the build it was pinned to.
+    expect(pinned?.versionNumber).toBe(1);
+    expect(pinned?.function.description).toBe('v1 description');
+    expect(followed?.versionNumber).toBe(2);
+
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
   it('tools.resolve reports every unresolvable ref in one 404', async () => {
     const { apiKey, cookie } = await setupUserAndKey();
     const toolName = `get_weather_${Date.now()}`;
@@ -336,12 +393,17 @@ describe('acruxcore SDK tools integration', () => {
       expect(v1.warnings).toBeUndefined();
 
       // commitVersion v2 (http executor) — aliases absent (committing never moves an alias by itself)
+      // This executor is only ever stored and read back, never executed. The host is
+      // still IANA's reserved `example.com` rather than an arbitrary third party — but
+      // it has to be one that RESOLVES, because committing an `http` executor runs the
+      // SSRF guard (`versions.service.ts` -> `assertPublicUrl`), which fails closed on
+      // a name that does not resolve. A subdomain like `api.example.com` does not.
       const v2 = await hub.tools.commitVersion(created.id, {
         description: 'Looks up the weather via a public API',
         parametersSchema: { type: 'object', properties: { city: { type: 'string' } }, required: ['city'] },
         executor: {
           type: 'http',
-          url: 'https://httpbin.org/get',
+          url: 'https://example.com/weather',
           method: 'GET',
           headers: [],
           query: [{ name: 'city', value: '{{city}}' }],
@@ -353,7 +415,7 @@ describe('acruxcore SDK tools integration', () => {
       expect(v2.warnings).toBeUndefined();
       expect(v2.executor).toEqual({
         type: 'http',
-        url: 'https://httpbin.org/get',
+        url: 'https://example.com/weather',
         method: 'GET',
         headers: [],
         query: [{ name: 'city', value: '{{city}}' }],
@@ -408,14 +470,28 @@ describe('acruxcore SDK tools integration', () => {
   });
 
   describe('tools.execute', () => {
+    // This test used to point the executor at `https://httpbin.org/get`, so it went
+    // red whenever httpbin rate-limited or fell over — nothing to do with our code
+    // (issue #331). It now calls this same in-process server's own health endpoint:
+    // no network, no third party, deterministic.
+    //
+    // Reaching loopback needs the SSRF guard's in-process seam, which is exactly
+    // what `allowLoopbackForTests` exists for (`apps/api/src/tools/execute/
+    // safe-fetch.ts`, same as `execute.test.ts` uses). It is opened around this one
+    // test and closed again in `finally`, so no other test runs with a widened
+    // guard. The Python suite cannot do this — its server is a subprocess — which
+    // is why that one uses a public host and skips when it is unreachable.
+    beforeAll(() => allowLoopbackForTests());
+    afterAll(() => resetSsrfAllowlist());
+
     it('executes an http-executor tool via hub.tools.execute()', async () => {
       const { apiKey } = await setupUserAndKey();
-      const { hub, close } = await startLiveClient(apiKey);
+      const { hub, baseUrl, close } = await startLiveClient(apiKey);
 
       try {
         const created = await hub.tools.create({
-          name: `httpbin-get-${Date.now()}`,
-          description: 'HTTP GET to httpbin',
+          name: `http_exec_${Date.now()}`,
+          description: 'HTTP GET via the server-side executor',
         });
 
         const v1 = await hub.tools.commitVersion(created.id, {
@@ -426,13 +502,13 @@ describe('acruxcore SDK tools integration', () => {
           },
           executor: {
             type: 'http',
-            url: 'https://httpbin.org/get',
+            url: `${baseUrl}/health`,
             method: 'GET',
             headers: [],
             query: [{ name: 'city', value: '{{city}}' }],
             argMapping: [{ arg: 'city', in: 'query' }],
           },
-          description: 'HTTP GET to httpbin',
+          description: 'HTTP GET via the server-side executor',
         });
         expect(v1.versionNumber).toBe(1);
 

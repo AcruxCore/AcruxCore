@@ -29,3 +29,15 @@ python weather_stream.py    # streams the reply token by token
 final answer reports "22°C with light rain" — one trace with an LLM span, a
 `get_weather` tool span, and a final LLM span. `weather_stream.py` prints Paris's
 answer live as it streams (no tools — see the tutorial's Step 6 for why).
+
+## Set up the tool and prompt first
+
+`setup_prompt.py` is the runnable version of the page's "Python (SDK)" tab for
+Step 4: it creates the `get_weather` tool and the `py-weather-agent` prompt and
+connects them. Find-or-create, so re-running it is a no-op. The agent scripts
+below use plain `requests` with no SDK; this one setup step is the exception,
+because the page offers an SDK tab for it.
+
+```bash
+python python/setup_prompt.py
+```

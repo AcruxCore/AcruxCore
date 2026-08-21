@@ -10,13 +10,13 @@ import TabItem from '@theme/TabItem';
 
 # Store prompts and tools via the API
 
-**What you'll build:** a `travel-assistant` prompt with three tools attached —
-all saved through the REST API — then fetched and run from the SDK, finishing
+**What you'll build:** a `travel-assistant` prompt with three tools connected to
+it — all saved through the REST API — then fetched and run from the SDK, finishing
 with a reply streamed to your terminal token by token.
 
 In acruxcore, prompts and tools are **versioned catalog resources**: a prompt
 holds templated messages, a tool holds a JSON schema the model reads, and a
-prompt version can **attach** tools so they travel together. You can author both
+**binding** connects the two so they travel together. You can author both
 in the dashboard, but you can also create them entirely over the REST API — which
 is what this guide does. At run time your app fetches them **by name** with the
 `@acruxcoreai/sdk`, so the prompt text and tool schemas live on the server, not
@@ -71,7 +71,7 @@ curl -X POST "$ACRUXCORE_BASE_URL/tools" \
 
 Then a version. The `parametersSchema` is the standard JSON Schema the model
 reads to decide how to call the tool. The `executor` says who runs it —
-`{ "type": "client" }` means **your own app** runs the tool (your `dispatch`
+`{ "type": "client" }` means **your own app** runs the tool (your `clientTools`
 function, shown later), so the platform only stores the schema.
 
 ```bash
@@ -121,13 +121,13 @@ differs from the live one, and moves the alias when it commits. Re-running it wi
 unchanged spec changes nothing.
 :::
 
-## 3. Store the prompt and attach the tools
+## 3. Store the prompt and connect the tools
 
-Same two-step shape: a prompt **shell**, then a **version** with the templated
-messages. The `{{ city }}`-style placeholders are
+Three steps: a prompt **shell**, a **version** with the templated messages, then a
+**binding** per tool. The `{{ city }}`-style placeholders are
 [nunjucks](https://mozilla.github.io/nunjucks/) variables the server fills in at
-render time. The `tools` array **attaches** the catalog tools you just created to
-this exact version, by their tool id.
+render time. Bindings hang off the prompt rather than the version, so changing which
+tools it calls never needs a new commit.
 
 ```bash
 curl -X POST "$ACRUXCORE_BASE_URL/prompts" \
@@ -147,7 +147,7 @@ curl -X POST "$ACRUXCORE_BASE_URL/prompts" \
 }
 ```
 
-Now the version. Pass each tool as `{ "toolId": "<id>" }`:
+Now the version — messages only, since tools are wired to the prompt separately:
 
 ```bash
 curl -X POST "$ACRUXCORE_BASE_URL/prompts/bf43ef76-e2cf-48ec-a37b-dd03f0edba97/versions" \
@@ -157,11 +157,6 @@ curl -X POST "$ACRUXCORE_BASE_URL/prompts/bf43ef76-e2cf-48ec-a37b-dd03f0edba97/v
     "messages": [
       {"role":"system","content":"You are a helpful travel assistant. Use the provided tools to answer with concrete, up-to-date facts instead of guessing."},
       {"role":"user","content":"What'"'"'s the weather in {{ city }} right now, what time is it there, and how much is {{ amount }} {{ from }} in {{ to }}?"}
-    ],
-    "tools": [
-      {"toolId":"94ade16a-a242-4374-a0c8-4e773a450296"},
-      {"toolId":"666c6d6d-ece8-47ac-93ff-21c7c3b8698b"},
-      {"toolId":"3c4f9d29-7e47-4cfc-afc1-2b2bfd6fd92f"}
     ]
   }'
 ```
@@ -187,10 +182,42 @@ the template, and the auto-created aliases:
 }
 ```
 
+Then connect the three tools. A binding is a live setting on the prompt, so this is
+one `PUT` per tool and nothing needs committing afterwards. `tool_alias` names the
+tool alias to follow, so a later tool commit reaches the prompt as soon as that
+alias moves:
+
+```bash
+for TOOL in 94ade16a-a242-4374-a0c8-4e773a450296 \
+            666c6d6d-ece8-47ac-93ff-21c7c3b8698b \
+            3c4f9d29-7e47-4cfc-afc1-2b2bfd6fd92f; do
+  curl -X PUT "$ACRUXCORE_BASE_URL/prompts/bf43ef76-e2cf-48ec-a37b-dd03f0edba97/tools/$TOOL" \
+    -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+    -H "Content-Type: application/json" \
+    -d '{"tool_alias":"production"}'
+done
+```
+
+Each call returns the binding it wrote, including the tool version it resolves to
+right now:
+
+```json
+{
+  "toolId": "94ade16a-a242-4374-a0c8-4e773a450296",
+  "toolName": "get_weather",
+  "toolAlias": "production",
+  "pinnedVersionNumber": null,
+  "off": false,
+  "resolvedVersionNumber": 1,
+  "position": 0
+}
+```
+
 :::tip[Prefer the dashboard?]
 Steps 2 and 3 have a UI equivalent: the **New tool** and **New prompt** buttons
-create the shells, and each detail page commits versions. The screenshots in the
-next step are that same dashboard — the API and the UI write to the same catalog.
+create the shells, each detail page commits versions, and the prompt's **Tools**
+tab connects tools. The screenshots in the next step are that same dashboard — the
+API and the UI write to the same catalog.
 :::
 
 ## 4. Confirm they saved in the dashboard
@@ -205,9 +232,10 @@ and `staging` aliases both pointing at v1, and the nunjucks variables in place:
 
 ![The travel-assistant prompt detail page, Editor tab, showing a system message and a user message with city, amount, from and to placeholders, with production and staging both on v1](/img/tutorials/store-prompts-and-tools-via-api/02-prompt-detail.png)
 
-The **Tools** tab confirms all three tools are attached to v1:
+The **Tools** tab confirms all three tools are connected, in the **default** column
+that every alias inherits:
 
-![The prompt Tools tab listing get_weather, convert_currency and get_current_time under an Attached to v1 heading](/img/tutorials/store-prompts-and-tools-via-api/03-prompt-tools-attached.png)
+![The prompt Tools tab listing get_weather, convert_currency and get_current_time](/img/tutorials/store-prompts-and-tools-via-api/03-prompt-tools-attached.png)
 
 The tools themselves live in **Gateway → Tools**:
 
@@ -221,7 +249,7 @@ Opening `get_weather` shows its committed v1:
 
 Now the run path. A single `hub.prompts.render(name, alias, variables)` call returns
 **both** the templated messages (variables already filled in server-side) and the
-attached tool schemas, already in OpenAI shape:
+bound tool schemas, already in OpenAI shape:
 
 <Tabs groupId="lang">
 <TabItem value="node" label="Node (SDK)">
@@ -268,11 +296,10 @@ Fetched from framework: 2 message(s) + 3 tool(s) [get_weather, convert_currency,
 
 ## 6. Run the agent
 
-`runToolLoop` takes the fetched `messages` and the fetched definitions as
-`toolDefs`, calls the model, and when the model asks for a tool it runs your local
-`dispatch` function and feeds the result back — looping until the model gives a final
-answer. The **only** tool code left in your app is `dispatch`; the schemas and prompt
-text came from the server.
+`runPromptWithTools` takes the render result, calls the model, and when the model asks
+for a tool it runs the matching function from your `clientTools` map and feeds the result
+back — looping until the model gives a final answer. The **only** tool code left in your
+app is that map; the schemas and prompt text came from the server.
 
 Here is the complete, runnable example — it does the store (steps
 2–3), the fetch (step 5), and the run in one idempotent file:
@@ -296,18 +323,20 @@ Here is the complete, runnable example — it does the store (steps
  *     1. Tools  → POST /tools (shell) + POST /tools/:id/versions (schema). Each
  *        version stores the `parametersSchema` the model reads plus a
  *        `{ type: 'client' }` executor — "our own app runs this tool", so
- *        {@link dispatch} below still runs locally.
+ *        the {@link CLIENT_TOOLS} bodies below still run locally.
  *     2. Prompt → POST /prompts (shell) + POST /prompts/:id/versions with the
- *        templated messages AND `tools: [{ toolId }]` that ATTACH the catalog
- *        tools to this immutable version.
+ *        templated messages, then PUT /prompts/:id/tools/:toolId per tool to BIND
+ *        the catalog tools to the prompt. A version is the template; bindings are
+ *        a live setting on the prompt, so nothing needs re-committing to change
+ *        which tools it calls.
  *
  *   FETCH + USE (SDK, at run time):
  *     3. `hub.prompts.render(name, 'production', vars)` returns `{ messages, tools }` in
  *        one call: the messages are templated server-side and `tools` are the
- *        version's attached tool schemas, already in OpenAI shape. Both come from
+ *        version's bound tool schemas, already in OpenAI shape. Both come from
  *        the framework — this file no longer holds them.
  *     4. `hub.gateway.runToolLoop({ messages, toolDefs })` runs the loop with exactly what was
- *        fetched. The only tool code left in this file is `dispatch` — the local
+ *        fetched. The only tool code left in this file is `CLIENT_TOOLS` — the local
  *        implementations. Schemas, descriptions, and the prompt text live on the
  *        server.
  *
@@ -318,7 +347,7 @@ Here is the complete, runnable example — it does the store (steps
  * The setup is written as idempotent "ensure" helpers (find-by-name, create only
  * if missing) because names are NOT unique in the catalog — a naive re-run would
  * create duplicate rows and make name resolution ambiguous. Run it as many times
- * as you like; it converges to one prompt (with the three tools attached) + three
+ * as you like; it converges to one prompt (with the three tools bound) + three
  * tools.
  *
  * Run:
@@ -403,29 +432,24 @@ const RATES: Record<string, number> = {
 };
 
 /**
- * Routes one tool call from the model to its local implementation. The tool
- * *names* here must match the catalog tools attached to the prompt version.
- *
- * @param name - The tool name the model asked for (a catalog tool name).
- * @param args - The parsed JSON arguments object for this call.
- * @returns The tool's result — any JSON-serialisable value.
- * @throws {Error} If the model calls a tool name this agent doesn't implement.
+ * The local body of every catalog tool this agent can run, keyed by catalog tool name.
+ * The keys must match the tools bound to the prompt; the catalog holds their schemas and
+ * deliberately no body, so this map is the whole of what the app contributes.
  */
-function dispatch(name: string, args: Record<string, unknown>): unknown {
-  switch (name) {
-    case 'get_weather': {
+const CLIENT_TOOLS: Record<string, (args: Record<string, unknown>) => unknown> = {
+  get_weather: (args) => {
       const city = String(args.city ?? '').toLowerCase();
       return { city: args.city, conditions: WEATHER[city] ?? 'no data for that city' };
-    }
-    case 'convert_currency': {
+  },
+  convert_currency: (args) => {
       const from = String(args.from ?? '').toUpperCase();
       const to = String(args.to ?? '').toUpperCase();
       const amount = Number(args.amount ?? 0);
       const rate = RATES[`${from}:${to}`];
       if (rate === undefined) return { error: `no rate for ${from}->${to}` };
       return { amount, from, to, converted: Math.round(amount * rate * 100) / 100, rate };
-    }
-    case 'get_current_time': {
+  },
+  get_current_time: (args) => {
       const timezone = String(args.timezone ?? 'UTC');
       const time = new Intl.DateTimeFormat('en-GB', {
         timeZone: timezone,
@@ -434,11 +458,8 @@ function dispatch(name: string, args: Record<string, unknown>): unknown {
         weekday: 'short',
       }).format(new Date());
       return { timezone, time };
-    }
-    default:
-      throw new Error(`Unknown tool: ${name}`);
-  }
-}
+  },
+};
 
 // ────────────────────────────────────────────────────────────────────────────
 // Catalog definitions used ONLY to seed the framework (the STORE step). At run
@@ -455,7 +476,7 @@ interface ToolSpec {
 /**
  * The three tools, in the shape the catalog stores. Note there is no OpenAI
  * `{ type: 'function', function: {...} }` wrapper here — the catalog stores the
- * bare `parametersSchema`, and render wraps it when it returns attached tools.
+ * bare `parametersSchema`, and render wraps it when it returns bound tools.
  */
 const TOOL_SPECS: ToolSpec[] = [
   {
@@ -525,7 +546,7 @@ const PROMPT_MESSAGES = [
  * by exact name and only creates the shell/version that is missing.
  *
  * @param spec - The tool name, description, and parameters schema to converge to.
- * @returns The tool's id (used to attach it to the prompt version).
+ * @returns The tool's id (used to bind it to the prompt).
  * @throws {Error} On any non-2xx REST response.
  */
 async function ensureTool(spec: ToolSpec): Promise<string> {
@@ -545,9 +566,9 @@ async function ensureTool(spec: ToolSpec): Promise<string> {
 
   const versions = await api<ListResponse>('GET', `/tools/${tool.id}/versions`);
   if (versions.total === 0) {
-    // `{ type: 'client' }` = our own app executes the tool (see dispatch); the
+    // `{ type: 'client' }` = our own app executes the tool (see CLIENT_TOOLS); the
     // platform stores the schema but never calls it itself. The first version
-    // auto-creates the `production` alias the prompt attachment resolves against.
+    // auto-creates the `production` alias the prompt's binding resolves against.
     await api('POST', `/tools/${tool.id}/versions`, {
       description: spec.description,
       parametersSchema: spec.parametersSchema,
@@ -561,10 +582,10 @@ async function ensureTool(spec: ToolSpec): Promise<string> {
 
 /**
  * Ensures a prompt named {@link PROMPT_NAME} exists with a committed version that
- * carries {@link PROMPT_MESSAGES} and has the given catalog tools attached.
- * Idempotent, like {@link ensureTool}.
+ * carries {@link PROMPT_MESSAGES}, and that the given catalog tools are bound to
+ * it. Idempotent, like {@link ensureTool}.
  *
- * @param toolIds - Catalog tool ids to attach to the version (from {@link ensureTool}).
+ * @param toolIds - Catalog tool ids to bind to the prompt (from {@link ensureTool}).
  * @throws {Error} On any non-2xx REST response.
  */
 async function ensurePrompt(toolIds: string[]): Promise<void> {
@@ -584,19 +605,23 @@ async function ensurePrompt(toolIds: string[]): Promise<void> {
 
   const versions = await api<ListResponse>('GET', `/prompts/${prompt.id}/versions`);
   if (versions.total === 0) {
-    // Attach the catalog tools to this immutable version. hub.prompts.render then
-    // returns them alongside the messages. First commit auto-creates the
-    // `production` alias hub.prompts.render reads below.
-    await api('POST', `/prompts/${prompt.id}/versions`, {
-      messages: PROMPT_MESSAGES,
-      tools: toolIds.map((toolId) => ({ toolId })),
-    });
-    console.log(`  + committed v1 for prompt "${PROMPT_NAME}" (${toolIds.length} tools attached)`);
+    // The first commit auto-creates the `production` alias hub.prompts.render
+    // reads below. The version carries the template only.
+    await api('POST', `/prompts/${prompt.id}/versions`, { messages: PROMPT_MESSAGES });
+    console.log(`  + committed v1 for prompt "${PROMPT_NAME}"`);
   }
+
+  // Bind each tool as the prompt's default, followed through the tool's own
+  // `production` alias. PUT is idempotent, so re-running rewrites the same row and
+  // hub.prompts.render returns the tools alongside the messages.
+  for (const toolId of toolIds) {
+    await api('PUT', `/prompts/${prompt.id}/tools/${toolId}`, { tool_alias: 'production' });
+  }
+  console.log(`  + bound ${toolIds.length} tool(s) to prompt "${PROMPT_NAME}"`);
 }
 
 async function main(): Promise<void> {
-  // ── STORE: push the tools and the prompt (with tools attached) to the framework.
+  // ── STORE: push the tools and the prompt, then bind the tools to the prompt.
   console.log('Storing catalog tools and prompt in the framework…');
   const toolIds: string[] = [];
   for (const spec of TOOL_SPECS) {
@@ -607,7 +632,7 @@ async function main(): Promise<void> {
 
   const hub = new acruxcore({ apiKey, baseUrl });
 
-  // ── FETCH: one SDK call returns BOTH the templated messages and the attached
+  // ── FETCH: one SDK call returns BOTH the templated messages and the bound
   // tool schemas. Neither is defined on this run path — they came from the server.
   const { messages, tools } = await hub.prompts.render(PROMPT_NAME, 'production', {
     city: 'Tokyo',
@@ -620,12 +645,10 @@ async function main(): Promise<void> {
       `[${tools.map((t) => t.function.name).join(', ')}]`,
   );
 
-  // ── USE: run the loop with exactly what was fetched. `dispatch` supplies the
-  // local execution for each fetched tool.
-  // `toolDefs`, not `tools`: these are raw OpenAI-shaped definitions from
-  // hub.prompts.render. `tools` is for tools declared with `acrux.tool`, which carry
-  // their own body and need no dispatch.
-  const result = await hub.gateway.runToolLoop({ model, messages, toolDefs: tools, dispatch });
+  // ── USE: run the loop with exactly what was fetched. `clientTools` supplies the
+  // local execution for each fetched tool, keyed by its catalog name. Nothing is
+  // written back — the definitions stay the framework's.
+  const result = await hub.gateway.runPromptWithTools(rendered, { model, clientTools: CLIENT_TOOLS });
 
   console.log('\nAssistant:', result.content);
   console.log(`\n(${result.iterations} round-trip(s), trace ${result.traceId ?? 'disabled'})`);
@@ -656,20 +679,24 @@ The flow is store → fetch → use:
     1. Tools  → POST /tools (shell) + POST /tools/:id/versions (schema). Each
        version stores the ``parameters_schema`` the model reads plus a
        ``{"type": "client"}`` executor — "our own app runs this tool", so
-       {@link dispatch} below still runs locally.
+       the ``CLIENT_TOOLS`` bodies below still run locally.
     2. Prompt → POST /prompts (shell) + POST /prompts/:id/versions with the
-       templated messages AND ``tools: [{"toolId": ...}]`` that ATTACH the catalog
-       tools to this immutable version.
+       templated messages, then PUT /prompts/:id/tools/:toolId per tool to BIND
+       the catalog tools to the prompt. A version is the template; bindings are a
+       live setting on the prompt, so nothing needs re-committing to change which
+       tools it calls.
 
   FETCH + USE (SDK, at run time):
     3. ``hub.prompts.render(name, 'production', vars)`` returns ``(messages, tools)``
        in one call: the messages are templated server-side and ``tools`` are the
-       version's attached tool schemas, already in OpenAI shape. Both come from
+       version's bound tool schemas, already in OpenAI shape. Both come from
        the framework — this file no longer holds them.
-    4. ``hub.gateway.run_tool_loop(model, messages, tool_defs=tools, dispatch=dispatch)``
+    4. ``hub.gateway.run_prompt_with_tools(rendered, model=MODEL, client_tools=CLIENT_TOOLS)``
+       -- ``model=`` is passed because the version stored in step 2 binds none; a
+       version with a default model needs only the render.
        runs the loop with exactly what was fetched. The only tool code left in this
-       file is ``dispatch`` — the local implementations. Schemas, descriptions, and
-       the prompt text live on the server.
+       file is ``CLIENT_TOOLS`` — the local implementations, keyed by catalog tool
+       name. Schemas, descriptions, and the prompt text live on the server.
 
 Run:
     ACRUXCORE_API_KEY=<your key> \\
@@ -712,25 +739,40 @@ RATES: dict[str, float] = {
 }
 
 
-def dispatch(name: str, args: dict[str, Any]) -> Any:
-    """Route one tool call from the model to its local implementation."""
-    if name == "get_weather":
-        city = str(args.get("city", "")).lower()
-        return {"city": args.get("city"), "conditions": WEATHER.get(city, "no data for that city")}
-    if name == "convert_currency":
-        fr = str(args.get("from", "")).upper()
-        to = str(args.get("to", "")).upper()
-        amount = float(args.get("amount", 0))
-        rate = RATES.get(f"{fr}:{to}")
-        if rate is None:
-            return {"error": f"no rate for {fr}->{to}"}
-        return {"amount": amount, "from": fr, "to": to, "converted": round(amount * rate, 2), "rate": rate}
-    if name == "get_current_time":
-        timezone = str(args.get("timezone", "UTC"))
-        import datetime
-        now = datetime.datetime.now(datetime.timezone.utc)
-        return {"timezone": timezone, "time": now.strftime("%Y-%m-%d %H:%M UTC")}
-    raise ValueError(f"Unknown tool: {name}")
+def get_weather(city: str) -> Any:
+    """The local body for the catalog's `get_weather`. Parameters are its schema's fields."""
+    return {"city": city, "conditions": WEATHER.get(city.lower(), "no data for that city")}
+
+
+def convert_currency(**args: Any) -> Any:
+    """`**args` because this tool's schema has a field named `from`, a Python keyword.
+
+    Every other tool here can name its parameters directly; this one cannot, so it takes
+    the arguments as a mapping instead.
+    """
+    fr = str(args.get("from", "")).upper()
+    to = str(args.get("to", "")).upper()
+    amount = float(args.get("amount", 0))
+    rate = RATES.get(f"{fr}:{to}")
+    if rate is None:
+        return {"error": f"no rate for {fr}->{to}"}
+    return {"amount": amount, "from": fr, "to": to, "converted": round(amount * rate, 2), "rate": rate}
+
+
+def get_current_time(timezone: str = "UTC") -> Any:
+    """The local body for the catalog's `get_current_time`."""
+    import datetime
+    now = datetime.datetime.now(datetime.timezone.utc)
+    return {"timezone": timezone, "time": now.strftime("%Y-%m-%d %H:%M UTC")}
+
+
+#: Keyed by catalog tool name. All three tools were stored with a `client` executor, so
+#: all three appear; an `http` tool would not, because the platform runs those.
+CLIENT_TOOLS = {
+    "get_weather": get_weather,
+    "convert_currency": convert_currency,
+    "get_current_time": get_current_time,
+}
 
 
 # ── REST helpers ─────────────────────────────────────────────────────────────
@@ -814,7 +856,7 @@ async def ensure_tool(spec: dict[str, Any]) -> str:
 
 
 async def ensure_prompt(tool_ids: list[str]) -> None:
-    """Find-or-create the prompt with tools attached."""
+    """Find-or-create the prompt, then bind the catalog tools to it."""
     found = await api("GET", f"/prompts?search={PROMPT_NAME}")
     prompt = next((p for p in found["data"] if p["name"] == PROMPT_NAME), None)
     if not prompt:
@@ -822,11 +864,12 @@ async def ensure_prompt(tool_ids: list[str]) -> None:
         print(f'  + created prompt "{PROMPT_NAME}"')
     versions = await api("GET", f"/prompts/{prompt['id']}/versions")
     if versions["total"] == 0:
-        await api("POST", f"/prompts/{prompt['id']}/versions", {
-            "messages": PROMPT_MESSAGES,
-            "tools": [{"toolId": tid} for tid in tool_ids],
-        })
-        print(f'  + committed v1 for prompt "{PROMPT_NAME}" ({len(tool_ids)} tools attached)')
+        await api("POST", f"/prompts/{prompt['id']}/versions", {"messages": PROMPT_MESSAGES})
+        print(f'  + committed v1 for prompt "{PROMPT_NAME}"')
+    # PUT is idempotent, so re-running rewrites the same binding row.
+    for tid in tool_ids:
+        await api("PUT", f"/prompts/{prompt['id']}/tools/{tid}", {"tool_alias": "production"})
+    print(f'  + bound {len(tool_ids)} tool(s) to prompt "{PROMPT_NAME}"')
 
 
 async def main() -> None:
@@ -844,8 +887,10 @@ async def main() -> None:
               f"[{', '.join(t['function']['name'] for t in tools)}]")
 
         # ── USE ──
-        result = await hub.gateway.run_tool_loop(
-            MODEL, messages, tool_defs=tools, dispatch=dispatch,
+        # `client_tools` is the only tool code this file contributes; the schemas, the
+        # descriptions and the prompt text all came from the framework.
+        result = await hub.gateway.run_prompt_with_tools(
+            rendered, model=MODEL, client_tools=CLIENT_TOOLS,
         )
         print(f"\nAssistant: {result.content}")
         print(f"\n({result.iterations} round-trip(s), trace {result.trace_id or 'disabled'})")
@@ -912,7 +957,7 @@ answer. Call `hub.gateway.stream()` and it returns an async iterable — each
 chunk carries a `delta.content` string you can print as it arrives.
 
 This example reuses the **same** stored `travel-assistant` prompt: it renders it,
-then streams the reply. It intentionally does **not** forward the attached tools —
+then streams the reply. It intentionally does **not** forward the bound tools —
 streaming yields text deltas, and if the model chose to call a tool the first
 turn would stream tool-call fragments instead of a readable answer (streaming does
 not auto-run tools — that is what `runToolLoop` is for). Omitting `tools` keeps the
@@ -931,7 +976,7 @@ streamed output clean prose.
  * so `hub.prompts.render` has something to fetch. The flow here is fetch → stream:
  *
  *   1. `hub.prompts.render(name, 'production', vars)` returns the templated `messages`
- *      (and the version's attached `tools`, which this example intentionally does
+ *      (and the prompt's bound `tools`, which this example intentionally does
  *      NOT forward — see below).
  *   2. `hub.gateway.stream({ ... })` returns an async iterable. Each chunk carries
  *      a `delta.content` string; concatenating them rebuilds the full answer as it

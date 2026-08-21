@@ -44,8 +44,11 @@ export function useVersionById(versionId: string | null) {
 }
 
 /**
- * Commit a new immutable version from a messages array, optionally attaching
- * catalog tools (TC3 FAQ Q4) that resolve for this version going forward.
+ * Commit a new immutable version from a messages array.
+ *
+ * A version decides the template only — which tools the prompt calls lives in
+ * its tool bindings, keyed by prompt alias rather than by version, so committing
+ * says nothing about tools.
  *
  * Takes `promptId` per-call (as a mutation variable) rather than as a hook
  * argument, since some callers (e.g. "save as new prompt") only learn the
@@ -55,14 +58,10 @@ export function useVersionById(versionId: string | null) {
 export function useCommitVersion() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ promptId, messages, tools, model }: CommitVersionInput) =>
+    mutationFn: ({ promptId, messages, model }: CommitVersionInput) =>
       api<VersionDetail>(`/prompts/${promptId}/versions`, {
         method: 'POST',
-        body: {
-          messages,
-          ...(tools && tools.length > 0 ? { tools } : {}),
-          ...(model ? { model } : {}),
-        },
+        body: { messages, ...(model ? { model } : {}) },
       }),
     onSuccess: (_data, { promptId }) => {
       qc.invalidateQueries({ queryKey: keys.versions(promptId) });

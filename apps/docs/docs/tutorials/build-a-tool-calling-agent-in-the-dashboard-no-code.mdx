@@ -126,11 +126,11 @@ The Playground is a scratchpad. To turn this into something your app can call by
 
 ![Save as new prompt dialog with the name movie-assistant](/img/tutorials/build-a-tool-calling-agent-in-the-dashboard-no-code/10-save-prompt.png)
 
-Saving stores the **messages**. To make the stored prompt carry its **tools** and a default **model** too, open the new prompt and commit a version that includes them — this is where "attach the model" happens. On the prompt's **Tools** tab, tick both tools under *Attach to next commit*:
+Saving stores the **messages**. The prompt's **tools** and its default **model** are set separately. Open the new prompt, go to the **Tools** tab, and use **+ Connect a tool from the catalog** twice — once for `search_movies`, once for `get_movie_details`. Each one saves straight away and lands in the **default** column, so every alias of the prompt calls it:
 
-![The prompt's Tools tab with search_movies and get_movie_details ticked to attach on the next commit](/img/tutorials/build-a-tool-calling-agent-in-the-dashboard-no-code/11-attach-tools.png)
+![The prompt's Tools tab with search_movies and get_movie_details connected](/img/tutorials/build-a-tool-calling-agent-in-the-dashboard-no-code/11-attach-tools.png)
 
-On the **Editor** tab, set **Default model** to your model, then click **Commit new version**. Tools and the model are fixed per version, so committing bakes them in. Promote the new version to `production`. Now the header shows `PRODUCTION → v2` with the model bound and both tools attached:
+On the **Editor** tab, set **Default model** to your model, then click **Commit new version** — the model is part of the version, so committing bakes it in. Promote the new version to `production`. Now the header shows `PRODUCTION → v2` with the model bound, and both tools are live on every alias:
 
 ![The movie-assistant prompt page showing production pointing at v2 with the default model bound](/img/tutorials/build-a-tool-calling-agent-in-the-dashboard-no-code/12-prompt-model-bound.png)
 
@@ -269,7 +269,7 @@ async with AcruxCore() as hub:
         name="search_movies",
         description="Search TMDB for movies matching a title query.",
     )
-    await hub.tools.commitVersion(
+    await hub.tools.commit_version(
         tool.id,
         parameters_schema={
             "type": "object",

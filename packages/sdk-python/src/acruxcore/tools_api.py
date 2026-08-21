@@ -180,14 +180,21 @@ class ToolsNamespace:
     async def resolve(self, refs: Sequence[Dict[str, Any]]) -> List[ResolvedTool]:
         """Resolve catalog refs to schemas plus executor types, in one request.
 
-        :param refs: ``[{"name": ..., "alias": ...}]``; ``alias`` defaults to
-            ``production`` server-side.
+        :param refs: ``[{"name": ..., "alias": ...}]``, or ``[{"name": ...,
+            "version": 3}]`` to pin one exact build. ``alias`` defaults to
+            ``production`` server-side; ``alias`` and ``version`` on the same ref are
+            rejected with a 400.
         :returns: One :class:`~acruxcore.types.ResolvedTool` per ref, in input order.
         :raises AcruxCoreError: ``API_ERROR`` with ``status_code`` 404 when any ref
             does not resolve; ``body['error']['refs']`` names every failure.
         """
         payload = [
-            {"name": r["name"], **({"alias": r["alias"]} if r.get("alias") else {})} for r in refs
+            {
+                "name": r["name"],
+                **({"alias": r["alias"]} if r.get("alias") else {}),
+                **({"version": r["version"]} if r.get("version") is not None else {}),
+            }
+            for r in refs
         ]
         response = await self._client._request(
             "POST", "/tools/resolve", {"refs": payload}, "resolving tools"

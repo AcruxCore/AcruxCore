@@ -219,7 +219,7 @@ curl -X POST "https://openrouter.ai/api/v1/chat/completions" \
       "finish_reason": "stop",
       "message": {
         "role": "assistant",
-        "content": "[tools.md] Open the prompt and go to the Tools tab, check the tool under Attach to next commit, then commit a new version."
+        "content": "[tools.md] Open the prompt and go to the Tools tab, then use Connect a tool from the catalog to pick the tool."
       }
     }
   ],
@@ -370,7 +370,7 @@ resp = requests.post(
     "https://openrouter.ai/api/v1/embeddings",
     headers={"Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}"},
     json={"model": "openai/text-embedding-3-small",
-          "input": "Attach a tool to a prompt version"},
+          "input": "Connect a tool to a prompt"},
     timeout=60,
 )
 print(resp.json())

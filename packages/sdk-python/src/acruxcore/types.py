@@ -22,6 +22,9 @@ except ImportError:  # pragma: no cover
 SpanKind = Literal["llm", "tool", "retrieval", "embedding", "agent", "chain", "other"]
 SpanStatus = Literal["ok", "error", "unset"]
 Role = Literal["system", "user", "assistant", "tool"]
+#: Which prompt→tool binding decided a resolved tool: the prompt alias's own row
+#: (``"alias"``) or the prompt default it would otherwise inherit (``"default"``).
+BindingSource = Literal["alias", "default"]
 
 
 # --- Wire-in TypedDicts ----------------------------------------------------
@@ -70,10 +73,18 @@ class ToolDefinition(TypedDict):
 
 
 class ToolRef(TypedDict, total=False):
-    """A reference to a catalog tool by name (+ optional alias)."""
+    """A reference to a catalog tool by name, naming one build in one of two ways.
+
+    Either ``alias`` (the alias to follow, defaulting to ``production`` server-side)
+    or ``version`` (one exact version to pin) — never both, which the API rejects
+    with a 400 rather than picking one, since a ref carrying both names two
+    different builds.
+    """
 
     name: str
     alias: str
+    #: Pin one exact version instead of following an alias.
+    version: int
 
 
 class ProviderConfig(TypedDict):
@@ -211,11 +222,37 @@ class GatewayCallMeta:
 
 
 @dataclass
+class ToolResolution:
+    """Per-tool resolution metadata returned alongside :attr:`RenderResult.tools` —
+    parallel to it, never merged into it, since a ``tools`` entry is sometimes
+    forwarded as-is into a provider's ``tools`` array and must stay exactly
+    OpenAI-shaped. Reports which tool alias (or pin) each binding actually
+    resolved through, and which binding decided it. See
+    :func:`with_tool_override`.
+    """
+
+    #: The tool's catalog name — matches ``function["name"]`` on the paired ``tools`` entry.
+    name: str
+    #: The tool alias actually followed, or ``None`` when the binding is pinned.
+    alias: Optional[str] = None
+    #: The pinned version number, or ``None`` when the binding follows an alias.
+    pinned_version_number: Optional[int] = None
+    #: The tool version number this render actually resolved to, either way.
+    version_number: int = 0
+    #: Which binding decided this entry: ``"alias"`` when the prompt alias being
+    #: rendered has a binding of its own for this tool, ``"default"`` when it
+    #: inherited the prompt's default binding.
+    source: BindingSource = "default"
+
+
+@dataclass
 class RenderResult:
     """Result of :meth:`AcruxCore.render_prompt`."""
 
     messages: List[Message]
     tools: List[ToolDefinition] = field(default_factory=list)
+    #: Per-tool resolution metadata, parallel to ``tools`` — see :class:`ToolResolution`.
+    tool_resolutions: List[ToolResolution] = field(default_factory=list)
     #: The prompt version's bound default model, or ``None`` when none is set.
     #: Pass it to :meth:`AcruxCore.chat` / :meth:`AcruxCore.run_tool_loop` to run
     #: the prompt on its bound model instead of hardcoding one.
@@ -264,6 +301,80 @@ class RunToolLoopResult:
     stopped_at_limit: bool
     #: The trace id spans were reported under, or ``None`` when ``trace=False``.
     trace_id: Optional[str] = None
+
+
+@dataclass
+class ToolLoopContentEvent:
+    """Model text, as it arrives, from a streaming tool loop.
+
+    Deltas from *every* round are emitted, not only the final one — whether a round
+    turns out to be the last is only known once its ``finish_reason`` arrives, so
+    holding a round back would withhold the final answer, which is the one thing
+    streaming exists to deliver. Use :attr:`round` to tell a mid-loop preamble
+    ("let me check the weather") apart from the answer: a preamble is followed by a
+    ``tool_call`` event on the same round.
+    """
+
+    #: The text fragment. Concatenate these to rebuild the round's message.
+    delta: str
+    #: 0-based loop round this fragment came from.
+    round: int
+    type: Literal["content"] = "content"
+
+
+@dataclass
+class ToolLoopToolCallEvent:
+    """The model asked for a tool, and the SDK is about to run it."""
+
+    #: The tool call's id, matching the ``tool_result`` event that follows.
+    id: str
+    #: Catalog name of the tool being called.
+    name: str
+    #: The model's arguments, already parsed from their JSON string.
+    arguments: Dict[str, Any]
+    #: 0-based loop round that asked for this call.
+    round: int
+    type: Literal["tool_call"] = "tool_call"
+
+
+@dataclass
+class ToolLoopToolResultEvent:
+    """A tool finished — successfully, or with the error that ends the loop."""
+
+    #: The id of the ``tool_call`` event this answers.
+    id: str
+    #: Catalog name of the tool that ran.
+    name: str
+    #: 0-based loop round this call belonged to.
+    round: int
+    #: Whatever the tool returned; ``None`` when it raised.
+    result: Any = None
+    #: The failure message when the tool raised. The loop then stops and the
+    #: exception is re-raised out of the iteration, so this event is the last
+    #: chance to show what went wrong before that.
+    error: Optional[str] = None
+    type: Literal["tool_result"] = "tool_result"
+
+
+@dataclass
+class ToolLoopDoneEvent:
+    """The loop finished. Always the last event of a successful stream."""
+
+    #: Exactly what the non-streaming :meth:`AcruxCore.run_tool_loop` would return —
+    #: final content, the full message list, iteration count and trace id.
+    result: "RunToolLoopResult"
+    type: Literal["done"] = "done"
+
+
+#: One event from a streaming tool loop, discriminated on ``.type``. A union rather
+#: than raw text deltas because a UI needs to render "running get_weather…" as its
+#: own state, not as more model text.
+ToolLoopEvent = Union[
+    ToolLoopContentEvent,
+    ToolLoopToolCallEvent,
+    ToolLoopToolResultEvent,
+    ToolLoopDoneEvent,
+]
 
 
 @dataclass
@@ -913,6 +1024,83 @@ class AliasDetail:
             version_id=d["versionId"],
             version_number=d["versionNumber"],
             updated_at=d["updatedAt"],
+        )
+
+
+@dataclass
+class ToolBindingDetail:
+    """One prompt→tool binding as the API reports it. ``tool_alias`` and
+    ``pinned_version_number`` are mutually exclusive; both ``None`` means
+    :attr:`off` is ``True``."""
+
+    #: UUID of the bound catalog tool.
+    tool_id: str
+    #: The tool's current catalog name, for display.
+    tool_name: str
+    #: Tool alias this binding follows, or ``None`` when pinned or off.
+    tool_alias: Optional[str] = None
+    #: Pinned tool version number, or ``None`` when following an alias or off.
+    pinned_version_number: Optional[int] = None
+    #: ``True`` when both of the above are ``None`` — the tool is deliberately excluded.
+    off: bool = False
+    #: The tool version this binding resolves to right now, so you can show what
+    #: will actually run without a second request. ``None`` when off, or when the
+    #: followed tool alias has since disappeared.
+    resolved_version_number: Optional[int] = None
+    #: Stable ordering within this alias's list.
+    position: int = 0
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ToolBindingDetail":
+        return cls(
+            tool_id=d["toolId"],
+            tool_name=d["toolName"],
+            tool_alias=d.get("toolAlias"),
+            pinned_version_number=d.get("pinnedVersionNumber"),
+            off=bool(d.get("off", False)),
+            resolved_version_number=d.get("resolvedVersionNumber"),
+            position=d.get("position", 0),
+        )
+
+
+@dataclass
+class AliasToolBindings:
+    """One prompt alias and the bindings it owns, if any."""
+
+    #: The prompt alias name, e.g. ``"production"``.
+    alias: str
+    #: Prompt version this alias currently serves — the template, not the tools.
+    version_number: int
+    #: ``False`` when this alias has no rows of its own and therefore simply
+    #: inherits :attr:`PromptToolBindings.default`.
+    customised: bool = False
+    #: Only this alias's own rows — never the inherited default.
+    bindings: List[ToolBindingDetail] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AliasToolBindings":
+        return cls(
+            alias=d["alias"],
+            version_number=d["versionNumber"],
+            customised=bool(d.get("customised", False)),
+            bindings=[ToolBindingDetail.from_dict(b) for b in (d.get("bindings") or [])],
+        )
+
+
+@dataclass
+class PromptToolBindings:
+    """The full binding picture for one prompt — the default plus every alias."""
+
+    #: Bindings every alias inherits unless it has a row of its own.
+    default: List[ToolBindingDetail] = field(default_factory=list)
+    #: Every prompt alias that exists today, customised or not.
+    aliases: List[AliasToolBindings] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "PromptToolBindings":
+        return cls(
+            default=[ToolBindingDetail.from_dict(b) for b in (d.get("default") or [])],
+            aliases=[AliasToolBindings.from_dict(a) for a in (d.get("aliases") or [])],
         )
 
 

@@ -18,6 +18,16 @@
       "require": "./dist/src/evaluations/runs/processors.js",
       "default": "./dist/src/evaluations/runs/processors.js"
     },
+    "./evaluations/online/queue": {
+      "types": "./dist/src/evaluations/online/online-eval.queue.d.ts",
+      "require": "./dist/src/evaluations/online/online-eval.queue.js",
+      "default": "./dist/src/evaluations/online/online-eval.queue.js"
+    },
+    "./evaluations/online/processor": {
+      "types": "./dist/src/evaluations/online/online-eval.processor.d.ts",
+      "require": "./dist/src/evaluations/online/online-eval.processor.js",
+      "default": "./dist/src/evaluations/online/online-eval.processor.js"
+    },
     "./email": {
       "types": "./dist/src/email/index.d.ts",
       "require": "./dist/src/email/index.js",

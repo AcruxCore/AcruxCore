@@ -22,27 +22,28 @@ afterAll(async () => {
 });
 
 describe('GET /api/v1/traces/facets', () => {
-  it('returns distinct tags and metadata keys for the team, ordered, deduped', async () => {
+  it('returns distinct tags, metadata keys, and resolved span models for the team, ordered, deduped', async () => {
     const { agent } = await authedAgent(app);
     const now = new Date();
     await ingest(agent, [
       {
         tags: ['prod', 'nl'],
         metadata: { env: 'prod' },
-        spans: [{ spanId: 's1', name: 'step', kind: 'llm', startTime: iso(now) }],
+        spans: [{ spanId: 's1', name: 'step', kind: 'llm', startTime: iso(now), model: 'gpt-4o-mini-2024-07-18' }],
       },
     ]);
     await ingest(agent, [
       {
         tags: ['prod'],
         metadata: { env: 'prod', lang: 'nl' },
-        spans: [{ spanId: 's2', name: 'step', kind: 'llm', startTime: iso(now) }],
+        spans: [{ spanId: 's2', name: 'step', kind: 'llm', startTime: iso(now), model: 'claude-3-5-sonnet' }],
       },
     ]);
 
     const res = await agent.get('/api/v1/traces/facets').expect(200);
     expect(res.body.tags.sort()).toEqual(['nl', 'prod']);
     expect(res.body.metadataKeys.sort()).toEqual(['env', 'lang']);
+    expect(res.body.models.sort()).toEqual(['claude-3-5-sonnet', 'gpt-4o-mini-2024-07-18']);
   });
 
   it('is team-scoped', async () => {
@@ -50,18 +51,22 @@ describe('GET /api/v1/traces/facets', () => {
     const { agent: other } = await authedAgent(app);
     const now = new Date();
     await ingest(other, [
-      { tags: ['other-team-tag'], spans: [{ spanId: 's1', name: 'step', kind: 'llm', startTime: iso(now) }] },
+      {
+        tags: ['other-team-tag'],
+        spans: [{ spanId: 's1', name: 'step', kind: 'llm', startTime: iso(now), model: 'other-team-model' }],
+      },
     ]);
 
     const res = await agent.get('/api/v1/traces/facets').expect(200);
     expect(res.body.tags).toEqual([]);
     expect(res.body.metadataKeys).toEqual([]);
+    expect(res.body.models).toEqual([]);
   });
 
   it('returns empty arrays when the team has no traces', async () => {
     const { agent } = await authedAgent(app);
     const res = await agent.get('/api/v1/traces/facets').expect(200);
-    expect(res.body).toEqual({ tags: [], metadataKeys: [] });
+    expect(res.body).toEqual({ tags: [], metadataKeys: [], models: [] });
   });
 });
 

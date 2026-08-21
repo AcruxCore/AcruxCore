@@ -34,6 +34,8 @@ export const keys = {
   aliases: (id: string) => ['aliases', id] as const,
   diff: (id: string, from: number, to: number) => ['diff', id, from, to] as const,
   audit: (id: string, page: number) => ['audit', id, page] as const,
+  toolAudit: (id: string, page: number) => ['tool-audit', id, page] as const,
+  toolBindings: (promptId: string) => ['tool-bindings', promptId] as const,
   apiKeys: ['api-keys'] as const,
   teamKeys: (teamId: string) => ['team-keys', teamId] as const,
   members: (teamId: string) => ['members', teamId] as const,
@@ -84,4 +86,8 @@ export const keys = {
   toolAliases: (id: string) => ['tools', id, 'aliases'] as const,
   // Secrets (TC4)
   secrets: ['secrets'] as const,
+  // Online Evaluation Rules
+  evalRules: ['eval-rules'] as const,
+  evalRule: (id: string) => ['eval-rules', id] as const,
+  evalRuleScores: (id: string, query: ApiQuery) => ['eval-rules', id, 'scores', query] as const,
 };

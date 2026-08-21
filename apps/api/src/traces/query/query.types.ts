@@ -13,7 +13,11 @@ import { FeedbackDto } from '../feedback';
  * per `qs`'s parsing of a lone occurrence) or several (an array) — both coerce to
  * a string array; matches traces containing ALL supplied tags (FAQ Q10). `metadata`
  * (T8) is bracket-notation query params (`?metadata[env]=prod`), matching traces
- * whose metadata contains every supplied key/value pair.
+ * whose metadata contains every supplied key/value pair. `min_score`/`max_score`
+ * (online eval) match traces with an `eval_rule_scores` row at or above/below the
+ * threshold; `rule_id` narrows that to a specific rule — all three are ANDed with
+ * everything else and independent of each other (no rule_id required for
+ * min/max_score).
  */
 export const TraceListQuerySchema = z.object({
   from: z.coerce.date().optional(),
@@ -25,6 +29,9 @@ export const TraceListQuerySchema = z.object({
   min_latency_ms: z.coerce.number().int().min(0).optional(),
   min_cost_usd: z.coerce.number().min(0).optional(),
   min_tokens: z.coerce.number().int().min(0).optional(),
+  min_score: z.coerce.number().int().min(0).max(100).optional(),
+  max_score: z.coerce.number().int().min(0).max(100).optional(),
+  rule_id: z.string().uuid().optional(),
   q: z
     .string()
     .trim()
@@ -63,6 +70,9 @@ export interface TraceFilters {
   minLatencyMs?: number;
   minCostUsd?: number;
   minTokens?: number;
+  minScore?: number;
+  maxScore?: number;
+  ruleId?: string;
   q?: string;
   tags?: string[];
   metadata?: Record<string, string>;
@@ -140,11 +150,32 @@ export interface TraceSummary {
 }
 
 /**
+ * One online-eval rule score attached to a trace, with the scoring rule's
+ * name resolved so the trace detail page doesn't need a second lookup.
+ * `score`/`passed`/`reason`/`judgeTraceId` are all `null` when the rule
+ * matched a span but payload capture was off for the team, so the judge was
+ * never called (Task 9's first-class "unscored" outcome).
+ */
+export interface EvalScoreDto {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  score: number | null;
+  passed: boolean | null;
+  reason: string | null;
+  judgeTraceId: string | null;
+  createdAt: string;
+}
+
+/**
  * Full response for GET /traces/:id. `feedback` (T6) is the trace's feedback
  * rows, newest-first — same shape as `GET /traces/:id/feedback`'s `data`.
+ * `evalScores` (online eval) is this trace's rule-score rows, newest-first,
+ * surfaced the same additive way.
  */
 export interface TraceDetail {
   trace: TraceSummary;
   spans: SpanNode[];
   feedback: FeedbackDto[];
+  evalScores: EvalScoreDto[];
 }

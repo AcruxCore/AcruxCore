@@ -28,6 +28,7 @@ import type { ChatMessage, NormalizedRequest, ProviderCredentials, StreamChunk, 
 // Express-free import here keeps apps/worker's dependency graph Express-free
 // end to end.
 import { AliasesService } from '../../prompts/aliases/aliases.service';
+import { VersionsRepository as PromptVersionsRepository } from '../../prompts/versions/versions.repository';
 import { renderMessages, NunjucksRenderError } from '../../prompts/versions/nunjucks.utils';
 // Imported from the concrete sub-barrel, not the top-level `../../tools` barrel:
 // that barrel also re-exports `toolsRouter`, which pulls in Express as a load-time
@@ -184,12 +185,51 @@ export class GatewayService {
   private readonly aliases = new AliasesService();
   /** TC2 Task 5: resolves catalog `tool_refs` into OpenAI tool definitions. */
   private readonly toolResolver = new ToolResolver();
+  /** Verifies a client-supplied `prompt_version_id` belongs to the calling team. */
+  private readonly promptVersions = new PromptVersionsRepository();
 
   constructor(
     private readonly gatewayRepo: GatewayRepository,
     private readonly connectionsRepo: ConnectionsRepository,
     private readonly budgetsRepo: BudgetsRepository = new BudgetsRepository(),
   ) {}
+
+  /**
+   * Verifies a caller-supplied `prompt_version_id` and returns it, or null when none was
+   * sent. Always strips the field from `req` so it cannot reach a provider adapter.
+   *
+   * Exists because a client that renders a prompt itself — every SDK tool loop does, and
+   * so does anything holding a cached render — otherwise has no way to tell us which
+   * version those messages came from, and its `llm` spans lose prompt lineage while the
+   * call still succeeds. The `prompt` reference path needs none of this: it renders here,
+   * so it already knows.
+   *
+   * @param ctx - The call context, for the team the id must belong to.
+   * @param req - The in-flight request; `prompt_version_id` is deleted off it.
+   * @param alreadyResolved - The version a `prompt` reference resolved to, if any. When
+   *   set, the caller's id is ignored — server-side rendering is the better source.
+   * @returns The verified version id, or null.
+   * @throws {ValidationError} The id names no prompt version in this team. A 400 rather
+   *   than a silent drop, because a caller who sent an id is asking for lineage and
+   *   would otherwise never learn it was thrown away.
+   */
+  private async resolveClientPromptVersionId(
+    ctx: GatewayCallContext,
+    req: GatewayCompletionRequest,
+    alreadyResolved: string | null,
+  ): Promise<string | null> {
+    const supplied = req.prompt_version_id;
+    delete req.prompt_version_id;
+    if (alreadyResolved || !supplied) return alreadyResolved;
+
+    const version = await this.promptVersions.findByIdForTeam(supplied, ctx.teamId);
+    if (!version) {
+      throw new ValidationError(
+        `prompt_version_id '${supplied}' is not a prompt version in this team.`,
+      );
+    }
+    return version.id;
+  }
 
   /**
    * Whether this call may read from / write to the cache. Requires: caching
@@ -457,6 +497,9 @@ export class GatewayService {
    *
    * @param crossings - One entry per (budget, alert) the increment produced.
    * @param teamId - Team the budgets belong to.
+   * @param contributingSource - Set when the call that caused this crossing was
+   *   made on behalf of an internal caller (e.g. an online-eval judge run), so the
+   *   `budget_exhausted` email can name what contributed to the spend.
    */
   private async notifyBudgetCrossings(
     crossings: {
@@ -465,6 +508,7 @@ export class GatewayService {
       spendUsd: number;
     }[],
     teamId: string,
+    contributingSource?: string,
   ): Promise<void> {
     for (const { budget, crossing, spendUsd } of crossings) {
       const keyName = budget.virtualKeyId
@@ -482,6 +526,7 @@ export class GatewayService {
         limitUsd: Number(budget.limitUsd),
         spendUsd,
         budgetsUrl: appLink('/gateway/budgets'),
+        contributingSource,
       };
 
       await notify({
@@ -549,6 +594,9 @@ export class GatewayService {
       delete req.prompt; // do not forward the ref to the provider adapter
     }
 
+    // A caller who rendered the prompt itself sends the version id instead.
+    promptVersionId = await this.resolveClientPromptVersionId(ctx, req, promptVersionId);
+
     // ── B1: render ad-hoc templated messages when the caller supplied variables ──
     // Mirrors the prompt-ref render (same nunjucks engine, same 422 on error) so an
     // edited/unsaved Playground experiment behaves identically to a stored prompt.
@@ -583,7 +631,7 @@ export class GatewayService {
     }
 
     // ── Strip the gateway control field so the body stays OpenAI-compatible ──────
-    const { gateway, prompt: _prompt, variables: _variables, tool_refs: _toolRefs, ...rest } = req;
+    const { gateway, prompt: _prompt, variables: _variables, tool_refs: _toolRefs, prompt_version_id: _pvid, ...rest } = req;
     // After stage 2b (or validation) `messages` and `model` are guaranteed present.
     const normalized: NormalizedRequest = { ...rest, model: req.model!, messages: req.messages! };
 
@@ -774,7 +822,7 @@ export class GatewayService {
       return created;
     });
 
-    if (crossed.length > 0) await this.notifyBudgetCrossings(crossed, ctx.teamId);
+    if (crossed.length > 0) await this.notifyBudgetCrossings(crossed, ctx.teamId, ctx.contributingSource);
 
     // Fold real token usage into the RPM/TPM window post-call (TPM accounting).
     recordTokens(rlKey, response.usage.total_tokens ?? 0);
@@ -860,6 +908,10 @@ export class GatewayService {
       delete req.prompt;
     }
 
+    // A caller who rendered the prompt itself sends the version id instead (mirror
+    // of the non-streaming path).
+    promptVersionId = await this.resolveClientPromptVersionId(ctx, req, promptVersionId);
+
     // ── B1: render ad-hoc templated messages when the caller supplied variables ──
     // Mirror of the non-streaming path (see complete()) — skipped when a prompt ref
     // already rendered (promptVersionId set), to avoid double-rendering.
@@ -890,7 +942,7 @@ export class GatewayService {
     }
 
     // Strip the gateway control field so the body stays OpenAI-compatible.
-    const { gateway: _gateway, prompt: _prompt, variables: _variables, tool_refs: _toolRefs, ...rest } = req;
+    const { gateway: _gateway, prompt: _prompt, variables: _variables, tool_refs: _toolRefs, prompt_version_id: _pvid, ...rest } = req;
     const normalized: NormalizedRequest = { ...rest, model: req.model!, messages: req.messages! };
 
     // 2 + 4a: full pre-call pipeline (throws before any stream is opened).
@@ -1207,7 +1259,7 @@ export class GatewayService {
 
     // Streaming spend is settled here, once the stream has finished, so this is
     // the streaming path's equivalent of `complete()`'s post-commit alert.
-    if (crossed.length > 0) await this.notifyBudgetCrossings(crossed, p.ctx.teamId);
+    if (crossed.length > 0) await this.notifyBudgetCrossings(crossed, p.ctx.teamId, p.ctx.contributingSource);
   }
 
   /**

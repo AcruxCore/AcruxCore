@@ -151,6 +151,43 @@ describe('gateway auto-trace hook — streaming (T1)', () => {
     expect(JSON.parse(calls![0].function.arguments)).toEqual({ city: 'NYC' });
   });
 
+  it('stamps a client-supplied prompt_version_id on the streamed span and row, and never sends it upstream', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    await createOpenAiConnection(agent);
+
+    const prompt = (await agent.post('/api/v1/prompts').send({ name: 'greeting' }).expect(201)).body;
+    const v1 = await agent
+      .post(`/api/v1/prompts/${prompt.id}/versions`)
+      .send({ messages: [{ role: 'user', content: 'Say hi to {{ name }}' }] })
+      .expect(201);
+
+    // The streaming path stamps and strips in its own code, separate from the
+    // non-streaming one, so covering that one proves nothing about this one.
+    let providerBody: Record<string, unknown> = {};
+    jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
+      providerBody = JSON.parse(init && typeof init.body === 'string' ? init.body : '{}');
+      return Promise.resolve(sseResponse(FRAMES_WITH_USAGE));
+    });
+
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Say hi to Al' }],
+        prompt_version_id: v1.body.id,
+        stream: true,
+      })
+      .expect(200);
+
+    const span = await prisma.span.findFirst({ where: { teamId } });
+    expect(span!.promptVersionId).toBe(v1.body.id);
+    const row = await prisma.gatewayRequest.findFirst({ where: { teamId } });
+    expect(row!.promptVersionId).toBe(v1.body.id);
+
+    // It is our field, not OpenAI's — an unknown key can make a provider 400.
+    expect(providerBody).not.toHaveProperty('prompt_version_id');
+  });
+
   it('a client-supplied parent span ref nests the streamed llm span under it', async () => {
     const { agent, teamId } = await authedAgent(app);
     await createOpenAiConnection(agent);

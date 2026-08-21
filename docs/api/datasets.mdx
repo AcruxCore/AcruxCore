@@ -134,7 +134,7 @@ curl -X POST $ACRUXCORE_BASE_URL/datasets/from-feedback \
 <TabItem value="node" label="TypeScript">
 
 ```typescript
-const result = await hub.datasets.createFromFeedback({
+const result = await hub.datasets.buildFromFeedback({
   name: 'unhappy-greetings',
   overallFeedback: 'Always third person',
   feedbackIds: ['44c64fa2-8189-4ab0-a08a-a28a14893a06'],

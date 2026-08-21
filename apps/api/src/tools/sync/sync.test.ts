@@ -449,11 +449,15 @@ describe('POST /tools/sync', () => {
     await request(app)
       .post(`/api/v1/prompts/${prompt.body.id}/versions`)
       .set('Authorization', `Bearer ${apiKey}`)
-      .send({
-        messages: [{ role: 'system', content: 'Help the user.' }],
-        tools: [{ toolId: synced.body.toolId }],
-      })
+      .send({ messages: [{ role: 'system', content: 'Help the user.' }] })
       .expect(201);
+    // A synced tool must be bindable through the same prompt→tool endpoint a
+    // dashboard-authored one uses; production then inherits that default.
+    await request(app)
+      .put(`/api/v1/prompts/${prompt.body.id}/tools/${synced.body.toolId}`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ tool_alias: 'production' })
+      .expect(200);
 
     const rendered = await request(app)
       .post('/api/v1/prompts/support-reply/production/render')

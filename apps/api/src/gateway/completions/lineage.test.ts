@@ -27,10 +27,11 @@ let capturedProviderBody: { model: string; messages: Array<{ role: string; conte
 async function arrangeOwnerWithPrompt(): Promise<{
   agent: ReturnType<typeof request.agent>;
   apiKey: string;
+  teamId: string;
   promptId: string;
   v1Id: string;
 }> {
-  const { agent } = await authedAgent(app);
+  const { agent, teamId } = await authedAgent(app);
   const keyRes = await agent.post('/api/v1/api-keys').send({ name: 'g8' }).expect(201);
   const apiKey: string = keyRes.body.key;
 
@@ -51,11 +52,12 @@ async function arrangeOwnerWithPrompt(): Promise<{
     .send({ messages: [{ role: 'system', content: 'Hello {{ name }}' }] })
     .expect(201);
 
-  return { agent, apiKey, promptId, v1Id: v1.body.id };
+  return { agent, apiKey, teamId, promptId, v1Id: v1.body.id };
 }
 
 beforeEach(async () => {
   await prisma.$executeRaw`TRUNCATE TABLE
+    span_payloads, spans, traces,
     gateway_requests, gateway_cache, budgets, virtual_keys, provider_connections,
     audit_log, prompt_aliases, prompt_versions, prompts,
     api_keys, team_members, teams, users
@@ -128,6 +130,100 @@ describe('POST /api/v1/gateway/chat/completions — prompt reference lineage', (
     const rows = await prisma.gatewayRequest.findMany({ orderBy: { createdAt: 'desc' } });
     expect(rows[0].promptVersionId).toBe(v2.body.id);
     expect(rows[0].promptVersionId).not.toBe(v1Id);
+  });
+
+  it('stamps a client-supplied prompt_version_id when the caller rendered the prompt itself', async () => {
+    const { agent, v1Id } = await arrangeOwnerWithPrompt();
+
+    // The shape every SDK tool loop uses: the client rendered separately, so it sends
+    // messages plus the version those messages came from.
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Hello Alice' }],
+        prompt_version_id: v1Id,
+      })
+      .expect(200);
+
+    const rows = await prisma.gatewayRequest.findMany({ where: { promptVersionId: { not: null } } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].promptVersionId).toBe(v1Id);
+  });
+
+  it('stamps a client-supplied prompt_version_id on the span, not only the request row', async () => {
+    const { agent, teamId, v1Id } = await arrangeOwnerWithPrompt();
+
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Hello Alice' }],
+        prompt_version_id: v1Id,
+      })
+      .expect(200);
+
+    // The span is the half that actually regressed for a whole phase: the parameter was
+    // accepted, the call returned 200, and the span carried no version — silent lineage
+    // loss with nothing in the response to notice. Assert the span, not just the row.
+    const span = await prisma.span.findFirst({ where: { teamId } });
+    expect(span).not.toBeNull();
+    expect(span!.promptVersionId).toBe(v1Id);
+  });
+
+  it('never lets a prompt_version_id reach the provider', async () => {
+    const { agent, v1Id } = await arrangeOwnerWithPrompt();
+
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Hello Alice' }],
+        prompt_version_id: v1Id,
+      })
+      .expect(200);
+
+    expect(capturedProviderBody).not.toHaveProperty('prompt_version_id');
+  });
+
+  it("400s on another team's prompt_version_id rather than stamping it", async () => {
+    const mine = await arrangeOwnerWithPrompt();
+    const theirs = await arrangeOwnerWithPrompt();
+
+    const res = await mine.agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: 'hi' }],
+        prompt_version_id: theirs.v1Id,
+      })
+      .expect(400);
+
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    const rows = await prisma.gatewayRequest.findMany({ where: { promptVersionId: { not: null } } });
+    expect(rows).toHaveLength(0);
+  });
+
+  it('lets the prompt reference win over a client-supplied prompt_version_id', async () => {
+    const { agent, promptId, v1Id } = await arrangeOwnerWithPrompt();
+    const v2 = await agent
+      .post(`/api/v1/prompts/${promptId}/versions`)
+      .send({ messages: [{ role: 'system', content: 'Hi there, {{ name }}!' }] })
+      .expect(201);
+
+    // A `prompt` ref renders server-side and knows exactly which version it used, so a
+    // client-supplied id cannot contradict it.
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({
+        model: 'gpt-4o-mini',
+        prompt: { name: 'greeting', alias: 'production', variables: { name: 'Alice' } },
+        prompt_version_id: v2.body.id,
+      })
+      .expect(200);
+
+    const rows = await prisma.gatewayRequest.findMany({ orderBy: { createdAt: 'desc' } });
+    expect(rows[0].promptVersionId).toBe(v1Id);
   });
 
   it('returns 400 VALIDATION_ERROR when both messages and prompt are supplied', async () => {

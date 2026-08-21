@@ -22,6 +22,8 @@ import {
   markFinalizeExhausted,
   RunsRepository,
 } from '@acruxcore/api/evaluations/runs/processors';
+import { ONLINE_EVAL_QUEUE, type OnlineEvalJobData } from '@acruxcore/api/evaluations/online/queue';
+import { processOnlineEval } from '@acruxcore/api/evaluations/online/processor';
 import {
   EMAIL_QUEUE,
   assertEmailConfig,
@@ -44,7 +46,7 @@ import {
   type RetentionJobData,
 } from '@acruxcore/api/traces/retention';
 
-/** The seven live BullMQ Workers booted by {@link startWorkers}. */
+/** The eight live BullMQ Workers booted by {@link startWorkers}. */
 export interface EvalWorkers {
   /** Consumes `EVAL_CELLS_QUEUE`, running one gateway call per grid x example cell. */
   cellWorker: Worker<CellJobData>;
@@ -54,6 +56,8 @@ export interface EvalWorkers {
   judgeWorker: Worker<JudgeJobData>;
   /** Consumes `EVAL_OPTIMIZE_QUEUE` (E6), drafting candidates and enqueuing the cell/finalize Flow. */
   optimizeWorker: Worker<OptimizeJobData>;
+  /** Consumes `ONLINE_EVAL_QUEUE`, scoring live-gateway spans against enabled eval rules. */
+  onlineEvalWorker: Worker<OnlineEvalJobData>;
   /** Consumes `EMAIL_QUEUE`, sending one product email per job. */
   emailWorker: Worker<EmailJobData>;
   /** Consumes `DIGEST_QUEUE`: the weekly scheduler job plus its per-team fan-out. */
@@ -284,6 +288,18 @@ export async function startWorkers(): Promise<EvalWorkers> {
   });
   await waitForWorkerReady(judgeWorker);
 
+  const onlineEvalConcurrency = Number(process.env.ONLINE_EVAL_WORKER_CONCURRENCY ?? 2);
+  const onlineEvalWorker = new Worker<OnlineEvalJobData>(
+    ONLINE_EVAL_QUEUE,
+    (job) => processOnlineEval(job.data),
+    { connection, concurrency: onlineEvalConcurrency },
+  );
+  onlineEvalWorker.on('error', (err) => {
+    console.error('[online-eval-worker] error', err);
+    Sentry.captureException(err);
+  });
+  await waitForWorkerReady(onlineEvalWorker);
+
   const optimizeWorker = new Worker<OptimizeJobData>(EVAL_OPTIMIZE_QUEUE, (job) => processOptimize(job.data), {
     connection,
     concurrency: optimizeConcurrency,
@@ -357,7 +373,7 @@ export async function startWorkers(): Promise<EvalWorkers> {
   retentionWorker.on('error', (err) => console.error(`[${retentionWorker.name}] worker error`, err));
   await waitForWorkerReady(retentionWorker);
 
-  return { cellWorker, runWorker, judgeWorker, optimizeWorker, emailWorker, digestWorker, retentionWorker };
+  return { cellWorker, runWorker, judgeWorker, onlineEvalWorker, optimizeWorker, emailWorker, digestWorker, retentionWorker };
 }
 
 /* Standalone process entrypoint — not exercised when imported by the e2e test. */
@@ -445,6 +461,7 @@ if (require.main === module) {
           workers.cellWorker,
           workers.runWorker,
           workers.judgeWorker,
+          workers.onlineEvalWorker,
           workers.optimizeWorker,
           workers.emailWorker,
           workers.digestWorker,

@@ -129,14 +129,14 @@ badge:
 
 ![The get_weather tool after a sync, showing the Defined in code badge](/img/tutorials/product-tour/02-tool-catalog.png)
 
-Now attach it to `support-reply`: open the prompt's **Tools** tab, check
-`get_weather` under **Attach to next commit**, and commit a new version. That
-version now carries the tool, and `hub.prompts.render` returns it alongside the
-messages:
+Now connect it to `support-reply`: open the prompt's **Tools** tab and choose
+**+ Connect a tool from the catalog**. It saves straight away — every alias of the
+prompt starts calling `get_weather`, and `hub.prompts.render` returns it alongside
+the messages:
 
-![Attaching get_weather to support-reply's next version](/img/tutorials/product-tour/03-attach-tool.png)
+![Connecting get_weather to support-reply](/img/tutorials/product-tour/03-attach-tool.png)
 
-:::tip[No SDK? Attach a tool from the dashboard or curl]
+:::tip[No SDK? Connect a tool from the dashboard or curl]
 `acrux.tool` is the code-first path. Prefer clicking, or calling curl directly? See
 [Build and attach a tool](../guides/build-and-attach-a-tool) for the dashboard walkthrough,
 or [Store prompts and tools via the API](../guides/store-prompts-and-tools-via-api)
@@ -307,8 +307,8 @@ real, data-backed answer to "did this version actually help?"
 
 :::tip[Build the dataset and run the experiment from code]
 See [Evaluate a prompt against a dataset](../guides/evaluate-a-prompt) for the full
-SDK/curl walkthrough of everything in this section — `hub.datasets.buildFromFeedback()`,
-`hub.experiments.create()`, and `hub.runs.getReport()`.
+SDK/curl walkthrough of everything in this section — `datasets.build_from_feedback()` /
+`buildFromFeedback()`, `experiments.create()`, and `runs.get_report()` / `getReport()`.
 :::
 
 ## Where to next

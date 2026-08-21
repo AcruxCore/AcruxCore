@@ -241,6 +241,36 @@ def _session_cookie(response: httpx.Response) -> str:
     return raw.split(";")[0]
 
 
+async def signup_and_mint_key(base_url: str) -> str:
+    """Signs up a brand-new user against the live server and mints a personal API key.
+
+    Shared by every suite that needs nothing but a working key — `provisioned_env`
+    also does this, but that fixture additionally provisions a gateway connection
+    and model, which needs real OpenRouter credentials. A suite that only calls
+    platform endpoints should use this instead of paying that cost (issue #333).
+
+    :param base_url: The running ``api_server`` fixture's base URL.
+    :returns: A usable API key for the new user's personal team.
+    :raises RuntimeError: If sign-up or key minting does not return the expected
+        status code — surfaces the real response body rather than a bare assert
+        failure, since this only ever runs against a real server.
+    """
+    async with httpx.AsyncClient(base_url=base_url, timeout=30.0) as c:
+        email = f"test-user-{uuid.uuid4()}@example.com"
+        signup = await c.post(
+            "/auth/sign-up/email",
+            json={"email": email, "password": _TEST_PASSWORD, "name": "Test User"},
+        )
+        if signup.status_code != 200:
+            raise RuntimeError(f"sign-up failed ({signup.status_code}): {signup.text}")
+        cookie = _session_cookie(signup)
+
+        key_res = await c.post("/api-keys", json={"name": "test key"}, headers={"Cookie": cookie})
+        if key_res.status_code != 201:
+            raise RuntimeError(f"api-key creation failed ({key_res.status_code}): {key_res.text}")
+        return str(key_res.json()["key"])
+
+
 #: Name of the catalog tool registered with a server-side (`http`) executor — the
 #: `tool_refs` + `http` route the BYO trace-ordering test drives. Module-level so
 #: the test file can pass it as a `tool_refs` name without hardcoding a duplicate.

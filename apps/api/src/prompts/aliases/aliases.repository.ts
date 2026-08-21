@@ -103,6 +103,7 @@ export class AliasesRepository {
     if (!row) return null;
     return {
       aliasId: row.id,
+      promptId: row.promptId,
       alias: row.alias,
       versionId: row.versionId,
       versionNumber: row.version.versionNumber,

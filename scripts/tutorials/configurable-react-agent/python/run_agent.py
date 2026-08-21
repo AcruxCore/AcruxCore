@@ -5,13 +5,13 @@ a cheap, fast model and a shallow Tavily search; "deep" binds a bigger model and
 advanced, wider search. No code below changes between the two runs.
 
 Flow:
-  1. render        — hub.render_prompt("web-research-agent", ALIAS, {...}) ->
+  1. render        — hub.prompts.render("web-research-agent", ALIAS, {...}) ->
                       messages, tools, model, versionId. All four come from
                       whichever ALIAS you pass in.
-  2. run_tool_loop  — drives the gateway completion loop for you, threading one
-                      trace. web_research is a CLIENT tool (the catalog stores only
-                      its schema), so we pass it as tool_defs + dispatch.
-  3. dispatch       — calls the exact source's TavilySearchResults wrapper
+  2. run_prompt_with_tools — drives the gateway completion loop for you, threading
+                      one trace. web_research is a CLIENT tool (the catalog stores
+                      only its schema), so its implementation goes in client_tools.
+  3. client_tools  — calls the exact source's TavilySearchResults wrapper
                       directly (no REST reimplementation), with max_results/
                       search_depth/include_images chosen by ALIAS — mirroring the
                       source's advanced_research (10, advanced) vs basic_research
@@ -51,13 +51,20 @@ async def web_research(query: str, alias: str) -> list:
     return [{"title": item["title"], "url": item["url"]} for item in results]
 
 
-async def dispatch(name: str, args: dict, alias: str):
-    """Route a tool call from the model to its local implementation."""
-    if name == "web_research":
-        results = await web_research(args["query"], alias)
-        print(f"  -> web_research({args}) -> {len(results)} result(s)")
+def client_tools_for(alias: str) -> dict:
+    """The tools this script runs itself, keyed by catalog tool name.
+
+    Built per alias rather than once, because the alias is what picks the search
+    depth -- the model only ever supplies `query`. The closure is where the one piece
+    of alias-dependent configuration lives.
+    """
+
+    async def run_web_research(query: str) -> list:
+        results = await web_research(query, alias)
+        print(f"  -> web_research({{'query': {query!r}}}) -> {len(results)} result(s)")
         return results
-    raise ValueError(f"Unknown tool: {name}")
+
+    return {"web_research": run_web_research}
 
 
 async def ask(hub: AcruxCore, alias: str, question: str) -> None:
@@ -65,12 +72,11 @@ async def ask(hub: AcruxCore, alias: str, question: str) -> None:
     print(f"Alias: {alias} -> model {rendered.model}")
     print(f"Question: {question}\n")
 
-    result = await hub.gateway.run_tool_loop(
-        rendered.model,  # bound to the prompt version in the dashboard, per alias
-        [*rendered.messages],
-        tool_defs=rendered.tools,
-        dispatch=lambda name, args: dispatch(name, args, alias),
-        prompt_version_id=rendered.version_id,
+    # The model, the messages, the bound tool and the version id for trace lineage all
+    # come from the render, so only the tool's implementation is passed here.
+    result = await hub.gateway.run_prompt_with_tools(
+        rendered,
+        client_tools=client_tools_for(alias),
         trace={"name": "web-research-agent", "session_id": f"web-research-{alias}"},
     )
     print(f"Assistant: {result.content}")

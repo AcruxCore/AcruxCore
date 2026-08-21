@@ -23,34 +23,9 @@ from typing import AsyncIterator
 import httpx
 import pytest
 import pytest_asyncio
-from conftest import _TEST_PASSWORD, _session_cookie
+from conftest import signup_and_mint_key
 
 from acruxcore import AcruxCore, AcruxCoreError
-
-
-async def _signup_and_mint_key(base_url: str) -> str:
-    """Signs up a brand-new user against the live server and mints a personal API key.
-
-    :param base_url: The running ``api_server`` fixture's base URL.
-    :returns: A usable API key for the new user's personal team.
-    :raises RuntimeError: If sign-up or key minting does not return the expected
-        status code — surfaces the real response body rather than a bare assert
-        failure, since this only ever runs against a real server.
-    """
-    async with httpx.AsyncClient(base_url=base_url, timeout=30.0) as c:
-        email = f"test-user-{uuid.uuid4()}@example.com"
-        signup = await c.post(
-            "/auth/sign-up/email",
-            json={"email": email, "password": _TEST_PASSWORD, "name": "Test User"},
-        )
-        if signup.status_code != 200:
-            raise RuntimeError(f"sign-up failed ({signup.status_code}): {signup.text}")
-        cookie = _session_cookie(signup)
-
-        key_res = await c.post("/api-keys", json={"name": "test key"}, headers={"Cookie": cookie})
-        if key_res.status_code != 201:
-            raise RuntimeError(f"api-key creation failed ({key_res.status_code}): {key_res.text}")
-        return str(key_res.json()["key"])
 
 
 @pytest_asyncio.fixture
@@ -62,7 +37,7 @@ async def hub(api_server: str) -> AsyncIterator[AcruxCore]:
     but a shared team would let one test's `list`/`analytics` assertions see
     another test's rows.
     """
-    api_key = await _signup_and_mint_key(api_server)
+    api_key = await signup_and_mint_key(api_server)
     client = AcruxCore(api_key=api_key, base_url=api_server, max_retries=0)
     try:
         yield client
@@ -104,9 +79,14 @@ async def test_full_tool_lifecycle_create_versions_promote_analytics_delete(hub:
     assert v1.warnings is None
 
     # commit_version v2 (http executor) — aliases absent (committing never moves an alias by itself)
+    # This executor is only ever stored and read back, never executed. The host is
+    # still IANA's reserved `example.com` rather than an arbitrary third party — but
+    # it has to be one that RESOLVES, because committing an `http` executor runs the
+    # SSRF guard (`versions.service.ts` → `assertPublicUrl`), which fails closed on a
+    # name that does not resolve. A subdomain like `api.example.com` does not.
     http_executor = {
         "type": "http",
-        "url": "https://httpbin.org/get",
+        "url": "https://example.com/weather",
         "method": "GET",
         "headers": [],
         "query": [{"name": "city", "value": "{{city}}"}],
@@ -178,16 +158,51 @@ async def test_full_tool_lifecycle_create_versions_promote_analytics_delete(hub:
     assert exc.value.status_code == 404
 
 
+#: Upstream for the server-side `http` executor test below. IANA's reserved
+#: `example.com` rather than `httpbin.org`: it exists precisely to be a stable
+#: target, answers a plain 200, and has no rate limit to trip over.
+#:
+#: It cannot be our own `api_server`, tempting as that is. Committing an `http`
+#: executor runs the SSRF guard, which blocks loopback and has NO env or
+#: NODE_ENV bypass by design (`apps/api/src/tools/execute/safe-fetch.ts`). The
+#: only seam is `allowLoopbackForTests()`, which opens the hole in-process —
+#: reachable from the Node suite, which boots the app in-process, but not from
+#: here, where the server is a subprocess. Widening the guard to suit a test
+#: would be a real security regression, so this suite uses a public host and
+#: skips when it cannot be reached (issue #331).
+_EXECUTOR_UPSTREAM = "https://example.com/"
+
+
 @pytest.mark.asyncio
 async def test_execute_http_tool(hub: AcruxCore) -> None:
+    """The server-side ``http`` executor makes a real outbound request.
+
+    Skips rather than fails when the upstream is unreachable. That is the whole
+    point of issue #331: this test used to point at ``https://httpbin.org/get``
+    and failed twice in a row on 2026-08-20 (a 503, then a 400) while nothing in
+    our code had changed. A suite that goes red for someone else's downtime stops
+    meaning "we broke something". What the test covers is unchanged: URL
+    templating, query-arg mapping, status capture, latency.
+    """
+    async with httpx.AsyncClient(timeout=10.0) as probe:
+        try:
+            reachable = await probe.get(_EXECUTOR_UPSTREAM)
+        except httpx.HTTPError as err:
+            pytest.skip(f"executor upstream {_EXECUTOR_UPSTREAM} unreachable: {err}")
+        if reachable.status_code != 200:
+            pytest.skip(
+                f"executor upstream {_EXECUTOR_UPSTREAM} answered "
+                f"{reachable.status_code}, not 200"
+            )
+
     created = await hub.tools.create(
-        f"httpbin-get-{uuid.uuid4().hex[:8]}", description="HTTP GET to httpbin"
+        f"http_exec_{uuid.uuid4().hex[:8]}", description="HTTP GET via the server-side executor"
     )
     assert isinstance(created.id, str) and created.id
 
     http_executor = {
         "type": "http",
-        "url": "https://httpbin.org/get",
+        "url": _EXECUTOR_UPSTREAM,
         "method": "GET",
         "headers": [],
         "query": [{"name": "city", "value": "{{city}}"}],
@@ -197,7 +212,7 @@ async def test_execute_http_tool(hub: AcruxCore) -> None:
         created.id,
         {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
         http_executor,
-        description="HTTP GET to httpbin",
+        description="HTTP GET via the server-side executor",
     )
     assert v1.version_number == 1
 

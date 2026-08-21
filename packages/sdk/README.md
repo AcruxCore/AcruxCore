@@ -182,9 +182,131 @@ const result = await hub.gateway.runToolLoop({
 });
 ```
 
-Prompt-attached tools arrive this way too: `prompts.render` returns
-`{ messages, tools }` where `tools` are the version's attached catalog tools in
-OpenAI shape — those go in `toolDefs`.
+Prompt-bound tools need none of this plumbing: hand the whole render result to
+`gateway.runPromptWithTools` and the refs, the model and the prompt lineage all
+come from it — see [Running a prompt with its bound
+tools](#running-a-prompt-with-its-bound-tools) below.
+
+### Connecting a tool to a prompt
+
+Which tools a prompt calls is decided per prompt alias, not per version — a
+commit changes the template only. `setToolBinding` writes the default every
+alias inherits; `setAliasToolBinding` gives one alias a binding of its own
+(`{ off: true }` means "this alias deliberately has no such tool"):
+
+```typescript
+await hub.prompts.setToolBinding(promptId, toolId, { toolAlias: 'production' });
+await hub.prompts.setAliasToolBinding(promptId, 'staging', toolId, { toolAlias: 'staging' });
+
+const { default: defaults, aliases } = await hub.prompts.listToolBindings(promptId);
+```
+
+`removeToolBinding` disconnects the default, `removeAliasToolBinding` returns one
+alias to it, and `resetAliasToolBindings` returns a whole alias to it.
+
+### Running a prompt with its bound tools
+
+`runPromptWithTools` takes a render result and derives the model, the messages,
+the tool refs and the prompt version id from it — so nothing is restated at the
+call site, and the trace keeps its link back to the prompt:
+
+```typescript
+const r = await hub.prompts.render('weather-brief', 'production', { city: 'Lisbon' });
+const result = await hub.gateway.runPromptWithTools(r);
+
+console.log(result.content);
+```
+
+Anything `runToolLoop` takes still works and wins over the derived value —
+`{ model: 'gpt-4o' }` overrides the bound model, `{ toolRefs: [] }` runs the
+prompt with no tools. A binding pinned to an exact tool version travels as a pin,
+so a pinned prompt keeps running the build it was pinned to. A prompt with no
+tools bound runs as a plain completion rather than erroring.
+
+If the version has no bound model and you pass none, the call throws
+`VALIDATION_ERROR` naming both fixes.
+
+### Streaming a tool loop
+
+`stream: true` turns either loop into an async iterable of typed events, so a UI
+can show text as it arrives and render a running tool as its own state:
+
+```typescript
+for await (const event of await hub.gateway.runPromptWithTools(r, { stream: true })) {
+  if (event.type === 'content') process.stdout.write(event.delta);
+  else if (event.type === 'tool_call') console.log(`\n[calling ${event.name}]`);
+  else if (event.type === 'tool_result') console.log(`[${event.name} done]`);
+  else if (event.type === 'done') console.log(`\ntrace: ${event.result.traceId}`);
+}
+```
+
+The `done` event carries the same `RunToolLoopResult` the unstreamed call
+returns, and the trace is identical: one `llm` span per round with the round's
+tool spans nested under it. `content` events arrive from every round, each
+carrying `round` — whether a round is the last is only knowable once its
+`finish_reason` arrives, so holding one back would delay the final answer.
+
+There is no `dispatch` above, and none is needed: a tool whose version has an
+`http` executor runs on the platform. Pass `dispatch` only for a
+`client`-executor tool, whose code lives in your process — ask for one without an
+implementation and the loop stops before calling the model, naming the tool.
+
+### A complete streaming script
+
+Copy-paste runnable, against a local API. Change `baseUrl` to
+`https://api.acruxcore.com/api/v1` for the hosted platform:
+
+```typescript
+import { acruxcore } from '@acruxcoreai/sdk';
+
+const hub = new acruxcore({
+  apiKey: process.env.ACRUXCORE_API_KEY,
+  baseUrl: 'http://localhost:3001/api/v1',
+});
+
+const rendered = await hub.prompts.render('weather-brief', 'production', { city: 'Lisbon' });
+
+const stream = await hub.gateway.runPromptWithTools(rendered, { stream: true });
+for await (const event of stream) {
+  console.log(event);
+}
+
+// The trace is written in a background task. In a script that exits right away,
+// close the gateway or the write may not land.
+await hub.gateway.close();
+```
+
+```text
+{ type: 'tool_call', id: 'call_jhL5Qe…', name: 'get_weather', arguments: { city: 'Lisbon' }, round: 0 }
+{ type: 'tool_result', id: 'call_jhL5Qe…', name: 'get_weather', round: 0, result: { location: 'Lisbon, Portugal', temperature_c: 26 } }
+{ type: 'content', delta: 'The', round: 1 }
+{ type: 'content', delta: ' weather', round: 1 }
+…
+{ type: 'done', result: { content: 'The weather in Lisbon right now is 26°C with patchy rain nearby.', iterations: 2, stoppedAtLimit: false, traceId: '7deb9f08-…' } }
+```
+
+### Overriding one prompt-bound tool's alias for a single call
+
+Every prompt-bound tool follows its own tool alias — usually `production` —
+whatever the prompt's own alias happens to be. `render()` also returns
+`toolResolutions`, reporting which alias (or pin) each tool actually resolved
+through and whether the prompt alias's own binding or the prompt default decided
+it, so you can see that before overriding it. `withToolOverride` does the
+override safely — sending the same tool in both `tools` and `toolRefs` is a 400,
+so it removes it from `tools` and adds it to `toolRefs` for you:
+
+```typescript
+import { withToolOverride } from '@acruxcoreai/sdk';
+
+const rendered = await hub.prompts.render('weather-brief', 'production', { city: 'Paris' });
+const { tools, toolRefs } = withToolOverride(rendered, { name: 'get_weather', alias: 'staging' });
+
+const result = await hub.gateway.chat({ model: rendered.model ?? 'gpt-4o-mini', messages: rendered.messages, tools, toolRefs });
+```
+
+This only affects this one call. If `get_weather` was already bound, it logs
+a warning naming what the prompt currently has it set to — so the override
+doesn't get mistaken for the prompt's own configuration.
 
 ### The loop's behaviour
 

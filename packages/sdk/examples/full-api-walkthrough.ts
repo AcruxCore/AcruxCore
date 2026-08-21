@@ -59,7 +59,8 @@ async function main(): Promise<void> {
   let traceId = '';
 
   // ════════════════════════════════════════════════════════════════════════
-  //  PROMPTS (14 methods)
+  //  PROMPTS (14 methods; its 6 tool-binding methods run in the TOOLS section
+  //  below, which is where a tool to bind first exists)
   // ════════════════════════════════════════════════════════════════════════
 
   tag('prompts.create');
@@ -135,7 +136,7 @@ async function main(): Promise<void> {
   console.log(`  ✓ deleted imported prompt`);
 
   // ════════════════════════════════════════════════════════════════════════
-  //  TOOLS (12 methods)
+  //  TOOLS (12 methods) + the 6 prompt→tool binding methods
   // ════════════════════════════════════════════════════════════════════════
 
   tag('tools.create');
@@ -178,6 +179,39 @@ async function main(): Promise<void> {
   tag('tools.promoteAlias');
   const toolAlias = await hub.tools.promoteAlias(toolId, 'production', tv1.versionNumber);
   console.log(`  ✓ promoted tool alias "${toolAlias.alias}" → v${toolAlias.versionNumber}`);
+
+  // ── Prompt→tool bindings ───────────────────────────────────────────────
+  // Which tools a prompt calls is decided here, per prompt alias — a commit
+  // decides the template only.
+
+  tag('prompts.setToolBinding');
+  const defaultBinding = await hub.prompts.setToolBinding(promptId, toolId, { toolAlias: 'production' });
+  console.log(`  ✓ default binding → "${defaultBinding.toolAlias}" (v${defaultBinding.resolvedVersionNumber})`);
+
+  tag('prompts.setAliasToolBinding');
+  const stagingBinding = await hub.prompts.setAliasToolBinding(promptId, 'staging', toolId, {
+    pinnedVersionNumber: tv1.versionNumber,
+  });
+  console.log(`  ✓ staging pinned to tool v${stagingBinding.pinnedVersionNumber}`);
+
+  tag('prompts.listToolBindings');
+  const promptBindings = await hub.prompts.listToolBindings(promptId);
+  console.log(
+    `  ✓ ${promptBindings.default.length} default binding(s), ` +
+      `${promptBindings.aliases.filter((a) => a.customised).length} customised alias(es)`,
+  );
+
+  tag('prompts.removeAliasToolBinding');
+  await hub.prompts.removeAliasToolBinding(promptId, 'staging', toolId);
+  console.log('  ✓ staging returned to the default binding');
+
+  tag('prompts.resetAliasToolBindings');
+  await hub.prompts.resetAliasToolBindings(promptId, 'staging');
+  console.log('  ✓ staging reset (no-op when it owns no rows)');
+
+  tag('prompts.removeToolBinding');
+  await hub.prompts.removeToolBinding(promptId, toolId);
+  console.log('  ✓ default binding removed');
 
   tag('tools.analytics');
   const toolAnalytics = await hub.tools.analytics();

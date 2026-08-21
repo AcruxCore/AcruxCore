@@ -17,29 +17,17 @@ export const MessageSchema = z.object({
   content: z.string().min(1, 'content must not be empty'),
 });
 
-/** A tool attachment on a committed prompt version (FAQ Q4). */
-export const AttachToolSchema = z.object({
-  toolId: z.string().uuid('toolId must be a UUID'),
-  alias: z.string().min(1).optional(),
-  pinnedVersionNumber: z.number().int().min(1).optional(),
-});
-
 /** Validated request body for POST /prompts/:id/versions */
 export const CreateVersionBodySchema = z.object({
   messages: z
     .array(MessageSchema)
     .min(1, 'messages must be a non-empty array'),
-  /** FAQ Q4: attach catalog tools to this immutable version. */
-  tools: z.array(AttachToolSchema).max(64).optional(),
   /** Issue #12: bind a default gateway model by publicName; omitted = unbound. */
   model: z.string().min(1).optional(),
 });
 
 /** TypeScript type derived from the Zod schema. */
 export type CreateVersionDto = z.infer<typeof CreateVersionBodySchema>;
-
-/** TypeScript type derived from the Zod schema for a single tool attachment entry. */
-export type AttachToolDto = z.infer<typeof AttachToolSchema>;
 
 // ── Pagination query schema ───────────────────────────────────────────────────
 

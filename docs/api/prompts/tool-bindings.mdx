@@ -1,0 +1,344 @@
+---
+title: "Prompt Tool Bindings"
+description: "Connect a tool to a prompt by choosing the tool alias each prompt alias should call — one live write, no new prompt version."
+---
+
+# Prompt Tool Bindings API
+
+A **binding** is the connection between a prompt and a tool. It records which tool
+alias (or which exact tool version) the prompt should call, and it is resolved at
+use-time, so moving the tool's own alias pointer changes what runs without touching
+the prompt.
+
+Bindings are keyed by **prompt alias**, not by prompt version. A prompt version
+decides the template only. There are two scopes:
+
+- The **default** binding — `PUT /prompts/:id/tools/:toolId`. Every prompt alias
+  inherits it unless it has a row of its own.
+- One alias's **own** binding — `PUT /prompts/:id/aliases/:alias/tools/:toolId`.
+  This is how `staging` calls a different build of the tool than `production`, or
+  none at all.
+
+A binding for one (prompt alias, tool) pair is therefore in one of three states:
+
+| State | How it is stored | Meaning |
+|---|---|---|
+| **set** | that alias has its own row | this alias uses the tool alias or pin in the row |
+| **inherited** | no row for that alias | the default applies |
+| **off** | a row with `off: true` | this alias deliberately has no such tool |
+
+The **off** state exists because an absent row already means *inherit*. Without it
+there would be no way to say "`staging` must not call `charge_card`, even though the
+default does."
+
+All endpoints accept either a session cookie (`connect.sid`) or a Bearer API key.
+Every write requires `owner`, `admin`, or `editor`; the read is open to any
+authenticated user.
+
+Writes take effect on the very next render — there is no version to commit and no
+alias to promote afterwards. See `toolResolutions` on the
+[render endpoint](./aliases).
+
+---
+
+### GET /api/v1/prompts/:id/tools
+
+Returns the whole binding picture for one prompt: the default list, then every
+prompt alias that exists today. `customised` is `false` for an alias with no rows of
+its own — its `bindings` array is empty and the default applies. `resolvedVersionNumber`
+is the tool version this binding runs right now, so a caller can show what will
+actually execute without a second request; it is `null` when the binding is off.
+
+```bash
+curl $ACRUXCORE_BASE_URL/prompts/bb19245b-408d-4b40-8782-9b2042c97929/tools \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+Response (status 200) — the default follows the tool's `production` alias; the
+prompt's `production` alias pins version 2 instead; its `staging` alias has the tool
+switched off:
+
+```json
+{
+  "data": {
+    "default": [
+      {
+        "toolId": "0d84d6c3-dc86-4db2-aee3-776bdd35ea34",
+        "toolName": "get_weather",
+        "toolAlias": "production",
+        "pinnedVersionNumber": null,
+        "off": false,
+        "resolvedVersionNumber": 3,
+        "position": 0
+      }
+    ],
+    "aliases": [
+      {
+        "alias": "production",
+        "versionNumber": 2,
+        "customised": true,
+        "bindings": [
+          {
+            "toolId": "0d84d6c3-dc86-4db2-aee3-776bdd35ea34",
+            "toolName": "get_weather",
+            "toolAlias": null,
+            "pinnedVersionNumber": 2,
+            "off": false,
+            "resolvedVersionNumber": 2,
+            "position": 0
+          }
+        ]
+      },
+      {
+        "alias": "staging",
+        "versionNumber": 1,
+        "customised": true,
+        "bindings": [
+          {
+            "toolId": "0d84d6c3-dc86-4db2-aee3-776bdd35ea34",
+            "toolName": "get_weather",
+            "toolAlias": null,
+            "pinnedVersionNumber": null,
+            "off": true,
+            "resolvedVersionNumber": null,
+            "position": 0
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The same call on a prompt where both aliases simply follow the default:
+
+```json
+{
+  "data": {
+    "default": [
+      {
+        "toolId": "0d84d6c3-dc86-4db2-aee3-776bdd35ea34",
+        "toolName": "get_weather",
+        "toolAlias": "production",
+        "pinnedVersionNumber": null,
+        "off": false,
+        "resolvedVersionNumber": 3,
+        "position": 0
+      }
+    ],
+    "aliases": [
+      { "alias": "production", "versionNumber": 2, "customised": false, "bindings": [] },
+      { "alias": "staging", "versionNumber": 1, "customised": false, "bindings": [] }
+    ]
+  }
+}
+```
+
+`versionNumber` on each alias is the **prompt** version it serves — the template.
+It has no bearing on which tools that alias calls.
+
+---
+
+### PUT /api/v1/prompts/:id/tools/:toolId
+
+Creates or updates the **default** binding — the one every prompt alias inherits
+unless it has a row of its own. Send exactly one of `tool_alias` or
+`pinned_version_number`.
+
+Following a tool alias is the usual choice: the prompt picks up whatever build that
+alias points at, so shipping a tool fix is one move of the tool's alias.
+
+```bash
+curl -X PUT $ACRUXCORE_BASE_URL/prompts/bb19245b-408d-4b40-8782-9b2042c97929/tools/0d84d6c3-dc86-4db2-aee3-776bdd35ea34 \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"tool_alias":"production"}'
+```
+
+Response (status 200):
+
+```json
+{
+  "toolId": "0d84d6c3-dc86-4db2-aee3-776bdd35ea34",
+  "toolName": "get_weather",
+  "toolAlias": "production",
+  "pinnedVersionNumber": null,
+  "off": false,
+  "resolvedVersionNumber": 3,
+  "position": 0
+}
+```
+
+`tool_alias` must already exist on the tool — it's checked at write time, not
+deferred to the next render:
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"Tool 'get_weather' has no alias 'nightly'."}}
+```
+
+Status 400. A `pinned_version_number` that the tool does not have is rejected the
+same way:
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"Tool 'get_weather' has no version 99."}}
+```
+
+Sending both fields at once is also a 400 — the server would have to guess which one
+you meant:
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"Provide exactly one of tool_alias, pinned_version_number, or off."}}
+```
+
+`off` is meaningful only for a prompt alias, where it contradicts a default. There is
+nothing for it to contradict here, so this endpoint rejects it (status 400):
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"off applies to a prompt alias, not the default. Delete the default binding instead."}}
+```
+
+404 — tool not found, or it belongs to another team:
+
+```json
+{"error":{"code":"NOT_FOUND","message":"Tool not found."}}
+```
+
+---
+
+### DELETE /api/v1/prompts/:id/tools/:toolId
+
+Removes the default binding. Every alias that was inheriting it stops calling the
+tool; aliases with their own row keep it.
+
+```bash
+curl -X DELETE $ACRUXCORE_BASE_URL/prompts/bb19245b-408d-4b40-8782-9b2042c97929/tools/0d84d6c3-dc86-4db2-aee3-776bdd35ea34 \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+Response: `204 No Content`.
+
+404 — there was no default binding for that tool:
+
+```json
+{"error":{"code":"NOT_FOUND","message":"No binding set for that tool."}}
+```
+
+---
+
+### PUT /api/v1/prompts/:id/aliases/:alias/tools/:toolId
+
+Gives one prompt alias its own binding for one tool. Body takes exactly one of
+`tool_alias`, `pinned_version_number`, or `off: true`.
+
+Pin an exact tool version for one alias:
+
+```bash
+curl -X PUT $ACRUXCORE_BASE_URL/prompts/bb19245b-408d-4b40-8782-9b2042c97929/aliases/production/tools/0d84d6c3-dc86-4db2-aee3-776bdd35ea34 \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"pinned_version_number":2}'
+```
+
+Response (status 200):
+
+```json
+{
+  "toolId": "0d84d6c3-dc86-4db2-aee3-776bdd35ea34",
+  "toolName": "get_weather",
+  "toolAlias": null,
+  "pinnedVersionNumber": 2,
+  "off": false,
+  "resolvedVersionNumber": 2,
+  "position": 0
+}
+```
+
+Or switch the tool off for that alias alone, while the default keeps it:
+
+```bash
+curl -X PUT $ACRUXCORE_BASE_URL/prompts/bb19245b-408d-4b40-8782-9b2042c97929/aliases/staging/tools/0d84d6c3-dc86-4db2-aee3-776bdd35ea34 \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"off":true}'
+```
+
+Response (status 200) — both `toolAlias` and `pinnedVersionNumber` null is what
+`off` looks like on the wire:
+
+```json
+{
+  "toolId": "0d84d6c3-dc86-4db2-aee3-776bdd35ea34",
+  "toolName": "get_weather",
+  "toolAlias": null,
+  "pinnedVersionNumber": null,
+  "off": true,
+  "resolvedVersionNumber": null,
+  "position": 0
+}
+```
+
+The `:alias` segment is a plain name, not a reference to an existing alias, so a
+binding survives its alias being demoted and re-promoted later. Writing to an alias
+name that does not exist yet therefore returns 200 rather than 404 — the row simply
+waits for that name to be promoted.
+
+The tool alias you point at and the prompt alias you point from are independent
+names. Binding the prompt's `production` to the tool's `staging` is exactly as valid
+as binding it to the tool's `dev`.
+
+The `tool_alias`, `pinned_version_number`, and 404 errors are identical to the
+default endpoint above.
+
+---
+
+### DELETE /api/v1/prompts/:id/aliases/:alias/tools/:toolId
+
+Drops that alias's own row for one tool, returning the pair to the default. Use this
+to undo an `off` as well — removing the off row restores inheritance, which is not
+the same as leaving the tool switched off.
+
+```bash
+curl -X DELETE $ACRUXCORE_BASE_URL/prompts/bb19245b-408d-4b40-8782-9b2042c97929/aliases/staging/tools/0d84d6c3-dc86-4db2-aee3-776bdd35ea34 \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+Response: `204 No Content`.
+
+404 — that alias had no row of its own for the tool (it was already inheriting):
+
+```json
+{"error":{"code":"NOT_FOUND","message":"No binding set for that tool."}}
+```
+
+---
+
+### DELETE /api/v1/prompts/:id/aliases/:alias/tools
+
+Drops **every** row belonging to one prompt alias, returning the whole alias to the
+default in one call. This is the dashboard grid's per-column reset.
+
+```bash
+curl -X DELETE $ACRUXCORE_BASE_URL/prompts/bb19245b-408d-4b40-8782-9b2042c97929/aliases/production/tools \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+Response: `204 No Content`.
+
+404 — that alias was already following the default in full, so there was nothing to
+drop:
+
+```json
+{"error":{"code":"NOT_FOUND","message":"Alias 'production' has no bindings of its own."}}
+```
+
+---
+
+## What's next
+
+- [Render](./aliases) — `toolResolutions` reports the tool alias, version, and
+  whether the binding came from the alias or the default.
+- [Tool aliases](../tools/aliases) — move the pointer a binding follows.
+- [Audit log](../audit) — `prompt_tool_route_set` and `prompt_tool_route_removed`
+  record every binding change.
+- [Connect a tool to a prompt](/docs/guides/connect-a-tool-to-a-prompt) — the
+  guide, with the dashboard flow.

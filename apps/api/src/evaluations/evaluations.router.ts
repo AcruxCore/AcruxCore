@@ -3,11 +3,12 @@ import { datasetsRouter } from './datasets';
 import { experimentsRouter } from './experiments';
 import { runsRouter } from './runs';
 import { optimizeRouter } from './optimize';
+import { evalRulesRouter } from './online/online-eval-rule.router';
 
 /**
  * Aggregating router for the evaluations domain (Phase 5). Mounts each
- * sub-domain (datasets, experiments, runs, optimize) under its own path
- * segment. Mounted at `/api/v1` in `app.ts`.
+ * sub-domain (datasets, experiments, runs, optimize, eval-rules) under its
+ * own path segment. Mounted at `/api/v1` in `app.ts`.
  *
  * `runsRouter` is mounted at `/` (not a dedicated prefix) because it owns two
  * resource roots itself — `POST /experiments/:id/runs` and `GET /runs/:id` —
@@ -31,5 +32,6 @@ r.use('/datasets', datasetsRouter);
 r.use('/experiments', experimentsRouter);
 r.use('/', runsRouter);
 r.use('/prompts', optimizeRouter);
+r.use('/eval-rules', evalRulesRouter);
 
 export default r;

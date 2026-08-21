@@ -8,9 +8,7 @@ import type {
 } from './versions.types';
 import type { AliasDetail } from '../aliases/aliases.types';
 import { AliasesRepository } from '../aliases/aliases.repository';
-import { PromptVersionToolRepository } from './attachments.repository';
 import { PromptToolResolver } from './prompt-tool-resolver';
-import type { AttachmentCreateData } from './attachments.types';
 import { ToolsRepository } from '../../tools/tools.repository';
 import { ToolAliasesRepository } from '../../tools/aliases/aliases.repository';
 import { ToolVersionsRepository } from '../../tools/versions/versions.repository';
@@ -28,7 +26,6 @@ import { AppError } from '../../shared/errors/app-error';
 export class VersionsService {
   private versionsRepo: VersionsRepository;
   private aliasesRepo: AliasesRepository;
-  private attachmentsRepo: PromptVersionToolRepository;
   private toolsRepo: ToolsRepository;
   private toolAliasesRepo: ToolAliasesRepository;
   private toolVersionsRepo: ToolVersionsRepository;
@@ -39,7 +36,6 @@ export class VersionsService {
   constructor() {
     this.versionsRepo = new VersionsRepository();
     this.aliasesRepo = new AliasesRepository();
-    this.attachmentsRepo = new PromptVersionToolRepository();
     this.toolsRepo = new ToolsRepository();
     this.toolAliasesRepo = new ToolAliasesRepository();
     this.toolVersionsRepo = new ToolVersionsRepository();
@@ -65,28 +61,30 @@ export class VersionsService {
   /**
    * Commits a new immutable version for a prompt.
    *
+   * A version decides the template only. Which tools the prompt calls lives in
+   * `prompt_tool_bindings`, keyed by the prompt's own alias rather than by a
+   * version (phase-4-faq Q53), so committing says nothing about tools and the
+   * request body no longer carries a `tools` field.
+   *
    * Steps:
    * 1. Verifies prompt exists in team.
    * 2. Parses each message content as nunjucks — 400 on syntax error.
    * 3. Extracts variable names from AST.
-   * 4. Resolves + validates any `tools` attachments (team-scoped tool lookup, pin/alias
-   *    existence, duplicate-toolId check) — all validation happens before any write, so a
+   * 4. Resolves + validates the optional default model, before any write, so a
    *    400 here never leaves behind a persisted (phantom) version row.
    * 5. Computes next version_number (MAX + 1 per prompt).
    * 6. Inserts prompt_versions row.
    * 7. If version_number === 1, auto-creates 'production' and 'staging' aliases.
-   * 8. Persists the resolved tool attachments against the new version.
-   * 9. Emits audit event 'version_committed'.
+   * 8. Emits audit event 'version_committed'.
    *
    * @param promptId - UUID of the prompt.
    * @param teamId - UUID of the authenticated user's team.
    * @param userId - UUID of the authenticated user (stored as createdBy).
-   * @param dto - Validated request body containing the messages array and optional tool attachments.
+   * @param dto - Validated request body containing the messages array.
    * @returns The created version, plus `aliases` if this was the first version.
    * @throws {NotFoundError} If the prompt doesn't exist or belongs to another team.
    * @throws {AppError} With code 'TEMPLATE_PARSE_ERROR' if any message content is invalid nunjucks.
-   * @throws {ValidationError} If a tool attachment references a tool outside the team, a
-   *   duplicate tool, or a pinned version/alias that does not exist.
+   * @throws {ValidationError} If `model` is not registered for this team.
    */
   async commitVersion(
     promptId: string,
@@ -107,13 +105,9 @@ export class VersionsService {
       throw err;
     }
 
-    // Resolve + validate all tool attachments BEFORE writing the version row, so that a
-    // validation failure never leaves a phantom (persisted but "failed") version behind.
-    const attachments = await this.resolveAttachments(dto.tools, teamId);
-
     // #12: resolve the optional default model publicName → id, team-scoped, so a
-    // bad model 400s before any version row is written (same fail-fast reasoning
-    // as tool attachments above).
+    // bad model 400s before any version row is written — fail fast, so a validation
+    // failure never leaves a phantom (persisted but "failed") version behind.
     let modelId: string | null = null;
     if (dto.model) {
       const gm = await this.modelsRepo.findByPublicName(teamId, dto.model);
@@ -150,10 +144,6 @@ export class VersionsService {
       aliases = await this.aliasesRepo.autoCreateAliases(promptId, row.id);
     }
 
-    if (attachments.length > 0) {
-      await this.attachmentsRepo.createMany(row.id, attachments);
-    }
-
     void audit(prisma, {
       teamId,
       actorId: userId,
@@ -165,58 +155,6 @@ export class VersionsService {
     return { version, aliases };
   }
 
-  /**
-   * Resolves and validates a `tools` attachment list into insertable rows.
-   * Runs entirely against already-committed tool/alias/version state — never against the
-   * prompt version being committed — so it can (and must) run before that version is written.
-   *
-   * @param tools - Optional raw attachment DTOs from the request body.
-   * @param teamId - UUID of the authenticated user's team (isolation boundary for tool lookup).
-   * @returns Resolved rows ready for `PromptVersionToolRepository.createMany`; empty if `tools` is absent/empty.
-   * @throws {ValidationError} If a tool is not found in the team, is attached twice, or its
-   *   pinned version / alias does not exist.
-   */
-  private async resolveAttachments(
-    tools: CreateVersionDto['tools'],
-    teamId: string,
-  ): Promise<AttachmentCreateData[]> {
-    if (!tools || tools.length === 0) return [];
-
-    const data: AttachmentCreateData[] = [];
-    const seen = new Set<string>();
-    let position = 0;
-
-    for (const att of tools) {
-      if (seen.has(att.toolId)) {
-        throw new ValidationError(`Duplicate tool attachment: ${att.toolId}`);
-      }
-      seen.add(att.toolId);
-
-      const tool = await this.toolsRepo.findById(att.toolId, teamId);
-      if (!tool) {
-        throw new ValidationError(`Tool ${att.toolId} not found in this team.`);
-      }
-
-      let pinnedVersionId: string | null = null;
-      if (att.pinnedVersionNumber !== undefined) {
-        const pinned = await this.toolVersionsRepo.findByVersionNumber(att.toolId, att.pinnedVersionNumber);
-        if (!pinned) {
-          throw new ValidationError(`Tool ${tool.name} has no version ${att.pinnedVersionNumber}.`);
-        }
-        pinnedVersionId = pinned.id;
-      } else {
-        // Validate the alias exists so we fail fast at commit, not at render.
-        const alias = await this.toolAliasesRepo.findByAlias(att.toolId, att.alias ?? 'production');
-        if (!alias) {
-          throw new ValidationError(`Tool ${tool.name} has no alias '${att.alias ?? 'production'}'.`);
-        }
-      }
-
-      data.push({ toolId: att.toolId, aliasName: att.alias ?? 'production', pinnedVersionId, position: position++ });
-    }
-
-    return data;
-  }
 
   /**
    * Lists versions for a prompt, newest first, without message content.
@@ -300,7 +238,7 @@ export class VersionsService {
     if (!row) {
       throw new NotFoundError('Prompt version not found');
     }
-    const tools = await this.toolResolver.resolveForVersion(row.id);
+    const tools = await this.toolResolver.resolveDefault(row.prompt.id);
     return {
       promptId: row.prompt.id,
       promptName: row.prompt.name,

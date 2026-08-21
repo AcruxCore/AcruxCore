@@ -1,6 +1,7 @@
-import type { TeamInviteEmailProps } from '../email.types';
+import type { EvalRuleAlertEmailProps, TeamInviteEmailProps } from '../email.types';
 import { escapeHtml, formatExpiry, htmlLayout, oneLine } from './layout';
 import { teamInviteEmail } from './team-invite';
+import { evalRuleAlertEmail } from './eval-rule-alert';
 import { renderEmail } from './index';
 
 const BASE: TeamInviteEmailProps = {
@@ -9,6 +10,13 @@ const BASE: TeamInviteEmailProps = {
   role: 'editor',
   inviteUrl: 'https://acruxcore.com/invite/abc123',
   expiresAt: '2026-08-01T09:30:00.000Z',
+};
+
+const EVAL_RULE_BASE: Omit<EvalRuleAlertEmailProps, 'score' | 'reason'> = {
+  teamName: 'Acme',
+  ruleName: 'Tone check',
+  rulesUrl: 'https://app.example.com/evaluations/rules',
+  unsubscribeUrl: 'https://app.example.com/api/v1/email/unsubscribe?token=abc',
 };
 
 describe('layout helpers', () => {
@@ -101,8 +109,51 @@ describe('teamInviteEmail', () => {
   });
 });
 
+describe('evalRuleAlertEmail', () => {
+  it('renders the low-score variant with the score and reason', () => {
+    const { subject, html, text } = evalRuleAlertEmail({
+      ...EVAL_RULE_BASE,
+      score: 42,
+      reason: 'Tone was dismissive.',
+    });
+    expect(subject).toContain('flagged a low score');
+    expect(html).toContain('42/100');
+    expect(html).toContain('Tone was dismissive.');
+    expect(text).toContain('42/100');
+  });
+
+  it('renders the disabled variant when score is null', () => {
+    const { subject, html } = evalRuleAlertEmail({
+      ...EVAL_RULE_BASE,
+      score: null,
+      reason: "This rule was disabled automatically: its judge calls hit your team's budget cap.",
+    });
+    expect(subject).toContain('was disabled');
+    expect(html).toContain('budget cap');
+    expect(html).not.toContain('null/100');
+  });
+
+  it('escapes a hostile rule name', () => {
+    const { html } = evalRuleAlertEmail({
+      ...EVAL_RULE_BASE,
+      ruleName: '<img src=x onerror=alert(1)>',
+      score: 10,
+      reason: 'ok',
+    });
+    expect(html).not.toContain('<img src=x');
+  });
+});
+
 describe('renderEmail', () => {
   it('dispatches team_invite to its template', () => {
     expect(renderEmail({ type: 'team_invite', props: BASE })).toEqual(teamInviteEmail(BASE));
+  });
+
+  it('dispatches eval_rule_alert to its template', () => {
+    const rendered = renderEmail({
+      type: 'eval_rule_alert',
+      props: { ...EVAL_RULE_BASE, score: 10, reason: 'ok' },
+    });
+    expect(rendered.subject).toContain('Tone check');
   });
 });

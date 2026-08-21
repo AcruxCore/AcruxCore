@@ -63,3 +63,19 @@ bash supervisor_flow.sh "What are the biggest trends in sustainable packaging fo
 The first question (a finance ticker) should route to `finance_research_agent` and call Yahoo Finance.
 The second question (general trends) should route to `general_research_agent` and call Tavily.
 Both runs land in one trace.
+
+## Set up the prompts first
+
+`setup_prompts.py` is the runnable version of the page's prompt-creation Python
+tab. The page shows the router and the finance subagent then says "Repeat for
+general-research-agent and writing-agent…" — this script does all four, so the
+whole set really exists. Run it after `create_tools.py`.
+
+Each prompt carries a default model, and the API rejects a version whose model is
+not registered for the team, so the script checks the registry up front. Override
+with `ACRUXCORE_MODEL` if you named yours something other than
+`claude-haiku-direct`.
+
+```bash
+python python/setup_prompts.py
+```

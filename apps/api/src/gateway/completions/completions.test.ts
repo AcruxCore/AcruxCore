@@ -971,6 +971,30 @@ describe('tool_refs resolution', () => {
     expect(res.body.error).toBeDefined();
   });
 
+  it('pins a tool_ref to an exact version, ignoring where production points', async () => {
+    const { apiKey, model } = await setupTeamWithOpenAiModel();
+    const t = await request(app).post('/api/v1/tools').set('Authorization', `Bearer ${apiKey}`).send({ name: 'get_weather', description: 'w' }).expect(201);
+    await request(app).post(`/api/v1/tools/${t.body.id}/versions`).set('Authorization', `Bearer ${apiKey}`)
+      .send({ parametersSchema: { type: 'object', properties: { city: { type: 'string' } } }, executor: { type: 'client' } }).expect(201);
+    // v2 changes the schema and takes over the production alias.
+    await request(app).post(`/api/v1/tools/${t.body.id}/versions`).set('Authorization', `Bearer ${apiKey}`)
+      .send({ parametersSchema: { type: 'object', properties: { zip: { type: 'string' } } }, executor: { type: 'client' } }).expect(201);
+
+    mockFetchOnce(CANNED_OPENAI);
+    await request(app).post('/api/v1/gateway/chat/completions').set('Authorization', `Bearer ${apiKey}`)
+      .send({ model, messages: [{ role: 'user', content: 'weather?' }], tool_refs: [{ name: 'get_weather', version: 1 }] }).expect(200);
+
+    const sent = lastProviderRequestBody() as { tools?: { function: { parameters: unknown } }[] };
+    expect(sent.tools?.[0].function.parameters).toEqual({ type: 'object', properties: { city: { type: 'string' } } });
+  });
+
+  it('400s on a tool_ref carrying both alias and version', async () => {
+    const { apiKey, model } = await setupTeamWithOpenAiModel();
+    const res = await request(app).post('/api/v1/gateway/chat/completions').set('Authorization', `Bearer ${apiKey}`)
+      .send({ model, messages: [{ role: 'user', content: 'x' }], tool_refs: [{ name: 'get_weather', alias: 'production', version: 1 }] }).expect(400);
+    expect(res.body.error).toBeDefined();
+  });
+
   it('404s (or 400) when a tool_ref names a missing tool', async () => {
     const { apiKey, model } = await setupTeamWithOpenAiModel();
     await request(app).post('/api/v1/gateway/chat/completions').set('Authorization', `Bearer ${apiKey}`)
@@ -979,14 +1003,17 @@ describe('tool_refs resolution', () => {
 });
 
 describe('stored-prompt auto-attaches tools', () => {
-  it("forwards a stored prompt version's attached tools to the provider", async () => {
+  it("forwards a stored prompt's bound tools to the provider", async () => {
     const { apiKey, model, agent } = await setupTeamWithOpenAiModel();
     const t = await request(app).post('/api/v1/tools').set('Authorization', `Bearer ${apiKey}`).send({ name: 'get_weather' }).expect(201);
     await request(app).post(`/api/v1/tools/${t.body.id}/versions`).set('Authorization', `Bearer ${apiKey}`)
       .send({ parametersSchema: { type: 'object' }, executor: { type: 'client' } }).expect(201);
     const p = await agent.post('/api/v1/prompts').send({ name: `wx_${Date.now()}` }).expect(201);
     await request(app).post(`/api/v1/prompts/${p.body.id}/versions`).set('Authorization', `Bearer ${apiKey}`)
-      .send({ messages: [{ role: 'system', content: 'hi {{ name }}' }], tools: [{ toolId: t.body.id }] }).expect(201);
+      .send({ messages: [{ role: 'system', content: 'hi {{ name }}' }] }).expect(201);
+    // Tools bind to the prompt now, not the version; production inherits the default.
+    await request(app).put(`/api/v1/prompts/${p.body.id}/tools/${t.body.id}`).set('Authorization', `Bearer ${apiKey}`)
+      .send({ tool_alias: 'production' }).expect(200);
     mockFetchOnce(CANNED_OPENAI);
     await request(app).post('/api/v1/gateway/chat/completions').set('Authorization', `Bearer ${apiKey}`)
       .send({ model, prompt: { name: p.body.name, alias: 'production', variables: { name: 'Al' } } }).expect(200);
@@ -1001,7 +1028,9 @@ describe('stored-prompt auto-attaches tools', () => {
       .send({ parametersSchema: { type: 'object' }, executor: { type: 'client' } }).expect(201);
     const p = await agent.post('/api/v1/prompts').send({ name: `wx_${Date.now()}` }).expect(201);
     await request(app).post(`/api/v1/prompts/${p.body.id}/versions`).set('Authorization', `Bearer ${apiKey}`)
-      .send({ messages: [{ role: 'system', content: 'hi {{ name }}' }], tools: [{ toolId: t.body.id }] }).expect(201);
+      .send({ messages: [{ role: 'system', content: 'hi {{ name }}' }] }).expect(201);
+    await request(app).put(`/api/v1/prompts/${p.body.id}/tools/${t.body.id}`).set('Authorization', `Bearer ${apiKey}`)
+      .send({ tool_alias: 'production' }).expect(200);
     mockFetchOnce(CANNED_OPENAI);
     await request(app).post('/api/v1/gateway/chat/completions').set('Authorization', `Bearer ${apiKey}`)
       .send({
@@ -1030,7 +1059,9 @@ describe('response_format + tools guard runs AFTER tool merging (post-merge, not
       .send({ parametersSchema: { type: 'object' }, executor: { type: 'client' } }).expect(201);
     const p = await agent.post('/api/v1/prompts').send({ name: `wxrf_${Date.now()}` }).expect(201);
     await request(app).post(`/api/v1/prompts/${p.body.id}/versions`).set('Authorization', `Bearer ${apiKey}`)
-      .send({ messages: [{ role: 'system', content: 'hi {{ name }}' }], tools: [{ toolId: t.body.id }] }).expect(201);
+      .send({ messages: [{ role: 'system', content: 'hi {{ name }}' }] }).expect(201);
+    await request(app).put(`/api/v1/prompts/${p.body.id}/tools/${t.body.id}`).set('Authorization', `Bearer ${apiKey}`)
+      .send({ tool_alias: 'production' }).expect(200);
     const res = await request(app).post('/api/v1/gateway/chat/completions').set('Authorization', `Bearer ${apiKey}`)
       .send({
         model,

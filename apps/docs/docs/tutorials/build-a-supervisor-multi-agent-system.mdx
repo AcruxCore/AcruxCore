@@ -309,8 +309,7 @@ curl -X POST "$ACRUXCORE_BASE_URL/prompts/a672652c-8ef8-49ac-b674-b4a38bb6d8dd/v
     "messages": [
       {"role":"system","content":"You are an expert finance research assistant for a digital content agency.\nYou have access to the following tools: finance_research, basic_research, and get_todays_date. \nFirst get today'"'"'s date then continue. \nThe finance_research tool is used to search for financial data and news from Yahoo Finance. \nThe basic_research tool is used to search for general information. \nThe get_todays_date tool is used to get today'"'"'s date. \nWhen you are done with your research, return the research to the supervisor agent."},
       {"role":"user","content":"{{ task }}"}
-    ],
-    "tools": [{"toolId":"c6ffbbff-7e5f-4e6e-acbe-1fd1a027632f"},{"toolId":"ab20959a-2651-4779-86f8-0714c967798e"},{"toolId":"d0a800d5-a484-4d4f-a9e2-05a715775682"}]
+    ]
   }'
 ```
 
@@ -318,10 +317,21 @@ curl -X POST "$ACRUXCORE_BASE_URL/prompts/a672652c-8ef8-49ac-b674-b4a38bb6d8dd/v
 {"id":"6bc66e79-5876-465a-a50f-4f138da54783","promptId":"a672652c-8ef8-49ac-b674-b4a38bb6d8dd","versionNumber":1,"variables":["task"],"model":"claude-haiku-direct","aliases":[{"alias":"production","versionNumber":1},{"alias":"staging","versionNumber":1}]}
 ```
 
-The other two subagents follow the exact same shape — create the prompt shell, then commit a
-version with the system prompt, user prompt, and tool ids. You can do this from the dashboard
-(**Prompts → New prompt**, then the **Editor** tab to commit a version and attach tools) or
-repeat the same two curl calls. Here is what each one needs:
+Then connect its three tools. Bindings live on the prompt, not on a version, so this is
+one `PUT` per tool with nothing to commit afterwards:
+
+```bash
+for TOOL in c6ffbbff-7e5f-4e6e-acbe-1fd1a027632f ab20959a-2651-4779-86f8-0714c967798e d0a800d5-a484-4d4f-a9e2-05a715775682; do
+  curl -X PUT "$ACRUXCORE_BASE_URL/prompts/a672652c-8ef8-49ac-b674-b4a38bb6d8dd/tools/$TOOL" \
+    -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+    -d '{"tool_alias":"production"}'
+done
+```
+
+The other two subagents follow the exact same shape — create the prompt shell, commit a
+version with the system and user prompts, then connect its tools. You can do this from the
+dashboard (**Prompts → New prompt**, the **Editor** tab to commit a version, the **Tools**
+tab to connect the tools) or repeat the same curl calls. Here is what each one needs:
 
 **`general-research-agent`** — tools: `advanced_research` + `get_todays_date`
 
@@ -343,45 +353,51 @@ Both use `{{ task }}` as the user prompt variable, same as the finance agent.
 </TabItem>
 <TabItem value="python-sdk" label="Python (SDK)">
 
-Same shape via the SDK. `hub.prompts.create()` creates the shell, then `hub.prompts.commitVersion()` attaches the messages and tools. The router prompt has no tools; the subagent prompts attach tool ids:
+Same shape via the SDK. `hub.prompts.create()` creates the shell, `hub.prompts.commit_version()` stores the messages, and `hub.prompts.set_tool_binding()` connects each tool. The router prompt needs no tools; each subagent prompt binds its own:
 
 ```python
 from acruxcore import AcruxCore
 
 async with AcruxCore() as hub:
     # Router prompt (no tools)
-    router = await hub.prompts.create({
-        "name": "content-supervisor",
-        "description": "Classifies an incoming content request and routes it to one of three specialist subagents.",
-    })
-    await hub.prompts.commitVersion(router.id, {
-        "model": "claude-haiku-direct",
-        "messages": [
+    router = await hub.prompts.create(
+        "content-supervisor",
+        description="Classifies an incoming content request and routes it to one of three specialist subagents.",
+    )
+    await hub.prompts.commit_version(
+        router.id,
+        model="claude-haiku-direct",
+        messages=[
             {"role": "system", "content": "You are the Executive Content Director orchestrating a team of specialized AI agents to produce exceptional content for clients.\n\nAvailable agents:\n- finance_research_agent: Specialized in financial data research and analysis using Yahoo Finance and other financial sources\n- general_research_agent: Expert at comprehensive web research on any topic using advanced search tools\n- writing_agent: Professional content writer that creates final polished content in any format\n\nRead the user's request and decide which single agent should handle it next."},
             {"role": "user", "content": "{{ question }}"},
         ],
-    })
+    )
 
     # Finance research subagent
-    finance = await hub.prompts.create({
-        "name": "finance-research-agent",
-        "description": "Finance research subagent: Yahoo Finance news plus quick web lookups, for the content supervisor.",
-    })
-    await hub.prompts.commitVersion(finance.id, {
-        "model": "claude-haiku-direct",
-        "messages": [
+    finance = await hub.prompts.create(
+        "finance-research-agent",
+        description="Finance research subagent: Yahoo Finance news plus quick web lookups, for the content supervisor.",
+    )
+    await hub.prompts.commit_version(
+        finance.id,
+        model="claude-haiku-direct",
+        messages=[
             {"role": "system", "content": "You are an expert finance research assistant for a digital content agency.\nYou have access to the following tools: finance_research, basic_research, and get_todays_date. \nFirst get today's date then continue. \nThe finance_research tool is used to search for financial data and news from Yahoo Finance. \nThe basic_research tool is used to search for general information. \nThe get_todays_date tool is used to get today's date. \nWhen you are done with your research, return the research to the supervisor agent."},
             {"role": "user", "content": "{{ task }}"},
         ],
-        "tools": [
-            {"toolId": "c6ffbbff-7e5f-4e6e-acbe-1fd1a027632f"},
-            {"toolId": "ab20959a-2651-4779-86f8-0714c967798e"},
-            {"toolId": "d0a800d5-a484-4d4f-a9e2-05a715775682"},
-        ],
-    })
+    )
+
+    for tool_id in (
+        "c6ffbbff-7e5f-4e6e-acbe-1fd1a027632f",
+        "ab20959a-2651-4779-86f8-0714c967798e",
+        "d0a800d5-a484-4d4f-a9e2-05a715775682",
+    ):
+        await hub.prompts.set_tool_binding(finance.id, tool_id, tool_alias="production")
 
     # Repeat for general-research-agent and writing-agent...
 ```
+
+Full script (all four prompts, not just the two shown): [`setup_prompts.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/build-a-supervisor-multi-agent-system/python/setup_prompts.py).
 
 The other two subagents follow the exact same shape — create the prompt shell, then commit a
 version with the system prompt, user prompt, and tool ids. Both use `{{ task }}` as the user
@@ -390,7 +406,7 @@ prompt variable, same as the finance agent.
 </TabItem>
 <TabItem value="node-sdk" label="Node (SDK)">
 
-Same shape via the Node SDK. `hub.prompts.create()` creates the shell, then `hub.prompts.commitVersion()` attaches the messages and tools:
+Same shape via the Node SDK. `hub.prompts.create()` creates the shell, `hub.prompts.commitVersion()` stores the messages, and `hub.prompts.setToolBinding()` connects each tool:
 
 ```typescript
 import { acruxcore } from '@acruxcoreai/sdk';
@@ -421,12 +437,15 @@ await hub.prompts.commitVersion(finance.id, {
     { role: "system", content: "You are an expert finance research assistant for a digital content agency.\nYou have access to the following tools: finance_research, basic_research, and get_todays_date. \nFirst get today's date then continue. \nThe finance_research tool is used to search for financial data and news from Yahoo Finance. \nThe basic_research tool is used to search for general information. \nThe get_todays_date tool is used to get today's date. \nWhen you are done with your research, return the research to the supervisor agent." },
     { role: "user", content: "{{ task }}" },
   ],
-  tools: [
-    { toolId: "c6ffbbff-7e5f-4e6e-acbe-1fd1a027632f" },
-    { toolId: "ab20959a-2651-4779-86f8-0714c967798e" },
-    { toolId: "d0a800d5-a484-4d4f-a9e2-05a715775682" },
-  ],
 });
+
+for (const toolId of [
+  "c6ffbbff-7e5f-4e6e-acbe-1fd1a027632f",
+  "ab20959a-2651-4779-86f8-0714c967798e",
+  "d0a800d5-a484-4d4f-a9e2-05a715775682",
+]) {
+  await hub.prompts.setToolBinding(finance.id, toolId, { toolAlias: "production" });
+}
 
 // Repeat for general-research-agent and writing-agent...
 ```
@@ -589,8 +608,9 @@ is which question the router read.
 
 Same shape, `runToolLoop()` instead of `run_tool_loop()`. Since Node's `tool()` needs a hand-written
 JSON Schema rather than deriving one from a docstring, this tab passes the four tools as
-`toolRefs` (resolved from the catalog Step 3 already populated) plus a `dispatch` function, which
-calls `@langchain/tavily`'s real `TavilySearch` class for `advanced_research`/`basic_research` —
+`toolRefs` (resolved from the catalog Step 3 already populated) plus a `clientTools` map holding
+all four functions — one map covers every route, because `toolRefs` decides which subset the
+model is offered and an entry the route does not bind is never called. It `@langchain/tavily`'s real `TavilySearch` class for `advanced_research`/`basic_research` —
 the same wrapper [Build a configurable ReAct agent](./build-a-configurable-react-agent) uses.
 `finance_research` here reads Nasdaq's public per-symbol RSS feed instead of Yahoo Finance
 directly: the same real, environment-specific gap

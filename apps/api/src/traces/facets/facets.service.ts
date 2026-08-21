@@ -6,16 +6,18 @@ export class TraceFacetsService {
   constructor(private readonly repo: TraceFacetsRepository) {}
 
   /**
-   * The team's distinct tags + metadata keys, for populating filter pickers.
+   * The team's distinct tags + metadata keys + resolved span models, for
+   * populating filter pickers.
    *
    * @param teamId - Team scope.
    */
   async getFacets(teamId: string): Promise<TraceFacets> {
-    const [tags, metadataKeys] = await Promise.all([
+    const [tags, metadataKeys, models] = await Promise.all([
       this.repo.listTags(teamId),
       this.repo.listMetadataKeys(teamId),
+      this.repo.listModels(teamId),
     ]);
-    return { tags, metadataKeys };
+    return { tags, metadataKeys, models };
   }
 
   /**

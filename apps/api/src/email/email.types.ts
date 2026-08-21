@@ -15,6 +15,7 @@ export type EmailType =
   | 'budget_threshold'
   | 'budget_exhausted'
   | 'eval_run_finished'
+  | 'eval_rule_alert'
   | 'member_joined'
   | 'member_removed'
   | 'member_roles_changed'
@@ -171,6 +172,8 @@ export interface BudgetAlertEmailProps {
   budgetsUrl: string;
   /** Absolute link that turns this category off for the recipient. */
   unsubscribeUrl: string;
+  /** Set when an online-eval rule's judge calls contributed to this crossing. */
+  contributingSource?: string;
 }
 
 /** Props for the eval-run-finished email. */
@@ -192,6 +195,26 @@ export interface EvalRunFinishedEmailProps {
   durationSeconds: number | null;
   /** Absolute deep link to the run. */
   runUrl: string;
+  /** Absolute link that turns this category off for the recipient. */
+  unsubscribeUrl: string;
+}
+
+/**
+ * Props for the online-eval-rule alert email. Covers two distinct events
+ * sharing one template: a low score (`score` set) and an automatic disable
+ * (`score: null`, `reason` explains why).
+ */
+export interface EvalRuleAlertEmailProps {
+  /** Team the rule belongs to. User-supplied — must be escaped. */
+  teamName: string;
+  /** The rule's own name. User-supplied — must be escaped. */
+  ruleName: string;
+  /** The score that triggered the alert, or null when the rule was disabled instead of scoring. */
+  score: number | null;
+  /** Judge's reason text, or the disable explanation. Judge output is model-generated — must be escaped. */
+  reason: string;
+  /** Absolute link to the rules screen. */
+  rulesUrl: string;
   /** Absolute link that turns this category off for the recipient. */
   unsubscribeUrl: string;
 }
@@ -260,6 +283,7 @@ export type EmailPayload =
   | { type: 'budget_threshold'; props: BudgetAlertEmailProps }
   | { type: 'budget_exhausted'; props: BudgetAlertEmailProps }
   | { type: 'eval_run_finished'; props: EvalRunFinishedEmailProps }
+  | { type: 'eval_rule_alert'; props: EvalRuleAlertEmailProps }
   | { type: 'member_joined'; props: MembershipEmailProps }
   | { type: 'member_removed'; props: MembershipEmailProps }
   | { type: 'member_roles_changed'; props: MembershipEmailProps }

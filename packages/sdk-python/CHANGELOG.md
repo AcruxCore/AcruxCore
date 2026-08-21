@@ -12,6 +12,107 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+### Added
+
+- `client_tools` on `gateway.run_tool_loop` and `gateway.run_prompt_with_tools`: a
+  `{tool_name: fn}` map that runs a catalog tool whose executor is `client`, without the
+  hand-written `dispatch` router that was previously the only way.
+- Unlike `tools=[fn]`, it writes nothing to the catalog: the tool's definition, its
+  binding's alias or pin, and the `toolVersionId` stamped on the tool span all stay the
+  catalog's.
+- Each function is called with the tool schema's own field names as keywords, so
+  `search_flights(origin=..., destination=...)`. A schema field that is a Python keyword,
+  such as `from`, needs `**kwargs` instead.
+- Two failures now raise before the first model call: `MISSING_DISPATCH` for a bound
+  `client` tool with no runner (listing the `client_tools` keys supplied, so a mistyped
+  key shows itself), and `VALIDATION_ERROR` when a function cannot receive the schema's
+  required arguments.
+
+### Changed
+
+- An `http` tool named in `client_tools` is ignored in silence. The platform runs it, and
+  one map is meant to serve prompt aliases whose executor differs — `production` on
+  `http`, `staging` on `client`.
+- `dispatch` is unchanged and not deprecated. It stays the right input for a tool set
+  whose names are only known at runtime.
+
+## 0.9.0 — 2026-08-20
+
+### Added
+
+- New `gateway.run_prompt_with_tools(rendered, **kwargs)`: takes a `render()` result
+  and derives `model`, `messages`, `tool_refs` and `prompt_version_id` from it, so a
+  call site no longer restates any of them. Any keyword passed wins over the derived
+  value.
+- **`stream=True` on `gateway.run_tool_loop` (and on `run_prompt_with_tools`)**
+  returns an `AsyncToolLoopStream` of typed events — `content` / `tool_call` /
+  `tool_result` / `done` — instead of awaiting the whole loop. The trace is identical
+  to a non-streamed run: one `llm` span per round, with the round's tool spans under it.
+- `tool_refs` entries (and `tools.resolve` refs) accept `version` to pin one exact
+  tool build instead of following an alias. A binding pinned on the platform now
+  travels as a pin through `run_prompt_with_tools`, rather than as its alias.
+- New exported types `ToolLoopEvent`, `ToolLoopContentEvent`, `ToolLoopToolCallEvent`,
+  `ToolLoopToolResultEvent`, `ToolLoopDoneEvent` and `AsyncToolLoopStream`.
+- `prompts.render()` now also returns `tool_resolutions` — per-tool metadata (the
+  alias or pin actually resolved, its version number, and which binding decided
+  it) alongside the existing `tools` list.
+- New `with_tool_override(rendered, name=..., alias=...)` helper: overrides one
+  bound tool's alias for a single `gateway.chat()`/`gateway.run_tool_loop()`
+  call. Handles the tools/tool_refs name-collision removal for you and warns
+  (naming the prompt's current setting) when the tool was already bound, so
+  the override doesn't read as the prompt's own configuration.
+- Six new prompt→tool binding methods, replacing the removed `tool-routes`
+  endpoints: `prompts.list_tool_bindings`, `set_tool_binding`,
+  `remove_tool_binding`, `set_alias_tool_binding`, `remove_alias_tool_binding`,
+  `reset_alias_tool_bindings`.
+- `set_tool_binding()` writes the default every prompt alias inherits;
+  `set_alias_tool_binding()` gives one alias its own binding, including
+  `off=True` for "this alias deliberately has no such tool".
+- New dataclasses `ToolBindingDetail`, `AliasToolBindings`, `PromptToolBindings`,
+  and a `VALIDATION_ERROR` error code for a binding the SDK rejects before
+  sending (no target, two targets, or `off=True` on the default).
+
+### BREAKING
+
+- **`commit_version()` no longer takes `tools=`.** A version decides the template
+  only; tools are bound per prompt alias.
+  1. *Migrating from 0.8:* delete the `tools=[...]` argument from every
+     `prompts.commit_version(...)` call, and replace each entry with
+     `await hub.prompts.set_tool_binding(prompt_id, tool_id, tool_alias=...)` (or
+     `pinned_version_number=...`) — once per tool, not once per commit.
+  2. The runtime catches this immediately and by name: the call raises `TypeError:
+     PromptsNamespace.commit_version() got an unexpected keyword argument 'tools'`.
+- **The `tool-routes` endpoints are gone** —
+  `PUT`/`DELETE /prompts/:id/aliases/:alias/tool-routes/:toolId` and
+  `/prompts/:id/tool-routes` return 404. The binding methods replace them.
+  1. *Migrating from 0.8:* swap any raw request to
+     `PUT /prompts/:id/aliases/:alias/tool-routes/:toolId` for
+     `prompts.set_alias_tool_binding(prompt_id, alias, tool_id, tool_alias=...)`,
+     and the matching `DELETE` for `prompts.remove_alias_tool_binding(...)`.
+  2. Nothing catches this for you: no SDK method ever wrapped those paths, so
+     grep your code for `tool-routes` — a stale caller fails at runtime with a 404.
+
+### Changed
+
+- **`tool_resolutions[].overridden` (bool) is now `source: "alias" | "default"`.**
+  `"alias"` means the prompt alias had a binding of its own, `"default"` that it
+  inherited the prompt's default.
+  1. *Migrating from 0.8:* replace `r.overridden` with `r.source == "alias"`. The
+     old `True` and the new `"alias"` do not mean the same thing — `True` used to
+     mean "a live override outranked the version's attachment", a distinction the
+     single binding table no longer has.
+  2. The runtime catches this: `overridden` is gone from `ToolResolution`, so
+     reading it raises `AttributeError` rather than quietly returning a falsy value.
+- **`prompt_version_id` now actually reaches the gateway.** It used to be stamped
+  only on client-written spans, so on the gateway path — where the gateway writes the
+  `llm` span — passing it did nothing and the span had no link back to the prompt. It
+  is sent as `prompt_version_id` on the request body now, and never to a BYO provider.
+  Needs an API deployed on 2026-08-20 or later; an older one ignores the field,
+  exactly as before.
+- `with_tool_override`'s warning now names which binding holds the current setting
+  ("the prompt's default binding" / "this prompt alias's own binding") instead of
+  saying "via a routing override". Same helper, same name, same behaviour.
+
 ## 0.8.0 — 2026-08-11
 
 ### Added

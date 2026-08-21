@@ -20,6 +20,12 @@ const CATEGORIES: {
     description: 'When a run you started finishes or fails. Counts only — no outputs.',
   },
   {
+    key: 'eval_rules',
+    label: 'Online evaluation alerts',
+    description:
+      'When a live-traffic rule flags a low score, or is disabled after hitting its budget. Owners and admins only.',
+  },
+  {
     key: 'membership',
     label: 'Membership changes',
     description: 'When someone joins, is removed, or has their role changed.',

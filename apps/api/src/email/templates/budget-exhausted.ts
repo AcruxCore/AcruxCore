@@ -29,6 +29,7 @@ export function budgetExhaustedEmail(props: BudgetAlertEmailProps): RenderedEmai
     { label: 'Limit', value: formatUsd(props.limitUsd) },
     { label: 'Scope', value: props.scopeLabel },
     { label: 'Resets', value: props.period === 'total' ? 'never' : `every ${props.period}` },
+    ...(props.contributingSource ? [{ label: 'Contributed by', value: props.contributingSource }] : []),
   ];
 
   const subject = oneLine(`${props.teamName}: ${props.period} budget exhausted`);

@@ -1,7 +1,7 @@
 /**
  * Medical-information QA agent -- Node, over the gateway.
  *
- * One runToolLoop() call with both toolRefs/dispatch and responseFormat set.
+ * One runToolLoop() call with toolRefs, clientTools and responseFormat set.
  * result.content is the shaped MedicalInformationAnswer JSON; result.iterations counts
  * the tool-gathering rounds. Supports both a plain JSON-schema dict (zero deps) and a
  * zod v4 schema (typed, with field descriptions the model reads) — the SDK accepts either
@@ -77,13 +77,18 @@ function checkSafetyPolicy(topic) {
   return section ? { source: `safety-policy.md#${slug}`, snippet: section.body } : { error: `Policy section '${slug}' not found.` };
 }
 
-async function dispatch(name, args) {
-  if (name === 'get_drug_profile') return getDrugProfile(args.query);
-  if (name === 'get_inquiry') return getInquiry(args.inquiry_id);
-  if (name === 'search_prescribing_info') return searchPrescribingInfo(args.query);
-  if (name === 'check_safety_policy') return checkSafetyPolicy(args.topic);
-  throw new Error(`Unknown tool: ${name}`);
-}
+// The four tools this script runs itself, keyed by catalog tool name. All four have a
+// `client` executor, so all four appear; a tool with an `http` executor would not,
+// because the platform runs those.
+// The field names are the catalog schemas' own — `get_drug_profile` takes `drug`, and
+// `check_safety_policy` takes `query`. Read them from the tool's version in the
+// dashboard, or from `POST /tools/resolve`, rather than guessing.
+const CLIENT_TOOLS = {
+  get_drug_profile: ({ drug }) => getDrugProfile(drug),
+  get_inquiry: ({ inquiry_id }) => getInquiry(inquiry_id),
+  search_prescribing_info: ({ query }) => searchPrescribingInfo(query),
+  check_safety_policy: ({ query }) => checkSafetyPolicy(query),
+};
 
 const ANSWER_SCHEMA = {
   type: 'object',
@@ -120,9 +125,9 @@ async function main() {
   const question = process.argv[2] || 'What is Cortiblex approved to treat, and is it safe for someone with a fungal infection?';
   const hub = new AcruxCore(); // reads ACRUXCORE_API_KEY / ACRUXCORE_BASE_URL
 
-  const rendered = await hub.renderPrompt('medical-information-qa', 'production', { question });
+  const rendered = await hub.prompts.render('medical-information-qa', 'production', { question });
 
-  // One call, toolRefs/dispatch and responseFormat set together. result.content is the
+  // One call, toolRefs/clientTools and responseFormat set together. result.content is the
   // shaped MedicalInformationAnswer JSON; result.iterations counts the tool-gathering rounds.
   //
   // Two ways to pass responseFormat — pick one:
@@ -130,11 +135,11 @@ async function main() {
   //   Zod (typed):        responseFormat: { zod: MedicalInformationAnswer, name: 'medical_information_answer' }
   // Switch to { zod: MedicalInformationAnswer, name: 'medical_information_answer' } after uncommenting the zod block above.
   const responseFormat = { type: 'json_schema', json_schema: { name: 'medical_information_answer', schema: ANSWER_SCHEMA, strict: true } };
-  const result = await hub.runToolLoop({
+  const result = await hub.gateway.runToolLoop({
     model: rendered.model,
     messages: [...rendered.messages],
     toolRefs: [{ name: 'get_drug_profile' }, { name: 'get_inquiry' }, { name: 'search_prescribing_info' }, { name: 'check_safety_policy' }],
-    dispatch,
+    clientTools: CLIENT_TOOLS,
     responseFormat,
     sync: false, // already synced by create_tools.py
     promptVersionId: rendered.versionId,

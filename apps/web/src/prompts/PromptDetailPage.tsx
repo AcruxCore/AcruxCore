@@ -49,13 +49,6 @@ export function PromptDetailPage() {
   const models = useModels();
   const commit = useCommitVersion();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // Tool ids selected in the Tools tab to attach on the *next* commit (TC3 FAQ Q4:
-  // attachment is fixed per version, so this is draft state, not a mutation).
-  const [attachSelection, setAttachSelection] = useState<string[]>([]);
-  function toggleAttachTool(toolId: string) {
-    setAttachSelection((ids) => (ids.includes(toolId) ? ids.filter((x) => x !== toolId) : [...ids, toolId]));
-  }
-
   // Determine the version to seed the editor draft from: production, else latest.
   const versionNums = useMemo(
     () => (versions.data?.data ?? []).map((v) => v.versionNumber),
@@ -99,8 +92,7 @@ export function PromptDetailPage() {
       return;
     }
     try {
-      const tools = attachSelection.length > 0 ? attachSelection.map((toolId) => ({ toolId })) : undefined;
-      const v = await commit.mutateAsync({ promptId: id, messages, tools, model });
+      const v = await commit.mutateAsync({ promptId: id, messages, model });
       setDraft(v.messages);
       setBaseline(JSON.stringify(v.messages));
       setModel(v.model);
@@ -207,12 +199,7 @@ export function PromptDetailPage() {
         {tab === 'diff' && <DiffTab promptId={id} />}
         {tab === 'audit' && <AuditTab promptId={id} />}
         {tab === 'tools' && (
-          <ToolsTab
-            promptId={id}
-            canWrite={canWrite}
-            selected={attachSelection}
-            onToggle={toggleAttachTool}
-          />
+          <ToolsTab promptId={id} canWrite={canWrite} />
         )}
       </div>
 

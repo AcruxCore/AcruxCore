@@ -32,7 +32,7 @@ async function setupPromptWithVersions(numVersions: number): Promise<{
 }
 
 beforeEach(async () => {
-  await prisma.$executeRaw`TRUNCATE TABLE prompt_version_tools, tool_aliases, tool_versions, tools, prompt_aliases, prompt_versions, audit_log, prompts, api_keys, team_members, teams, users RESTART IDENTITY CASCADE`;
+  await prisma.$executeRaw`TRUNCATE TABLE prompt_tool_bindings, tool_aliases, tool_versions, tools, prompt_aliases, prompt_versions, audit_log, prompts, api_keys, team_members, teams, users RESTART IDENTITY CASCADE`;
 });
 
 afterAll(async () => {
@@ -494,15 +494,18 @@ describe('render returns attached tools', () => {
       })
       .expect(201);
 
-    // commit the first version WITH the tool attachment, then render via production alias
+    // commit the first version, bind the tool at the prompt's default level, then
+    // render via production alias — which inherits the default binding.
     await request(app)
       .post(`/api/v1/prompts/${promptId}/versions`)
       .set('Authorization', `Bearer ${apiKey}`)
-      .send({
-        messages: [{ role: 'system', content: 'help {{ name }}' }],
-        tools: [{ toolId: t.body.id }],
-      })
+      .send({ messages: [{ role: 'system', content: 'help {{ name }}' }] })
       .expect(201);
+    await request(app)
+      .put(`/api/v1/prompts/${promptId}/tools/${t.body.id}`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ tool_alias: 'production' })
+      .expect(200);
 
     const res = await request(app)
       .post(`/api/v1/prompts/${promptName}/production/render`)
@@ -543,11 +546,13 @@ describe('render returns attached tools', () => {
     await request(app)
       .post(`/api/v1/prompts/${promptId}/versions`)
       .set('Authorization', `Bearer ${apiKey}`)
-      .send({
-        messages: [{ role: 'system', content: 'help {{ name }}' }],
-        tools: [{ toolId: t.body.id }],
-      })
+      .send({ messages: [{ role: 'system', content: 'help {{ name }}' }] })
       .expect(201);
+    await request(app)
+      .put(`/api/v1/prompts/${promptId}/tools/${t.body.id}`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ tool_alias: 'production' })
+      .expect(200);
 
     const res = await request(app)
       .post(`/api/v1/prompts/${promptName}/production/render`)
@@ -582,8 +587,13 @@ describe('render returns attached tools', () => {
     await request(app)
       .post(`/api/v1/prompts/${promptId}/versions`)
       .set('Authorization', `Bearer ${apiKey}`)
-      .send({ messages: [{ role: 'system', content: 'help {{ name }}' }], tools: [{ toolId: t.body.id }] })
+      .send({ messages: [{ role: 'system', content: 'help {{ name }}' }] })
       .expect(201);
+    await request(app)
+      .put(`/api/v1/prompts/${promptId}/tools/${t.body.id}`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ tool_alias: 'production' })
+      .expect(200);
 
     await request(app)
       .delete(`/api/v1/tools/${t.body.id}`)

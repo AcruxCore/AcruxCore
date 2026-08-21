@@ -151,17 +151,20 @@ the template:
 
 ![Editor tab with default model gemini-flash and a system message describing the fast, shallow-search persona](/img/tutorials/build-a-configurable-react-agent/04-quick-editor.png)
 
-Switch to the **Tools** tab and tick `web_research` under **Attach to next
-commit**, then click **Commit new version**. This is v1 — `production` and
-`staging` both auto-point at it, since it's the first version.
+Click **Commit new version**. This is v1 — `production` and `staging` both
+auto-point at it, since it's the first version.
 
-![Tools tab with web_research checked under Attach to next commit](/img/tutorials/build-a-configurable-react-agent/05-tools-tab.png)
+Now switch to the **Tools** tab and use **+ Connect a tool from the catalog** to
+pick `web_research`. It saves straight away, in the **default** column, so every
+alias of this prompt calls it — including the two you are about to create.
+
+![Tools tab with web_research connected in the default column](/img/tutorials/build-a-configurable-react-agent/05-tools-tab.png)
 
 Back on the **Editor** tab, change **Default model** to `gpt-4o-mini` — a stronger
 model — and replace the system message with the deep persona's framing: more
-thorough, more sources, more synthesis. `web_research` is still checked from
-before, so it carries forward automatically. Click **Commit new version** again to
-create v2:
+thorough, more sources, more synthesis. The tool wiring is not part of a version,
+so `web_research` stays connected whatever you commit. Click **Commit new version**
+again to create v2:
 
 ![Editor tab now showing default model gpt-4o-mini and a system message describing the thorough, deep-search persona](/img/tutorials/build-a-configurable-react-agent/06-deep-editor.png)
 
@@ -295,10 +298,10 @@ Same endpoint, same variables — the alias on the URL is the only thing that
 changed. The model, system prompt, and tool list all came from whichever version
 that alias points at.
 
-**3. Your code's dispatch function.** The one place your code *does* branch on
-the alias is the `web_research` tool dispatch — because search depth is a client
-decision (step 3 deliberately left it out of the tool schema). The dispatch
-function picks Tavily's `search_depth` and `max_results` to match the alias:
+**3. Your code's tool function.** The one place your code *does* branch on the
+alias is the `web_research` implementation — because search depth is a client
+decision (step 3 deliberately left it out of the tool schema). The function picks
+Tavily's `search_depth` and `max_results` to match the alias:
 
 ```python
 async def web_research(query: str, alias: str) -> list:
@@ -326,13 +329,15 @@ As step 5 explained, the alias determines everything — model, system prompt, a
 tools all come from whichever version that alias points at. **The only thing that
 changes between a quick run and a deep run is the alias string you pass.**
 
-The one place the scripts *do* branch on the alias is the `web_research` dispatch
-function, which picks Tavily's `search_depth`/`max_results` to match. This is
+The one place the scripts *do* branch on the alias is the `web_research`
+implementation, which picks Tavily's `search_depth`/`max_results` to match. This is
 because search depth is a client-side decision — step 3 deliberately left it out
-of the tool schema, so the dispatch function carries that config instead.
+of the tool schema, so the function carries that config instead. Both scripts build
+their `client_tools` map per alias for exactly that reason: the closure is where the
+alias-dependent configuration lives.
 
 Because `web_research` is a **client** tool, the gateway can't run it — your code
-has to. Python and Node use the SDK's `run_tool_loop()`/`runToolLoop()` to drive
+has to. Python and Node use the SDK's `run_prompt_with_tools()`/`runPromptWithTools()` to drive
 the back-and-forth; curl has no such helper, so its loop is written by hand, the
 same shape [Build a tool-calling agent in Python (no SDK)](./build-a-tool-calling-agent-in-python-no-sdk)
 uses: a header trick (`x-trace-name` to open a trace, `x-gateway-trace-id` back,
@@ -355,8 +360,8 @@ both reached Tavily's API without incident in every run below.
 <Tabs groupId="lang">
 <TabItem value="curl" label="curl">
 
-The full script loops the render → complete → dispatch cycle by hand with curl and jq, since
-curl has no `run_tool_loop()`/`runToolLoop()` equivalent — see [web_research_agent.sh on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/configurable-react-agent/bash/web_research_agent.sh) for the complete source.
+The full script loops the render → complete → run the tool cycle by hand with curl and jq, since
+curl has no `run_prompt_with_tools()`/`runPromptWithTools()` equivalent — see [web_research_agent.sh on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/configurable-react-agent/bash/web_research_agent.sh) for the complete source.
 
 Run it once per alias — same script, same flags, only the first argument changes:
 
@@ -411,13 +416,14 @@ because the first word on the command line did.
 </TabItem>
 <TabItem value="python" label="Python">
 
-`run_tool_loop()` drives the render → complete → dispatch → repeat cycle for you.
-Since `web_research` is a client tool, it goes in as `tool_defs` (the raw schema the
-prompt's version carries) plus a `dispatch` function your process runs — and that
-function calls `langchain_community`'s real `TavilySearchResults` class directly,
-exactly the two configurations the source defines.
+`run_prompt_with_tools()` drives the render → complete → run the tool → repeat cycle
+for you. Since `web_research` is a client tool, its implementation goes in
+`client_tools`, keyed by the catalog tool name — and that function calls
+`langchain_community`'s real `TavilySearchResults` class directly, exactly the two
+configurations the source defines. The definition itself stays in the catalog, so the
+binding this alias resolved is what the model is offered.
 
-The full script uses `run_tool_loop()` to drive the render → complete → dispatch cycle, with `dispatch` calling `langchain_community`'s `TavilySearchResults` directly — see [run_agent.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/configurable-react-agent/python/run_agent.py) for the complete source.
+The full script uses `run_prompt_with_tools()` to drive the loop, with the `client_tools` entry calling `langchain_community`'s `TavilySearchResults` directly — see [run_agent.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/configurable-react-agent/python/run_agent.py) for the complete source.
 
 Run it once per alias:
 
@@ -472,21 +478,21 @@ For further details and updates, you can explore sources like [Claude News Timel
 The `quick` run answers in two or three plain sentences on `gemini-flash`. The
 `deep` run writes a multi-section breakdown with numbered points on `gpt-4o-mini`,
 from 10 search results instead of 5. Nothing in `run_agent.py` branches on
-the alias except which `TavilySearchResults` configuration `dispatch` builds — the
-model and the persona came from the render call alone.
+the alias except which `TavilySearchResults` configuration the `client_tools` entry
+builds — the model and the persona came from the render call alone.
 
 </TabItem>
 <TabItem value="node" label="Node">
 
-The same shape, `runToolLoop()` instead of `run_tool_loop()`. `toolDefs` +
-`dispatch` for the same reason: `web_research` is a client tool, so the platform
-holds only its schema. `dispatch` calls `@langchain/tavily`'s real `TavilySearch`
-class directly — the Node/TypeScript equivalent of the Python tab's
+The same shape, `runPromptWithTools()` instead of `run_prompt_with_tools()`.
+`clientTools` for the same reason: `web_research` is a client tool, so the platform
+holds only its schema. The mapped function calls `@langchain/tavily`'s real
+`TavilySearch` class directly — the Node/TypeScript equivalent of the Python tab's
 `TavilySearchResults` (`@langchain/community` itself ships no Tavily tool; the
 Tavily integration for JS lives in its own `@langchain/tavily` package, same as
 Python's newer `langchain-tavily`).
 
-The full script uses `runToolLoop()` to drive the render → complete → dispatch cycle, with `dispatch` calling `@langchain/tavily`'s `TavilySearch` directly — see [run_agent.mjs on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/configurable-react-agent/typescript/run_agent.mjs) for the complete source.
+The full script uses `runPromptWithTools()` to drive the loop, with the `clientTools` entry calling `@langchain/tavily`'s `TavilySearch` directly — see [run_agent.mjs on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/configurable-react-agent/typescript/run_agent.mjs) for the complete source.
 
 Run it once per alias:
 

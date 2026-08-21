@@ -27,6 +27,27 @@ export class TraceFacetsRepository {
   }
 
   /**
+   * Distinct resolved models seen on the team's `llm` spans, alphabetical.
+   *
+   * This is the value `eval-rule-matcher.ts`'s `filter.model` is compared
+   * against (`span.model`, the RESOLVED/upstream model id — e.g.
+   * `gpt-4o-mini-2024-07-18` — not a `GatewayModel.publicName` like
+   * `gpt-4o-mini`). A picker sourced from `GatewayModel` would offer values
+   * that can never match a real span (phase-5-faq).
+   *
+   * @param teamId - Team scope.
+   */
+  async listModels(teamId: string): Promise<string[]> {
+    const rows = await prisma.$queryRaw<{ model: string }[]>(Prisma.sql`
+      SELECT DISTINCT model FROM spans
+      WHERE team_id = ${teamId}::uuid AND kind = 'llm' AND model IS NOT NULL
+      ORDER BY model
+      LIMIT ${FACET_LIMIT}
+    `);
+    return rows.map((r) => r.model);
+  }
+
+  /**
    * Distinct metadata keys in use for the team, alphabetical.
    *
    * @param teamId - Team scope.

@@ -6,7 +6,7 @@ import { signupTestUserWithApiKey, authedAgent, addUserToTeam, authHeaders } fro
 const app = createApp();
 
 beforeEach(async () => {
-  await prisma.$executeRaw`TRUNCATE TABLE audit_log, prompt_aliases, prompt_versions, prompts, api_keys, team_members, teams, users RESTART IDENTITY CASCADE`;
+  await prisma.$executeRaw`TRUNCATE TABLE audit_log, tool_aliases, tool_versions, tools, prompt_aliases, prompt_versions, prompts, api_keys, team_members, teams, users RESTART IDENTITY CASCADE`;
 });
 
 afterAll(async () => {
@@ -210,5 +210,84 @@ describe('GET /api/v1/teams/:id/audit (Finding #13)', () => {
     expect(page1.body.data).toHaveLength(1);
     expect(page2.body.data).toHaveLength(1);
     expect(page1.body.data[0].id).not.toBe(page2.body.data[0].id);
+  });
+});
+
+describe('GET /api/v1/tools/:id/audit', () => {
+  const paramsSchema = { type: 'object', properties: {} };
+  const clientExecutor = { type: 'client' as const };
+
+  it('shows created, version-committed, and alias-promoted events newest-first', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+
+    const tool = await request(app)
+      .post('/api/v1/tools')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ name: 'get_weather' })
+      .expect(201);
+    const toolId: string = tool.body.id;
+
+    await request(app)
+      .post(`/api/v1/tools/${toolId}/versions`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ parametersSchema: paramsSchema, executor: clientExecutor })
+      .expect(201);
+    await request(app)
+      .post(`/api/v1/tools/${toolId}/versions`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ parametersSchema: paramsSchema, executor: clientExecutor })
+      .expect(201);
+    await request(app)
+      .post(`/api/v1/tools/${toolId}/aliases/production/promote`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ version_number: 2 })
+      .expect(200);
+
+    const res = await request(app)
+      .get(`/api/v1/tools/${toolId}/audit`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .expect(200);
+
+    const events: string[] = res.body.data.map((e: { event: string }) => e.event);
+    expect(events).toEqual(
+      expect.arrayContaining(['tool_created', 'tool_version_committed', 'tool_alias_promoted']),
+    );
+    // newest-first
+    const timestamps = res.body.data.map((e: { createdAt: string }) => new Date(e.createdAt).getTime());
+    expect(timestamps[0]).toBeGreaterThanOrEqual(timestamps[timestamps.length - 1]);
+
+    const promoted = res.body.data.find((e: { event: string }) => e.event === 'tool_alias_promoted');
+    expect(promoted.metadata).toMatchObject({ toolId, alias: 'production', fromVersionNumber: 1, toVersionNumber: 2 });
+  });
+
+  it('does not leak another tool’s events, even in the same team', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+
+    const toolA = await request(app).post('/api/v1/tools').set('Authorization', `Bearer ${apiKey}`)
+      .send({ name: 'tool_a' }).expect(201);
+    const toolB = await request(app).post('/api/v1/tools').set('Authorization', `Bearer ${apiKey}`)
+      .send({ name: 'tool_b' }).expect(201);
+
+    const res = await request(app)
+      .get(`/api/v1/tools/${toolA.body.id}/audit`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .expect(200);
+
+    for (const entry of res.body.data) {
+      expect(entry.metadata.toolId).toBe(toolA.body.id);
+      expect(entry.metadata.toolId).not.toBe(toolB.body.id);
+    }
+  });
+
+  it('404s for a tool in another team', async () => {
+    const { apiKey: ak0 } = await signupTestUserWithApiKey(app);
+    const tool = await request(app).post('/api/v1/tools').set('Authorization', `Bearer ${ak0}`)
+      .send({ name: 'get_weather' }).expect(201);
+
+    const { apiKey: ak1 } = await signupTestUserWithApiKey(app);
+    await request(app)
+      .get(`/api/v1/tools/${tool.body.id}/audit`)
+      .set('Authorization', `Bearer ${ak1}`)
+      .expect(404);
   });
 });

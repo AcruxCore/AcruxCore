@@ -9,9 +9,7 @@ export type {
   VersionListItem,
   CreateVersionInput,
   VersionByIdResponse,
-  AttachToolDto,
 } from './versions.types';
-export { PromptVersionToolRepository } from './attachments.repository';
 export { PromptToolResolver } from './prompt-tool-resolver';
-export type { AttachmentInput, AttachmentRow, AttachmentCreateData, PromptVersionToolRow } from './attachments.types';
+export type { ToolResolutionDetail } from './prompt-tool-resolver';
 export type { ResolvedToolDefinition } from '../../tools/resolver';

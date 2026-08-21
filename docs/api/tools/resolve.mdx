@@ -121,7 +121,8 @@ Response (status 200):
 |---|---|---|
 | `refs` | yes | 1–50 refs. |
 | `refs[].name` | yes | Tool name, resolved within your team. |
-| `refs[].alias` | no | Defaults to `production`. |
+| `refs[].alias` | no | Alias to follow. Defaults to `production`. Not with `version`. |
+| `refs[].version` | no | Exact version to pin, instead of following an alias. Not with `alias`. |
 
 **Response fields**
 
@@ -131,6 +132,71 @@ Response (status 200):
 | `versionNumber` | The immutable version the alias resolved to. Log it and a trace tells you exactly which spec the model saw. |
 | `executorType` | `client` or `http`. Tells the caller **who runs the tool**. |
 | `function` | Ready to drop into an OpenAI-style `tools[].function`. |
+
+---
+
+## Pinning one exact version
+
+A ref normally follows an alias, so it resolves to whatever that alias points at
+right now. Send `version` instead to name one exact build — the alias is never
+consulted, which is the whole point of a pin: a prompt pinned to v1 keeps getting
+v1 after `production` moves on to v3.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/tools/resolve \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"refs":[{"name":"get_weather","version":1}]}'
+```
+
+Response (status 200) — v1, even though `production` points at v3:
+
+```json
+{
+  "data": [
+    {
+      "toolId": "0d84d6c3-dc86-4db2-aee3-776bdd35ea34",
+      "versionNumber": 1,
+      "executorType": "client",
+      "function": {
+        "name": "get_weather",
+        "description": "Get the current weather for a city.",
+        "parameters": {"type":"object","required":["city"],"properties":{"city":{"type":"string","description":"City name, e.g. Lahore."}}}
+      }
+    }
+  ]
+}
+```
+
+`alias` and `version` on the same ref is a 400 rather than a precedence rule: a
+caller sending both has two different builds in mind, and picking one would
+silently run the wrong tool.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/tools/resolve \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"refs":[{"name":"get_weather","alias":"production","version":1}]}'
+```
+
+Response (status 400):
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"a ref takes either alias or version, not both."}}
+```
+
+A pinned ref that does not resolve is reported by its version, not by a phantom
+alias it never asked for:
+
+```json
+{
+  "error": {
+    "code": "TOOL_REF_NOT_FOUND",
+    "message": "Could not resolve 1 tool ref(s): 'get_weather' v99",
+    "refs": [{"name":"get_weather","version":99}]
+  }
+}
+```
 
 ---
 

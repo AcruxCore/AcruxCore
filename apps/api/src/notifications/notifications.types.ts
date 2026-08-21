@@ -3,16 +3,20 @@ import type { team_role } from '@prisma/client';
 import type { EmailPayload } from '../email';
 
 /**
- * Coarse notification categories. Three cover every event in spec B plus the
- * weekly digest — deliberately not one per email type, because per-type control
- * is a preference UI nobody has asked for.
+ * Coarse notification categories. A handful cover every event across specs B
+ * and the online-eval-rules addition, plus the weekly digest — deliberately
+ * not one per email type, because per-type control is a preference UI nobody
+ * has asked for.
  *
- * `budget_alerts` covers the 80% warning and the exhausted notice; `membership`
- * covers joined, removed, and roles-changed.
+ * `budget_alerts` covers the 80% warning and the exhausted notice;
+ * `membership` covers joined, removed, and roles-changed; `eval_rules` covers
+ * both a low-score alert and an automatic disable for an online evaluation
+ * rule.
  */
 export const NOTIFICATION_CATEGORIES = [
   'budget_alerts',
   'eval_runs',
+  'eval_rules',
   'membership',
   'weekly_digest',
 ] as const;

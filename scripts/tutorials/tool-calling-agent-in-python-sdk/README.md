@@ -21,7 +21,7 @@ export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
 cd python
 python seed_db.py                       # one-time: creates store.db
 python sql_agent_decorator_tool.py       # Option A: @acrux.tool decorator
-python sql_agent_dispatch.py             # Option B: tool_defs + dispatch — same result, different wiring
+python sql_agent_client_tools.py         # Option B: client_tools — same result, different wiring
 python stream_demo.py                    # streaming, no tools
 ```
 
@@ -31,3 +31,13 @@ Both `sql_agent_*.py` scripts answer "Which product generated the most total
 revenue?" and "How many total units were ordered in June 2026?" by writing and
 running real SQL against `store.db`, landing both questions in the same
 `sql-agent-demo` session. `stream_demo.py` streams a plain-text answer live.
+
+## Set up the tool and prompt first
+
+`setup_prompt.py` is the runnable version of the page's two Python setup tabs: it
+creates the `query_database` tool and the `sql-analyst-agent` prompt and connects
+them. Find-or-create, so re-running it is a no-op. Run it after `seed_db.py`.
+
+```bash
+python python/setup_prompt.py
+```

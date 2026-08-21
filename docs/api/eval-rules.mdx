@@ -1,0 +1,544 @@
+---
+sidebar_position: 9.5
+title: "Evaluation Rules"
+description: "Score live production traffic automatically with a standing LLM-judge rule."
+---
+
+# Evaluation Rules API (Phase 5)
+
+All endpoints verified working via curl against a real dev server (real Postgres,
+a real OpenAI account behind the gateway connection — no mocked `fetch`).
+Document updated only after curl confirmation, per CLAUDE.md's API-reference rule.
+
+An eval rule is a standing instruction ("does this answer state the capital city
+name, and nothing else?") that scores matching **`llm` spans as they happen** —
+no dataset, no manual run, no click. A background worker matches every enabled
+rule's `filter` (prompt, alias, model, tags, session-only) against each new `llm`
+span, samples down to `sampleRate`, stops once `dailyLimit` is hit for the day,
+and judges the rest with the same LLM-as-judge used by offline experiments
+(`compileEvaluatePrompt`/`parseVerdict`). A judged call never scores itself or
+any other rule's judge call. Scores land in their own table
+(`eval_rule_scores`) — never in `trace_feedback`, which stays human-only (see
+`phase-5-faq.md` Q23). Only spans whose team has payload capture on can be
+judged; a matching span with no captured output is still recorded, as a score
+row with `score: null` and a `reason` explaining why.
+
+Auth: `requireAnyAuth` (session cookie or personal/team API key) on every
+route. **Mutations are owner/admin-gated**: `POST /`, `PATCH /:id`,
+`DELETE /:id`, `POST /:id/preview`, and `POST /:id/to-dataset` all require
+role `owner` or `admin` — a team-scoped API key (no user identity) gets a
+clean 403 rather than a 500, since `createRule` needs a real `createdBy`.
+Reads (`GET /`, `GET /:id`, `GET /:id/scores`) allow any role. Team-scoped
+throughout — a rule outside the caller's team behaves as if it doesn't exist
+(404).
+
+This reference has no TypeScript/Python SDK tab: online evaluation rules are a
+config-and-monitoring surface (create in the dashboard or via a script, then
+read scores back), and neither published SDK wraps it yet — every example
+below is curl only, the same way the gateway's budgets and provider-connection
+references are.
+
+---
+
+### POST /api/v1/eval-rules
+
+Creates a rule (owner/admin). `sampleRate` defaults to `0.1` (10%) and
+`dailyLimit` to `500` — see `phase-5-faq.md` Q24 for why. `filter` defaults to
+`{}`, which matches every `llm` span for the team. `criteria` is the rule's
+standing instruction, graded the same way a dataset's `criteria` is (Q17):
+described as what a **correct** output must contain, not as a critique.
+
+**`judgeModel` is required** — it must be a `publicName` already registered
+under Gateway → Models for the team (`phase-5-faq.md` Q25); there is no
+default to fall back to. `judgePromptId` is optional and lets the rule use one
+of the team's own Prompts as the judge's grading template instead of the
+built-in one — see "Using your own judge prompt" below.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/eval-rules \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "doc-verification-rule", "criteria": "The answer must directly state the capital city name, and nothing else.", "judgeModel": "gpt-4o-mini", "sampleRate": 1, "dailyLimit": 500, "filter": {"model": "gpt-4o-mini"}}'
+```
+
+Response (status 201):
+
+```json
+{
+  "id": "ba6a6b76-0848-4a5b-871b-b260cde2716b",
+  "name": "doc-verification-rule",
+  "enabled": true,
+  "kind": "llm_judge",
+  "criteria": "The answer must directly state the capital city name, and nothing else.",
+  "judgeModel": "gpt-4o-mini",
+  "judgePromptId": null,
+  "sampleRate": 1,
+  "dailyLimit": 500,
+  "alertBelow": null,
+  "filter": { "model": "gpt-4o-mini" },
+  "createdBy": "50e06c75-ba11-45dc-8a4b-466c0727b1f2",
+  "createdAt": "2026-08-12T16:24:48.909Z",
+  "updatedAt": "2026-08-12T16:24:48.909Z",
+  "todayCount": 0,
+  "todayMeanScore": null
+}
+```
+
+`filter.model` matches the span's **resolved upstream model id** (what the
+gateway actually sent to the provider, e.g. `gpt-4o-mini-2024-07-18`), not the
+team's `publicName` alias sent in the request — see the `PATCH` example below,
+where this rule's filter is corrected from `"gpt-4o-mini"` to the resolved id
+after the first two matching calls silently didn't match.
+
+#### Error responses
+
+Missing `criteria` (status 400):
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/eval-rules \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "no-criteria-rule", "judgeModel": "gpt-4o-mini"}'
+```
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "Required" } }
+```
+
+Missing `judgeModel` (status 400) — it is required, with no fallback:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/eval-rules \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "no-model-rule", "criteria": "x"}'
+```
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "Required" } }
+```
+
+`judgeModel` that isn't registered for the team (status 400):
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/eval-rules \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "bad-model-rule", "criteria": "x", "judgeModel": "not-a-real-model"}'
+```
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "Model 'not-a-real-model' is not registered. Add it under Gateway → Models." } }
+```
+
+No `Authorization` header (status 401):
+
+```bash
+curl $ACRUXCORE_BASE_URL/eval-rules
+```
+
+```json
+{ "error": { "code": "UNAUTHORIZED", "message": "Authentication required." } }
+```
+
+---
+
+### GET /api/v1/eval-rules
+
+Lists every rule for the team, each with today's (UTC) aggregate stats
+attached — `todayCount` and `todayMeanScore` (`null` when nothing scored yet
+today, never `0`, matching the same "unscored is not zero" rule the offline
+run report follows).
+
+```bash
+curl $ACRUXCORE_BASE_URL/eval-rules \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+Response (status 200), captured right after the rule above scored two live
+calls (see `GET /:id/scores` below):
+
+```json
+[
+  {
+    "id": "ba6a6b76-0848-4a5b-871b-b260cde2716b",
+    "name": "doc-verification-rule",
+    "enabled": true,
+    "kind": "llm_judge",
+    "criteria": "The answer must directly state the capital city name, and nothing else.",
+    "judgeModel": "gpt-4o-mini",
+    "judgePromptId": null,
+    "sampleRate": 1,
+    "dailyLimit": 200,
+    "alertBelow": 50,
+    "filter": { "model": "gpt-4o-mini-2024-07-18" },
+    "createdBy": "50e06c75-ba11-45dc-8a4b-466c0727b1f2",
+    "createdAt": "2026-08-12T16:24:48.909Z",
+    "updatedAt": "2026-08-12T16:27:21.146Z",
+    "todayCount": 2,
+    "todayMeanScore": 50
+  }
+]
+```
+
+---
+
+### GET /api/v1/eval-rules/:id
+
+Fetches one rule with the same today's-stats shape as the list.
+
+```bash
+curl $ACRUXCORE_BASE_URL/eval-rules/ba6a6b76-0848-4a5b-871b-b260cde2716b \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+Response (status 200):
+
+```json
+{
+  "id": "ba6a6b76-0848-4a5b-871b-b260cde2716b",
+  "name": "doc-verification-rule",
+  "enabled": true,
+  "kind": "llm_judge",
+  "criteria": "The answer must directly state the capital city name, and nothing else.",
+  "judgeModel": "gpt-4o-mini",
+  "judgePromptId": null,
+  "sampleRate": 1,
+  "dailyLimit": 200,
+  "alertBelow": 50,
+  "filter": { "model": "gpt-4o-mini-2024-07-18" },
+  "createdBy": "50e06c75-ba11-45dc-8a4b-466c0727b1f2",
+  "createdAt": "2026-08-12T16:24:48.909Z",
+  "updatedAt": "2026-08-12T16:27:21.146Z",
+  "todayCount": 2,
+  "todayMeanScore": 50
+}
+```
+
+#### Error responses
+
+A rule id that never existed, or belongs to another team (status 404):
+
+```bash
+curl $ACRUXCORE_BASE_URL/eval-rules/00000000-0000-0000-0000-000000000000 \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{ "error": { "code": "NOT_FOUND", "message": "Rule not found." } }
+```
+
+---
+
+### PATCH /api/v1/eval-rules/:id
+
+Patches a rule's mutable fields (owner/admin) — every field optional, omitted
+fields keep their current value. This example fixes the filter above (the
+first two matching gateway calls used `"model": "gpt-4o-mini"`, the request
+alias, and were never sampled because the stored span's `model` is the
+resolved upstream id) and also sets `dailyLimit`/`alertBelow`:
+
+```bash
+curl -X PATCH $ACRUXCORE_BASE_URL/eval-rules/ba6a6b76-0848-4a5b-871b-b260cde2716b \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"filter": {"model": "gpt-4o-mini-2024-07-18"}, "dailyLimit": 200, "alertBelow": 50}'
+```
+
+Response (status 200):
+
+```json
+{
+  "id": "ba6a6b76-0848-4a5b-871b-b260cde2716b",
+  "name": "doc-verification-rule",
+  "enabled": true,
+  "kind": "llm_judge",
+  "criteria": "The answer must directly state the capital city name, and nothing else.",
+  "judgeModel": "gpt-4o-mini",
+  "judgePromptId": null,
+  "sampleRate": 1,
+  "dailyLimit": 200,
+  "alertBelow": 50,
+  "filter": { "model": "gpt-4o-mini-2024-07-18" },
+  "createdBy": "50e06c75-ba11-45dc-8a4b-466c0727b1f2",
+  "createdAt": "2026-08-12T16:24:48.909Z",
+  "updatedAt": "2026-08-12T16:27:21.146Z",
+  "todayCount": 0,
+  "todayMeanScore": null
+}
+```
+
+---
+
+### Using your own judge prompt
+
+Set `judgePromptId` to a `Prompt` id to grade with that prompt's `production`
+alias instead of the built-in judge. The prompt's messages are nunjucks
+templates rendered with `{{ criteria }}` and `{{ output }}` as variables — a
+strict JSON output instruction is always appended after the custom template
+renders, so `parseVerdict` can still extract a score regardless of what the
+custom prompt itself says (`phase-5-faq.md` Q27).
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/prompts \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my custom judge"}'
+```
+
+```json
+{
+  "id": "0bff2352-19e2-42ff-878c-3c37617e6e26",
+  "name": "my custom judge",
+  "description": null,
+  "teamId": "631fdf0c-6803-4541-b0a3-b107d8e5b2bb",
+  "createdBy": "1ac61512-9fb7-46fd-9552-b3d382e44e80",
+  "createdAt": "2026-08-19T16:36:06.409Z"
+}
+```
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/prompts/0bff2352-19e2-42ff-878c-3c37617e6e26/versions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"messages": [{"role": "system", "content": "Grade against: {{ criteria }}"}, {"role": "user", "content": "Output: {{ output }}"}]}'
+```
+
+Committing the first version auto-creates its `production` alias — the alias
+`compileCustomJudgePrompt` renders.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/eval-rules \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "custom-judge-rule", "criteria": "must be polite", "judgeModel": "gpt-4o-mini", "judgePromptId": "0bff2352-19e2-42ff-878c-3c37617e6e26"}'
+```
+
+```json
+{
+  "id": "9d4f60e2-8ed5-4082-88bd-2cd9cf7b29c7",
+  "name": "custom-judge-rule",
+  "enabled": true,
+  "kind": "llm_judge",
+  "criteria": "must be polite",
+  "judgeModel": "gpt-4o-mini",
+  "judgePromptId": "0bff2352-19e2-42ff-878c-3c37617e6e26",
+  "sampleRate": 0.1,
+  "dailyLimit": 500,
+  "alertBelow": null,
+  "filter": {},
+  "createdBy": "1ac61512-9fb7-46fd-9552-b3d382e44e80",
+  "createdAt": "2026-08-19T16:36:21.262Z",
+  "updatedAt": "2026-08-19T16:36:21.262Z",
+  "todayCount": 0,
+  "todayMeanScore": null
+}
+```
+
+`judgePromptId` that doesn't belong to the caller's team (status 400):
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/eval-rules \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "bad-prompt-rule", "criteria": "x", "judgeModel": "gpt-4o-mini", "judgePromptId": "00000000-0000-0000-0000-000000000000"}'
+```
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "judgePromptId does not refer to a prompt in this team." } }
+```
+
+---
+
+### GET /api/v1/eval-rules/:id/scores
+
+Lists a rule's judged scores, newest first, paginated and optionally filtered
+by `minScore`/`maxScore`. After the `PATCH` above, two real gateway calls were
+made through `POST /gateway/chat/completions` with `model: "gpt-4o-mini"` —
+one answering "Paris" plainly, one instructed (via an injected system message)
+to refuse and never name a city — and the worker judged both:
+
+```bash
+curl "$ACRUXCORE_BASE_URL/eval-rules/ba6a6b76-0848-4a5b-871b-b260cde2716b/scores" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+Response (status 200):
+
+```json
+{
+  "total": 2,
+  "data": [
+    {
+      "id": "d465711c-8609-40ee-9300-e10f72232923",
+      "ruleId": "ba6a6b76-0848-4a5b-871b-b260cde2716b",
+      "traceId": "9421fc95-3a8b-485c-b24f-0821689e565c",
+      "spanId": "b19840ec-6d3b-420e-a712-6277f762e640",
+      "score": 0,
+      "passed": false,
+      "reason": "The output does not state the capital city name as required by the criteria.",
+      "judgeTraceId": "12da8c00-a105-4db1-872d-8de9a50a79d5",
+      "costUsd": null,
+      "createdAt": "2026-08-12T16:27:40.570Z"
+    },
+    {
+      "id": "f4559584-b741-443c-9809-d361e7716c42",
+      "ruleId": "ba6a6b76-0848-4a5b-871b-b260cde2716b",
+      "traceId": "bf29a822-3db9-439e-ad3f-6be2397cb880",
+      "spanId": "a5f04c2a-0264-4113-b0ab-65e815639623",
+      "score": 100,
+      "passed": true,
+      "reason": "The output correctly states the capital city name 'Paris' and contains no additional information, fully satisfying the criteria.",
+      "judgeTraceId": "76beb21a-b611-467e-b8f8-6dbb2cd5100d",
+      "costUsd": null,
+      "createdAt": "2026-08-12T16:27:40.144Z"
+    }
+  ],
+  "page": 1,
+  "limit": 20
+}
+```
+
+`maxScore`/`minScore` filter the same list — this returns only the failing row
+above:
+
+```bash
+curl "$ACRUXCORE_BASE_URL/eval-rules/ba6a6b76-0848-4a5b-871b-b260cde2716b/scores?maxScore=10" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{
+  "total": 1,
+  "data": [
+    {
+      "id": "d465711c-8609-40ee-9300-e10f72232923",
+      "ruleId": "ba6a6b76-0848-4a5b-871b-b260cde2716b",
+      "traceId": "9421fc95-3a8b-485c-b24f-0821689e565c",
+      "spanId": "b19840ec-6d3b-420e-a712-6277f762e640",
+      "score": 0,
+      "passed": false,
+      "reason": "The output does not state the capital city name as required by the criteria.",
+      "judgeTraceId": "12da8c00-a105-4db1-872d-8de9a50a79d5",
+      "costUsd": null,
+      "createdAt": "2026-08-12T16:27:40.570Z"
+    }
+  ],
+  "page": 1,
+  "limit": 20
+}
+```
+
+---
+
+### POST /api/v1/eval-rules/:id/preview
+
+Dry-runs the rule against its last matching spans (scan window: the team's
+200 most recent `llm` spans) without persisting any score row — for checking a
+rule's `criteria`/`filter` before turning it loose on live traffic. Shares the
+same `matchesFilter` the worker uses, so a preview can never disagree with
+what the live rule would actually score. `limit` is capped at 10.
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/eval-rules/ba6a6b76-0848-4a5b-871b-b260cde2716b/preview" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"limit": 5}'
+```
+
+Response (status 200) — five real matching spans, judged live and returned,
+none written to `eval_rule_scores`:
+
+```json
+[
+  { "spanId": "adfeae42-68f8-4358-8929-51a7d278c587", "traceId": "12da8c00-a105-4db1-872d-8de9a50a79d5", "score": 0, "passed": false, "reason": "The output does not provide the capital city name as required by the criteria.", "judgeTraceId": "7b42a14c-1a85-46a4-8e11-07cc66f5219a" },
+  { "spanId": "1838c600-a18f-4b65-92b6-e3032dfafe7e", "traceId": "76beb21a-b611-467e-b8f8-6dbb2cd5100d", "score": 100, "passed": true, "reason": "The output directly states the capital city name 'Paris' and contains no additional information, fully satisfying the criteria.", "judgeTraceId": "3393b172-427c-4f96-8350-dd4813026d04" },
+  { "spanId": "b19840ec-6d3b-420e-a712-6277f762e640", "traceId": "9421fc95-3a8b-485c-b24f-0821689e565c", "score": 0, "passed": false, "reason": "The output does not state the capital city name as required by the criteria.", "judgeTraceId": "66de4aad-0be9-48ce-8404-6c0eced07a62" },
+  { "spanId": "a5f04c2a-0264-4113-b0ab-65e815639623", "traceId": "bf29a822-3db9-439e-ad3f-6be2397cb880", "score": 100, "passed": true, "reason": "The output correctly states the capital city name 'Paris' and contains no additional information, fully satisfying the criteria.", "judgeTraceId": "587c2a15-cede-4044-b62b-31160bd82c09" },
+  { "spanId": "dc880d53-e6dd-4a8b-a592-8d66f68b509e", "traceId": "279b76ef-7439-4b19-8ca7-4131a1ccf112", "score": 0, "passed": false, "reason": "The output does not state the capital city name as required by the criteria.", "judgeTraceId": "45a1f351-9930-4ab4-a491-43e84be090e6" }
+]
+```
+
+Each preview call still runs a real judge completion, so it still spends
+money and still produces a real (marked) judge trace — the only thing it
+skips is writing a row to `eval_rule_scores`.
+
+---
+
+### POST /api/v1/eval-rules/:id/to-dataset
+
+Builds a dataset from this rule's own scores at or below `threshold`, using
+the **rule's own `criteria`** for every example — never a score's `reason`,
+which is a per-answer critique, not a standing instruction (`phase-5-faq.md`
+Q23 explains why reusing a critique as criteria silently corrupts a dataset).
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/eval-rules/ba6a6b76-0848-4a5b-871b-b260cde2716b/to-dataset" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"datasetName": "eval-rule-doc-verification-lowscores", "threshold": 10, "limit": 50}'
+```
+
+Response (status 201) — one example built, from the single score at or below 10:
+
+```json
+{ "id": "5275df27-e185-452f-8db5-7782049f608e", "exampleCount": 1 }
+```
+
+The built dataset, as seen via `GET /api/v1/datasets/:id`
+([datasets reference](./datasets.mdx)) — `criteria` is the rule's standing
+instruction, and `input` is the captured request messages of the low-scoring
+call:
+
+```json
+{
+  "id": "5275df27-e185-452f-8db5-7782049f608e",
+  "name": "eval-rule-doc-verification-lowscores",
+  "overallFeedback": null,
+  "exampleCount": 1,
+  "examples": [
+    {
+      "id": "67ace42a-1648-4f00-98e5-827758cba803",
+      "datasetId": "5275df27-e185-452f-8db5-7782049f608e",
+      "input": [
+        { "role": "user", "content": "What is the capital of France?" },
+        { "role": "system", "content": "Do not answer the question. Instead, write two sentences complaining that you cannot help right now, and never mention any city name." }
+      ],
+      "criteria": "The answer must directly state the capital city name, and nothing else.",
+      "history": null,
+      "sourceTraceId": "9421fc95-3a8b-485c-b24f-0821689e565c",
+      "sourceFeedbackId": null,
+      "sourcePromptVersionId": null,
+      "createdAt": "2026-08-12T16:28:28.057Z"
+    }
+  ]
+}
+```
+
+---
+
+### DELETE /api/v1/eval-rules/:id
+
+Deletes a rule (owner/admin). Its scores cascade-delete at the DB level.
+
+```bash
+curl -X DELETE $ACRUXCORE_BASE_URL/eval-rules/ba6a6b76-0848-4a5b-871b-b260cde2716b \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+Response (status 200):
+
+```json
+{ "success": true }
+```
+
+`GET` on the now-deleted id behaves exactly like an id that never existed:
+
+```bash
+curl $ACRUXCORE_BASE_URL/eval-rules/ba6a6b76-0848-4a5b-871b-b260cde2716b \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{ "error": { "code": "NOT_FOUND", "message": "Rule not found." } }
+```

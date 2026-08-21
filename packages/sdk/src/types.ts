@@ -52,10 +52,36 @@ export type ResponseFormat =
   | { type: 'json_schema'; json_schema: { name: string; schema?: Record<string, unknown>; strict?: boolean } }
   | { zod: ZodLikeSchema<unknown>; name: string; strict?: boolean };
 
-/** Result of renderPrompt: templated messages plus the version's attached tools. */
+/**
+ * Per-tool resolution metadata returned alongside `RenderResult.tools` — parallel to
+ * it, never merged into it, since a `tools` entry is sometimes forwarded as-is into a
+ * provider's `tools` array and must stay exactly OpenAI-shaped. Reports which tool
+ * alias (or pin) each binding actually resolved through, and which binding decided
+ * it. See {@link withToolOverride}.
+ */
+export interface ToolResolution {
+  /** The tool's catalog name — matches `function.name` on the paired `tools` entry. */
+  name: string;
+  /** The tool alias actually followed, or absent when the binding is pinned. */
+  alias?: string;
+  /** The pinned version number, or absent when the binding follows an alias. */
+  pinnedVersionNumber?: number;
+  /** The tool version number this render actually resolved to, either way. */
+  versionNumber: number;
+  /**
+   * Which binding decided this entry: `'alias'` when the prompt alias being rendered
+   * has a binding of its own for this tool, `'default'` when it inherited the
+   * prompt's default binding.
+   */
+  source: 'alias' | 'default';
+}
+
+/** Result of renderPrompt: templated messages plus the tools bound to this prompt alias. */
 export interface RenderResult {
   messages: Message[];
   tools: ToolDefinition[];
+  /** Per-tool resolution metadata, parallel to `tools` — see {@link ToolResolution}. */
+  toolResolutions: ToolResolution[];
   /**
    * The prompt version's bound default model (or null when none is set). Pass it
    * straight to {@link acruxcore.chat} / {@link acruxcore.runToolLoop} to run the
@@ -105,6 +131,20 @@ export interface ToolSyncResult {
   supersededSource?: ToolVersionSource;
 }
 
+/**
+ * A reference to a catalog tool by name, naming one build in one of two ways.
+ *
+ * Either `alias` (the alias to follow, defaulting to `production` server-side) or
+ * `version` (one exact version to pin) — never both, which the API rejects with a 400
+ * rather than picking one, since a ref carrying both names two different builds.
+ */
+export interface ToolRef {
+  name: string;
+  alias?: string;
+  /** Pin one exact version instead of following an alias. */
+  version?: number;
+}
+
 /** One resolved catalog tool, from `POST /tools/resolve`. */
 export interface ResolvedTool {
   /** The tool's id — what `tools.execute` needs. */
@@ -137,14 +177,86 @@ export interface PromptMessage {
   content: string;
 }
 
-/** One catalog tool to attach when committing a version. Resolves by `alias` unless `pinnedVersionNumber` is given. */
-export interface AttachToolInput {
-  /** The catalog tool's id, from `hub.tools.resolve` or the dashboard. */
+/**
+ * Which tool build a binding follows: a tool alias resolved at use-time, or a hard
+ * pin to one tool version. Exactly one of the two — the API rejects a body carrying
+ * both, or neither.
+ *
+ * Accepted by {@link PromptsNamespace.setToolBinding} (the prompt's default) and by
+ * {@link PromptsNamespace.setAliasToolBinding}, which also takes `{ off: true }`.
+ */
+export type ToolBindingInput =
+  | {
+      /** Tool alias to resolve when the prompt runs, e.g. `'production'`. */
+      toolAlias: string;
+      pinnedVersionNumber?: never;
+    }
+  | {
+      /** Pin an exact tool version instead of following one of the tool's aliases. */
+      pinnedVersionNumber: number;
+      toolAlias?: never;
+    };
+
+/**
+ * What one prompt alias may bind a tool to: the same two options as the default,
+ * plus `{ off: true }` — "this alias deliberately has no such tool", which exists
+ * only to contradict a default that does hold it.
+ */
+export type AliasToolBindingInput =
+  | ToolBindingInput
+  | {
+      /** Excludes the tool for this prompt alias only, whatever the default says. */
+      off: true;
+      toolAlias?: never;
+      pinnedVersionNumber?: never;
+    };
+
+/**
+ * One prompt→tool binding as the API reports it. `toolAlias` and
+ * `pinnedVersionNumber` are mutually exclusive; both `null` means `off` is `true`.
+ */
+export interface ToolBindingDetail {
+  /** UUID of the bound catalog tool. */
   toolId: string;
-  /** Which of the tool's aliases to resolve at render time; server defaults to `production`. */
-  alias?: string;
-  /** Pin an exact tool version instead of following an alias. */
-  pinnedVersionNumber?: number;
+  /** The tool's current catalog name, for display. */
+  toolName: string;
+  /** Tool alias this binding follows, or `null` when pinned or off. */
+  toolAlias: string | null;
+  /** Pinned tool version number, or `null` when following an alias or off. */
+  pinnedVersionNumber: number | null;
+  /** `true` when both of the above are `null` — the tool is deliberately excluded. */
+  off: boolean;
+  /**
+   * The tool version this binding resolves to right now, so you can show what will
+   * actually run without a second request. `null` when off, or when the followed
+   * tool alias has since disappeared.
+   */
+  resolvedVersionNumber: number | null;
+  /** Stable ordering within this alias's list. */
+  position: number;
+}
+
+/** One prompt alias and the bindings it owns, if any. */
+export interface AliasToolBindings {
+  /** The prompt alias name, e.g. `'production'`. */
+  alias: string;
+  /** Prompt version this alias currently serves — the template, not the tools. */
+  versionNumber: number;
+  /**
+   * `false` when this alias has no rows of its own and therefore simply inherits
+   * {@link PromptToolBindings.default}.
+   */
+  customised: boolean;
+  /** Only this alias's own rows — never the inherited default. */
+  bindings: ToolBindingDetail[];
+}
+
+/** The full binding picture for one prompt — the default plus every alias. */
+export interface PromptToolBindings {
+  /** Bindings every alias inherits unless it has a row of its own. */
+  default: ToolBindingDetail[];
+  /** Every prompt alias that exists today, customised or not. */
+  aliases: AliasToolBindings[];
 }
 
 /** Shape of a prompt returned by `create`/`get`/`update`. */
@@ -201,8 +313,6 @@ export interface ListPromptsOptions {
 export interface CommitVersionInput {
   /** The version's full message list — versions are immutable, so this replaces, never patches. */
   messages: PromptMessage[];
-  /** Catalog tools to attach to this version (max 64). */
-  tools?: AttachToolInput[];
   /** Binds a default gateway model by its `publicName`; omit to leave the version unbound. */
   model?: string;
 }
@@ -509,10 +619,29 @@ export interface RunToolLoopOptions {
   /** Raw OpenAI-shaped definitions, sent inline. These always route to `dispatch`. */
   toolDefs?: ToolDefinition[];
   /** Catalog references. An `http` executor runs on the platform; a `client` one needs a runner. */
-  toolRefs?: { name: string; alias?: string }[];
+  toolRefs?: ToolRef[];
+  /**
+   * Tool name → the function that runs it, for catalog tools whose executor is `client`.
+   * The way to run a prompt's own client tools without writing a dispatcher:
+   *
+   * ```ts
+   * await hub.gateway.runPromptWithTools(rendered, {
+   *   messages,
+   *   clientTools: { search_flights },
+   * });
+   * ```
+   *
+   * Only `client` tools belong here — an `http` tool runs on the platform, and naming one
+   * warns that the function will never be called. Unlike `tools`, nothing is written to
+   * the catalog: the definition, the binding's alias or pin, and the version stamp on the
+   * tool span all stay the catalog's. Each function receives one object of the tool's
+   * arguments, exactly as an `acrux.tool` handler does.
+   */
+  clientTools?: Record<string, (args: Record<string, unknown>) => Promise<unknown> | unknown>;
   /**
    * Runs one tool call the app implements itself. Needed only for `toolDefs` and for
-   * `client` refs with no matching `tools` entry.
+   * `client` refs with no matching `tools` or `clientTools` entry — reach for it when the
+   * tool names are not known until runtime.
    */
   dispatch?: (name: string, args: Record<string, unknown>) => Promise<unknown> | unknown;
   /**
@@ -544,6 +673,33 @@ export interface RunToolLoopOptions {
   provider?: ProviderConfig;
   /** From renderPrompt().versionId; stamped on every llm span this loop records. */
   promptVersionId?: string;
+  /**
+   * Stream the loop as typed {@link ToolLoopEvent}s instead of awaiting the result, so a
+   * UI can show model text as it arrives and render a running tool as its own state:
+   *
+   * ```ts
+   * for await (const event of await hub.gateway.runToolLoop({ model, messages, tools, stream: true })) {
+   *   if (event.type === 'content') process.stdout.write(event.delta);
+   *   else if (event.type === 'tool_call') console.log(`[${event.name}]`);
+   * }
+   * ```
+   *
+   * The last event of a successful stream is `done`, carrying the same
+   * {@link RunToolLoopResult} the unstreamed call returns. The trace is identical either
+   * way — the gateway files one `llm` span per round, streamed or not.
+   */
+  stream?: boolean;
+}
+
+/**
+ * Options for `runPromptWithTools` — everything {@link RunToolLoopOptions} takes, minus
+ * the two things the render result supplies, each still overridable by passing it.
+ */
+export interface RunPromptWithToolsOptions extends Omit<RunToolLoopOptions, 'model' | 'messages'> {
+  /** Overrides the prompt version's bound model. */
+  model?: string;
+  /** Overrides the rendered messages. */
+  messages?: Message[];
 }
 
 /** Result of runToolLoop: the final assistant text + the full transcript + iteration count. */
@@ -555,6 +711,58 @@ export interface RunToolLoopResult {
   /** The trace id spans were reported under, or undefined when `trace: false`. */
   traceId?: string;
 }
+
+/**
+ * One event from a streaming tool loop (`runToolLoop({ ..., stream: true })`),
+ * discriminated on `type`.
+ *
+ * A union rather than raw text deltas because a UI needs to render "running
+ * get_weather…" as its own state, not as more model text.
+ *
+ * `content` deltas arrive from *every* round, not only the final one: whether a round
+ * turns out to be the last is only known once its `finish_reason` arrives, so holding a
+ * round back would withhold the final answer — the one thing streaming exists to
+ * deliver. Use `round` to tell a mid-loop preamble ("let me check the weather") from the
+ * answer: a preamble is followed by a `tool_call` event on the same round.
+ */
+export type ToolLoopEvent =
+  | {
+      type: 'content';
+      /** The text fragment. Concatenate these to rebuild the round's message. */
+      delta: string;
+      /** 0-based loop round this fragment came from. */
+      round: number;
+    }
+  | {
+      type: 'tool_call';
+      /** Matches the `tool_result` event that follows. */
+      id: string;
+      /** Catalog name of the tool being called. */
+      name: string;
+      /** The model's arguments, already parsed from their JSON string. */
+      arguments: Record<string, unknown>;
+      round: number;
+    }
+  | {
+      type: 'tool_result';
+      /** The id of the `tool_call` event this answers. */
+      id: string;
+      name: string;
+      /** Whatever the tool returned; `undefined` when it threw. */
+      result?: unknown;
+      /**
+       * The failure message when the tool threw. The loop then stops and the error is
+       * rethrown out of the iteration, so this event is the last chance to show what
+       * went wrong before that.
+       */
+      error?: string;
+      round: number;
+    }
+  | {
+      type: 'done';
+      /** Exactly what the non-streaming `runToolLoop` would have returned. */
+      result: RunToolLoopResult;
+    };
 
 /** Response metadata the gateway stamps on every `/gateway/chat/completions` call. */
 export interface GatewayCallMeta {
@@ -589,7 +797,7 @@ export interface ChatOptions {
   model: string;
   messages: Message[];
   tools?: ToolDefinition[];
-  toolRefs?: { name: string; alias?: string }[];
+  toolRefs?: ToolRef[];
   toolChoice?: ToolChoice;
   /** Structured-output format. Mutually exclusive with `tools`/`toolChoice` — see {@link ResponseFormat}. */
   responseFormat?: ResponseFormat;
@@ -630,7 +838,23 @@ export interface ChatResult {
 export interface ChatChunk {
   id: string;
   model: string;
-  delta: { role?: string; content?: string };
+  delta: {
+    role?: string;
+    content?: string;
+    /**
+     * Tool-call fragments, when the model is calling tools. Each frame carries a piece:
+     * `index` correlates them, `id` and `function.name` arrive once, and
+     * `function.arguments` accumulates a JSON string across frames — so nothing here is
+     * usable until the stream ends. `runToolLoop({ stream: true })` does that assembly
+     * (and the dispatching) for you.
+     */
+    tool_calls?: {
+      index?: number;
+      id?: string;
+      type?: 'function';
+      function?: { name?: string; arguments?: string };
+    }[];
+  };
   finishReason: string | null;
 }
 
@@ -775,6 +999,7 @@ export type acruxcoreErrorCode =
   | 'NETWORK_ERROR'      // All retries exhausted (network-level failure)
   | 'API_ERROR'          // Non-retryable HTTP error (4xx, or 5xx after retries)
   | 'MISSING_VARIABLES'  // 400: template has variables not supplied by caller
+  | 'VALIDATION_ERROR'   // Arguments the SDK can reject before sending (e.g. a tool binding with no target)
   | 'TOOL_SCHEMA_ERROR'  // tool(): parameters are neither a zod schema nor a JSON Schema object
   | 'MISSING_DISPATCH'   // runToolLoop: a tool has no implementation to run
   | 'ZOD_NOT_AVAILABLE'  // A zod schema was given but zod could not be imported

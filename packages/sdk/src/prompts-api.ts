@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type {
   AliasDetail,
+  AliasToolBindingInput,
   CommitVersionInput,
   CreatePromptInput,
   DiffResult,
@@ -13,9 +14,13 @@ import type {
   Message,
   PromptDetail,
   PromptListResult,
+  PromptToolBindings,
   PromptVersionTracesOptions,
   RenderResult,
+  ToolBindingDetail,
+  ToolBindingInput,
   ToolDefinition,
+  ToolResolution,
   UpdatePromptInput,
   VersionDetail,
   VersionListResult,
@@ -66,6 +71,46 @@ function stableStringify(value: unknown): string {
  */
 function hashVariables(variables: Record<string, unknown>): string {
   return createHash('sha256').update(stableStringify(variables)).digest('hex').slice(0, 16);
+}
+
+/**
+ * Converts a binding input to the wire body, which is snake_case (`tool_alias`,
+ * `pinned_version_number`, `off`) like the rest of the prompts API's request bodies.
+ *
+ * The API takes exactly one of the three and 400s otherwise. The types already stop a
+ * TypeScript caller sending two, but nothing stops a JavaScript one sending zero, and
+ * an empty body would come back as an opaque 400 — so that case is rejected here, with
+ * a message naming what to pass.
+ *
+ * @param binding - What the caller asked to bind the tool to.
+ * @param allowOff - `true` on the per-alias endpoint, which is the only one where
+ *   `off` means anything (there is no default for a default to contradict).
+ * @returns The request body.
+ * @throws {acruxcoreError} VALIDATION_ERROR when no target is named, or `off` is used
+ *   on the default binding.
+ */
+function bindingBody(binding: AliasToolBindingInput, allowOff: boolean): Record<string, unknown> {
+  if ('toolAlias' in binding && binding.toolAlias !== undefined) {
+    return { tool_alias: binding.toolAlias };
+  }
+  if ('pinnedVersionNumber' in binding && binding.pinnedVersionNumber !== undefined) {
+    return { pinned_version_number: binding.pinnedVersionNumber };
+  }
+  if ('off' in binding && binding.off) {
+    if (!allowOff) {
+      throw new acruxcoreError(
+        'acruxcore: { off: true } is only valid for a prompt alias\'s own binding. To stop every ' +
+          'alias from calling the tool, remove the default binding with prompts.removeToolBinding().',
+        'VALIDATION_ERROR',
+      );
+    }
+    return { off: true };
+  }
+  throw new acruxcoreError(
+    'acruxcore: a tool binding needs exactly one of { toolAlias }, { pinnedVersionNumber }' +
+      (allowOff ? ', or { off: true }.' : '.'),
+    'VALIDATION_ERROR',
+  );
 }
 
 /**
@@ -196,14 +241,17 @@ export class PromptsNamespace {
   /**
    * Commits a new immutable version for a prompt.
    *
+   * A version decides the template only — it says nothing about tools. Which tools
+   * the prompt calls is decided per prompt alias by {@link setToolBinding} and
+   * {@link setAliasToolBinding}, so committing never changes a tool set.
+   *
    * @param promptId - The prompt's id.
-   * @param input - The version's full message list, optional tool attachments, and
-   *   an optional bound default model.
+   * @param input - The version's full message list and an optional bound default model.
    * @returns The created version. `aliases` is present ONLY when this is the
    *   prompt's first version — both `production` and `staging` are minted and
    *   point at it; every later commit returns no `aliases` at all.
    * @throws {acruxcoreError} API_ERROR 404 unknown prompt, or `VALIDATION_ERROR`
-   *   (e.g. empty `messages`, more than 64 `tools`).
+   *   (e.g. empty `messages`).
    * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries.
    */
   async commitVersion(promptId: string, input: CommitVersionInput): Promise<VersionDetail> {
@@ -381,11 +429,178 @@ export class PromptsNamespace {
     return this.client._parseJsonOrThrow(response, 'listing traces for prompt version') as Promise<ListTracesResult>;
   }
 
+  // ── tool bindings ──
+
+  /**
+   * Reads every tool binding for a prompt: the default that aliases inherit, plus
+   * one entry per prompt alias with the rows that alias owns.
+   *
+   * An alias with `customised: false` has no rows of its own and calls exactly the
+   * `default` list — its own `bindings` array is empty rather than a copy of it.
+   *
+   * @param promptId - The prompt's id.
+   * @returns The default bindings and every prompt alias.
+   * @throws {acruxcoreError} API_ERROR with `statusCode` 404 if the prompt doesn't exist.
+   * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries.
+   */
+  async listToolBindings(promptId: string): Promise<PromptToolBindings> {
+    const response = await this.client._request(
+      'GET',
+      `/prompts/${encodeURIComponent(promptId)}/tools`,
+      undefined,
+      'listing prompt tool bindings',
+    );
+    const body = (await this.client._parseJsonOrThrow(response, 'listing prompt tool bindings')) as {
+      data: PromptToolBindings;
+    };
+    return body.data;
+  }
+
+  /**
+   * Connects a tool to the prompt as its **default** binding — the one every prompt
+   * alias uses unless it has a row of its own. Idempotent: calling it again for the
+   * same tool replaces the target rather than adding a second binding.
+   *
+   * @param promptId - The prompt's id.
+   * @param toolId - The catalog tool's id, from `hub.tools.resolve` or the dashboard.
+   * @param binding - `{ toolAlias }` to follow a tool alias at use-time, or
+   *   `{ pinnedVersionNumber }` to pin one exact tool version. Exactly one.
+   * @returns The stored binding, including the tool version it resolves to today.
+   * @throws {acruxcoreError} VALIDATION_ERROR if `binding` names neither a tool alias
+   *   nor a pinned version (rejected locally, before any request).
+   * @throws {acruxcoreError} API_ERROR 404 unknown prompt, tool, tool alias or pinned
+   *   version, or 403 if the caller's role cannot bind tools (editor and above only).
+   * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries.
+   */
+  async setToolBinding(
+    promptId: string,
+    toolId: string,
+    binding: ToolBindingInput,
+  ): Promise<ToolBindingDetail> {
+    const response = await this.client._request(
+      'PUT',
+      `/prompts/${encodeURIComponent(promptId)}/tools/${encodeURIComponent(toolId)}`,
+      bindingBody(binding, false),
+      'setting prompt tool binding',
+    );
+    return this.client._parseJsonOrThrow(response, 'setting prompt tool binding') as Promise<ToolBindingDetail>;
+  }
+
+  /**
+   * Disconnects a tool from the prompt's default binding, so no alias inheriting the
+   * default calls it any more. Per-alias rows for the same tool are left alone — an
+   * alias that set its own binding keeps calling the tool.
+   *
+   * The endpoint replies `204 No Content`, which has no body, so only a non-2xx
+   * response is parsed (to get the typed error thrown).
+   *
+   * @param promptId - The prompt's id.
+   * @param toolId - The catalog tool's id.
+   * @throws {acruxcoreError} API_ERROR 404 unknown prompt, or if the prompt has no
+   *   default binding for that tool; 403 if the caller's role cannot bind tools.
+   * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries.
+   */
+  async removeToolBinding(promptId: string, toolId: string): Promise<void> {
+    const response = await this.client._request(
+      'DELETE',
+      `/prompts/${encodeURIComponent(promptId)}/tools/${encodeURIComponent(toolId)}`,
+      undefined,
+      'removing prompt tool binding',
+    );
+    if (!response.ok) {
+      await this.client._parseJsonOrThrow(response, 'removing prompt tool binding');
+    }
+  }
+
+  /**
+   * Connects a tool for **one prompt alias only**, overriding whatever the default
+   * says for that alias. This is how a tool gets rolled out (`dev` gets it first) or
+   * runs a different build per environment (`dev` on the tool's `staging` alias).
+   *
+   * @param promptId - The prompt's id.
+   * @param alias - The prompt alias this binding applies to, e.g. `'staging'`.
+   * @param toolId - The catalog tool's id.
+   * @param binding - `{ toolAlias }`, `{ pinnedVersionNumber }`, or `{ off: true }`
+   *   meaning this alias deliberately has no such tool even though the default does.
+   *   Exactly one.
+   * @returns The stored binding for this alias.
+   * @throws {acruxcoreError} VALIDATION_ERROR if `binding` names none of the three
+   *   (rejected locally, before any request).
+   * @throws {acruxcoreError} API_ERROR 404 unknown prompt, alias, tool, tool alias or
+   *   pinned version, or 403 if the caller's role cannot bind tools.
+   * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries.
+   */
+  async setAliasToolBinding(
+    promptId: string,
+    alias: string,
+    toolId: string,
+    binding: AliasToolBindingInput,
+  ): Promise<ToolBindingDetail> {
+    const response = await this.client._request(
+      'PUT',
+      `/prompts/${encodeURIComponent(promptId)}/aliases/${encodeURIComponent(alias)}/tools/${encodeURIComponent(toolId)}`,
+      bindingBody(binding, true),
+      'setting prompt alias tool binding',
+    );
+    return this.client._parseJsonOrThrow(
+      response,
+      'setting prompt alias tool binding',
+    ) as Promise<ToolBindingDetail>;
+  }
+
+  /**
+   * Drops one alias's own binding for a tool, returning that (alias, tool) pair to
+   * the prompt's default. It does NOT stop the alias calling the tool — if the
+   * default binds it, the alias inherits it again. Use
+   * `setAliasToolBinding(..., { off: true })` for that.
+   *
+   * @param promptId - The prompt's id.
+   * @param alias - The prompt alias to return to the default.
+   * @param toolId - The catalog tool's id.
+   * @throws {acruxcoreError} API_ERROR 404 unknown prompt, or if that alias has no row
+   *   of its own for the tool; 403 if the caller's role cannot bind tools.
+   * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries.
+   */
+  async removeAliasToolBinding(promptId: string, alias: string, toolId: string): Promise<void> {
+    const response = await this.client._request(
+      'DELETE',
+      `/prompts/${encodeURIComponent(promptId)}/aliases/${encodeURIComponent(alias)}/tools/${encodeURIComponent(toolId)}`,
+      undefined,
+      'removing prompt alias tool binding',
+    );
+    if (!response.ok) {
+      await this.client._parseJsonOrThrow(response, 'removing prompt alias tool binding');
+    }
+  }
+
+  /**
+   * Drops every binding one prompt alias owns in a single call, returning it
+   * wholesale to the prompt's default. Succeeds even when the alias already had no
+   * rows of its own — it is a reset, not a delete of a specific row.
+   *
+   * @param promptId - The prompt's id.
+   * @param alias - The prompt alias to reset.
+   * @throws {acruxcoreError} API_ERROR 404 unknown prompt, or 403 if the caller's role
+   *   cannot bind tools (editor and above only).
+   * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries.
+   */
+  async resetAliasToolBindings(promptId: string, alias: string): Promise<void> {
+    const response = await this.client._request(
+      'DELETE',
+      `/prompts/${encodeURIComponent(promptId)}/aliases/${encodeURIComponent(alias)}/tools`,
+      undefined,
+      'resetting prompt alias tool bindings',
+    );
+    if (!response.ok) {
+      await this.client._parseJsonOrThrow(response, 'resetting prompt alias tool bindings');
+    }
+  }
+
   // ── render (SWR cache) ──
 
   /**
    * Renders a stored prompt by name + alias and returns its templated messages
-   * plus the version's attached tools (OpenAI-shaped). Cached per
+   * plus the tools bound to that alias (OpenAI-shaped). Cached per
    * (name, alias, variables).
    *
    * - On cache hit (fresh): returns cached value immediately, no network call.
@@ -397,7 +612,7 @@ export class PromptsNamespace {
    * @param name - The prompt name (slug, not ID).
    * @param alias - The alias to resolve (e.g. 'production', 'staging').
    * @param variables - Template variables to pass to the render endpoint.
-   * @returns `{ messages, tools }`; `tools` is `[]` when the version has none.
+   * @returns `{ messages, tools }`; `tools` is `[]` when the alias binds none.
    * @throws {acruxcoreError} MISSING_VARIABLES if the template requires variables not supplied.
    * @throws {acruxcoreError} API_ERROR for non-retryable HTTP errors.
    * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable and no stale cache entry exists.
@@ -490,6 +705,7 @@ export class PromptsNamespace {
     const data = (await response.json()) as {
       messages: Message[];
       tools?: ToolDefinition[];
+      toolResolutions?: ToolResolution[];
       model?: string | null;
       versionId?: string | null;
       versionNumber?: number | null;
@@ -497,6 +713,7 @@ export class PromptsNamespace {
     const value: RenderResult = {
       messages: data.messages,
       tools: data.tools ?? [],
+      toolResolutions: data.toolResolutions ?? [],
       model: data.model ?? null,
       versionId: data.versionId ?? null,
       versionNumber: data.versionNumber ?? null,

@@ -36,9 +36,13 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * skipped; `required` is omitted entirely when no row is marked required.
  *
  * @param rows - The builder's current rows.
- * @returns A JSON Schema object of shape `{ type: 'object', properties, required? }`.
+ * @param rejectUnknown - Emit `additionalProperties: false`, so the model may send
+ *   only the listed arguments. Off by default, which leaves the key out entirely
+ *   rather than writing `true` — an absent key is the JSON Schema default.
+ * @returns A JSON Schema object of shape
+ *   `{ type: 'object', properties, required?, additionalProperties? }`.
  */
-export function rowsToSchema(rows: ParamRow[]): Record<string, unknown> {
+export function rowsToSchema(rows: ParamRow[], rejectUnknown = false): Record<string, unknown> {
   const properties: Record<string, unknown> = {};
   const required: string[] = [];
   for (const row of rows) {
@@ -52,6 +56,7 @@ export function rowsToSchema(rows: ParamRow[]): Record<string, unknown> {
   }
   const schema: Record<string, unknown> = { type: 'object', properties };
   if (required.length > 0) schema.required = required;
+  if (rejectUnknown) schema.additionalProperties = false;
   return schema;
 }
 
@@ -59,9 +64,11 @@ export function rowsToSchema(rows: ParamRow[]): Record<string, unknown> {
  * Parse a JSON Schema object into builder rows, or return `null` if it uses
  * anything the builder can't round-trip losslessly.
  *
- * Representable means: the top level has only `type`/`properties`/`required`
- * with `type === 'object'`; every property object has only `type` (one of the
- * four primitives) plus an optional string `description`; and every name in
+ * Representable means: the top level has only `type`/`properties`/`required`,
+ * plus `additionalProperties` when it is exactly `false` (the builder shows that
+ * as a checkbox — read it with {@link schemaRejectsUnknown}), with
+ * `type === 'object'`; every property object has only `type` (one of the four
+ * primitives) plus an optional string `description`; and every name in
  * `required` is a declared property. Anything else → `null`.
  *
  * @param schema - The parsed `parametersSchema` value (unknown shape).
@@ -70,9 +77,12 @@ export function rowsToSchema(rows: ParamRow[]): Record<string, unknown> {
 export function schemaToRows(schema: unknown): ParamRow[] | null {
   if (!isPlainObject(schema)) return null;
 
-  const allowedTop = new Set(['type', 'properties', 'required']);
+  const allowedTop = new Set(['type', 'properties', 'required', 'additionalProperties']);
   if (Object.keys(schema).some((k) => !allowedTop.has(k))) return null;
   if (schema.type !== 'object') return null;
+  // Only `false` is representable: the builder re-emits it from a checkbox. `true`
+  // or a sub-schema would be dropped on resave, so those still force JSON mode.
+  if (schema.additionalProperties !== undefined && schema.additionalProperties !== false) return null;
 
   // `properties` may be absent (a no-argument tool) — treat as empty.
   const properties = schema.properties ?? {};
@@ -109,4 +119,48 @@ export function schemaToRows(schema: unknown): ParamRow[] | null {
     });
   }
   return rows;
+}
+
+/**
+ * Why the row builder can or cannot take over the schema currently being edited
+ * as raw JSON: `'ready'` (the rows can hold it losslessly), `'invalid-json'`
+ * (the text does not parse), or `'unrepresentable'` (it parses, but uses a
+ * feature the rows cannot show — `enum`, `minimum`, a nested object,
+ * `additionalProperties`, …).
+ */
+export type BuilderAvailability = 'ready' | 'invalid-json' | 'unrepresentable';
+
+/**
+ * Classifies raw-JSON schema text for the "Back to builder" toggle, so the UI can
+ * disable the toggle and say why instead of leaving a click with no visible effect.
+ *
+ * Blank text counts as `'ready'`: clearing the box and returning to an empty
+ * builder is a reasonable thing to want, and refusing it would strand the user in
+ * JSON mode.
+ *
+ * @param schemaText - The current contents of the raw-JSON editor.
+ * @returns Whether switching to the builder would work, and if not, which reason
+ *   to show.
+ */
+export function builderAvailability(schemaText: string): BuilderAvailability {
+  if (schemaText.trim().length === 0) return 'ready';
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(schemaText);
+  } catch {
+    return 'invalid-json';
+  }
+  return schemaToRows(parsed) === null ? 'unrepresentable' : 'ready';
+}
+
+/**
+ * Whether a schema forbids arguments it does not list, i.e. carries
+ * `additionalProperties: false`. Pairs with `rowsToSchema(rows, rejectUnknown)`
+ * so the builder's checkbox survives a round trip through JSON.
+ *
+ * @param schema - The parsed `parametersSchema` value (unknown shape).
+ * @returns `true` only for an explicit `additionalProperties: false`.
+ */
+export function schemaRejectsUnknown(schema: unknown): boolean {
+  return isPlainObject(schema) && schema.additionalProperties === false;
 }

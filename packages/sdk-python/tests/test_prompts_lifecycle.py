@@ -268,6 +268,96 @@ async def test_traces_for_version(hub: AcruxCore) -> None:
     assert any(t.id == trace_result.trace_id for t in result.data)
 
 
+async def test_tool_bindings(hub: AcruxCore) -> None:
+    """Bind a tool as the prompt's default, diverge one alias onto a different
+    tool build, switch it off, reset it, and unbind — checking after each step
+    what ``render()`` actually resolves and which binding it reports.
+    """
+    prompt = await hub.prompts.create(f"binding-test-{uuid.uuid4()}")
+    await hub.prompts.commit_version(
+        prompt.id, [{"role": "system", "content": "Answer with the weather."}]
+    )
+
+    # Two tool versions, so `production` and `staging` can point at different builds.
+    tool_name = f"binding_tool_{uuid.uuid4().hex[:8]}"
+    tool = await hub.tools.create(tool_name)
+    await hub.tools.commit_version(
+        tool.id,
+        parameters_schema={"type": "object", "properties": {"city": {"type": "string"}}},
+        executor={"type": "client"},
+    )
+    await hub.tools.commit_version(
+        tool.id,
+        parameters_schema={"type": "object", "properties": {"city": {"type": "string"}}},
+        executor={"type": "client"},
+    )
+    await hub.tools.promote_alias(tool.id, "staging", 2)
+
+    # Default binding — inherited by every prompt alias with no row of its own.
+    bound = await hub.prompts.set_tool_binding(prompt.id, tool.id, tool_alias="production")
+    assert bound.tool_id == tool.id
+    assert bound.tool_alias == "production"
+    assert bound.resolved_version_number == 1
+    assert bound.off is False
+
+    bindings = await hub.prompts.list_tool_bindings(prompt.id)
+    assert [b.tool_id for b in bindings.default] == [tool.id]
+    assert sorted(a.alias for a in bindings.aliases) == ["production", "staging"]
+    assert all(a.customised is False for a in bindings.aliases)
+
+    inherited = await hub.prompts.render(prompt.name, "production")
+    assert [t["function"]["name"] for t in inherited.tools] == [tool_name]
+    assert inherited.tool_resolutions[0].source == "default"
+    assert inherited.tool_resolutions[0].version_number == 1
+
+    # One alias takes a binding of its own, onto the tool's own staging build.
+    own = await hub.prompts.set_alias_tool_binding(
+        prompt.id, "staging", tool.id, tool_alias="staging"
+    )
+    assert own.tool_alias == "staging"
+    assert own.resolved_version_number == 2
+
+    bindings = await hub.prompts.list_tool_bindings(prompt.id)
+    by_alias = {a.alias: a for a in bindings.aliases}
+    assert by_alias["staging"].customised is True
+    assert by_alias["production"].customised is False
+
+    diverged = await hub.prompts.render(prompt.name, "staging")
+    assert diverged.tool_resolutions[0].source == "alias"
+    assert diverged.tool_resolutions[0].version_number == 2
+
+    # `off` contradicts the default: this alias must not call the tool at all.
+    off = await hub.prompts.set_alias_tool_binding(prompt.id, "staging", tool.id, off=True)
+    assert off.off is True
+    assert off.resolved_version_number is None
+    assert (await hub.prompts.render(prompt.name, "staging", {"_bust": "off"})).tools == []
+    # The default is untouched, so production still calls it.
+    assert len((await hub.prompts.render(prompt.name, "production", {"_bust": "off"})).tools) == 1
+
+    # Resetting the alias returns it to the default, tool and all.
+    await hub.prompts.reset_alias_tool_bindings(prompt.id, "staging")
+    reset = await hub.prompts.render(prompt.name, "staging", {"_bust": "reset"})
+    assert reset.tool_resolutions[0].source == "default"
+
+    # Removing one alias's own row also returns it to the default.
+    await hub.prompts.set_alias_tool_binding(
+        prompt.id, "staging", tool.id, pinned_version_number=1
+    )
+    await hub.prompts.remove_alias_tool_binding(prompt.id, "staging", tool.id)
+    bindings = await hub.prompts.list_tool_bindings(prompt.id)
+    assert all(a.customised is False for a in bindings.aliases)
+
+    # Removing the default unbinds the tool everywhere that inherited it.
+    await hub.prompts.remove_tool_binding(prompt.id, tool.id)
+    assert (await hub.prompts.list_tool_bindings(prompt.id)).default == []
+    assert (await hub.prompts.render(prompt.name, "production", {"_bust": "gone"})).tools == []
+
+    # Nothing is bound any more, so both deletes have no row to remove.
+    with pytest.raises(AcruxCoreError) as exc:
+        await hub.prompts.remove_tool_binding(prompt.id, tool.id)
+    assert exc.value.status_code == 404
+
+
 async def test_error_paths(hub: AcruxCore) -> None:
     """An empty `name` on create surfaces VALIDATION_ERROR; a random UUID on
     get surfaces a 404 — both as `AcruxCoreError(code=API_ERROR)`.

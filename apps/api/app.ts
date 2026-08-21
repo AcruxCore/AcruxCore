@@ -16,6 +16,7 @@ import { toolResolveRouter } from './src/tools/resolve';
 import { secretsRouter } from './src/secrets';
 import { versionsRouter } from './src/prompts/versions';
 import { aliasesRouter, renderRouter } from './src/prompts/aliases';
+import { toolBindingsRouter } from './src/prompts/tool-bindings';
 import { diffRouter } from './src/prompts/diff';
 import { exportRouter } from './src/prompts/export';
 import { importRouter } from './src/prompts/import';
@@ -124,6 +125,7 @@ export function createApp(): express.Application {
   app.use('/api/v1', exportRouter);
   // Aliases: GET /api/v1/prompts/:id/aliases, POST /api/v1/prompts/:id/aliases/:alias/promote
   app.use('/api/v1/prompts', aliasesRouter);
+  app.use('/api/v1/prompts', toolBindingsRouter);
   // Render: POST /api/v1/prompts/:name/:alias/render
   app.use('/api/v1/prompts', renderRouter);
   // Audit: GET /api/v1/prompts/:id/audit

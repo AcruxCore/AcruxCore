@@ -1,0 +1,25 @@
+meta {
+  name: Set Alias Binding
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/api/v1/prompts/{{promptId}}/aliases/{{aliasName}}/tools/{{toolId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "tool_alias": "staging"
+  }
+}

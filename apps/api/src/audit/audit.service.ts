@@ -41,6 +41,33 @@ export class AuditService {
   }
 
   /**
+   * Returns a paginated audit trail for a specific tool.
+   * Throws NotFoundError if the tool does not exist in the given team.
+   *
+   * @param toolId - UUID of the tool.
+   * @param teamId - UUID of the requesting team.
+   * @param page   - 1-indexed page number.
+   * @param limit  - Page size (max 100).
+   * @returns Paginated list of audit events with actor details.
+   * @throws {NotFoundError} If the tool is not found or belongs to another team.
+   */
+  async listForTool(
+    toolId: string,
+    teamId: string,
+    page: number,
+    limit: number,
+  ): Promise<AuditListResponse> {
+    const tool = await this.repo.findTool(toolId, teamId);
+    if (!tool) {
+      throw new NotFoundError('Tool not found.');
+    }
+
+    const { rows, total } = await this.repo.listForTool(toolId, teamId, page, limit);
+
+    return { data: rows, total, page, limit };
+  }
+
+  /**
    * Returns a paginated, team-wide audit trail (Finding #13) — every event for
    * the team, not just those scoped to one prompt. No prompt-ownership check:
    * `teamId` itself is the isolation boundary, already verified by the

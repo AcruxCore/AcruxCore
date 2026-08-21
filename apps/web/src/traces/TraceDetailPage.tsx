@@ -4,6 +4,7 @@ import { useTrace } from '@/api';
 import { dateTime, timeAgo } from '@/lib/format';
 import { SpanTree } from './SpanTree';
 import { FeedbackPanel } from './FeedbackPanel';
+import { ScoresPanel } from './ScoresPanel';
 import { Collapsible } from './Collapsible';
 import { formatCount, formatUsd } from './format';
 
@@ -13,7 +14,8 @@ const SPAN_HASH_RE = /^#span-(.+)$/;
 /**
  * The `/traces/:id` detail view: a header (name, status, session link, rollup totals,
  * relative time) above a collapsible trace-metadata section, the span tree (each row
- * expands in place — Q17), and the trace-level feedback panel below.
+ * expands in place — Q17), the trace-level feedback panel, and the online-eval rule
+ * scores panel below.
  */
 export function TraceDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -91,6 +93,8 @@ export function TraceDetailPage() {
       <SpanTree spans={spans} traceId={trace.id} feedback={feedback} initialExpandedSpanId={deepLinkedSpanId} />
 
       <FeedbackPanel traceId={trace.id} feedback={traceFeedback} />
+
+      <ScoresPanel evalScores={data.evalScores ?? []} />
     </div>
   );
 }

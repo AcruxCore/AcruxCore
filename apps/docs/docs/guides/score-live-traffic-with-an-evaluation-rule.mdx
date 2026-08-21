@@ -1,0 +1,241 @@
+---
+title: Score live traffic with an evaluation rule
+description: Create a standing rule that judges matching production gateway calls automatically, with no dataset and no manual run.
+sidebar_position: 22
+keywords: [online evaluation, llm judge, live traffic scoring, evaluation rule, production monitoring]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Score live traffic with an evaluation rule
+
+**What you'll build:** a standing rule that watches production gateway calls for
+one model (or prompt, alias, or tag), judges a sample of them the moment they
+happen, and shows the score right on the trace — no dataset built, no
+experiment started, nobody clicking "run."
+
+Without a rule watching, the only way you find out a prompt started giving
+worse answers is a person noticing one and rating it — a check that scales to
+a trickle of traffic, not to a prompt handling thousands of calls a day. An
+**evaluation rule** replaces that person: it's a standing instruction ("does
+this reply follow up correctly?") that a background worker checks against a
+sample of every matching `llm` span as it happens, using the same
+LLM-as-judge the offline runs use, and it can alert the team the moment its
+mean score for the day drops — so a regression surfaces on its own, before a
+customer reports it.
+
+Everything else in Evaluations is **offline**: you pick feedback, build a
+dataset, then start a run that sweeps prompt versions and models across it.
+That's the right tool for "did my rewrite help?", but it only ever looks at
+traffic someone already flagged. A rule only ever scores `llm` spans — a tool
+call's output is a JSON payload, not the free-text answer the judge is built
+to read, so tool spans aren't scored in this version.
+
+Here's the whole flow end to end — generate a couple of traces, leave
+feedback on one, then create and preview a rule:
+
+![Animated walkthrough: sending a completion through the Playground, adding feedback to a trace, creating an evaluation rule, and previewing it against real traffic](/img/tutorials/score-live-traffic-with-an-evaluation-rule/00-overview.gif)
+
+The steps below cover each of those screens in detail.
+
+## 1. Open the Rules tab
+
+Go to **Evaluations**. Alongside **Datasets** and **Runs**, there's a **Rules**
+tab — a new team starts here with nothing configured.
+
+![Empty Evaluations Rules tab, with a "No rules yet" message and a New rule button](/img/tutorials/score-live-traffic-with-an-evaluation-rule/01-empty-rules-tab.png)
+
+## 2. Create a rule
+
+Click **New rule**. Give it a name and a **criteria** — a standing
+instruction, phrased as what a *correct* answer must contain, not as a
+complaint about one bad answer (a critique confuses the judge into grading
+against the wrong thing).
+
+**Judge model** is required — pick one of your team's registered models from
+the dropdown. If the team hasn't registered one yet, the field shows a
+**Create model** button right there, so you never have to leave the drawer to
+set one up. There's no default to fall back to on purpose — a rule always
+grades with a model you explicitly chose (see `phase-5-faq.md` Q25).
+
+**Judge prompt** is optional and defaults to the built-in judge. Pick one of
+your own Prompts instead if you want to iterate on the grading instructions
+themselves rather than just the short `criteria` field — the prompt's
+`{{ criteria }}` and `{{ output }}` template variables get filled in the same
+way the built-in judge fills them, and the platform still enforces the
+scoring output format underneath whatever you write.
+
+Everything below that is optional:
+
+- **Sample rate** — the percentage of matching spans actually judged. It
+  defaults to **10%** with a **500/day** cap, because every judged span is a
+  real LLM call and 100% of a busy team's traffic gets expensive fast; this
+  example sets it to 100% so both demo calls below get scored.
+- **Daily limit** — a hard ceiling on judge calls per day for this rule,
+  regardless of sample rate.
+- **Alert below** — notifies the team's owners when the rule's mean score for
+  the day drops under this number.
+- **Match filter** — a prompt (then one of its aliases), a model, tags, and
+  `sessionOnly`, all ANDed together. Prompt, model, and tags are all picked
+  from the team's real data — no more typing a name by hand. Leave every
+  field blank to match *every* `llm` span the team produces.
+
+![New rule drawer filled in with a name, criteria, judge model, 100% sample rate, an alert threshold, and a model filter](/img/tutorials/score-live-traffic-with-an-evaluation-rule/02-new-rule-drawer.png)
+
+:::warning[The model filter dropdown lists resolved models, not your registered publicName]
+The **Model** filter dropdown is populated from models actually seen on your
+team's spans — the **upstream model id the gateway called** (for example
+`gpt-4o-mini-2024-07-18`), not the `publicName` you register under Gateway →
+Models or send as `model` in a request (`gpt-4o-mini`). It's a different list
+from the **Judge model** dropdown above, which does show your registered
+`publicName`s. Leave the filter's Model field blank while testing if you're
+not sure which resolved id to pick.
+:::
+
+Click **Create rule**. It appears in the table immediately, with `0` scored
+today and no mean score yet — it hasn't seen any traffic.
+
+![Rules table with one rule, capital-city-answers, showing 100% sample rate and 0 scored today](/img/tutorials/score-live-traffic-with-an-evaluation-rule/03-rules-table-with-rule.png)
+
+## 3. Send matching traffic
+
+The rule now watches every new `llm` span. Nothing needs to be told about it —
+any gateway call whose resolved model, prompt, alias, or tags match the
+rule's filter gets picked up by the worker on its own. Two ordinary chat
+completions through the gateway are enough to see it work: one plain answer,
+and one deliberately evasive one.
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "What is the capital of Japan? Answer with just the city name."}], "max_tokens": 10}'
+```
+
+Reload the Rules tab a few seconds later — the worker matches, samples, judges,
+and writes the score asynchronously, so it lands shortly after the call
+returns, not inside the request itself:
+
+![Rules table now showing 2 scored today and a mean score of 50](/img/tutorials/score-live-traffic-with-an-evaluation-rule/04-rules-table-with-scores.png)
+
+## 4. Preview before trusting a rule with real traffic
+
+Before turning a rule loose — or after editing its criteria — click **Edit**
+on the rule, then **Preview**. It dry-runs the judge against the team's most
+recent matching spans and shows every verdict, **without writing any score
+row**. It's the same matching and judging code the live rule uses, so a
+preview can never disagree with what actually happens once it's live.
+
+![Preview results listing four judged spans with scores of 0 or 100 and their reasons](/img/tutorials/score-live-traffic-with-an-evaluation-rule/05-preview-results.png)
+
+A preview still spends a real judge call per span shown (10 max per request) —
+it only skips the persistence step, not the LLM call.
+
+## 5. Read a score from the trace it belongs to
+
+Every judged span also shows up on its own trace, next to feedback, in a new
+**Scores** panel — so anyone reviewing a trace for another reason sees the
+rule's verdict without going back to the Rules tab.
+
+![Trace detail page with a Scores panel showing the rule name, a score of 100, and the judge's reasoning](/img/tutorials/score-live-traffic-with-an-evaluation-rule/06-trace-scores-panel.png)
+
+**View judge trace →** on that panel opens the judge's own gateway call — the
+prompt and completion that produced the verdict — which is itself a real,
+inspectable trace like any other. A rule never scores its own judge calls, so
+this doesn't create a loop.
+
+## Doing this over the API
+
+There's no dashboard-only path here — everything above has a REST endpoint,
+which is how you'd wire a rule up from a script instead of the dashboard.
+There's no TypeScript or Python SDK method for this yet, so curl (or any HTTP
+client) is the only path today.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/eval-rules" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "doc-verification-rule", "criteria": "The answer must directly state the capital city name, and nothing else.", "judgeModel": "gpt-4o-mini", "sampleRate": 1, "dailyLimit": 500, "filter": {"model": "gpt-4o-mini-2024-07-18"}}'
+```
+
+```json
+{
+  "id": "ba6a6b76-0848-4a5b-871b-b260cde2716b",
+  "name": "doc-verification-rule",
+  "enabled": true,
+  "kind": "llm_judge",
+  "criteria": "The answer must directly state the capital city name, and nothing else.",
+  "judgeModel": "gpt-4o-mini",
+  "judgePromptId": null,
+  "sampleRate": 1,
+  "dailyLimit": 500,
+  "filter": { "model": "gpt-4o-mini-2024-07-18" },
+  "todayCount": 0,
+  "todayMeanScore": null
+}
+```
+
+`judgeModel` is required — see the full field reference and error responses in
+[Evaluation Rules](/api-reference/eval-rules).
+
+</TabItem>
+</Tabs>
+
+Read its scores back at any time — this is the same call the Rules tab and
+the trace's Scores panel both make under the hood:
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl "$ACRUXCORE_BASE_URL/eval-rules/ba6a6b76-0848-4a5b-871b-b260cde2716b/scores" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{
+  "total": 2,
+  "data": [
+    {
+      "traceId": "9421fc95-3a8b-485c-b24f-0821689e565c",
+      "score": 0,
+      "passed": false,
+      "reason": "The output does not state the capital city name as required by the criteria."
+    },
+    {
+      "traceId": "bf29a822-3db9-439e-ad3f-6be2397cb880",
+      "score": 100,
+      "passed": true,
+      "reason": "The output correctly states the capital city name 'Paris' and contains no additional information, fully satisfying the criteria."
+    }
+  ],
+  "page": 1,
+  "limit": 20
+}
+```
+
+</TabItem>
+</Tabs>
+
+Full field reference, every endpoint (including preview and building a
+dataset from a rule's low scores), and the exact error responses: see
+**Evaluation Rules** in the [API Reference](/api-reference/eval-rules).
+
+Mutations (`POST`, `PATCH`, `DELETE`, `preview`, `to-dataset`) all require an
+`owner` or `admin` role — a team-scoped API key gets a clean 403, since it has
+no user identity to record as `createdBy`. Reading rules and scores works with
+any role.
+
+## What's next
+
+- Turn a rule's low scorers into fix material: the **`to-dataset`** endpoint
+  builds a dataset from them in one call, so a regression the rule caught
+  becomes an experiment you can run against a fix — see the endpoint in the
+  [API Reference](/api-reference/eval-rules).
+- Build the dataset-and-run flow this feeds into from the other direction:
+  [Evaluate a prompt against a dataset](./evaluate-a-prompt).
+- API details: see **Evaluation Rules** in the [API Reference](/api-reference).

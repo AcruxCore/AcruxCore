@@ -6,13 +6,13 @@
  * changes between the two runs — only the alias string passed on the command line.
  *
  * Flow:
- *   1. renderPrompt   — hub.renderPrompt('web-research-agent', alias, {...}) ->
+ *   1. render         — hub.prompts.render('web-research-agent', alias, {...}) ->
  *                       messages, tools, model, versionId, all four bound to
  *                       whichever alias you pass.
  *   2. runToolLoop    — drives the gateway completion loop, threading one trace.
  *                       web_research is a CLIENT tool (the catalog stores only its
- *                       schema), so it's passed as toolDefs + dispatch.
- *   3. dispatch       — calls @langchain/tavily's TavilySearch class directly —
+ *                       schema), so its implementation goes in clientTools.
+ *   3. clientTools    — calls @langchain/tavily's TavilySearch class directly —
  *                       the Node/TS successor to the same langchain-tavily wrapper
  *                       family the Python tab's TavilySearchResults belongs to —
  *                       with maxResults/searchDepth/includeImages chosen by alias.
@@ -47,26 +47,32 @@ async function webResearch(query, alias) {
   return (result.results || []).map((r) => ({ title: r.title, url: r.url }));
 }
 
-async function dispatch(name, args, alias) {
-  if (name === 'web_research') {
-    const results = await webResearch(args.query, alias);
-    console.log(`  -> web_research(${JSON.stringify(args)}) -> ${results.length} result(s)`);
-    return results;
-  }
-  throw new Error(`Unknown tool: ${name}`);
+/**
+ * The tools this script runs itself, keyed by catalog tool name.
+ *
+ * Built per alias rather than once, because the alias is what picks the search depth —
+ * the model only ever supplies `query`. The closure is where the one piece of
+ * alias-dependent configuration lives.
+ */
+function clientToolsFor(alias) {
+  return {
+    web_research: async ({ query }) => {
+      const results = await webResearch(query, alias);
+      console.log(`  -> web_research({"query":${JSON.stringify(query)}}) -> ${results.length} result(s)`);
+      return results;
+    },
+  };
 }
 
 async function ask(hub, alias, question) {
-  const rendered = await hub.renderPrompt(PROMPT, alias, { question });
+  const rendered = await hub.prompts.render(PROMPT, alias, { question });
   console.log(`Alias: ${alias} -> model ${rendered.model}`);
   console.log(`Question: ${question}\n`);
 
-  const result = await hub.runToolLoop({
-    model: rendered.model, // bound to the prompt version in the dashboard, per alias
-    messages: [...rendered.messages],
-    toolDefs: rendered.tools,
-    dispatch: (name, args) => dispatch(name, args, alias),
-    promptVersionId: rendered.versionId,
+  // The model, the messages, the bound tool and the version id for trace lineage all
+  // come from the render, so only the tool's implementation is passed here.
+  const result = await hub.gateway.runPromptWithTools(rendered, {
+    clientTools: clientToolsFor(alias),
     trace: { name: 'web-research-agent', sessionId: `web-research-${alias}` },
   });
   console.log(`Assistant: ${result.content}`);

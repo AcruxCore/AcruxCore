@@ -1,6 +1,6 @@
 ---
 title: "Trace Facets"
-description: "Discover the distinct tags and metadata keys/values a team has actually used, for populating filter pickers."
+description: "Discover the distinct tags, metadata keys/values, and resolved span models a team has actually used, for populating filter pickers."
 ---
 
 import Tabs from '@theme/Tabs';
@@ -21,9 +21,14 @@ routes dedupe and sort their results alphabetically, capped at 200 values.
 
 ### GET /api/v1/traces/facets
 
-Returns every distinct tag and every distinct metadata key currently in use
-across the team's traces. No query params. Returns empty arrays when the team
-has no traces (or none carry tags/metadata).
+Returns every distinct tag, every distinct metadata key, and every distinct
+**resolved** model seen on the team's `llm` spans. No query params. Returns
+empty arrays when the team has no traces (or none carry tags/metadata/model).
+
+`models` is the resolved model actually called (e.g.
+`gpt-4o-mini-2024-07-18`), not a `GatewayModel.publicName` (e.g.
+`gpt-4o-mini`) — the same value an online-eval rule's `filter.model` is
+compared against.
 
 <Tabs groupId="lang">
 <TabItem value="curl" label="curl">
@@ -51,13 +56,16 @@ facets = hub.traces.list_facets()
 </Tabs>
 
 Response (status 200) — from a team with two traces, one tagged
-`["prod", "nl"]` with metadata `{"env": "prod", "lang": "nl"}`, the other
-tagged `["staging"]` with metadata `{"env": "staging"}`:
+`["prod", "nl"]` with metadata `{"env": "prod", "lang": "nl"}` and an `llm`
+span resolved to `gpt-4o-mini-2024-07-18`, the other tagged `["staging"]`
+with metadata `{"env": "staging"}` and a span resolved to
+`claude-3-5-sonnet-20241022`:
 
 ```json
 {
   "tags": ["nl", "prod", "staging"],
-  "metadataKeys": ["env", "lang"]
+  "metadataKeys": ["env", "lang"],
+  "models": ["claude-3-5-sonnet-20241022", "gpt-4o-mini-2024-07-18"]
 }
 ```
 

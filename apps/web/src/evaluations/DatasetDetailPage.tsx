@@ -63,7 +63,7 @@ export function DatasetDetailPage() {
   return (
     <div className="flex flex-col gap-5">
       <Link to="/evaluations" className="text-[12px] text-muted hover:text-ink">
-        ← Evaluations
+        ← Datasets
       </Link>
 
       <header className="flex flex-wrap items-start justify-between gap-3">

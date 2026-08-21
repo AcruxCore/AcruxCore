@@ -2,7 +2,7 @@
 # Supervisor multi-agent flow -- bash + curl + jq, gateway, manual tool_calls loop.
 #
 # Step A: render the router prompt, call the gateway with response_format set to a
-#         typed { "route_to": ... } json_schema. No tools attached -- response_format
+#         typed { "route_to": ... } json_schema. No tools bound -- response_format
 #         and tools are mutually exclusive on one request. Capture x-gateway-trace-id.
 # Step B: render the matching subagent's own prompt + tools and loop by hand (curl has
 #         no runToolLoop() equivalent), threading x-trace-id so both calls land in ONE trace.

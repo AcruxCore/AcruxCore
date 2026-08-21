@@ -18,36 +18,38 @@ datasource db {
 /// (see `shared/auth/better-auth.ts`), and the credential hash lives on
 /// `AuthAccount.password` — never on this row.
 model User {
-  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email               String               @unique(map: "users_email_unique")
-  emailVerified       Boolean              @default(false) @map("email_verified")
-  displayName         String?              @map("display_name")
-  marketingConsent    Boolean              @default(false) @map("marketing_consent")
-  termsAcceptedAt     DateTime?            @map("terms_accepted_at") @db.Timestamptz(6)
-  image               String?
-  defaultTeamId       String?              @map("default_team_id") @db.Uuid
-  defaultTeam         Team?                @relation("UserDefaultTeam", fields: [defaultTeamId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "users_default_team_id_teams_id_fk")
-  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  authSessions        AuthSession[]
-  authAccounts        AuthAccount[]
-  knownDevices        KnownDevice[]
-  apiKeys             ApiKey[]
-  teamMemberships     TeamMember[]
-  prompts             Prompt[]
-  auditLogs           AuditLog[]
-  promptVersions      PromptVersion[]
-  invitesSent         TeamInvite[]
-  providerConnections ProviderConnection[]
-  virtualKeysCreated  VirtualKey[]
-  budgets             Budget[]
-  gatewayModels       GatewayModel[]
-  traceFeedback       TraceFeedback[]
-  datasets            Dataset[]
-  tools               Tool[]
-  toolVersions        ToolVersion[]
-  secrets             Secret[]
-  notificationPrefs   NotificationPreference[]
+  id                    String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                 String                   @unique(map: "users_email_unique")
+  emailVerified         Boolean                  @default(false) @map("email_verified")
+  displayName           String?                  @map("display_name")
+  marketingConsent      Boolean                  @default(false) @map("marketing_consent")
+  termsAcceptedAt       DateTime?                @map("terms_accepted_at") @db.Timestamptz(6)
+  image                 String?
+  defaultTeamId         String?                  @map("default_team_id") @db.Uuid
+  defaultTeam           Team?                    @relation("UserDefaultTeam", fields: [defaultTeamId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "users_default_team_id_teams_id_fk")
+  createdAt             DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  authSessions          AuthSession[]
+  authAccounts          AuthAccount[]
+  knownDevices          KnownDevice[]
+  apiKeys               ApiKey[]
+  teamMemberships       TeamMember[]
+  prompts               Prompt[]
+  auditLogs             AuditLog[]
+  promptVersions        PromptVersion[]
+  invitesSent           TeamInvite[]
+  providerConnections   ProviderConnection[]
+  virtualKeysCreated    VirtualKey[]
+  budgets               Budget[]
+  evalRules             EvalRule[]
+  gatewayModels         GatewayModel[]
+  traceFeedback         TraceFeedback[]
+  datasets              Dataset[]
+  tools                 Tool[]
+  toolVersions          ToolVersion[]
+  secrets               Secret[]
+  notificationPrefs     NotificationPreference[]
+  promptToolBindings PromptToolBinding[]
 
   @@index([email], map: "idx_users_email")
   @@map("users")
@@ -56,9 +58,9 @@ model User {
 /// Tenancy unit. Every row is a team — no "type" field.
 /// The org layer (if added later) will be an additive parent table, not a type here.
 model Team {
-  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                  String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                String
-  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt           DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   apiKeys             ApiKey[]
   members             TeamMember[]
   prompts             Prompt[]
@@ -68,6 +70,8 @@ model Team {
   gatewayRequests     GatewayRequest[]
   virtualKeys         VirtualKey[]
   budgets             Budget[]
+  evalRules           EvalRule[]
+  evalRuleScores      EvalRuleScore[]
   gatewayCache        GatewayCache[]
   gatewayModels       GatewayModel[]
   traces              Trace[]
@@ -75,7 +79,7 @@ model Team {
   spanPayloads        SpanPayload[]
   teamTraceSettings   TeamTraceSettings?
   traceFeedback       TraceFeedback[]
-  defaultForUsers     User[]               @relation("UserDefaultTeam")
+  defaultForUsers     User[]                   @relation("UserDefaultTeam")
   datasets            Dataset[]
   datasetExamples     DatasetExample[]
   experiments         Experiment[]
@@ -379,6 +383,8 @@ enum AuditEvent {
   secret_created
   secret_rotated
   secret_deleted
+  prompt_tool_route_set
+  prompt_tool_route_removed
 }
 
 // ---------------------------------------------------------------------------
@@ -405,6 +411,9 @@ model Prompt {
   aliases          PromptAlias[]
   experiments      Experiment[]
   promptCandidates PromptCandidate[]
+  /// Online-eval rules using this prompt as their judge template (phase-5-faq).
+  judgeForRules    EvalRule[]
+  toolBindings     PromptToolBinding[]
 
   @@index([teamId], map: "idx_prompts_team_id")
   @@index([teamId, name], map: "idx_prompts_team_name")
@@ -442,7 +451,6 @@ model PromptVersion {
   gatewayRequests GatewayRequest[]
   spans           Span[]
   datasetExamples DatasetExample[]
-  tools           PromptVersionTool[]
 
   /// Enforces per-prompt sequential numbering.
   @@unique([promptId, versionNumber], name: "uq_prompt_versions_prompt_version")
@@ -473,27 +481,54 @@ model PromptAlias {
   @@map("prompt_aliases")
 }
 
-/// Join: a committed PromptVersion references a catalog Tool, by alias (default
-/// 'production') with an optional version pin. Immutable once its prompt version
-/// is committed (FAQ Q4). Enables reverse queries ("which prompts use this tool?").
-model PromptVersionTool {
-  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  promptVersionId String        @map("prompt_version_id") @db.Uuid
-  promptVersion   PromptVersion @relation(fields: [promptVersionId], references: [id], onDelete: Cascade)
-  toolId          String        @map("tool_id") @db.Uuid
-  tool            Tool          @relation(fields: [toolId], references: [id], onDelete: Cascade)
-  /// Alias to resolve at use-time (e.g. 'production'). Ignored when pinnedVersionId is set.
-  aliasName       String        @default("production") @map("alias_name")
-  /// Optional hard pin to a specific ToolVersion; overrides aliasName resolution.
-  pinnedVersionId String?       @map("pinned_version_id") @db.Uuid
-  pinnedVersion   ToolVersion?  @relation("PinnedToolVersion", fields: [pinnedVersionId], references: [id], onDelete: SetNull)
-  /// Stable ordering of tools within a prompt version.
-  position        Int           @default(0)
+/// Which tools a prompt calls, keyed by the prompt's own alias rather than by a
+/// prompt version (phase-4-faq Q53, superseding the version-scoped
+/// PromptVersionTool + PromptToolAliasRoute pair this replaces). One live,
+/// mutable row per (prompt alias, tool) — connecting a tool is a single write
+/// with no new prompt commit, and a prompt version now decides only the
+/// template.
+///
+/// `promptAlias` NULL is the **default**: it applies to every alias that has no
+/// row of its own, which is what stops a newly promoted alias from rendering
+/// with zero tools. It is a plain string, not a foreign key to PromptAlias,
+/// because a binding is a property of "the alias named X" and must survive that
+/// alias being demoted and re-promoted.
+///
+/// `toolAlias` and `pinnedVersionId` both NULL means "this alias deliberately
+/// has no such tool", overriding a default that does hold it — necessary
+/// because an absent row already means "inherit the default".
+model PromptToolBinding {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  promptId        String       @map("prompt_id") @db.Uuid
+  prompt          Prompt       @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  /// Prompt alias this binding applies under, or NULL for the inherited default.
+  promptAlias     String?      @map("prompt_alias")
+  toolId          String       @map("tool_id") @db.Uuid
+  tool            Tool         @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  /// Tool alias to resolve at use-time (e.g. 'staging'). Ignored when
+  /// pinnedVersionId is set; NULL alongside a NULL pin means "off".
+  toolAlias       String?      @map("tool_alias")
+  /// Hard pin to an exact ToolVersion, winning over toolAlias within this row.
+  /// SET NULL on version delete, which turns the row into "off" rather than
+  /// silently falling back to an alias the author did not choose.
+  pinnedVersionId String?      @map("pinned_version_id") @db.Uuid
+  pinnedVersion   ToolVersion? @relation("PinnedToolVersion", fields: [pinnedVersionId], references: [id], onDelete: SetNull)
+  /// Stable ordering of tools within one alias's list.
+  position        Int          @default(0)
+  createdBy       String       @map("created_by") @db.Uuid
+  creator         User         @relation(fields: [createdBy], references: [id])
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  @@unique([promptVersionId, toolId], name: "uq_prompt_version_tools_pv_tool")
-  @@index([promptVersionId], map: "idx_prompt_version_tools_pv")
-  @@index([toolId], map: "idx_prompt_version_tools_tool")
-  @@map("prompt_version_tools")
+  /// One binding per (prompt alias, tool) — upsert implements set and change.
+  /// Postgres does not treat NULLs as equal, so this does NOT constrain the
+  /// default rows; a partial unique index on (prompt_id, tool_id) WHERE
+  /// prompt_alias IS NULL covers those (see migration
+  /// `prompt_tool_bindings_default_unique`).
+  @@unique([promptId, promptAlias, toolId], name: "uq_prompt_tool_bindings")
+  @@index([promptId, promptAlias], map: "idx_prompt_tool_bindings_lookup")
+  @@index([toolId], map: "idx_prompt_tool_bindings_tool")
+  @@map("prompt_tool_bindings")
 }
 
 // ---------------------------------------------------------------------------
@@ -529,7 +564,7 @@ model Tool {
 
   versions          ToolVersion[]
   aliases           ToolAlias[]
-  promptAttachments PromptVersionTool[]
+  promptBindings    PromptToolBinding[]
 
   @@index([teamId], map: "idx_tools_team_id")
   @@index([teamId, name], map: "idx_tools_team_name")
@@ -540,13 +575,13 @@ model Tool {
 /// Immutable snapshot of a tool's parameters/executor at a point in time.
 /// version_number is per-tool sequential (MAX+1), starting at 1.
 model ToolVersion {
-  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  toolId           String   @map("tool_id") @db.Uuid
-  tool             Tool     @relation(fields: [toolId], references: [id], onDelete: Cascade)
-  versionNumber    Int      @map("version_number")
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  toolId           String            @map("tool_id") @db.Uuid
+  tool             Tool              @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  versionNumber    Int               @map("version_number")
   description      String?
   /// JSON Schema object describing the tool's parameters (the part the LLM sees).
-  parametersSchema Json     @map("parameters_schema")
+  parametersSchema Json              @map("parameters_schema")
   /// Typed executor union: { type: 'client' } | { type: 'http', ... }.
   executor         Json
   /// Release note for humans — "v2, added retries". NEVER shown to the model;
@@ -556,12 +591,12 @@ model ToolVersion {
   changelog        String?
   /// Provenance of this version. See ToolVersionSource.
   source           ToolVersionSource @default(api)
-  createdBy        String   @map("created_by") @db.Uuid
-  creator          User     @relation(fields: [createdBy], references: [id])
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy        String            @map("created_by") @db.Uuid
+  creator          User              @relation(fields: [createdBy], references: [id])
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
 
   toolAliases         ToolAlias[]
-  pinnedByAttachments PromptVersionTool[] @relation("PinnedToolVersion")
+  pinnedByBindings    PromptToolBinding[] @relation("PinnedToolVersion")
 
   @@unique([toolId, versionNumber], name: "uq_tool_versions_tool_version")
   @@index([toolId, versionNumber], map: "idx_tool_versions_lookup")
@@ -1159,4 +1194,80 @@ model EvalResult {
 
   @@index([experimentRunId], map: "idx_eval_results_run")
   @@map("eval_results")
+}
+
+enum eval_rule_kind {
+  llm_judge
+}
+
+/// A standing rule that scores live traffic. Team-scoped; `enabled` is the only
+/// switch that stops matching without losing the rule's history.
+model EvalRule {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId        String          @map("team_id") @db.Uuid
+  team          Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  name          String
+  enabled       Boolean         @default(true)
+  /// 'llm_judge' today. Reserved so a deterministic evaluator can be added
+  /// without a second table.
+  kind          eval_rule_kind  @default(llm_judge)
+  /// What the judge grades against. Reference-free — never a user's own
+  /// feedback comment (see phase-5-faq Q17: a critique used as criteria
+  /// scores correct answers 0).
+  criteria      String
+  /// Team-registered GatewayModel.publicName. Required at the API layer going
+  /// forward (see phase-5-faq); stays nullable at the DB level only so legacy
+  /// rows backfilled by the 20260819_backfill_eval_rule_judge_model migration
+  /// (teams with zero registered models at backfill time) don't block on a
+  /// NOT NULL constraint — `judge()` handles a null defensively.
+  judgeModel    String?         @map("judge_model")
+  /// Optional team Prompt used as the judge's grading-instructions template
+  /// instead of the built-in one (phase-5-faq). SET NULL on prompt delete so
+  /// the rule just falls back to the built-in judge rather than being blocked.
+  judgePromptId String?         @map("judge_prompt_id") @db.Uuid
+  judgePrompt   Prompt?         @relation(fields: [judgePromptId], references: [id], onDelete: SetNull)
+  /// Fraction of matching spans actually scored, 0.01–1. The cost dial.
+  sampleRate    Decimal         @default(0.1) @map("sample_rate") @db.Decimal(4, 3)
+  /// Hard ceiling on judged spans per UTC day, per rule. Null = no ceiling.
+  dailyLimit    Int?            @default(500) @map("daily_limit")
+  /// Score below which the rule notifies. Null = never notify.
+  alertBelow    Int?            @map("alert_below")
+  /// Match conditions, all ANDed. {} matches every llm span.
+  /// { promptId?, promptAlias?, model?, tags?: string[], sessionOnly?: bool }
+  filter        Json            @default("{}")
+  createdBy     String          @map("created_by") @db.Uuid
+  creator       User            @relation(fields: [createdBy], references: [id])
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  scores        EvalRuleScore[]
+
+  @@index([teamId, enabled], map: "idx_eval_rules_team_enabled")
+  @@index([judgePromptId], map: "idx_eval_rules_judge_prompt")
+  @@map("eval_rules")
+}
+
+/// One verdict from one rule on one span. Separate from `trace_feedback` so a
+/// machine score is never mistaken for a human one (phase-5-faq Q23).
+model EvalRuleScore {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId       String   @map("team_id") @db.Uuid
+  team         Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  ruleId       String   @map("rule_id") @db.Uuid
+  rule         EvalRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  traceId      String   @map("trace_id") @db.Uuid
+  spanId       String   @map("span_id") @db.Uuid
+  /// 0-100, or null when the judge could not produce one — `reason` then
+  /// says why, mirroring JudgeService's own unscored placeholder.
+  score        Int?
+  passed       Boolean?
+  reason       String?
+  /// The trace the judge call itself produced. Excluded from all matching.
+  judgeTraceId String?  @map("judge_trace_id") @db.Uuid
+  costUsd      Decimal? @map("cost_usd") @db.Decimal(18, 9)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([ruleId, spanId], map: "uq_eval_rule_scores_rule_span")
+  @@index([teamId, createdAt(sort: Desc)], map: "idx_eval_rule_scores_team_time")
+  @@index([spanId], map: "idx_eval_rule_scores_span")
+  @@map("eval_rule_scores")
 }

@@ -269,6 +269,128 @@ data: [DONE]
 
 ---
 
+### Tools and prompt lineage on a completion
+
+Three request fields decide which tools a completion sees and which prompt version
+its trace is attributed to. All three work on both the streaming and
+non-streaming path.
+
+**`prompt`** — send a stored-prompt reference instead of `messages` and the
+gateway renders it, fills the model from the version's bound model when `model` is
+omitted, and **auto-attaches the tools bound to that prompt alias**. Definitions
+only: the model's `tool_calls` come back for you to run.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-4o-mini","prompt":{"name":"weather-brief","alias":"production","variables":{"city":"Lisbon"}}}'
+```
+
+Response (status 200) — the bound `get_weather` was attached without being named:
+
+```json
+{
+  "id": "chatcmpl-EEycj62PkeMuhzY0dJR3Q7yGnq6zC",
+  "model": "gpt-4o-mini-2024-07-18",
+  "object": "chat.completion",
+  "created": 1787238337,
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "call_pZdUAL1IodyxSgups7E1Sgbd",
+            "type": "function",
+            "function": { "name": "get_weather", "arguments": "{\"city\":\"Lisbon\"}" }
+          }
+        ]
+      },
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": { "prompt_tokens": 69, "completion_tokens": 15, "total_tokens": 84 }
+}
+```
+
+**`tool_refs`** — name catalog tools by name when you send your own `messages`.
+Each ref follows an `alias` (default `production`) **or** pins one exact
+`version`; both on one ref is a 400. The gateway resolves them to schemas and
+merges them with any inline `tools` (a shared name is a 400). See
+[tool resolve](../tools/resolve.mdx) for the resolution rules.
+
+**`prompt_version_id`** — for a caller that rendered the prompt itself and is
+sending the rendered `messages`. It stamps the request row and the `llm` span, so a
+client-side tool loop is as traceable back to its prompt as a server-rendered
+`prompt` reference is. It must be a prompt version in your own team.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "model": "gpt-4o-mini",
+        "messages": [{"role":"user","content":"What'\''s the weather in Lisbon right now? Answer in one short sentence."}],
+        "tool_refs": [{"name":"get_weather","alias":"production"}],
+        "prompt_version_id": "d884bfc0-2f5f-4858-b119-682ff7caebbb"
+      }'
+```
+
+Response (status 200):
+
+```json
+{
+  "id": "chatcmpl-EEyYkncDTfsaGVXWa5faoRUjKylu1",
+  "model": "gpt-4o-mini-2024-07-18",
+  "object": "chat.completion",
+  "created": 1787238090,
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "call_mpQNFOQ4A0ZQ0O8ydYAq2ZWv",
+            "type": "function",
+            "function": { "name": "get_weather", "arguments": "{\"city\":\"Lisbon\"}" }
+          }
+        ]
+      },
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": { "prompt_tokens": 69, "completion_tokens": 15, "total_tokens": 84 }
+}
+```
+
+An id that is not one of your team's prompt versions is rejected rather than
+dropped, so a caller asking for lineage finds out when it is not happening:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "prompt_version_id '11111111-1111-1111-1111-111111111111' is not a prompt version in this team."
+  }
+}
+```
+
+Sending `prompt_version_id` alongside `prompt` is allowed and ignored: the
+reference renders here, so the gateway already knows the exact version it used.
+Neither field ever reaches the provider.
+
+The SDKs fill all of this in for you — `gateway.runPromptWithTools(rendered)` /
+`gateway.run_prompt_with_tools(rendered)` derive the model, messages, refs and
+version id from one render result. See
+[Call a prompt's tools from the SDK](https://docs.acruxcore.com/docs/guides/call-a-prompts-tools-from-the-sdk).
+
+---
+
 ### Error responses
 
 Enforcement happens before any provider call. Observed shapes:

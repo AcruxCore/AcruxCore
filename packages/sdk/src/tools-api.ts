@@ -12,6 +12,7 @@ import type {
   ToolAnalyticsResult,
   ToolDetail,
   ToolExecuteResult,
+  ToolRef,
   ToolListResult,
   ToolSyncResult,
   ToolVersionDetail,
@@ -218,13 +219,18 @@ export class ToolsNamespace {
   /**
    * Resolves catalog refs to schemas plus executor types, in one request.
    *
-   * @param refs - `[{ name, alias? }]`; `alias` defaults to `production` server-side.
+   * @param refs - `[{ name, alias? }]`, or `[{ name, version }]` to pin one exact build.
+   *   `alias` defaults to `production` server-side; a ref carrying both is a 400.
    * @returns One {@link ResolvedTool} per ref, in input order.
    * @throws {acruxcoreError} `API_ERROR` with `statusCode` 404 when any ref does not
    *   resolve; `body.error.refs` names every failure.
    */
-  async resolve(refs: { name: string; alias?: string }[]): Promise<ResolvedTool[]> {
-    const payload = refs.map((r) => ({ name: r.name, ...(r.alias ? { alias: r.alias } : {}) }));
+  async resolve(refs: ToolRef[]): Promise<ResolvedTool[]> {
+    const payload = refs.map((r) => ({
+      name: r.name,
+      ...(r.alias ? { alias: r.alias } : {}),
+      ...(r.version !== undefined ? { version: r.version } : {}),
+    }));
     const response = await this.client._request(
       'POST',
       '/tools/resolve',

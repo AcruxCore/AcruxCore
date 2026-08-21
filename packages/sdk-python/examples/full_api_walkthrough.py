@@ -46,7 +46,8 @@ async def main() -> None:
         model = "gpt-4o-mini"
 
         # ══════════════════════════════════════════════════════════════════
-        #  PROMPTS (14 methods)
+        #  PROMPTS (14 methods; its 6 tool-binding methods run in the TOOLS
+        #  section below, which is where a tool to bind first exists)
         # ══════════════════════════════════════════════════════════════════
 
         tag("prompts.create")
@@ -126,7 +127,7 @@ async def main() -> None:
         print("  ✓ deleted imported prompt")
 
         # ══════════════════════════════════════════════════════════════════
-        #  TOOLS (12 methods)
+        #  TOOLS (12 methods) + the 6 prompt→tool binding methods
         # ══════════════════════════════════════════════════════════════════
 
         tag("tools.create")
@@ -170,6 +171,46 @@ async def main() -> None:
         tag("tools.promote_alias")
         tool_alias = await hub.tools.promote_alias(tool_id, "production", tv1.version_number)
         print(f'  ✓ promoted tool alias "{tool_alias.alias}" → v{tool_alias.version_number}')
+
+        # ──────────────────────────────────────────────────────────────────
+        #  Prompt→tool bindings — which tools a prompt calls is decided here,
+        #  per prompt alias. A commit decides the template only.
+        # ──────────────────────────────────────────────────────────────────
+
+        tag("prompts.set_tool_binding")
+        default_binding = await hub.prompts.set_tool_binding(
+            prompt_id, tool_id, tool_alias="production"
+        )
+        print(
+            f'  ✓ default binding → "{default_binding.tool_alias}" '
+            f"(v{default_binding.resolved_version_number})"
+        )
+
+        tag("prompts.set_alias_tool_binding")
+        staging_binding = await hub.prompts.set_alias_tool_binding(
+            prompt_id, "staging", tool_id, pinned_version_number=tv1.version_number
+        )
+        print(f"  ✓ staging pinned to tool v{staging_binding.pinned_version_number}")
+
+        tag("prompts.list_tool_bindings")
+        prompt_bindings = await hub.prompts.list_tool_bindings(prompt_id)
+        customised = [a for a in prompt_bindings.aliases if a.customised]
+        print(
+            f"  ✓ {len(prompt_bindings.default)} default binding(s), "
+            f"{len(customised)} customised alias(es)"
+        )
+
+        tag("prompts.remove_alias_tool_binding")
+        await hub.prompts.remove_alias_tool_binding(prompt_id, "staging", tool_id)
+        print("  ✓ staging returned to the default binding")
+
+        tag("prompts.reset_alias_tool_bindings")
+        await hub.prompts.reset_alias_tool_bindings(prompt_id, "staging")
+        print("  ✓ staging reset (no-op when it owns no rows)")
+
+        tag("prompts.remove_tool_binding")
+        await hub.prompts.remove_tool_binding(prompt_id, tool_id)
+        print("  ✓ default binding removed")
 
         tag("tools.analytics")
         tool_analytics = await hub.tools.analytics()

@@ -68,7 +68,7 @@ beforeEach(async () => {
     eval_results, experiment_runs, experiments, dataset_examples, datasets,
     span_payloads, spans, traces, budgets, gateway_requests,
     gateway_model_fallbacks, gateway_models, virtual_keys, provider_connections,
-    prompt_version_tools, prompt_aliases, prompt_versions, prompts,
+    prompt_tool_bindings, prompt_aliases, prompt_versions, prompts,
     notification_preferences, email_log, audit_log, api_keys,
     team_members, teams, users
   RESTART IDENTITY CASCADE`;

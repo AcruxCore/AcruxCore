@@ -23,9 +23,107 @@ called out in the week it ships and in the SDK release notes.
 
 ---
 
+## Week of 17 August 2026
+
+### Major
+
+#### Run a prompt's client tools without writing a dispatcher
+
+- Both SDKs take `client_tools` / `clientTools`: tool name to the function that runs it.
+- Nothing is written to the catalog, so the tool's definition and its binding's pin stay put.
+- A missing implementation stops the run before the first model call, naming the tool.
+  [Guide →](/docs/guides/call-a-prompts-tools-from-the-sdk)
+
+#### Connect a tool to a prompt by choosing its alias
+
+- Bind a catalog tool to a prompt in one write — no version to commit, no alias to promote.
+- Give one prompt alias its own tools: a different build of one, or none at all.
+- Breaking: `POST /prompts/:id/versions` no longer accepts `tools` — bind the tool instead.
+  [Guide →](/docs/guides/connect-a-tool-to-a-prompt)
+
+#### See what a render will really call
+
+- `render()` returns `toolResolutions`: the tool alias followed, its version, and the binding.
+- `source` reads `alias` when the prompt alias has its own binding, `default` when inherited.
+  [Reference →](/api-reference/prompts/tool-bindings)
+
+#### See when a tool's code changed
+
+- New `GET /api/v1/tools/:id/audit` trail: version commits, code-sync pushes, and binding changes.
+  [Reference →](/api-reference/audit)
+
+#### Evaluation rules: real models, real filters, custom judge prompts
+
+- Judge model is now a required dropdown — no more silent fallback to an unregistered model.
+- Match filter's model, prompt+alias, and tags fields are now dropdowns, not free text.
+- Use one of your own Prompts as the judge's grading template instead of the built-in one.
+  [Guide →](/docs/guides/score-live-traffic-with-an-evaluation-rule)
+
+#### Run a prompt's tools in two lines
+
+- `gateway.runPromptWithTools(rendered)` takes a render result and fills in the rest.
+- Model, messages, bound tools and prompt lineage all come from the render, not the call site.
+- A binding pinned to an exact tool version now travels as a pin, not as its alias.
+  [Guide →](/docs/guides/call-a-prompts-tools-from-the-sdk)
+
+#### A tool-using agent can stream its answer
+
+- `stream: true` on the tool loop yields typed events: `content`, `tool_call`, `tool_result`, `done`.
+- Same trace as an unstreamed run — one `llm` span per round, tool spans nested under it.
+- Both SDKs, and on `runPromptWithTools` too.
+  [Guide →](/docs/guides/call-a-prompts-tools-from-the-sdk)
+
+#### Client-side tool loops keep their prompt lineage
+
+- **Fixed** — SDK loops produced `llm` spans with no link back to the prompt version.
+- `POST /gateway/chat/completions` now accepts `prompt_version_id` next to your own `messages`.
+- Both SDKs send it automatically; a version from another team is rejected, not stamped.
+  [Reference →](/api-reference/gateway)
+
+#### Both SDKs released as 0.9.0
+
+- `npm i @acruxcoreai/sdk@0.9.0` and `pip install -U acruxcore` carry everything above.
+- Breaking: committing a version no longer takes `tools` — bind the tool to the prompt.
+- Breaking: the `tool-routes` endpoints are gone; the binding methods replace them.
+  [Guide →](/docs/guides/call-a-prompts-tools-from-the-sdk)
+
+### Minor
+
+- `tool_refs` and `POST /tools/resolve` now take `version` to pin one exact tool build.
+- `GET /traces/facets` now also returns distinct resolved models, for filter pickers.
+- **Corrected** — comparison posts now reflect AcruxCore's rule-based online evaluation. [Reference →](/blog/acruxcore-vs-opik)
+- New tutorial: a travel planner that picks between three tools, or calls none at all.
+  [Tutorial →](/docs/tutorials/build-a-travel-planner-agent)
+- Nine screenshots across the tutorials and guides now show the current alias-keyed Tools tab.
+- **Fixed** — Python tabs in five tutorials called Node method names and Node argument shapes.
+- **Fixed** — the Python/Node tabs for scripting gateway setup called two methods no SDK has.
+- **Fixed** — the API reference's `datasets.createFromFeedback` example named a method that does not exist.
+- **Fixed** — the trace-tagging guide still used the flat `get_trace()`/`getTrace()` removed in SDK 0.7.0.
+- Four tutorials now ship a runnable `setup_prompt.py` for the prompt-and-tool setup step.
+- **Fixed** — a malformed JSON body now returns 400 `INVALID_JSON`, not 500, so clients stop retrying it.
+- **Fixed** — an oversized body returns 413 and an unsupported `Content-Encoding` returns 415.
+- The travel-planner tutorial now shows every setup step twice: the dashboard click-through and the code.
+- Tool parameters: a checkbox now writes `additionalProperties: false`, no raw JSON needed.
+- **Fixed** — "Back to builder" on a tool version no longer looks dead; it greys out with a reason.
+- New guide: where a tool's definition should live, and what changes in traces and deploys.
+  [Guide →](/docs/guides/define-a-tool-in-code-or-in-the-catalog)
+- That guide also ships as a runnable notebook, with a preflight check for a brand new account.
+  [Guide →](/docs/guides/define-a-tool-in-code-or-in-the-catalog)
+- The travel-planner tutorial now ships as a runnable notebook too, written for a first-timer.
+  [Tutorial →](/docs/tutorials/build-a-travel-planner-agent)
+- **Fixed** — the New tool dialog implied its description always reaches the model.
+
+---
+
 ## Week of 10 August 2026
 
 ### Major
+
+#### Score live traffic automatically with evaluation rules
+
+- Create a standing rule that judges matching production calls with no run and no click.
+- Filter by prompt, model, or tag; sample and cap spend; get alerted below a threshold.
+  [Guide →](/docs/guides/score-live-traffic-with-an-evaluation-rule)
 
 #### OTLP trace ingestion
 
@@ -50,8 +148,6 @@ called out in the week it ships and in the SDK release notes.
 - **Fixed** — OTLP exports with input/output data could fail on retry instead of succeeding.
 - **Fixed** — LLM cost showed blank for provider-dated model ids (e.g. `gpt-4o-mini-2024-07-18`).
 - New tutorials: trace a [CrewAI crew](/docs/tutorials/trace-a-crewai-trip-planner) and an [OpenAI Agents SDK](/docs/tutorials/trace-an-openai-agents-sdk-triage-system) app over OTLP.
-### Minor
-
 - **Blog tag and author pages** (`/blog/tags`, `/blog/authors`, and their archives) are now marked `noindex` so they stop competing with the posts they link to in search results.
 - **Corrected** — comparison posts now state the gateway's spend caps and rate limits correctly. [Reference →](/blog/acruxcore-vs-mlflow)
 - **Compare** — a row where a competitor lands in the same place as AcruxCore is now marked "Tie". [Reference →](https://acruxcore.com/compare)

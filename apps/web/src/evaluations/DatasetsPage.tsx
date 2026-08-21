@@ -17,7 +17,7 @@ export function DatasetsPage() {
   return (
     <div className="flex flex-col gap-5">
       <header>
-        <h1 className="text-[22px] font-semibold tracking-tight">Evaluations</h1>
+        <h1 className="text-[22px] font-semibold tracking-tight">Datasets</h1>
         <p className="mt-1 text-[13px] text-muted">
           Datasets built from feedback, and the experiments run against them.
         </p>

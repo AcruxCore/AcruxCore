@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { PromptAlias } from '@prisma/client';
-import type { ResolvedToolDefinition } from '../versions';
+import type { ResolvedToolDefinition, ToolResolutionDetail } from '../versions';
 
 // ── DB row type ───────────────────────────────────────────────────────────────
 
@@ -40,6 +40,8 @@ export interface AliasDetail {
 /** Internal: alias row joined with version details, used during render. */
 export interface AliasWithVersion {
   aliasId: string;
+  /** The parent prompt's id — the scope for `PromptToolAliasRoute` lookups (Q50). */
+  promptId: string;
   alias: string;
   versionId: string;
   versionNumber: number;
@@ -54,6 +56,14 @@ export interface RenderResponse {
   messages: Array<{ role: string; content: string }>;
   /** OpenAI-shaped tool definitions attached to the resolved version (FAQ Q4). */
   tools: ResolvedToolDefinition[];
+  /**
+   * Per-tool resolution metadata, parallel to `tools` (never merged into it — those
+   * definitions are sometimes forwarded as-is to a model provider). Reports which
+   * tool alias (or pin) each attachment actually resolved through this alias
+   * (phase-4-faq Q50), including whether a live routing override — not the version's
+   * own baked-in attachment — decided it.
+   */
+  toolResolutions: ToolResolutionDetail[];
   /** The resolved version's bound default model publicName, or null (#12) — so
    * callers can run the prompt on its bound model without hardcoding one. */
   model: string | null;
@@ -74,6 +84,8 @@ export interface RenderedWithVersion {
   versionNumber: number;
   /** OpenAI-shaped tool definitions attached to the resolved version (FAQ Q4). */
   tools: ResolvedToolDefinition[];
+  /** Per-tool resolution metadata, parallel to `tools` — see {@link RenderResponse.toolResolutions}. */
+  toolResolutions: ToolResolutionDetail[];
   /** The resolved version's bound default model publicName, or null (#12). */
   model: string | null;
 }

@@ -11,6 +11,8 @@ MISSING_BASE_URL: ErrorCode = "MISSING_BASE_URL"
 NETWORK_ERROR: ErrorCode = "NETWORK_ERROR"
 API_ERROR: ErrorCode = "API_ERROR"
 MISSING_VARIABLES: ErrorCode = "MISSING_VARIABLES"
+#: Arguments the SDK can reject before sending (e.g. a tool binding with no target).
+VALIDATION_ERROR: ErrorCode = "VALIDATION_ERROR"
 #: A decorated function's type hints could not be converted to a JSON Schema.
 TOOL_SCHEMA_ERROR: ErrorCode = "TOOL_SCHEMA_ERROR"
 #: A tool call needs a ``dispatch`` function and none was supplied.

@@ -135,6 +135,57 @@ describe('POST /tools/resolve', () => {
     expect(JSON.stringify(res.body)).not.toContain('initial import');
   });
 
+  it('resolves an exact version instead of an alias, ignoring where the alias points', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const toolId = await sync(apiKey, { name: 'get_weather', description: 'v1 description.' });
+    await sync(apiKey, { name: 'get_weather', description: 'v2 description.', parametersSchema: { ...paramsSchema, title: 'v2' } });
+
+    // production now points at v2; the ref asks for v1 by number.
+    const res = await request(app)
+      .post('/api/v1/tools/resolve')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ refs: [{ name: 'get_weather', version: 1 }] })
+      .expect(200);
+
+    expect(res.body.data[0]).toEqual({
+      toolId,
+      versionNumber: 1,
+      executorType: 'client',
+      function: { name: 'get_weather', description: 'v1 description.', parameters: paramsSchema },
+    });
+  });
+
+  it('rejects a ref carrying both alias and version', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    await sync(apiKey, { name: 'get_weather', description: 'A.' });
+
+    await request(app)
+      .post('/api/v1/tools/resolve')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ refs: [{ name: 'get_weather', alias: 'production', version: 1 }] })
+      .expect(400)
+      .then((r) => {
+        expect(r.body.error.code).toBe('VALIDATION_ERROR');
+        expect(r.body.error.message).toMatch(/alias.*version|version.*alias/i);
+      });
+  });
+
+  it('names the version, not a phantom alias, when a pinned ref does not resolve', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    await sync(apiKey, { name: 'get_weather', description: 'A.' });
+
+    const res = await request(app)
+      .post('/api/v1/tools/resolve')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ refs: [{ name: 'get_weather', version: 99 }] })
+      .expect(404);
+
+    expect(res.body.error.code).toBe('TOOL_REF_NOT_FOUND');
+    expect(res.body.error.refs).toEqual([{ name: 'get_weather', version: 99 }]);
+    expect(res.body.error.message).toContain('99');
+    expect(res.body.error.message).not.toContain('production');
+  });
+
   it("404s on another team's tool", async () => {
     const a = await signupTestUserWithApiKey(app);
     const b = await signupTestUserWithApiKey(app);

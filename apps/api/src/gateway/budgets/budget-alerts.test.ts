@@ -6,6 +6,9 @@ import { addUserToTeam, authedAgent, type AuthedAgent } from '../../test-utils';
 import { drainEmailQueue, getEmailQueue } from '../../email/email.queue';
 import { getMemoryTransport } from '../../email/memory.transport';
 import type { EmailMessage } from '../../email/email.types';
+import { GatewayService } from '../completions/gateway.service';
+import { GatewayRepository } from '../completions/gateway.repository';
+import { ConnectionsRepository } from '../connections/connections.repository';
 
 const app = createApp();
 
@@ -178,6 +181,27 @@ describe('budget alerts', () => {
 
     // The alert is additive — it does not replace the enforcement.
     await callGateway(apiKey, model, 402);
+  });
+
+  it('names the contributing rule when a call carrying contributingSource crosses the cap', async () => {
+    // `callGateway` drives the HTTP endpoint, which has no way to set an
+    // internal-only `GatewayCallContext` field, so this calls the service
+    // seam directly — the same way an online-eval judge run will later reach
+    // it through `judge()`.
+    const { owner, model } = await setupTeam();
+    const budgetId = await createBudget(owner);
+    await seedSpend(budgetId, JUST_UNDER_LIMIT);
+
+    const gateway = new GatewayService(new GatewayRepository(), new ConnectionsRepository());
+    await gateway.complete(
+      { teamId: owner.teamId, contributingSource: 'online evaluation rule "Cap tester"' },
+      { model, messages: [{ role: 'user', content: 'hi' }], temperature: 0, max_tokens: 1 },
+    );
+
+    const messages = await flush();
+    expect(messages).toHaveLength(1);
+    expect(messages[0].subject).toContain('exhausted');
+    expect(messages[0].html).toContain('online evaluation rule &quot;Cap tester&quot;');
   });
 
   it('alerts again in the next period once resets_at has rolled forward', async () => {

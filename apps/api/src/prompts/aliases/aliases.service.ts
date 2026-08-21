@@ -225,13 +225,13 @@ export class AliasesService {
     alias: string,
     variables: Record<string, unknown>,
   ): Promise<RenderResponse> {
-    const { messages, tools, model, versionId, versionNumber } = await this.resolveAndRender(
+    const { messages, tools, toolResolutions, model, versionId, versionNumber } = await this.resolveAndRender(
       teamId,
       promptName,
       alias,
       variables,
     );
-    return { messages, tools, model, versionId, versionNumber };
+    return { messages, tools, toolResolutions, model, versionId, versionNumber };
   }
 
   /**
@@ -278,12 +278,13 @@ export class AliasesService {
         resolved.messages as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
         variables,
       );
-      const tools = await this.toolResolver.resolveForVersion(resolved.versionId);
+      const { tools, resolutions } = await this.toolResolver.resolveForAlias(resolved.promptId, alias);
       return {
         messages,
         versionId: resolved.versionId,
         versionNumber: resolved.versionNumber,
         tools,
+        toolResolutions: resolutions,
         model: resolved.model,
       };
     } catch (err) {

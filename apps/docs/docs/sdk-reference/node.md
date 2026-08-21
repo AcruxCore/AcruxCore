@@ -298,7 +298,8 @@ const { content, traceId } = await hub.gateway.runToolLoop({
 | `tools` | `AcruxTool[]` | no | Tools from [`acrux.tool`](#acruxtool). Run locally; reconciled with the catalog. |
 | `toolDefs` | `ToolDefinition[]` | no | Raw OpenAI definitions, sent inline; route to `dispatch`. |
 | `toolRefs` | `{ name; alias? }[]` | no | Catalog refs. `http` executor runs on the platform. |
-| `dispatch` | `(name, args) => unknown \| Promise<unknown>` | no | Fallback runner. Required for `toolDefs` and for `client` refs with no matching `tools` entry. |
+| `clientTools` | `Record<string, (args) => unknown>` | no | Catalog tool name → the function that runs it, for `client` executors. Writes nothing to the catalog; keeps the binding's alias or pin. Called with one arguments object. |
+| `dispatch` | `(name, args) => unknown \| Promise<unknown>` | no | Fallback runner. Required for `toolDefs`, and the fallback for a `client` ref with no matching `tools` or `clientTools` entry. |
 | `sync` | `boolean` | no | Reconcile `tools` with the catalog first. Default `true`. |
 | `maxIterations` | `number` | no | Max round-trips. Default `10`. |
 | `temperature` | `number` | no | Sampling temperature. |
@@ -309,7 +310,39 @@ const { content, traceId } = await hub.gateway.runToolLoop({
 | `promptVersionId` | `string` | no | Stamped on every `llm` span this loop records. |
 
 **Returns** `RunToolLoopResult` (`{ content, messages, iterations, stoppedAtLimit, traceId? }`).
-Throws `MISSING_DISPATCH` before the first model call if a tool has no runner.
+Throws `MISSING_DISPATCH` before the first model call if a tool has no runner — the
+message names the tool and, when `clientTools` was passed, lists the keys it held.
+
+## `gateway.runPromptWithTools(rendered, options?)`
+
+The same loop, with everything it needs taken from a render result: the version's bound
+model, the rendered messages, the tools bound to this prompt alias, and the version id
+that stamps trace lineage. Your code adds the user's turn and the tools it runs itself.
+
+```typescript
+const rendered = await hub.prompts.render('travel-planner', 'production', { today });
+const messages = [...rendered.messages, { role: 'user', content: question }];
+
+const result = await hub.gateway.runPromptWithTools(rendered, {
+  messages,
+  clientTools: { search_flights: searchFlights },
+});
+```
+
+| Parameter | Type | Required | Notes |
+|-----------|------|----------|-------|
+| `rendered` | `RenderResult` | yes | From [`prompts.render`](#promptsrendername-alias-variables). Positional. |
+| `model` | `string` | no | Overrides the version's bound model. |
+| `messages` | `Message[]` | no | Overrides the rendered messages. |
+| `toolRefs` | `{ name; alias? }[]` | no | Overrides the prompt's bindings entirely. `[]` runs the prompt with no tools. |
+| `clientTools` | `Record<string, (args) => unknown>` | no | The prompt's `client`-executor tools, keyed by name. Its `http` tools need no entry — the platform runs them. |
+| `stream` | `boolean` | no | `true` returns the same event stream as `runToolLoop`. |
+
+Every other option of `runToolLoop` is accepted and passes straight through. A prompt
+with no tools bound still runs, as a plain completion.
+
+**Returns** the same `RunToolLoopResult`, or an event stream when `stream: true`.
+Throws `VALIDATION_ERROR` when the version has no bound model and no `model` was passed.
 
 ## `traces.ingest(input)`
 

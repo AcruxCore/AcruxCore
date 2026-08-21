@@ -86,7 +86,7 @@ each platform compare to AcruxCore," not as one single eight-way race:
 | Tracing | Span-based (SDK-wrapped) | Span-based (SDK-wrapped) | Flat Request Log by default; Traces are separate and opt-in | Single rich span, OTel semantic conventions; Playground relays via GraphQL, not a real call | Span tree via `track_openai()`; confirmed the Playground alone produces no trace | Single span, automatic; prompt-version link needs a separate explicit SDK call | Not reached this run — manual-log endpoint 500'd on a missing self-host env var | Span-based (gateway auto-traces every call) |
 | Where the platform sits | Beside the request path | Beside the request path | Beside the request path | Beside — Playground proxies via GraphQL, SDK calls go direct | Beside — ingests a trace after your own call | **In** the request path — a real AI Gateway | **In** the request path by design — but BYOK routing 501'd / hard-forwarded to the wrong host on this build | **In** the request path — every call routes through it |
 | Guardrails / spend controls | None found | None found | None found | None found | Topic + PII guardrails, per project | Safety + PII + custom guardrails, and spend Budgets, per gateway endpoint | Rate Limit Rules (not content-inspecting); no PII/safety guardrail found | Spend caps and RPM/TPM limits enforced pre-call; no content guardrail |
-| Evaluation | Datasets + Experiments, hand-authored examples | Datasets + Experiments, hand-authored examples | A/B test on live traffic + ad-hoc model-comparison grid | Dataset from a trace span + LLM/Code evaluator split; a templated-prompt experiment failed on a variable-shape mismatch | Dataset from any trace + inline creation; UI experiments defer to the SDK; plus dedicated Test suites and rule-based Online evaluation | Built-in LLM-as-judge + custom code judges; hit a real dataset-list-page bug | Datasets curated from Request rows; none existed since no call was ever logged this run | Feedback-driven datasets only — no hand-authored examples |
+| Evaluation | Datasets + Experiments, hand-authored examples | Datasets + Experiments, hand-authored examples | A/B test on live traffic + ad-hoc model-comparison grid | Dataset from a trace span + LLM/Code evaluator split; a templated-prompt experiment failed on a variable-shape mismatch | Dataset from any trace + inline creation; UI experiments defer to the SDK; plus dedicated Test suites | Built-in LLM-as-judge + custom code judges; hit a real dataset-list-page bug | Datasets curated from Request rows; none existed since no call was ever logged this run | Feedback-driven datasets, no hand-authored examples; plus rule-based online evaluation — a judge scoring every matching live trace |
 | Feedback → Playground → save loop | Feedback + Dataset + Annotation Queue exist, but no trace → Playground jump | Full loop: trace → Playground (pre-loaded) → Save as prompt | Full loop: Request → Playground (pre-loaded) → Save Template | Not run as this exact loop — see [Phoenix vs AcruxCore](/blog/acruxcore-vs-phoenix) | Not run as this exact loop — see [Opik vs AcruxCore](/blog/acruxcore-vs-opik) | Not run as this exact loop — see [MLflow vs AcruxCore](/blog/acruxcore-vs-mlflow) | Not run as this exact loop — see [Helicone vs AcruxCore](/blog/acruxcore-vs-helicone) | Full loop, plus an automated version: feedback → drafted candidates → judged run → Promote to production |
 | Tool calling | Shows up as spans only; no catalog | Playground-scoped tool schema; no catalog | Per-request tool-call count; no catalog | Ad-hoc JSON Schema per Playground prompt; nothing executes or gets measured | No tool-catalog concept at all; its "Agent playground" needs a live process wired in by code | MCP Registry — catalogs external MCP *servers* by manifest, doesn't execute an individual tool | No tool-catalog concept found in any nav section checked | Dedicated versioned Tool Catalog + a Tool analytics page |
 | Developer experience | `wrap_openai` + `@traceable` around your own OpenAI call | Drop-in OpenAI wrapper, built on OpenTelemetry | `pl_client.openai` wrapper around your own OpenAI call | `register()` + `OpenAIInstrumentor()`; no server-side render call, so template logic gets hand-duplicated in Python | `track_openai()` wraps a client you already own; trace appears once it's called | `load_prompt()` + `start_span()` + a separate `link_prompt_versions_to_trace()` call | No stored-prompt SDK call; a direct provider call plus a manual log() call that 500'd this run | `hub.prompts.render` + `hub.gateway.chat` — no direct call to a provider at all, Node and Python |
@@ -397,8 +397,9 @@ and real bugs to show for it, not just descriptions of the UI.
   (also from any trace, with inline "create new dataset" in the same dialog): alongside
   that, it has dedicated **Test suites** (import cases from a CSV/JSON or the SDK, framed
   explicitly as pre-deployment regression testing) and **Online evaluation** — rules that
-  score live production traffic automatically, something no other platform in this whole
-  post does.
+  score live production traffic automatically. AcruxCore has its own rule-based version of
+  the latter (see the AcruxCore entry below); Test suites remain something no other
+  platform in this whole post has.
 - **MLflow** ships built-in **LLM-as-judge** and custom code judges from a clean empty
   state, plus dataset creation from the UI or "Add to dataset" from any trace. We hit one
   real bug of our own here: after naming and creating a dataset, its list page kept showing
@@ -418,7 +419,9 @@ and real bugs to show for it, not just descriptions of the UI.
   Phoenix, and Opik all let you build a dataset in a couple of minutes regardless of
   production traffic. The underlying design — evaluate from real signal, not synthetic
   examples — is arguably the more useful long-term model once a team has real usage to draw
-  on.
+  on. Separately, AcruxCore also has rule-based **online evaluation**: a rule with a judge
+  (built-in or a custom prompt) scores every matching live trace as it lands, the same idea
+  as Opik's Online evaluation above.
 
 <details>
 <summary>See the actual screens: evaluation on all eight platforms (Helicone had nothing to show)</summary>
@@ -440,7 +443,7 @@ and real bugs to show for it, not just descriptions of the UI.
 ![Phoenix's Evaluators overview diagram: Dataset → Task (Playground Prompt) → Evaluator (LLM or Code) → Score](/img/comparison/phoenix/px-12-evaluators-overview.png)
 ![Phoenix's experiment view over the new dataset — the saved prompt selected, but "Dataset is missing input for variables: company, is_vip, tickets, question" because the dataset stored rendered messages, not template variables](/img/comparison/phoenix/px-11-experiment-run.png)
 
-**Opik** — a dataset-bound experiment run, plus the Test suites and Online evaluation pages no other platform here has an equivalent of:
+**Opik** — a dataset-bound experiment run, plus the Test suites page no other platform here has an equivalent of, and the Online evaluation page that AcruxCore also has a rule-based version of:
 
 ![Opik's Playground with the dataset loaded, a variant bound to the dataset's message field, and a real experiment result row showing the model's reply next to the dataset's expected output and feedback score](/img/comparison/opik/op-08-experiment-run.png)
 ![Opik's empty Test suites page, offering Upload a file (CSV/JSON) or Use SDK as the two ways to define test cases with expected outputs and scoring](/img/comparison/opik/op-11-test-suites.png)
@@ -878,8 +881,6 @@ platform does, not just a different button for the same idea.
 **Opik**
 - **Guardrails** — a Topic guardrail and a PII guardrail, configurable per project, with a
   ready-to-run `opik.guardrails` snippet.
-- **Online evaluation** — rules that score live production traffic automatically, not just
-  a dataset you run on demand.
 - **Test suites** — a dedicated pre-deployment regression object, distinct from Experiments,
   importable from a CSV/JSON file.
 - No login wall at all on self-host — straight into a working project.
@@ -966,9 +967,8 @@ known and sharper with more evidence:
    accumulate. We still think feedback-driven evaluation is the more trustworthy long-term
    model, not a weaker one — the bootstrapping gap is the thing worth fixing, not the design
    choice behind it. LangSmith's Pairwise Experiments, PromptLayer's ad-hoc
-   model-comparison grid, and Opik's dedicated Test suites and Online evaluation are all
-   things AcruxCore doesn't have an equivalent for today, independent of where the dataset
-   comes from.
+   model-comparison grid, and Opik's dedicated Test suites are all things AcruxCore
+   doesn't have an equivalent for today, independent of where the dataset comes from.
 
 **Worth adopting:**
 - Opik's or MLflow's guardrails (a Topic/PII check on input or output) would close the

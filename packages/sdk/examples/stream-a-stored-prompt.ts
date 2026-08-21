@@ -7,7 +7,7 @@
  * so `renderPrompt` has something to fetch. The flow here is fetch → stream:
  *
  *   1. `renderPrompt(name, 'production', vars)` returns the templated `messages`
- *      (and the version's attached `tools`, which this example intentionally does
+ *      (and the alias's bound `tools`, which this example intentionally does
  *      NOT forward — see below).
  *   2. `gateway.stream({ ... })` returns an async iterable. Each chunk carries
  *      a `delta.content` string; concatenating them rebuilds the full answer as it

@@ -298,7 +298,8 @@ print(result.content, result.trace_id)
 | `tools` | `list[Callable]` | no | Functions decorated with [`@acrux.tool`](#acruxtool). Run locally; reconciled with the catalog. |
 | `tool_defs` | `list[ToolDefinition]` | no | Raw OpenAI definitions, sent inline; route to `dispatch`. |
 | `tool_refs` | `list[{name, alias?}]` | no | Catalog refs. `http` executor runs on the platform. |
-| `dispatch` | `Callable[[str, dict], Any]` | no | `(name, args) -> result` (sync or async). Required for `tool_defs` and for `client` refs with no matching decorated tool. |
+| `client_tools` | `dict[str, Callable]` | no | Catalog tool name → the function that runs it, for `client` executors. Writes nothing to the catalog; keeps the binding's alias or pin. Called with the schema's own field names as keywords. |
+| `dispatch` | `Callable[[str, dict], Any]` | no | `(name, args) -> result` (sync or async). Required for `tool_defs`, and the fallback for a `client` ref with no decorated tool and no `client_tools` entry. |
 | `sync` | `bool` | no | Reconcile `tools` with the catalog first. Default `True`. |
 | `max_iterations` | `int` | no | Max round-trips. Default `10`. |
 | `temperature` | `float` | no | Sampling temperature. |
@@ -309,7 +310,44 @@ print(result.content, result.trace_id)
 | `prompt_version_id` | `str` | no | Stamped on every `llm` span this loop records. |
 
 **Returns** `RunToolLoopResult(content, messages, iterations, stopped_at_limit, trace_id)`.
-Raises `MISSING_DISPATCH` before the first model call if a tool has no runner.
+Raises `MISSING_DISPATCH` before the first model call if a tool has no runner — the
+message names the tool and, when `client_tools` was passed, lists the keys it held.
+Raises `VALIDATION_ERROR`, also before the first call, when a `client_tools` function
+cannot receive its tool's required arguments.
+
+## `gateway.run_prompt_with_tools(rendered, ...)`
+
+The same loop, with everything it needs taken from a render result: the version's
+bound model, the rendered messages, the tools bound to this prompt alias, and the
+version id that stamps trace lineage. Your code adds the user's turn and the tools it
+runs itself.
+
+```python
+rendered = await hub.prompts.render("travel-planner", "production", {"today": "2026-08-21"})
+messages = [*rendered.messages, {"role": "user", "content": question}]
+
+result = await hub.gateway.run_prompt_with_tools(
+    rendered,
+    messages=messages,
+    client_tools={"search_flights": search_flights},
+)
+```
+
+| Parameter | Type | Required | Notes |
+|-----------|------|----------|-------|
+| `rendered` | `RenderResult` | yes | From [`prompts.render`](#promptsrendername-alias-variablesnone). Positional. |
+| `model` | `str` | no | Overrides the version's bound model. |
+| `messages` | `list[dict]` | no | Overrides the rendered messages. |
+| `tool_refs` | `list[{name, alias?}]` | no | Overrides the prompt's bindings entirely. `[]` runs the prompt with no tools. |
+| `client_tools` | `dict[str, Callable]` | no | The prompt's `client`-executor tools, keyed by name. Its `http` tools need no entry — the platform runs them. |
+| `stream` | `bool` | no | `True` returns the same event stream as `run_tool_loop`. |
+
+Every other keyword of `run_tool_loop` is accepted and passes straight through.
+A prompt with no tools bound still runs, as a plain completion.
+
+**Returns** the same `RunToolLoopResult`, or an event stream when `stream=True`.
+Raises `VALIDATION_ERROR` when the version has no bound model and no `model=` was
+passed.
 
 ## `traces.ingest(input)`
 

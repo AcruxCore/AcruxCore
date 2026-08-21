@@ -115,6 +115,9 @@ export function Sidebar() {
       <Item to="/evaluations" icon={ic(<><path d="M9 11V7a3 3 0 0 1 6 0v4" /><rect x="5" y="11" width="14" height="10" rx="2" /></>)}>
         Datasets
       </Item>
+      <Item to="/evaluations/rules" icon={ic(<><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></>)}>
+        Rules
+      </Item>
       </nav>
     </aside>
   );

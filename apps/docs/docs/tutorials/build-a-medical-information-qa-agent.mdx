@@ -343,15 +343,13 @@ check_safety_policy: tool_id=6f366a23-4b59-4847-911e-dd1ff98ab313 v4 committed=F
 `committed=False` on the second run is the actual proof: nothing moved. The compliance
 team's wording survived a real re-sync of the exact same docstring-less code.
 
-## 4. Attach the tools to the prompt
+## 4. Connect the tools to the prompt
 
-Open the prompt's **Tools** tab and check all four:
+Open the prompt's **Tools** tab and use **+ Connect a tool from the catalog** four
+times, once per tool. Each one saves as you pick it, in the **default** column, so
+both `production` and `staging` call all four straight away:
 
-![The prompt's Tools tab with check_safety_policy, search_prescribing_info, get_inquiry, and get_drug_profile checked under "Attach to next commit"](/img/tutorials/build-a-medical-information-qa-agent/07-prompt-attach-tools.png)
-
-Committing lands all four on a new version, `production` and `staging` both pointing at it:
-
-![The prompt page showing production and staging both at v2, with the Tools tab listing all four attached tools](/img/tutorials/build-a-medical-information-qa-agent/08-prompt-tools-attached-v2.png)
+![The prompt's Tools tab with check_safety_policy, get_drug_profile, get_inquiry and search_prescribing_info connected, all in the default column that both aliases inherit](/img/tutorials/build-a-medical-information-qa-agent/07-prompt-attach-tools.png)
 
 ## 5. Shape every answer with `response_format`: three real scenarios
 
@@ -617,13 +615,13 @@ Same script, three different real questions — the only thing that changed is w
 </TabItem>
 <TabItem value="node" label="Node">
 
-One `runToolLoop()` call with both `toolRefs`/`dispatch` and `responseFormat` set. Since
-Node's tools need `toolRefs` + a `dispatch` function rather than a decorator, both are
-passed on the same call; the result's `content` is the typed JSON. The script shows both
+One `runToolLoop()` call with `toolRefs`, `clientTools` and `responseFormat` set. Since
+Node has no decorator-and-sync shortcut here, the catalog refs and the functions that run
+them are passed on the same call; the result's `content` is the typed JSON. The script shows both
 the dict form (zero dependencies) and the zod form (typed, with field descriptions the
 model reads); the SDK accepts either interchangeably.
 
-The full script wires all four tools via `toolRefs` + `dispatch`, defines both the dict
+The full script wires all four tools via `toolRefs` + `clientTools`, defines both the dict
 and zod forms of `MedicalInformationAnswer`, and calls `runToolLoop()` once with both set
 — see [run_agent.mjs on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/medical-information-qa/typescript/run_agent.mjs)
 for the complete source.

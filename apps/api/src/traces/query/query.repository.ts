@@ -91,7 +91,10 @@ export class TraceQueryRepository {
    * `created_at` as `[from, to)`. Span-level filters (`model`, `promptVersionId`,
    * the span half of `q`) use EXISTS sub-queries so each trace appears once.
    * Tags/metadata (T8) filter the trace row directly via GIN-indexed containment
-   * (@>), independent of the span-level q filter.
+   * (@>), independent of the span-level q filter. `ruleId`/`minScore`/`maxScore`
+   * (online eval) each add their own `EXISTS (SELECT 1 FROM eval_rule_scores …)`
+   * sub-query over `trace_id`, so a trace with multiple scored spans still
+   * appears once.
    *
    * @param teamId - Team scope.
    * @param filters - Resolved (camelCase) filters incl. page/limit.
@@ -139,6 +142,21 @@ export class TraceQueryRepository {
     }
     if (filters.metadata && Object.keys(filters.metadata).length > 0) {
       conds.push(Prisma.sql`t.metadata @> ${JSON.stringify(filters.metadata)}::jsonb`);
+    }
+    if (filters.ruleId) {
+      conds.push(
+        Prisma.sql`EXISTS (SELECT 1 FROM eval_rule_scores ers WHERE ers.trace_id = t.id AND ers.rule_id = ${filters.ruleId}::uuid)`,
+      );
+    }
+    if (filters.minScore !== undefined) {
+      conds.push(
+        Prisma.sql`EXISTS (SELECT 1 FROM eval_rule_scores ers WHERE ers.trace_id = t.id AND ers.score >= ${filters.minScore})`,
+      );
+    }
+    if (filters.maxScore !== undefined) {
+      conds.push(
+        Prisma.sql`EXISTS (SELECT 1 FROM eval_rule_scores ers WHERE ers.trace_id = t.id AND ers.score <= ${filters.maxScore})`,
+      );
     }
 
     return this.runList(Prisma.join(conds, ' AND '), filters.page, filters.limit);

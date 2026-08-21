@@ -1,0 +1,615 @@
+---
+title: Call a prompt's tools from the SDK
+description: Every way to run the tools bound to a prompt — the two-line shortcut, the loop by hand, one raw completion, and the no-SDK HTTP body — streaming or not.
+sidebar_position: 24
+keywords: [tool loop, run_prompt_with_tools, streaming tools, tool refs, prompt tools]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Call a prompt's tools from the SDK
+
+**What you'll build:** one prompt with a tool bound to it, called four different
+ways — including a streamed run where model text and tool activity arrive as
+separate, typed events.
+
+A prompt and its tools are configured together on the platform: you bind a tool
+to a prompt alias once, and every render of that alias returns the tool's
+resolved definition alongside the templated messages. What's left is running it —
+and there are four shapes for that, from a two-line call to a raw HTTP body with
+no SDK at all. This page covers where a tool comes from, how it reaches a prompt,
+and every way to call it.
+
+## 1. Where the tool comes from
+
+Four origins. All four produce a tool in the catalog, and nothing further down
+this page depends on which one you used.
+
+| Origin | How | Executor it can produce |
+|---|---|---|
+| Decorated function, auto-synced | `@acrux.tool` on the function, then `tools=[fn]` — the loop syncs it on first use | always `client` |
+| Decorated function, synced explicitly | `tools.sync([...])` / `tools.syncOne(spec)`, on your schedule | always `client` |
+| Dashboard | Tool → new version, pick the executor in the form | `client` or `http` |
+| API or SDK | `tools.commitVersion(..., { executor })` | `client` or `http` |
+
+[Build and attach a tool](./build-and-attach-a-tool) teaches the first two, and
+[Manage a tool's lifecycle via the SDK](./manage-a-tools-lifecycle-via-the-sdk)
+the last one.
+[Define a tool in code or in the catalog](./define-a-tool-in-code-or-in-the-catalog)
+compares the first origin against the last two, and says which to pick. Two
+things about that table matter for everything below:
+
+**Who runs the tool body.** An `http` executor runs **on the platform**: nothing
+executes in your process, so it works even when your app is a browser tab or a
+cron job. A `client` executor needs your code — the decorated function via
+`tools=[fn]`, an entry in `client_tools`, or a `dispatch` function. A decorator can
+only ever produce a `client` executor, by definition: the code is in your process.
+
+**Origin does not affect binding.** A tool created in the dashboard and a tool
+synced from code bind to a prompt identically and resolve identically. If you
+created yours the other way, the rest of this page still applies unchanged.
+
+:::caution[`tools=[fn]` writes to the catalog]
+Passing a decorated function whose name already exists in the catalog **commits a
+new version of that tool and moves its alias** — that is what "auto-synced"
+means. If you only want to *run* an existing tool, pass it in `client_tools`
+instead — that writes nothing, and keeps the binding's alias or pin. Otherwise a
+script that meant to call `get_weather` quietly replaces it.
+:::
+
+## 2. How the tool reaches the prompt
+
+[Connect a tool to a prompt](./connect-a-tool-to-a-prompt) covers this in full.
+The three facts a caller needs:
+
+- **The binding lives on the prompt alias, not the version.** Committing a new
+  prompt version does not re-bind anything, and promoting an alias carries its
+  bindings along.
+- **`render()` returns both the definitions and the decisions.** `tools` holds the
+  OpenAI-shaped definitions the model needs; `toolResolutions` holds one entry per
+  tool saying which alias (or pin) it followed and which version that resolved to.
+- **`source` says who decided.** `'alias'` means the alias being rendered has a
+  binding of its own for this tool; `'default'` means it inherited the prompt's
+  default binding.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/prompts/weather-brief/production/render" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"variables":{"city":"Lisbon"}}'
+```
+
+```json
+{
+  "messages": [
+    { "role": "user", "content": "What's the weather in Lisbon right now? Answer in one short sentence." }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get the current weather conditions for a city.",
+        "parameters": {
+          "type": "object",
+          "required": ["city"],
+          "properties": { "city": { "type": "string", "description": "City name, e.g. Lahore." } }
+        }
+      }
+    }
+  ],
+  "toolResolutions": [
+    { "name": "get_weather", "alias": "production", "versionNumber": 3, "source": "default" }
+  ],
+  "model": "gpt-4o-mini",
+  "versionId": "d884bfc0-2f5f-4858-b119-682ff7caebbb",
+  "versionNumber": 4
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const r = await hub.prompts.render('weather-brief', 'production', { city: 'Lisbon' });
+
+for (const t of r.toolResolutions) {
+  console.log(t.name, t.alias ?? `pinned v${t.pinnedVersionNumber}`, `→ v${t.versionNumber}`, t.source);
+}
+// get_weather production → v3 default
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+r = await hub.prompts.render("weather-brief", "production", {"city": "Lisbon"})
+
+for t in r.tool_resolutions:
+    which = t.alias or f"pinned v{t.pinned_version_number}"
+    print(t.name, which, f"-> v{t.version_number}", t.source)
+# get_weather production -> v3 default
+```
+
+</TabItem>
+</Tabs>
+
+## 3. Four ways to call it
+
+### Shape 1 — `run_prompt_with_tools`, the one to reach for
+
+Two lines. Model, messages, tools and prompt lineage all come from the render, so
+nothing is restated.
+
+<Tabs groupId="lang">
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const r = await hub.prompts.render('weather-brief', 'production', { city: 'Lisbon' });
+const result = await hub.gateway.runPromptWithTools(r);
+
+console.log(result.content);   // The weather in Lisbon right now is sunny with a temperature of 28°C.
+console.log(result.iterations); // 2
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+r = await hub.prompts.render("weather-brief", "staging", {"city": "Lisbon"})
+result = await hub.gateway.run_prompt_with_tools(r)
+
+print(result.content)     # The weather in Lisbon right now is sunny with 21°C.
+print(result.iterations)  # 2
+```
+
+</TabItem>
+</Tabs>
+
+Four things get filled in for you:
+
+| Filled in | From |
+|---|---|
+| the model | the prompt version's bound model |
+| the messages | the render |
+| the tools | one ref per `toolResolutions` entry |
+| the prompt version id | the resolved version, so every `llm` span links back to it |
+
+That last one is the reason this method exists. Writing the loop by hand works
+fine without it — and silently loses the link between your traces and the prompt
+that produced them, because nothing fails.
+
+Every option is still available and always wins over the derived value, so
+`runPromptWithTools(r, { model: 'gpt-4o' })` overrides the bound model, and
+`toolRefs: []` runs the prompt with no tools at all.
+
+Two behaviours worth knowing:
+
+- **A pinned binding travels as a pin.** If the binding pins tool v2 rather than
+  following an alias, the call sends `{name, version: 2}` — so a pinned prompt
+  keeps running the build it was pinned to, even after the alias moves on.
+- **A prompt with no tools bound still runs.** You get a plain completion, not an
+  error. The name reads slightly wrong there, but erroring would fail an
+  unconfigured prompt for no reason.
+
+If the prompt version has no bound model and you pass none, the call raises
+rather than guessing:
+
+```text
+acruxcore: this prompt version has no bound model, so there is nothing to run it
+on. Either bind a default model on the prompt version, or pass model= to
+run_prompt_with_tools().
+```
+
+### Shape 2 — the loop by hand
+
+Reach for `runToolLoop` when the loop itself needs changing: a subset of the
+bound tools, an extra tool that is not bound at all, a different
+`maxIterations`, or a `responseFormat` to shape the final answer.
+
+<Tabs groupId="lang">
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const result = await hub.gateway.runToolLoop({
+  model: r.model,
+  messages: r.messages,
+  toolRefs: r.toolResolutions.map((t) => ({ name: t.name, alias: t.alias })),
+  promptVersionId: r.versionId,   // easy to forget; costs trace lineage
+  maxIterations: 3,
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+result = await hub.gateway.run_tool_loop(
+    r.model,
+    r.messages,
+    tool_refs=[{"name": t.name, "alias": t.alias} for t in r.tool_resolutions],
+    prompt_version_id=r.version_id,   # easy to forget; costs trace lineage
+    max_iterations=3,
+)
+```
+
+</TabItem>
+</Tabs>
+
+### Shape 3 — one request, one completion
+
+`chat` is a single request by contract. Tool calls come back **raw** and nothing
+is dispatched. Reach for it when you own the loop, or when you want to look at
+what the model asked for before running anything.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "model": "gpt-4o-mini",
+        "messages": [{"role":"user","content":"What'\''s the weather in Lisbon right now? Answer in one short sentence."}],
+        "tool_refs": [{"name":"get_weather","alias":"production"}],
+        "prompt_version_id": "d884bfc0-2f5f-4858-b119-682ff7caebbb"
+      }'
+```
+
+```json
+{
+  "id": "chatcmpl-EEyYkncDTfsaGVXWa5faoRUjKylu1",
+  "model": "gpt-4o-mini-2024-07-18",
+  "object": "chat.completion",
+  "created": 1787238090,
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "call_mpQNFOQ4A0ZQ0O8ydYAq2ZWv",
+            "type": "function",
+            "function": { "name": "get_weather", "arguments": "{\"city\":\"Lisbon\"}" }
+          }
+        ]
+      },
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": { "prompt_tokens": 69, "completion_tokens": 15, "total_tokens": 84 }
+}
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const once = await hub.gateway.chat({
+  model: r.model,
+  messages: r.messages,
+  toolRefs: r.toolResolutions.map((t) => ({ name: t.name, alias: t.alias })),
+  promptVersionId: r.versionId,
+});
+
+console.log(once.finishReason);          // 'tool_calls'
+console.log(once.message.tool_calls);    // nothing has run yet
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+once = await hub.gateway.chat(
+    r.model,
+    r.messages,
+    tool_refs=[{"name": t.name, "alias": t.alias} for t in r.tool_resolutions],
+    prompt_version_id=r.version_id,
+)
+
+print(once.finish_reason)                 # 'tool_calls'
+print(once.message.get("tool_calls"))     # nothing has run yet
+```
+
+</TabItem>
+</Tabs>
+
+A `tool_ref` names one build in one of two ways — `alias` to follow, or `version`
+to pin. Sending both is a 400, because a ref carrying both names two different
+builds:
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "a ref takes either alias or version, not both." } }
+```
+
+`prompt_version_id` on the body is what links this call's `llm` span back to the
+prompt you rendered. It must be a prompt version in your own team; anything else
+is a 400 rather than a silent drop, so a caller asking for lineage learns when it
+isn't happening.
+
+### Shape 4 — the prompt-reference body, no SDK
+
+Send the prompt *reference* instead of messages and the gateway renders it and
+auto-attaches its bound tools in one request. Definitions only — nothing is
+executed. Reach for it from a language with no AcruxCore SDK.
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "model": "gpt-4o-mini",
+        "prompt": {"name":"weather-brief","alias":"production","variables":{"city":"Lisbon"}}
+      }'
+```
+
+No `prompt_version_id` needed here: the gateway did the rendering, so it already
+knows which version it used and stamps the lineage itself.
+
+## Why name tools at call time at all?
+
+The question every reader arrives with: if the tools are attached to the prompt,
+why do shapes 2 and 3 list them again?
+
+Because `chat` is one request and one completion by contract, and the loop belongs
+to the caller. Something has to tell the SDK which tools may run in your process —
+the platform cannot reach into it. Shapes 2 and 3 make that explicit;
+`run_prompt_with_tools` is exactly the shortcut that closes the gap, by reading it
+off the render for you.
+
+## Streaming
+
+Both loops stream. `stream: true` gives you a **typed event stream** rather than
+raw text, because a UI needs to render "running `get_weather`…" as its own state,
+not as more model text:
+
+<Tabs groupId="lang">
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+for await (const event of await hub.gateway.runPromptWithTools(r, { stream: true })) {
+  if (event.type === 'content') process.stdout.write(event.delta);
+  else if (event.type === 'tool_call') console.log(`\n[calling ${event.name}]`);
+  else if (event.type === 'tool_result') console.log(`[${event.name} done]`);
+  else if (event.type === 'done') console.log(`\ntrace: ${event.result.traceId}`);
+}
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+async for event in await hub.gateway.run_prompt_with_tools(r, stream=True):
+    if event.type == "content":
+        print(event.delta, end="", flush=True)
+    elif event.type == "tool_call":
+        print(f"\n[calling {event.name}]")
+    elif event.type == "tool_result":
+        print(f"[{event.name} done]")
+    elif event.type == "done":
+        print(f"\ntrace: {event.result.trace_id}")
+```
+
+</TabItem>
+</Tabs>
+
+Four event types, discriminated on `type`:
+
+| Event | Carries |
+|---|---|
+| `content` | `delta`, `round` |
+| `tool_call` | `id`, `name`, `arguments` (already parsed), `round` |
+| `tool_result` | `id`, `name`, `result` or `error`, `round` |
+| `done` | `result` — the same object the unstreamed call returns |
+
+Notice neither snippet supplies any tool code. You need to **only** when a bound
+tool's version has a `client` executor — code that lives in your process, which the
+platform cannot run for you. Every tool with an `http` executor runs on the platform,
+so the call above is the whole thing.
+
+When a bound tool does need you, name it in `client_tools`:
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python">
+
+```python
+result = await hub.gateway.run_prompt_with_tools(
+    rendered, client_tools={'get_weather': get_weather}
+)
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const result = await hub.gateway.runPromptWithTools(rendered, {
+  clientTools: { get_weather: getWeather },
+});
+```
+
+</TabItem>
+</Tabs>
+
+The map holds only the tools you have to run, so a prompt with two `http` tools and
+one `client` tool has exactly one entry. Each function is called with the tool
+schema's own field names — as keywords in Python, as one object in Node — and
+nothing is written to the catalog, so the binding's alias or pin is untouched.
+
+**The key is the catalog tool's name; the value is any function you like.** The key
+is the whole wiring — it is what the model asks for and what the SDK looks up — so
+it has to match the catalog exactly, including case. The function's own name takes
+no part, which is why the Node example above maps `get_weather` to `getWeather`
+without ceremony. [Define a tool in code or in the catalog](./define-a-tool-in-code-or-in-the-catalog)
+walks through that wiring in full.
+
+Ask for a `client`-executor tool without an implementation and the loop stops before
+it calls the model, naming the tool and listing what you did pass:
+
+```
+acruxcore: tool 'get_weather' has a client executor, so something has to run it,
+but no implementation was supplied. Pass it in client_tools={'get_weather': ...},
+or pass dispatch=. client_tools held: ['get_wather'].
+```
+
+`dispatch` is still there, and still the right answer for one case: a tool set you
+only learn at runtime, where you cannot write the keys in advance.
+
+Two details that decide how you render this:
+
+**Text arrives from every round, not only the last.** Whether a round is the final
+one is only knowable once its `finish_reason` arrives, so holding a round back
+would withhold the final answer — the one thing streaming exists to deliver. Every
+`content` event carries `round`, and a mid-loop preamble ("let me check the
+weather") is always followed by a `tool_call` event on the same round. A UI that
+wants to hide preambles can render them as a transient state and replace them when
+`tool_call` arrives.
+
+**The trace is identical either way.** One `llm` span per round, with each round's
+tool spans nested under it, and the same prompt lineage stamped on all of them —
+streamed or not. Streaming does not cost you observability.
+
+If you'd rather own the loop, `chat`/`stream` also accept tools while streaming.
+There, `tool_calls` arrive as fragments and you assemble them yourself: correlate
+by `index`, take `id` and `function.name` from whichever frame carries them, and
+concatenate `function.arguments` across frames into one JSON string. Nothing is
+dispatched — that's your job.
+
+<Tabs groupId="lang">
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const parts = new Map();
+for await (const chunk of await hub.gateway.stream({ model: r.model, messages: r.messages, toolRefs })) {
+  for (const tc of chunk.delta.tool_calls ?? []) {
+    const part = parts.get(tc.index ?? 0) ?? { id: '', name: '', arguments: '' };
+    if (tc.id) part.id = tc.id;
+    if (tc.function?.name) part.name = tc.function.name;
+    if (tc.function?.arguments) part.arguments += tc.function.arguments;
+    parts.set(tc.index ?? 0, part);
+  }
+}
+// parts now holds { id, name, arguments: '{"city":"Lisbon"}' } — run it yourself.
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+parts: dict[int, dict] = {}
+async for chunk in await hub.gateway.stream(r.model, r.messages, tool_refs=tool_refs):
+    for tc in (chunk.delta.get("tool_calls") or []):
+        part = parts.setdefault(tc.get("index", 0), {"id": "", "name": "", "arguments": ""})
+        if tc.get("id"):
+            part["id"] = tc["id"]
+        fn = tc.get("function") or {}
+        if fn.get("name"):
+            part["name"] = fn["name"]
+        if fn.get("arguments"):
+            part["arguments"] += fn["arguments"]
+# parts now holds {"id": ..., "name": ..., "arguments": '{"city":"Lisbon"}'} — run it yourself.
+```
+
+</TabItem>
+</Tabs>
+
+The prompt-reference body streams too, with the same fragment handling and the
+same "nothing is executed" rule — add `"stream": true` to the shape-4 request.
+
+## Which shape to use
+
+| Shape | Streams? | Dispatches tools? | Tools from the binding? | Needs the SDK? |
+|---|---|---|---|---|
+| `run_prompt_with_tools(r)` | yes | yes | yes | yes |
+| `run_tool_loop(...)` | yes | yes | only what you pass | yes |
+| `chat` / `stream` with tools | yes | no | only what you pass | no — plain HTTP works |
+| `{"prompt": {...}}` body | yes | no | yes | no |
+
+Start at the top row. Move down only when you need something it does not give
+you: a changed loop, a raw completion to inspect, or no SDK at all.
+
+## Runnable scripts
+
+**The smallest possible streamed loop** — a render, a stream, a `print`, and nothing
+else. Useful as the thing you copy before you have decided how to render any of it:
+
+- [Python](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/call-a-prompts-tools-from-the-sdk/python/stream_minimal.py)
+- [TypeScript](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/call-a-prompts-tools-from-the-sdk/typescript/stream_minimal.mjs)
+
+```bash
+export ACRUXCORE_API_KEY=acx_sk_...
+export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
+
+python stream_minimal.py
+```
+
+```text
+ToolLoopToolCallEvent(id='call_gpBrjx…', name='get_weather', arguments={'city': 'Lisbon'}, round=0, type='tool_call')
+ToolLoopToolResultEvent(id='call_gpBrjx…', name='get_weather', round=0, result={'location': 'Lisbon, Portugal', 'temperature_c': 26, …}, error=None, type='tool_result')
+ToolLoopContentEvent(delta='The', round=1, type='content')
+ToolLoopContentEvent(delta=' weather', round=1, type='content')
+ToolLoopContentEvent(delta=' in', round=1, type='content')
+…
+ToolLoopDoneEvent(result=RunToolLoopResult(content='The weather in Lisbon right now is 26°C with patchy rain nearby.', iterations=2, stopped_at_limit=False, trace_id='e785caf9-…'), type='done')
+```
+
+**Streaming, formatted** — the same loop with the events rendered as a user would see
+them, and a `client_tools` entry so the `client`-executor alias runs too. It prints how long
+after the tool returned the first word of the answer appeared, which is the part a
+blocking loop makes you wait for:
+
+- [Python](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/call-a-prompts-tools-from-the-sdk/python/stream_prompt_tools.py)
+- [TypeScript](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/call-a-prompts-tools-from-the-sdk/typescript/stream_prompt_tools.mjs)
+
+```bash
+export ACRUXCORE_API_KEY=acx_sk_...
+export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
+
+python stream_prompt_tools.py
+PROMPT_ALIAS=staging CITY=Karachi python stream_prompt_tools.py
+```
+
+```text
+prompt   weather-brief@production  (version 4)
+model    gpt-4o-mini
+tools    get_weather@production
+────────────────────────────────────────────────────────────────────────
+
+  ⚙  calling get_weather({'city': 'Lisbon'}) …
+  ✓  get_weather → {'location': 'Lisbon, Portugal', 'temperature_c': 26, 'condition': 'Patchy rain nearby'}
+
+The weather in Lisbon right now is 26°C with patchy rain nearby.
+────────────────────────────────────────────────────────────────────────
+rounds   2
+trace    be771f0a-ae3a-41c5-8924-a8d379a91b23
+first event                    1174 ms  (a tool call, or text)
+first token of the answer      2657 ms
+  … after the last tool          800 ms
+whole loop                     2977 ms
+```
+
+**All four shapes, side by side** against the same prompt:
+
+- [Python](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/call-a-prompts-tools-from-the-sdk/python/run_prompt_tools.py)
+- [TypeScript](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/call-a-prompts-tools-from-the-sdk/typescript/run_prompt_tools.mjs)
+- [Bash / curl](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/call-a-prompts-tools-from-the-sdk/bash/stream_prompt_tools.sh) — the no-SDK path
+
+Both default to `weather-brief` / `get_weather` from
+[Connect a tool to a prompt](./connect-a-tool-to-a-prompt); point them at your own
+with `PROMPT_NAME` and `PROMPT_ALIAS`. Running against the `production` alias
+exercises an `http` executor (the platform runs the tool) and `staging` a `client`
+one (the function in the script runs it) — the calling code is identical either way.
+
+## What's next
+
+- [Connect a tool to a prompt](./connect-a-tool-to-a-prompt) — how the binding
+  this page reads from gets set up, including pinning.
+- [Using sessions and traces](./using-sessions-and-traces) — where the spans a
+  tool loop produces show up, and how to group several loops into one session.
+- API details: see **Gateway** and **Tools** in the [API Reference](/api-reference).

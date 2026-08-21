@@ -1,0 +1,25 @@
+meta {
+  name: Set Default Binding
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{baseUrl}}/api/v1/prompts/{{promptId}}/tools/{{toolId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "tool_alias": "production"
+  }
+}

@@ -158,7 +158,7 @@ await hub.tools.commitVersion(tool2.id, {
 
 ## 2. Create the prompt over the API
 
-The prompt's system message is what turns two tools into a ReAct-style agent: it tells the model to reason before acting, names both tools, and says when to reach for each. The version attaches both tools by id, so a single render call returns everything the loop needs.
+The prompt's system message is what turns two tools into a ReAct-style agent: it tells the model to reason before acting, names both tools, and says when to reach for each. Binding both tools to the prompt means a single render call returns everything the loop needs.
 
 :::tip[Other ways to create prompts]
 You can also author prompts in the [dashboard's visual editor](../guides/version-a-prompt), or declare tools in code with [`acrux.tool`](../guides/build-and-attach-a-tool) and have the first run auto-create the prompt.
@@ -178,14 +178,30 @@ curl -X POST "$ACRUXCORE_BASE_URL/prompts/6611c5f6-7f34-4e5e-b3b1-cb325c8070bd/v
     "messages": [
       {"role":"system","content":"You are a financial research assistant. Reason step by step about what the question actually needs before answering. Use the finance_research tool to look up recent Yahoo Finance news for a stock ticker, and the get_todays_date tool whenever the question depends on today'"'"'s date (relative dates, whether markets are open, and similar). Only call a tool when its result is genuinely needed, then give a clear final answer grounded in what the tools returned."},
       {"role":"user","content":"{{ question }}"}
-    ],
-    "tools": [{"toolId":"c6ffbbff-7e5f-4e6e-acbe-1fd1a027632f"},{"toolId":"d0a800d5-a484-4d4f-a9e2-05a715775682"}]
+    ]
   }'
 ```
 
 ```json
 {"id":"53df8bc8-0d4a-4c00-91c5-bfa7e9c8bbf4","promptId":"6611c5f6-7f34-4e5e-b3b1-cb325c8070bd","versionNumber":1,"variables":["question"],"model":null,"aliases":[{"alias":"production","versionNumber":1},{"alias":"staging","versionNumber":1}]}
 ```
+
+Now connect the two tools. A binding is a live setting on the prompt rather than
+part of a version, so this is one `PUT` per tool and there is nothing to commit
+afterwards:
+
+```bash
+for TOOL in c6ffbbff-7e5f-4e6e-acbe-1fd1a027632f d0a800d5-a484-4d4f-a9e2-05a715775682; do
+  curl -X PUT "$ACRUXCORE_BASE_URL/prompts/6611c5f6-7f34-4e5e-b3b1-cb325c8070bd/tools/$TOOL" \
+    -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+    -d '{"tool_alias":"production"}'
+done
+```
+
+Each binding lands as the prompt's default, so every alias of the prompt — including
+the two the first commit just created — calls both tools. See
+[Connect a tool to a prompt](../guides/connect-a-tool-to-a-prompt) for giving one
+alias a different build.
 
 No `model` is bound on the version — that field points at the gateway's model registry, and this page never touches the gateway. The model id (`gpt-4o-mini`) is hardcoded in the scripts below instead, exactly like the OpenRouter model id in [Build a RAG agent without the gateway](./build-a-rag-agent-without-the-gateway).
 
@@ -218,31 +234,34 @@ That `tools` array is already OpenAI's exact `tools[].function` shape — nothin
 </TabItem>
 <TabItem value="python-sdk" label="Python (SDK)">
 
-`hub.prompts.create()` creates the shell, then `hub.prompts.commitVersion()` attaches the messages and tools. Use the tool ids from Step 3:
+`hub.prompts.create()` creates the shell, `hub.prompts.commit_version()` stores the messages, and `hub.prompts.set_tool_binding()` connects each tool. Use the tool ids from Step 3:
 
 ```python
 from acruxcore import AcruxCore
 
 async with AcruxCore() as hub:
     # Create the prompt shell
-    prompt = await hub.prompts.create({
-        "name": "react-agent-finance",
-        "description": "ReAct-style finance research agent, called directly against OpenAI (no gateway).",
-    })
+    prompt = await hub.prompts.create(
+        "react-agent-finance",
+        description="ReAct-style finance research agent, called directly against OpenAI (no gateway).",
+    )
 
-    # Commit a version with messages and tools
-    version = await hub.prompts.commitVersion(prompt.id, {
-        "messages": [
+    # Commit a version with the messages — the template only
+    version = await hub.prompts.commit_version(
+        prompt.id,
+        messages=[
             {"role": "system", "content": "You are a financial research assistant. Reason step by step about what the question actually needs before answering. Use the finance_research tool to look up recent Yahoo Finance news for a stock ticker, and the get_todays_date tool whenever the question depends on today's date (relative dates, whether markets are open, and similar). Only call a tool when its result is genuinely needed, then give a clear final answer grounded in what the tools returned."},
             {"role": "user", "content": "{{ question }}"},
         ],
-        "tools": [
-            {"toolId": "c6ffbbff-7e5f-4e6e-acbe-1fd1a027632f"},
-            {"toolId": "d0a800d5-a484-4d4f-a9e2-05a715775682"},
-        ],
-    })
+    )
+
+    # Connect both tools — the default binding, inherited by every alias
+    for tool_id in ("c6ffbbff-7e5f-4e6e-acbe-1fd1a027632f", "d0a800d5-a484-4d4f-a9e2-05a715775682"):
+        await hub.prompts.set_tool_binding(prompt.id, tool_id, tool_alias="production")
     print(f"prompt_id={prompt.id} v{version.version_number}")
 ```
+
+Full script: [`setup_prompt.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/react-agent/python/setup_prompt.py).
 
 ```json
 {"id":"53df8bc8-0d4a-4c00-91c5-bfa7e9c8bbf4","promptId":"6611c5f6-7f34-4e5e-b3b1-cb325c8070bd","versionNumber":1,"variables":["question"],"model":null,"aliases":[{"alias":"production","versionNumber":1},{"alias":"staging","versionNumber":1}]}
@@ -276,7 +295,7 @@ That `tools` array is already OpenAI's exact `tools[].function` shape — nothin
 </TabItem>
 <TabItem value="node-sdk" label="Node (SDK)">
 
-Same shape. `hub.prompts.create()` creates the shell, then `hub.prompts.commitVersion()` attaches the messages and tools:
+Same shape. `hub.prompts.create()` creates the shell, `hub.prompts.commitVersion()` stores the messages, and `hub.prompts.setToolBinding()` connects each tool:
 
 ```typescript
 import { acruxcore } from '@acruxcoreai/sdk';
@@ -289,17 +308,18 @@ const prompt = await hub.prompts.create({
   description: "ReAct-style finance research agent, called directly against OpenAI (no gateway).",
 });
 
-// Commit a version with messages and tools
+// Commit a version with the messages — the template only
 const version = await hub.prompts.commitVersion(prompt.id, {
   messages: [
     { role: "system", content: "You are a financial research assistant. Reason step by step about what the question actually needs before answering. Use the finance_research tool to look up recent Yahoo Finance news for a stock ticker, and the get_todays_date tool whenever the question depends on today's date (relative dates, whether markets are open, and similar). Only call a tool when its result is genuinely needed, then give a clear final answer grounded in what the tools returned." },
     { role: "user", content: "{{ question }}" },
   ],
-  tools: [
-    { toolId: "c6ffbbff-7e5f-4e6e-acbe-1fd1a027632f" },
-    { toolId: "d0a800d5-a484-4d4f-a9e2-05a715775682" },
-  ],
 });
+
+// Connect both tools — the default binding, inherited by every alias
+for (const toolId of ["c6ffbbff-7e5f-4e6e-acbe-1fd1a027632f", "d0a800d5-a484-4d4f-a9e2-05a715775682"]) {
+  await hub.prompts.setToolBinding(prompt.id, toolId, { toolAlias: "production" });
+}
 console.log(`prompt_id=${prompt.id} v${version.versionNumber}`);
 ```
 

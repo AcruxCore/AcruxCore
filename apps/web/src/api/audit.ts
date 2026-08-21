@@ -14,3 +14,16 @@ export function useAudit(promptId: string, page: number) {
     enabled: !!promptId,
   });
 }
+
+/** Fetch a page of the tool's audit trail — its own version commits, alias
+ * promotions, and code-sync supersedes. */
+export function useToolAudit(toolId: string, page: number) {
+  return useQuery({
+    queryKey: keys.toolAudit(toolId, page),
+    queryFn: () =>
+      api<Paginated<AuditEntry>>(`/tools/${toolId}/audit`, {
+        query: { page, limit: 20 },
+      }),
+    enabled: !!toolId,
+  });
+}
