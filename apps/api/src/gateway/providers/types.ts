@@ -83,6 +83,19 @@ export interface Usage {
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens: number;
+  /**
+   * Prompt tokens the provider served from its own prefix cache, billed at a discount.
+   *
+   * This is a **subset of `prompt_tokens`, not an addition to it** — OpenAI reports it as
+   * `usage.prompt_tokens_details.cached_tokens`, and `prompt_tokens` already includes it.
+   * Cost therefore charges `prompt_tokens - cached_tokens` at the full input rate and
+   * `cached_tokens` at the discounted one (see `CACHED_INPUT_DISCOUNT` in `models.ts`).
+   *
+   * Absent when the provider does not report a cached count. Only OpenAI-shaped responses
+   * carry it today; Anthropic's `cache_read_input_tokens` needs explicit `cache_control`
+   * on the request and is not wired up yet.
+   */
+  cached_tokens?: number;
 }
 
 /**

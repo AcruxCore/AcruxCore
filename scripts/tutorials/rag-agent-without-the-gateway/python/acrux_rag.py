@@ -36,7 +36,7 @@ PROVIDER: acrux.ProviderConfig = {
     "api_key": os.environ.get("OPENROUTER_API_KEY", ""),
 }
 
-CHAT_MODEL = "openai/gpt-4o-mini"
+CHAT_MODEL = "google/gemini-3.7-flash"
 EMBED_MODEL = "openai/text-embedding-3-small"
 
 LINEAR_PROMPT = "rag-chat"

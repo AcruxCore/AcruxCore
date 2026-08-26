@@ -191,6 +191,21 @@ const alias = await hub.prompts.promoteAlias(promptId, 'production', 3);
 
 **Returns** `AliasDetail` (`{ alias, versionNumber, promptId }`).
 
+### `prompts.listAliases(promptId)`
+
+Read every alias on a prompt and the version each one points at — the read half of
+`promoteAlias`, for a deploy check or a CI guard asking "which version is `production`
+on right now?".
+
+```typescript
+for (const a of await hub.prompts.listAliases(promptId)) {
+  console.log(a.alias, '->', `v${a.versionNumber}`);
+}
+```
+
+**Returns** `AliasDetail[]`. Empty for a prompt with no committed version, since the
+first version is what mints the aliases. Added in 0.10.0.
+
 ### `prompts.exportVersion(promptId, versionNumber)`
 
 Export a version for portability (JSON blob).

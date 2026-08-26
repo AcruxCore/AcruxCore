@@ -18,6 +18,15 @@ RAG means *retrieval-augmented generation*: before you ask the model a question,
 The gateway path stores your provider key server-side and routes every call through AcruxCore — useful for budget controls, caching, and fallback routing. BYO skips that: you pass the SDK an OpenAI-compatible `base_url` and `api_key`, and it calls the endpoint directly. Your key never reaches our servers, you save a network hop, and you still get versioned prompts, a tool catalog, and full traces.
 :::
 
+:::tip[Prefer a notebook?]
+[`acrux_rag.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/rag-agent-without-the-gateway/notebook/acrux_rag.ipynb)
+is this whole page as one runnable notebook, written for a first-timer: a preflight cell that
+checks both keys — including whether your provider really serves embeddings — the index built
+step by step, a live read of the traces both answering styles produce, and four real ways to get
+BYO wrong. It renders on GitHub with its saved output, so you can read it through before running
+anything.
+:::
+
 ## 1. Store the two prompts
 
 Both answering styles need a prompt, and both belong in AcruxCore rather than hardcoded in the script — that way you can edit the wording and ship it without a redeploy. Create `rag-chat` for the linear path, with a system message that takes the retrieved passages as a `context` variable and a user message that takes the `question`.
@@ -47,7 +56,7 @@ PROVIDER: acrux.ProviderConfig = {
     "api_key": os.environ["OPENROUTER_API_KEY"],
 }
 
-CHAT_MODEL = "openai/gpt-4o-mini"
+CHAT_MODEL = "google/gemini-3.7-flash"
 EMBED_MODEL = "openai/text-embedding-3-small"
 ```
 
@@ -118,11 +127,11 @@ result = await hub.gateway.chat(
 
 Open **Traces** and the run is there — the retrieval that found the passages, then the model call that used them:
 
-![The rag-linear trace showing 2 spans and 1,064 tokens: a Retrieval span named search_docs at 1.01s, then an LLM span for openai/gpt-4o-mini at 2.97s](/img/tutorials/build-a-rag-agent-without-the-gateway/03-linear-trace.png)
+![The rag-linear trace showing 2 spans and 1,771 tokens: a Retrieval span named search_docs at 869ms, then an LLM span for google/gemini-3.7-flash at 3.56s](/img/tutorials/build-a-rag-agent-without-the-gateway/03-linear-trace.png)
 
 Expand the LLM span and the BYO call is fully accounted for — tokens, latency, and `openrouter.ai` as the provider:
 
-![The expanded LLM span showing Model openai/gpt-4o-mini, Provider openrouter.ai, Tokens 1,064, Latency 2.97s, and a "View traces for this prompt version" link](/img/tutorials/build-a-rag-agent-without-the-gateway/04-llm-span-detail.png)
+![The expanded LLM span showing Model google/gemini-3.7-flash, Provider openrouter.ai, Tokens 1,771, Latency 3.56s, and a "View traces for this prompt version" link](/img/tutorials/build-a-rag-agent-without-the-gateway/04-llm-span-detail.png)
 
 Two things worth noticing. There is no **Linked gateway request** row, because no gateway was involved. And **View traces for this prompt version** works anyway: passing `prompt_version_id` from `hub.prompts.render()` links the trace back to the exact prompt version that produced it, so you can still ask "how did v3 do?" after you ship v4.
 
@@ -157,7 +166,7 @@ result = await hub.gateway.run_tool_loop(
 
 The loop calls the model, runs whatever tools it asks for, feeds the results back, and repeats until the model stops asking. The trace shows that rhythm directly — model, tool, model:
 
-![The runToolLoop trace showing 3 spans and 1,473 tokens: an LLM span at 1.16s, a nested Tool span named search_docs at 703ms, and a second LLM span at 2.81s](/img/tutorials/build-a-rag-agent-without-the-gateway/05-agentic-trace.png)
+![The rag-agentic trace showing 3 spans and 1,962 tokens: an LLM span at 2.05s, a nested Tool span named search_docs at 909ms, and a second LLM span at 3.92s](/img/tutorials/build-a-rag-agent-without-the-gateway/05-agentic-trace.png)
 
 The tool span nests under the model call that requested it, so a loop that searched four times is four nested spans, not a flat list you have to reconstruct.
 
@@ -205,13 +214,13 @@ Call OpenRouter directly — this request never touches AcruxCore:
 curl -X POST "https://openrouter.ai/api/v1/chat/completions" \
   -H "Authorization: Bearer $OPENROUTER_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"model":"openai/gpt-4o-mini","messages":[...],"max_tokens":80}'
+  -d '{"model":"google/gemini-3.7-flash","messages":[...],"max_tokens":80}'
 ```
 
 ```json
 {
   "id": "gen-1785427905-CA5ECKBA1Pg2RJAE7mfX",
-  "model": "openai/gpt-4o-mini",
+  "model": "google/gemini-3.7-flash",
   "provider": "OpenAI",
   "choices": [
     {
@@ -240,9 +249,9 @@ curl -X POST "$ACRUXCORE_BASE_URL/traces" \
         {"spanId":"s1","name":"search_docs","kind":"retrieval","status":"ok",
          "startTime":"2026-07-30T16:11:44.000Z","endTime":"2026-07-30T16:11:44.000Z",
          "input":{"query":"How do I attach a tool?"}},
-        {"spanId":"s2","name":"openai/gpt-4o-mini","kind":"llm","status":"ok",
+        {"spanId":"s2","name":"google/gemini-3.7-flash","kind":"llm","status":"ok",
          "startTime":"2026-07-30T16:11:44.000Z","endTime":"2026-07-30T16:11:44.000Z",
-         "model":"openai/gpt-4o-mini","provider":"openrouter.ai",
+         "model":"google/gemini-3.7-flash","provider":"openrouter.ai",
          "promptVersionId":"72bed36e-6d77-425e-878c-ec534ca43b8e",
          "usage":{"promptTokens":51,"completionTokens":29,"totalTokens":80}}
       ]
@@ -284,7 +293,7 @@ async with AcruxCore() as hub:
 
     # Call OpenRouter directly — SDK reports the llm span automatically
     result = await hub.gateway.chat(
-        rendered.model or "openai/gpt-4o-mini",
+        rendered.model or "google/gemini-3.7-flash",
         rendered.messages,
         provider=PROVIDER,
         prompt_version_id=rendered.version_id,
@@ -338,7 +347,7 @@ const rendered = await hub.prompts.render("rag-chat", "production",
 
 // Call OpenRouter directly — SDK reports the llm span automatically
 const result = await hub.gateway.chat(
-  rendered.model ?? "openai/gpt-4o-mini",
+  rendered.model ?? "google/gemini-3.7-flash",
   rendered.messages,
   { provider: PROVIDER, promptVersionId: rendered.versionId,
     trace: { traceId: reported.traceId } },

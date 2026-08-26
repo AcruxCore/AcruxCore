@@ -240,6 +240,116 @@ describe('translateResourceSpans', () => {
     expect(traces[0].spans[1].parentSpanId).toBe('aa'.repeat(4));
   });
 
+  it('names the trace after its root span, trimming a trailing run id (issue #362)', () => {
+    // Every OTLP trace used to fall through to the timestamp fallback because the
+    // translator never set a name — so the trace list read as a wall of near-identical
+    // timestamps for exactly the users who wrote no AcruxCore code. The uuid suffix is
+    // trimmed so two runs of the same crew share a searchable name.
+    const traceIdHex = '3'.repeat(32);
+    const traces = translateResourceSpans([
+      {
+        resourceAttributes: [],
+        spans: [
+          {
+            traceId: traceIdHex, spanId: 'aa'.repeat(4),
+            name: 'Crew_5f1fcf48-de64-42cf-b927-5c060836053',
+            startTimeUnixNano: '1700000000000000000',
+            attributes: [kv('openinference.span.kind', 'CHAIN')],
+          },
+          {
+            traceId: traceIdHex, spanId: 'bb'.repeat(4), parentSpanId: 'aa'.repeat(4),
+            name: 'Haiku Writer._execute_core',
+            startTimeUnixNano: '1700000000100000000',
+            attributes: [kv('openinference.span.kind', 'AGENT')],
+          },
+        ],
+      },
+    ]);
+    expect(traces[0].name).toBe('Crew');
+  });
+
+  it('trims a run id embedded mid-name, not only a trailing one (issue #362)', () => {
+    // The shape CrewAI actually emits is `Crew_<uuid>.kickoff` — the run id sits in the
+    // middle, so an end-anchored trim never fired and every trace still got a unique
+    // name, which is the exact problem #362 set out to remove. Captured from a real
+    // `crewai` 1.15 export against a local gateway.
+    const traceIdHex = '4'.repeat(32);
+    const traces = translateResourceSpans([
+      {
+        resourceAttributes: [],
+        spans: [
+          {
+            traceId: traceIdHex, spanId: 'aa'.repeat(4),
+            name: 'Crew_cb0ce46d-b1a1-4a6c-bb61-93f6fbc2b95a.kickoff',
+            startTimeUnixNano: '1700000000000000000',
+            attributes: [kv('openinference.span.kind', 'CHAIN')],
+          },
+        ],
+      },
+    ]);
+    expect(traces[0].name).toBe('Crew.kickoff');
+  });
+
+  it('sets no name from a batch of orphans, because an orphan is usually a leaf', () => {
+    // OTLP flushes leaves before their still-open parents, so a span whose parent is
+    // merely absent from this batch is almost always a child of a root that arrived
+    // earlier or has not arrived yet. Naming the run after it would name the run after
+    // one of its leaves; the timestamp fallback stands until the real root turns up.
+    const traces = translateResourceSpans([
+      {
+        resourceAttributes: [],
+        spans: [
+          {
+            traceId: '4'.repeat(32), spanId: 'bb'.repeat(4), parentSpanId: 'not-in-this-batch',
+            name: 'tool-call',
+            startTimeUnixNano: '1700000000100000000',
+            attributes: [kv('openinference.span.kind', 'TOOL')],
+          },
+        ],
+      },
+    ]);
+    expect(traces[0].name).toBeUndefined();
+  });
+
+  it('picks the earliest root when a batch holds several, since a run starts first', () => {
+    const traceIdHex = '5'.repeat(32);
+    const traces = translateResourceSpans([
+      {
+        resourceAttributes: [],
+        spans: [
+          {
+            traceId: traceIdHex, spanId: 'bb'.repeat(4), name: 'later-orphan',
+            startTimeUnixNano: '1700000000500000000',
+            attributes: [kv('openinference.span.kind', 'TOOL')],
+          },
+          {
+            traceId: traceIdHex, spanId: 'aa'.repeat(4), name: 'the-run',
+            startTimeUnixNano: '1700000000000000000',
+            attributes: [kv('openinference.span.kind', 'CHAIN')],
+          },
+        ],
+      },
+    ]);
+    expect(traces[0].name).toBe('the-run');
+  });
+
+  it('sets no name when trimming leaves nothing, so the timestamp fallback still applies', () => {
+    const traces = translateResourceSpans([
+      {
+        resourceAttributes: [],
+        spans: [
+          {
+            traceId: '6'.repeat(32), spanId: 'aa'.repeat(4),
+            name: '5f1fcf48-de64-42cf-b927-5c060836053a',
+            startTimeUnixNano: '1700000000000000000',
+            attributes: [kv('openinference.span.kind', 'CHAIN')],
+          },
+        ],
+      },
+    ]);
+    expect(traces[0].name).toBeUndefined();
+  });
+
   it('reads sessionId from an OpenInference session.id attribute on any span in the trace', () => {
     const traces = translateResourceSpans([
       {

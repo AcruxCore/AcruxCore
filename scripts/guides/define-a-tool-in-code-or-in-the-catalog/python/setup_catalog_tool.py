@@ -21,6 +21,7 @@ import asyncio
 from acruxcore import AcruxCore
 
 TOOL_NAME = "get_weather_catalog"
+MODEL = "gemini-flash"        # a public name from Gateway -> Models; any model works
 PROMPT_NAME = "weather-brief-catalog"
 
 
@@ -72,7 +73,7 @@ async def main() -> None:
                         "content": "You are a weather assistant. Call the tool, then answer in one sentence.",
                     }
                 ],
-                model="gpt-4o-mini",
+                model=MODEL,
             )
             print(f"  + committed prompt v{version.version_number}")
 

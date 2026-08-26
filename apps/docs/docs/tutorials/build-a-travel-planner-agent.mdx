@@ -616,18 +616,18 @@ Three things in that text do the routing work, and they are worth copying into a
 
 `{{ today }}` is a template variable, not text. The agent needs it because `search_flights` wants a concrete date while travellers say "next Friday", and the model cannot resolve that without knowing the current date. Your code fills it in when it renders the prompt.
 
-The version also binds a default model, here `gpt-4o-mini`, so the calling code does not name a model either.
+The version also binds a default model, here `mistral-small` on an OpenRouter credential, so the calling code does not name a model either. Any model you have registered works — swapping it is a new version, not a code change.
 
 <Tabs groupId="lang">
 <TabItem value="dashboard" label="Dashboard">
 
 **Step 1 — the shell.** **Prompts → New prompt**, name it `travel-planner`.
 
-**Step 2 — version 1.** In the editor, keep one message, set its role to **SYSTEM** and paste the text above. Set the **default model** to `gpt-4o-mini`, then **Commit version**. As with tools, the first version becomes both `production` and `staging`.
+**Step 2 — version 1.** In the editor, keep one message, set its role to **SYSTEM** and paste the text above. Set the **default model** to `mistral-small`, then **Commit version**. As with tools, the first version becomes both `production` and `staging`.
 
 The editor highlights `{{ today }}` as a variable, and the header shows which aliases point at this version:
 
-![The travel planner prompt in the editor: one SYSTEM message with the today variable highlighted, default model gpt-4o-mini, production and staging both at v1](/img/tutorials/build-a-travel-planner-agent/04-system-prompt.png)
+![The travel planner prompt in the editor: one SYSTEM message with the today variable highlighted, default model mistral-small, production and staging both at v1](/img/tutorials/build-a-travel-planner-agent/04-system-prompt.png)
 
 </TabItem>
 <TabItem value="curl" label="curl">
@@ -647,7 +647,7 @@ curl -X POST $ACRUXCORE_BASE_URL/prompts/$PROMPT_ID/versions \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
   -d "$(jq -n --rawfile p system_prompt.txt \
-    '{messages: [{role: "system", content: $p}], model: "gpt-4o-mini"}')"
+    '{messages: [{role: "system", content: $p}], model: "mistral-small"}')"
 ```
 
 </TabItem>
@@ -666,7 +666,7 @@ prompt = await hub.prompts.create(
 version = await hub.prompts.commit_version(
     prompt.id,
     [{'role': 'system', 'content': SYSTEM_PROMPT}],
-    model='gpt-4o-mini',
+    model='mistral-small',
 )
 ```
 
@@ -685,7 +685,7 @@ const prompt = await hub.prompts.create({
 
 const version = await hub.prompts.commitVersion(prompt.id, {
   messages: [{ role: 'system', content: SYSTEM_PROMPT }],
-  model: 'gpt-4o-mini',
+  model: 'mistral-small',
 });
 ```
 
@@ -943,7 +943,7 @@ curl -X POST $ACRUXCORE_BASE_URL/prompts/travel-planner/production/render \
     { "name": "get_city_weather", "alias": "production", "versionNumber": 1, "source": "default" },
     { "name": "convert_currency", "alias": "production", "versionNumber": 1, "source": "default" }
   ],
-  "model": "gpt-4o-mini",
+  "model": "mistral-small",
   "versionNumber": 1
 }
 ```
@@ -955,7 +955,7 @@ curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "gpt-4o-mini",
+    "model": "mistral-small",
     "messages": [
       {"role":"system","content":"You are a travel planning assistant..."},
       {"role":"user","content":"Should I pack a raincoat for Lisbon? I land tomorrow."}

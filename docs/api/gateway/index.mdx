@@ -269,6 +269,80 @@ data: [DONE]
 
 ---
 
+### Naming a trace across several calls
+
+A trace can span many completions. Two headers name it, and the difference between them is
+whether you are giving an instruction or a fallback.
+
+| Header | On a new trace | On a trace that already has a name |
+|---|---|---|
+| `x-trace-name` | names it | **overwrites** it |
+| `x-trace-name-if-unset` | names it | ignored |
+
+`x-trace-name` is last-explicit-write-wins on purpose: an agent that only works out what a
+run *is* on its second call can still name the trace after it. Omitting the header never
+resets a name.
+
+`x-trace-name-if-unset` is for a fallback name — the one a client library reaches for when
+the caller expressed no preference. It fills in the default timestamp name and is otherwise
+ignored, so a call that merely **joins** a trace cannot rename it. Both SDKs send their
+`runToolLoop` default on this channel.
+
+Both are free text, so send them percent-encoded (`encodeURIComponent`) — a raw non-ASCII
+header value is rejected before the request leaves most HTTP clients. The server decodes,
+and falls back to the raw value if it was not encoded.
+
+Call A names the trace:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "x-trace-name: content-supervisor-flow" \
+  -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hi"}]}' -i
+```
+
+The response's `x-gateway-trace-id` is the trace to join. Reading it back:
+
+```json
+{ "trace": { "name": "content-supervisor-flow", "spanCount": 1 } }
+```
+
+Call B joins it, sending only a fallback name:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "x-trace-id: b91a9709-d91a-4df5-b3fd-447918c8a552" \
+  -H "x-trace-name-if-unset: runToolLoop" \
+  -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hi again"}]}'
+```
+
+```json
+{ "trace": { "name": "content-supervisor-flow", "spanCount": 2 } }
+```
+
+The span landed; the name did not move. Call C joins with an explicit name instead:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "x-trace-id: b91a9709-d91a-4df5-b3fd-447918c8a552" \
+  -H "x-trace-name: refund-request" \
+  -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hi once more"}]}'
+```
+
+```json
+{ "trace": { "name": "refund-request", "spanCount": 3 } }
+```
+
+Both are also accepted on the request body as `trace.name` and `trace.nameIfUnset`, for
+clients that would rather not set headers.
+
+---
+
 ### Tools and prompt lineage on a completion
 
 Three request fields decide which tools a completion sees and which prompt version
@@ -408,6 +482,63 @@ Enforcement happens before any provider call. Observed shapes:
   ```json
   { "error": { "code": "BUDGET_EXCEEDED", "message": "Team-wide budget exceeded." } }
   ```
+
+#### When the provider is the one saying no
+
+A rejection from the upstream provider comes back as **400 `PROVIDER_BAD_REQUEST`**,
+carrying the provider's own message. That message is the part worth reading: it names
+what is actually wrong, which a status code cannot.
+
+Two `response_format` requests that break different strict-mode rules, and therefore
+answer differently:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hi"}],
+       "response_format":{"type":"json_schema","json_schema":{"name":"x","strict":true,
+       "schema":{"type":"object","properties":{"a":{"type":"string"},"b":{"type":"string"}},
+       "required":["a"],"additionalProperties":false}}}}'
+```
+
+Response (status 400) — `b` is in `properties` but missing from `required`:
+
+```json
+{"error":{"code":"PROVIDER_BAD_REQUEST","message":"Provider rejected the request (400): Invalid schema for response_format 'x': In context=(), 'required' is required to be supplied and to be an array including every key in properties. Missing 'b'."}}
+```
+
+Now with `required` complete but `additionalProperties` dropped:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hi"}],
+       "response_format":{"type":"json_schema","json_schema":{"name":"x","strict":true,
+       "schema":{"type":"object","properties":{"a":{"type":"string"},"b":{"type":"string"}},
+       "required":["a","b"]}}}}'
+```
+
+Response (status 400):
+
+```json
+{"error":{"code":"PROVIDER_BAD_REQUEST","message":"Provider rejected the request (400): Invalid schema for response_format 'x': In context=(), 'additionalProperties' is required to be supplied and to be false."}}
+```
+
+**Which statuses forward the provider's message, and which do not.** A 400, 404, 413
+or 422 describes *your request*, so the provider's message is passed through. A 401,
+403, 429 or any 5xx describes the connection instead — its credential, its quota, or
+the provider's own internals — none of which the caller of this gateway can act on, so
+those are summarised:
+
+```json
+{"error":{"code":"PROVIDER_ERROR","message":"Provider error (401): OpenAI request failed with status 401"}}
+```
+
+That one answers **502 `PROVIDER_ERROR`**, and a provider timeout answers **504
+`PROVIDER_TIMEOUT`**. If you see a 401 here, the gateway connection's stored key is
+the thing to check, not the request.
 
 ---
 

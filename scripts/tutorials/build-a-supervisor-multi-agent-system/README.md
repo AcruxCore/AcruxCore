@@ -2,6 +2,26 @@
 
 Runnable scripts for the [Build a Supervisor Multi-Agent System](https://docs.acruxcore.com/tutorials/build-a-supervisor-multi-agent-system) tutorial.
 
+## Start here if you are new
+
+`notebook/supervisor_flow.ipynb` is the whole tutorial as one notebook, written for a
+first-timer: a preflight cell that checks your key, your Tavily key and — unusually — how each
+model's credential was connected, because that decides whether `response_format` works at all;
+the four tools and four prompts created step by step with the dashboard route beside the code; a
+live read of the single trace both model calls land in; and four real ways to get routing wrong,
+triggered on purpose so you can read the actual error.
+
+It renders on GitHub with its saved output, so you can read the whole thing before running
+anything. To run it:
+
+```bash
+pip install acruxcore requests jupyterlab
+export ACRUXCORE_API_KEY=<your key>
+export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
+export TAVILY_API_KEY=<your Tavily key>
+jupyter lab notebook/supervisor_flow.ipynb
+```
+
 ## Prerequisites
 
 - An AcruxCore API key and base URL (see the tutorial's Step 2)
@@ -20,7 +40,7 @@ export TAVILY_API_KEY=tvly-...
 
 ```bash
 cd python
-pip install acruxcore langchain_community tavily-python yfinance requests
+pip install acruxcore tavily-python requests
 
 # Step 3: sync tools to the catalog
 python create_tools.py

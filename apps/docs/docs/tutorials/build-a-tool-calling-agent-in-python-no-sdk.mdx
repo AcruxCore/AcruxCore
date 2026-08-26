@@ -31,6 +31,16 @@ provider key), a **model** (a callable name pointing at that key), a **prompt**
 with the tool **attached**, and a **personal API key** so Python can authenticate.
 Then the whole run is Python.
 
+:::tip[Prefer a notebook?]
+[`weather_agent_rest.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-no-sdk/notebook/weather_agent_rest.ipynb)
+is this whole page as one runnable notebook, written for a first-timer: a preflight cell
+that checks a fresh account is ready, the tool and prompt created over REST with the
+dashboard values beside each call, the trace read back from the API, and four ways to get
+it wrong triggered on purpose — including the quiet one, where forgetting to thread the
+trace id splits one run into two traces and nothing errors. It renders on GitHub with its
+saved output, so you can read it through before running anything.
+:::
+
 :::note[What you'll need]
 An [OpenRouter](https://openrouter.ai/) API key (any provider works — OpenAI,
 Anthropic, Gemini; OpenRouter just gives one key for many models) and Python 3.9+
@@ -54,11 +64,13 @@ but nothing is callable yet — a credential needs a model pointed at it.
 
 A **model** is a public name your code sends as `"model"`, mapped to an upstream
 model on one of your credentials. Open **Gateway → Models → New model**. Name it
-`gpt-4o-mini`, keep the **OpenRouter** credential selected, and set the upstream
-model to `openai/gpt-4o-mini` — that's OpenRouter's id for it. Leave prices blank
+`llama-3.3-70b`, keep the **OpenRouter** credential selected, and set the upstream
+model to `meta-llama/llama-3.3-70b-instruct` — that's OpenRouter's id for it. The public
+name is yours to choose and your code never learns which provider answered, so an
+open-weights model here changes nothing below. Leave prices blank
 (they auto-fill for known models).
 
-![New model dialog with public name gpt-4o-mini, credential OpenRouter, and upstream model openai/gpt-4o-mini](/img/tutorials/build-a-tool-calling-agent-in-python-no-sdk/02-new-model.png)
+![New model dialog with public name llama-3.3-70b, credential OpenRouter, and upstream model meta-llama/llama-3.3-70b-instruct](/img/tutorials/build-a-tool-calling-agent-in-python-no-sdk/02-new-model.png)
 
 Click **Register model**. Hit **Test** on the new row to fire a 1-token
 completion and confirm the key really works before you go further.
@@ -119,7 +131,7 @@ curl -X POST "$ACRUXCORE_BASE_URL/prompts/<prompt-id>/versions" \
       {"role":"system","content":"You are a weather assistant. Use the get_weather tool to look up conditions before answering. Never guess."},
       {"role":"user","content":"What is the weather in {{ city }} right now?"}
     ],
-    "model": "gpt-4o-mini"
+    "model": "llama-3.3-70b"
   }'
 
 # 4e. Bind the tool to the prompt — every alias inherits this default binding
@@ -159,7 +171,7 @@ async with AcruxCore() as hub:
             {"role": "system", "content": "You are a weather assistant. Use the get_weather tool to look up conditions before answering. Never guess."},
             {"role": "user", "content": "What is the weather in {{ city }} right now?"},
         ],
-        model="gpt-4o-mini",
+        model="llama-3.3-70b",
     )
     await hub.prompts.set_tool_binding(prompt.id, tool.id, tool_alias="production")
 ```
@@ -196,7 +208,7 @@ await hub.prompts.commitVersion(prompt.id, {
     { role: 'system', content: 'You are a weather assistant. Use the get_weather tool to look up conditions before answering. Never guess.' },
     { role: 'user', content: 'What is the weather in {{ city }} right now?' },
   ],
-  model: 'gpt-4o-mini',
+  model: 'llama-3.3-70b',
 });
 await hub.prompts.setToolBinding(prompt.id, tool.id, { toolAlias: 'production' });
 ```
@@ -208,7 +220,7 @@ The first version of each auto-creates `production` and `staging` aliases. Open
 the prompt in the dashboard to confirm: the **Editor** tab shows the two messages,
 the bound default model, and `PRODUCTION → v1`.
 
-![The py-weather-agent prompt Editor tab showing default model gpt-4o-mini, a system and user message, and production pointing at v1](/img/tutorials/build-a-tool-calling-agent-in-python-no-sdk/04-prompt-editor.png)
+![The py-weather-agent prompt Editor tab showing default model llama-3.3-70b, a system and user message, and production pointing at v1](/img/tutorials/build-a-tool-calling-agent-in-python-no-sdk/04-prompt-editor.png)
 
 The **Tools** tab confirms `get_weather` is connected, in the **default** column
 that every alias of the prompt inherits:
@@ -295,7 +307,7 @@ Setting `stream: true` and reading the SSE frames is the one AcruxCore-specific 
 resp = requests.post(
     f"{BASE_URL}/gateway/chat/completions",
     headers=HEADERS,
-    json={"model": "gpt-4o-mini", "messages": rendered["messages"], "stream": True},
+    json={"model": "llama-3.3-70b", "messages": rendered["messages"], "stream": True},
     stream=True,
 )
 for line in resp.iter_lines(decode_unicode=True):
@@ -381,14 +393,14 @@ curl -X POST "$ACRUXCORE_BASE_URL/gateway/connections" \
 # Model — point a callable name at an upstream model on that credential
 curl -X POST "$ACRUXCORE_BASE_URL/gateway/models" \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
-  -d '{"publicName":"gpt-4o-mini","upstreamModel":"openai/gpt-4o-mini","credentialId":"<credential-id>"}'
+  -d '{"publicName":"llama-3.3-70b","upstreamModel":"meta-llama/llama-3.3-70b-instruct","credentialId":"<credential-id>"}'
 ```
 
 ```json
 {
   "id": "89141307-9c4b-460e-b813-f40886ba6e5e",
-  "publicName": "gpt-4o-mini",
-  "upstreamModel": "openai/gpt-4o-mini",
+  "publicName": "llama-3.3-70b",
+  "upstreamModel": "meta-llama/llama-3.3-70b-instruct",
   "credentialId": "a2d765cc-8a97-4596-8d2e-bf4bd0418441",
   "credentialLabel": "OpenRouter",
   "provider": "openai_compatible",
@@ -419,8 +431,8 @@ credential = requests.post(f"{BASE_URL}/gateway/connections", headers=headers, j
 }).json()
 
 model = requests.post(f"{BASE_URL}/gateway/models", headers=headers, json={
-    "publicName": "gpt-4o-mini",
-    "upstreamModel": "openai/gpt-4o-mini",
+    "publicName": "llama-3.3-70b",
+    "upstreamModel": "meta-llama/llama-3.3-70b-instruct",
     "credentialId": credential["id"],
 }).json()
 
@@ -452,8 +464,8 @@ const model = await fetch(`${BASE_URL}/gateway/models`, {
   method: 'POST',
   headers,
   body: JSON.stringify({
-    publicName: 'gpt-4o-mini',
-    upstreamModel: 'openai/gpt-4o-mini',
+    publicName: 'llama-3.3-70b',
+    upstreamModel: 'meta-llama/llama-3.3-70b-instruct',
     credentialId: credential.id,
   }),
 }).then((r) => r.json());

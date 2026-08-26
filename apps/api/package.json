@@ -43,6 +43,11 @@
       "require": "./dist/src/traces/retention/index.js",
       "default": "./dist/src/traces/retention/index.js"
     },
+    "./shared/build-freshness": {
+      "types": "./dist/src/shared/build-freshness/index.d.ts",
+      "require": "./dist/src/shared/build-freshness/index.js",
+      "default": "./dist/src/shared/build-freshness/index.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {

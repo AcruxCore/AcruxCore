@@ -117,7 +117,7 @@ def log_tool_span(trace_id, name, args, result, started, ended):
 
 # ── The agent loop ───────────────────────────────────────────────────────────
 def main():
-    model = "gpt-4o-mini"
+    model = "llama-3.3-70b"
     rendered = render_prompt("py-weather-agent", "production", {"city": "Tokyo"})
     messages, tools = rendered["messages"], rendered["tools"]
     print(f"Fetched {len(messages)} message(s) + {len(tools)} tool(s) "

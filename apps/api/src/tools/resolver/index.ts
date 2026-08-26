@@ -1,2 +1,8 @@
-export { ToolResolver, ToolRefNotFoundError, ToolRefsNotFoundError } from './tool-resolver';
-export type { ResolvedToolDefinition, ToolRef, DetailedResolvedTool } from './tool-resolver';
+export { ToolResolver, ToolRefNotFoundError, ToolRefsNotFoundError, describeToolRefFailure } from './tool-resolver';
+export type {
+  ResolvedToolDefinition,
+  ToolRef,
+  DetailedResolvedTool,
+  ToolRefFailure,
+  ToolRefFailureReason,
+} from './tool-resolver';

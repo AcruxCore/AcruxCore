@@ -32,7 +32,7 @@ now() { date -u +"%Y-%m-%dT%H:%M:%S.%3NZ"; }
 
 # ── web_research, run locally (client executor — this shell runs it) ─────────
 # Same real Tavily REST API (https://api.tavily.com/search) the source's
-# TavilySearchResults wraps, called directly since curl has no LangChain.
+# Tavily's own REST endpoint, called directly — the same one tavily-python wraps.
 web_research() {
   local query="$1"
   if [ "$ALIAS" = "quick" ]; then

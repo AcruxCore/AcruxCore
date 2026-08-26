@@ -192,6 +192,15 @@ async def test_full_prompt_version_lifecycle(
     assert promoted.alias == "production"
     assert promoted.version_number == 2
 
+    # list_aliases — the read half of promote_alias (issue #354). `production` must
+    # report the version just promoted to, so a deploy check can answer "which version
+    # is live?" without leaving the SDK.
+    aliases = await hub.prompts.list_aliases(created.id)
+    by_name = {a.alias: a for a in aliases}
+    assert by_name["production"].version_number == 2
+    assert by_name["staging"].version_number == 1
+    assert by_name["production"].version_id
+
     # export_version
     exported = await hub.prompts.export_version(created.id, 1)
     assert exported.schema_version == 1

@@ -12,4 +12,5 @@ export {
   GatewayTimeoutError,
   PayloadTooLargeError,
   UnprocessableError,
+  CredentialUnusableError,
 } from './http-errors';

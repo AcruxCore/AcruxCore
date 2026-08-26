@@ -7,6 +7,30 @@ SDK app needs zero code changes to send its traces to AcruxCore. All the
 integration is in five lines of standard OpenTelemetry + OpenInference setup at
 the top of `triage_system.py`.
 
+## Start here if you are new
+
+`notebook/triage_system.ipynb` is the Python route of this tutorial as one notebook, written for a
+first-timer: a preflight cell that prints every instrumentor version (span names come from them,
+and change between releases); the two tools and three agents built step by step; a live read of
+both turns, with the handoff span shown next to a real tool call so you can see they arrive as the
+same span kind; and four real ways to get this wrong, triggered on purpose.
+
+The first of those four is the one worth reading even if you skip the rest: turning off the Agents
+SDK's own tracing takes AcruxCore down with it, because that pipeline is the transport rather than
+a competing destination. The notebook proves it — zero traces, then one after switching it back.
+
+It renders on GitHub with its saved output, so you can read the whole thing before running
+anything. To run it:
+
+```bash
+pip install openai-agents 'acruxcore[otel]' \
+  openinference-instrumentation-openai-agents jupyterlab
+export ACRUXCORE_API_KEY=<your key>
+export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
+export OPENAI_API_KEY=<your OpenAI key>
+jupyter lab notebook/triage_system.ipynb
+```
+
 ## Prerequisites
 
 - An AcruxCore API key (see the tutorial's Step 1)

@@ -188,6 +188,20 @@ alias = await hub.prompts.promote_alias(prompt_id, "production", 3)
 
 **Returns** `AliasDetail` (`alias`, `version_number`, `prompt_id`).
 
+### `prompts.list_aliases(prompt_id)`
+
+Read every alias on a prompt and the version each one points at — the read half of
+`promote_alias`, for a deploy check or a CI guard asking "which version is `production`
+on right now?".
+
+```python
+for a in await hub.prompts.list_aliases(prompt_id):
+    print(a.alias, "->", f"v{a.version_number}")
+```
+
+**Returns** `list[AliasDetail]`. Empty for a prompt with no committed version, since
+the first version is what mints the aliases. Added in 0.10.0.
+
 ### `prompts.export_version(prompt_id, version_number)`
 
 Export a version for portability (JSON blob).
@@ -516,17 +530,23 @@ fb = await hub.traces.get_trace_feedback(trace_id)
 
 **Returns** `TraceFeedbackResult` (`data`).
 
-## `gateway.flush()` / `gateway.aclose()`
+## `gateway.flush()` / `gateway.aclose()` / `aclose()`
 
 ```python
 await hub.gateway.flush()    # wait for background trace writes to finish
-await hub.gateway.aclose()   # flush, then close the HTTP client
+await hub.gateway.aclose()   # flush, then stop accepting spans
+await hub.aclose()           # the above, then close the HTTP connection pool
 ```
 
 `gateway.chat()`, streaming, and `gateway.run_tool_loop()` hand back their result without waiting
 for the trace write — call `gateway.flush()` before reading the traces API back. A script
 that returns from `main()` does not need either: the SDK drains at interpreter
-exit. `gateway.aclose()` is also called by the `async with AcruxCore()` context manager.
+exit.
+
+`hub.aclose()` is the full shutdown, and it is what `async with AcruxCore() as hub:` calls on
+exit. Reach for it directly wherever `async with` is not available — a notebook cell, a REPL, or a
+server's own shutdown hook. `gateway.aclose()` stops at the span queue and leaves the connection
+pool open, so code that builds a client per request or per job should call `hub.aclose()` instead.
 
 ## Tool catalog (`hub.tools`)
 

@@ -36,33 +36,47 @@ want: `quick`, `deep`, a customer id, a region. Swapping which alias your code
 renders is the entire configuration mechanism: no redeploy, no code change, not even
 a restart.
 
+:::tip[Prefer a notebook?]
+[`web_research_agent.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/configurable-react-agent/notebook/web_research_agent.ipynb)
+is this whole page as one runnable notebook, written for a first-timer: a preflight cell
+that checks both models and the Tavily key before anything else, both prompt versions and
+both aliases created step by step, the two runs read back from the trace API to prove which
+model really answered, and four ways to get it wrong triggered on purpose — including the
+big one, where committing a new version moves no alias and every caller keeps the old
+behaviour. It renders on GitHub with its saved output, so you can read it through before
+running anything.
+:::
+
 :::note[What you'll need]
-A [Tavily](https://tavily.com/) API key (the free tier is enough). The Python tab
-calls the real `langchain_community` Tavily wrapper (`pip install langchain-community`
-— its Tavily calls run on plain `requests`/`aiohttp`, no separate `tavily-python`
-client needed); the Node tab calls its TypeScript equivalent
-(`npm install @langchain/tavily`).
+A [Tavily](https://tavily.com/) API key (the free tier is enough). The Python tab uses
+Tavily's own SDK (`pip install tavily-python`); the Node tab uses
+`npm install @langchain/tavily`.
 :::
 
 ## 1. See the shallow vs. deep search for yourself
 
 The source this page reproduces defines two configurations of the same Tavily
-wrapper — `basic_research` (5 results, basic depth, includes images) and
+search — `basic_research` (5 results, basic depth, includes images) and
 `advanced_research` (10 results, advanced depth):
 
 ```python
-from langchain_community.tools.tavily_search import TavilySearchResults
+from tavily import AsyncTavilyClient
 
 async def advanced_research(query: str):
     """Deep research: 10 results, advanced depth."""
-    wrapped = TavilySearchResults(max_results=10, search_depth="advanced")
-    return await wrapped.ainvoke({"query": query})
+    res = await AsyncTavilyClient().search(query, max_results=10, search_depth="advanced")
+    return res["results"]
 
 async def basic_research(query: str):
     """Quick research: 5 results, basic depth, includes images."""
-    wrapped = TavilySearchResults(max_results=5, search_depth="basic", include_raw_content=False, include_images=True)
-    return await wrapped.ainvoke({"query": f"trending {query}"})
+    res = await AsyncTavilyClient().search(
+        f"trending {query}", max_results=5, search_depth="basic", include_images=True
+    )
+    return res["results"]
 ```
+
+`AsyncTavilyClient` reads `TAVILY_API_KEY` from the environment, and `search()` answers
+`{"query", "results", "images", ...}` — so the results are one level in.
 
 Both configurations are one real call to Tavily's REST API
 (`https://api.tavily.com/search`) with different parameters. Run them standalone
@@ -160,19 +174,19 @@ alias of this prompt calls it — including the two you are about to create.
 
 ![Tools tab with web_research connected in the default column](/img/tutorials/build-a-configurable-react-agent/05-tools-tab.png)
 
-Back on the **Editor** tab, change **Default model** to `gpt-4o-mini` — a stronger
+Back on the **Editor** tab, change **Default model** to `claude-haiku` — a stronger
 model — and replace the system message with the deep persona's framing: more
 thorough, more sources, more synthesis. The tool wiring is not part of a version,
 so `web_research` stays connected whatever you commit. Click **Commit new version**
 again to create v2:
 
-![Editor tab now showing default model gpt-4o-mini and a system message describing the thorough, deep-search persona](/img/tutorials/build-a-configurable-react-agent/06-deep-editor.png)
+![Editor tab now showing default model claude-haiku and a system message describing the thorough, deep-search persona](/img/tutorials/build-a-configurable-react-agent/06-deep-editor.png)
 
 The **Versions** tab now shows both: v1 on `gemini-flash` with `production` and
-`staging` both still pointing at it, v2 on `gpt-4o-mini` with neither alias moved
+`staging` both still pointing at it, v2 on `claude-haiku` with neither alias moved
 yet.
 
-![Versions tab listing v2 on gpt-4o-mini and v1 on gemini-flash, with production and staging both still on v1](/img/tutorials/build-a-configurable-react-agent/07-versions-tab.png)
+![Versions tab listing v2 on claude-haiku and v1 on gemini-flash, with production and staging both still on v1](/img/tutorials/build-a-configurable-react-agent/07-versions-tab.png)
 
 ## 5. Point `quick` and `deep` at each version
 
@@ -188,7 +202,7 @@ Here's what we're setting up:
 | Alias | Points at | Model | System prompt |
 |-------|-----------|-------|---------------|
 | `quick` | v1 | gemini-flash | Fast, concise persona |
-| `deep` | v2 | gpt-4o-mini | Thorough, multi-source persona |
+| `deep` | v2 | claude-haiku | Thorough, multi-source persona |
 | `production` | v1 | gemini-flash | Fast, concise persona |
 | `staging` | v1 | gemini-flash | Fast, concise persona |
 
@@ -251,7 +265,7 @@ curl -s -X POST "$ACRUXCORE_BASE_URL/prompts/web-research-agent/quick/render" \
 curl -s -X POST "$ACRUXCORE_BASE_URL/prompts/web-research-agent/deep/render" \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
   -d '{"variables":{"question":"What is new in AI?"}}'
-# -> { "model": "gpt-4o-mini", "messages": [...thorough persona...], "tools": [...] }
+# -> { "model": "claude-haiku", "messages": [...thorough persona...], "tools": [...] }
 ```
 
 </TabItem>
@@ -269,7 +283,7 @@ async with AcruxCore() as hub:
     # This returns v2's model + system prompt (deep → v2)
     rendered = await hub.prompts.render("web-research-agent", "deep",
                                        {"question": "What is new in AI?"})
-    # rendered.model == "gpt-4o-mini", rendered.messages == [...thorough persona...]
+    # rendered.model == "claude-haiku", rendered.messages == [...thorough persona...]
 ```
 
 </TabItem>
@@ -288,7 +302,7 @@ const rendered = await hub.prompts.render("web-research-agent", "quick",
 // This returns v2's model + system prompt (deep → v2)
 const rendered2 = await hub.prompts.render("web-research-agent", "deep",
   { question: "What is new in AI?" });
-// rendered2.model == "gpt-4o-mini", rendered2.messages == [...thorough persona...]
+// rendered2.model == "claude-haiku", rendered2.messages == [...thorough persona...]
 ```
 
 </TabItem>
@@ -346,16 +360,15 @@ gateway itself records every `llm` span now — unlike
 [Build a ReAct agent](./build-a-react-agent)'s BYO path, nothing here has to be
 reported manually except the `tool` spans `web_research` produces.
 
-The three tabs differ in what they can call to implement `web_research` itself.
-curl has no way to import a Python or TypeScript class, so it calls Tavily's REST
-API (`https://api.tavily.com/search`) directly — the same endpoint every LangChain
-Tavily wrapper ultimately calls anyway. Python and Node both **can** import the
-real wrapper class, and both do: the Python tab calls `langchain_community`'s
-`TavilySearchResults` directly, exactly as the source shows, and the Node tab
-calls `@langchain/tavily`'s `TavilySearch` — its actively maintained TypeScript
-equivalent (no separate Tavily wrapper ships in `@langchain/community` itself).
-Neither language needed a substitute: both wrapper packages install cleanly and
-both reached Tavily's API without incident in every run below.
+The three tabs differ only in how they reach Tavily, and all three reach the same
+endpoint. curl has no way to import a client library, so it calls
+`https://api.tavily.com/search` by hand. Python uses `tavily-python`, Tavily's own
+maintained SDK. Node uses `@langchain/tavily`, which is the actively maintained
+standalone package for it.
+
+None of this changes what the model sees. `web_research` is one catalog tool with one
+schema in every tab; only the code behind it differs, and that is the point of a `client`
+executor.
 
 <Tabs groupId="lang">
 <TabItem value="curl" label="curl">
@@ -386,7 +399,7 @@ Early reviews suggest that Anthropic's Claude models, particularly the Claude 3 
 ```
 
 ```text
-Alias: deep -> model gpt-4o-mini
+Alias: deep -> model claude-haiku
 Question: What are people saying about the new Anthropic Claude models?
 
   -> web_research({"query":"Anthropic Claude models 2023 reviews opinions reactions"})
@@ -418,12 +431,11 @@ because the first word on the command line did.
 
 `run_prompt_with_tools()` drives the render → complete → run the tool → repeat cycle
 for you. Since `web_research` is a client tool, its implementation goes in
-`client_tools`, keyed by the catalog tool name — and that function calls
-`langchain_community`'s real `TavilySearchResults` class directly, exactly the two
-configurations the source defines. The definition itself stays in the catalog, so the
-binding this alias resolved is what the model is offered.
+`client_tools`, keyed by the catalog tool name — and that function runs one of the two
+Tavily configurations the source defines. The definition itself stays in the catalog, so
+the binding this alias resolved is what the model is offered.
 
-The full script uses `run_prompt_with_tools()` to drive the loop, with the `client_tools` entry calling `langchain_community`'s `TavilySearchResults` directly — see [run_agent.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/configurable-react-agent/python/run_agent.py) for the complete source.
+The full script uses `run_prompt_with_tools()` to drive the loop, with the `client_tools` entry calling `tavily-python`'s `AsyncTavilyClient` — see [run_agent.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/configurable-react-agent/python/run_agent.py) for the complete source.
 
 Run it once per alias:
 
@@ -446,7 +458,7 @@ python run_agent.py deep "What are people saying about the new Anthropic Claude 
 ```
 
 ```text
-Alias: deep -> model gpt-4o-mini
+Alias: deep -> model claude-haiku
 Question: What are people saying about the new Anthropic Claude models?
 
   -> web_research({'query': 'Anthropic Claude models reviews news'}) -> 10 result(s)
@@ -476,7 +488,7 @@ For further details and updates, you can explore sources like [Claude News Timel
 ```
 
 The `quick` run answers in two or three plain sentences on `gemini-flash`. The
-`deep` run writes a multi-section breakdown with numbered points on `gpt-4o-mini`,
+`deep` run writes a multi-section breakdown with numbered points on `claude-haiku`,
 from 10 search results instead of 5. Nothing in `run_agent.py` branches on
 the alias except which `TavilySearchResults` configuration the `client_tools` entry
 builds — the model and the persona came from the render call alone.
@@ -515,7 +527,7 @@ node run_agent.mjs deep "What are people saying about the new Anthropic Claude m
 ```
 
 ```text
-Alias: deep -> model gpt-4o-mini
+Alias: deep -> model claude-haiku
 Question: What are people saying about the new Anthropic Claude models?
 
   -> web_research({"query":"Anthropic Claude models reviews and feedback 2023"}) -> 10 result(s)
@@ -561,9 +573,9 @@ because these all went through the gateway:
 
 Open the Node `deep` run from above and the tree shows the full loop: an `llm`
 span, a `web_research` tool span, and a final `llm` span with the answer — three
-spans, under the model this alias bound, `openai/gpt-4o-mini`:
+spans, under the model this alias bound, `claude-haiku`:
 
-![Trace tree for the Node deep run showing an LLM span, a web_research tool span, and a final LLM span, all on openai/gpt-4o-mini](/img/tutorials/build-a-configurable-react-agent/13-trace-tree.png)
+![Trace tree for the Node deep run showing an LLM span, a web_research tool span, and a final LLM span, all on claude-haiku](/img/tutorials/build-a-configurable-react-agent/13-trace-tree.png)
 
 Click the `web_research` span to see the real query the model chose and the real
 Tavily results the real `TavilySearch` wrapper got back:

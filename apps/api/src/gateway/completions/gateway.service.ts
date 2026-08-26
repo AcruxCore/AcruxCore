@@ -1,7 +1,7 @@
 import type { ProviderConnection } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { ConnectionsRepository } from '../connections/connections.repository';
-import { decryptSecret } from '../connections/crypto';
+import { decryptStoredSecret } from '../connections/crypto';
 import { GatewayRepository } from './gateway.repository';
 import { BudgetsRepository } from '../budgets/budgets.repository';
 import { checkAndRecord, recordTokens } from '../budgets/rate-limiter';
@@ -52,6 +52,16 @@ import {
   ValidationError,
 } from '../../shared/errors';
 import { runInTransaction } from '../../shared/db/unit-of-work';
+
+/**
+ * Provider 4xx statuses whose body describes the CALLER's request, so forwarding it helps.
+ *
+ * Deliberately not "every 4xx". A 401/403 body is about the team's stored credential — and
+ * a provider 401 can echo a masked copy of the key it was sent — while a 429 is about the
+ * team's quota. Neither is something the caller of this gateway can act on, so both stay
+ * flattened. 400 is handled separately, above this set, because it always forwards.
+ */
+const REQUEST_FAULT_STATUSES = new Set([404, 413, 422]);
 
 /** Default same-connection retries when the request omits a `gateway.maxRetries` override. */
 const DEFAULT_MAX_RETRIES = 1;
@@ -375,7 +385,7 @@ export class GatewayService {
     return (d, r) => {
       const adapter = getAdapter(d.credential.provider);
       const creds: ProviderCredentials = {
-        apiKey: decryptSecret(d.credential.secretCiphertext),
+        apiKey: decryptStoredSecret(d.credential.secretCiphertext, 'provider_credential', d.credential.label),
         baseUrl: connectionBaseUrl(d.credential.config),
       };
       return adapter.chatCompletion({ ...r, model: d.model.upstreamModel }, creds);
@@ -980,7 +990,11 @@ export class GatewayService {
     for (const deployment of deployments) {
       try {
         const creds: ProviderCredentials = {
-          apiKey: decryptSecret(deployment.credential.secretCiphertext),
+          apiKey: decryptStoredSecret(
+            deployment.credential.secretCiphertext,
+            'provider_credential',
+            deployment.credential.label,
+          ),
           baseUrl: connectionBaseUrl(deployment.credential.config),
         };
         const adapter = getAdapter(deployment.credential.provider);
@@ -1265,6 +1279,17 @@ export class GatewayService {
   /**
    * Map a terminal provider error (from `callWithFallback`) to the caller-facing HTTP error.
    *
+   * A 4xx forwards the provider's own message. That message is the only thing that says
+   * *which* rule was broken — OpenAI's strict-mode 400 names the exact property missing
+   * from `required` — and a 4xx is the provider describing the caller's own malformed
+   * request, so there is nothing to leak in returning it. Flattening it left the caller
+   * one opaque sentence and no way to tell two different mistakes apart (issue #356).
+   *
+   * A 5xx stays flattened: the provider is describing its own internals there, which are
+   * neither the caller's business nor useful to them. So do 401/403 and 429 — those are
+   * about the *team's stored credential or quota*, not about the request, and a provider
+   * 401 body can echo a masked copy of the key it was sent.
+   *
    * @param err - The last provider error carried by `FallbackExhaustedError`.
    * @returns 400 PROVIDER_BAD_REQUEST for a provider 400 (caller's fault); 504
    *   PROVIDER_TIMEOUT for a 504/408; else 502 PROVIDER_ERROR.
@@ -1272,13 +1297,22 @@ export class GatewayService {
   private mapProviderError(err: ProviderError): AppError {
     if (err.status === 400) {
       return new AppError(
-        `Provider rejected the request (400): ${err.message}`,
+        `Provider rejected the request (400): ${err.detail ?? err.message}`,
         400,
         'PROVIDER_BAD_REQUEST',
       );
     }
     if (err.status === 504 || err.status === 408) {
       return new GatewayTimeoutError();
+    }
+    if (REQUEST_FAULT_STATUSES.has(err.status) && err.detail) {
+      // Unknown model, oversized body, unprocessable schema: the same shape of problem as
+      // the 400 above, and the provider has already said which one it is.
+      return new AppError(
+        `Provider rejected the request (${err.status}): ${err.detail}`,
+        err.status,
+        'PROVIDER_BAD_REQUEST',
+      );
     }
     return new BadGatewayError(`Provider error (${err.status}): ${err.message}`);
   }

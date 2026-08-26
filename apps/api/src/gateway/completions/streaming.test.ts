@@ -167,10 +167,13 @@ describe('POST /gateway/chat/completions (stream)', () => {
     // EVERY deployment raised a `ProviderError`. Any OTHER exception type (a
     // real bug, not a provider HTTP error) was rethrown immediately, bypassing
     // that accounting and permanently leaking the reservation. Corrupting the
-    // stored connection's ciphertext makes `decryptSecret` throw a genuine
-    // (non-`ProviderError`) `Error` for real, before any provider stream is
-    // even attempted — no internal code is mocked, only real DB state is
-    // manipulated.
+    // stored connection's ciphertext makes the credential undecryptable for real,
+    // before any provider stream is even attempted — no internal code is mocked,
+    // only real DB state is manipulated.
+    //
+    // Since #324 that surfaces as a typed 409 `CREDENTIAL_UNUSABLE` rather than an
+    // opaque 500, but it is still not a `ProviderError`, so it still takes the
+    // rethrow branch this regression is about.
     const { agent, teamId } = await authedAgent(app);
     const credId = await createOpenAiConnection(agent);
 
@@ -184,15 +187,12 @@ describe('POST /gateway/chat/completions (stream)', () => {
       data: { secretCiphertext: Buffer.from('not a valid iv+authTag+ciphertext payload!!') },
     });
 
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-
     const res = await agent
       .post('/api/v1/gateway/chat/completions')
       .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'hi' }], stream: true })
-      .expect(500);
+      .expect(409);
 
-    expect(res.body.error.code).toBe('INTERNAL_ERROR');
-    consoleErrorSpy.mockRestore();
+    expect(res.body.error.code).toBe('CREDENTIAL_UNUSABLE');
 
     const budget = await prisma.budget.findUniqueOrThrow({ where: { id: budgetRes.body.id } });
     expect(budget.spendUsd.toNumber()).toBe(0);

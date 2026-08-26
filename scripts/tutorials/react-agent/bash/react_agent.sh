@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
-# ReAct finance agent — BYO direct to OpenAI, manual tool_calls loop, no gateway,
+# ReAct finance agent — BYO direct to the model provider, manual tool_calls loop, no gateway,
 # no SDK — plain curl and jq.
 #
 # Flow:
 #   1. render  — POST /prompts/react-agent-finance/production/render (AcruxCore)
 #                -> {messages, tools, versionId}
-#   2. loop    — POST https://api.openai.com/v1/chat/completions DIRECTLY (never
-#                through AcruxCore's gateway). Because no gateway sees this call,
-#                WE report the llm span ourselves: POST /traces after every turn
-#                (kind: llm, model, provider: the OpenAI host, usage, promptVersionId).
+#   2. loop    — POST \$PROVIDER_BASE_URL/chat/completions DIRECTLY (never through
+#                AcruxCore's gateway). Any OpenAI-compatible provider works — point
+#                PROVIDER_BASE_URL at OpenAI, OpenRouter, Together, Groq or a local
+#                server, and set PROVIDER_MODEL to an id it serves. Because no gateway
+#                sees this call, WE report the llm span ourselves: POST /traces after
+#                every turn (kind: llm, model, provider: the host really called, usage,
+#                promptVersionId).
 #                When the model asks for a tool, we run it locally, report a `tool`
 #                span to the SAME trace, feed the result back, and loop.
 #   3. done    — the model stops asking for tools; print the final answer.
@@ -16,24 +19,28 @@
 # Run:
 #   export ACRUXCORE_API_KEY=<your personal api key>
 #   export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
-#   export OPENAI_API_KEY=sk-...
+#   export PROVIDER_API_KEY=sk-...                             # your provider key
+#   export PROVIDER_BASE_URL=https://api.openai.com/v1         # or any OpenAI-compatible /v1
+#   export PROVIDER_MODEL=gpt-4o-mini                          # an id that provider serves
 #   ./react_agent.sh "Is there any recent news on AAPL, and is today a weekday?"
 set -euo pipefail
 
 QUESTION="${1:-Is there any recent news on AAPL, and is today a weekday?}"
-OPENAI_BASE_URL="https://api.openai.com/v1"   # BYO: called directly, never through AcruxCore
-MODEL="gpt-4o-mini"
+# BYO: called directly, never through AcruxCore. PROVIDER_HOST is derived from the URL,
+# because that string goes on the span as the host really called.
+PROVIDER_BASE_URL="${PROVIDER_BASE_URL:-https://api.openai.com/v1}"
+PROVIDER_HOST="${PROVIDER_BASE_URL#*://}"; PROVIDER_HOST="${PROVIDER_HOST%%/*}"
+MODEL="${PROVIDER_MODEL:-gpt-4o-mini}"
 TRACE_ID=$(python3 -c "import uuid; print(uuid.uuid4())")  # BYO: mint our own, no gateway trace to adopt
 
 now() { date -u +"%Y-%m-%dT%H:%M:%S.%3NZ"; }
 
 # ── The two tools, run locally (client executor — this shell runs them) ──────
 
-# The real endpoint YahooFinanceNewsTool itself calls under the hood (via
-# yfinance's Ticker.news -> get_news(), see yfinance/base.py): a POST to
-# finance.yahoo.com's internal news-stream API, after a plain GET to fc.yahoo.com
-# to pick up a session cookie. No crumb needed for this endpoint (unlike Yahoo's
-# /v1/finance/search), just the cookie.
+# Yahoo's own news endpoint, called directly: a POST to finance.yahoo.com's internal
+# news-stream API, after a plain GET to fc.yahoo.com to pick up a session cookie. No
+# crumb needed for this endpoint (unlike Yahoo's /v1/finance/search), just the cookie.
+# The Python version of this tutorial makes the same two calls.
 finance_research() {
   local ticker="$1"
   local jar
@@ -84,10 +91,11 @@ report_llm_span() {
     -d "$(jq -n \
         --arg traceId "$TRACE_ID" --arg spanId "$span_id" --arg model "$model" \
         --arg started "$started" --arg ended "$ended" --arg versionId "$version_id" \
+        --arg provider "$PROVIDER_HOST" \
         --argjson usage "$usage_json" --argjson messages "$messages_json" --argjson output "$output_json" \
         '{traces:[{traceId:$traceId,name:"react-agent-finance",capturePayloads:true,spans:[{
           spanId:$spanId,name:$model,kind:"llm",status:"ok",startTime:$started,endTime:$ended,
-          model:$model,provider:"api.openai.com",usage:$usage,promptVersionId:$versionId,
+          model:$model,provider:$provider,usage:$usage,promptVersionId:$versionId,
           input:{messages:$messages},output:$output}]}]}')" > /dev/null
 }
 
@@ -107,8 +115,8 @@ report_tool_span() {
 
 complete() {
   local messages_json="$1" tools_json="$2"
-  curl -s -X POST "$OPENAI_BASE_URL/chat/completions" \
-    -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
+  curl -s -X POST "$PROVIDER_BASE_URL/chat/completions" \
+    -H "Authorization: Bearer $PROVIDER_API_KEY" -H "Content-Type: application/json" \
     -d "$(jq -n --arg model "$MODEL" --argjson messages "$messages_json" --argjson tools "$tools_json" \
           '{model:$model,messages:$messages,tools:$tools}')"
 }

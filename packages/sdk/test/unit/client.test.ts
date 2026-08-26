@@ -399,6 +399,40 @@ describe('acruxcore.renderPrompt', () => {
 
 // ── acruxcore.runToolLoop tests ────────────────────────────────────────────
 
+describe('prompts.listAliases (issue #354)', () => {
+  let hub: acruxcore;
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.stubGlobal('fetch', vi.fn());
+    hub = new acruxcore({ apiKey: 'k', baseUrl: 'http://localhost:3000' });
+  });
+
+  it('reads the bare array the endpoint returns, not a { data } envelope', async () => {
+    // Unlike every other list call in this namespace, GET /prompts/:id/aliases answers
+    // with a bare JSON array — so the parsing differs and is worth pinning.
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify([
+      { id: 'a1', alias: 'production', versionId: 'v-2', versionNumber: 2, updatedAt: '2026-08-21T00:00:00.000Z' },
+      { id: 'a2', alias: 'staging', versionId: 'v-1', versionNumber: 1, updatedAt: '2026-08-20T00:00:00.000Z' },
+    ]), { status: 200, headers: { 'content-type': 'application/json' } }));
+
+    const aliases = await hub.prompts.listAliases('p-1');
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://localhost:3000/prompts/p-1/aliases');
+    expect(init.method).toBe('GET');
+    expect(aliases.map((a) => [a.alias, a.versionNumber])).toEqual([['production', 2], ['staging', 1]]);
+  });
+
+  it('returns an empty array for a prompt with no committed version', async () => {
+    // Aliases are minted by a prompt's first version, so a shell has none.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    expect(await hub.prompts.listAliases('p-1')).toEqual([]);
+  });
+});
+
 describe('runToolLoop', () => {
   let hub: acruxcore;
 
@@ -415,6 +449,59 @@ describe('runToolLoop', () => {
 
   const traceAcceptedResponse = () =>
     new Response(JSON.stringify({ accepted: 1, traceIds: ['trace-1'] }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+  it('sends no x-trace-name when it only JOINS a trace something else opened', async () => {
+    // `runToolLoop({ trace: { traceId } })` used to send `x-trace-name: runToolLoop`
+    // anyway. The gateway applies whatever name arrives last, so a call that merely
+    // joined a trace renamed it — silently, and invisibly in the caller's own code
+    // because they never wrote 'runToolLoop' anywhere (issue #358).
+    const only = new Response(JSON.stringify({
+      id: 'c1', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'done' }, finish_reason: 'stop' }],
+    }), { status: 200, headers: { 'content-type': 'application/json', 'x-gateway-trace-id': 'opened-elsewhere' } });
+    vi.mocked(fetch).mockResolvedValueOnce(only);
+
+    await hub.gateway.runToolLoop({
+      model: 'm',
+      messages: [{ role: 'user', content: 'hi' }],
+      toolDefs: [{ type: 'function', function: { name: 'get_weather' } }],
+      dispatch: () => ({}),
+      trace: { traceId: 'opened-elsewhere' },
+    });
+
+    const headers = (vi.mocked(fetch).mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+    // The default may still be SENT — it now travels on the channel the server ignores
+    // for a named trace — but it must never arrive as an instruction.
+    expect(headers['x-trace-name']).toBeUndefined();
+    expect(headers['x-trace-id']).toBe('opened-elsewhere');
+  });
+
+  it('sends its default on the weak channel and a caller name as an instruction', async () => {
+    // 'runToolLoop' is the SDK's own default, so it goes out as `x-trace-name-if-unset`:
+    // the server fills it in for a trace with no real name and ignores it otherwise. A
+    // name the caller chose is an instruction and goes out as `x-trace-name`, which still
+    // overwrites (phase-3 FAQ Q11/Q33).
+    const reply = () => new Response(JSON.stringify({
+      id: 'c1', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'done' }, finish_reason: 'stop' }],
+    }), { status: 200, headers: { 'content-type': 'application/json', 'x-gateway-trace-id': 't' } });
+    vi.mocked(fetch).mockResolvedValueOnce(reply()).mockResolvedValueOnce(reply());
+
+    await hub.gateway.runToolLoop({
+      model: 'm', messages: [{ role: 'user', content: 'hi' }],
+      toolDefs: [{ type: 'function', function: { name: 'get_weather' } }], dispatch: () => ({}),
+    });
+    await hub.gateway.runToolLoop({
+      model: 'm', messages: [{ role: 'user', content: 'hi' }],
+      toolDefs: [{ type: 'function', function: { name: 'get_weather' } }], dispatch: () => ({}),
+      trace: { traceId: 't-1', name: 'my-flow' },
+    });
+
+    const opened = (vi.mocked(fetch).mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+    const joined = (vi.mocked(fetch).mock.calls[1][1] as RequestInit).headers as Record<string, string>;
+    expect(opened['x-trace-name']).toBeUndefined();
+    expect(opened['x-trace-name-if-unset']).toBe('runToolLoop');
+    expect(joined['x-trace-name']).toBe('my-flow');
+    expect(joined['x-trace-name-if-unset']).toBeUndefined();
+  });
 
   it('drives the loop, threads the gateway trace into one trace, and reports only tool spans', async () => {
     // The gateway records each `llm` round-trip itself and returns the trace id +
@@ -444,10 +531,11 @@ describe('runToolLoop', () => {
     // The trace id comes from the gateway, not the tool-span POST response.
     expect(result.traceId).toBe('gw-trace');
 
-    // First completion threads the trace NAME but no id yet (none known).
+    // First completion threads the loop's DEFAULT name (weak channel) but no id yet.
     const firstInit = vi.mocked(fetch).mock.calls[0][1] as RequestInit;
     const firstHeaders = firstInit.headers as Record<string, string>;
-    expect(firstHeaders['x-trace-name']).toBe('runToolLoop');
+    expect(firstHeaders['x-trace-name-if-unset']).toBe('runToolLoop');
+    expect(firstHeaders['x-trace-name']).toBeUndefined();
     expect(firstHeaders['x-trace-id']).toBeUndefined();
     // Second completion re-uses the gateway trace id so both llm spans co-locate.
     const secondHeaders = (vi.mocked(fetch).mock.calls[1][1] as RequestInit).headers as Record<string, string>;
@@ -745,6 +833,40 @@ describe('runToolLoop with provider (BYO)', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     _resetCacheForTesting();
+  });
+
+  it('rejects a missing model locally instead of letting the provider pick one', async () => {
+    // render() returns model: undefined for a version with no bound model, and that used
+    // to travel to the provider. OpenRouter reads an absent model as its cue to pick a
+    // default, then rejects it — so the caller read a complaint about `google/gemini-pro`,
+    // a model they never named (issue #369).
+    for (const extra of [{ provider: { baseUrl: 'https://openrouter.ai/api/v1', apiKey: 'k' } }, {}]) {
+      await expect(hub.gateway.chat({
+        model: undefined as unknown as string,
+        messages: [{ role: 'user', content: 'hi' }],
+        trace: false,
+        ...extra,
+      })).rejects.toThrow(/a model is required/);
+    }
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+
+  it("puts the provider's own reason in the error message, not only in err.body", async () => {
+    // Running the BYO RAG notebook printed `provider returned 400 calling chat
+    // completions` and nothing else, while the actual reason — "is not a valid model
+    // ID" — sat unread in err.body. Issue #349 fixed that for OUR API's errors but
+    // never reached the provider paths, so the reader still had to know to inspect
+    // err.body to learn anything.
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({
+      error: { message: 'google/gemini-pro is not a valid model ID', code: 400 },
+    }), { status: 400, headers: { 'content-type': 'application/json' } }));
+
+    await expect(hub.gateway.chat({
+      model: 'm',
+      messages: [{ role: 'user', content: 'hi' }],
+      provider: { baseUrl: 'https://openrouter.ai/api/v1', apiKey: 'k' },
+      trace: false,
+    })).rejects.toThrow(/is not a valid model ID/);
   });
 
   it('calls the provider directly for every iteration, mints one trace across both rounds, and reports llm + tool spans', async () => {
@@ -1158,32 +1280,92 @@ describe('acruxcore.chat with provider (BYO)', () => {
     expect(body.traces[0].traceId).toBe(result.gateway.traceId);
   });
 
-  it('gateway path with trace: true mints its OWN span id rather than reusing the gateway span the server already stored', async () => {
-    // Regression guard for the final review's I1: `x-gateway-span-id` names a span row
-    // the gateway ALREADY wrote into `x-gateway-trace-id`. Re-posting that same pair
-    // violates spans' unique (traceId, spanRef) constraint, so the API 500s and this
-    // method's best-effort catch swallows it — the documented opt-in recorded nothing.
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(new Response(
-        JSON.stringify({ id: 'c1', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'hi' }, finish_reason: 'stop' }] }),
-        {
-          status: 200,
-          headers: {
-            'content-type': 'application/json',
-            'x-gateway-trace-id': 'gw-trace',
-            'x-gateway-span-id': 'gw-span-already-stored',
-          },
+  it.each([
+    ['trace: true', true as const],
+    ['an empty trace object', {}],
+    ['a named trace', { name: 'named-attempt' }],
+    ['a tagged trace', { tags: ['a'] }],
+    ['a trace with metadata', { metadata: { k: 'v' } }],
+  ])('gateway path with %s reports no llm span of its own', async (_label, trace) => {
+    // The gateway writes the `llm` span server-side, so anything this SDK reports on top
+    // is a second span for one model call — which made span counts, per-trace token
+    // totals and any "how many calls did this run make" analytics wrong, with nothing
+    // erroring (issue #360). Previously ANY trace value but `false` reported one.
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(
+      JSON.stringify({ id: 'c1', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'hi' }, finish_reason: 'stop' }] }),
+      {
+        status: 200,
+        headers: {
+          'content-type': 'application/json',
+          'x-gateway-trace-id': 'gw-trace',
+          'x-gateway-span-id': 'gw-span-already-stored',
         },
-      ))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ accepted: 1, traceIds: ['gw-trace'] }), { status: 200, headers: { 'content-type': 'application/json' } }));
+      },
+    ));
 
-    await hub.gateway.chat({ model: 'm', messages: [{ role: 'user', content: 'hi' }], trace: true });
+    await hub.gateway.chat({ model: 'm', messages: [{ role: 'user', content: 'hi' }], trace });
 
-    const body = JSON.parse((vi.mocked(fetch).mock.calls[1] as [string, RequestInit])[1].body as string);
-    // Same trace (that is the point of opting in) but a DIFFERENT span id.
-    expect(body.traces[0].traceId).toBe('gw-trace');
-    expect(body.traces[0].spans[0].spanId).not.toBe('gw-span-already-stored');
-    expect(body.traces[0].spans[0].spanId).toMatch(/^chat-[0-9a-f-]{36}$/);
+    const tracePosts = vi.mocked(fetch).mock.calls.filter(
+      ([url]) => typeof url === 'string' && url.endsWith('/traces'),
+    );
+    expect(tracePosts).toEqual([]);
+  });
+
+  it('gateway path forwards every key of a trace object as an x-trace-* header', async () => {
+    // `trace: { name }` worked on runToolLoop and was silently dropped by chat(), so the
+    // two methods disagreed about whether the key meant anything (issue #360).
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(
+      JSON.stringify({ id: 'c1', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'hi' }, finish_reason: 'stop' }] }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+
+    await hub.gateway.chat({
+      model: 'm',
+      messages: [{ role: 'user', content: 'hi' }],
+      trace: {
+        name: 'my-flow',
+        traceId: 't-existing',
+        sessionId: 's1',
+        tags: ['a', 'b'],
+        metadata: { k: 'v' },
+      },
+    });
+
+    const headers = (vi.mocked(fetch).mock.calls[0] as [string, RequestInit])[1].headers as Record<string, string>;
+    expect(headers['x-trace-name']).toBe('my-flow');
+    expect(headers['x-trace-id']).toBe('t-existing');
+    expect(headers['x-session-id']).toBe('s1');
+    expect(headers['x-trace-tags']).toBe('a, b');
+    expect(JSON.parse(headers['x-trace-metadata']!)).toEqual({ k: 'v' });
+  });
+
+  it('gateway path percent-encodes a non-ASCII trace name', async () => {
+    // A raw non-ASCII header value is rejected by fetch before the request leaves the
+    // process, so the server decodes what we encode here.
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(
+      JSON.stringify({ id: 'c1', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'hi' }, finish_reason: 'stop' }] }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+
+    await hub.gateway.chat({ model: 'm', messages: [{ role: 'user', content: 'hi' }], trace: { name: 'réunion' } });
+
+    const headers = (vi.mocked(fetch).mock.calls[0] as [string, RequestInit])[1].headers as Record<string, string>;
+    expect(headers['x-trace-name']).toBe('r%C3%A9union');
+  });
+
+  it('gateway path sends no x-trace-name when the caller named nothing', async () => {
+    // An absent name means "leave the trace's name alone", so joining a trace cannot
+    // rename it (issue #358).
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(
+      JSON.stringify({ id: 'c1', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'hi' }, finish_reason: 'stop' }] }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+
+    await hub.gateway.chat({ model: 'm', messages: [{ role: 'user', content: 'hi' }], trace: { traceId: 't-existing' } });
+
+    const headers = (vi.mocked(fetch).mock.calls[0] as [string, RequestInit])[1].headers as Record<string, string>;
+    expect(headers['x-trace-name']).toBeUndefined();
+    expect(headers['x-trace-id']).toBe('t-existing');
   });
 
   it('skips auto-tracing a BYO call when trace: false', async () => {

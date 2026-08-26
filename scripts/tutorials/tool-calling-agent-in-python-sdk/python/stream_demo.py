@@ -5,7 +5,7 @@ from acruxcore import AcruxCore
 async def main() -> None:
     async with AcruxCore() as hub:
         stream = await hub.gateway.stream(
-            "gpt-4o-mini",
+            "claude-haiku",
             [{"role": "user", "content": "In one sentence, what makes a good data analyst?"}],
         )
         async for chunk in stream:

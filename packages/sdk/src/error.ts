@@ -1,5 +1,30 @@
 import type { acruxcoreErrorCode } from './types';
 
+/** How much of a server error message to carry into the thrown one. */
+const MAX_SERVER_DETAIL = 400;
+
+/**
+ * A server's own `error.message`, formatted for appending to a thrown message.
+ *
+ * Both our API and every OpenAI-compatible provider answer errors as
+ * `{ error: { message, ... } }`, and that message is where the actionable detail lives —
+ * which tool, which alias, which model id. Truncated because a validation error can
+ * carry a long list, and the full body is still on the error's `body` property either
+ * way.
+ *
+ * Lives here rather than in `client.ts` because `client` imports `gateway-api`, so the
+ * provider paths could not import it from there without a cycle.
+ *
+ * @param body - Parsed response body, or `undefined` when it was not JSON.
+ * @returns `": <message>"`, or an empty string when there is nothing to add.
+ */
+export function serverDetail(body: unknown): string {
+  const message = (body as { error?: { message?: unknown } } | undefined)?.error?.message;
+  if (typeof message !== 'string' || message.trim().length === 0) return '';
+  const trimmed = message.trim();
+  return `: ${trimmed.length > MAX_SERVER_DETAIL ? `${trimmed.slice(0, MAX_SERVER_DETAIL)}…` : trimmed}`;
+}
+
 /**
  * Error thrown by acruxcore operations.
  * Always check `error.code` for the specific failure reason.

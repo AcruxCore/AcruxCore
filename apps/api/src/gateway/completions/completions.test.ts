@@ -182,6 +182,82 @@ describe('POST /api/v1/gateway/chat/completions (adapter-mocked)', () => {
     expect(rows[0]?.latencyMs).toBeGreaterThanOrEqual(0);
   });
 
+  it("bills OpenAI's cached prompt tokens at the discounted rate, end to end", async () => {
+    // Regression for #299. OpenAI caches a repeated prefix over ~1024 tokens with no client
+    // opt-in and reports it as usage.prompt_tokens_details.cached_tokens — a SUBSET of
+    // prompt_tokens, billed at half rate. The adapter used to drop the field, so costUsd
+    // charged the full input rate on every token of a cached prompt.
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent, 'openai', 'sk-test-abcdAB12');
+    await registerModel(agent, credId, 'gpt-4o-mini');
+    const usage = {
+      prompt_tokens: 2_000,
+      completion_tokens: 10,
+      total_tokens: 2_010,
+      prompt_tokens_details: { cached_tokens: 1_600 },
+    };
+    mockFetchOnce({ ...CANNED_OPENAI, usage });
+
+    const res = await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'Say hi.' }], max_tokens: 50 })
+      .expect(200);
+
+    // The cached count reaches the caller, as a subset of prompt_tokens.
+    expect(res.body.usage.prompt_tokens).toBe(2_000);
+    expect(res.body.usage.cached_tokens).toBe(1_600);
+
+    const discounted = expectedCost('gpt-4o-mini', {
+      prompt_tokens: 2_000,
+      completion_tokens: 10,
+      total_tokens: 2_010,
+      cached_tokens: 1_600,
+    });
+    const fullPrice = expectedCost('gpt-4o-mini', {
+      prompt_tokens: 2_000,
+      completion_tokens: 10,
+      total_tokens: 2_010,
+    });
+    expect(discounted).toBeLessThan(fullPrice);
+
+    expect(Number(res.headers['x-gateway-cost-usd'])).toBeCloseTo(discounted, 9);
+    const rows = await prisma.gatewayRequest.findMany({ where: { teamId } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.promptTokens).toBe(2_000);
+    expect(Number(rows[0]?.costUsd)).toBeCloseTo(discounted, 9);
+  });
+
+  it('an undecryptable stored credential → 409 with remediation, not an opaque 500', async () => {
+    // Regression for #324. decryptSecret verifies the GCM auth tag, so a credential encrypted
+    // under a rotated GATEWAY_ENCRYPTION_KEY throws instead of returning garbage. Nothing
+    // caught it, so a key rotation that stranded one row crashed live gateway traffic with an
+    // unmapped 500 — a status that also invites clients to retry something permanently broken.
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent, 'openai', 'sk-test-abcdAB12');
+    await registerModel(agent, credId, 'gpt-4o-mini');
+
+    // Simulate the stranded row: keep the label, make the ciphertext undecryptable.
+    await prisma.providerConnection.update({
+      where: { id: credId },
+      data: { secretCiphertext: Buffer.alloc(64, 7) },
+    });
+
+    const res = await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'Say hi.' }], max_tokens: 50 })
+      .expect(409);
+
+    expect(res.body.error.code).toBe('CREDENTIAL_UNUSABLE');
+    expect(res.body.error.message).toContain('openai test'); // the credential's label
+    expect(res.body.error.message).toContain('Gateway → Credentials');
+    // The plaintext key must never travel back to the caller.
+    expect(JSON.stringify(res.body)).not.toContain('sk-test');
+
+    // No success row was written for a call that never reached a provider.
+    const rows = await prisma.gatewayRequest.findMany({ where: { teamId } });
+    expect(rows.filter((r) => r.status === 'success')).toHaveLength(0);
+  });
+
   it('Anthropic call → 200 normalized body; usage mapped; success row', async () => {
     const { agent, teamId } = await authedAgent(app);
     const credId = await createConnection(agent, 'anthropic', 'anthropic-test-key');
@@ -429,11 +505,14 @@ describe('POST /api/v1/gateway/chat/completions (adapter-mocked)', () => {
     // for `FallbackExhaustedError` — any OTHER exception thrown while calling
     // the provider (a real bug, not a provider HTTP error) rethrew immediately
     // and skipped `reconcileBudgets` entirely, permanently consuming the
-    // reservation. Corrupting the stored connection's ciphertext makes
-    // `decryptSecret` throw a genuine (non-`ProviderError`) `Error` for real,
-    // inside `callWithFallback`'s invoker — no internal code is mocked, only
-    // real DB state is manipulated (the same pattern `seedSpend`-style tests
-    // already use elsewhere).
+    // reservation. Corrupting the stored connection's ciphertext makes the
+    // credential undecryptable for real, inside `callWithFallback`'s invoker — no
+    // internal code is mocked, only real DB state is manipulated (the same pattern
+    // `seedSpend`-style tests already use elsewhere).
+    //
+    // Since #324 that surfaces as a typed 409 `CREDENTIAL_UNUSABLE` rather than an
+    // opaque 500, but it is still not a `ProviderError`, so it still takes the
+    // `if (!(err instanceof ProviderError))` branch this regression is about.
     const { agent, teamId } = await authedAgent(app);
     const credId = await createConnection(agent, 'openai', 'sk-test-abcdAB12');
     await registerModel(agent, credId, 'gpt-4o-mini');
@@ -448,15 +527,12 @@ describe('POST /api/v1/gateway/chat/completions (adapter-mocked)', () => {
       data: { secretCiphertext: Buffer.from('not a valid iv+authTag+ciphertext payload!!') },
     });
 
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-
     const res = await agent
       .post('/api/v1/gateway/chat/completions')
       .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'hi' }] })
-      .expect(500);
+      .expect(409);
 
-    expect(res.body.error.code).toBe('INTERNAL_ERROR');
-    consoleErrorSpy.mockRestore();
+    expect(res.body.error.code).toBe('CREDENTIAL_UNUSABLE');
 
     // The reservation must be credited back in full — spend is exactly what it
     // was before the call (0), not permanently inflated by the failed attempt's

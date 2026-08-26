@@ -1,6 +1,7 @@
 // Must stay the first import: it populates process.env before any module below
 // reads it (the email transport, the database URL, the digest schedule).
 import './env';
+import { dirname, join } from 'node:path';
 import { Sentry } from './monitoring';
 import { Worker, type Job } from 'bullmq';
 import {
@@ -22,6 +23,7 @@ import {
   markFinalizeExhausted,
   RunsRepository,
 } from '@acruxcore/api/evaluations/runs/processors';
+import { checkDistFreshness, formatStaleBuildWarning } from '@acruxcore/api/shared/build-freshness';
 import { ONLINE_EVAL_QUEUE, type OnlineEvalJobData } from '@acruxcore/api/evaluations/online/queue';
 import { processOnlineEval } from '@acruxcore/api/evaluations/online/processor';
 import {
@@ -376,8 +378,37 @@ export async function startWorkers(): Promise<EvalWorkers> {
   return { cellWorker, runWorker, judgeWorker, onlineEvalWorker, optimizeWorker, emailWorker, digestWorker, retentionWorker };
 }
 
+/**
+ * Warns, loudly, when `apps/api`'s compiled output is older than its source.
+ *
+ * This process runs `apps/api`'s **dist**, not its TypeScript: every job processor arrives
+ * through `apps/api`'s `exports` map, and our own `tsx watch` only watches `apps/worker/src`.
+ * So an edit to `apps/api/src` that was never rebuilt makes the worker behave as if the change
+ * does not exist — no log line, no crash, no type error (issue #231).
+ *
+ * Skipped in production, where `dist` is all that is deployed and there is no source to compare.
+ */
+function warnOnStaleApiBuild(): void {
+  if (process.env.NODE_ENV === 'production') return;
+  try {
+    const apiRoot = dirname(require.resolve('@acruxcore/api/package.json'));
+    const banner = formatStaleBuildWarning(
+      checkDistFreshness(join(apiRoot, 'src'), join(apiRoot, 'dist')),
+      'apps/api',
+      'npm run build -w @acruxcore/api',
+    );
+    if (banner) console.warn(banner);
+  } catch (err) {
+    // A freshness check must never be the reason the worker fails to boot.
+    console.warn('[worker] could not check apps/api build freshness:', (err as Error).message);
+  }
+}
+
 /* Standalone process entrypoint — not exercised when imported by the e2e test. */
 if (require.main === module) {
+  // Before anything else: say so if the code about to run is not the code on disk.
+  warnOnStaleApiBuild();
+
   // Fail fast on a misconfigured email environment. The worker — not the API
   // — is the process that actually attempts SES delivery, so this is the
   // guard that matters: without it, a worker missing SES_REGION/etc. boots

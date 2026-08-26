@@ -18,6 +18,7 @@ from .errors import (
     MISSING_BASE_URL,
     NETWORK_ERROR,
     AcruxCoreError,
+    server_detail,
 )
 from .evaluations import DatasetsNamespace, ExperimentsNamespace, RunsNamespace, OptimizeNamespace
 from .gateway_api import GatewayNamespace
@@ -199,13 +200,21 @@ class AcruxCore:
             )
 
     def _parse_json_or_throw(self, response: httpx.Response, error_context: str) -> Any:
-        """Raise ``API_ERROR`` for a non-2xx response; otherwise return parsed JSON."""
+        """Raise ``API_ERROR`` for a non-2xx response; otherwise return parsed JSON.
+
+        The API's own ``error.message`` is appended when there is one. Without it the
+        raised message was only a status and a gerund — ``acruxcore API error 404
+        resolving tools`` — while the sentence naming the tool and the cause sat unread
+        in ``body`` (issue #349).
+        """
         if response.status_code >= 400:
+            body = self._safe_json(response)
             raise AcruxCoreError(
-                f"acruxcore API error {response.status_code} {error_context}",
+                f"acruxcore API error {response.status_code} {error_context}"
+                f"{server_detail(body)}",
                 API_ERROR,
                 response.status_code,
-                self._safe_json(response),
+                body,
             )
         return response.json()
 
@@ -253,4 +262,19 @@ class AcruxCore:
         return self
 
     async def __aexit__(self, *exc: Any) -> None:
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        """Flush pending traces, then close the HTTP connection pool. Idempotent.
+
+        ``async with AcruxCore() as hub`` calls this for you. Call it by hand from code
+        that cannot use ``async with`` — a notebook cell, a REPL, or a server whose
+        shutdown hook owns the client's lifetime. Skipping it leaks the pool: a process
+        that builds one client per request or per job accumulates open sockets, and httpx
+        reports that only as a ``ResourceWarning``, which is off by default.
+
+        Order matters. The flush is first because it sends a final ``POST /traces`` over
+        the very pool being closed; closing first would drop those spans silently.
+        """
         await self.gateway.aclose()
+        await self._client.aclose()

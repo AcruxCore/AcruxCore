@@ -2,10 +2,31 @@
 
 Runnable scripts for the [Build a tool-calling agent in Python (SDK)](https://docs.acruxcore.com/docs/tutorials/build-a-tool-calling-agent-in-python-sdk) tutorial — a text-to-SQL data analyst driven by the SDK's `run_tool_loop`.
 
+## Start here if you are new
+
+`notebook/sql_analyst_agent.ipynb` is the whole tutorial as one notebook, written for a
+first-timer: a preflight cell that checks a fresh account is actually ready, the tool
+created in two steps (shell, then version) with the dashboard values beside the code, the
+prompt and its tool binding, a live read of the trace the run produced, and four real
+failure modes triggered on purpose so you can read the actual error.
+
+It renders on GitHub with its saved output, so you can read the whole thing before running
+anything. To run it:
+
+```bash
+pip install acruxcore jupyterlab
+export ACRUXCORE_API_KEY=<your key>
+export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
+jupyter lab notebook/sql_analyst_agent.ipynb
+```
+
+Every cell is find-or-create, so running it twice is safe. The scripts below are the run
+step only — use them once the setup exists.
+
 ## Prerequisites
 
 - An AcruxCore API key and base URL
-- The `gpt-4o-mini` model, the `query_database` tool, and the `sql-analyst-agent` prompt, all created via the tutorial's Steps 2–4
+- The `claude-haiku` model, the `query_database` tool, and the `sql-analyst-agent` prompt, all created via the tutorial's Steps 2–4
 - Python 3.9+ (`pip install acruxcore`)
 
 ## Setup

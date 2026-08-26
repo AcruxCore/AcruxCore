@@ -109,6 +109,15 @@ describe('acruxcore SDK prompts integration', () => {
       expect(promoted.alias).toBe('production');
       expect(promoted.versionNumber).toBe(2);
 
+      // listAliases — the read half of promoteAlias (issue #354). `production` must
+      // report the version just promoted to, so a deploy check can answer "which
+      // version is live?" without leaving the SDK.
+      const aliases = await hub.prompts.listAliases(created.id);
+      const byName = new Map(aliases.map((a) => [a.alias, a]));
+      expect(byName.get('production')?.versionNumber).toBe(2);
+      expect(byName.get('staging')?.versionNumber).toBe(1);
+      expect(byName.get('production')?.versionId).toBeTruthy();
+
       // exportVersion
       const exported = await hub.prompts.exportVersion(created.id, 1);
       expect(exported.schemaVersion).toBe(1);

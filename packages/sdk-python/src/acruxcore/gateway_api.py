@@ -40,6 +40,7 @@ from .errors import (
     PROVIDER_ERROR,
     VALIDATION_ERROR,
     AcruxCoreError,
+    server_detail,
 )
 from .http import request_with_retry
 from .provider import infer_provider_name
@@ -92,6 +93,75 @@ def _now_iso() -> str:
     from datetime import datetime, timezone
 
     return datetime.now(timezone.utc).isoformat()
+
+
+def _require_model(model: Optional[str]) -> str:
+    """Reject a missing model before anything is sent, and say where one comes from.
+
+    ``render()`` returns ``model=None`` for a prompt version with no bound model, and that
+    ``None`` used to travel: our own API answers ``model is required``, but a BYO provider
+    is called directly and reads a null model as *absent*. OpenRouter then substitutes its
+    own default and rejects it, so the caller reads a complaint about a model they never
+    named (issue #369). Failing here costs no request and can name both ways to supply one.
+
+    :param model: The model argument as given, possibly ``None`` or blank.
+    :returns: The model, stripped of surrounding whitespace.
+    :raises AcruxCoreError: ``VALIDATION_ERROR`` when there is no usable model.
+    """
+    if isinstance(model, str) and model.strip():
+        return model.strip()
+    raise AcruxCoreError(
+        "acruxcore: a model is required. Pass one explicitly, or bind a default model to "
+        "the prompt version so render() returns it — rendered.model is None otherwise.",
+        VALIDATION_ERROR,
+    )
+
+
+def _gateway_trace_headers(trace_conf: Dict[str, Any]) -> Dict[str, str]:
+    """Turn a ``trace={...}`` config into the ``x-trace-*`` headers the gateway reads.
+
+    Used by every gateway-path call — ``chat()``, its streaming twin, and the tool loop —
+    so the same key cannot mean one thing on one method and nothing on another. Passing
+    ``trace={"name": ...}`` to ``chat()`` used to be silently ignored while working on
+    ``run_tool_loop`` (issue #360).
+
+    A key that is absent produces no header at all, which is the point rather than an
+    optimisation: the gateway treats an arriving ``x-trace-name`` as an instruction, so
+    sending a default one turns a call that merely *joins* a trace into a call that
+    renames it (issue #358).
+
+    Free-text values are percent-encoded because the server decodes them — a raw
+    non-ASCII name in an HTTP header is a hard client-side failure.
+
+    :param trace_conf: The caller's ``trace`` dict. Unknown keys are ignored. The private
+        ``_default_name`` key is this SDK's own fallback name and travels on the weaker
+        ``x-trace-name-if-unset`` channel, never as an instruction.
+    :returns: The headers to merge into the gateway request; possibly empty.
+    """
+    headers: Dict[str, str] = {}
+    name = trace_conf.get("name")
+    if name:
+        headers["x-trace-name"] = quote(name, safe="")
+    else:
+        # A name this SDK picked, not one the caller chose. The server fills it in only
+        # when the trace has no real name yet, so sending it on a call that merely joins
+        # a trace is harmless (issue #358).
+        default_name = trace_conf.get("_default_name")
+        if default_name:
+            headers["x-trace-name-if-unset"] = quote(default_name, safe="")
+    trace_id = trace_conf.get("trace_id")
+    if trace_id:
+        headers["x-trace-id"] = trace_id
+    session_id = trace_conf.get("session_id")
+    if session_id:
+        headers["x-session-id"] = session_id
+    tags = trace_conf.get("tags")
+    if tags:
+        headers["x-trace-tags"] = ", ".join(tags)
+    metadata = trace_conf.get("metadata")
+    if metadata:
+        headers["x-trace-metadata"] = json.dumps(metadata)
+    return headers
 
 
 def _is_loopback_host(hostname: Optional[str]) -> bool:
@@ -263,8 +333,9 @@ class GatewayNamespace:
         """
         await self._host._span_queue.close()
         _clients_awaiting_exit_flush.discard(self)
-        # The httpx client is owned by the host — we don't close it here.
-        # The host's __aexit__ handles that.
+        # The httpx client is owned by the host, so closing it is not this method's job.
+        # Callers who want the pool closed too want ``AcruxCore.aclose()``, which flushes
+        # through here first and then closes the transport.
 
     def _drain_at_exit(self) -> None:
         """Send whatever is still buffered as the interpreter exits.
@@ -352,6 +423,7 @@ class GatewayNamespace:
         No tool-dispatch loop: if the model returns ``tool_calls`` they are handed
         back raw. Use :meth:`run_tool_loop` to dispatch them.
         """
+        model = _require_model(model)
         provider_config = provider or self._host._provider_default
         body = self._build_chat_body(
             model, messages, tools, tool_refs, tool_choice, response_format, temperature, max_tokens, stream,
@@ -364,21 +436,24 @@ class GatewayNamespace:
                     provider_config=provider_config, model=model, messages=messages,
                     prompt_version_id=prompt_version_id, trace_opt=trace,
                 )
-            return AsyncChatStream(self, body)
+            # `trace_opt` is forwarded on this path too: without it the gateway never saw
+            # the name, trace id, session id, tags or metadata of a streamed call.
+            return AsyncChatStream(self, body, trace_opt=trace)
 
         trace_opt = trace if trace is not None else bool(provider_config)
         trace_enabled = trace_opt is not False
         trace_conf: Dict[str, Any] = trace_opt if isinstance(trace_opt, dict) else {}
 
-        trace_headers: Optional[Dict[str, str]] = None
-        if trace_enabled and provider_config is None:
-            trace_headers = {}
-            tags = trace_conf.get("tags")
-            if tags:
-                trace_headers["x-trace-tags"] = ", ".join(tags)
-            metadata = trace_conf.get("metadata")
-            if metadata:
-                trace_headers["x-trace-metadata"] = json.dumps(metadata)
+        # Who writes the ``llm`` span depends on the path, not on whether tracing is on.
+        # On the gateway path the gateway writes it server-side, so this SDK's only job is
+        # to forward the trace headers; reporting a span of its own here counted every
+        # model call twice (issue #360). On the BYO path no gateway sees the call, so the
+        # SDK is the only thing that can report it.
+        report_span = trace_enabled and provider_config is not None
+
+        trace_headers: Optional[Dict[str, str]] = (
+            _gateway_trace_headers(trace_conf) if trace_enabled and provider_config is None else None
+        )
 
         start_time = _now_iso()
         if provider_config is not None:
@@ -394,12 +469,8 @@ class GatewayNamespace:
                 temperature=temperature, max_tokens=max_tokens, extra_headers=trace_headers,
             )
 
-        if trace_enabled:
-            span_id = (
-                (result.gateway.span_ref or f"chat-{uuid.uuid4()}")
-                if provider_config is not None
-                else f"chat-{uuid.uuid4()}"
-            )
+        if report_span:
+            span_id = result.gateway.span_ref or f"chat-{uuid.uuid4()}"
             trace_id = trace_conf.get("trace_id") or result.gateway.trace_id
             span: IngestSpan = {
                 "spanId": span_id,
@@ -589,11 +660,13 @@ class GatewayNamespace:
             )
 
         if response.status_code >= 400:
+            body = self._host._safe_json(response)
             raise AcruxCoreError(
-                f"acruxcore: provider returned {response.status_code} calling chat completions",
+                f"acruxcore: provider returned {response.status_code} calling chat "
+                f"completions{server_detail(body)}",
                 PROVIDER_ERROR,
                 response.status_code,
-                self._host._safe_json(response),
+                body,
             )
 
         data = response.json()
@@ -768,11 +841,13 @@ class GatewayNamespace:
                             continue
                     if response.status_code >= 400:
                         await response.aread()
+                        body = self._host._safe_json(response)
                         raise AcruxCoreError(
-                            f"acruxcore: provider returned {response.status_code} streaming chat completions",
+                            f"acruxcore: provider returned {response.status_code} streaming "
+                            f"chat completions{server_detail(body)}",
                             PROVIDER_ERROR,
                             response.status_code,
-                            self._host._safe_json(response),
+                            body,
                         )
 
                     decoder = codecs.getincrementaldecoder("utf-8")()
@@ -1342,6 +1417,7 @@ class GatewayNamespace:
             tools, tool_refs, client_tools, dispatch, sync
         )
 
+        model = _require_model(model)
         provider_config = provider or self._host._provider_default
         byo_tool_schemas: Optional[List[ToolDefinition]] = (
             [*(tool_defs or []), *inlined_schemas]
@@ -1351,7 +1427,14 @@ class GatewayNamespace:
 
         trace_enabled = trace is not False
         trace_conf: Dict[str, Any] = trace if isinstance(trace, dict) else {}
-        trace_name = trace_conf.get("name") or "runToolLoop"
+        # "runToolLoop" is this SDK's own default, not a name the caller chose, so it
+        # travels on the weaker `x-trace-name-if-unset` channel: the server fills it in
+        # only when the trace has no real name yet. A caller's explicit `name` is an
+        # instruction and still overwrites (issue #358, phase-3 FAQ Q33).
+        trace_name: Optional[str] = trace_conf.get("name")
+        # The SDK creates the trace itself on the BYO path, where no server-side default
+        # applies, so its own payloads still need a concrete name.
+        payload_trace_name = trace_name or "runToolLoop"
         session_id = trace_conf.get("session_id")
 
         convo: List[Message] = list(messages)
@@ -1361,17 +1444,10 @@ class GatewayNamespace:
         for i in range(max_iterations):
             extra_headers: Optional[Dict[str, str]] = None
             if trace_enabled and provider_config is None:
-                extra_headers = {"x-trace-name": quote(trace_name, safe="")}
-                if trace_id:
-                    extra_headers["x-trace-id"] = trace_id
-                if session_id:
-                    extra_headers["x-session-id"] = session_id
-                tags = trace_conf.get("tags")
-                if tags:
-                    extra_headers["x-trace-tags"] = ", ".join(tags)
-                metadata = trace_conf.get("metadata")
-                if metadata:
-                    extra_headers["x-trace-metadata"] = json.dumps(metadata)
+                extra_headers = _gateway_trace_headers(
+                    {**trace_conf, "name": trace_name, "trace_id": trace_id,
+                     "_default_name": "runToolLoop"}
+                )
 
             round_start_time = _now_iso()
             if provider_config is not None:
@@ -1416,7 +1492,7 @@ class GatewayNamespace:
                     }
                 if prompt_version_id:
                     llm_span["promptVersionId"] = prompt_version_id
-                llm_trace_payload: TraceInput = {"name": trace_name, "spans": [llm_span]}
+                llm_trace_payload: TraceInput = {"name": payload_trace_name, "spans": [llm_span]}
                 if trace_id:
                     llm_trace_payload["traceId"] = trace_id
                 if session_id:
@@ -1439,7 +1515,7 @@ class GatewayNamespace:
             calls = result.message.get("tool_calls") or []
             if result.finish_reason != "tool_calls" or len(calls) == 0:
                 self._report_tool_spans(
-                    trace_enabled, trace_id, trace_name, session_id, tool_spans
+                    trace_enabled, trace_id, payload_trace_name, session_id, tool_spans
                 )
                 return RunToolLoopResult(
                     content=result.content or "",
@@ -1470,7 +1546,7 @@ class GatewayNamespace:
             failure = next((s for s in settled if isinstance(s, BaseException)), None)
             if failure is not None:
                 self._report_tool_spans(
-                    trace_enabled, trace_id, trace_name, session_id, tool_spans
+                    trace_enabled, trace_id, payload_trace_name, session_id, tool_spans
                 )
                 raise failure
 
@@ -1478,7 +1554,7 @@ class GatewayNamespace:
             convo = [*convo, result.message, *tool_msgs]
 
         self._report_tool_spans(
-            trace_enabled, trace_id, trace_name, session_id, tool_spans
+            trace_enabled, trace_id, payload_trace_name, session_id, tool_spans
         )
         return RunToolLoopResult(
             content="", messages=convo, iterations=max_iterations,
@@ -1515,6 +1591,7 @@ class GatewayNamespace:
             tools, tool_refs, client_tools, dispatch, sync
         )
 
+        model = _require_model(model)
         provider_config = provider or self._host._provider_default
         byo_tool_schemas: Optional[List[ToolDefinition]] = (
             [*(tool_defs or []), *inlined_schemas]
@@ -1532,7 +1609,14 @@ class GatewayNamespace:
 
         trace_enabled = trace is not False
         trace_conf: Dict[str, Any] = trace if isinstance(trace, dict) else {}
-        trace_name = trace_conf.get("name") or "runToolLoop"
+        # "runToolLoop" is this SDK's own default, not a name the caller chose, so it
+        # travels on the weaker `x-trace-name-if-unset` channel: the server fills it in
+        # only when the trace has no real name yet. A caller's explicit `name` is an
+        # instruction and still overwrites (issue #358, phase-3 FAQ Q33).
+        trace_name: Optional[str] = trace_conf.get("name")
+        # The SDK creates the trace itself on the BYO path, where no server-side default
+        # applies, so its own payloads still need a concrete name.
+        payload_trace_name = trace_name or "runToolLoop"
         session_id = trace_conf.get("session_id")
 
         convo: List[Message] = list(messages)
@@ -1558,6 +1642,7 @@ class GatewayNamespace:
                 trace_enabled=trace_enabled,
                 trace_conf=trace_conf,
                 trace_name=trace_name,
+                payload_trace_name=payload_trace_name,
                 session_id=session_id,
                 state=state,
                 out=round_out,
@@ -1626,7 +1711,7 @@ class GatewayNamespace:
             settled = await asyncio.gather(*tasks, return_exceptions=True)
             failure = next((s for s in settled if isinstance(s, BaseException)), None)
             if failure is not None:
-                self._report_tool_spans(trace_enabled, trace_id, trace_name, session_id, tool_spans)
+                self._report_tool_spans(trace_enabled, trace_id, payload_trace_name, session_id, tool_spans)
                 raise failure
 
             convo = [*convo, message, *[s for s in settled]]  # type: ignore[list-item]
@@ -1640,7 +1725,7 @@ class GatewayNamespace:
             )
 
         self._report_tool_spans(
-            trace_enabled, state["trace_id"], trace_name, session_id, tool_spans
+            trace_enabled, state["trace_id"], payload_trace_name, session_id, tool_spans
         )
         assert gathered is not None  # every path above assigns it
 
@@ -1678,6 +1763,7 @@ class GatewayNamespace:
             trace_enabled=trace_enabled,
             trace_conf=trace_conf,
             trace_name=trace_name,
+            payload_trace_name=payload_trace_name,
             session_id=session_id,
             state=state,
             out=shape_out,
@@ -1712,7 +1798,8 @@ class GatewayNamespace:
         prompt_version_id: Optional[str],
         trace_enabled: bool,
         trace_conf: Dict[str, Any],
-        trace_name: str,
+        trace_name: Optional[str],
+        payload_trace_name: str,
         session_id: Optional[str],
         state: Dict[str, Any],
         out: Dict[str, Any],
@@ -1784,7 +1871,7 @@ class GatewayNamespace:
                 span = self._byo_llm_span(
                     provider_state, convo, provider_config, prompt_version_id, span_id=span_ref
                 )
-                payload: TraceInput = {"name": trace_name, "spans": [span]}
+                payload: TraceInput = {"name": payload_trace_name, "spans": [span]}
                 payload["traceId"] = state["trace_id"]
                 if session_id:
                     payload["sessionId"] = session_id
@@ -1792,17 +1879,10 @@ class GatewayNamespace:
         else:
             extra_headers: Optional[Dict[str, str]] = None
             if trace_enabled:
-                extra_headers = {"x-trace-name": quote(trace_name, safe="")}
-                if state.get("trace_id"):
-                    extra_headers["x-trace-id"] = state["trace_id"]
-                if session_id:
-                    extra_headers["x-session-id"] = session_id
-                tags = trace_conf.get("tags")
-                if tags:
-                    extra_headers["x-trace-tags"] = ", ".join(tags)
-                metadata = trace_conf.get("metadata")
-                if metadata:
-                    extra_headers["x-trace-metadata"] = json.dumps(metadata)
+                extra_headers = _gateway_trace_headers(
+                    {**trace_conf, "name": trace_name, "trace_id": state.get("trace_id"),
+                     "session_id": session_id, "_default_name": "runToolLoop"}
+                )
 
             meta: Dict[str, GatewayCallMeta] = {}
             async for chunk in self._stream_chat(body, extra_headers, meta):
@@ -2016,15 +2096,9 @@ class AsyncChatStream:
                 provider_config, prompt_version_id, trace_opt if trace_opt is not None else True,
             )
         else:
-            stream_headers: Optional[Dict[str, str]] = None
-            if isinstance(trace_opt, dict):
-                stream_headers = {}
-                tags = trace_opt.get("tags")
-                if tags:
-                    stream_headers["x-trace-tags"] = ", ".join(tags)
-                metadata = trace_opt.get("metadata")
-                if metadata:
-                    stream_headers["x-trace-metadata"] = json.dumps(metadata)
+            stream_headers: Optional[Dict[str, str]] = (
+                _gateway_trace_headers(trace_opt) if isinstance(trace_opt, dict) else None
+            )
             self._gen = gw._stream_chat(body, stream_headers)
 
     def __aiter__(self) -> "AsyncChatStream":

@@ -364,7 +364,8 @@ async def test_streaming_keeps_every_round_on_one_trace_and_parents_the_tool_spa
     # Round 1 has no trace to join yet; round 2 joins the one the gateway minted.
     assert "x-trace-id" not in sent_headers[0]
     assert sent_headers[1]["x-trace-id"] == "tr-1"
-    assert sent_headers[0]["x-trace-name"] == "runToolLoop"
+    # The loop's own default travels on the weak channel (phase-3 FAQ Q33).
+    assert sent_headers[0]["x-trace-name-if-unset"] == "runToolLoop"
 
     tool_spans = [
         s for t in traces for tr in t["traces"] for s in tr["spans"] if s["kind"] == "tool"

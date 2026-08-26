@@ -237,31 +237,73 @@ everything that is wrong.
 curl -X POST $ACRUXCORE_BASE_URL/tools/resolve \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"refs":[{"name":"ghost_one"},{"name":"get_weather"},{"name":"ghost_two"}]}'
+  -d '{"refs":[{"name":"ghost_one"},{"name":"get_weather"},{"name":"shell_no_version"},
+               {"name":"get_weather","alias":"canary"},{"name":"get_weather","version":99}]}'
 ```
 
-Response (status 404) — note `get_weather` resolved fine and is not listed:
+Response (status 404) — note `get_weather`@production resolved fine and is not listed:
 
 ```json
 {
   "error": {
     "code": "TOOL_REF_NOT_FOUND",
-    "message": "Could not resolve 2 tool ref(s): 'ghost_one'@production, 'ghost_two'@production",
+    "message": "Could not resolve 4 tool ref(s): 'ghost_one'@production — no tool named 'ghost_one' in this team; 'shell_no_version'@production — tool 'shell_no_version' has no versions, so alias 'production' does not exist yet — commit one with POST /tools/:id/versions; 'get_weather'@canary — tool 'get_weather' has no alias 'canary'; it has 'production', 'staging'; 'get_weather' v99 — tool 'get_weather' has no version 99; the latest is 1",
     "refs": [
       {"name":"ghost_one","alias":"production"},
-      {"name":"ghost_two","alias":"production"}
+      {"name":"shell_no_version","alias":"production"},
+      {"name":"get_weather","alias":"canary"},
+      {"name":"get_weather","version":99}
+    ],
+    "failures": [
+      {
+        "name":"ghost_one","alias":"production",
+        "reason":"no_such_tool",
+        "message":"no tool named 'ghost_one' in this team"
+      },
+      {
+        "name":"shell_no_version","alias":"production",
+        "reason":"no_versions",
+        "message":"tool 'shell_no_version' has no versions, so alias 'production' does not exist yet — commit one with POST /tools/:id/versions"
+      },
+      {
+        "name":"get_weather","alias":"canary",
+        "reason":"unknown_alias",
+        "message":"tool 'get_weather' has no alias 'canary'; it has 'production', 'staging'",
+        "availableAliases":["production","staging"]
+      },
+      {
+        "name":"get_weather","version":99,
+        "reason":"unknown_version",
+        "message":"tool 'get_weather' has no version 99; the latest is 1",
+        "latestVersion":1
+      }
     ]
   }
 }
 ```
 
-The `refs` array carries the failures in machine-readable form, each with the alias
-that was actually tried, so an SDK can name them without parsing the message.
+## Which of the four things went wrong
 
-A ref fails when no tool of that name exists in your team (including one that has
-been soft-deleted), when the requested alias has never been set on it, or when the
-alias points at a version that is gone. All three produce the same 404 with the ref
-listed — the response does not say which of the three it was.
+`refs` carries each failure as it was **effectively** looked up — a pin by its version,
+an alias-follower with the default `production` filled in — so an SDK can name them
+without parsing the message.
+
+`failures` is that same list with the reason attached. There are four, and they are
+four different mistakes with four different fixes:
+
+| `reason` | What it means | What to do |
+|---|---|---|
+| `no_such_tool` | Nothing in your team has that name, including a soft-deleted tool | Fix the name, or create the tool |
+| `no_versions` | The tool exists but nothing has been committed to it, so it has **no aliases at all** | `POST /tools/:id/versions` |
+| `unknown_alias` | Versions exist; that alias was never promoted. `availableAliases` lists the ones that were | Use one of those, or promote |
+| `unknown_version` | A pinned version number that was never committed. `latestVersion` is the highest that was | Pin an existing version |
+
+`no_versions` is worth knowing about specifically, because it is the most likely
+failure on a tool you just made. Creating a tool is **two** calls: `POST /tools` makes
+the shell, and `POST /tools/:id/versions` commits the version that makes it callable.
+Aliases are minted by that first version, so a shell has none — and "no alias
+`production`" on a tool that plainly exists reads as "no such tool" unless the error
+says otherwise.
 
 Response (status 400) — an empty `refs` array:
 

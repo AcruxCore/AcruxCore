@@ -416,6 +416,15 @@ so the call above is the whole thing.
 
 When a bound tool does need you, name it in `client_tools`:
 
+:::note[Needs SDK 0.10.0 or newer]
+`client_tools` / `clientTools` arrived in `acruxcore` 0.10.0 and `@acruxcoreai/sdk`
+0.10.0. On 0.9.0 the Python call raises `TypeError: unexpected keyword argument
+'client_tools'`, and the Node option is ignored until the run fails with
+`MISSING_DISPATCH`. Upgrade with `pip install -U acruxcore` or
+`npm install @acruxcoreai/sdk@latest`. On an older SDK, use `dispatch=` instead — it
+is not deprecated and takes the same job.
+:::
+
 <Tabs groupId="lang">
 <TabItem value="python" label="Python">
 

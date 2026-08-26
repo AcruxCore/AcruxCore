@@ -361,32 +361,94 @@ async def test_chat_non_streaming_and_gateway_meta():
     assert r.gateway.span_ref == "span_1"
 
 
-async def test_chat_gateway_trace_opt_in_mints_a_fresh_span_id():
-    """`chat(trace=True)` on the GATEWAY path must NOT re-post the gateway's own
-    span id. The gateway has already persisted a span under that id and `spans` is
-    unique on `(traceId, spanRef)`, so re-using it makes the ingest endpoint reject
-    the insert — and the best-effort catch swallows the failure, recording nothing.
-    The trace id IS still adopted, so the extra span joins the gateway's trace."""
-    posted: List[Dict[str, Any]] = []
+async def test_chat_on_the_gateway_path_never_reports_an_llm_span_itself():
+    """On the GATEWAY path the gateway writes the `llm` span server-side, so the SDK
+    must report none of its own — whatever `trace=` says. It used to report one
+    whenever `trace` was anything but `False`, which counted every model call twice
+    and made span counts, per-trace token totals and any "how many calls did this
+    run make" analytics wrong (issue #360)."""
+    for trace_opt in (True, {}, {"name": "named"}, {"tags": ["a"]}, {"metadata": {"k": "v"}}):
+        posted: List[Dict[str, Any]] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/gateway/chat/completions"):
+                return httpx.Response(
+                    200,
+                    headers={"x-gateway-trace-id": "gw-trace-1", "x-gateway-span-id": "gw-span-1"},
+                    json={"id": "c1", "model": "m", "choices": [{"index": 0, "message": {"role": "assistant", "content": "hi"}, "finish_reason": "stop"}]},
+                )
+            posted.append(body_of(request)["traces"][0])
+            return httpx.Response(200, json={"accepted": 1, "traceIds": ["gw-trace-1"]})
+
+        async with make_client(handler) as c:
+            await c.gateway.chat("m", [{"role": "user", "content": "hi"}], trace=trace_opt)
+
+        assert posted == [], f"trace={trace_opt!r} still posted a duplicate span"
+
+
+async def test_chat_forwards_the_whole_trace_dict_as_gateway_headers():
+    """`trace={"name": ...}` worked on `run_tool_loop` and was silently dropped by
+    `chat()` — the two methods disagreed about whether the key meant anything
+    (issue #360). All five keys now build the header the gateway reads."""
+    seen: Dict[str, str] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path.endswith("/gateway/chat/completions"):
-            return httpx.Response(
-                200,
-                headers={"x-gateway-trace-id": "gw-trace-1", "x-gateway-span-id": "gw-span-1"},
-                json={"id": "c1", "model": "m", "choices": [{"index": 0, "message": {"role": "assistant", "content": "hi"}, "finish_reason": "stop"}]},
-            )
-        posted.append(body_of(request)["traces"][0])
-        return httpx.Response(200, json={"accepted": 1, "traceIds": ["gw-trace-1"]})
+        seen.update(request.headers)
+        return httpx.Response(
+            200,
+            headers={"x-gateway-trace-id": "t1"},
+            json={"id": "c1", "model": "m", "choices": [{"index": 0, "message": {"role": "assistant", "content": "hi"}, "finish_reason": "stop"}]},
+        )
 
     async with make_client(handler) as c:
-        await c.gateway.chat("m", [{"role": "user", "content": "hi"}], trace=True)
+        await c.gateway.chat(
+            "m", [{"role": "user", "content": "hi"}],
+            trace={"name": "my-flow", "trace_id": "t-existing", "session_id": "s1",
+                   "tags": ["a", "b"], "metadata": {"k": "v"}},
+        )
 
-    assert len(posted) == 1
-    span = posted[0]["spans"][0]
-    assert posted[0]["traceId"] == "gw-trace-1"
-    assert span["spanId"] != "gw-span-1"
-    assert span["spanId"].startswith("chat-")
+    assert seen["x-trace-name"] == "my-flow"
+    assert seen["x-trace-id"] == "t-existing"
+    assert seen["x-session-id"] == "s1"
+    assert seen["x-trace-tags"] == "a, b"
+    assert json.loads(seen["x-trace-metadata"]) == {"k": "v"}
+
+
+async def test_chat_percent_encodes_a_non_ascii_trace_name():
+    """A raw non-ASCII header value is a hard client-side failure in httpx, so the
+    name is percent-encoded and the server decodes it."""
+    seen: Dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(request.headers)
+        return httpx.Response(
+            200,
+            json={"id": "c1", "model": "m", "choices": [{"index": 0, "message": {"role": "assistant", "content": "hi"}, "finish_reason": "stop"}]},
+        )
+
+    async with make_client(handler) as c:
+        await c.gateway.chat("m", [{"role": "user", "content": "hi"}], trace={"name": "réunion"})
+
+    assert seen["x-trace-name"] == "r%C3%A9union"
+
+
+async def test_chat_sends_no_trace_name_header_when_the_caller_named_nothing():
+    """An absent name must mean "leave the trace's name alone", not "send a
+    default" — otherwise a call that only joins a trace renames it (issue #358)."""
+    seen: Dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(request.headers)
+        return httpx.Response(
+            200,
+            json={"id": "c1", "model": "m", "choices": [{"index": 0, "message": {"role": "assistant", "content": "hi"}, "finish_reason": "stop"}]},
+        )
+
+    async with make_client(handler) as c:
+        await c.gateway.chat("m", [{"role": "user", "content": "hi"}], trace={"trace_id": "t-existing"})
+
+    assert "x-trace-name" not in seen
+    assert seen["x-trace-id"] == "t-existing"
 
 
 async def test_chat_byo_trace_reuses_the_locally_minted_span_id():
@@ -579,6 +641,61 @@ async def test_chat_byo_per_call_provider_overrides_client_default():
             provider={"base_url": "https://api.together.xyz/v1", "api_key": "together-key"},
             trace=False,
         )
+
+
+async def test_chat_without_a_model_fails_locally_instead_of_calling_out():
+    """`render()` returns model=None when the prompt version has no bound model, and that
+    None used to travel all the way to the provider. OpenRouter reads a null model as
+    absent, substitutes its own default and complains that `google/gemini-pro` is invalid
+    — naming a model the caller never wrote (issue #369). Fail before the request, and say
+    where a model comes from.
+    """
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        return httpx.Response(200, json={})
+
+    async with make_client(handler) as c:
+        for kwargs in (
+            {"provider": {"base_url": "https://openrouter.ai/api/v1", "api_key": "k"}},
+            {},
+        ):
+            with pytest.raises(AcruxCoreError) as ei:
+                await c.gateway.chat(None, [{"role": "user", "content": "hi"}],
+                                     trace=False, **kwargs)
+            assert ei.value.code == "VALIDATION_ERROR"
+            assert "model" in str(ei.value)
+    assert calls == [], f"nothing should have been sent, but got {calls}"
+
+
+async def test_run_tool_loop_without_a_model_fails_locally():
+    async with make_client(lambda r: httpx.Response(200, json={})) as c:
+        with pytest.raises(AcruxCoreError) as ei:
+            await c.gateway.run_tool_loop("", [{"role": "user", "content": "hi"}],
+                                          tool_defs=[], dispatch=lambda *a: {}, trace=False)
+        assert ei.value.code == "VALIDATION_ERROR"
+
+
+async def test_chat_byo_error_message_carries_the_providers_own_reason():
+    """Running the BYO RAG notebook printed `provider returned 400 calling chat
+    completions` and nothing else, while the actual reason — "is not a valid model ID" —
+    sat unread in err.body. Issue #349 fixed that for OUR API's errors but never reached
+    the provider paths, so the reader had to know to inspect err.body to learn anything.
+    """
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, json={
+            "error": {"message": "google/gemini-pro is not a valid model ID", "code": 400},
+        })
+
+    async with make_client(handler) as c:
+        with pytest.raises(AcruxCoreError) as ei:
+            await c.gateway.chat(
+                "m", [{"role": "user", "content": "hi"}],
+                provider={"base_url": "https://openrouter.ai/api/v1", "api_key": "k"},
+                trace=False,
+            )
+    assert "is not a valid model ID" in str(ei.value)
 
 
 async def test_chat_byo_raises_provider_error_on_non_2xx():
@@ -1911,6 +2028,98 @@ async def test_tools_rejects_an_undecorated_function_and_points_at_tool_defs():
     assert "tool_defs=" in str(exc.value)
 
 
+# --- run_tool_loop and the trace name (issue #358) -------------------------
+
+
+def _completion_headers_of(seen: List[httpx.Request]) -> List[Dict[str, str]]:
+    """Headers of every gateway completion in the order they were sent."""
+    return [
+        dict(r.headers)
+        for r in seen
+        if r.url.path.endswith("/gateway/chat/completions")
+    ]
+
+
+async def test_run_tool_loop_joining_a_trace_sends_no_name():
+    """`run_tool_loop(trace={"trace_id": ...})` used to send `x-trace-name:
+    runToolLoop` anyway, and the gateway applies whatever name arrives last — so a
+    call that only JOINED a trace renamed it. Nothing errored and the spans were
+    right; only the name the opener had set was gone, and the cause was invisible
+    in the caller's own code because they never wrote "runToolLoop" (issue #358)."""
+    get_weather = _weather_tool()
+    seen: List[httpx.Request] = []
+
+    inner = tool_loop_handler()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return inner(request)
+
+    async with make_client(handler) as client:
+        await client.gateway.run_tool_loop(
+            model="m",
+            messages=[{"role": "user", "content": "?"}],
+            tools=[get_weather],
+            trace={"trace_id": "trace-opened-elsewhere"},
+        )
+
+    headers = _completion_headers_of(seen)
+    assert headers, "no gateway completion was sent"
+    for h in headers:
+        # The default may still be SENT — it travels on the channel the server ignores
+        # for an already-named trace — but it must never arrive as an instruction.
+        assert "x-trace-name" not in h
+        assert h["x-trace-name-if-unset"] == "runToolLoop"
+        assert h["x-trace-id"] == "trace-opened-elsewhere"
+
+
+async def test_run_tool_loop_sends_its_default_on_the_weak_channel():
+    """"runToolLoop" is the SDK's own default, not a name the caller chose, so it
+    goes out as `x-trace-name-if-unset`: the server fills it in for a trace that has
+    no real name and ignores it otherwise. That keeps a trace the loop OPENS named,
+    without letting a loop that merely JOINS one rename it (phase-3 FAQ Q33)."""
+    get_weather = _weather_tool()
+    seen: List[httpx.Request] = []
+
+    inner = tool_loop_handler()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return inner(request)
+
+    async with make_client(handler) as client:
+        await client.gateway.run_tool_loop(
+            model="m", messages=[{"role": "user", "content": "?"}], tools=[get_weather]
+        )
+
+    headers = _completion_headers_of(seen)[0]
+    assert headers["x-trace-name-if-unset"] == "runToolLoop"
+    assert "x-trace-name" not in headers
+
+
+async def test_run_tool_loop_explicit_name_wins_even_when_joining():
+    """An explicit name is an instruction, so it is still sent when joining — the
+    caller asked for it. Only the absence of one now means "leave it alone"."""
+    get_weather = _weather_tool()
+    seen: List[httpx.Request] = []
+
+    inner = tool_loop_handler()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return inner(request)
+
+    async with make_client(handler) as client:
+        await client.gateway.run_tool_loop(
+            model="m",
+            messages=[{"role": "user", "content": "?"}],
+            tools=[get_weather],
+            trace={"trace_id": "t-1", "name": "my-flow"},
+        )
+
+    assert _completion_headers_of(seen)[0]["x-trace-name"] == "my-flow"
+
+
 def test_dunder_version_matches_the_published_package_version():
     """`acruxcore.__version__` had drifted from pyproject.toml's version since the
     0.6.0 -> 0.6.5 release (the release step bumps pyproject.toml/PyPI but this
@@ -1924,3 +2133,70 @@ def test_dunder_version_matches_the_published_package_version():
 
     pyproject = tomllib.loads((Path(__file__).parent.parent / "pyproject.toml").read_text())
     assert acruxcore.__version__ == pyproject["project"]["version"]
+
+
+# --- prompt aliases (issue #354) -------------------------------------------
+
+
+async def test_list_aliases_reads_the_bare_array_the_endpoint_returns():
+    """`GET /prompts/:id/aliases` answers with a bare JSON array, not a
+    `{data: [...]}` envelope like the list endpoints — so the parsing differs from
+    every other list call in this namespace."""
+    seen: List[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(f"{request.method} {request.url.path}")
+        return httpx.Response(200, json=[
+            {"id": "a1", "alias": "production", "versionId": "v-2",
+             "versionNumber": 2, "updatedAt": "2026-08-21T00:00:00.000Z"},
+            {"id": "a2", "alias": "staging", "versionId": "v-1",
+             "versionNumber": 1, "updatedAt": "2026-08-20T00:00:00.000Z"},
+        ])
+
+    async with make_client(handler) as c:
+        aliases = await c.prompts.list_aliases("p-1")
+
+    assert seen == ["GET /api/v1/prompts/p-1/aliases"]
+    assert [(a.alias, a.version_number) for a in aliases] == [("production", 2), ("staging", 1)]
+    assert aliases[0].version_id == "v-2"
+
+
+async def test_list_aliases_of_a_prompt_with_no_version_is_empty_not_an_error():
+    """Aliases are minted by a prompt's first version, so a shell has none. That is
+    an empty list, not a 404."""
+    async with make_client(lambda r: httpx.Response(200, json=[])) as c:
+        assert await c.prompts.list_aliases("p-1") == []
+
+
+# --- lifecycle (issue #346) ------------------------------------------------
+
+
+async def test_context_manager_exit_closes_the_http_pool():
+    """`__aexit__` used to flush traces and stop there, leaving httpx's connection
+    pool open. Nothing errored, and httpx only reports it as a `ResourceWarning`
+    (off by default), so a process building one client per request or per job
+    accumulated pools silently."""
+    client = make_client(lambda r: httpx.Response(200, json={"data": [], "total": 0}))
+    async with client:
+        await client.prompts.list(limit=1)
+    assert client._client.is_closed
+
+
+async def test_aclose_closes_the_http_pool_without_a_context_manager():
+    """A notebook cell or a REPL cannot use `async with`, and `gateway.aclose()`
+    flushes traces but deliberately leaves the transport alone. `hub.aclose()` is
+    the call that does both."""
+    client = make_client(lambda r: httpx.Response(200, json={"data": [], "total": 0}))
+    await client.prompts.list(limit=1)
+    assert not client._client.is_closed
+    await client.aclose()
+    assert client._client.is_closed
+
+
+async def test_aclose_is_idempotent():
+    """`async with` around code that already called `aclose()` must not raise —
+    otherwise the defensive call is the thing that breaks the script."""
+    client = make_client(lambda r: httpx.Response(200, json={"data": [], "total": 0}))
+    async with client:
+        await client.aclose()
+    assert client._client.is_closed

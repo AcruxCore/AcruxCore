@@ -11,11 +11,10 @@ Flow:
   2. run_prompt_with_tools — drives the gateway completion loop for you, threading
                       one trace. web_research is a CLIENT tool (the catalog stores
                       only its schema), so its implementation goes in client_tools.
-  3. client_tools  — calls the exact source's TavilySearchResults wrapper
-                      directly (no REST reimplementation), with max_results/
-                      search_depth/include_images chosen by ALIAS — mirroring the
-                      source's advanced_research (10, advanced) vs basic_research
-                      (5, basic, images, "trending " prefix).
+  3. client_tools  — calls Tavily through its own maintained SDK, with
+                      max_results/search_depth/include_images chosen by ALIAS —
+                      mirroring the source's advanced_research (10, advanced) vs
+                      basic_research (5, basic, images, "trending " prefix).
 
 Run:
   export ACRUXCORE_API_KEY=<your personal api key>
@@ -23,32 +22,41 @@ Run:
   export TAVILY_API_KEY=tvly-...
   python run_agent.py quick "What are people saying about the new Anthropic Claude models?"
   python run_agent.py deep  "What are people saying about the new Anthropic Claude models?"
+
+Dependencies: pip install acruxcore tavily-python
 """
 
 import asyncio
 import sys
 
 from acruxcore import AcruxCore
-from langchain_community.tools.tavily_search import TavilySearchResults
+from tavily import AsyncTavilyClient
 
 PROMPT = "web-research-agent"
 
 
 async def web_research(query: str, alias: str) -> list:
-    """Real call to the source's own TavilySearchResults wrapper — not a
-    hand-rolled REST substitute. Depth is picked by ALIAS, not by the model:
-    the model only ever supplies `query`."""
+    """A real Tavily search, through Tavily's own maintained SDK.
+
+    Depth is picked by ALIAS, not by the model: the model only ever supplies
+    `query`. That is the whole point of this tutorial — the same code answers
+    differently because the prompt alias configured it differently.
+
+    `AsyncTavilyClient` reads TAVILY_API_KEY from the environment, and its
+    `search()` returns `{"query", "results", "images", ...}` — so the result
+    list is one level in, unlike the langchain wrapper this replaced, which
+    handed back the list directly.
+    """
+    client = AsyncTavilyClient()
     if alias == "quick":
         # basic_research: 5 results, basic depth, images, "trending" framing
-        wrapped = TavilySearchResults(
-            max_results=5, search_depth="basic", include_raw_content=False, include_images=True
+        res = await client.search(
+            f"trending {query}", max_results=5, search_depth="basic", include_images=True
         )
-        results = await wrapped.ainvoke({"query": f"trending {query}"})
     else:
         # advanced_research: 10 results, advanced depth
-        wrapped = TavilySearchResults(max_results=10, search_depth="advanced")
-        results = await wrapped.ainvoke({"query": query})
-    return [{"title": item["title"], "url": item["url"]} for item in results]
+        res = await client.search(query, max_results=10, search_depth="advanced")
+    return [{"title": item["title"], "url": item["url"]} for item in res["results"]]
 
 
 def client_tools_for(alias: str) -> dict:

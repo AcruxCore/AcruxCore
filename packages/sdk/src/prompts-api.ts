@@ -335,6 +335,30 @@ export class PromptsNamespace {
   }
 
   /**
+   * Lists every alias on a prompt and the version each one points at.
+   *
+   * The read half of {@link promoteAlias}. Answers "which version is `production` on
+   * right now?" without dropping out of the SDK to hand-build an HTTP call — which is
+   * what a deploy check, a CI guard or a dashboard of its own had to do before this
+   * existed (issue #354).
+   *
+   * @param promptId - The prompt's id.
+   * @returns One {@link AliasDetail} per alias. A prompt with no committed version has
+   *   none, which is an empty array rather than an error.
+   * @throws {acruxcoreError} API_ERROR 404 if the prompt does not exist.
+   * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries.
+   */
+  async listAliases(promptId: string): Promise<AliasDetail[]> {
+    const response = await this.client._request(
+      'GET',
+      `/prompts/${encodeURIComponent(promptId)}/aliases`,
+      undefined,
+      'listing prompt aliases',
+    );
+    return this.client._parseJsonOrThrow(response, 'listing prompt aliases') as Promise<AliasDetail[]>;
+  }
+
+  /**
    * Promotes an alias to point at a specific version — e.g. rolling `production`
    * forward (or back) to a version already committed. Creates the alias if it
    * does not exist yet.

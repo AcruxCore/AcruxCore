@@ -53,7 +53,7 @@ export class IngestService {
   async ingest(
     teamId: string,
     traces: IngestTrace[],
-    opts?: { idempotent?: boolean; allowUnknownParents?: boolean },
+    opts?: { idempotent?: boolean; allowUnknownParents?: boolean; derivedName?: boolean },
   ): Promise<IngestResponse> {
     const totalSpans = traces.reduce((n, t) => n + t.spans.length, 0);
     if (totalSpans > MAX_SPANS_PER_BATCH) {
@@ -74,6 +74,7 @@ export class IngestService {
         await this.ingestTrace(teamId, trace, teamSetting, {
           idempotent: opts?.idempotent ?? false,
           allowUnknownParents: opts?.allowUnknownParents ?? false,
+          derivedName: opts?.derivedName ?? false,
         }),
       );
     }
@@ -89,13 +90,16 @@ export class IngestService {
    * @param mode - `idempotent`: upsert spans (safe on retry) instead of
    *        appending. `allowUnknownParents`: skip the parent-reference check —
    *        see {@link IngestService.ingest} for why the OTLP path needs it.
+   *        `derivedName`: `trace.name` was derived from the batch rather than
+   *        supplied by the caller, so it fills in a placeholder name and never
+   *        overwrites a real one — see {@link SpansRepository.mergeTraceContext}.
    * @returns The resolved trace id.
    */
   private async ingestTrace(
     teamId: string,
     trace: IngestTrace,
     teamSetting: boolean,
-    mode: { idempotent: boolean; allowUnknownParents: boolean },
+    mode: { idempotent: boolean; allowUnknownParents: boolean; derivedName: boolean },
   ): Promise<string> {
     const capture = shouldCapture(teamSetting, trace.capturePayloads);
     const startedAt = this.earliestStart(trace.spans);
@@ -112,11 +116,21 @@ export class IngestService {
             throw new NotFoundError('Trace not found.');
           }
           traceId = existing.id;
-          if (trace.tags?.length || trace.metadata || trace.sessionId) {
+          // A derived name is offered rather than asserted. OTLP batches arrive in any
+          // order, so the batch that creates a trace may not be the one holding its root
+          // span — this is what lets a later batch replace the timestamp fallback, while
+          // still never pushing a real name back to a timestamp (issue #362).
+          const derivedName = mode.derivedName ? trace.name?.trim() : undefined;
+          if (trace.tags?.length || trace.metadata || trace.sessionId || derivedName) {
             await this.spans.mergeTraceContext(
               traceId,
               teamId,
-              { tags: trace.tags, metadata: trace.metadata, sessionId: trace.sessionId },
+              {
+                tags: trace.tags,
+                metadata: trace.metadata,
+                sessionId: trace.sessionId,
+                ...(derivedName ? { nameIfPlaceholder: derivedName } : {}),
+              },
               tx,
             );
           }

@@ -6,8 +6,14 @@ export * from './tools.types';
 export { toolExecuteRouter, ToolExecuteService } from './execute';
 export { toolSyncRouter, ToolSyncService } from './sync';
 export type { SyncToolDto, SyncToolResult } from './sync';
-export { ToolResolver, ToolRefNotFoundError, ToolRefsNotFoundError } from './resolver';
-export type { ResolvedToolDefinition, ToolRef, DetailedResolvedTool } from './resolver';
+export { ToolResolver, ToolRefNotFoundError, ToolRefsNotFoundError, describeToolRefFailure } from './resolver';
+export type {
+  ResolvedToolDefinition,
+  ToolRef,
+  DetailedResolvedTool,
+  ToolRefFailure,
+  ToolRefFailureReason,
+} from './resolver';
 export { toolResolveRouter } from './resolve';
 export type { ResolveToolsDto, ResolveToolsResponse } from './resolve';
 export { toolAnalyticsRouter, ToolAnalyticsService, ToolAnalyticsRepository } from './analytics';

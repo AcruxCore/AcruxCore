@@ -1,5 +1,5 @@
 import type { Agent } from 'undici';
-import { ProviderAdapter, ProviderError, GATEWAY_TIMEOUT_MS } from './adapter';
+import { ProviderAdapter, ProviderError, GATEWAY_TIMEOUT_MS, summarizeProviderDetail } from './adapter';
 import type { NormalizedRequest, NormalizedResponse, ProviderCredentials, StreamChunk } from './types';
 import { parseSseStream } from './sse-parse';
 import { guardedFetch } from './guarded-fetch';
@@ -14,7 +14,13 @@ interface OpenAiStreamFrame {
     };
     finish_reason?: string | null;
   }[];
-  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+    /** Prefix-cache detail; `cached_tokens` is a subset of `prompt_tokens`, billed at a discount. */
+    prompt_tokens_details?: { cached_tokens?: number } | null;
+  } | null;
 }
 
 interface OpenAiResponseBody {
@@ -31,7 +37,27 @@ interface OpenAiResponseBody {
     };
     finish_reason: string | null;
   }[];
-  usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+  usage: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+    /** Prefix-cache detail; `cached_tokens` is a subset of `prompt_tokens`, billed at a discount. */
+    prompt_tokens_details?: { cached_tokens?: number } | null;
+  };
+}
+
+/**
+ * Narrows OpenAI's `prompt_tokens_details` to the one field we bill on.
+ *
+ * Returns an empty object rather than `{ cached_tokens: 0 }` when there is nothing to report, so
+ * `usage` keeps the exact shape it had before prefix caching existed for every provider that does
+ * not send the detail block.
+ */
+function cachedTokens(
+  details: { cached_tokens?: number } | null | undefined,
+): { cached_tokens?: number } {
+  const cached = details?.cached_tokens;
+  return typeof cached === 'number' && cached > 0 ? { cached_tokens: cached } : {};
 }
 
 const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
@@ -138,6 +164,7 @@ export class OpenAiAdapter implements ProviderAdapter {
           res.status,
           undefined,
           res.status === 429 || res.status >= 500,
+          summarizeProviderDetail(detail),
         );
       }
 
@@ -160,6 +187,7 @@ export class OpenAiAdapter implements ProviderAdapter {
           prompt_tokens: data.usage.prompt_tokens,
           completion_tokens: data.usage.completion_tokens,
           total_tokens: data.usage.total_tokens,
+          ...cachedTokens(data.usage.prompt_tokens_details),
         },
       };
     } finally {
@@ -225,6 +253,7 @@ export class OpenAiAdapter implements ProviderAdapter {
           res.status,
           undefined,
           res.status === 429 || res.status >= 500,
+          summarizeProviderDetail(detail),
         );
       }
 
@@ -244,6 +273,7 @@ export class OpenAiAdapter implements ProviderAdapter {
               prompt_tokens: frame.usage.prompt_tokens,
               completion_tokens: frame.usage.completion_tokens,
               total_tokens: frame.usage.total_tokens,
+              ...cachedTokens(frame.usage.prompt_tokens_details),
             }
           : undefined;
         // Map partial OpenAI tool-call deltas to the canonical ToolCall shape (fields

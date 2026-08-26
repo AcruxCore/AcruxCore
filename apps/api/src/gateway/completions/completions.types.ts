@@ -246,8 +246,23 @@ export interface GatewayCallContext {
    * T8 trace context: caller-supplied trace name; absent → timestamp fallback (FAQ
    * Q12). On an existing trace, supplying this overwrites the current name
    * (last-explicit-write-wins, T9, FAQ Q11 revised); omitting it never resets one.
+   *
+   * This is the *instruction* channel — use it for a name the caller actually chose.
+   * For a name a client library merely defaults to, use {@link traceNameIfUnset}.
    */
   traceName?: string;
+  /**
+   * T8 trace context: a name to use only if the trace does not have a real one yet
+   * (FAQ Q33). Fills in the Q12 timestamp fallback and is otherwise ignored, so a call
+   * that merely *joins* a trace cannot rename it.
+   *
+   * Exists because `traceName` cannot express the difference between "call this run X"
+   * and "call it X if nothing better is known". A client with only the latter to say had
+   * to either send an instruction it did not mean — which is how a tool loop renamed
+   * other calls' traces to `runToolLoop` (issue #358) — or send nothing and lose the
+   * name on the traces it really did open. `traceName` wins when both are present.
+   */
+  traceNameIfUnset?: string;
   /** T8 trace context: tags to set (new trace) or merge into (existing trace, FAQ Q11). */
   traceTags?: string[];
   /** T8 trace context: JSON metadata to set (new trace) or merge into (existing trace, FAQ Q11). */

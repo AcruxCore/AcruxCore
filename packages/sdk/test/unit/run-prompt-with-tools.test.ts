@@ -301,7 +301,7 @@ describe('runPromptWithTools', () => {
       const headersOf = (init: RequestInit) => init.headers as Record<string, string>;
       // Round 1 has no trace to join yet; round 2 joins the one the gateway minted.
       expect(headersOf(chatCalls[0]![1])['x-trace-id']).toBeUndefined();
-      expect(headersOf(chatCalls[0]![1])['x-trace-name']).toBe('runToolLoop');
+      expect(headersOf(chatCalls[0]![1])['x-trace-name-if-unset']).toBe('runToolLoop');
       expect(headersOf(chatCalls[1]![1])['x-trace-id']).toBe('tr-1');
 
       const traceBodies = calls()

@@ -29,6 +29,37 @@ UNKNOWN_INSTRUMENTOR: ErrorCode = "UNKNOWN_INSTRUMENTOR"
 INSTRUMENTOR_NOT_INSTALLED: ErrorCode = "INSTRUMENTOR_NOT_INSTALLED"
 
 
+
+#: How much of a server error message to carry into the raised one.
+MAX_SERVER_DETAIL = 400
+
+
+def server_detail(body: Any) -> str:
+    """Format a server's own ``error.message`` for appending to a raised message.
+
+    Both our API and every OpenAI-compatible provider answer errors as
+    ``{"error": {"message", ...}}``, and that message is where the actionable detail
+    lives — which tool, which alias, which model id. Truncated because a validation
+    error can carry a long list; the full body stays on the exception's ``body``
+    attribute either way.
+
+    Lives here rather than in ``client.py`` because ``client`` imports ``gateway_api``,
+    so the provider paths could not import it from there without a cycle.
+
+    :param body: Parsed response body, or ``None`` when it was not JSON.
+    :returns: ``": <message>"``, or an empty string when there is nothing to add.
+    """
+    if not isinstance(body, dict):
+        return ""
+    error = body.get("error")
+    message = error.get("message") if isinstance(error, dict) else None
+    if not isinstance(message, str) or not message.strip():
+        return ""
+    trimmed = message.strip()
+    if len(trimmed) > MAX_SERVER_DETAIL:
+        trimmed = trimmed[:MAX_SERVER_DETAIL] + "\u2026"
+    return f": {trimmed}"
+
 class AcruxCoreError(Exception):
     """Raised by every AcruxCore SDK operation.
 

@@ -185,12 +185,87 @@ function mapGenericSpan(raw: RawSpan, attrs: Record<string, unknown>): IngestSpa
 }
 
 /**
+ * A trailing run id that frameworks append to a root span's name, e.g. the
+ * `_5f1fcf48-de64-42cf-b927-5c060836053` on CrewAI's `Crew_<uuid>`.
+ *
+ * Also matches a truncated uuid, because that is what CrewAI actually emits, and the
+ * leading separator is optional so a name that is *nothing but* a run id trims to empty
+ * and falls back — a bare uuid is no more findable in a trace list than a timestamp.
+ */
+/**
+ * A uuid-shaped run id, matched anywhere in a span name rather than only at the end.
+ * CrewAI emits `Crew_<uuid>.kickoff`, so the id sits mid-name; the last group is loose
+ * because some emitters truncate it. Kept separate from the tidy-up below so each step
+ * stays readable.
+ */
+const RUN_ID = /[0-9a-f]{8}(?:-[0-9a-f]{4}){2}-[0-9a-f]{4}-?[0-9a-f]{0,12}/gi;
+
+/** Two or more adjacent separators, left behind where a run id used to sit. */
+const SEPARATOR_RUN = /[_.\s-]{2,}/g;
+
+/** Separators stranded at either end once the run id in between is gone. */
+const EDGE_SEPARATORS = /^[_.\s-]+|[_.\s-]+$/g;
+
+/**
+ * Removes a run id from a span name and tidies the punctuation it leaves behind.
+ *
+ * A separator run collapses to its **last** character so the surviving halves keep the
+ * join the emitter meant: `Crew_<uuid>.kickoff` has `_` and `.` collide, and `.kickoff`
+ * is the part that reads as a method call. Edge separators then go, so a trailing id
+ * yields `Crew` rather than `Crew_`.
+ *
+ * @param name - A raw OTLP span name.
+ * @returns The name with any run id and its orphaned punctuation removed. Empty when the
+ *   name was nothing but a run id, which the caller reads as "no usable name".
+ */
+function stripRunId(name: string): string {
+  return name
+    .replace(RUN_ID, '')
+    .replace(SEPARATOR_RUN, (run) => run.slice(-1))
+    .replace(EDGE_SEPARATORS, '')
+    .trim();
+}
+
+/**
+ * Names a trace after its root span, which is the only name in an OTLP batch that
+ * describes the whole run.
+ *
+ * Root means **no `parentSpanId` at all** — deliberately not "no parent in this batch".
+ * OTLP arrives in batches, so a span whose parent is simply absent here is usually a
+ * child whose parent flushed in an earlier export; naming the trace after it would name
+ * the run after one of its leaves. A batch with no true root therefore contributes no
+ * name and the timestamp fallback stands until the root turns up, which is honest: we do
+ * not yet know what the run is called. With several roots the earliest wins, since a run
+ * starts before anything it contains.
+ *
+ * The run id is trimmed wherever it sits: `Crew_5f1fcf48-….kickoff` reads worse than
+ * `Crew.kickoff`, and — more usefully — two runs of the same crew then share a name,
+ * which is what makes a name searchable at all. Without any of this every OTLP trace was named by its start
+ * timestamp, so the trace list read as a wall of near-identical timestamps for exactly
+ * the users who wrote no AcruxCore code: CrewAI, LangChain, LlamaIndex, the OpenAI Agents
+ * SDK (issue #362).
+ *
+ * @param spans - Every span translated for one trace id.
+ * @returns The trimmed root span name, or `undefined` when the batch holds no parentless
+ *   span or its name trims to nothing (the caller's timestamp fallback then applies).
+ */
+function deriveTraceName(spans: IngestSpan[]): string | undefined {
+  const roots = spans.filter((s) => !s.parentSpanId);
+  if (roots.length === 0) return undefined;
+
+  const root = roots.reduce((earliest, s) => (s.startTime < earliest.startTime ? s : earliest));
+  const trimmed = root.name ? stripRunId(root.name) : undefined;
+  return trimmed ? trimmed : undefined;
+}
+
+/**
  * Translates decoded OTLP `ResourceSpans` into AcruxCore's `IngestTrace[]` shape,
  * grouping spans by trace id (Phase 1: OpenInference vocabulary only — see the
  * design doc for the Phase 2 GenAI-semconv gap).
  *
  * @param resourceSpans - Decoded OTLP resource/span groups (protobuf or JSON path).
- * @returns One `IngestTrace` per distinct trace id found across all resources.
+ * @returns One `IngestTrace` per distinct trace id found across all resources, each named
+ *   after its root span when the batch contains one.
  */
 export function translateResourceSpans(resourceSpans: RawResourceSpans[]): IngestTrace[] {
   const byTraceId = new Map<string, IngestSpan[]>();
@@ -212,9 +287,13 @@ export function translateResourceSpans(resourceSpans: RawResourceSpans[]): Inges
     }
   }
 
-  return Array.from(byTraceId.entries()).map(([traceId, spans]) => ({
-    traceId,
-    sessionId: sessionByTraceId.get(traceId),
-    spans,
-  }));
+  return Array.from(byTraceId.entries()).map(([traceId, spans]) => {
+    const name = deriveTraceName(spans);
+    return {
+      traceId,
+      sessionId: sessionByTraceId.get(traceId),
+      ...(name ? { name } : {}),
+      spans,
+    };
+  });
 }

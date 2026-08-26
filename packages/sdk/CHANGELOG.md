@@ -12,8 +12,15 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+_Nothing yet._
+
+## 0.10.0 — 2026-08-21
+
 ### Added
 
+- `prompts.listAliases(promptId)`: the read half of `promoteAlias`, answering "which
+  version is `production` on right now?" without hand-building an HTTP call. Returns one
+  `AliasDetail` per alias, or an empty array for a prompt with no committed version.
 - `clientTools` on `gateway.runToolLoop` and `gateway.runPromptWithTools`: a
   `{ toolName: fn }` map that runs a catalog tool whose executor is `client`, without
   the hand-written `dispatch` router that was previously the only way.
@@ -32,6 +39,26 @@ changelog: <https://docs.acruxcore.com/changelog>
 - `dispatch` is unchanged and not deprecated. It stays the right input for a tool set
   whose names are only known at runtime.
 
+### Fixed
+
+- `gateway.chat()` on the gateway path no longer reports an `llm` span of its own. The
+  gateway already writes that span, so any `trace` value but `false` counted every model
+  call twice — wrong span counts, wrong per-trace token totals, and nothing errored.
+- `gateway.chat({ trace: { name } })` now reaches the gateway. The key worked on
+  `runToolLoop` and was silently dropped here; `traceId` and `sessionId` in the same
+  object were dropped too, so a `chat()` could not join a trace at all.
+- A tool loop that joins an existing trace (`trace: { traceId }`) no longer renames it to
+  `runToolLoop`. The default name is still sent for a trace the loop opens, and an
+  explicit `name` still wins either way. The default now travels on the API's new
+  `x-trace-name-if-unset` channel, so the server enforces this rather than trusting the
+  client — see the gateway reference.
+- An error raised for a BYO provider call now carries the provider's own reason. Both
+  `gateway.chat` and its streaming path said only `provider returned 400 calling chat
+  completions` while the cause sat unread on `err.body`.
+
+- A call with no model now fails in the SDK with `VALIDATION_ERROR` instead of being sent.
+  A BYO provider reads an absent model as licence to pick its own default and then rejects
+  it, so the thrown error named a model the caller never wrote.
 ## 0.9.0 — 2026-08-20
 
 ### Added

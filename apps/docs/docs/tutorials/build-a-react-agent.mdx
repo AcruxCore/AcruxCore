@@ -1,6 +1,6 @@
 ---
 title: Build a ReAct agent
-description: A finance research agent that reasons step by step and calls two real tools, driven by a manual tool-calling loop straight against OpenAI — no gateway.
+description: A finance research agent that reasons step by step and calls two real tools, driven by a manual tool-calling loop straight against your own model provider — no gateway.
 sidebar_position: 5
 keywords: [react agent, tool calling, yahoo finance, openai, byo]
 ---
@@ -10,12 +10,35 @@ import TabItem from '@theme/TabItem';
 
 # Build a ReAct agent
 
-**What you'll build:** a finance research assistant that looks up stock news and today's date on its own, then answers in plain language — traced end-to-end, but calling OpenAI directly (no gateway).
+**What you'll build:** a finance research assistant that looks up stock news and today's date on its own, then answers in plain language — traced end-to-end, but calling your model provider directly (no gateway).
 
-This tutorial uses the **BYO (bring your own key)** path: model calls go straight to OpenAI with your own key, while AcruxCore still stores the prompt, tool catalog, and traces. Two **client tools** — `finance_research(ticker_symbol)` and `get_todays_date()` — are catalogued in AcruxCore but run by your own code.
+This tutorial uses the **BYO (bring your own key)** path: model calls go straight to your provider with your own key, while AcruxCore still stores the prompt, tool catalog, and traces. Two **client tools** — `finance_research(ticker_symbol)` and `get_todays_date()` — are catalogued in AcruxCore but run by your own code.
+
+:::tip[Prefer a notebook?]
+[`react_agent.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/react-agent/notebook/react_agent.ipynb)
+is this whole page as one runnable notebook, written for a first-timer: a preflight cell
+that checks both keys and the Yahoo endpoint before anything else, both tools and the
+prompt created step by step, the trace read back from the API, and four ways to get it
+wrong triggered on purpose — including the quiet one, where skipping the `llm` span leaves
+a trace with tool calls and no model turns. It reaches Yahoo Finance with `requests`
+directly instead of through `langchain-community`, so it needs one dependency rather than
+three. It renders on GitHub with its saved output, so you can read it through before
+running anything.
+:::
 
 :::note[What you'll need]
-An [OpenAI](https://platform.openai.com/api-keys) API key (this page calls OpenAI directly, so it needs a real one — no OpenRouter substitute here) and, for the Python tab, `pip install langchain-community yfinance`.
+A provider key for any **OpenAI-compatible** API, and for the Python tab, `pip install requests`.
+
+Your code makes the completion call here, so the base URL is the only thing that decides who answers. Set the URL and the model together and nothing else on this page changes:
+
+| Provider | `PROVIDER_BASE_URL` | A `PROVIDER_MODEL` it serves |
+|---|---|---|
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
+| OpenRouter | `https://openrouter.ai/api/v1` | `meta-llama/llama-3.3-70b-instruct` |
+| Anthropic (its compatibility endpoint) | `https://api.anthropic.com/v1` | `claude-haiku-4-5-20251001` |
+| a local server (vLLM, Ollama, LM Studio) | `http://localhost:8000/v1` | whatever it loaded |
+
+The examples below were run against OpenAI, so that is the default. Two things vary by provider: model ids are not shared, and each words its error bodies differently.
 :::
 
 ## 1. Create the tools over the API
@@ -203,7 +226,7 @@ the two the first commit just created — calls both tools. See
 [Connect a tool to a prompt](../guides/connect-a-tool-to-a-prompt) for giving one
 alias a different build.
 
-No `model` is bound on the version — that field points at the gateway's model registry, and this page never touches the gateway. The model id (`gpt-4o-mini`) is hardcoded in the scripts below instead, exactly like the OpenRouter model id in [Build a RAG agent without the gateway](./build-a-rag-agent-without-the-gateway).
+No `model` is bound on the version — that field points at the gateway's model registry, and this page never touches the gateway. The model id comes from `PROVIDER_MODEL` in the scripts below instead, and it belongs to whichever provider your base URL points at — the same arrangement as the OpenRouter model id in [Build a RAG agent without the gateway](./build-a-rag-agent-without-the-gateway).
 
 The first version auto-creates `production`/`staging` aliases, so it's immediately renderable:
 
@@ -360,8 +383,8 @@ That `tools` array is already OpenAI's exact `tools[].function` shape — nothin
 There's no SDK call that does this loop for you here — `runToolLoop()` only exists for the gateway and BYO-via-SDK paths. On this page every tab drives the loop by hand:
 
 1. **Render** the prompt (AcruxCore) — one call, gets you messages + tool schemas + the version id.
-2. **Complete** — `POST https://api.openai.com/v1/chat/completions`, straight to OpenAI, with your own key. Never through AcruxCore.
-3. **Report the `llm` span yourself** — because no gateway saw that call, nothing records it unless you do. `POST /traces` with `kind: "llm"`, the model, `provider: "api.openai.com"` (the host you actually called), and the token usage OpenAI returned.
+2. **Complete** — `POST $PROVIDER_BASE_URL/chat/completions`, straight to your provider, with your own key. Never through AcruxCore.
+3. **Report the `llm` span yourself** — because no gateway saw that call, nothing records it unless you do. `POST /traces` with `kind: "llm"`, the model, `provider` set to the host from your base URL (derive it rather than typing it, or the span will name a provider you stopped using), and the token usage the provider returned.
 4. **If the model asked for a tool**, run it locally, report a `kind: "tool"` span onto the *same* trace, feed the result back as a `role: "tool"` message, and go back to step 2.
 5. **Once the model stops asking for tools**, print its answer.
 
@@ -373,12 +396,14 @@ gateway never saw the call. See [Build a RAG agent without the
 gateway](./build-a-rag-agent-without-the-gateway) for a full worked example of that option.
 Here you do it explicitly, in two languages, with no SDK at all.
 
-`finance_research`'s implementation differs slightly per language, but both hit **the same real Yahoo Finance endpoint** the source tool calls. The Python tab uses the exact source this tutorial reproduces — [`langchain-samples/assistants-demo`](https://github.com/langchain-samples/assistants-demo)'s `YahooFinanceNewsTool`, via `yfinance`, which manages Yahoo's session/cookie handling internally. Reading `yfinance`'s own source shows exactly what it calls: a plain `GET` to `fc.yahoo.com` for a session cookie, then a `POST` to `finance.yahoo.com`'s internal news-stream API — no crumb token needed for this particular endpoint, just the cookie. The curl tab reproduces that exact two-step call by hand.
+`finance_research` hits **the real Yahoo Finance news endpoint** in both languages, and in both it is the same two calls written out by hand: a plain `GET` to `fc.yahoo.com` for a session cookie, then a `POST` to `finance.yahoo.com`'s internal news-stream API, both with a browser-shaped `User-Agent`. This particular endpoint needs no crumb token, just the cookie.
+
+Those two calls are also the whole of what a library wrapper would do here, which is why there is no library. It is worth knowing they have to happen in that order and share a session: that is exactly why this tool is a **client** executor and not an HTTP one — the gateway can describe one request, not a request that carries a cookie picked up by a previous one.
 
 <Tabs groupId="lang">
 <TabItem value="curl" label="curl">
 
-Run standalone first, to see what the real tool returns before wiring it into a loop. This is the exact two-step call `yfinance` makes internally (see the note above): a `GET` to pick up a session cookie, then a `POST` to Yahoo's own news-stream API:
+Run standalone first, to see what the real tool returns before wiring it into a loop — a `GET` to pick up a session cookie, then a `POST` to Yahoo's own news-stream API:
 
 ```bash
 jar=$(mktemp)
@@ -408,7 +433,7 @@ date -u +%F
 2026-08-01
 ```
 
-The full loop renders the prompt, sends each completion straight to OpenAI, reports the
+The full loop renders the prompt, sends each completion straight to your provider, reports the
 `llm` span itself since no gateway saw the call, runs whichever tool the model asked for
 locally, reports a `tool` span onto the same trace, and repeats until the model stops
 asking for tools — see [react_agent.sh on
@@ -448,16 +473,31 @@ Final Answer: There is significant recent news about Apple (AAPL), especially re
 </TabItem>
 <TabItem value="python" label="Python">
 
-Run standalone first, using the exact source this tutorial reproduces:
+Run standalone first, to see what the real tool returns before wiring it into a loop. The
+same two calls as the curl tab, in the same order:
 
 ```python
-from langchain_community.tools.yahoo_finance_news import YahooFinanceNewsTool
+import requests
 from datetime import datetime
 
-async def finance_research(ticker_symbol: str):
-    """Search Yahoo Finance news for a ticker symbol."""
-    wrapped = YahooFinanceNewsTool()
-    return await wrapped.ainvoke({"query": ticker_symbol})
+YAHOO_NEWS_URL = "https://finance.yahoo.com/xhr/ncp?queryRef=latestNews&serviceKey=ncp_fin"
+
+async def finance_research(ticker_symbol: str, limit: int = 3) -> str:
+    """Recent Yahoo Finance headlines for one ticker, as plain text for the model."""
+    session = requests.Session()
+    session.headers.update({"User-Agent": "Mozilla/5.0"})
+    session.get("https://fc.yahoo.com", timeout=15)      # 1. pick up the session cookie
+    res = session.post(                                   # 2. the real news call
+        YAHOO_NEWS_URL,
+        json={"serviceConfig": {"snippetCount": limit, "s": [ticker_symbol]}},
+        timeout=20,
+    )
+    res.raise_for_status()
+    stream = res.json()["data"]["tickerStream"]["stream"]
+    return "\n\n".join(
+        f"{i['content']['title']}\n{i['content'].get('summary') or ''}".strip()
+        for i in stream[:limit]
+    )
 
 async def get_todays_date() -> str:
     """Get today's date."""
@@ -477,8 +517,8 @@ Ever the Apple Inc. (NASDAQ:AAPL) bull, Jim Cramer is nothing but ecstatic about
 ```
 
 The full loop does the same thing in Python: render the prompt, send each completion
-straight to OpenAI, report the `llm` span itself, run whichever tool the model asked for
-locally (`finance_research` calling the real `langchain_community` `YahooFinanceNewsTool`),
+straight to your provider, report the `llm` span itself, run whichever tool the model asked for
+locally (`finance_research` calling Yahoo's own news endpoint with `requests`),
 report a `tool` span onto the same trace, and repeat until the model stops asking for
 tools — see [react_agent.py on
 GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/react-agent/python/react_agent.py)

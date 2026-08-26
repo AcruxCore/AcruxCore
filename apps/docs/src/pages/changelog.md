@@ -27,6 +27,47 @@ called out in the week it ships and in the SDK release notes.
 
 ### Major
 
+#### Traces are named by what ran, not by a timestamp
+
+- Traces sent over OTLP now take their root span's name instead of the time they started.
+- A trailing run id is trimmed, so two runs of the same crew share one searchable name.
+- A tool loop that joins an existing trace no longer renames it to `runToolLoop`.
+  [Guide →](/docs/guides/using-sessions-and-traces)
+
+#### Name a trace as a fallback, without overwriting a name it already has
+
+- New `x-trace-name-if-unset` header (and body `trace.nameIfUnset`) on gateway completions.
+- It names a new trace, and is ignored on one that already has a real name.
+- `x-trace-name` is unchanged: still an instruction, still overwrites.
+  [Reference →](/api-reference/gateway)
+
+#### A `chat()` call with a trace option no longer counts itself twice
+
+- **Fixed** — passing `trace` to `gateway.chat()` reported a second `llm` span per call.
+- Span counts, per-trace token totals and per-run call counts were all wrong, silently.
+- `trace` now also carries the name, trace id and session id through `chat()`, as on the loop.
+  [Reference →](/api-reference/gateway)
+
+#### A provider's 400 now names the rule you broke
+
+- The gateway forwards the provider's own message for a 400, 404, 413 or 422.
+- A strict-mode `response_format` error names the exact property, not just "status 400".
+- 401, 403, 429 and every 5xx stay summarised — those describe the connection, not your request.
+  [Reference →](/api-reference/gateway)
+
+#### OpenAI's cached prompt tokens are now billed at the cached rate
+
+- A repeated prompt prefix that OpenAI serves from cache is charged at half the input rate.
+- `usage.cached_tokens` is returned on the gateway response, as a subset of `prompt_tokens`.
+- Costs in traces, budgets and usage were overstated for any repeated system prompt.
+
+#### Both SDKs released as 0.10.0
+
+- `npm i @acruxcoreai/sdk@0.10.0` and `pip install -U acruxcore` carry `client_tools`.
+- New `prompts.list_aliases()` / `listAliases()` reads which version an alias points at.
+- Python `async with AcruxCore()` now closes its HTTP connection pool on the way out.
+  [Guide →](/docs/guides/call-a-prompts-tools-from-the-sdk)
+
 #### Run a prompt's client tools without writing a dispatcher
 
 - Both SDKs take `client_tools` / `clientTools`: tool name to the function that runs it.
@@ -90,6 +131,9 @@ called out in the week it ships and in the SDK release notes.
 ### Minor
 
 - `tool_refs` and `POST /tools/resolve` now take `version` to pin one exact tool build.
+- **Fixed** — an undecryptable provider credential now returns a clear 409, not an opaque 500.
+- **Fixed** — `group_by=day` trace analytics bucketed days in the server timezone, not UTC.
+- **Fixed** — the changelog showed one week as two sections, dated three days apart.
 - `GET /traces/facets` now also returns distinct resolved models, for filter pickers.
 - **Corrected** — comparison posts now reflect AcruxCore's rule-based online evaluation. [Reference →](/blog/acruxcore-vs-opik)
 - New tutorial: a travel planner that picks between three tools, or calls none at all.
@@ -111,7 +155,44 @@ called out in the week it ships and in the SDK release notes.
   [Guide →](/docs/guides/define-a-tool-in-code-or-in-the-catalog)
 - The travel-planner tutorial now ships as a runnable notebook too, written for a first-timer.
   [Tutorial →](/docs/tutorials/build-a-travel-planner-agent)
+- The Python SDK tool-calling tutorial ships as a runnable notebook, with both setup routes shown.
+  [Tutorial →](/docs/tutorials/build-a-tool-calling-agent-in-python-sdk)
 - **Fixed** — the New tool dialog implied its description always reaches the model.
+- Resolving a tool now says it has no committed version, instead of answering a bare 404.
+  [Reference →](/api-reference/tools/resolve)
+- SDK errors now carry the API's own message, so the reason is in the exception you catch.
+- **Fixed** — three tutorials no longer install `langchain-community`, which is being sunset.
+  [Tutorial →](/docs/tutorials/build-a-react-agent)
+- The Tavily tutorials now use Tavily's own `tavily-python` SDK instead of a LangChain wrapper.
+  [Tutorial →](/docs/tutorials/build-a-configurable-react-agent)
+- The no-SDK REST tutorial ships as a runnable notebook, including what unthreaded traces look like.
+  [Tutorial →](/docs/tutorials/build-a-tool-calling-agent-in-python-no-sdk)
+- The ReAct agent tutorial ships as a runnable notebook, covering who records a span on the BYO path.
+  [Tutorial →](/docs/tutorials/build-a-react-agent)
+- The configurable-agent tutorial ships as a runnable notebook, swapping model and persona by alias.
+  [Tutorial →](/docs/tutorials/build-a-configurable-react-agent)
+- The medical-information tutorial ships as a runnable notebook, with a citation check on every answer.
+  [Tutorial →](/docs/tutorials/build-a-medical-information-qa-agent)
+- The supervisor multi-agent tutorial now ships as a runnable notebook, routing traps included.
+  [Tutorial →](/docs/tutorials/build-a-supervisor-multi-agent-system)
+- The BYO-provider RAG tutorial now ships as a runnable notebook, with a live provider check.
+  [Tutorial →](/docs/tutorials/build-a-rag-agent-without-the-gateway)
+- The CrewAI tracing tutorial now ships as a runnable notebook, with four OTLP wiring traps.
+  [Tutorial →](/docs/tutorials/trace-a-crewai-trip-planner)
+- **Fixed** — the CrewAI tutorial's install command was missing the `tavily-python` client.
+- The OpenAI Agents SDK tutorial now ships as a runnable notebook, handoff span included.
+  [Tutorial →](/docs/tutorials/trace-an-openai-agents-sdk-triage-system)
+- **Fixed** — a CrewAI trace is now named `Crew.kickoff`, not once per run id, so names group.
+  [Tutorial →](/docs/tutorials/trace-a-crewai-trip-planner)
+- **Fixed** — an SDK error from your own provider now names the reason, not just the status.
+- **Fixed** — the SDK now says a model is required, rather than letting your provider guess one.
+- **Fixed** — screenshots in every runnable notebook now load in GitHub, nbviewer and Jupyter.
+- Runnable notebooks no longer repeat the API-key dialog screenshot; the menu path is enough.
+- The tutorials now run on five models across OpenAI, Anthropic, Gemini, Llama and Mistral.
+  [Tutorial →](/docs/tutorials/build-a-tool-calling-agent-in-python-sdk)
+- **Fixed** — the ReAct agent tutorial said an OpenRouter key would not work; any provider does.
+  [Tutorial →](/docs/tutorials/build-a-react-agent)
+- **Fixed** — the travel-planner notebook crashed on a model registered without prices.
 
 ---
 
@@ -154,54 +235,6 @@ called out in the week it ships and in the SDK release notes.
 - **Compare** — the Tool catalog row now records our edge over MLflow's MCP server registry.
 - **Fixed** — the comparison table cut off its last column on wide screens, at any zoom level.
 - **Repo README** now opens with a 35-second demo: prompt, version, tool, a real model call, the trace.
-
----
-
-## Week of 5 August 2026
-
-### Major
-
-#### Apache License 2.0
-
-- Permissive, OSI-approved, with nothing gated.
-- Fork it, self-host it, or sell what you build; the AcruxCore name and logo stay trademarked.
-- `@acruxcoreai/sdk` and `acruxcore` ship under the MIT license.
-
-#### SDK 0.7.0 — Resource-based namespace pattern
-
-- **Breaking:** All flat client methods removed. Use `hub.gateway.chat()`, `hub.prompts.render()`, `hub.traces.ingest()` etc. instead of `hub.chat()`, `hub.renderPrompt()`, `hub.trace()`.
-- `hub.gateway.stream()` is now a standalone method (previously `hub.chat({stream: true})`).
-- `hub.gateway.flush()` / `hub.gateway.close()` replace `hub.flush()` / `hub.close()`.
-
-#### Evaluations are now scriptable from both SDKs
-
-- `hub.datasets`, `hub.experiments`, `hub.runs`, and `hub.optimize` expose 19 methods for the full evaluations domain.
-- Create datasets, run experiments, poll results, read reports, and promote optimizer candidates without leaving your code.
-
-#### One-command local self-host
-
-- New `docker-compose.local.yml` bundles Postgres, Redis, API, worker and web in one file.
-- `docker compose -f docker-compose.local.yml up --build` — no `.env` to fill in first.
-
-### Minor
-
-- **Terms, Privacy and the site footer** now name AcruxCore without a corporate suffix.
-- **Fixed** — routing requests to OpenAI reasoning models (`o1`, `o3`, `o4-mini`, `gpt-5`) no longer 400s with `Unsupported parameter: 'max_tokens'`; the gateway now sends `max_completion_tokens` to OpenAI, while `openai_compatible` providers keep `max_tokens`.
-- **Fixed** — the model-page "Test" button works for reasoning models (`o1`, `o3`, `o4-mini`, `gpt-5`); the connectivity ping no longer sends a 1-token cap those models can't meet.
-- **Privacy** names AcruxCore as the controller for the hosted service, with a contact address.
-- **New guide** — [Product tour](/docs/getting-started/product-tour): tools, streaming, traces, feedback, and evaluation in one walkthrough.
-- **Fixed** — rendering a prompt with a `{% for %}` loop no longer wrongly demands the loop variable as an input.
-- `/compare` pages now show AcruxCore's real one-command Docker self-host.
-- `/compare`'s Self-hosting row now reads "docker compose up" for every column, matching the identical command.
-- **The product name is now one word** — "AcruxCore" across the site, docs, and both SDKs.
-- **SDK 0.7.1** — the rename reaches both packages' metadata; no API or behaviour change.
-- **The repo README** now carries the competitor comparison table, losses and ties included.
-- **The SDKs page** now links the full [TypeScript](/docs/sdk-reference/node) and [Python](/docs/sdk-reference/python) API reference.
-- **Fixed** — marketing pages answered on two addresses; `/pricing/` now redirects to `/pricing`.
-- **Fixed** — marketing pages showed the flat client methods SDK 0.7.0 removed.
-- **11 blog post titles and 12 descriptions** were shortened so search engines stop truncating them.
-
----
 
 ## Week of 3 August 2026
 
@@ -254,6 +287,28 @@ called out in the week it ships and in the SDK release notes.
 - `hub.tools`/`client.tools` gained: create, list, get, update, delete, versions, promote, analytics.
 - Available in both TypeScript and Python SDKs — see the [Tool Catalog guide](/docs/guides/manage-a-tools-lifecycle-via-the-sdk).
 
+#### Apache License 2.0
+
+- Permissive, OSI-approved, with nothing gated.
+- Fork it, self-host it, or sell what you build; the AcruxCore name and logo stay trademarked.
+- `@acruxcoreai/sdk` and `acruxcore` ship under the MIT license.
+
+#### SDK 0.7.0 — Resource-based namespace pattern
+
+- **Breaking:** All flat client methods removed. Use `hub.gateway.chat()`, `hub.prompts.render()`, `hub.traces.ingest()` etc. instead of `hub.chat()`, `hub.renderPrompt()`, `hub.trace()`.
+- `hub.gateway.stream()` is now a standalone method (previously `hub.chat({stream: true})`).
+- `hub.gateway.flush()` / `hub.gateway.close()` replace `hub.flush()` / `hub.close()`.
+
+#### Evaluations are now scriptable from both SDKs
+
+- `hub.datasets`, `hub.experiments`, `hub.runs`, and `hub.optimize` expose 19 methods for the full evaluations domain.
+- Create datasets, run experiments, poll results, read reports, and promote optimizer candidates without leaving your code.
+
+#### One-command local self-host
+
+- New `docker-compose.local.yml` bundles Postgres, Redis, API, worker and web in one file.
+- `docker compose -f docker-compose.local.yml up --build` — no `.env` to fill in first.
+
 ### Minor
 
 - **Fixed** — the trace settings API reference showed the wrong payload-capture default.
@@ -266,8 +321,7 @@ called out in the week it ships and in the SDK release notes.
 - **New guide** — [view trace analytics](/docs/guides/view-trace-analytics).
 - **New guide** — [configure trace payload capture](/docs/guides/configure-trace-payload-capture).
 - **New guide** — [look up the traces a prompt version produced](/docs/guides/look-up-the-traces-a-prompt-version-produced).
-- **A `LICENSE`, `TRADEMARK.md`, and `CLA.md`** now ship at the repo root, under
-  [Elastic License 2.0](https://www.elastic.co/licensing/elastic-license).
+- **A `LICENSE`, `TRADEMARK.md`, and `CLA.md`** now ship at the repo root.
 - **Fixed** — the `/sdk` page's Python tutorial links 404'd (wrong docs path).
 - **The `/sdk` page** now links five capability guides per language, and its
   code samples show a decorated tool call and session tracing.
@@ -275,6 +329,21 @@ called out in the week it ships and in the SDK release notes.
   code alongside Node's.
 - **Added** — an "Optimize" button on a dataset's page starts a run without rebuilding it.
 - **Added** — `GET /api/v1/health` reports database and Redis reachability for load balancers and uptime monitors.
+- **Terms, Privacy and the site footer** now name AcruxCore without a corporate suffix.
+- **Fixed** — routing requests to OpenAI reasoning models (`o1`, `o3`, `o4-mini`, `gpt-5`) no longer 400s with `Unsupported parameter: 'max_tokens'`; the gateway now sends `max_completion_tokens` to OpenAI, while `openai_compatible` providers keep `max_tokens`.
+- **Fixed** — the model-page "Test" button works for reasoning models (`o1`, `o3`, `o4-mini`, `gpt-5`); the connectivity ping no longer sends a 1-token cap those models can't meet.
+- **Privacy** names AcruxCore as the controller for the hosted service, with a contact address.
+- **New guide** — [Product tour](/docs/getting-started/product-tour): tools, streaming, traces, feedback, and evaluation in one walkthrough.
+- **Fixed** — rendering a prompt with a `{% for %}` loop no longer wrongly demands the loop variable as an input.
+- `/compare` pages now show AcruxCore's real one-command Docker self-host.
+- `/compare`'s Self-hosting row now reads "docker compose up" for every column, matching the identical command.
+- **The product name is now one word** — "AcruxCore" across the site, docs, and both SDKs.
+- **SDK 0.7.1** — the rename reaches both packages' metadata; no API or behaviour change.
+- **The repo README** now carries the competitor comparison table, losses and ties included.
+- **The SDKs page** now links the full [TypeScript](/docs/sdk-reference/node) and [Python](/docs/sdk-reference/python) API reference.
+- **Fixed** — marketing pages answered on two addresses; `/pricing/` now redirects to `/pricing`.
+- **Fixed** — marketing pages showed the flat client methods SDK 0.7.0 removed.
+- **11 blog post titles and 12 descriptions** were shortened so search engines stop truncating them.
 
 ## Week of 27 July 2026
 

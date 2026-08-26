@@ -465,4 +465,6 @@ async def hub(provisioned_env: Dict[str, Any]) -> Any:
     try:
         yield client
     finally:
-        await client.gateway.aclose()
+        # `aclose()`, not `gateway.aclose()`: the latter flushes the span queue but leaves
+        # the httpx pool open, which is the leak issue #346 was about.
+        await client.aclose()

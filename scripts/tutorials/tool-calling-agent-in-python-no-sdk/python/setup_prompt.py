@@ -84,7 +84,7 @@ async def main() -> None:
                     {"role": "system", "content": "You are a weather assistant. Use the get_weather tool to look up conditions before answering. Never guess."},
                     {"role": "user", "content": "What is the weather in {{ city }} right now?"},
                 ],
-                model="gpt-4o-mini",
+                model="llama-3.3-70b",
             )
             print(f"  + committed v{version.version_number}")
 

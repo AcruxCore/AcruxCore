@@ -34,11 +34,51 @@ export interface ProviderAdapter {
   ): AsyncIterable<StreamChunk>;
 }
 
+/** Longest provider error body forwarded to the caller; the rest is only logged. */
+export const MAX_PROVIDER_DETAIL = 800;
+
+/**
+ * The provider's own error body, trimmed for forwarding to the caller.
+ *
+ * Providers answer a 4xx with the actionable sentence — *"In context=('properties','b'),
+ * 'required' is required to be supplied and to be an array including every key in
+ * properties"* names the exact field. Adapters read that body to log it and then threw it
+ * away, leaving the caller one opaque sentence and a guess (issue #356).
+ *
+ * A JSON `{ error: { message } }` is unwrapped to just the message; anything else is
+ * passed through as text. Whitespace is collapsed because the body may be pretty-printed
+ * and this ends up inside a single-line error message.
+ *
+ * @param detail - Raw response body text, possibly empty.
+ * @returns A single-line summary, or `undefined` when there was nothing usable.
+ */
+export function summarizeProviderDetail(detail: string): string | undefined {
+  const raw = detail?.trim();
+  if (!raw) return undefined;
+  let text = raw;
+  try {
+    const parsed = JSON.parse(raw) as { error?: { message?: unknown } | string };
+    const inner = typeof parsed.error === 'string' ? parsed.error : parsed.error?.message;
+    if (typeof inner === 'string' && inner.trim()) text = inner.trim();
+  } catch {
+    // Not JSON — forward the text as-is.
+  }
+  const collapsed = text.replace(/\s+/g, ' ').trim();
+  return collapsed.length > MAX_PROVIDER_DETAIL
+    ? `${collapsed.slice(0, MAX_PROVIDER_DETAIL)}…`
+    : collapsed;
+}
+
 /**
  * Error thrown by adapters on any upstream failure. `status` is the provider HTTP
  * status (or 502/504 for network/timeout); `retriable` (429/5xx/network) is consumed
  * by G5 retry/fallback. The gateway service maps `status === 504` → GatewayTimeoutError
  * and everything else → BadGatewayError.
+ *
+ * `detail` is the provider's own error body, summarised by
+ * {@link summarizeProviderDetail}. It is forwarded to the caller only for a 4xx, where
+ * the provider is describing the caller's own malformed request and so has nothing to
+ * leak; a 5xx stays flattened.
  */
 export class ProviderError extends Error {
   constructor(
@@ -46,6 +86,7 @@ export class ProviderError extends Error {
     public readonly status: number,
     public readonly providerCode?: string,
     public readonly retriable = false,
+    public readonly detail?: string,
   ) {
     super(message);
     this.name = 'ProviderError';

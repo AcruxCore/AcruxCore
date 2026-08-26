@@ -54,7 +54,13 @@ export class AnalyticsRepository {
   private groupExpr(groupBy: GroupBy): Prisma.Sql {
     switch (groupBy) {
       case 'day':
-        return Prisma.sql`to_char(date_trunc('day', s.started_at), 'YYYY-MM-DD')`;
+        // `AT TIME ZONE 'UTC'` before truncating is load-bearing: `started_at` is a
+        // `timestamptz`, so a bare `date_trunc('day', …)` truncates in the Postgres
+        // *session* timezone. On any deployment whose session timezone is not UTC that
+        // buckets a span into the local calendar day, while `analytics.service.ts` echoes
+        // `from`/`to` as UTC-sliced dates — so for the hours where the two dates differ the
+        // response could carry a bucket dated after its own `to` (issue #238).
+        return Prisma.sql`to_char(date_trunc('day', s.started_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD')`;
       case 'model':
         return Prisma.sql`COALESCE(gm.public_name, s.model)`;
       case 'session':

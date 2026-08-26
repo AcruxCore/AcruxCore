@@ -56,7 +56,7 @@ tools in a single turn.
 ## Prerequisites
 
 - An AcruxCore account, a personal API key, and the base URL.
-- One gateway model whose **public name** is `gpt-4o-mini`, or edit `MODEL` in the notebook
+- One gateway model whose **public name** is `mistral-small`, or edit `MODEL` in the notebook
   to match a name from **Gateway → Models** in your dashboard.
 - The `travel-planner` prompt and the three tools. The notebook creates all of them; the two
   run scripts assume they already exist.

@@ -34,10 +34,20 @@ a **one-time setup** — the model, the tool schema, the prompt — you do once 
 dashboard by clicking. Everything that's **code** — running the agent — you do with
 the SDK.
 
+:::tip[Prefer a notebook?]
+[`sql_analyst_agent.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/notebook/sql_analyst_agent.ipynb)
+is this whole page as one runnable notebook, written for a first-timer: a preflight cell
+that checks a fresh account is ready, the tool and prompt built step by step with the
+dashboard values beside the code, a live read of the trace the run produced, and four ways
+to get it wrong triggered on purpose so you can read the real error. It renders on GitHub
+with its saved output, so you can read it through before running anything.
+:::
+
 :::note[What you'll need]
-An [OpenRouter](https://openrouter.ai/) API key (any provider works — OpenRouter
-just gives one key for many models) and Python 3.9+. Install the SDK with
-`pip install acruxcore`.
+An [Anthropic](https://console.anthropic.com/) API key and Python 3.9+. Install the SDK
+with `pip install acruxcore`. This page runs the agent on Claude Haiku, but nothing in it is
+Anthropic-specific: the gateway takes an OpenAI, Gemini or OpenAI-compatible credential the
+same way, and your code only ever sends the public name you choose.
 :::
 
 ## 1. Seed a local SQLite database
@@ -71,17 +81,23 @@ python seed_db.py
 ## 2. Register a model
 
 :::tip[Already set up a credential?]
-If you followed the [no-SDK version](./build-a-tool-calling-agent-in-python-no-sdk#1-store-your-provider-key-as-a-credential) of this tutorial, your credential is
-already stored — skip ahead to the model registration below.
+A credential is per provider. The [no-SDK version](./build-a-tool-calling-agent-in-python-no-sdk#1-store-your-provider-key-as-a-credential)
+of this tutorial stores an **OpenRouter** one; this page uses a direct **Anthropic** one, so
+add a second credential — **Gateway → Credentials → New credential**, provider **Anthropic**,
+your key. Everything after that is identical, which is the point: the provider is a row in
+the dashboard, not a change in your code.
 :::
 
 A **model** is a public name your code sends as `"model"`, mapped to an upstream
 model on one of your credentials. Open **Gateway → Models → New model**. Name it
-`gpt-4o-mini`, keep the **OpenRouter** credential selected, and set the upstream
-model to `openai/gpt-4o-mini` — OpenRouter's id for it. Leave prices blank (they
+`claude-haiku`, select the **Anthropic** credential, and set the upstream model to
+`claude-haiku-4-5-20251001` — Anthropic's own id for it. Leave prices blank (they
 auto-fill for known models).
 
-![New model dialog with public name gpt-4o-mini, credential OpenRouter, and upstream model openai/gpt-4o-mini](/img/tutorials/build-a-tool-calling-agent-in-python-sdk/02-new-model.png)
+The public name is yours to choose. Your code sends `claude-haiku` and never learns which
+provider answered, so swapping the model later is a dashboard edit, not a deploy.
+
+![New model dialog with public name claude-haiku, credential Anthropic, and upstream model claude-haiku-4-5-20251001](/img/tutorials/build-a-tool-calling-agent-in-python-sdk/02-new-model.png)
 
 Click **Register model**, then hit **Test** on the new row to fire a 1-token
 completion and confirm the key works.
@@ -116,7 +132,7 @@ question isn't stored here — your code adds it at runtime, so one prompt answe
 any question.
 
 Open **Prompts → New prompt**, name it `sql-analyst-agent`, and create it. On the
-**Editor** tab, set **Default model** to `gpt-4o-mini` and write one **system**
+**Editor** tab, set **Default model** to `claude-haiku` and write one **system**
 message:
 
 ```text
@@ -133,7 +149,7 @@ in one or two sentences using only the rows it returns. Prices are in USD;
 revenue = quantity * price; order_date is YYYY-MM-DD.
 ```
 
-![The sql-analyst-agent prompt Editor tab showing default model gpt-4o-mini, a system message with the database schema, and production pointing at v1](/img/tutorials/build-a-tool-calling-agent-in-python-sdk/05-prompt-editor.png)
+![The sql-analyst-agent prompt Editor tab showing default model claude-haiku, a system message with the database schema, and production pointing at v1](/img/tutorials/build-a-tool-calling-agent-in-python-sdk/05-prompt-editor.png)
 
 Click **Commit version** — the model is part of the version, so committing bakes it
 in, and because it's the first commit `production` points at `v1` automatically.
@@ -275,7 +291,7 @@ for plain, readable answers:
 
 ```python
 stream = await hub.gateway.stream(
-    "gpt-4o-mini",
+    "claude-haiku",
     [{"role": "user", "content": "In one sentence, what makes a good data analyst?"}],
 )
 async for chunk in stream:
@@ -441,7 +457,7 @@ curl -X POST "$ACRUXCORE_BASE_URL/prompts/<prompt-id>/versions" \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
   -d '{
     "messages": [{"role":"system","content":"You are a data analyst. Use query_database to answer."}],
-    "model": "gpt-4o-mini"
+    "model": "claude-haiku"
   }'
 
 # 5. Bind the tool to the prompt — inherited by every alias
@@ -455,7 +471,7 @@ curl -X PUT "$ACRUXCORE_BASE_URL/prompts/<prompt-id>/tools/<tool-id>" \
   "id": "4b6b2c08-f9cc-4e33-a9bd-cb5d8b120801",
   "promptId": "9983c0fb-c971-411a-b04b-a2ea82c3e402",
   "versionNumber": 1,
-  "model": "gpt-4o-mini",
+  "model": "claude-haiku",
   "aliases": [
     { "alias": "production", "versionNumber": 1 },
     { "alias": "staging", "versionNumber": 1 }
@@ -477,7 +493,7 @@ async with AcruxCore() as hub:
     version = await hub.prompts.commit_version(
         prompt.id,
         messages=[{"role": "system", "content": "You are a data analyst. Use query_database to answer."}],
-        model="gpt-4o-mini",
+        model="claude-haiku",
     )
     await hub.prompts.set_tool_binding(prompt.id, "<tool-id>", tool_alias="production")
     print(f"prompt_id={prompt.id} v{version.version_number}")
@@ -498,7 +514,7 @@ const prompt = await hub.prompts.create({
 });
 const version = await hub.prompts.commitVersion(prompt.id, {
   messages: [{ role: 'system', content: 'You are a data analyst. Use query_database to answer.' }],
-  model: 'gpt-4o-mini',
+  model: 'claude-haiku',
 });
 await hub.prompts.setToolBinding(prompt.id, '<tool-id>', { toolAlias: 'production' });
 console.log(`prompt_id=${prompt.id} v${version.versionNumber}`);
@@ -539,7 +555,7 @@ curl -X POST "$ACRUXCORE_BASE_URL/prompts/sql-analyst-agent/production/render" \
       }
     }
   ],
-  "model": "gpt-4o-mini"
+  "model": "claude-haiku"
 }
 ```
 
@@ -551,7 +567,7 @@ from acruxcore import AcruxCore
 
 async with AcruxCore() as hub:
     rendered = await hub.prompts.render("sql-analyst-agent", "production")
-    print(rendered.model)       # "gpt-4o-mini"
+    print(rendered.model)       # "claude-haiku"
     print(rendered.messages)    # [{"role": "system", "content": "..."}]
     print(rendered.tools)       # [{"type": "function", "function": {...}}]
 ```
@@ -564,7 +580,7 @@ import { acruxcore } from '@acruxcoreai/sdk';
 
 const hub = acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
 const rendered = await hub.prompts.render('sql-analyst-agent', 'production');
-console.log(rendered.model);       // "gpt-4o-mini"
+console.log(rendered.model);       // "claude-haiku"
 console.log(rendered.messages);    // [{ role: "system", content: "..." }]
 console.log(rendered.tools);       // [{ type: "function", function: {...} }]
 ```

@@ -1,6 +1,6 @@
 import type { acruxcoreConfig, ProviderConfig } from './types';
 import { createHash } from 'node:crypto';
-import { acruxcoreError } from './error';
+import { acruxcoreError, serverDetail } from './error';
 import { fetchWithRetry } from './fetch';
 import { ToolsNamespace } from './tools-api';
 import { TracesNamespace } from './traces-api';
@@ -187,11 +187,22 @@ export class acruxcore {
     }
   }
 
-  /** @internal Throws acruxcoreError for a non-2xx response; otherwise returns parsed JSON. */
+  /**
+   * @internal Throws acruxcoreError for a non-2xx response; otherwise returns parsed JSON.
+   *
+   * The API's own `error.message` is appended when there is one. Without it the thrown
+   * message was only a status and a gerund — `acruxcore API error 404 resolving tools` —
+   * while the sentence naming the tool and the cause sat unread in `body` (issue #349).
+   */
   async _parseJsonOrThrow(response: Response, errorContext: string): Promise<unknown> {
     if (!response.ok) {
       const body = await response.json().catch(() => undefined);
-      throw new acruxcoreError(`acruxcore API error ${response.status} ${errorContext}`, 'API_ERROR', response.status, body);
+      throw new acruxcoreError(
+        `acruxcore API error ${response.status} ${errorContext}${serverDetail(body)}`,
+        'API_ERROR',
+        response.status,
+        body,
+      );
     }
     return response.json();
   }

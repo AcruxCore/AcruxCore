@@ -113,6 +113,71 @@ describe('gateway auto-trace hook (T1)', () => {
     expect(trace.name).toBe('runToolLoop');
   });
 
+  it('x-trace-name-if-unset names a NEW trace, as a weaker x-trace-name would', async () => {
+    // The channel a client library uses for its own default name (phase-3 FAQ Q33).
+    // On a trace it opens, it should behave exactly like x-trace-name.
+    const { agent, teamId } = await signupOwner();
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    await complete(agent, { 'x-trace-name-if-unset': 'runToolLoop' }).expect(200);
+
+    const trace = (await prisma.trace.findMany({ where: { teamId } }))[0];
+    expect(trace.name).toBe('runToolLoop');
+  });
+
+  it('x-trace-name-if-unset never renames a trace that already has a real name', async () => {
+    // This is the API-side half of issue #358. Even a client that sends a default name on
+    // every call — including one that only JOINS a trace — cannot clobber the name the
+    // opener chose. `x-trace-name` still overwrites (Q11); this channel does not.
+    const { agent, teamId } = await signupOwner();
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    await complete(agent, { 'x-trace-name': 'content-supervisor-flow' }).expect(200);
+    const opened = (await prisma.trace.findMany({ where: { teamId } }))[0];
+
+    await complete(agent, {
+      'x-trace-id': opened.id,
+      'x-trace-name-if-unset': 'runToolLoop',
+    }).expect(200);
+
+    const traces = await prisma.trace.findMany({ where: { teamId } });
+    expect(traces).toHaveLength(1);
+    expect(traces[0].name).toBe('content-supervisor-flow');
+    expect(traces[0].spanCount).toBe(2);
+  });
+
+  it('x-trace-name still overwrites an existing name, so Q11 is unchanged', async () => {
+    // The reason the weak channel exists rather than making the name set-on-create: an
+    // agent that classifies its task on call 2 must still be able to rename the trace.
+    const { agent, teamId } = await signupOwner();
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    await complete(agent, { 'x-trace-name': 'unclassified' }).expect(200);
+    const opened = (await prisma.trace.findMany({ where: { teamId } }))[0];
+
+    await complete(agent, { 'x-trace-id': opened.id, 'x-trace-name': 'refund-request' }).expect(200);
+
+    const traces = await prisma.trace.findMany({ where: { teamId } });
+    expect(traces[0].name).toBe('refund-request');
+  });
+
+  it('x-trace-name wins over x-trace-name-if-unset when both arrive', async () => {
+    const { agent, teamId } = await signupOwner();
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    await complete(agent, {
+      'x-trace-name': 'my-flow',
+      'x-trace-name-if-unset': 'runToolLoop',
+    }).expect(200);
+
+    const trace = (await prisma.trace.findMany({ where: { teamId } }))[0];
+    expect(trace.name).toBe('my-flow');
+  });
+
   it('a completion with x-trace-id appends under the existing trace (span_count increments, no new trace) and sets parent_span_ref', async () => {
     const { agent, teamId } = await signupOwner();
     const credId = await createConnection(agent);

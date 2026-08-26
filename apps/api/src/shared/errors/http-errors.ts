@@ -121,6 +121,23 @@ export class PayloadTooLargeError extends AppError {
 }
 
 /**
+ * 409 — A stored secret cannot be decrypted, so the request cannot be served until
+ * someone re-enters it.
+ *
+ * Deliberately **not** a 5xx. The master key no longer matching the ciphertext is a
+ * permanent state, and 5xx invites clients to retry a request that can never succeed
+ * (the same reasoning as the body-parser mapping in FAQ Q6). Deliberately not a 400/422
+ * either: nothing about the request is wrong, so blaming its shape would send the caller
+ * looking in the wrong place. 409 is the honest fit — the target resource is in a state
+ * that must change first.
+ */
+export class CredentialUnusableError extends AppError {
+  constructor(message: string) {
+    super(message, 409, 'CREDENTIAL_UNUSABLE');
+  }
+}
+
+/**
  * 422 — Request was well-formed but semantically unprocessable (e.g. building
  * a dataset from feedback rows that yield zero eligible examples). Distinct
  * from 400 `ValidationError`, which is for malformed request shape.

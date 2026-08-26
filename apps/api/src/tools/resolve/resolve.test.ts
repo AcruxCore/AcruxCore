@@ -111,6 +111,84 @@ describe('POST /tools/resolve', () => {
     ]);
   });
 
+  it('says a tool exists but has no versions, rather than a bare 404 (issue #349)', async () => {
+    // Creating a tool is two calls — POST /tools makes the shell, POST /tools/:id/versions
+    // commits the version — and a shell alone has no aliases, since aliases are minted by
+    // a first version. The old message named neither the tool nor the reason, so the
+    // natural reading was "the tool does not exist", which is wrong: it exists and is not
+    // callable. That is the most likely first error a new user hits.
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    await request(app)
+      .post('/api/v1/tools')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ name: 'shell_with_no_version', description: 'A shell, on purpose.' })
+      .expect(201);
+
+    const res = await request(app)
+      .post('/api/v1/tools/resolve')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ refs: [{ name: 'shell_with_no_version', alias: 'production' }] })
+      .expect(404);
+
+    expect(res.body.error.code).toBe('TOOL_REF_NOT_FOUND');
+    expect(res.body.error.failures).toEqual([
+      {
+        name: 'shell_with_no_version',
+        alias: 'production',
+        reason: 'no_versions',
+        message:
+          "tool 'shell_with_no_version' has no versions, so alias 'production' does not " +
+          'exist yet — commit one with POST /tools/:id/versions',
+      },
+    ]);
+    // The reason has to be in `message` too: that is the only field an SDK surfaces.
+    expect(res.body.error.message).toContain('has no versions');
+    // `refs` keeps its old shape, so callers reading it still work.
+    expect(res.body.error.refs).toEqual([{ name: 'shell_with_no_version', alias: 'production' }]);
+  });
+
+  it('distinguishes a missing tool from a tool with an unknown alias', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    await sync(apiKey, { name: 'exists', description: 'E.' });
+
+    const res = await request(app)
+      .post('/api/v1/tools/resolve')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ refs: [{ name: 'ghost' }, { name: 'exists', alias: 'canary' }] })
+      .expect(404);
+
+    const failures = res.body.error.failures as { name: string; reason: string; availableAliases?: string[] }[];
+    expect(failures.map((f) => [f.name, f.reason])).toEqual([
+      ['ghost', 'no_such_tool'],
+      ['exists', 'unknown_alias'],
+    ]);
+    // The aliases the tool DOES have are the answer to "then what should I have asked for".
+    expect(failures[1]!.availableAliases).toEqual(['production', 'staging']);
+    expect(res.body.error.message).toContain("no tool named 'ghost'");
+    expect(res.body.error.message).toContain("has no alias 'canary'");
+  });
+
+  it('names the latest version when a pin points past it', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    await sync(apiKey, { name: 'get_weather', description: 'W.' });
+
+    const res = await request(app)
+      .post('/api/v1/tools/resolve')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ refs: [{ name: 'get_weather', version: 99 }] })
+      .expect(404);
+
+    expect(res.body.error.failures).toEqual([
+      {
+        name: 'get_weather',
+        version: 99,
+        reason: 'unknown_version',
+        message: "tool 'get_weather' has no version 99; the latest is 1",
+        latestVersion: 1,
+      },
+    ]);
+  });
+
   it('resolves the tool-level description when the version has a changelog but no description', async () => {
     const { apiKey } = await signupTestUserWithApiKey(app);
     const created = await request(app)

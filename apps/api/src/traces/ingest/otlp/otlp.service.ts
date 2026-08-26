@@ -81,9 +81,13 @@ export class OtlpService {
       for (const chunk of chunkTrace(trace)) {
         // `allowUnknownParents`: OTel batches children out before their parents,
         // so a chunk (or a whole export) legitimately holds orphans for now.
+        // `derivedName`: the trace name here comes from the batch's root span, not from
+        // a caller, so it must fill a placeholder in and never overwrite a real name —
+        // the chunk holding the root can arrive after the one that created the trace.
         await this.ingestService.ingest(teamId, [chunk], {
           idempotent: true,
           allowUnknownParents: true,
+          derivedName: true,
         });
       }
     }

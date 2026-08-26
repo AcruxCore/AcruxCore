@@ -60,20 +60,48 @@ export class SpansRepository {
    * `UPDATE` — no read-then-write race. Silently matches zero rows if `traceId`
    * isn't in `teamId` (callers resolve/verify the trace before calling this).
    *
+   * `nameIfPlaceholder` is the DERIVED-name counterpart: it fills the name in only while
+   * the trace still carries the Q12 timestamp fallback, and never touches a real one. That
+   * is what the OTLP path needs — a batch can create a trace before the batch containing
+   * its root span arrives, so the name has to be upgradable later without a second batch
+   * being able to push a real name back to a timestamp (issue #362). It is deliberately a
+   * separate key from `name`: `name` is a caller's explicit instruction and keeps
+   * last-explicit-write-wins (Q11).
+   *
    * @param traceId - The existing trace's UUID.
    * @param teamId - Isolation boundary.
-   * @param patch - `name` (overwrite) / `tags`/`metadata` (merge) to apply; any may be omitted.
+   * @param patch - `name` (overwrite) / `nameIfPlaceholder` (fill in only) /
+   *   `tags`/`metadata` (merge) to apply; any may be omitted. `name` wins over
+   *   `nameIfPlaceholder` when both are given.
    * @param tx - Optional transaction client.
    */
   async mergeTraceContext(
     traceId: string,
     teamId: string,
-    patch: { name?: string; tags?: string[]; metadata?: Record<string, unknown>; sessionId?: string },
+    patch: {
+      name?: string;
+      nameIfPlaceholder?: string;
+      tags?: string[];
+      metadata?: Record<string, unknown>;
+      sessionId?: string;
+    },
     tx?: Prisma.TransactionClient,
   ): Promise<void> {
     const sets: Prisma.Sql[] = [];
     if (patch.name) {
       sets.push(Prisma.sql`name = ${patch.name}`);
+    } else if (patch.nameIfPlaceholder) {
+      // The placeholder is exactly what Q12 writes: `startedAt.toISOString()`. Matching it
+      // by pattern rather than recomputing it avoids depending on Postgres and JS agreeing
+      // on timestamp formatting, and a user naming a trace after an ISO instant is not a
+      // real case.
+      sets.push(
+        Prisma.sql`name = CASE
+          WHEN name ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$'
+          THEN ${patch.nameIfPlaceholder}
+          ELSE name
+        END`,
+      );
     }
     // Backfill the session id only when the trace doesn't have one yet — never
     // overwrite. This is how a gateway-created trace (born session-less) picks up

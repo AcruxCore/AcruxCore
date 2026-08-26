@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { acruxcoreError } from './error';
+import { acruxcoreError, serverDetail } from './error';
 import { fetchWithRetry } from './fetch';
 import { parseToolArgs, resolveParametersSchema } from './tools';
 import { inferProviderName } from './provider';
@@ -27,6 +27,79 @@ import type {
 } from './types';
 
 // ── Module-level helpers (moved from client.ts) ──
+
+/** The subset of a `trace` option that becomes `x-trace-*` request headers. */
+interface TraceHeaderConf {
+  name?: string;
+  /**
+   * This SDK's own fallback name, not one the caller chose. Travels on the weaker
+   * `x-trace-name-if-unset` channel, which the server applies only when the trace has no
+   * real name yet — so sending it on a call that merely joins a trace is harmless.
+   */
+  defaultName?: string;
+  traceId?: string;
+  sessionId?: string;
+  tags?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Turns a `trace: {...}` option into the `x-trace-*` headers the gateway reads.
+ *
+ * Shared by every gateway-path call — `chat()`, its streaming twin, and both tool loops —
+ * so one key cannot mean something on one method and nothing on another. `trace: { name }`
+ * worked on `runToolLoop` and was silently dropped by `chat()` before this existed
+ * (issue #360).
+ *
+ * A key that is absent produces no header at all, which is the point rather than an
+ * optimisation: the gateway treats an arriving `x-trace-name` as an instruction, so
+ * sending a default one turns a call that merely *joins* a trace into a call that renames
+ * it (issue #358).
+ *
+ * Free-text values are percent-encoded because the server decodes them — a raw non-ASCII
+ * header value is rejected by `fetch` before it ever leaves the process.
+ *
+ * @param conf - The caller's trace config; unknown keys are ignored.
+ * @returns Headers to merge into the gateway request; possibly empty.
+ */
+/**
+ * Rejects a missing model before anything is sent, and says where one comes from.
+ *
+ * `render()` returns `model: undefined` for a prompt version with no bound model, and
+ * that used to travel: our own API answers `model is required`, but a BYO provider is
+ * called directly and reads an absent model as its cue to pick a default. OpenRouter then
+ * rejects its own default, so the caller reads a complaint about a model they never named
+ * (issue #369). Failing here costs no request and can name both ways to supply one.
+ *
+ * @param model - The model as given, possibly undefined or blank.
+ * @returns The model, trimmed.
+ * @throws {acruxcoreError} `VALIDATION_ERROR` when there is no usable model.
+ */
+function requireModel(model: string | undefined | null): string {
+  const trimmed = typeof model === 'string' ? model.trim() : '';
+  if (trimmed) return trimmed;
+  throw new acruxcoreError(
+    'acruxcore: a model is required. Pass one explicitly, or bind a default model to the '
+      + 'prompt version so render() returns it — rendered.model is undefined otherwise.',
+    'VALIDATION_ERROR',
+  );
+}
+
+function gatewayTraceHeaders(conf: TraceHeaderConf): Record<string, string> {
+  return {
+    ...(conf.name
+      ? { 'x-trace-name': encodeURIComponent(conf.name) }
+      : conf.defaultName
+        ? { 'x-trace-name-if-unset': encodeURIComponent(conf.defaultName) }
+        : {}),
+    ...(conf.traceId ? { 'x-trace-id': conf.traceId } : {}),
+    ...(conf.sessionId ? { 'x-session-id': conf.sessionId } : {}),
+    ...(conf.tags?.length ? { 'x-trace-tags': conf.tags.join(', ') } : {}),
+    ...(conf.metadata && Object.keys(conf.metadata).length
+      ? { 'x-trace-metadata': JSON.stringify(conf.metadata) }
+      : {}),
+  };
+}
 
 /**
  * True for a loopback host (`localhost`, `127.0.0.1`, `::1`) — legitimate to
@@ -212,20 +285,22 @@ export class GatewayNamespace {
   async chat(options: ChatOptions & { stream?: false | undefined }): Promise<ChatResult>;
   async chat(options: ChatOptions): Promise<ChatResult | AsyncGenerator<ChatChunk>> {
     options.responseFormat = await resolveResponseFormat(options.responseFormat) as ChatOptions['responseFormat'];
+    const model = requireModel(options.model);
     const providerConfig = options.provider ?? this.host.providerDefault;
 
     const traceOpt = options.trace ?? Boolean(providerConfig);
     const traceEnabled = traceOpt !== false;
     const traceConf = typeof traceOpt === 'object' ? traceOpt : {};
 
-    const traceHeaders: Record<string, string> | undefined = traceEnabled && !providerConfig
-      ? {
-          ...(traceConf.tags?.length ? { 'x-trace-tags': traceConf.tags.join(', ') } : {}),
-          ...(traceConf.metadata && Object.keys(traceConf.metadata).length
-            ? { 'x-trace-metadata': JSON.stringify(traceConf.metadata) }
-            : {}),
-        }
-      : undefined;
+    // Who writes the `llm` span depends on the path, not on whether tracing is on. On the
+    // gateway path the gateway writes it server-side, so this SDK's only job is to forward
+    // the headers; reporting a span of its own here counted every model call twice
+    // (issue #360). On the BYO path no gateway sees the call, so the SDK is the only thing
+    // that can report it.
+    const reportSpan = traceEnabled && Boolean(providerConfig);
+
+    const traceHeaders: Record<string, string> | undefined =
+      traceEnabled && !providerConfig ? gatewayTraceHeaders(traceConf) : undefined;
 
     if (options.stream) {
       return providerConfig
@@ -238,10 +313,8 @@ export class GatewayNamespace {
       ? await this._completeViaProvider(options, providerConfig)
       : await this._completeOnce(options, traceHeaders);
 
-    if (traceEnabled) {
-      const spanId = providerConfig
-        ? (result.gateway.spanRef ?? `chat-${randomUUID()}`)
-        : `chat-${randomUUID()}`;
+    if (reportSpan) {
+      const spanId = result.gateway.spanRef ?? `chat-${randomUUID()}`;
       const traceId = traceConf.traceId ?? result.gateway.traceId ?? undefined;
       this.host.spanQueue.enqueue({
         traceId,
@@ -505,7 +578,7 @@ export class GatewayNamespace {
     if (!response.ok) {
       const errBody = await response.json().catch(() => undefined);
       throw new acruxcoreError(
-        `acruxcore: provider returned ${response.status} calling chat completions`,
+        `acruxcore: provider returned ${response.status} calling chat completions${serverDetail(errBody)}`,
         'PROVIDER_ERROR',
         response.status,
         errBody,
@@ -661,7 +734,7 @@ export class GatewayNamespace {
     if (!response.ok) {
       const errBody = await response.json().catch(() => undefined);
       throw new acruxcoreError(
-        `acruxcore: provider returned ${response.status} streaming chat completions`,
+        `acruxcore: provider returned ${response.status} streaming chat completions${serverDetail(errBody)}`,
         'PROVIDER_ERROR',
         response.status,
         errBody,
@@ -930,7 +1003,15 @@ export class GatewayNamespace {
     const traceOpt = options.trace ?? true;
     const traceEnabled = traceOpt !== false;
     const traceConf = traceOpt === true || traceOpt === undefined || traceOpt === false ? {} : traceOpt;
-    const traceName = traceConf.name ?? 'runToolLoop';
+    // 'runToolLoop' is this SDK's own default, not a name the caller chose, so it travels
+    // on the weaker `x-trace-name-if-unset` channel: the server fills it in only when the
+    // trace has no real name yet. A caller's explicit `name` is an instruction and still
+    // overwrites (issue #358, phase-3 FAQ Q33).
+    const traceName = traceConf.name;
+    // The SDK creates the trace itself on the BYO path, where no server-side default
+    // applies, so its own payloads still need a concrete name.
+    const payloadTraceName = traceName ?? 'runToolLoop';
+    const model = requireModel(options.model);
     const providerConfig = options.provider ?? this.host.providerDefault;
     const byoToolSchemas = providerConfig && ([...(options.toolDefs ?? []), ...inlinedSchemas].length > 0)
       ? [...(options.toolDefs ?? []), ...inlinedSchemas]
@@ -942,15 +1023,7 @@ export class GatewayNamespace {
 
     for (let i = 0; i < max; i++) {
       const extraHeaders: Record<string, string> | undefined = traceEnabled && !providerConfig
-        ? {
-            'x-trace-name': encodeURIComponent(traceName),
-            ...(traceId ? { 'x-trace-id': traceId } : {}),
-            ...(traceConf.sessionId ? { 'x-session-id': traceConf.sessionId } : {}),
-            ...(traceConf.tags?.length ? { 'x-trace-tags': traceConf.tags.join(', ') } : {}),
-            ...(traceConf.metadata && Object.keys(traceConf.metadata).length
-              ? { 'x-trace-metadata': JSON.stringify(traceConf.metadata) }
-              : {}),
-          }
+        ? gatewayTraceHeaders({ ...traceConf, name: traceName, defaultName: 'runToolLoop', traceId })
         : undefined;
 
       const roundStartTime = new Date().toISOString();
@@ -1001,7 +1074,7 @@ export class GatewayNamespace {
         };
         const roundTrace: TraceInput = {
           traceId,
-          name: traceName,
+          name: payloadTraceName,
           sessionId: traceConf.sessionId,
           spans: [llmSpan],
         };
@@ -1019,7 +1092,7 @@ export class GatewayNamespace {
 
       const calls = result.message.tool_calls ?? [];
       if (result.finishReason !== 'tool_calls' || calls.length === 0) {
-        this._reportToolSpans(traceEnabled, traceId, traceName, traceConf.sessionId, toolSpans);
+        this._reportToolSpans(traceEnabled, traceId, payloadTraceName, traceConf.sessionId, toolSpans);
         return { content: result.content ?? '', messages: [...messages, result.message], iterations: i + 1, stoppedAtLimit: false, traceId };
       }
 
@@ -1040,7 +1113,7 @@ export class GatewayNamespace {
 
       const failure = settled.find((s) => s.status === 'rejected');
       if (failure) {
-        this._reportToolSpans(traceEnabled, traceId, traceName, traceConf.sessionId, toolSpans);
+        this._reportToolSpans(traceEnabled, traceId, payloadTraceName, traceConf.sessionId, toolSpans);
         throw (failure as PromiseRejectedResult).reason;
       }
 
@@ -1048,7 +1121,7 @@ export class GatewayNamespace {
       messages = [...messages, result.message, ...toolMsgs];
     }
 
-    this._reportToolSpans(traceEnabled, traceId, traceName, traceConf.sessionId, toolSpans);
+    this._reportToolSpans(traceEnabled, traceId, payloadTraceName, traceConf.sessionId, toolSpans);
     return { content: '', messages, iterations: max, stoppedAtLimit: true, traceId };
   }
 
@@ -1062,6 +1135,7 @@ export class GatewayNamespace {
    */
   private async *_runToolLoopStream(options: RunToolLoopOptions): AsyncGenerator<ToolLoopEvent> {
     const { routes, refs: effectiveRefs, inlinedSchemas } = await this._prepareToolRoutes(options);
+    const model = requireModel(options.model);
     const providerConfig = options.provider ?? this.host.providerDefault;
     const byoToolSchemas = providerConfig && [...(options.toolDefs ?? []), ...inlinedSchemas].length > 0
       ? [...(options.toolDefs ?? []), ...inlinedSchemas]
@@ -1078,7 +1152,14 @@ export class GatewayNamespace {
     const traceOpt = options.trace ?? true;
     const traceEnabled = traceOpt !== false;
     const traceConf = typeof traceOpt === 'object' ? traceOpt : {};
-    const traceName = traceConf.name ?? 'runToolLoop';
+    // 'runToolLoop' is this SDK's own default, not a name the caller chose, so it travels
+    // on the weaker `x-trace-name-if-unset` channel: the server fills it in only when the
+    // trace has no real name yet. A caller's explicit `name` is an instruction and still
+    // overwrites (issue #358, phase-3 FAQ Q33).
+    const traceName = traceConf.name;
+    // The SDK creates the trace itself on the BYO path, where no server-side default
+    // applies, so its own payloads still need a concrete name.
+    const payloadTraceName = traceName ?? 'runToolLoop';
 
     let messages: Message[] = [...options.messages];
     const toolSpans: IngestSpan[] = [];
@@ -1099,6 +1180,7 @@ export class GatewayNamespace {
         traceEnabled,
         traceConf,
         traceName,
+        payloadTraceName,
         state,
         out: round,
       });
@@ -1180,7 +1262,7 @@ export class GatewayNamespace {
       const results = await Promise.allSettled(tasks);
       const failure = results.find((r) => r.status === 'rejected');
       if (failure) {
-        this._reportToolSpans(traceEnabled, state.traceId, traceName, traceConf.sessionId, toolSpans);
+        this._reportToolSpans(traceEnabled, state.traceId, payloadTraceName, traceConf.sessionId, toolSpans);
         throw (failure as PromiseRejectedResult).reason;
       }
       messages = [
@@ -1198,7 +1280,7 @@ export class GatewayNamespace {
       traceId: state.traceId,
     };
 
-    this._reportToolSpans(traceEnabled, state.traceId, traceName, traceConf.sessionId, toolSpans);
+    this._reportToolSpans(traceEnabled, state.traceId, payloadTraceName, traceConf.sessionId, toolSpans);
 
     if (!shaping) {
       yield { type: 'done', result: gathered };
@@ -1225,6 +1307,7 @@ export class GatewayNamespace {
       traceEnabled,
       traceConf,
       traceName,
+      payloadTraceName,
       state,
       out: shapeRound,
     });
@@ -1260,8 +1343,9 @@ export class GatewayNamespace {
     responseFormat: ResponseFormat | undefined;
     providerConfig: import('./types').ProviderConfig | undefined;
     traceEnabled: boolean;
-    traceConf: { traceId?: string; sessionId?: string; tags?: string[]; metadata?: Record<string, unknown> };
-    traceName: string;
+    traceConf: TraceHeaderConf;
+    traceName: string | undefined;
+    payloadTraceName: string;
     state: { traceId?: string };
     out: StreamedRound;
   }): AsyncGenerator<ToolLoopEvent> {
@@ -1314,7 +1398,7 @@ export class GatewayNamespace {
         this.host.spanQueue.enqueue({
           traceId: state.traceId,
           sessionId: traceConf.sessionId,
-          name: args.traceName,
+          name: args.payloadTraceName,
           spans: [
             this._byoLlmSpan(byoState, convo, providerConfig, options.promptVersionId, out.spanRef),
           ],
@@ -1322,15 +1406,12 @@ export class GatewayNamespace {
       }
     } else {
       const extraHeaders: Record<string, string> | undefined = traceEnabled
-        ? {
-            'x-trace-name': encodeURIComponent(args.traceName),
-            ...(state.traceId ? { 'x-trace-id': state.traceId } : {}),
-            ...(traceConf.sessionId ? { 'x-session-id': traceConf.sessionId } : {}),
-            ...(traceConf.tags?.length ? { 'x-trace-tags': traceConf.tags.join(', ') } : {}),
-            ...(traceConf.metadata && Object.keys(traceConf.metadata).length
-              ? { 'x-trace-metadata': JSON.stringify(traceConf.metadata) }
-              : {}),
-          }
+        ? gatewayTraceHeaders({
+            ...traceConf,
+            name: args.traceName,
+            defaultName: 'runToolLoop',
+            traceId: state.traceId,
+          })
         : undefined;
 
       const meta: { gateway?: GatewayCallMeta } = {};

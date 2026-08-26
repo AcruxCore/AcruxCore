@@ -82,7 +82,7 @@ async def main() -> None:
             version = await hub.prompts.commit_version(
                 prompt_id,
                 messages=[{"role": "system", "content": "You are a data analyst. Use query_database to answer."}],
-                model="gpt-4o-mini",
+                model="claude-haiku",
             )
             print(f"  + committed v{version.version_number}")
 

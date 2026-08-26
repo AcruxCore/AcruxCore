@@ -20,6 +20,15 @@ agent framework speaks. AcruxCore's `POST /api/v1/traces/otlp` endpoint accepts 
 directly, so pointing an already-working CrewAI app at AcruxCore is an environment-variable
 change, not a rewrite.
 
+:::tip[Prefer a notebook?]
+[`trip_planner.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/trace-a-crewai-trip-planner/notebook/trip_planner.ipynb)
+is this whole page as one runnable notebook, written for a first-timer: a preflight cell that
+prints every instrumentor version, the crew built step by step, a live read of both traces and the
+real Tavily queries inside them, and four real ways to get OTLP wiring wrong — including the two
+that produce a trace with no tokens and no error. It renders on GitHub with its saved output, so
+you can read it through before running anything.
+:::
+
 ## 1. Create an AcruxCore API key
 
 Open **Account & keys → New key**, name it `crewai-tutorial`, and create it.
@@ -99,7 +108,7 @@ for the complete source.
 ## 4. Run it
 
 ```bash
-pip install crewai crewai-tools 'acruxcore[otel]' \
+pip install crewai crewai-tools tavily-python 'acruxcore[otel]' \
   openinference-instrumentation-crewai openinference-instrumentation-openai
 python trip_planner.py
 ```
@@ -148,16 +157,16 @@ Open **Observability → Sessions** and click `crewai-trip-planner-demo`: both c
 there, each its own trace, with real token counts and cost — CrewAI never told AcruxCore
 these two runs were related; the shared `session.id` attribute on every span did that.
 
-![The crewai-trip-planner-demo session showing two traces, each with 8 spans, real token counts, and real cost](/img/tutorials/trace-a-crewai-trip-planner/02-session.png)
+![The crewai-trip-planner-demo session showing two traces, each with 9 spans, real token counts, and real cost](/img/tutorials/trace-a-crewai-trip-planner/02-session.png)
 
 ## 6. Follow the crew's own span tree
 
 Open the first trace. The tree is CrewAI's own execution order, captured without a single
-line of tracing code in the crew: the Researcher agent calls the model, searches Tavily
-twice, calls the model again to summarize, then hands off to the Planner agent for a final
-model call:
+line of tracing code in the crew: the Researcher agent calls the model, runs the Tavily
+searches the model asked for, calls the model again to summarize, then hands off to the
+Planner agent for a final model call:
 
-![Trace tree showing a chain root span Crew.kickoff, an agent span for Destination Researcher containing an LLM span, two Tavily Search tool spans, and a second LLM span, followed by a sibling agent span for Itinerary Planner containing one LLM span](/img/tutorials/trace-a-crewai-trip-planner/03-trace-tree.png)
+![Trace tree showing a chain root span Crew.kickoff, an agent span for Destination Researcher containing an LLM span, three Tavily Search tool spans, and a second LLM span, followed by a sibling agent span for Itinerary Planner containing one LLM span](/img/tutorials/trace-a-crewai-trip-planner/03-trace-tree.png)
 
 Click a **Tavily Search** span to see the real query the Researcher chose and the real search
 results it got back:

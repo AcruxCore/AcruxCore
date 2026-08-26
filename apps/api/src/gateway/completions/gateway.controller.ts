@@ -12,6 +12,8 @@ interface TraceContextBody {
   sessionId?: string;
   capturePayloads?: boolean;
   name?: string;
+  /** A name to use only if the trace has no real one yet — see `traceNameIfUnset` (FAQ Q33). */
+  nameIfUnset?: string;
   tags?: string[];
   metadata?: Record<string, unknown>;
 }
@@ -77,6 +79,7 @@ function readTracingContext(
   sessionId?: string;
   capturePayloads?: boolean;
   traceName?: string;
+  traceNameIfUnset?: string;
   traceTags?: string[];
   traceMetadata?: Record<string, unknown>;
   spanName?: string;
@@ -113,6 +116,7 @@ function readTracingContext(
     sessionId: h('x-session-id') ?? bodyTrace?.sessionId,
     capturePayloads: captureHeader ?? bodyTrace?.capturePayloads,
     traceName: decodedHeader('x-trace-name') ?? bodyTrace?.name,
+    traceNameIfUnset: decodedHeader('x-trace-name-if-unset') ?? bodyTrace?.nameIfUnset,
     traceTags: readTagsHeader(req, 'x-trace-tags', bodyTrace?.tags),
     traceMetadata: readMetadataHeader(req, 'x-trace-metadata', bodyTrace?.metadata),
     spanName: h('x-span-name') ?? bodySpan?.name,

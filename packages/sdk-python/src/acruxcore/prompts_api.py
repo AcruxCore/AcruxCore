@@ -382,6 +382,29 @@ class PromptsNamespace:
             self._client._parse_json_or_throw(response, "diffing prompt versions")
         )
 
+    async def list_aliases(self, prompt_id: str) -> List[AliasDetail]:
+        """Lists every alias on a prompt and the version each one points at.
+
+        The read half of :meth:`promote_alias`. Answers "which version is
+        ``production`` on right now?" without dropping out of the SDK to hand-build
+        an HTTP call — which is what a deploy check, a CI guard or a dashboard of
+        its own had to do before this existed (issue #354).
+
+        :param prompt_id: The prompt's id.
+        :returns: One :class:`~acruxcore.types.AliasDetail` per alias. A prompt with
+            no committed version has none, which is an empty list rather than an error.
+        :raises AcruxCoreError: ``API_ERROR`` 404 if the prompt does not exist.
+        :raises AcruxCoreError: ``NETWORK_ERROR`` if the API is unreachable after retries.
+        """
+        response = await self._client._request(
+            "GET",
+            f"/prompts/{quote(prompt_id, safe='')}/aliases",
+            None,
+            "listing prompt aliases",
+        )
+        data = self._client._parse_json_or_throw(response, "listing prompt aliases")
+        return [AliasDetail.from_dict(item) for item in (data or [])]
+
     async def promote_alias(
         self, prompt_id: str, alias: str, version_number: int
     ) -> AliasDetail:

@@ -287,6 +287,81 @@ describe('POST /api/v1/traces/otlp', () => {
     expect(detail.body.spans[0].children[0].spanId).toBe(childSpanIdHex);
   });
 
+  it('names the trace after its root span rather than a timestamp (issue #362)', async () => {
+    // The trace list and the session detail view both show the trace name, and it was an
+    // ISO timestamp for every OTLP-ingested trace — so the column read as a wall of
+    // near-identical timestamps for exactly the users who wrote no AcruxCore code.
+    const { agent } = await authedAgent(app);
+    const traceIdHex = 'a1'.repeat(16);
+    const body = await encodeRequest(crewAiPayload(traceIdHex, 'cc'.repeat(8)));
+
+    await agent
+      .post('/api/v1/traces/otlp')
+      .set('Content-Type', 'application/x-protobuf')
+      .send(body)
+      .expect(200);
+
+    const trace = await prisma.trace.findUnique({ where: { id: toUuid(traceIdHex) } });
+    expect(trace!.name).toBe('CrewAgentExecutor.invoke');
+  });
+
+  it('upgrades a timestamp name when the root span arrives in a later batch', async () => {
+    // The real BatchSpanProcessor timing again: the leaf flushes first and creates the
+    // trace, so the batch that names it is not the batch that created it.
+    const { agent } = await authedAgent(app);
+    const traceIdHex = 'a2'.repeat(16);
+    const rootSpanIdHex = 'aa'.repeat(8);
+    const traceId = toUuid(traceIdHex);
+
+    const child = await encodeRequest(
+      spanPayload({
+        traceIdHex, spanIdHex: 'bb'.repeat(8), parentSpanIdHex: rootSpanIdHex,
+        name: 'tool-call', startNano: '1700000000100000000',
+      }),
+    );
+    await agent.post('/api/v1/traces/otlp').set('Content-Type', 'application/x-protobuf').send(child).expect(200);
+
+    // The child names nothing — it has a parent, so it is not the run. The trace keeps the
+    // Q12 timestamp fallback until the root lands.
+    const provisional = (await prisma.trace.findUnique({ where: { id: traceId } }))!.name;
+    expect(provisional).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
+    const root = await encodeRequest(
+      spanPayload({
+        traceIdHex, spanIdHex: rootSpanIdHex,
+        name: 'Crew_5f1fcf48-de64-42cf-b927-5c060836053', startNano: '1700000000000000000',
+      }),
+    );
+    await agent.post('/api/v1/traces/otlp').set('Content-Type', 'application/x-protobuf').send(root).expect(200);
+
+    expect((await prisma.trace.findUnique({ where: { id: traceId } }))!.name).toBe('Crew');
+  });
+
+  it('never pushes a real trace name back to a derived one', async () => {
+    // A trace named through the native ingest path (a caller's explicit instruction) must
+    // survive an OTLP batch landing on the same trace id. Without the placeholder guard,
+    // a derived name would win simply by arriving later.
+    const { agent } = await authedAgent(app);
+    const traceIdHex = 'a3'.repeat(16);
+    const traceId = toUuid(traceIdHex);
+
+    await agent
+      .post('/api/v1/traces')
+      .send({
+        traces: [{
+          traceId,
+          name: 'nightly-itinerary-run',
+          spans: [{ spanId: 'seed', name: 'seed', kind: 'other', startTime: '2026-08-21T10:00:00.000Z' }],
+        }],
+      })
+      .expect(200);
+
+    const body = await encodeRequest(crewAiPayload(traceIdHex, 'cc'.repeat(8)));
+    await agent.post('/api/v1/traces/otlp').set('Content-Type', 'application/x-protobuf').send(body).expect(200);
+
+    expect((await prisma.trace.findUnique({ where: { id: traceId } }))!.name).toBe('nightly-itinerary-run');
+  });
+
   it('rejects an export carrying more spans than the per-request ceiling with 413', async () => {
     const { agent } = await authedAgent(app);
     const traceIdHex = '7'.repeat(32);

@@ -312,10 +312,10 @@ await hub.gateway.flush()  # wait for the spans to be written
 trace = await hub.traces.get(result.gateway.trace_id)
 
 # A long-running server — or use `async with AcruxCore() as hub:` for a script
-await hub.gateway.aclose()  # flush, then stop accepting spans
+await hub.aclose()  # flush the spans, then close the HTTP connection pool
 ```
 
-`async with AcruxCore() as hub:` already flushes on exit, so a short script
+`async with AcruxCore() as hub:` already calls `aclose()` on exit, so a short script
 using the context-manager form needs neither call.
 
 </TabItem>

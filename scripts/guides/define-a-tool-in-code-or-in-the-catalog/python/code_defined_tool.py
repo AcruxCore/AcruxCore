@@ -19,6 +19,7 @@ import json
 from acruxcore import AcruxCore, acrux
 
 PROMPT_NAME = "weather-brief-code"
+MODEL = "gemini-flash"        # a public name from Gateway -> Models; any model works
 
 
 @acrux.tool
@@ -46,7 +47,7 @@ async def find_or_create_prompt(hub: AcruxCore) -> None:
                 "content": "You are a weather assistant. Call the tool, then answer in one sentence.",
             }
         ],
-        model="gpt-4o-mini",
+        model=MODEL,
     )
 
 

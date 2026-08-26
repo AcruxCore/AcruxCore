@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { ModelsRepository, GatewayModelWithRelations } from './models.repository';
 import { ConnectionsRepository } from '../connections/connections.repository';
-import { decryptSecret } from '../connections/crypto';
+import { decryptStoredSecret } from '../connections/crypto';
 import { getAdapter, ProviderError } from '../providers/adapter';
 import { lookupDefaultPricing } from '../providers/models';
 import type { ProviderCredentials } from '../providers/types';
@@ -187,7 +187,7 @@ export class ModelsService {
 
     const adapter = getAdapter(row.credential.provider);
     const creds: ProviderCredentials = {
-      apiKey: decryptSecret(row.credential.secretCiphertext),
+      apiKey: decryptStoredSecret(row.credential.secretCiphertext, 'provider_credential', row.credential.label),
       baseUrl: credentialBaseUrl(row.credential.config),
     };
     const startedAt = Date.now();

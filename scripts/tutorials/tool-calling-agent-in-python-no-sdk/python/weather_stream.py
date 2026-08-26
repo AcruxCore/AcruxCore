@@ -45,7 +45,7 @@ def main():
     resp = requests.post(
         f"{BASE_URL}/gateway/chat/completions",
         headers=HEADERS,
-        json={"model": "gpt-4o-mini", "messages": rendered["messages"], "stream": True},
+        json={"model": "llama-3.3-70b", "messages": rendered["messages"], "stream": True},
         stream=True,
     )
     resp.raise_for_status()

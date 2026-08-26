@@ -120,6 +120,50 @@ describe('GET /api/v1/traces/analytics', () => {
     expect(day.latencyMs.p50).toBeCloseTo(200, 6);
   });
 
+  it('buckets group_by=day in UTC, so no bucket can fall outside the echoed window', async () => {
+    // Regression for #238. `started_at` is a timestamptz, so `date_trunc('day', …)` without an
+    // explicit UTC cast truncates in the Postgres *session* timezone, while the service echoes
+    // from/to as UTC-sliced dates. This span sits at 20:30 UTC on 10 June — already past local
+    // midnight anywhere east of UTC+4 — so a session-timezone bucket lands on 2026-06-11, which
+    // is the exclusive upper bound of the window it was just selected by: a bucket dated outside
+    // the response's own range.
+    const { agent } = await authedAgent(app);
+    await agent
+      .post('/api/v1/traces')
+      .send({
+        traces: [
+          {
+            name: 'tz',
+            spans: [
+              {
+                spanId: 'tz1',
+                name: 'gpt-4o-mini',
+                kind: 'llm',
+                status: 'ok',
+                model: 'gpt-4o-mini',
+                startTime: '2026-06-10T20:30:00.000Z',
+                endTime: '2026-06-10T20:30:00.100Z',
+              },
+            ],
+          },
+        ],
+      })
+      .expect(200);
+
+    const res = await agent
+      .get('/api/v1/traces/analytics?from=2026-06-01&to=2026-06-11')
+      .expect(200);
+
+    expect(res.body.totals.requests).toBe(1);
+    expect(res.body.buckets).toHaveLength(1);
+    expect(res.body.buckets[0].key).toBe('2026-06-10');
+    // The invariant the bug broke: a bucket key never sorts outside [from, to].
+    for (const b of res.body.buckets as { key: string }[]) {
+      expect(b.key >= res.body.from).toBe(true);
+      expect(b.key < res.body.to).toBe(true);
+    }
+  });
+
   it('defaults the window to the last 30 days when from/to are omitted', async () => {
     const { agent } = await authedAgent(app);
     // A span "now" so it lands inside the default [now-30d, now) window.

@@ -99,7 +99,13 @@ export async function recordGatewaySpan(args: {
             id: ctx.traceId,
             teamId: ctx.teamId,
             sessionId: ctx.sessionId ?? null,
-            name: ctx.traceName?.trim() || deriveTraceInputName(request.messages) || startedAt.toISOString(),
+            // Precedence on create: the caller's instruction, then a client library's
+            // default, then the request's own text, then the Q12 timestamp.
+            name:
+              ctx.traceName?.trim() ||
+              ctx.traceNameIfUnset?.trim() ||
+              deriveTraceInputName(request.messages) ||
+              startedAt.toISOString(),
             tags: ctx.traceTags,
             metadata: ctx.traceMetadata,
             status: 'unset',
@@ -107,11 +113,23 @@ export async function recordGatewaySpan(args: {
           },
           tx,
         );
-      } else if (ctx.traceName?.trim() || ctx.traceTags?.length || ctx.traceMetadata) {
+      } else if (
+        ctx.traceName?.trim() ||
+        ctx.traceNameIfUnset?.trim() ||
+        ctx.traceTags?.length ||
+        ctx.traceMetadata
+      ) {
+        // `name` overwrites (Q11); `nameIfPlaceholder` only fills in a trace still
+        // carrying the Q12 timestamp, so joining cannot rename (Q33).
         await spansRepo.mergeTraceContext(
           trace.id,
           ctx.teamId,
-          { name: ctx.traceName?.trim(), tags: ctx.traceTags, metadata: ctx.traceMetadata },
+          {
+            name: ctx.traceName?.trim(),
+            nameIfPlaceholder: ctx.traceNameIfUnset?.trim(),
+            tags: ctx.traceTags,
+            metadata: ctx.traceMetadata,
+          },
           tx,
         );
       }

@@ -44,7 +44,7 @@ python python/catalog_defined_tool.py     # path B, the run
 ## Prerequisites
 
 - An AcruxCore account, a personal API key, and the base URL.
-- One gateway model whose **public name** is `gpt-4o-mini`, or edit `MODEL` / the `model=`
+- One gateway model whose **public name** is `gemini-flash`, or edit `MODEL` / the `model=`
   argument to match a name from **Gateway → Models** in your dashboard.
 - Python 3.11+.
 - `client_tools` needs an `acruxcore` newer than 0.9.0. Path A works on 0.9.0; path B does

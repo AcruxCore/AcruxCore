@@ -1,4 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
+import { CredentialUnusableError } from '../../shared/errors';
 
 const ALGO = 'aes-256-gcm';
 
@@ -58,4 +59,44 @@ export function decryptSecret(packed: Uint8Array): string {
   const decipher = createDecipheriv(ALGO, masterKey(), iv);
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(ct), decipher.final()]).toString('utf8');
+}
+
+/**
+ * Kind of stored secret being decrypted, used only to word the failure so the reader is
+ * pointed at the screen that can fix it.
+ */
+export type StoredSecretKind = 'provider_credential' | 'tool_secret';
+
+/**
+ * Decrypts a stored secret, converting a decrypt failure into a typed 409 instead of an
+ * unhandled crash.
+ *
+ * {@link decryptSecret} throws a raw `Error` from `Decipheriv.final()` when the master key
+ * no longer matches the ciphertext — correct crypto behaviour, but nothing caught it, so a
+ * key rotation that left a row behind surfaced as an opaque 500 on live gateway traffic
+ * (issue #324). The plaintext is never included in the thrown error.
+ *
+ * @param packed - The `iv(12) || authTag(16) || ciphertext` bytes from the DB.
+ * @param kind - Which store the secret came from, selecting the remediation wording.
+ * @param label - Human-facing name of the row (a credential label, a secret key), shown to
+ *   the caller so they know which one to fix. Omitted when the caller has no safe name.
+ * @returns The original plaintext secret.
+ * @throws {CredentialUnusableError} If the ciphertext cannot be decrypted with the current
+ *   `GATEWAY_ENCRYPTION_KEY`.
+ */
+export function decryptStoredSecret(
+  packed: Uint8Array,
+  kind: StoredSecretKind,
+  label?: string,
+): string {
+  try {
+    return decryptSecret(packed);
+  } catch {
+    const named = label ? ` "${label}"` : '';
+    throw new CredentialUnusableError(
+      kind === 'provider_credential'
+        ? `The stored provider credential${named} can no longer be decrypted. Reconnect it under Gateway → Credentials, then retry.`
+        : `The stored secret${named} can no longer be decrypted. Re-enter it under Gateway → Secrets, then retry.`,
+    );
+  }
 }

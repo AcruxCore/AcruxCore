@@ -23,6 +23,16 @@ has to re-read to find out. This page builds exactly that: four tools that groun
 in a small, real set of drug and policy fixtures, and the gateway's `response_format`
 feature to force the final answer into one typed shape every time.
 
+:::tip[Prefer a notebook?]
+[`medical_information_qa.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/medical-information-qa/notebook/medical_information_qa.ipynb)
+is this whole page as one runnable notebook, written for a first-timer. It writes the five
+fixtures itself, so it runs standalone; it checks up front whether your model really honours
+a strict schema; it verifies every citation the agent produces against the real documents;
+and it triggers four failure modes on purpose, including the quiet one where adding a
+docstring silently replaces a compliance-approved tool description. It renders on GitHub
+with its saved output, so you can read it through before running anything.
+:::
+
 :::note[A synthetic drug catalog — clearly fictional, said explicitly]
 Everything this page's tools look up — **Neuravex** and **Cortiblex**, their prescribing
 information, the safety policy, and the sample inquiry records — is **invented for this

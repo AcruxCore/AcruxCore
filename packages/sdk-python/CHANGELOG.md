@@ -12,8 +12,18 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+_Nothing yet._
+
+## 0.10.0 — 2026-08-21
+
 ### Added
 
+- `prompts.list_aliases(prompt_id)`: the read half of `promote_alias`, answering "which
+  version is `production` on right now?" without hand-building an HTTP call. Returns one
+  `AliasDetail` per alias, or an empty list for a prompt with no committed version.
+- `AcruxCore.aclose()`: flushes pending traces **and** closes the HTTP connection pool.
+  Use it wherever `async with` is not available — a notebook cell, a REPL, or a server's
+  own shutdown hook. `gateway.aclose()` still stops at the span queue.
 - `client_tools` on `gateway.run_tool_loop` and `gateway.run_prompt_with_tools`: a
   `{tool_name: fn}` map that runs a catalog tool whose executor is `client`, without the
   hand-written `dispatch` router that was previously the only way.
@@ -36,6 +46,30 @@ changelog: <https://docs.acruxcore.com/changelog>
 - `dispatch` is unchanged and not deprecated. It stays the right input for a tool set
   whose names are only known at runtime.
 
+### Fixed
+
+- `async with AcruxCore()` now closes the `httpx` client on exit. It flushed traces and
+  stopped there, so a process building one client per request or per job leaked a
+  connection pool each time — reported only as a `ResourceWarning`, which is off by default.
+- `gateway.chat()` on the gateway path no longer reports an `llm` span of its own. The
+  gateway already writes that span, so any `trace` value but `False` counted every model
+  call twice — wrong span counts, wrong per-trace token totals, and nothing errored.
+- `gateway.chat(trace={"name": ...})` now reaches the gateway. The key worked on
+  `run_tool_loop` and was silently dropped here; `trace_id` and `session_id` in the same
+  dict were dropped too, so a `chat()` could not join a trace at all. Streamed gateway
+  calls sent none of these headers.
+- A tool loop that joins an existing trace (`trace={"trace_id": ...}`) no longer renames it
+  to `runToolLoop`. The default name is still sent for a trace the loop opens, and an
+  explicit `name` still wins either way. The default now travels on the API's new
+  `x-trace-name-if-unset` channel, so the server enforces this rather than trusting the
+  client — see the gateway reference.
+- An error raised for a BYO provider call now carries the provider's own reason. Both
+  `gateway.chat` and its streaming path said only `provider returned 400 calling chat
+  completions` while the cause sat unread on ``err.body``.
+
+- A call with no model now fails in the SDK with ``VALIDATION_ERROR`` instead of being
+  sent. A BYO provider reads an absent model as licence to pick its own default and then
+  rejects it, so the raised error named a model the caller never wrote.
 ## 0.9.0 — 2026-08-20
 
 ### Added

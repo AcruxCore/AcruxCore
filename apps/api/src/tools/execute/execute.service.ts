@@ -3,7 +3,7 @@ import { ToolsRepository } from '../tools.repository';
 import { ToolVersionsRepository } from '../versions/versions.repository';
 import { ToolAliasesRepository } from '../aliases/aliases.repository';
 import { SecretsRepository } from '../../secrets/secrets.repository';
-import { decryptSecret } from '../../gateway/connections/crypto';
+import { decryptStoredSecret } from '../../gateway/connections/crypto';
 import { safeFetch } from './safe-fetch';
 import { compileTransform, evaluateTransform } from './js-transform';
 import { NotFoundError, ValidationError, AppError } from '../../shared/errors';
@@ -240,7 +240,7 @@ export class ToolExecuteService {
     for (const m of matches) {
       const secret = await this.secrets.findByNameForTeam(m[1]!, teamId);
       if (!secret) throw new ValidationError(`Referenced secret '${m[1]}' no longer exists.`);
-      const plaintext = decryptSecret(secret.secretCiphertext);
+      const plaintext = decryptStoredSecret(secret.secretCiphertext, 'tool_secret', m[1]);
       out = out.replace(m[0], () => plaintext);
     }
     return out;

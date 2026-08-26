@@ -37,6 +37,15 @@ multi-hop, extend Step 5's loop: feed one subagent's output into a second router
 That's the hybrid-port case, not covered here.
 :::
 
+:::tip[Prefer a notebook?]
+[`supervisor_flow.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/build-a-supervisor-multi-agent-system/notebook/supervisor_flow.ipynb)
+is this whole page as one runnable notebook, written for a first-timer: a preflight cell that
+checks whether your models are on the right kind of connection, the four tools and four prompts
+built step by step, a live read of the one trace both calls land in, and four real ways to get
+routing wrong. It renders on GitHub with its saved output, so you can read it through before
+running anything.
+:::
+
 ## 1. Run the four tools standalone
 
 The source assigns three subagents four tools total, defined once in
@@ -48,28 +57,49 @@ The source assigns three subagents four tools total, defined once in
 | `general_research_agent` | `advanced_research`, `get_todays_date` |
 | `writing_agent` | `basic_research`, `get_todays_date` |
 
-`finance_research` wraps `langchain_community`'s real `YahooFinanceNewsTool`; `advanced_research`
-and `basic_research` both wrap `TavilySearchResults` at different depths, the same two
-configurations [Build a configurable ReAct agent](./build-a-configurable-react-agent) uses.
+`finance_research` reads Yahoo Finance's own news endpoint; `advanced_research` and
+`basic_research` are two depths of the same Tavily search, the same two configurations
+[Build a configurable ReAct agent](./build-a-configurable-react-agent) uses.
 Run all four standalone first, before any of this touches AcruxCore:
 
 ```python
 import asyncio
-from langchain_community.tools.tavily_search import TavilySearchResults
-from langchain_community.tools.yahoo_finance_news import YahooFinanceNewsTool
+import requests
+from tavily import AsyncTavilyClient
 from datetime import datetime
 
+# Yahoo's news-stream endpoint needs two calls in this order: a GET for a session
+# cookie, then the POST. Both need a browser-shaped User-Agent.
+YAHOO_NEWS_URL = "https://finance.yahoo.com/xhr/ncp?queryRef=latestNews&serviceKey=ncp_fin"
+
+def _yahoo_headlines(ticker_symbol: str, limit: int = 3) -> str:
+    session = requests.Session()
+    session.headers.update({"User-Agent": "Mozilla/5.0"})
+    session.get("https://fc.yahoo.com", timeout=15)
+    res = session.post(YAHOO_NEWS_URL, timeout=20,
+                       json={"serviceConfig": {"snippetCount": limit, "s": [ticker_symbol]}})
+    res.raise_for_status()
+    stream = res.json()["data"]["tickerStream"]["stream"]
+    return "\n\n".join(
+        f"{i['content']['title']}\n{i['content'].get('summary') or ''}".strip()
+        for i in stream[:limit]
+    )
+
+async def _tavily_search(query, *, max_results, search_depth, include_images=False) -> list:
+    res = await AsyncTavilyClient().search(query, max_results=max_results,
+                                           search_depth=search_depth,
+                                           include_images=include_images)
+    return [{"title": r["title"], "url": r["url"]} for r in res["results"]]
+
 async def finance_research(ticker_symbol: str):
-    wrapped = YahooFinanceNewsTool()
-    return await wrapped.ainvoke({"query": ticker_symbol})
+    return _yahoo_headlines(ticker_symbol)
 
 async def advanced_research(query: str):
-    wrapped = TavilySearchResults(max_results=10, search_depth="advanced")
-    return await wrapped.ainvoke({"query": query})
+    return await _tavily_search(query, max_results=10, search_depth="advanced")
 
 async def basic_research(query: str):
-    wrapped = TavilySearchResults(max_results=5, search_depth="basic", include_raw_content=False, include_images=True)
-    return await wrapped.ainvoke({"query": f"trending {query}"})
+    return await _tavily_search(f"trending {query}", max_results=5,
+                                search_depth="basic", include_images=True)
 
 async def get_todays_date() -> str:
     return datetime.now().strftime("%Y-%m-%d")
@@ -153,15 +183,17 @@ interface," and paraphrasing would contradict that:
 Create the four supervisor tools in the AcruxCore catalog via @acrux.tool + tools.sync().
 
 Run once before supervisor_flow.py.  Requires:
-  pip install acruxcore langchain_community tavily-python yfinance
+  pip install acruxcore tavily-python requests
 """
 import asyncio
 from datetime import datetime
 from typing import Optional, cast, Any
 
+import requests
 from acruxcore import AcruxCore, acrux
-from langchain_community.tools.tavily_search import TavilySearchResults
-from langchain_community.tools.yahoo_finance_news import YahooFinanceNewsTool
+from tavily import AsyncTavilyClient
+
+# _yahoo_headlines() and _tavily_search() are the two helpers from Step 1.
 
 
 @acrux.tool
@@ -172,8 +204,7 @@ async def finance_research(ticker_symbol: str) -> Optional[list]:
     Args:
         ticker_symbol (str): The ticker symbol of the company to research.
     """
-    wrapped = YahooFinanceNewsTool()
-    return cast(Any, await wrapped.ainvoke({"query": ticker_symbol}))
+    return cast(Any, _yahoo_headlines(ticker_symbol))
 
 
 @acrux.tool
@@ -184,8 +215,7 @@ async def advanced_research(query: str) -> Optional[list]:
     Args:
         query (str): The query to search for.
     """
-    wrapped = TavilySearchResults(max_results=10, search_depth="advanced")
-    return cast(Any, await wrapped.ainvoke({"query": query}))
+    return cast(Any, await _tavily_search(query, max_results=10, search_depth="advanced"))
 
 
 @acrux.tool
@@ -196,8 +226,8 @@ async def basic_research(query: str) -> Optional[list]:
     Args:
         query (str): The query to search for.
     """
-    wrapped = TavilySearchResults(max_results=5, search_depth="basic", include_raw_content=False, include_images=True)
-    return cast(Any, await wrapped.ainvoke({"query": f"trending {query}"}))
+    return cast(Any, await _tavily_search(f"trending {query}", max_results=5,
+                                          search_depth="basic", include_images=True))
 
 
 @acrux.tool

@@ -146,6 +146,48 @@ same channel a native `POST /api/v1/traces` call uses.
 
 ---
 
+#### The trace's name comes from its root span
+
+A trace's name is what the trace list and the session detail view show, so it has to
+say what ran. It is taken from the batch's **root span** — the span with no
+`parentSpanId` — with a trailing run id trimmed off. CrewAI's `Crew_<uuid>` therefore
+becomes `Crew`, which also means two runs of the same crew share a name and can be
+found by it.
+
+Posting the two-span batch above under a root named
+`Crew_5f1fcf48-de64-42cf-b927-5c060836053`:
+
+```bash
+curl $ACRUXCORE_BASE_URL/traces/b1b1b1b1-b1b1-b1b1-b1b1-b1b1b1b1b1b1 \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{
+  "trace": {
+    "id": "b1b1b1b1-b1b1-b1b1-b1b1-b1b1b1b1b1b1",
+    "name": "Crew",
+    "sessionId": "crewai-probe-session",
+    "status": "ok",
+    "spanCount": 2
+  }
+}
+```
+
+**Root means no parent at all, not "no parent in this batch."** OTel's
+`BatchSpanProcessor` flushes a finished leaf span before its still-open parent, so a
+span whose parent is merely absent from *this* export is usually a child, and naming
+the run after it would name the run after one of its leaves. A batch holding no
+parentless span therefore contributes no name, and the trace keeps the default — its
+`started_at` timestamp — until the root arrives.
+
+When the root does arrive in a later batch, it replaces that timestamp. This only
+ever replaces the timestamp default: a name you set yourself, through
+[`POST /api/v1/traces`](./index.mdx) or an `x-trace-name` header on a gateway call,
+is never overwritten by a derived one.
+
+---
+
 #### RETRIEVER spans: retrieved documents land in `payload.output`
 
 OpenInference flattens a RETRIEVER span's retrieved documents into indexed
