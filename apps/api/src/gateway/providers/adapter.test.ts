@@ -4,6 +4,7 @@ import {
   getAdapter,
   summarizeProviderDetail,
   MAX_PROVIDER_DETAIL,
+  parseRetryAfter,
 } from './adapter';
 
 describe('ProviderError', () => {
@@ -86,5 +87,30 @@ describe('summarizeProviderDetail (issue #356)', () => {
     const err = new ProviderError('OpenAI request failed with status 400', 400, undefined, false, 'the real reason');
     expect(err.message).toBe('OpenAI request failed with status 400');
     expect(err.detail).toBe('the real reason');
+  });
+});
+
+describe('parseRetryAfter (issue: provider 429 passthrough)', () => {
+  it('reads the delta-seconds form', () => {
+    expect(parseRetryAfter(new Headers({ 'retry-after': '20' }))).toBe(20);
+  });
+
+  it('reads the HTTP-date form as seconds from now', () => {
+    const when = new Date(Date.now() + 30_000).toUTCString();
+    const seconds = parseRetryAfter(new Headers({ 'retry-after': when }));
+    // Clock granularity: the header only carries whole seconds.
+    expect(seconds).toBeGreaterThanOrEqual(28);
+    expect(seconds).toBeLessThanOrEqual(30);
+  });
+
+  it('is undefined when the header is absent, unparseable, or in the past', () => {
+    expect(parseRetryAfter(new Headers())).toBeUndefined();
+    expect(parseRetryAfter(new Headers({ 'retry-after': 'soon' }))).toBeUndefined();
+    expect(parseRetryAfter(new Headers({ 'retry-after': '-5' }))).toBeUndefined();
+    expect(parseRetryAfter(new Headers({ 'retry-after': new Date(Date.now() - 60_000).toUTCString() }))).toBeUndefined();
+  });
+
+  it('tolerates a response whose headers are missing entirely', () => {
+    expect(parseRetryAfter(undefined)).toBeUndefined();
   });
 });

@@ -8,6 +8,7 @@ export {
   GoneError,
   PaymentRequiredError,
   RateLimitedError,
+  ProviderRateLimitedError,
   BadGatewayError,
   GatewayTimeoutError,
   PayloadTooLargeError,

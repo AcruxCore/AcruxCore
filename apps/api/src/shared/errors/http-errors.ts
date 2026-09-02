@@ -90,6 +90,24 @@ export class RateLimitedError extends AppError {
 }
 
 /**
+ * 429 — The *upstream provider* rate-limited or refused on quota, not our own limiter.
+ *
+ * Kept distinct from {@link RateLimitedError} because the two need different fixes and
+ * callers branch on `code`: `RATE_LIMITED` means the team's own AcruxCore RPM/TPM window
+ * is exhausted, while `PROVIDER_RATE_LIMITED` means OpenAI (or whoever) said no — raise
+ * the upstream plan, or slow down against it. Reporting either as the other sends the
+ * reader to the wrong dashboard.
+ *
+ * `retryAfter` (seconds) is the provider's own backoff, forwarded verbatim by the
+ * controller as `Retry-After`.
+ */
+export class ProviderRateLimitedError extends AppError {
+  constructor(message: string, public readonly retryAfter?: number) {
+    super(message, 429, 'PROVIDER_RATE_LIMITED');
+  }
+}
+
+/**
  * 502 — Upstream provider returned an error we surface to the caller.
  * Call as `new BadGatewayError(message)` or `new BadGatewayError(code, message)`.
  */

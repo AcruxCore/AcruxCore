@@ -155,6 +155,41 @@ describe('OpenAiAdapter.chatCompletion', () => {
     expect((err as ProviderError).message).not.toContain('super-secret-upstream-detail-should-not-leak');
   });
 
+  describe('upstream 429 over a custom base_url (real loopback server)', () => {
+    let server: http.Server;
+    let baseUrl: string;
+
+    beforeAll(async () => {
+      allowLoopbackForTests();
+      server = http.createServer((_req, res) => {
+        res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': '7' });
+        res.end(JSON.stringify({ error: { message: 'Rate limit reached for gpt-4o-mini' } }));
+      });
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+      baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`;
+    });
+
+    afterAll(async () => {
+      resetSsrfAllowlist();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    });
+
+    it("carries the upstream's Retry-After and body through the SSRF-safe path", async () => {
+      // `guardedFetch` rebuilds the undici result as a `Response` carrying only the
+      // status, so every upstream header was dropped — and the custom-base_url path
+      // is exactly where the OpenAI-compatible providers (OpenRouter, Groq, Together)
+      // live. The 429 backoff they send arrived as `undefined` for all of them.
+      const err = await openaiCompatibleAdapter
+        .chatCompletion(req, { apiKey: 'sk-x', baseUrl })
+        .catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(ProviderError);
+      expect((err as ProviderError).status).toBe(429);
+      expect((err as ProviderError).retryAfter).toBe(7);
+      expect((err as ProviderError).detail).toContain('Rate limit reached');
+    });
+  });
+
   describe('dispatcher cleanup on a real connection failure (custom base_url)', () => {
     beforeAll(() => allowLoopbackForTests());
     afterAll(() => resetSsrfAllowlist());

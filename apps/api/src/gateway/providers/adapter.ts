@@ -79,6 +79,10 @@ export function summarizeProviderDetail(detail: string): string | undefined {
  * {@link summarizeProviderDetail}. It is forwarded to the caller only for a 4xx, where
  * the provider is describing the caller's own malformed request and so has nothing to
  * leak; a 5xx stays flattened.
+ *
+ * `retryAfter` is the upstream `Retry-After` in seconds (see {@link parseRetryAfter}),
+ * set on a 429 so the gateway can hand the caller the provider's own backoff instead of
+ * making them guess one.
  */
 export class ProviderError extends Error {
   constructor(
@@ -87,11 +91,41 @@ export class ProviderError extends Error {
     public readonly providerCode?: string,
     public readonly retriable = false,
     public readonly detail?: string,
+    public readonly retryAfter?: number,
   ) {
     super(message);
     this.name = 'ProviderError';
     Object.setPrototypeOf(this, ProviderError.prototype);
   }
+}
+
+/**
+ * Read an upstream `Retry-After` header as a whole number of seconds.
+ *
+ * RFC 9110 allows two forms and providers use both: OpenAI sends delta-seconds,
+ * some gateways in front of it send an HTTP-date. A date is converted to a delta
+ * against the current clock, which is why a date already in the past yields
+ * `undefined` rather than a negative or zero wait — telling a caller to retry
+ * "in -3 seconds" is worse than telling them nothing.
+ *
+ * @param headers - The provider response's headers, or `undefined` when the
+ *   response carried none.
+ * @returns Whole seconds to wait, or `undefined` when the header is absent,
+ *   unparseable, or does not point into the future.
+ */
+export function parseRetryAfter(headers: Headers | undefined): number | undefined {
+  const raw = headers?.get('retry-after')?.trim();
+  if (!raw) return undefined;
+
+  if (/^\d+$/.test(raw)) {
+    const seconds = Number(raw);
+    return seconds > 0 ? seconds : undefined;
+  }
+
+  const at = Date.parse(raw);
+  if (Number.isNaN(at)) return undefined;
+  const seconds = Math.ceil((at - Date.now()) / 1000);
+  return seconds > 0 ? seconds : undefined;
 }
 
 const REGISTRY: Record<string, ProviderAdapter> = {

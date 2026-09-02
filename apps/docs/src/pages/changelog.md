@@ -23,6 +23,23 @@ called out in the week it ships and in the SDK release notes.
 
 ---
 
+## Week of 31 August 2026
+
+### Major
+
+#### Upstream rate limits answer 429 with the provider's own reason
+
+- Provider 429s now answer `429 PROVIDER_RATE_LIMITED`, not an opaque `502 PROVIDER_ERROR`.
+- The provider's own reason and its `Retry-After` come through, so quota and pace differ.
+  [Reference →](/api-reference/gateway#upstream-rate-limits)
+- Streaming requests answer the same way, as JSON, before any bytes are written.
+
+### Minor
+
+- **Fixed** — a custom provider base URL dropped every upstream response header.
+
+---
+
 ## Week of 17 August 2026
 
 ### Major

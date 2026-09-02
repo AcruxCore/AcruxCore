@@ -526,11 +526,12 @@ Response (status 400):
 {"error":{"code":"PROVIDER_BAD_REQUEST","message":"Provider rejected the request (400): Invalid schema for response_format 'x': In context=(), 'additionalProperties' is required to be supplied and to be false."}}
 ```
 
-**Which statuses forward the provider's message, and which do not.** A 400, 404, 413
-or 422 describes *your request*, so the provider's message is passed through. A 401,
-403, 429 or any 5xx describes the connection instead — its credential, its quota, or
-the provider's own internals — none of which the caller of this gateway can act on, so
-those are summarised:
+**Which statuses forward the provider's message, and which do not.** A 400, 404, 413,
+422 or 429 describes something you can act on — your request, or the upstream's rate
+limit — so the provider's own message is passed through. A 401, 403 or any 5xx
+describes the connection instead: its credential or the provider's own internals,
+neither of which the caller of this gateway can do anything about, and a provider's
+401 body can echo a masked copy of the key it was sent. Those are summarised:
 
 ```json
 {"error":{"code":"PROVIDER_ERROR","message":"Provider error (401): OpenAI request failed with status 401"}}
@@ -539,6 +540,35 @@ those are summarised:
 That one answers **502 `PROVIDER_ERROR`**, and a provider timeout answers **504
 `PROVIDER_TIMEOUT`**. If you see a 401 here, the gateway connection's stored key is
 the thing to check, not the request.
+
+### Upstream rate limits
+
+When the provider rate-limits or refuses on quota, the gateway answers **429
+`PROVIDER_RATE_LIMITED`** and forwards the provider's own `Retry-After` when it sends
+one. Streaming requests answer the same way, as JSON, because nothing has been written
+to the stream yet.
+
+```bash
+curl -i -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"free-glm","messages":[{"role":"user","content":"hi"}],"max_tokens":5}'
+```
+
+Response (status 429):
+
+```
+Retry-After: 5
+```
+
+```json
+{"error":{"code":"PROVIDER_RATE_LIMITED","message":"Provider rate limit (429): Provider returned error"}}
+```
+
+Do not confuse this with **429 `RATE_LIMITED`**, which is *your own* virtual key's
+RPM/TPM window. The codes differ because the fixes differ: `RATE_LIMITED` is raised or
+lowered under Gateway → Virtual keys, while `PROVIDER_RATE_LIMITED` is the upstream
+account's limit and has to be resolved with that provider.
 
 ---
 

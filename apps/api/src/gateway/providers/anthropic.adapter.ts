@@ -1,4 +1,4 @@
-import { ProviderAdapter, ProviderError, GATEWAY_TIMEOUT_MS, summarizeProviderDetail } from './adapter';
+import { ProviderAdapter, ProviderError, GATEWAY_TIMEOUT_MS, summarizeProviderDetail, parseRetryAfter } from './adapter';
 import type {
   NormalizedRequest,
   NormalizedResponse,
@@ -253,6 +253,7 @@ export class AnthropicAdapter implements ProviderAdapter {
         undefined,
         res.status === 429 || res.status >= 500,
         summarizeProviderDetail(detail),
+        parseRetryAfter(res.headers),
       );
     }
 
@@ -393,6 +394,7 @@ export class AnthropicAdapter implements ProviderAdapter {
         undefined,
         res.status === 429 || res.status >= 500,
         summarizeProviderDetail(detail),
+        parseRetryAfter(res.headers),
       );
     }
 

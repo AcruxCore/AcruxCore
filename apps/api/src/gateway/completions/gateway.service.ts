@@ -45,6 +45,7 @@ import { recordGatewaySpan } from '../../traces/ingest/gateway-trace.hook';
 import {
   AppError,
   BadGatewayError,
+  ProviderRateLimitedError,
   GatewayTimeoutError,
   ForbiddenError,
   PaymentRequiredError,
@@ -986,6 +987,11 @@ export class GatewayService {
     let selected: ResolvedDeployment | null = null;
     let iterator: AsyncIterator<StreamChunk> | null = null;
     let firstChunk: IteratorResult<StreamChunk> | null = null;
+    // The last provider failure of the selection loop. Kept because the `!selected`
+    // branch below used to discard every one of them and answer a fixed 502, so a
+    // streaming caller learnt less about a rate limit or a bad key than a
+    // non-streaming one did — same request, same upstream, strictly worse answer.
+    let lastProviderError: ProviderError | null = null;
 
     for (const deployment of deployments) {
       try {
@@ -1022,6 +1028,7 @@ export class GatewayService {
           throw err;
         }
         // Nothing sent yet → fall through to the next deployment.
+        lastProviderError = err;
         continue;
       }
     }
@@ -1038,7 +1045,9 @@ export class GatewayService {
         gatewayModelId: deployments[0]?.model.id ?? null,
         resolvedModel: null,
         status: 'error',
-        errorCode: 'PROVIDER_ERROR',
+        errorCode: lastProviderError
+          ? (lastProviderError.providerCode ?? String(lastProviderError.status))
+          : 'PROVIDER_ERROR',
         promptTokens: 0,
         completionTokens: 0,
         costUsd: null,
@@ -1048,7 +1057,9 @@ export class GatewayService {
         estimatedCostUsd,
         promptVersionId,
       });
-      throw new BadGatewayError('All providers failed before streaming started.');
+      throw lastProviderError
+        ? this.mapProviderError(lastProviderError)
+        : new BadGatewayError('All providers failed before streaming started.');
     }
 
     const resolvedModel = selected.model.upstreamModel;
@@ -1286,13 +1297,21 @@ export class GatewayService {
    * one opaque sentence and no way to tell two different mistakes apart (issue #356).
    *
    * A 5xx stays flattened: the provider is describing its own internals there, which are
-   * neither the caller's business nor useful to them. So do 401/403 and 429 — those are
-   * about the *team's stored credential or quota*, not about the request, and a provider
-   * 401 body can echo a masked copy of the key it was sent.
+   * neither the caller's business nor useful to them. So do 401 and 403 — those are about
+   * the *team's stored credential*, not about the request, and a provider 401 body can
+   * echo a masked copy of the key it was sent.
+   *
+   * A 429 is the exception among those: it is neither our fault nor a secret. Flattening
+   * it to a 502 left the caller unable to tell "you are out of quota" (fix the billing
+   * plan) from "you are sending too fast" (back off), and answering 5xx invited the
+   * retry-on-5xx every HTTP client does by default — the worst possible reply to a rate
+   * limit. So it forwards the provider's own reason and its `Retry-After`, under a code
+   * distinct from our own limiter's `RATE_LIMITED`.
    *
    * @param err - The last provider error carried by `FallbackExhaustedError`.
-   * @returns 400 PROVIDER_BAD_REQUEST for a provider 400 (caller's fault); 504
-   *   PROVIDER_TIMEOUT for a 504/408; else 502 PROVIDER_ERROR.
+   * @returns 400 PROVIDER_BAD_REQUEST for a provider 400 (caller's fault); 429
+   *   PROVIDER_RATE_LIMITED for a provider 429; 504 PROVIDER_TIMEOUT for a 504/408;
+   *   else 502 PROVIDER_ERROR.
    */
   private mapProviderError(err: ProviderError): AppError {
     if (err.status === 400) {
@@ -1304,6 +1323,12 @@ export class GatewayService {
     }
     if (err.status === 504 || err.status === 408) {
       return new GatewayTimeoutError();
+    }
+    if (err.status === 429) {
+      return new ProviderRateLimitedError(
+        `Provider rate limit (429): ${err.detail ?? err.message}`,
+        err.retryAfter,
+      );
     }
     if (REQUEST_FAULT_STATUSES.has(err.status) && err.detail) {
       // Unknown model, oversized body, unprocessable schema: the same shape of problem as

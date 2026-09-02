@@ -39,10 +39,19 @@ const CANNED_GEMINI = {
   usageMetadata: { promptTokenCount: 12, candidatesTokenCount: 1, totalTokenCount: 13 },
 };
 
-function mockFetchOnce(body: unknown, ok = true, status = 200): void {
+function mockFetchOnce(
+  body: unknown,
+  ok = true,
+  status = 200,
+  headers: Record<string, string> = {},
+): void {
   jest.spyOn(global, 'fetch').mockResolvedValue({
     ok,
     status,
+    // Real `Headers`, not a bare object: the adapters read `Retry-After` off an
+    // error response, and a mock without it would make them pass against a shape
+    // production never returns.
+    headers: new Headers(headers),
     json: async () => body,
     text: async () => (typeof body === 'string' ? body : JSON.stringify(body)),
   } as unknown as Response);
@@ -498,6 +507,54 @@ describe('POST /api/v1/gateway/chat/completions (adapter-mocked)', () => {
     expect(rows[0]?.status).toBe('error');
     expect(rows[0]?.errorCode).toBe('500');
     expect(Number(rows[0]?.costUsd)).toBe(0);
+  });
+
+  it('provider 429 → 429 PROVIDER_RATE_LIMITED carrying the provider\'s own reason', async () => {
+    // A provider 429 used to flatten to `502 PROVIDER_ERROR: Provider error (429):
+    // OpenAI request failed with status 429`. That told the caller a number and
+    // nothing else — "out of quota" and "sending too fast" have different fixes —
+    // and a 5xx invites the retry-on-5xx every HTTP client does by default, which
+    // is the worst possible response to a rate limit.
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent, 'openai', 'sk-test-abcdAB12');
+    await registerModel(agent, credId, 'gpt-4o-mini');
+    mockFetchOnce(
+      { error: { message: 'You exceeded your current quota, please check your plan and billing details.' } },
+      false,
+      429,
+      { 'retry-after': '20' },
+    );
+
+    const res = await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'hi' }], gateway: { maxRetries: 0 } })
+      .expect(429);
+
+    expect(res.body.error.code).toBe('PROVIDER_RATE_LIMITED');
+    expect(res.body.error.message).toContain('You exceeded your current quota');
+    expect(res.headers['retry-after']).toBe('20');
+
+    const rows = await prisma.gatewayRequest.findMany({ where: { teamId } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.status).toBe('error');
+    expect(rows[0]?.errorCode).toBe('429');
+    expect(Number(rows[0]?.costUsd)).toBe(0);
+  });
+
+  it('provider 429 with no body and no Retry-After still answers 429, without the header', async () => {
+    const { agent } = await authedAgent(app);
+    const credId = await createConnection(agent, 'openai', 'sk-test-abcdAB12');
+    await registerModel(agent, credId, 'gpt-4o-mini');
+    mockFetchOnce('', false, 429);
+
+    const res = await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'hi' }], gateway: { maxRetries: 0 } })
+      .expect(429);
+
+    expect(res.body.error.code).toBe('PROVIDER_RATE_LIMITED');
+    expect(res.body.error.message).toMatch(/429/);
+    expect(res.headers['retry-after']).toBeUndefined();
   });
 
   it('a non-provider exception during the call still credits the budget reservation back in full (no permanent leak)', async () => {

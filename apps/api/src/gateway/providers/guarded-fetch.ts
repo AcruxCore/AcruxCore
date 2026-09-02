@@ -42,6 +42,31 @@ import { createSsrfSafeDispatcher, SsrfError } from '../../tools/execute/safe-fe
  *   `ProviderError` themselves (both `chatCompletion` and `streamChatCompletion` in every
  *   adapter wrap their `guardedFetch` call in a try/catch that does exactly that).
  */
+/**
+ * Copy undici's header bag onto a standard `Headers`.
+ *
+ * Without this the re-wrapped `Response` carried only a status, so every upstream
+ * header was silently lost on the custom-base_url path — including the `Retry-After`
+ * that an OpenAI-compatible provider sends with a 429. Dropped headers produce no
+ * error, so the loss only showed up as a caller being told to back off by an
+ * unspecified amount.
+ *
+ * undici gives a value as `string | string[] | undefined`; an array is joined the way
+ * HTTP folds a repeated header, and an absent value is skipped rather than becoming
+ * the literal string `"undefined"`.
+ *
+ * @param headers - undici's `IncomingHttpHeaders`-shaped bag.
+ * @returns The equivalent standard `Headers`.
+ */
+function toResponseHeaders(headers: Dispatcher.ResponseData['headers']): Headers {
+  const out = new Headers();
+  for (const [name, value] of Object.entries(headers)) {
+    if (value === undefined) continue;
+    out.set(name, Array.isArray(value) ? value.join(', ') : value);
+  }
+  return out;
+}
+
 export async function guardedFetch(
   url: string,
   init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal },
@@ -75,7 +100,7 @@ export async function guardedFetch(
     });
     const res = new Response(
       Readable.toWeb(result.body) as unknown as ConstructorParameters<typeof Response>[0],
-      { status: result.statusCode },
+      { status: result.statusCode, headers: toResponseHeaders(result.headers) },
     );
     return { res, dispatcher };
   } catch (err) {

@@ -161,6 +161,38 @@ describe('POST /gateway/chat/completions (stream)', () => {
     expect(res.body.error.code).toBe('PROVIDER_ERROR');
   });
 
+  it('provider 429 before the first chunk → 429 PROVIDER_RATE_LIMITED, not an opaque 502', async () => {
+    // The streaming selection loop discarded every provider error and threw a
+    // fixed `502 All providers failed before streaming started.`, so a streaming
+    // caller learnt even less than a non-streaming one about a rate limit.
+    const { agent, teamId } = await authedAgent(app);
+    await createOpenAiConnection(agent);
+    jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response('{"error":{"message":"Rate limit reached for gpt-4o-mini"}}', {
+        status: 429,
+        headers: { 'retry-after': '12' },
+      }),
+    );
+
+    const res = await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: 'hi' }],
+        stream: true,
+        gateway: { maxRetries: 0 },
+      })
+      .expect(429);
+
+    expect(res.body.error.code).toBe('PROVIDER_RATE_LIMITED');
+    expect(res.body.error.message).toContain('Rate limit reached');
+    expect(res.headers['retry-after']).toBe('12');
+
+    const rows = await prisma.gatewayRequest.findMany({ where: { teamId } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.errorCode).toBe('429');
+  });
+
   it('a non-provider exception before the first chunk still credits the budget reservation back in full (no permanent leak)', async () => {
     // Regression: in `completeStream`, the per-deployment selection loop only
     // credited the reservation back via `recordStreamRow`'s 'error' path when

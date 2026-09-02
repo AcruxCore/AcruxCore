@@ -3,7 +3,7 @@ import { GatewayService } from './gateway.service';
 import { ChatCompletionRequestSchema } from './completions.types';
 import type { GatewayCallContext, GatewayCompletionRequest } from './completions.types';
 import { ProviderError } from '../providers/adapter';
-import { ValidationError, RateLimitedError } from '../../shared/errors';
+import { ValidationError, RateLimitedError, ProviderRateLimitedError } from '../../shared/errors';
 
 /** Shape of the optional body `trace` object (conventions §2, widened by T8). */
 interface TraceContextBody {
@@ -181,8 +181,12 @@ export class GatewayController {
 
       res.status(200).json(result.body);
     } catch (err) {
-      // Surface Retry-After for rate limits (populated by G4).
-      if (err instanceof RateLimitedError && err.retryAfter !== undefined) {
+      // Surface Retry-After for rate limits — ours (populated by G4) and the
+      // upstream provider's, forwarded verbatim from its own 429 response.
+      if (
+        (err instanceof RateLimitedError || err instanceof ProviderRateLimitedError) &&
+        err.retryAfter !== undefined
+      ) {
         res.setHeader('Retry-After', String(err.retryAfter));
       }
       next(err);
