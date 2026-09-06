@@ -46,6 +46,16 @@ export class RunsController {
     }
   };
 
+  /** DELETE /api/v1/runs/:id — delete one run and its cells. 409 while it is still in flight. */
+  remove = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await this.service.deleteRun(req.teamId!, req.params.id);
+      res.status(200).json({ success: true });
+    } catch (err) {
+      next(err);
+    }
+  };
+
   /** GET /api/v1/runs/:id/report — get a run's comparison report (matrix, deltas, winner). */
   getReport = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {

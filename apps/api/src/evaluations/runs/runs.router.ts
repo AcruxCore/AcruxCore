@@ -57,6 +57,7 @@ runsRouter.post('/experiments/:id/runs', requireAnyAuth, controller.startRun);
 // the two paths differ in segment count, so Express never confuses them.
 runsRouter.get('/runs', requireAnyAuth, controller.list);
 runsRouter.get('/runs/:id', requireAnyAuth, controller.getRun);
+runsRouter.delete('/runs/:id', requireAnyAuth, controller.remove);
 runsRouter.get('/runs/:id/report', requireAnyAuth, controller.getReport);
 runsRouter.get('/runs/:id/cells/:cellKey', requireAnyAuth, controller.getCell);
 

@@ -44,4 +44,14 @@ export class ExperimentsController {
       next(err);
     }
   };
+
+  /** DELETE /api/v1/experiments/:id — delete an experiment and every run under it. */
+  remove = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await this.service.deleteById(req.teamId!, req.params.id);
+      res.status(200).json({ success: true });
+    } catch (err) {
+      next(err);
+    }
+  };
 }

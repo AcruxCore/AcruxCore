@@ -782,6 +782,13 @@ class FeedbackBucket:
     avg_rating: Optional[float]
     #: Count of feedback rows with ``rating < 0`` (thumbs-down).
     down_count: int
+    #: Readable name: the model, or ``"<prompt name> v<n>"`` for a prompt
+    #: version (``key`` stays the raw version UUID). Defaulted and placed last
+    #: so positional construction from before this field existed still works.
+    label: str = ""
+    #: Prompt owning this version, for linking a bucket back to its prompt.
+    #: ``None`` when grouping by model, or when the version id no longer resolves.
+    prompt_id: Optional[str] = None
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "FeedbackBucket":
@@ -790,6 +797,8 @@ class FeedbackBucket:
             count=d.get("count", 0),
             avg_rating=d.get("avgRating"),
             down_count=d.get("downCount", 0),
+            label=d.get("label", d["key"]),
+            prompt_id=d.get("promptId"),
         )
 
 

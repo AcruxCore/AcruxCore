@@ -74,7 +74,9 @@ test('DoD: filter → open trace → span tree + linked version → dashboards �
 
   // Span tree renders the llm span + the tool child; open the llm span, see the linked version.
   await expect(page.getByTestId('span-row')).toHaveCount(2);
-  await expect(page.getByText('gpt-4o-mini')).toBeVisible();
+  // The span is *named* gpt-4o-mini as well as carrying it as its model, so a
+  // bare text match hits two nodes. Target the model chip by its own title.
+  await expect(page.getByTitle('Model: gpt-4o-mini')).toBeVisible();
   await page.getByTestId('span-row').first().click();
   await expect(page.getByTestId('span-prompt-version')).toBeVisible();
 
@@ -101,6 +103,33 @@ test('sessions list → detail shows the session traces', async ({ page }) => {
   await page.goto('/sessions');
   await page.getByTestId('session-row-link').first().click();
   await expect(page.getByTestId('trace-row-link')).toHaveCount(2);
+});
+
+test('the sessions search box filters the list and survives a reload (#379)', async ({ page }) => {
+  await signup(page);
+  await ingestTrace(page.request, { model: 'gpt-4o-mini', sessionId: 'checkout-flow-1' });
+  await ingestTrace(page.request, { model: 'gpt-4o-mini', sessionId: 'onboarding-flow-1' });
+
+  await page.goto('/sessions');
+  await expect(page.getByTestId('session-row-link')).toHaveCount(2);
+
+  await page.getByTestId('sessions-search').fill('checkout');
+  await expect(page.getByTestId('session-row-link')).toHaveCount(1);
+  await expect(page.getByTestId('session-row-link')).toHaveText('checkout-flow-1');
+  // The term reaches the URL, so the filtered view is linkable and reloadable.
+  await expect(page).toHaveURL(/[?&]q=checkout/);
+
+  await page.reload();
+  await expect(page.getByTestId('sessions-search')).toHaveValue('checkout');
+  await expect(page.getByTestId('session-row-link')).toHaveCount(1);
+
+  // A term matching nothing keeps the box on screen so it can be corrected.
+  await page.getByTestId('sessions-search').fill('nothing-matches-this');
+  await expect(page.getByText('No matching sessions')).toBeVisible();
+  await expect(page.getByTestId('sessions-search')).toBeVisible();
+
+  await page.getByTestId('sessions-search').fill('');
+  await expect(page.getByTestId('session-row-link')).toHaveCount(2);
 });
 
 test('enabling payload capture makes a new trace show its payload', async ({ page }) => {

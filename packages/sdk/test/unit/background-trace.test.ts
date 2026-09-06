@@ -242,4 +242,88 @@ describe('trace reporting is off the critical path', () => {
     expect(result.traceId).toBe('22222222-2222-4222-8222-222222222222');
     await hub.gateway.close();
   });
+
+  it('traces.ingest({ wait: false }) returns before a slow POST completes, and the trace still lands (#315)', async () => {
+    const traceBodies: { traces: { traceId?: string; spans: unknown[] }[] }[] = [];
+
+    const acruxBase = await listen((req, res) => {
+      void readBody(req).then((raw) => {
+        setTimeout(() => {
+          traceBodies.push(JSON.parse(raw));
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ accepted: 1, traceIds: ['33333333-3333-4333-8333-333333333333'] }));
+        }, TRACE_DELAY_MS);
+      });
+    });
+
+    const hub = new acruxcore({ apiKey: 'k', baseUrl: `${acruxBase}/api/v1` });
+
+    const started = Date.now();
+    const result = await hub.traces.ingest(
+      {
+        name: 'retrieval',
+        spans: [
+          {
+            spanId: 's1',
+            name: 'vector-search',
+            kind: 'retrieval',
+            status: 'ok',
+            startTime: '2026-07-30T00:00:00.000Z',
+            endTime: '2026-07-30T00:00:00.000Z',
+          },
+        ],
+      },
+      { wait: false },
+    );
+    const elapsed = Date.now() - started;
+
+    expect(elapsed).toBeLessThan(TRACE_DELAY_MS / 2);
+    // Minted client-side, so it is usable before the send lands — that is what
+    // lets a caller hand it to gateway.chat({ trace: { traceId } }).
+    expect(result.traceId).toBeTruthy();
+    expect(result.traceId).not.toBe('33333333-3333-4333-8333-333333333333');
+    expect(traceBodies).toHaveLength(0);
+
+    await hub.traces.flush();
+
+    expect(traceBodies).toHaveLength(1);
+    expect(traceBodies[0].traces[0].traceId).toBe(result.traceId);
+    await hub.gateway.close();
+  });
+
+  it('traces.ingest({ wait: false }) threads a caller-supplied traceId through untouched (#315)', async () => {
+    const traceBodies: { traces: { traceId?: string }[] }[] = [];
+
+    const acruxBase = await listen((req, res) => {
+      void readBody(req).then((raw) => {
+        traceBodies.push(JSON.parse(raw));
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ accepted: 1, traceIds: ['ignored'] }));
+      });
+    });
+
+    const hub = new acruxcore({ apiKey: 'k', baseUrl: `${acruxBase}/api/v1` });
+    const supplied = '44444444-4444-4444-8444-444444444444';
+    const result = await hub.traces.ingest(
+      {
+        traceId: supplied,
+        spans: [
+          {
+            spanId: 's2',
+            name: 'rerank',
+            kind: 'retrieval',
+            status: 'ok',
+            startTime: '2026-07-30T00:00:00.000Z',
+            endTime: '2026-07-30T00:00:00.000Z',
+          },
+        ],
+      },
+      { wait: false },
+    );
+
+    expect(result.traceId).toBe(supplied);
+    await hub.traces.flush();
+    expect(traceBodies[0].traces[0].traceId).toBe(supplied);
+    await hub.gateway.close();
+  });
 });

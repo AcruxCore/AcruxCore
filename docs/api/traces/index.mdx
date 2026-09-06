@@ -19,6 +19,26 @@ personal API key, or a virtual key (`requireAnyAuthOrVirtualKey` — no role gat
 Each trace's spans form a tree via `spanId`/`parentSpanId`. Omit `traceId` to
 mint a new trace; supply a UUID to append spans to an existing one.
 
+A supplied `traceId` that does not exist yet is **created** under that id rather
+than rejected, so a client may mint its own UUID and use it immediately — that
+is what lets a non-blocking report (`traces.ingest(..., wait=False)` in the
+SDKs) hand back a usable trace id without waiting for a response. Verified:
+posting a freshly generated UUID returns it in `traceIds`, and
+`GET /traces/<that id>` reads the trace back.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/traces \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"traces":[{"traceId":"db41e83d-c1e9-48c8-9fa4-67907baebef0","name":"client-minted-id","spans":[{"spanId":"s1","name":"vector-search","kind":"retrieval","status":"ok","startTime":"2026-09-06T12:35:00Z","endTime":"2026-09-06T12:35:00.100Z"}]}]}'
+```
+
+```json
+{ "accepted": 1, "traceIds": ["db41e83d-c1e9-48c8-9fa4-67907baebef0"] }
+```
+
+A trace id supplied by a caller in **another** team is a 404, not a cross-tenant
+append.
+
 <Tabs groupId="lang">
 <TabItem value="curl" label="curl">
 

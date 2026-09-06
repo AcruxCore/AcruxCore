@@ -365,40 +365,77 @@ restrict the window; default is the last 30 days. `downCount` is the number
 of rows with rating `< 0` (thumbs-down) in that bucket; `avgRating` is null
 for a bucket with no rated feedback.
 
+Every bucket carries three identity fields:
+
+- `key` — the raw grouping value: a model name, or a prompt version **UUID**.
+- `label` — the readable name to display: the model name, or
+  `"<prompt name> v<version number>"`. Falls back to the raw id if the version
+  row no longer exists.
+- `promptId` — the prompt owning that version, so a client can link the bucket
+  to its prompt. Always `null` when grouping by `model`.
+
+Buckets are ordered by `label`.
+
 Attribution is per-TRACE, not per-span: every feedback row on a trace is
 counted against every distinct model/prompt_version used by that trace's
 `llm` spans, regardless of which span (or none) the feedback itself is
-attached to (see aggregate() in feedback.repository.ts). This trace has one
-`llm` span ("s1", model "gpt-4o-mini") and no other model, so all 3 feedback
-rows land in the same bucket — including the trace-level row (spanId null)
-and the "s2" row (a tool span with no model of its own).
+attached to (see aggregate() in feedback.repository.ts).
+
+The two calls below were run against a trace with one `llm` span
+(model `gpt-4o-mini`, stamped with version 1 of a prompt named
+`support-reply`) carrying two trace-level feedback rows, ratings `-1` and `1`.
+`from` narrows the window to just that run.
 
 ```bash
 curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
-  "$ACRUXCORE_BASE_URL/traces/feedback/summary?group_by=model"
+  "$ACRUXCORE_BASE_URL/traces/feedback/summary?from=2026-09-06T11:57:29Z"
 ```
 
-Response (status 200) — count 3; ratings -1, 5, null average (non-null only)
-to 2; downCount 1 (the one row with rating `< 0`):
+Response (status 200) — count 2; avgRating 0 (mean of -1 and 1); downCount 1:
+
+```json
+{
+  "groupBy": "prompt_version",
+  "buckets": [
+    {
+      "key": "3219b466-b070-4a0d-a666-a38c372419b9",
+      "label": "support-reply v1",
+      "promptId": "2b4708b9-9845-4a73-9a04-edd13c8364c0",
+      "count": 2,
+      "avgRating": 0,
+      "downCount": 1
+    }
+  ]
+}
+```
+
+The same window grouped by model — `label` repeats the model name and
+`promptId` is null:
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces/feedback/summary?group_by=model&from=2026-09-06T11:57:29Z"
+```
+
+Response (status 200):
 
 ```json
 {
   "groupBy": "model",
   "buckets": [
-    { "key": "gpt-4o-mini", "count": 3, "avgRating": 2, "downCount": 1 }
+    {
+      "key": "gpt-4o-mini",
+      "label": "gpt-4o-mini",
+      "promptId": null,
+      "count": 2,
+      "avgRating": 0,
+      "downCount": 1
+    }
   ]
 }
 ```
 
-Grouped by prompt_version (default) — empty because none of this trace's
-spans carry a promptVersionId:
-
-```bash
-curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
-  "$ACRUXCORE_BASE_URL/traces/feedback/summary"
-```
-
-Response (status 200):
+A window containing no feedback returns an empty bucket list:
 
 ```json
 { "groupBy": "prompt_version", "buckets": [] }

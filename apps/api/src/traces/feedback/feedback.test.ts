@@ -516,6 +516,41 @@ describe('GET /api/v1/traces/feedback/summary', () => {
     expect(byKey[v2.body.id].downCount).toBe(0);
   });
 
+  it('labels prompt-version buckets with the prompt name and version number (#383)', async () => {
+    const ctx = await signup();
+
+    const prompt = await ctx.agent.post('/api/v1/prompts').send({ name: 'support-reply' }).expect(201);
+    const v1 = await ctx.agent
+      .post(`/api/v1/prompts/${prompt.body.id}/versions`)
+      .send({ messages: [{ role: 'system', content: 'Answer {{ question }}' }] })
+      .expect(201);
+
+    const t1 = await postTrace(ctx.agent, { spanRef: 'l1', promptVersionId: v1.body.id });
+    await ctx.agent.post(`/api/v1/traces/${t1.traceId}/feedback`).send({ rating: -1 }).expect(201);
+
+    const res = await ctx.agent
+      .get('/api/v1/traces/feedback/summary?group_by=prompt_version')
+      .expect(200);
+
+    const bucket = res.body.buckets.find((b: { key: string }) => b.key === v1.body.id);
+    // `key` stays the raw id so existing consumers keep working; `label` is the
+    // human-readable name the dashboard renders instead of the UUID.
+    expect(bucket.key).toBe(v1.body.id);
+    expect(bucket.label).toBe('support-reply v1');
+    expect(bucket.promptId).toBe(prompt.body.id);
+  });
+
+  it('a model bucket labels itself with the model name and carries no promptId (#383)', async () => {
+    const ctx = await signup();
+    const t = await postTrace(ctx.agent, { spanRef: 'lm1', model: 'gpt-4o-mini' });
+    await ctx.agent.post(`/api/v1/traces/${t.traceId}/feedback`).send({ rating: 1 }).expect(201);
+
+    const res = await ctx.agent.get('/api/v1/traces/feedback/summary?group_by=model').expect(200);
+    const bucket = res.body.buckets.find((b: { key: string }) => b.key === 'gpt-4o-mini');
+    expect(bucket.label).toBe('gpt-4o-mini');
+    expect(bucket.promptId).toBeNull();
+  });
+
   it('aggregates avg rating + counts per model, defaulting to a 30-day window', async () => {
     const ctx = await signup();
 

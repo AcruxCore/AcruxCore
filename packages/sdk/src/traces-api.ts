@@ -18,15 +18,44 @@ import type {
   TraceResult,
   TraceSettings,
 } from './types';
+import { randomUUID } from 'node:crypto';
 import type { NamespaceHost } from './host';
+import type { SpanQueue } from './span-queue';
 
 /**
  * The subset of the client this namespace needs.
  *
  * Declared structurally rather than importing `acruxcore`, which would be a runtime
  * circular import: the client constructs this namespace.
+ *
+ * `spanQueue` is the same buffer the gateway reports its own spans through — see
+ * `ingest`'s `wait: false` mode, which is what stops a user-authored span costing
+ * a round trip when the gateway's does not.
  */
-export type TracesNamespaceHost = NamespaceHost;
+export interface TracesNamespaceHost extends NamespaceHost {
+  readonly spanQueue: SpanQueue;
+}
+
+/** Options for {@link TracesNamespace.ingest}. */
+export interface IngestOptions {
+  /**
+   * Whether to await the POST. `true` (the default) keeps the original
+   * behaviour: one awaited round trip, errors thrown at the call site, and a
+   * server-minted trace id in the result.
+   *
+   * `false` buffers the trace in the client's span queue and returns
+   * immediately, so instrumenting a non-LLM step costs no network wait. The
+   * trace id is then generated client-side (or taken from `input.traceId`),
+   * which is what makes it usable straight away — hand it to
+   * `gateway.chat({ trace: { traceId } })` and both land on one trace.
+   *
+   * The trade: nothing is confirmed at the call site. A failed send warns once
+   * per error kind and drops the batch, exactly as the gateway's own span
+   * reporting already does. Call `flush()` (or close the client) before
+   * reading the trace back.
+   */
+  wait?: boolean;
+}
 
 /**
  * Trace-domain-wide reads — analytics, facet discovery, payload-capture settings,
@@ -225,12 +254,27 @@ export class TracesNamespace {
    * over the batch endpoint. Omit `input.traceId` to mint a new trace; pass a
    * traceId returned by a prior call to append spans to that same trace.
    *
+   * With `{ wait: false }` the trace is buffered in the client's span queue and
+   * the call returns immediately with a client-generated `traceId` — no network
+   * wait, and no error at the call site. See {@link IngestOptions.wait}.
+   *
    * @param input - The trace and its spans to report.
+   * @param options - `{ wait: false }` to enqueue instead of awaiting the POST.
    * @returns The resolved `{ traceId }`.
-   * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries.
-   * @throws {acruxcoreError} API_ERROR for a non-2xx response.
+   * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries. Never thrown when `wait` is false.
+   * @throws {acruxcoreError} API_ERROR for a non-2xx response. Never thrown when `wait` is false.
    */
-  async ingest(input: TraceInput): Promise<TraceResult> {
+  async ingest(input: TraceInput, options?: IngestOptions): Promise<TraceResult> {
+    if (options?.wait === false) {
+      // Minted here rather than by the server, because a caller that does not
+      // wait has nothing to read the server's id out of. The ingest endpoint
+      // creates the trace under a supplied id when it does not exist yet, so a
+      // client-generated one behaves identically to one it minted itself.
+      const traceId = input.traceId ?? randomUUID();
+      this.client.spanQueue.enqueue({ ...input, traceId });
+      return { traceId };
+    }
+
     const response = await this.client._request(
       'POST',
       '/traces',
@@ -248,6 +292,19 @@ export class TracesNamespace {
     }
     const data = (await response.json()) as { accepted: number; traceIds: string[] };
     return { traceId: data.traceIds[0] };
+  }
+
+  /**
+   * Waits for every trace buffered by `ingest(..., { wait: false })` to be sent.
+   *
+   * The same buffer carries the gateway's own spans, so this drains both. Call
+   * it before reading a trace back, and before a short-lived process exits —
+   * otherwise a buffered trace is simply lost.
+   *
+   * @returns Resolves once the queue is empty.
+   */
+  async flush(): Promise<void> {
+    await this.client.spanQueue.flush();
   }
 
   /**

@@ -9,11 +9,23 @@ import type { FeedbackGroupBy } from '@/api/types';
 
 const LIMIT = 20;
 
-/** One grouped summary bucket (a prompt version id or a model name). */
-function SummaryRow({ label, count, avgRating, downCount }: { label: string; count: number; avgRating: number | null; downCount: number }) {
+/**
+ * One grouped summary bucket. The row shows the bucket's readable `label` — a
+ * model name, or "<prompt name> v<n>" for a prompt version — and links to the
+ * owning prompt when the API resolved one (#383).
+ */
+function SummaryRow({ label, promptId, count, avgRating, downCount }: { label: string; promptId: string | null; count: number; avgRating: number | null; downCount: number }) {
   return (
     <tr className="border-b border-line-soft last:border-0">
-      <td className="py-2 pr-3 font-mono text-[12px] text-ink">{label}</td>
+      <td className="py-2 pr-3 text-[13px] text-ink">
+        {promptId ? (
+          <Link to={`/prompts/${promptId}`} className="text-varhi hover:underline">
+            {label}
+          </Link>
+        ) : (
+          <span className="font-mono text-[12px]">{label}</span>
+        )}
+      </td>
       <td className="py-2 pr-3 text-[13px] text-muted">{count}</td>
       <td className="py-2 pr-3 font-mono text-[13px] text-ink">{avgRating === null ? '—' : avgRating.toFixed(2)}</td>
       <td className="py-2 text-[13px] text-danger">{downCount}</td>
@@ -131,7 +143,7 @@ export function FeedbackListPage() {
               </thead>
               <tbody>
                 {summary.data.buckets.map((b) => (
-                  <SummaryRow key={b.key} label={b.key} count={b.count} avgRating={b.avgRating} downCount={b.downCount} />
+                  <SummaryRow key={b.key} label={b.label} promptId={b.promptId} count={b.count} avgRating={b.avgRating} downCount={b.downCount} />
                 ))}
               </tbody>
             </table>

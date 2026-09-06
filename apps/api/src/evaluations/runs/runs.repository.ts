@@ -326,6 +326,24 @@ export class RunsRepository {
   }
 
   /**
+   * Hard-deletes one run. Its `eval_results` cascade; `prompt_candidates.run`
+   * is `SetNull`, so a candidate the optimizer drafted (and possibly already
+   * promoted to a real prompt version) survives with its run link cleared.
+   * The parent experiment is left alone — a run is one execution of it.
+   *
+   * Team-scoped in the `where` so a cross-team id deletes nothing; the service
+   * checks existence first to tell "not found" apart from "not yours".
+   *
+   * @param teamId - Isolation boundary.
+   * @param id - Run UUID.
+   * @returns How many rows were deleted: 1, or 0 if no such run in this team.
+   */
+  async deleteRun(teamId: string, id: string): Promise<number> {
+    const { count } = await prisma.experimentRun.deleteMany({ where: { id, teamId } });
+    return count;
+  }
+
+  /**
    * Transitions a run's status, stamping whichever of startedAt/endedAt/error
    * are given. Not team-scoped: called from queue processors, which only ever
    * hold a run id that was already resolved team-scoped upstream.

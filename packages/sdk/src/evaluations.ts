@@ -119,6 +119,15 @@ export class ExperimentsNamespace {
     return this.client._parseJsonOrThrow(response, 'getting experiment') as Promise<ExperimentDto>;
   }
 
+  /**
+   * Deletes an experiment and every run under it. Answers 409 `RUN_IN_FLIGHT`
+   * while one of its runs is still queued or running.
+   */
+  async delete(id: string): Promise<{ success: boolean }> {
+    const response = await this.client._request('DELETE', `/experiments/${encodeURIComponent(id)}`, undefined, 'deleting experiment');
+    return this.client._parseJsonOrThrow(response, 'deleting experiment') as Promise<{ success: boolean }>;
+  }
+
   async startRun(experimentId: string): Promise<StartRunResult> {
     const response = await this.client._request('POST', `/experiments/${encodeURIComponent(experimentId)}/runs`, undefined, 'starting run');
     const data = await this.client._parseJsonOrThrow(response, 'starting run') as { run_id: string; status: string };
@@ -151,6 +160,16 @@ export class RunsNamespace {
   async get(id: string): Promise<RunDetailDto> {
     const response = await this.client._request('GET', `/runs/${encodeURIComponent(id)}`, undefined, 'getting run');
     return this.client._parseJsonOrThrow(response, 'getting run') as Promise<RunDetailDto>;
+  }
+
+  /**
+   * Deletes one run and every cell it produced. The parent experiment and any
+   * optimizer candidates the run drafted are unaffected. Answers 409
+   * `RUN_IN_FLIGHT` while the run is still queued or running.
+   */
+  async delete(id: string): Promise<{ success: boolean }> {
+    const response = await this.client._request('DELETE', `/runs/${encodeURIComponent(id)}`, undefined, 'deleting run');
+    return this.client._parseJsonOrThrow(response, 'deleting run') as Promise<{ success: boolean }>;
   }
 
   async getReport(id: string): Promise<RunReport> {

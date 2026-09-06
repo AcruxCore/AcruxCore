@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Spinner } from '@/ui';
+import { Button, Spinner } from '@/ui';
 import type { RunListItem } from '@/api/types';
 import { timeAgo, dateTime } from '@/lib/format';
 import {
@@ -14,6 +14,8 @@ import {
 
 export interface RunHistoryTableProps {
   runs: RunListItem[];
+  /** Called with a run's id when its Delete action is clicked. Omit to hide the column. */
+  onDeleteRun?: (id: string) => void;
 }
 
 /** The status cell: a coloured dot plus its label, with a spinner while the run is still working. */
@@ -32,9 +34,14 @@ function StatusCell({ run }: { run: RunListItem }) {
  * comparison report. Scores read as an em dash rather than a zero until the
  * judge has scored something, matching the report's own unscored cells.
  *
+ * A run that is still `queued` or `running` cannot be deleted — the worker is
+ * mid-flight and the API answers 409 — so its Delete action is disabled with a
+ * reason rather than offered and then refused.
+ *
  * @param runs - The page of runs to render (already ordered by the API).
+ * @param onDeleteRun - Called with a run's id when its Delete action is clicked.
  */
-export function RunHistoryTable({ runs }: RunHistoryTableProps) {
+export function RunHistoryTable({ runs, onDeleteRun }: RunHistoryTableProps) {
   return (
     <div className="overflow-x-auto rounded-xl border border-line">
       <table className="w-full min-w-[760px] border-collapse text-left text-[13px]">
@@ -46,11 +53,13 @@ export function RunHistoryTable({ runs }: RunHistoryTableProps) {
             <th className="px-4 py-2.5 font-medium">Best</th>
             <th className="px-4 py-2.5 text-right font-medium">Duration</th>
             <th className="px-4 py-2.5 text-right font-medium">Started</th>
+            {onDeleteRun && <th className="px-4 py-2.5 font-medium">Actions</th>}
           </tr>
         </thead>
         <tbody>
           {runs.map((run) => {
             const passRate = formatPassRate(run.passRate);
+            const inFlight = run.status === 'queued' || run.status === 'running';
             return (
               <tr
                 key={run.id}
@@ -91,6 +100,20 @@ export function RunHistoryTable({ runs }: RunHistoryTableProps) {
                   {timeAgo(run.createdAt)}
                   {run.startedBy && <p className="mt-0.5 text-[12px] text-faint">{run.startedBy.name}</p>}
                 </td>
+                {onDeleteRun && (
+                  <td className="px-4 py-2.5">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={inFlight}
+                      title={inFlight ? 'Wait for the run to finish before deleting it.' : undefined}
+                      onClick={() => onDeleteRun(run.id)}
+                      data-testid="run-delete"
+                    >
+                      Delete
+                    </Button>
+                  </td>
+                )}
               </tr>
             );
           })}

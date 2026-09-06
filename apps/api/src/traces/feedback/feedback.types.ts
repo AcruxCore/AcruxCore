@@ -93,6 +93,19 @@ export interface FeedbackDto {
 /** One grouped bucket in the summary — a prompt version id or a model name. */
 export interface FeedbackBucket {
   key: string;
+  /**
+   * Human-readable name for the bucket (#383). For `model` grouping this is the
+   * model name — identical to `key`. For `prompt_version` grouping it is
+   * `"<prompt name> v<version number>"`, falling back to the raw id when the
+   * version row no longer exists. `key` deliberately stays the raw id so
+   * anything keying off it keeps working.
+   */
+  label: string;
+  /**
+   * The prompt owning this version, so the dashboard can link the bucket to its
+   * prompt. Always null for `model` grouping and for an unresolvable version id.
+   */
+  promptId: string | null;
   count: number;
   /** Mean of non-null ratings in the bucket; null when the bucket has no ratings. */
   avgRating: number | null;

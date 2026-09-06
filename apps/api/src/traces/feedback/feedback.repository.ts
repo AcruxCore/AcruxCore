@@ -160,19 +160,36 @@ export class FeedbackRepository {
    *
    * @param teamId - Team scope.
    * @param params - `from` (inclusive), `to` (exclusive), and the group dimension.
-   * @returns The group dimension echoed back plus one bucket per key.
+   * @returns The group dimension echoed back plus one bucket per key. Each bucket
+   *   carries a human-readable `label` (and `promptId` when grouping by prompt
+   *   version) so callers never have to render the raw grouping id.
    */
   async aggregate(
     teamId: string,
     params: { from: Date; to: Date; groupBy: FeedbackGroupBy },
   ): Promise<FeedbackSummary> {
     // `dim` is a validated enum → safe to inject as a raw column identifier.
-    const dim: Prisma.Sql =
-      params.groupBy === 'model' ? Prisma.sql`model` : Prisma.sql`prompt_version_id`;
+    const byModel = params.groupBy === 'model';
+    const dim: Prisma.Sql = byModel ? Prisma.sql`model` : Prisma.sql`prompt_version_id`;
+
+    // #383: the raw grouping key is a UUID for prompt versions, which is
+    // unreadable in the dashboard. Resolve it to "<prompt name> v<n>" here — a
+    // left join so a bucket whose version row is gone still reports its counts.
+    const labelSelect: Prisma.Sql = byModel
+      ? Prisma.sql`sp.dim::text AS "label", NULL::text AS "promptId"`
+      : Prisma.sql`COALESCE(p.name || ' v' || pv.version_number, sp.dim::text) AS "label", p.id::text AS "promptId"`;
+    const labelJoin: Prisma.Sql = byModel
+      ? Prisma.empty
+      : Prisma.sql`LEFT JOIN prompt_versions pv ON pv.id = sp.dim
+                   LEFT JOIN prompts p ON p.id = pv.prompt_id`;
+    const labelGroup: Prisma.Sql = byModel
+      ? Prisma.empty
+      : Prisma.sql`, p.id, p.name, pv.version_number`;
 
     const buckets = await prisma.$queryRaw<FeedbackBucket[]>(Prisma.sql`
       SELECT
         sp.dim::text AS "key",
+        ${labelSelect},
         COUNT(*)::int AS "count",
         AVG(f.rating)::float8 AS "avgRating",
         COUNT(*) FILTER (WHERE f.rating < 0)::int AS "downCount"
@@ -182,11 +199,12 @@ export class FeedbackRepository {
         FROM spans
         WHERE team_id = ${teamId}::uuid AND kind = 'llm' AND ${dim} IS NOT NULL
       ) sp ON sp.trace_id = f.trace_id
+      ${labelJoin}
       WHERE f.team_id = ${teamId}::uuid
         AND f.created_at >= ${params.from}
         AND f.created_at < ${params.to}
-      GROUP BY sp.dim
-      ORDER BY sp.dim
+      GROUP BY sp.dim${labelGroup}
+      ORDER BY "label"
     `);
 
     return { groupBy: params.groupBy, buckets };

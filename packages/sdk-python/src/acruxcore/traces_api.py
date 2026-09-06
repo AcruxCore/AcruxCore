@@ -259,20 +259,47 @@ class TracesNamespace:
 
     # ── Trace CRUD (moved from flat client methods) ───────────────────────
 
-    async def ingest(self, input: Dict[str, Any]) -> TraceResult:
+    async def ingest(self, input: Dict[str, Any], *, wait: bool = True) -> TraceResult:
         """Report a trace (a group of spans) to AcruxCore.
 
         A single-trace convenience over the batch endpoint. Omit ``traceId`` to
         mint a new trace; pass one to append spans to it. Never cached.
 
+        ``wait=True`` (the default) is unchanged: one awaited round trip, errors
+        raised at the call site, and the server's trace id in the result.
+
+        ``wait=False`` buffers the trace in the client's span queue — the same
+        buffer the gateway reports its own spans through — and returns
+        immediately, so instrumenting a non-LLM step (a vector search, a rerank)
+        costs no network wait. The trace id is then generated client-side, or
+        taken from ``input["traceId"]`` when you supplied one; either way it is
+        usable straight away, so handing it to
+        ``gateway.chat(trace={"traceId": trace_id})`` lands both on one trace.
+
+        The trade with ``wait=False`` is that nothing is confirmed at the call
+        site: a failed send warns once per error kind and drops the batch,
+        exactly as the gateway's own span reporting already does. Call
+        :meth:`flush` (or close the client) before reading the trace back, and
+        before a short-lived process exits.
+
         :param input: The trace and its spans.
+        :param wait: ``False`` to enqueue instead of awaiting the POST.
         :returns: ``TraceResult(trace_id)``.
         :raises AcruxCoreError: ``NETWORK_ERROR`` if unreachable; ``API_ERROR``
-            for a non-2xx response.
+            for a non-2xx response. Neither is raised when ``wait`` is ``False``.
         """
         from .errors import API_ERROR, NETWORK_ERROR, AcruxCoreError
         from .http import request_with_retry
-        import httpx, json
+        import httpx, json, uuid
+
+        if not wait:
+            # Minted here rather than by the server, because a caller that does
+            # not wait has nothing to read the server's id out of. The ingest
+            # endpoint creates the trace under a supplied id when it does not
+            # exist yet, so a client-generated one behaves identically.
+            trace_id = input.get("traceId") or str(uuid.uuid4())
+            self._client._span_queue.enqueue({**input, "traceId": trace_id})
+            return TraceResult(trace_id=trace_id)
 
         try:
             response = await self._client._request("POST", "/traces", {"traces": [input]}, "reporting trace")
@@ -291,6 +318,15 @@ class TracesNamespace:
 
         data = response.json()
         return TraceResult(trace_id=data["traceIds"][0])
+
+    async def flush(self) -> None:
+        """Wait for every trace buffered by ``ingest(..., wait=False)`` to be sent.
+
+        The same buffer carries the gateway's own spans, so this drains both.
+        Call it before reading a trace back, and before a short-lived process
+        exits — otherwise a buffered trace is simply lost.
+        """
+        await self._client._span_queue.flush()
 
     async def get(self, trace_id: str) -> GetTraceResult:
         """Read back a full trace: its header plus every span as a parent/child tree.

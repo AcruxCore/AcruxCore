@@ -9,7 +9,7 @@ import {
 } from './experiments.types';
 import { DatasetsRepository } from '../datasets/datasets.repository';
 import { DatasetsService } from '../datasets/datasets.service';
-import { NotFoundError, ValidationError } from '../../shared/errors';
+import { ConflictError, NotFoundError, ValidationError } from '../../shared/errors';
 
 /**
  * Business logic for the experiments domain: creating an experiment (a
@@ -90,6 +90,36 @@ export class ExperimentsService {
     const experiment = await this.repo.getById(teamId, id);
     if (!experiment) throw new NotFoundError('Experiment not found.');
     return this.toDto(experiment);
+  }
+
+  /**
+   * Deletes an experiment and everything under it — its runs and their cells.
+   * Refused while any of its runs is still `queued` or `running`: the worker is
+   * mid-flight and would keep writing results for a row that no longer exists.
+   * Wait for the run to settle, or delete the settled runs individually.
+   *
+   * A prompt candidate the optimizer drafted is NOT deleted — its `run` link is
+   * `SetNull` — so a candidate already promoted to a real prompt version is
+   * unaffected.
+   *
+   * @param teamId - Isolation boundary.
+   * @param id - Experiment UUID.
+   * @throws {NotFoundError} If the experiment does not exist or belongs to another team.
+   * @throws {ConflictError} If one of its runs is still queued or running.
+   */
+  async deleteById(teamId: string, id: string): Promise<void> {
+    const experiment = await this.repo.getById(teamId, id);
+    if (!experiment) throw new NotFoundError('Experiment not found.');
+
+    const inFlight = experiment.runs.filter((r) => r.status === 'queued' || r.status === 'running');
+    if (inFlight.length > 0) {
+      throw new ConflictError(
+        'RUN_IN_FLIGHT',
+        `This experiment has ${inFlight.length} run${inFlight.length === 1 ? '' : 's'} still queued or running. Wait for ${inFlight.length === 1 ? 'it' : 'them'} to finish, then delete.`,
+      );
+    }
+
+    await this.repo.deleteById(teamId, id);
   }
 
   /** Maps a Prisma experiment row (+ runs) to the API DTO. */

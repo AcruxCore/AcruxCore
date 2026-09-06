@@ -566,6 +566,98 @@ async def test_public_trace_still_awaits_and_returns_a_trace_id():
         assert result.trace_id == "22222222-2222-4222-8222-222222222222"
 
 
+@pytest.mark.asyncio
+async def test_ingest_wait_false_returns_before_a_slow_trace_post_completes():
+    """#315: a user-authored span should cost no round trip at the call site."""
+    import httpx
+
+    import acruxcore as acrux
+
+    trace_posts: List[Dict[str, Any]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(TRACE_DELAY)
+        trace_posts.append(json.loads(request.content.decode()))
+        return httpx.Response(
+            200, json={"accepted": 1, "traceIds": ["33333333-3333-4333-8333-333333333333"]}
+        )
+
+    transport = httpx.MockTransport(handler)
+    async with acrux.AcruxCore(
+        api_key="k", base_url="http://stub/api/v1", transport=transport
+    ) as hub:
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        result = await hub.traces.ingest(
+            {
+                "name": "retrieval",
+                "spans": [
+                    {
+                        "spanId": "s1",
+                        "name": "vector-search",
+                        "kind": "retrieval",
+                        "status": "ok",
+                        "startTime": "2026-07-30T00:00:00.000Z",
+                        "endTime": "2026-07-30T00:00:00.000Z",
+                    }
+                ],
+            },
+            wait=False,
+        )
+        elapsed = loop.time() - started
+
+        assert elapsed < TRACE_DELAY / 2
+        # The id is minted client-side, so it is usable before the send lands —
+        # that is what lets a caller hand it to gateway.chat(trace=...).
+        assert result.trace_id
+        assert result.trace_id != "33333333-3333-4333-8333-333333333333"
+        assert not trace_posts
+
+        await hub.traces.flush()
+        assert len(trace_posts) == 1
+        assert trace_posts[0]["traces"][0]["traceId"] == result.trace_id
+
+
+@pytest.mark.asyncio
+async def test_ingest_wait_false_keeps_a_caller_supplied_trace_id():
+    """A supplied id is threaded through untouched, so spans join that trace."""
+    import httpx
+
+    import acruxcore as acrux
+
+    trace_posts: List[Dict[str, Any]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        trace_posts.append(json.loads(request.content.decode()))
+        return httpx.Response(200, json={"accepted": 1, "traceIds": ["ignored"]})
+
+    transport = httpx.MockTransport(handler)
+    async with acrux.AcruxCore(
+        api_key="k", base_url="http://stub/api/v1", transport=transport
+    ) as hub:
+        supplied = "44444444-4444-4444-8444-444444444444"
+        result = await hub.traces.ingest(
+            {
+                "traceId": supplied,
+                "spans": [
+                    {
+                        "spanId": "s2",
+                        "name": "rerank",
+                        "kind": "retrieval",
+                        "status": "ok",
+                        "startTime": "2026-07-30T00:00:00.000Z",
+                        "endTime": "2026-07-30T00:00:00.000Z",
+                    }
+                ],
+            },
+            wait=False,
+        )
+        assert result.trace_id == supplied
+
+        await hub.traces.flush()
+        assert trace_posts[0]["traces"][0]["traceId"] == supplied
+
+
 def test_script_that_exits_without_aclose_still_delivers_its_trace():
     """Runs a fixture as a real subprocess against one throwaway HTTP server.
 

@@ -82,4 +82,23 @@ export class ExperimentsRepository {
       },
     });
   }
+
+  /**
+   * Hard-deletes an experiment. Its runs cascade (`ExperimentRun.experiment`),
+   * and each run's `eval_results` cascade in turn; `prompt_candidates.run` is
+   * `SetNull`, so a candidate that was promoted to a real version survives with
+   * its run link cleared.
+   *
+   * Team-scoped in the `where` so a cross-team id deletes nothing rather than
+   * the wrong row — the service still checks existence first to tell "not
+   * found" apart from "not yours".
+   *
+   * @param teamId - Isolation boundary.
+   * @param id - Experiment UUID.
+   * @returns How many rows were deleted: 1, or 0 if no such experiment in this team.
+   */
+  async deleteById(teamId: string, id: string): Promise<number> {
+    const { count } = await prisma.experiment.deleteMany({ where: { id, teamId } });
+    return count;
+  }
 }

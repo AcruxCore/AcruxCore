@@ -201,6 +201,19 @@ class ExperimentsNamespace:
             self._client._parse_json_or_throw(response, "getting experiment")
         )
 
+    async def delete(self, experiment_id: str) -> None:
+        """Delete an experiment and every run under it.
+
+        Raises a 409 ``RUN_IN_FLIGHT`` error while one of its runs is still
+        queued or running — wait for it to settle, then delete.
+        """
+        await self._client._request(
+            "DELETE",
+            f"/experiments/{quote(experiment_id, safe='')}",
+            None,
+            "deleting experiment",
+        )
+
     async def start_run(self, experiment_id: str) -> StartRunResult:
         response = await self._client._request(
             "POST",
@@ -257,6 +270,20 @@ class RunsNamespace:
         )
         return RunDetailDto.from_dict(
             self._client._parse_json_or_throw(response, "getting run")
+        )
+
+    async def delete(self, run_id: str) -> None:
+        """Delete one run and every cell it produced.
+
+        The parent experiment and any optimizer candidates the run drafted are
+        left alone. Raises a 409 ``RUN_IN_FLIGHT`` error while the run is still
+        queued or running.
+        """
+        await self._client._request(
+            "DELETE",
+            f"/runs/{quote(run_id, safe='')}",
+            None,
+            "deleting run",
         )
 
     async def get_report(self, run_id: str) -> RunReport:

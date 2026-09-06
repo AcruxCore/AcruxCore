@@ -865,3 +865,145 @@ curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" $ACRUXCORE_BASE_URL/experimen
 ```json
 { "error": { "code": "NOT_FOUND", "message": "Experiment not found." } }
 ```
+
+---
+
+### DELETE /api/v1/experiments/:id
+
+Deletes an experiment and **every run under it**, including each run's cells
+and reports. The dataset it swept and any prompt version promoted out of one
+of its runs are separate resources and are untouched; so is any optimizer
+candidate the runs drafted (the candidate's run link is simply cleared).
+
+Refused while any of the experiment's runs is still `queued` or `running` —
+the worker is mid-flight and would keep writing results for a row that no
+longer exists. Wait for the run to settle, or delete the settled runs
+individually with `DELETE /api/v1/runs/:id`.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X DELETE -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  $ACRUXCORE_BASE_URL/experiments/ff661325-588f-4984-8825-6102acfe3161
+```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+await hub.experiments.delete('ff661325-588f-4984-8825-6102acfe3161');
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+await hub.experiments.delete('ff661325-588f-4984-8825-6102acfe3161')
+```
+
+</TabItem>
+</Tabs>
+
+Response (status 200):
+
+```json
+{ "success": true }
+```
+
+#### Error responses
+
+A run is still in flight (status 409):
+
+```bash
+curl -X DELETE -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  $ACRUXCORE_BASE_URL/experiments/608693aa-e344-4c34-a5c0-12d9d18cbbb5
+```
+
+```json
+{
+  "error": {
+    "code": "RUN_IN_FLIGHT",
+    "message": "This experiment has 1 run still queued or running. Wait for it to finish, then delete."
+  }
+}
+```
+
+Already deleted, nonexistent, or another team's id (status 404 — never
+confirms whether it exists elsewhere):
+
+```bash
+curl -X DELETE -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  $ACRUXCORE_BASE_URL/experiments/ff661325-588f-4984-8825-6102acfe3161
+```
+
+```json
+{ "error": { "code": "NOT_FOUND", "message": "Experiment not found." } }
+```
+
+---
+
+### DELETE /api/v1/runs/:id
+
+Deletes one run and every cell it produced, so its report goes with it. The
+parent experiment stays — a run is one execution of it — and so does any
+optimizer candidate the run drafted, which matters because a candidate may
+already have been promoted to a real prompt version.
+
+Refused while the run is still `queued` or `running`, for the same reason as
+the experiment delete above.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X DELETE -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  $ACRUXCORE_BASE_URL/runs/f595cade-4145-49a9-b228-aa344dad15c8
+```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+await hub.runs.delete('f595cade-4145-49a9-b228-aa344dad15c8');
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+await hub.runs.delete('f595cade-4145-49a9-b228-aa344dad15c8')
+```
+
+</TabItem>
+</Tabs>
+
+Response (status 200):
+
+```json
+{ "success": true }
+```
+
+A subsequent read of the same run 404s, while its experiment still resolves:
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  $ACRUXCORE_BASE_URL/runs/f595cade-4145-49a9-b228-aa344dad15c8
+```
+
+```json
+{ "error": { "code": "NOT_FOUND", "message": "Run not found." } }
+```
+
+#### Error responses
+
+The run has not finished (status 409):
+
+```json
+{
+  "error": {
+    "code": "RUN_IN_FLIGHT",
+    "message": "This run is still queued. Wait for it to finish, then delete it."
+  }
+}
+```

@@ -363,7 +363,7 @@ A prompt with no tools bound still runs, as a plain completion.
 Raises `VALIDATION_ERROR` when the version has no bound model and no `model=` was
 passed.
 
-## `traces.ingest(input)`
+## `traces.ingest(input, *, wait=True)`
 
 Report a trace (a group of spans) to AcruxCore. A single-trace convenience over
 the batch endpoint — omit `traceId` to mint a new trace, pass one to append.
@@ -392,6 +392,32 @@ print(result.trace_id)
 | `spans` | `list[IngestSpan]` | yes | The spans to report — see [Span shapes](#span-shapes). |
 
 **Returns** `TraceResult(trace_id)`.
+
+### Reporting without waiting
+
+`wait=True` (the default) awaits the POST: errors are raised at the call site
+and `trace_id` is the server's. `wait=False` buffers the trace and returns
+immediately, so instrumenting a retrieval or rerank step costs no round trip:
+
+```python
+result = await hub.traces.ingest({"name": "retrieval", "spans": [...]}, wait=False)
+
+# Usable straight away — the id is generated client-side, and the API creates
+# the trace under it. Hand it to the gateway so both land on one trace.
+await hub.gateway.chat(model="gpt-4o-mini", messages=[...], trace={"traceId": result.trace_id})
+
+await hub.traces.flush()   # before reading it back, or before the process exits
+```
+
+The trade: nothing is confirmed at the call site. A failed send warns once per
+error kind and drops the batch, the same way the gateway's own span reporting
+already behaves. `traces.flush()` waits for everything buffered — including the
+gateway's spans, which share the buffer — and `AcruxCore.aclose()` flushes too.
+
+## `traces.flush()`
+
+Wait for every trace buffered by `ingest(..., wait=False)` (and by the gateway's
+own span reporting) to be sent. Returns once the queue is empty.
 
 ## `traces.submit_feedback(...)` / `traces.update_feedback(...)`
 

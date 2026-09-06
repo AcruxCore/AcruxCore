@@ -14,6 +14,35 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 _Nothing yet._
 
+## 0.11.0 — 2026-09-06
+
+### Added
+
+- `FeedbackBucket.label` and `FeedbackBucket.promptId` on
+  `traces.getFeedbackSummary()`. `label` is the readable bucket name — the model, or
+  `"<prompt name> v<n>"` for a prompt version; `promptId` is the owning prompt, null
+  when grouped by model.
+- `key` is unchanged and still the raw grouping value, so anything mapping a bucket
+  back to a version id keeps working.
+- `experiments.delete(id)` and `runs.delete(id)`. Deleting an experiment takes its runs
+  with it; deleting a run leaves the experiment and any optimizer candidates it drafted.
+- Both throw a 409 `RUN_IN_FLIGHT` error while a run is still queued or running — the
+  worker is mid-flight, so finish first, then delete.
+- `traces.ingest(input, { wait: false })`: buffers the trace in the client's span queue —
+  the same one the gateway reports through — and returns immediately, so instrumenting a
+  retrieval or rerank step costs no round trip.
+- The returned `traceId` is generated client-side in that mode and is usable at once: the
+  ingest endpoint creates the trace under it, so it can go straight into
+  `gateway.chat({ trace: { traceId } })`.
+- `traces.flush()`: waits for everything buffered (yours and the gateway's) to be sent.
+  Call it before reading a trace back or before a short-lived process exits.
+
+### Changed
+
+- Nothing by default. `wait` defaults to `true`, which is the existing behaviour: one
+  awaited POST, errors thrown at the call site, the server's trace id in the result. With
+  `wait: false` a failed send warns once per error kind and drops the batch instead.
+
 ## 0.10.0 — 2026-08-21
 
 ### Added

@@ -3,6 +3,7 @@ import { api } from './client';
 import type { ApiQuery } from './client';
 import { keys } from './queryClient';
 import type {
+  AddDatasetExampleInput,
   CandidateDetail,
   CreateDatasetFromFeedbackInput,
   CreateDatasetFromFeedbackResult,
@@ -10,6 +11,7 @@ import type {
   CreateExperimentInput,
   Dataset,
   DatasetDetail,
+  DatasetExample,
   DatasetListResponse,
   Experiment,
   ExperimentListResponse,
@@ -111,6 +113,45 @@ export function useCreateDatasetFromFeedback() {
     mutationFn: (body: CreateDatasetFromFeedbackInput) =>
       api<CreateDatasetFromFeedbackResult>('/datasets/from-feedback', { method: 'POST', body }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.datasets }),
+  });
+}
+
+/**
+ * Adds one hand-authored example to a dataset — the route into evaluation for
+ * a team that has no feedback to build from yet. Invalidates the detail query
+ * (the examples table) and the list (its example count).
+ *
+ * @param id - Dataset UUID the example is added to.
+ */
+export function useAddDatasetExample(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: AddDatasetExampleInput) =>
+      api<DatasetExample>(`/datasets/${id}/examples`, { method: 'POST', body }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.datasets });
+      qc.invalidateQueries({ queryKey: keys.dataset(id) });
+    },
+  });
+}
+
+/**
+ * Deletes one evaluation/optimize run and its cells. The parent experiment and
+ * any optimizer candidates the run drafted survive. Invalidates every `runs`
+ * list query (the filters are part of the key, so an exact match is not enough)
+ * plus this run's own detail/report queries.
+ *
+ * Rejects with a 409 `RUN_IN_FLIGHT` while the run is still queued or running.
+ */
+export function useDeleteRun() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api<{ success: true }>(`/runs/${id}`, { method: 'DELETE' }),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ['runs'] });
+      qc.invalidateQueries({ queryKey: keys.run(id) });
+      qc.invalidateQueries({ queryKey: keys.runReport(id) });
+    },
   });
 }
 

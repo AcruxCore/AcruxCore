@@ -1149,6 +1149,16 @@ export interface FeedbackSummaryOptions {
 /** One grouped bucket in {@link FeedbackSummaryResult}. */
 export interface FeedbackBucket {
   key: string;
+  /**
+   * Readable name for the bucket: the model name, or `"<prompt name> v<n>"`
+   * when grouping by prompt version (`key` stays the raw version UUID).
+   */
+  label: string;
+  /**
+   * Prompt owning this version, for linking a bucket back to its prompt.
+   * Null when grouping by model, or when the version id no longer resolves.
+   */
+  promptId: string | null;
   count: number;
   /** Mean of non-null ratings in the bucket; null when the bucket has no ratings. */
   avgRating: number | null;

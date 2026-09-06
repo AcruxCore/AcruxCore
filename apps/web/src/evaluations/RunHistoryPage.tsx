@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Button, Empty, PageSpinner, Select } from '@/ui';
-import { useRuns } from '@/api';
+import { Button, Dialog, DialogFooter, Empty, PageSpinner, Select, useToast } from '@/ui';
+import { ApiError, useDeleteRun, useRuns } from '@/api';
 import type { RunListFilters, RunStatus } from '@/api/types';
 import { EvaluationsTabs } from './EvaluationsTabs';
 import { RunHistoryTable } from './RunHistoryTable';
@@ -36,6 +37,23 @@ export function RunHistoryPage() {
   const filters = parseFilters(sp);
   const { data, isLoading, isError } = useRuns(filters);
 
+  const toast = useToast();
+  const del = useDeleteRun();
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  /** Deletes the run pending confirmation, along with every cell it produced. */
+  async function handleDelete() {
+    if (!deleteId) return;
+    try {
+      await del.mutateAsync(deleteId);
+      toast.success('Run deleted');
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'Could not delete run');
+    } finally {
+      setDeleteId(null);
+    }
+  }
+
   const page = filters.page ?? 1;
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
 
@@ -51,9 +69,9 @@ export function RunHistoryPage() {
   return (
     <div className="flex flex-col gap-5">
       <header>
-        <h1 className="text-[22px] font-semibold tracking-tight">Datasets</h1>
+        <h1 className="text-[22px] font-semibold tracking-tight">Runs</h1>
         <p className="mt-1 text-[13px] text-muted">
-          Datasets built from feedback, and the experiments run against them.
+          Every evaluation and optimize run the team has started, newest first.
         </p>
       </header>
 
@@ -98,7 +116,7 @@ export function RunHistoryPage() {
         />
       ) : (
         <>
-          <RunHistoryTable runs={data!.data} />
+          <RunHistoryTable runs={data!.data} onDeleteRun={setDeleteId} />
           {totalPages > 1 && (
             <div className="flex items-center gap-3 text-[13px] text-muted">
               <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setParam('page', String(page - 1))}>
@@ -119,6 +137,22 @@ export function RunHistoryPage() {
           )}
         </>
       )}
+
+      <Dialog
+        open={!!deleteId}
+        onOpenChange={(o) => !o && setDeleteId(null)}
+        title="Delete this run?"
+        description="Removes the run and every cell it produced, including its report. The experiment, its dataset, and any prompt version promoted from it are unaffected. This cannot be undone."
+      >
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setDeleteId(null)}>
+            Cancel
+          </Button>
+          <Button variant="danger" disabled={del.isPending} onClick={handleDelete} data-testid="run-delete-confirm">
+            {del.isPending ? 'Deleting…' : 'Delete run'}
+          </Button>
+        </DialogFooter>
+      </Dialog>
     </div>
   );
 }

@@ -34,8 +34,33 @@ called out in the week it ships and in the SDK release notes.
   [Reference →](/api-reference/gateway#upstream-rate-limits)
 - Streaming requests answer the same way, as JSON, before any bytes are written.
 
+#### Start a dataset from the dashboard, without waiting for feedback
+
+- **New dataset** on Evaluations → Datasets creates an empty dataset — no traffic needed.
+- **Add example** writes one row by hand: named variable fields, or raw JSON for other types.
+  [Guide →](/docs/guides/evaluate-a-prompt)
+
+#### Evaluation runs and experiments can be deleted
+
+- `DELETE /api/v1/runs/:id` removes a run and its cells; the Runs tab has a Delete action.
+- `DELETE /api/v1/experiments/:id` removes an experiment and every run under it.
+  [Reference →](/api-reference/experiments)
+- Both answer `409 RUN_IN_FLIGHT` while a run is still queued or running.
+
+#### Report your own spans without waiting for the network
+
+- `traces.ingest(..., wait=false)` buffers the trace and returns a usable trace id at once.
+- Measured at the call site: 6.5ms awaited, 0.017ms buffered, on a local API.
+  [Node](/docs/sdk-reference/node) · [Python](/docs/sdk-reference/python)
+- New `traces.flush()` drains the buffer; both SDKs, both unchanged by default.
+
 ### Minor
 
+- **Fixed** — the feedback summary grouped by prompt version showed a raw id, not a name.
+- Feedback summary buckets now carry `label` and `promptId` alongside the unchanged `key`.
+  [Reference →](/api-reference/traces/feedback)
+- Sessions can be searched by id from the page itself, not only by editing the URL.
+- **Fixed** — the Evaluations → Runs tab was headed "Datasets" and described the wrong page.
 - **Fixed** — a custom provider base URL dropped every upstream response header.
 
 ---

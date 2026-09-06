@@ -1,9 +1,13 @@
 export { formatSkipped } from './format-skipped';
 export type { SkippedFeedback } from './format-skipped';
+export { AddExampleDialog } from './AddExampleDialog';
+export type { AddExampleDialogProps } from './AddExampleDialog';
 export { CreateDatasetDialog } from './CreateDatasetDialog';
 export type { CreateDatasetDialogProps } from './CreateDatasetDialog';
 export { ImproveFromFeedbackDialog } from './ImproveFromFeedbackDialog';
 export type { ImproveFromFeedbackDialogProps } from './ImproveFromFeedbackDialog';
+export { NewDatasetDialog } from './NewDatasetDialog';
+export type { NewDatasetDialogProps } from './NewDatasetDialog';
 export { OptimizeDatasetDialog } from './OptimizeDatasetDialog';
 export type { OptimizeDatasetDialogProps } from './OptimizeDatasetDialog';
 export { PromoteDialog } from './PromoteDialog';

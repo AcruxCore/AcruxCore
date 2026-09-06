@@ -686,6 +686,16 @@ export interface CreateDatasetInput {
   overall_feedback?: string;
 }
 
+/**
+ * POST /datasets/:id/examples — one hand-authored example. `input` is the raw
+ * prompt VARIABLE bag, re-rendered against whichever template a run targets;
+ * `criteria` is that example's judge rubric.
+ */
+export interface AddDatasetExampleInput {
+  input: Record<string, unknown>;
+  criteria?: string;
+}
+
 /** PATCH /datasets/:id — all fields optional; `overall_feedback: null` explicitly clears it. */
 export interface UpdateDatasetInput {
   name?: string;
@@ -991,6 +1001,10 @@ export type FeedbackGroupBy = 'prompt_version' | 'model';
 /** One grouped bucket in the summary — a prompt version id or a model name. */
 export interface FeedbackBucket {
   key: string;
+  /** Readable name: the model, or `"<prompt name> v<n>"` for a prompt version. */
+  label: string;
+  /** Owning prompt, for linking a prompt-version bucket. Null when grouped by model. */
+  promptId: string | null;
   count: number;
   avgRating: number | null;
   downCount: number;

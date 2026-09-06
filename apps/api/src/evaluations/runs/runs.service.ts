@@ -7,7 +7,7 @@ import { AliasesService } from '../../prompts/aliases/aliases.service';
 import { VersionsRepository } from '../../prompts/versions/versions.repository';
 import { MembersRepository } from '../../teams/members/members.repository';
 import { getFlowProducer, EVAL_CELLS_QUEUE, EVAL_RUNS_QUEUE, finalizeJobOpts } from '../queue';
-import { NotFoundError } from '../../shared/errors';
+import { ConflictError, NotFoundError } from '../../shared/errors';
 import { buildRunReport } from './report.aggregate';
 import { deriveGridShape, deriveRunKind, foldRunScores } from './run-list.aggregate';
 import type { ExperimentConfig } from '../experiments/experiments.types';
@@ -241,6 +241,32 @@ export class RunsService {
         errored,
       },
     };
+  }
+
+  /**
+   * Deletes one run and its cells. Refused while the run is still `queued` or
+   * `running`: the worker is mid-flight and would keep writing results for a
+   * row that no longer exists. The parent experiment is untouched, as are any
+   * optimizer candidates the run produced (`prompt_candidates.run` is
+   * `SetNull`), so a candidate already promoted to a real version is safe.
+   *
+   * @param teamId - Isolation boundary.
+   * @param runId - UUID of the run to delete.
+   * @throws {NotFoundError} If the run does not exist for this team.
+   * @throws {ConflictError} If the run is still queued or running.
+   */
+  async deleteRun(teamId: string, runId: string): Promise<void> {
+    const run = await this.runsRepo.getRunById(teamId, runId);
+    if (!run) throw new NotFoundError('Run not found.');
+
+    if (run.status === 'queued' || run.status === 'running') {
+      throw new ConflictError(
+        'RUN_IN_FLIGHT',
+        `This run is still ${run.status}. Wait for it to finish, then delete it.`,
+      );
+    }
+
+    await this.runsRepo.deleteRun(teamId, runId);
   }
 
   /**

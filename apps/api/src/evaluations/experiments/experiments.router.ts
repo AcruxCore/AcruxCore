@@ -22,3 +22,4 @@ export const experimentsRouter: IRouter = Router();
 experimentsRouter.post('/', requireAnyAuth, controller.create);
 experimentsRouter.get('/', requireAnyAuth, controller.list);
 experimentsRouter.get('/:id', requireAnyAuth, controller.get);
+experimentsRouter.delete('/:id', requireAnyAuth, controller.remove);

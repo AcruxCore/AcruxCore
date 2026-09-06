@@ -4,6 +4,7 @@ import { Button, Empty, PageSpinner } from '@/ui';
 import { useDataset } from '@/api';
 import { dateTime, timeAgo } from '@/lib/format';
 import type { DatasetExample } from '@/api/types';
+import { AddExampleDialog } from './AddExampleDialog';
 import { HistoryDisclosure } from './HistoryDisclosure';
 import { OptimizeDatasetDialog } from './OptimizeDatasetDialog';
 
@@ -54,6 +55,7 @@ export function DatasetDetailPage() {
   const navigate = useNavigate();
   const { data, isLoading, isError } = useDataset(id ?? null);
   const [optimizeOpen, setOptimizeOpen] = useState(false);
+  const [addExampleOpen, setAddExampleOpen] = useState(false);
 
   if (isLoading) return <PageSpinner />;
   if (isError || !data) {
@@ -76,6 +78,9 @@ export function DatasetDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="ghost" onClick={() => setAddExampleOpen(true)} data-testid="add-example">
+            Add example
+          </Button>
           <Button variant="ghost" onClick={() => setOptimizeOpen(true)}>
             Optimize
           </Button>
@@ -86,7 +91,10 @@ export function DatasetDetailPage() {
       </header>
 
       {data.examples.length === 0 ? (
-        <Empty title="No examples yet" description="This dataset has no examples." />
+        <Empty
+          title="No examples yet"
+          description="Add one by hand, or build a dataset from feedback rows on the Feedback page."
+        />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-line">
           <table className="w-full min-w-[640px] border-collapse text-left text-[13px]">
@@ -107,6 +115,14 @@ export function DatasetDetailPage() {
         </div>
       )}
 
+      <AddExampleDialog
+        open={addExampleOpen}
+        onOpenChange={setAddExampleOpen}
+        datasetId={data.id}
+        // Seed the form with the variable names this dataset already uses, so
+        // every example keeps the shape the target prompt renders against.
+        knownVariables={data.examples.length > 0 ? Object.keys(data.examples[0].input) : undefined}
+      />
       <OptimizeDatasetDialog open={optimizeOpen} onOpenChange={setOptimizeOpen} datasetId={data.id} />
     </div>
   );
