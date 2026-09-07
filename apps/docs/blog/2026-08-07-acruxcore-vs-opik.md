@@ -1,11 +1,11 @@
 ---
-title: "Opik vs AcruxCore: guardrails, PII, and online evaluation"
-description: We rebuilt the same support-triage prompt on self-hosted Opik and AcruxCore, ran it on both — real screenshots, an SDK trace, and a latency benchmark.
+title: "Opik alternative: guardrails, PII and online evaluation"
+description: An Opik alternative tested hands-on — one prompt rebuilt on self-hosted Opik and AcruxCore, with real screenshots, an SDK trace and a latency benchmark.
 slug: acruxcore-vs-opik
 authors: [acrux]
 tags: [llmops-comparison, prompt-management, llm-tracing]
 image: /img/social-card.png
-keywords: [opik vs AcruxCore, opik alternative, llm ops comparison, prompt versioning, ai gateway, llm tracing, comet opik]
+keywords: [opik alternative, opik alternatives, comet opik alternative, opik vs AcruxCore, llm ops comparison, prompt versioning, ai gateway, llm tracing]
 ---
 
 Opik is Comet's open-source LLM-ops platform, and unlike some competitors we've covered
@@ -41,7 +41,7 @@ always tables, and a price change there is one edit instead of three.
 | Request-path gateway | None — ingests a trace after your own call | Built in — routing, caching, budgets | AcruxCore |
 | Tool catalog | No catalog at all — "Agent playground" needs a live connected process | Versioned catalog, real executed calls, analytics | AcruxCore |
 | SDK trace capture | Wrap a client with `track_openai()` | Automatic side effect of the gateway call | AcruxCore |
-| Measured overhead | +102ms (real, CI does not cross zero) | +206ms (real, extra hop) | Opik |
+| Measured overhead | +2 to +22 ms across three 100-round runs | +9 to +31 ms across the same three runs | Opik, barely |
 | Time-to-first-trace | Only via the SDK path, after wrapping a client | Zero code, first call | AcruxCore |
 
 License, pricing, team structure, security, and community stats: see
@@ -276,29 +276,33 @@ screenshot.
 ## Latency overhead — measured
 
 We timed the identical call three ways, interleaved in rotating order over 100 rounds
-so a network blip hits all three equally: a raw direct call to OpenRouter (baseline),
+so a network blip hits all three equally: a raw direct call to the provider (baseline),
 the same call wrapped in Opik's `track_openai()` client, and the same call through
-AcruxCore's gateway. This measures two different kinds of overhead — Opik's is
-client-side instrumentation cost, AcruxCore's is an extra network hop that buys
-routing and caching — not a rigged head-to-head.
+AcruxCore's gateway. Every leg ends at `gpt-4o-mini` on `api.openai.com` with the same
+key and body, and the script refuses to start unless the gateway model resolves to a
+native OpenAI credential — so all three provably share one upstream. This measures two
+different kinds of overhead — Opik's is client-side instrumentation cost, AcruxCore's is
+an extra network hop that buys routing and caching — not a rigged head-to-head.
 
-| Path | median | p95 | p99 |
+One run is not a result: the median gap moves enough between runs that a single number
+would mislead. So it ran three times.
+
+| Run | Direct-call median | Opik gap | AcruxCore gap |
 |---|---|---|---|
-| Direct to provider | 979 ms | 1439 ms | 1627 ms |
-| Opik tracked SDK | 1064 ms | 1350 ms | 1587 ms |
-| AcruxCore gateway | 1184 ms | 1778 ms | 2247 ms |
+| 1 | 617 ms | +22 ms, CI [+7, +47] | +22 ms, CI [+10, +42] |
+| 2 | 625 ms | +2 ms, CI [−13, +18] | +9 ms, CI [−6, +27] |
+| 3 | 612 ms | +4 ms, CI [−15, +26] | +31 ms, CI [+5, +45] |
 
-With a 95% bootstrap confidence interval on the gap against the direct-call baseline:
-Opik's **+102ms is real** (CI [+14, +191]ms) — it does not cross zero at this sample
-size, unlike a competitor's client-side overhead we measured previously. AcruxCore's
-**+206ms is also real** (CI [+123, +293]ms) — the cost of the extra hop, not a
-measurement artifact.
+Opik's overhead lands between +2 ms and +22 ms, AcruxCore's between +9 ms and +31 ms.
+Opik's was never the higher of the two, though the two were identical in the first run.
+In two of the three runs both confidence intervals cross zero, so neither path is
+reliably distinguishable from calling the provider directly at this sample size.
 
 Full script: [`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/opik-vs-acruxcore/python/latency_bench.py).
 
-For a broader run — real OpenAI billing instead of OpenRouter, six platforms in one
-interleaved benchmark, and four independent runs to check how stable the numbers
-are — see
+For a broader run — six platforms in one interleaved benchmark, the stored-prompt fetch
+timed alongside the completion, and four independent runs to check how stable the
+numbers are — see
 [full-cycle latency across six LLM-ops platforms](/blog/full-cycle-latency-benchmark).
 
 ## Friction hit during this run
@@ -358,6 +362,20 @@ AcruxCore has no equivalent to guardrails or a separate pre-deployment test-suit
 object. It does have its own rule-based online evaluation — a judge (built-in or your
 own prompt) scoring every matching live trace as it lands, not just a dataset run on
 demand.
+
+## Is AcruxCore an Opik alternative?
+
+For the day-to-day loop of running a prompt in production, yes. For pre-deployment testing,
+not yet.
+
+Opik has no tool catalog at all, its experiments default to the SDK rather than the UI, and
+its Playground produces no trace — only a wrapped SDK call does, which makes for a genuinely
+confusing first hour if you are evaluating it by clicking around.
+
+Two things you would lose are real, and we will not talk around them: Opik's Topic and PII
+guardrails, configurable per project, and its Test suites — a dedicated pre-deployment
+regression object that nothing else in this series has an equivalent of. If either is the
+reason you run Opik, we are not a replacement for it.
 
 ## Verdict
 

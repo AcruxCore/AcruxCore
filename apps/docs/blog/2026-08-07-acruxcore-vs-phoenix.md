@@ -1,11 +1,11 @@
 ---
-title: "Phoenix vs AcruxCore: OpenTelemetry tracing vs a gateway"
-description: We rebuilt the same support-triage prompt on Arize Phoenix and AcruxCore, ran it on both — real screenshots, an SDK trace, and a latency benchmark.
+title: "Arize Phoenix alternative: OTel tracing vs a gateway"
+description: An Arize Phoenix alternative tested hands-on — one prompt rebuilt on Phoenix and AcruxCore, with real screenshots, an SDK trace and a latency benchmark.
 slug: acruxcore-vs-phoenix
 authors: [acrux]
 tags: [llmops-comparison, llm-tracing]
 image: /img/social-card.png
-keywords: [phoenix vs AcruxCore, arize phoenix alternative, llm ops comparison, prompt versioning, ai gateway, llm tracing, openinference]
+keywords: [arize phoenix alternative, phoenix alternative, arize phoenix alternatives, phoenix vs AcruxCore, llm ops comparison, prompt versioning, ai gateway, llm tracing, openinference]
 ---
 
 Arize Phoenix is the OTel-native tracing-and-eval project a lot of teams reach for
@@ -38,7 +38,7 @@ here — they were always tables, and a price change there is one edit instead o
 | Tool catalog | Ad-hoc per-prompt tool JSON, no catalog page | Versioned catalog, real executed calls, analytics | AcruxCore |
 | Dataset creation | From a trace span, or manually | From real span-level trace feedback | Tie |
 | SDK trace capture | Instrument a client + call the provider yourself | Automatic side effect of the gateway call | AcruxCore |
-| Measured overhead | -68ms (indistinguishable from zero) | +72ms (indistinguishable from zero) | Tie |
+| Measured overhead | −14 to +21 ms across three 100-round runs | +11 to +51 ms across the same three runs | Phoenix, barely |
 | Time-to-first-trace | SDK setup (register + instrument) before anything lands | Zero code, first gateway call | AcruxCore |
 
 License, pricing, team structure, security, and community stats: see
@@ -259,28 +259,29 @@ screenshot.
 100 interleaved rounds, three legs, rotating order, warm-up discarded — the same
 method as every comparison in this series. `phoenix_otel` wraps a raw OpenAI client
 with `openinference-instrumentation-openai`; `acx_gateway` is a raw POST to a local
-AcruxCore gateway. Both are compared against a direct baseline call to OpenRouter.
+AcruxCore gateway. Every leg ends at `gpt-4o-mini` on `api.openai.com` with the same
+key and body, and the script refuses to start unless the gateway model resolves to a
+native OpenAI credential — so all three provably share one upstream.
 
-| Path | Median | P95 | P99 |
+One run is not a result: the median gap moves enough between runs that a single
+number would mislead. So it ran three times.
+
+| Run | Direct-call median | Phoenix gap | AcruxCore gap |
 |---|---|---|---|
-| OpenRouter direct (baseline) | 918ms | 1327ms | 1547ms |
-| Phoenix OTel SDK | 855ms | 1389ms | 2007ms |
-| AcruxCore gateway | 1010ms | 1629ms | 2247ms |
+| 1 | 599 ms | +21 ms, CI [+2, +44] | +51 ms, CI [+27, +72] |
+| 2 | 630 ms | −14 ms, CI [−30, +5] | +11 ms, CI [−3, +24] |
+| 3 | 615 ms | +8 ms, CI [−11, +30] | +38 ms, CI [+16, +58] |
 
-| Path | Median gap vs baseline | 95% CI |
-|---|---|---|
-| Phoenix OTel SDK | -68ms | [-166, 102]ms — **crosses zero, not distinguishable from noise** |
-| AcruxCore gateway | +72ms | [-31, 201]ms — **crosses zero, not distinguishable from noise** |
-
-Neither overhead is statistically real at this sample size — both confidence intervals
-straddle zero. That's the honest result: client-side OTel instrumentation and an extra
-network hop are different kinds of cost (CPU/serialization vs routing-and-caching
-capability), but at 100 rounds, network noise swamps both. Full script:
+Phoenix's overhead lands between −14 ms and +21 ms, AcruxCore's between +11 ms and
++51 ms. Phoenix's was the lower of the two in all three runs, by roughly 30 ms —
+consistent enough to be real, and small enough that no application would notice it.
+The two are different kinds of cost: client-side OTel instrumentation pays CPU and
+serialization, an extra network hop pays routing and caching. Full script:
 [`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/phoenix-vs-acruxcore/python/latency_bench.py).
 
-For a broader run — real OpenAI billing instead of OpenRouter, six platforms in one
-interleaved benchmark, and four independent runs to check how stable the numbers
-are — see
+For a broader run — six platforms in one interleaved benchmark, the stored-prompt
+fetch timed alongside the completion, and four independent runs to check how stable
+the numbers are — see
 [full-cycle latency across six LLM-ops platforms](/blog/full-cycle-latency-benchmark).
 
 ## Friction hit during this run
@@ -333,6 +334,22 @@ One earlier expectation didn't hold up: Phoenix's docs list Tracing, Evaluation,
 Engineering, Datasets & Experiments, and PXI as its top-level capabilities today — no
 embedding-drift-analysis section turned up in the docs nav or in this instance's UI, so
 we're not carrying that claim forward from older material.
+
+## Is AcruxCore an Arize Phoenix alternative?
+
+For running an LLM app, yes. For notebook-based analysis, no.
+
+Phoenix has no request-path gateway, its "tool" is an unversioned JSON Schema saved per
+prompt that never executes, and the local open-source install has no team, role or audit
+concept at all — that last one is worth checking first if more than one person needs access.
+
+Phoenix's per-span attribute depth is genuinely better than ours, and PXI, its docked
+assistant, has no equivalent here. If your work happens inside a notebook and OTel-native
+tracing is the whole job, Phoenix is the better fit.
+
+We also accept OTel-instrumented traces on an OTLP endpoint, so keeping Phoenix's
+instrumentation while moving the calls themselves to our gateway is a supported combination
+rather than a fork in the road.
 
 ## Verdict
 

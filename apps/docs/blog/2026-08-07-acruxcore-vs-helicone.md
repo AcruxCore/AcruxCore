@@ -1,11 +1,11 @@
 ---
-title: "Helicone vs AcruxCore: two request-path proxies compared"
-description: We rebuilt the same support-triage prompt on self-hosted Helicone and AcruxCore, ran it on both — real screenshots, an SDK trace, and a latency benchmark.
+title: "Helicone alternative: two request-path proxies, measured"
+description: Weighing a Helicone alternative? Both sit in the request path. We rebuilt one prompt on each, and timed 300 benchmark rounds through both gateways.
 slug: acruxcore-vs-helicone
 authors: [acrux]
 tags: [llmops-comparison, llm-gateway, llm-tracing]
 image: /img/social-card.png
-keywords: [helicone vs AcruxCore, helicone alternative, llm ops comparison, ai gateway, prompt versioning, llm tracing]
+keywords: [helicone alternative, helicone alternatives, open source helicone alternative, helicone vs AcruxCore, llm ops comparison, ai gateway, llm proxy, prompt versioning, llm tracing]
 ---
 
 Helicone is a proxy-first LLM observability tool — you point your API base URL at it and
@@ -43,8 +43,8 @@ price change there is one edit instead of three.
 | Tool catalog | No tool-catalog concept found anywhere in the nav | Versioned catalog, real executed calls, analytics | AcruxCore |
 | Dataset creation | Built from Request rows — none existed, since no call ever logged | From real span-level trace feedback | AcruxCore |
 | SDK & DX | Direct-call script ran; the log-to-Helicone call it makes 500s | Automatic side effect of `hub.gateway.chat()` | AcruxCore |
-| Measured overhead | Every gateway request failed — zero timeable samples | -4ms (indistinguishable from zero, CI crosses it) | AcruxCore |
-| Real friction hit | Auth + config bugs blocked every live-call path we tried | Nothing to instrument, zero extra code | AcruxCore |
+| Measured overhead | −15 to +3 ms, but forwarding only — nothing was logged | +4 to +10 ms, logging included | Tie |
+| Real friction hit | Auth + config bugs blocked the Playground and manual logging; the gateway itself was fine | Nothing to instrument, zero extra code | AcruxCore |
 
 License, pricing, team structure, security, and community stats: see
 [AcruxCore vs Helicone on the compare page](https://acruxcore.com/compare).
@@ -250,23 +250,28 @@ and [`hl_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts
 ## Latency overhead — measured
 
 We timed the identical fixed call three ways, interleaved in rotating order over 100
-rounds: a raw direct call to OpenRouter (baseline), the same call through Helicone's
-`/v1/gateway/oai` proxy, and the same call through AcruxCore's gateway. Unlike
-client-side instrumentation cost, both Helicone's and AcruxCore's overheads would be
-the cost of an extra network hop — if Helicone's leg had completed even once.
+rounds: a raw direct call to the provider (baseline), the same call through Helicone's
+`/v1/gateway/oai` proxy, and the same call through AcruxCore's gateway. Both are the
+cost of an extra network hop rather than client-side instrumentation. Every leg ends at
+`gpt-4o-mini` on `api.openai.com` — which matters here more than anywhere else in this
+series, because that endpoint forwards to OpenAI and nothing else. It ran three times.
 
-| Path | median | p95 | p99 | successful rounds |
-|---|---|---|---|---|
-| Direct to provider | 986 ms | 1393 ms | 2120 ms | 100/100 |
-| Helicone AI Gateway | — | — | — | **0/100** |
-| AcruxCore gateway | 976 ms | 1606 ms | 1872 ms | 100/100 |
+| Run | Direct-call median | Helicone gap | AcruxCore gap |
+|---|---|---|---|
+| 1 | 632 ms | −15 ms, CI [−29, −4] | +4 ms, CI [−21, +20] |
+| 2 | 629 ms | −8 ms, CI [−27, +19] | +7 ms, CI [−9, +28] |
+| 3 | 617 ms | +3 ms, CI [−19, +23] | +10 ms, CI [−7, +32] |
 
-Helicone's leg failed all 100 rounds with the same `401 Unauthorized` from
-**Where the platform sits** above — an OpenRouter key rejected by an endpoint that
-only forwards to `api.openai.com`. There is no latency number to report for it, and
-we're not estimating one. AcruxCore's measured gap against the direct-call baseline
-is **-4ms, with a 95% bootstrap CI of [-136, +124]ms — the interval crosses zero**, so
-this run's overhead is statistically indistinguishable from zero at this sample size.
+**Every round on every leg succeeded — 300 of 300.** Helicone's overhead lands between
+−15 ms and +3 ms, AcruxCore's between +4 ms and +10 ms, and every AcruxCore interval
+crosses zero.
+
+The two numbers are not measuring the same amount of work, so we are calling this a
+tie rather than a Helicone win. Helicone's self-hosted gateway forwards on the provider
+key alone; attributing a request to an organization — which is what makes it *logged* —
+needs a Helicone API key, and this run had none. Its ClickHouse request table held zero
+rows afterwards. So its number is the cost of forwarding, a floor, while AcruxCore's
+includes writing the span. A logged Helicone request would cost more than −15 ms.
 
 For a broader run — real OpenAI billing instead of OpenRouter, six platforms in one
 interleaved benchmark, and four independent runs to check how stable the numbers
@@ -344,22 +349,40 @@ All three are genuinely useful, and none of them touched the bugs we hit elsewhe
 this post — Rate Limit Rules and Alerts are configuration surfaces, not request-path
 code, so they didn't need the same `S3_REGION` or BYOK routing to work correctly.
 
+## Is AcruxCore a Helicone alternative?
+
+Yes — this is the closest like-for-like swap in the whole series, because both tools sit in
+the request path and do the same job. Helicone's gateway forwarded all 300 benchmark rounds
+here and its rate-limit rule builder is real and works, so this is not a case of one tool
+being broken.
+
+What decides it is prompts and tools. Helicone's templating is flat `{{ hc:var:type }}`
+substitution with no conditionals, and we found no tool-catalog concept anywhere in its
+navigation. If you use Helicone purely as a logging proxy and your prompts live in your code,
+it does that job. If your prompts need versions, aliases and real `{% if %}` logic, or you
+want the gateway to execute and measure tools, that is what moving buys you.
+
+One thing to check before you switch: Helicone can scope a rate limit to an individual end
+user, where ours stops at the virtual key.
+
 ## Verdict
 
 | | Helicone | AcruxCore |
 |---|---|---|
-| Strongest at | A genuinely proxy-first design with real caching/rate-limit controls; per-user request tracking via one header; real-time Slack/email alerting | Every live-call path actually worked — Playground, SDK, gateway, all 100/100 benchmark rounds |
-| Weakest at | On this self-hosted build: Playground auth, generic gateway routing, and manual logging all failed with real, reproducible errors | No per-user tracking dimension; no rate-limit-rule object; no alerting surface |
+| Strongest at | A genuinely proxy-first design with real caching/rate-limit controls; per-user request tracking via one header; real-time Slack/email alerting; a gateway hop that costs nothing measurable | Every live-call path worked first time — Playground, SDK, gateway, and the trace written without extra code |
+| Weakest at | On this self-hosted build: Playground auth and manual logging fail with real, reproducible errors, and the gateway only forwards to its native providers | No per-user tracking dimension; no rate-limit-rule object; no alerting surface |
 | Pick it if | You want a proxy-first tool with per-user tracking and alerting, and can either use its native providers or debug the BYOK path yourself on self-host | You want every step — prompt, call, trace, dataset — to work the first time, with nothing to route around |
 
 The honest headline of this comparison isn't "AcruxCore wins every row" — it doesn't;
-Helicone's rate-limit rules, per-user tracking, and alerting (**What Helicone does that
-AcruxCore doesn't** above) are real capabilities AcruxCore has no answer for. It's
-that on a **self-hosted build acquired mid-transition to maintenance mode**, three
-independent, verifiable bugs — an empty auth token in the Playground, a stub gateway
-handler, and a missing `S3_REGION` env var — blocked every live-call path we tried.
-AcruxCore's equivalent paths (**Sending a live call**, **Tracing & observability**,
-**Latency overhead** above) all worked, all 100 times we measured. See the full
+Helicone's rate-limit rules, per-user tracking, alerting (**What Helicone does that
+AcruxCore doesn't** above) and a gateway hop with no measurable cost are real strengths
+AcruxCore either lacks or only matches. It's that on a **self-hosted build acquired
+mid-transition to maintenance mode**, two independent, verifiable bugs — an empty auth
+token in the Playground and a missing `S3_REGION` env var — blocked the Playground and
+the manual-logging path. Its AI Gateway itself is sound: it served 300 of 300 rounds
+here. What it will not do is route to a provider it does not natively support, which is
+the constraint to plan around. AcruxCore's equivalent paths (**Sending a live call**,
+**Tracing & observability**, **Latency overhead** above) all worked too. See the full
 picture, including license, pricing, and team structure, on the
 [compare page](https://acruxcore.com/compare).
 

@@ -1,21 +1,26 @@
 """Interleaved latency benchmark backing "Phoenix vs AcruxCore" (aspect 8).
 
 Same fixed prompt/model call ("Reply with the single word: pong.",
-openai/gpt-4o-mini via OpenRouter) measured three ways:
+gpt-4o-mini on api.openai.com) measured three ways:
 
-  provider_direct   raw HTTPS POST to openrouter.ai/api/v1                (baseline)
-  phoenix_otel      openinference-instrumented OpenAI client -> OpenRouter (client-side
+  provider_direct   raw HTTPS POST to api.openai.com/v1                  (baseline)
+  phoenix_otel      openinference-instrumented OpenAI client -> OpenAI    (client-side
                     instrumentation cost — Phoenix has no request-path gateway to
                     put in this hop; the Playground's GraphQL relay is a UI-only
                     proxy, not something the SDK calls)
   acx_gateway       raw POST to a local AcruxCore gateway                (extra hop)
 
-Every path ends at the same upstream, same key, same body, so the model's own think
-time is a shared constant and whatever is left over is the path. Rounds run in a
-rotating order (not path-by-path) so a network blip hits all three equally, and
-warm-up rounds are discarded before any sample is kept.
+Every path ends at **api.openai.com**, with the same key, model and body, so the
+model's own think time is a shared constant and whatever is left over is the path.
+An earlier revision of this script put the baseline on openrouter.ai while the
+gateway leg resolved to a model bound to a direct OpenAI credential — two
+different hosts, which made the gateway look faster than the call it proxies.
+`assert_gateway_upstream_matches_baseline()` now refuses to run unless ACX_MODEL
+is bound to a native OpenAI credential, so that cannot recur silently. Rounds run
+in a rotating order (not path-by-path) so a network blip hits all three equally,
+and warm-up rounds are discarded before any sample is kept.
 
-Env vars: OPENROUTER_KEY, ACX_GATEWAY_KEY, and optionally ACX_BASE_URL (defaults to
+Env vars: OPENAI_API_KEY, ACX_GATEWAY_KEY, and optionally ACX_BASE_URL (defaults to
 http://localhost:3001/api/v1) and PHOENIX_COLLECTOR_ENDPOINT (defaults to
 http://localhost:6006).
 
@@ -38,15 +43,73 @@ from phoenix.otel import register
 ROUNDS = int(sys.argv[1]) if len(sys.argv) > 1 else 60
 WARMUP = int(sys.argv[2]) if len(sys.argv) > 2 else 3
 
-OPENROUTER_KEY = os.environ.get("OPENROUTER_KEY")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 GATEWAY_KEY = os.environ.get("ACX_GATEWAY_KEY")
 ACX_BASE_URL = os.environ.get("ACX_BASE_URL", "http://localhost:3001/api/v1")
+# Must resolve to a gateway model bound to a *native OpenAI* credential, so the
+# gateway leg ends at the same host as the baseline. Enforced by the preflight
+# below rather than trusted — the model name alone says nothing about which
+# credential, and therefore which upstream host, it points at.
+ACX_MODEL = os.environ.get("ACX_MODEL", "gpt-4o-mini")
+
+OPENAI_MODEL = "gpt-4o-mini"
 PHOENIX_ENDPOINT = os.environ.get("PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006")
 
-if not OPENROUTER_KEY:
-    sys.exit("OPENROUTER_KEY is not set")
+if not OPENAI_API_KEY:
+    sys.exit("OPENAI_API_KEY is not set")
 if not GATEWAY_KEY:
     sys.exit("ACX_GATEWAY_KEY is not set")
+
+
+def assert_gateway_upstream_matches_baseline() -> None:
+    """Exits unless ACX_MODEL is bound to a native OpenAI credential.
+
+    A gateway model is just a public name pointing at a credential, and the
+    credential decides the upstream host. Two models named almost identically
+    (`gpt-4o-mini` vs `gpt-4o-mini-or`) can therefore resolve to api.openai.com
+    and openrouter.ai respectively. Comparing a gateway leg on one against a
+    baseline on the other measures the distance between two providers, not the
+    gateway's overhead, and it fails silently: every call returns 200 and the
+    only symptom is an impossible number.
+
+    `provider == "openai"` is the signal that matters. `openai_compatible` means
+    a custom base_url — OpenRouter, Together, or any other relay — which would
+    put the gateway leg on a different host from the baseline.
+    """
+    res = requests.get(
+        f"{ACX_BASE_URL}/gateway/models",
+        headers={"Authorization": f"Bearer {GATEWAY_KEY}"},
+        timeout=15,
+    )
+    res.raise_for_status()
+    models = res.json()
+
+    match = next((m for m in models if m.get("publicName") == ACX_MODEL), None)
+    if match is None:
+        available = ", ".join(sorted(m.get("publicName", "?") for m in models))
+        sys.exit(
+            f"preflight failed: no gateway model named {ACX_MODEL!r}.\n"
+            f"  available: {available}"
+        )
+
+    if match.get("provider") != "openai":
+        sys.exit(
+            f"preflight failed: gateway model {ACX_MODEL!r} is bound to credential "
+            f"{match.get('credentialLabel')!r} (provider {match.get('provider')!r}), "
+            f"not a native OpenAI credential.\n"
+            f"  The baseline leg calls api.openai.com, so this leg would measure the "
+            f"distance between two providers instead of the gateway's overhead.\n"
+            f"  Point ACX_MODEL at a model bound to an OpenAI credential."
+        )
+
+    print(
+        f"preflight ok: {ACX_MODEL!r} -> {match.get('upstreamModel')!r} "
+        f"via {match.get('credentialLabel')!r} (provider {match.get('provider')!r}); "
+        f"baseline -> api.openai.com/{OPENAI_MODEL}\n"
+    )
+
+
+assert_gateway_upstream_matches_baseline()
 
 MESSAGES = [{"role": "user", "content": "Reply with the single word: pong."}]
 BODY = {"messages": MESSAGES, "max_tokens": 5, "temperature": 0}
@@ -59,14 +122,14 @@ tracer_provider = register(
     auto_instrument=False,
 )
 OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
-phoenix_client = OpenAI(api_key=OPENROUTER_KEY, base_url="https://openrouter.ai/api/v1")
+phoenix_client = OpenAI(api_key=OPENAI_API_KEY)
 
 
 def provider_direct():
     res = session.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        headers={"Authorization": f"Bearer {OPENROUTER_KEY}"},
-        json={"model": "openai/gpt-4o-mini", **BODY},
+        "https://api.openai.com/v1/chat/completions",
+        headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+        json={"model": OPENAI_MODEL, **BODY},
         timeout=30,
     )
     res.raise_for_status()
@@ -74,14 +137,14 @@ def provider_direct():
 
 
 def phoenix_otel():
-    phoenix_client.chat.completions.create(model="openai/gpt-4o-mini", **BODY)
+    phoenix_client.chat.completions.create(model=OPENAI_MODEL, **BODY)
 
 
 def acx_gateway():
     res = session.post(
         f"{ACX_BASE_URL}/gateway/chat/completions",
         headers={"Authorization": f"Bearer {GATEWAY_KEY}"},
-        json={"model": "gpt-4o-mini", **BODY},
+        json={"model": ACX_MODEL, **BODY},
         timeout=30,
     )
     res.raise_for_status()
@@ -89,7 +152,7 @@ def acx_gateway():
 
 
 PATHS = [
-    {"key": "provider_direct", "label": "OpenRouter direct", "run": provider_direct},
+    {"key": "provider_direct", "label": "OpenAI direct", "run": provider_direct},
     {"key": "phoenix_otel", "label": "Phoenix OTel SDK", "run": phoenix_otel},
     {"key": "acx_gateway", "label": "AcruxCore gateway", "run": acx_gateway},
 ]

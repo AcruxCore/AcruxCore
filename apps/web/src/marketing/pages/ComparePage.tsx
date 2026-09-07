@@ -145,7 +145,7 @@ export function ComparePage(): ReactNode {
             'font-size:clamp(30px,4.4vw,48px);line-height:1.05;letter-spacing:-.026em;font-weight:700;margin:0 0 18px;max-width:22ch;text-wrap:balance;',
           )}
         >
-          AcruxCore next to five open-source alternatives.
+          AcruxCore next to six open-source alternatives.
         </h1>
         <p
           style={cssToStyle(

@@ -1,11 +1,11 @@
 ---
-title: "Langfuse vs AcruxCore: org hierarchy vs a flat team"
-description: We rebuilt the same support-triage prompt on Langfuse and AcruxCore, ran it on both — real screenshots, an SDK trace, and a measured latency benchmark.
+title: "Langfuse alternative: org hierarchy vs a flat team"
+description: A Langfuse alternative tested hands-on — the same prompt rebuilt and run on both, with real screenshots, an SDK trace and a measured latency benchmark.
 slug: acruxcore-vs-langfuse
 authors: [acrux]
 tags: [llmops-comparison, prompt-management, llm-tracing]
 image: /img/social-card.png
-keywords: [langfuse vs AcruxCore, langfuse alternative, llm ops comparison, prompt versioning, ai gateway, llm tracing]
+keywords: [langfuse alternative, langfuse alternatives, open source langfuse alternative, langfuse vs AcruxCore, llm ops comparison, prompt versioning, ai gateway, llm tracing]
 ---
 
 Langfuse is the LLM-ops platform we get compared to most often, and it deserves a real
@@ -20,7 +20,9 @@ experiment, and call it from an SDK script.
 :::note[Same example, both sides]
 Every paired screenshot below comes from the exact same prompt and the exact same
 customer message, sent through the exact same downstream model
-(`openai/gpt-4o-mini` via OpenRouter) on both platforms. Where a step is genuinely
+(`openai/gpt-4o-mini` via OpenRouter) on both platforms. The latency benchmark further
+down is separate: every leg of it goes straight to `api.openai.com`, so the two sections
+quote different upstreams on purpose. Where a step is genuinely
 one-sided — no equivalent screen exists on the other product — we say so instead of
 padding it out. License, pricing, team structure, and community stats live on the
 [compare page](https://acruxcore.com/compare) instead of here — they were always tables, and a
@@ -38,7 +40,7 @@ price change there is one edit instead of three.
 | Tool catalog | A schema saved from the Playground, never executed | Versioned catalog, real executed calls, analytics | AcruxCore |
 | Dataset creation | Manual entry, API, or from a trace | From real span-level trace feedback | AcruxCore |
 | SDK trace capture | Wrap a client + open an observation context | Automatic side effect of the gateway call | AcruxCore |
-| Measured overhead | +15ms (indistinguishable from zero) | +260ms (real, extra hop) | Langfuse |
+| Measured overhead | −22 ms, CI crosses zero | +63 ms, CI crosses zero | Tie |
 | Time-to-first-trace | Only via the SDK path, after setup | Zero code, first call | AcruxCore |
 
 License, pricing, team structure, security, and community stats: see
@@ -236,29 +238,41 @@ screenshot.
 
 ## Latency overhead — measured
 
-We timed the identical call three ways, interleaved in rotating order over 100 rounds
-so a network blip hits all three equally: a raw direct call to OpenRouter (baseline),
-the same call wrapped in Langfuse's SDK, and the same call through AcruxCore's
-gateway. This measures two different kinds of overhead — Langfuse's is client-side
-instrumentation cost, AcruxCore's is an extra network hop that buys routing, caching,
-and tracing — not a rigged head-to-head.
+Langfuse's overhead is client-side instrumentation; ours is an extra network hop that
+buys routing, caching and budgets. Those are two different kinds of cost, so this is not
+a head-to-head — it is two numbers measured the same way, in the same run.
 
-| Path | median | p95 | p99 |
-|---|---|---|---|
-| Direct to provider | 999 ms | 1551 ms | 1940 ms |
-| Langfuse SDK | 1015 ms | 1775 ms | 2189 ms |
-| AcruxCore gateway | 1243 ms | 2078 ms | 2488 ms |
+Both come from our
+[full-cycle benchmark](/blog/full-cycle-latency-benchmark): eight paths interleaved in
+rotating order, 100 rounds each, repeated four independent times, with **every leg ending
+at `gpt-4o-mini` on `api.openai.com`**. It times the *full cycle* — resolve or fetch the
+stored prompt, then complete it — rather than the completion alone, which is the honest
+unit when a platform needs two round trips to answer one request.
 
-With a 95% bootstrap confidence interval on the gap against the direct-call baseline:
-Langfuse's **+15ms is statistically indistinguishable from zero** (CI [-90, +150]ms) —
-its instrumentation cost doesn't clear the noise floor at this sample size. Acrux
-Core's **+260ms is real** (CI [+157, +360]ms) — the cost of the extra hop, not a
-measurement artifact.
+The last column is the one that decides each row. A gap only counts if its 95%
+confidence interval stays clear of zero. When the interval contains zero, "no
+difference at all" is one of the answers the data allows — so the gap is noise with a
+number attached, not a measurement.
 
-For a broader run — real OpenAI billing instead of OpenRouter, six platforms in one
-interleaved benchmark, and four independent runs to check how stable the numbers
-are — see
-[full-cycle latency across six LLM-ops platforms](/blog/full-cycle-latency-benchmark).
+| Path | median | gap vs. baseline | 95% CI | Distinguishable from zero? |
+|---|--:|--:|---|:--:|
+| OpenAI direct (baseline) | 978 ms | — | — | — |
+| Langfuse OTel SDK | 954 ms | −22 ms | [−95, +84] | No |
+| AcruxCore BYOK (gateway-free) | 1022 ms | +39 ms | [−1, +155] | No |
+| AcruxCore gateway | 1032 ms | +63 ms | [−19, +172] | No |
+
+Every interval here contains zero, so no row is a result. That includes Langfuse's
+−22 ms: it is a sample artifact, **not** evidence that wrapping a client is faster than
+calling OpenAI directly. Read those three rows as "too small to measure in this run".
+
+On a call that already takes about a second, neither Langfuse's instrumentation nor our
+gateway hop is something a user would feel — and the baseline's own p99 (6402 ms) is
+worse than either platform's, which is a useful reminder that raw OpenAI with nothing in
+front of it has the widest tail here.
+
+That benchmark ran four times precisely because one 100-round run against a live
+third-party API is not enough to trust a single figure. All 800 rounds are plotted in the
+[full write-up](/blog/full-cycle-latency-benchmark).
 
 ## Friction hit during this run
 
@@ -301,6 +315,20 @@ quality, and latency together.
 We also checked for SSO/SCIM, expected from the pricing page's Enterprise tier — this
 self-hosted organization's Settings has no SSO or SCIM section at all, consistent with
 it being a paid-plan feature rather than something to demo locally.
+
+## Is AcruxCore a Langfuse alternative?
+
+For the prompt-and-call half of the job, yes. Langfuse has no request-path gateway, so
+routing, caching, budgets and rate limits have no call to act on; its "tool" is a JSON schema
+saved from a Playground dropdown that never executes; and its datasets are hand-authored or
+pulled from a trace rather than built from feedback your users already gave.
+
+For observability on its own, Langfuse is more mature than we are, with a much larger
+framework-integration surface and threshold alerting we do not have. RBAC and audit sit
+behind its paid tiers, which is worth checking against your own plan before comparing.
+
+If you want the gateway but would rather keep Langfuse for tracing, that works: we accept
+OTel-instrumented traces directly on an OTLP endpoint.
 
 ## Verdict
 

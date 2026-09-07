@@ -1,12 +1,12 @@
 ---
-title: "MLflow vs AcruxCore: two gateways, one built-in guardrails and PII detection"
-description: We rebuilt the same support-triage prompt on self-hosted MLflow and AcruxCore and ran the identical sequence on both — real screenshots, real SDK output, and a measured latency benchmark, not a feature table copied from docs.
+title: "MLflow alternative: two gateways, one with guardrails"
+description: Considering an MLflow alternative for LLM work? We timed the same prompt through both gateways — MLflow's added +135 to +225 ms, ours +21 to +43 ms.
 slug: acruxcore-vs-mlflow
 date: 2026-08-11
 authors: [acrux]
 tags: [llmops-comparison, llm-gateway, prompt-management]
 image: /img/social-card.png
-keywords: [mlflow vs AcruxCore, mlflow alternative, llm ops comparison, ai gateway, prompt registry, mlflow tracing, mlflow guardrails]
+keywords: [mlflow alternative, mlflow alternatives, mlflow ai gateway alternative, mlflow vs AcruxCore, llm ops comparison, ai gateway, prompt registry, mlflow tracing, mlflow guardrails]
 ---
 
 MLflow is the open-source ML/GenAI platform originally built at Databricks, and by far
@@ -24,10 +24,12 @@ inspect the trace, build a dataset, and call it from an SDK script.
 :::note[Same example, both sides]
 Every paired screenshot below comes from the exact same prompt and the exact same
 customer message. The downstream model differs slightly: AcruxCore's stored prompt
-defaults to `openai/gpt-4o-mini`, but MLflow AI Gateway's own OpenRouter model picker
+defaults to `openai/gpt-4o-mini`, and MLflow AI Gateway's OpenRouter model picker
 doesn't offer `gpt-4o-mini` as of this comparison (it's a curated list, not a live
-mirror of OpenRouter's catalog) — so MLflow's gateway endpoint and the latency
-benchmark both use `openai/gpt-4o` instead. Self-hosted MLflow had no login screen and
+mirror of OpenRouter's catalog) — so the screenshots below show MLflow's gateway
+endpoint on `openai/gpt-4o`. The latency benchmark is separate: it runs both gateways
+against a native OpenAI provider on `gpt-4o-mini`, which removes that constraint and
+lets every leg end at the same host. Self-hosted MLflow had no login screen and
 no credentials to configure, so this comparison was run as an anonymous local user —
 exactly what a reader self-hosting it for the first time would see. License, pricing,
 team structure, and community stats live on the [compare
@@ -45,7 +47,7 @@ price change there is one edit instead of three.
 | Tracing depth | Single span per gateway call, but prompt-version linking is a separate explicit call | Single automatic span, prompt-version linked automatically | AcruxCore |
 | Tool handling | MCP Registry — catalogs external MCP *servers*, doesn't execute a tool itself | Versioned catalog, real executed calls, analytics | Depends |
 | Evaluation & datasets | Built-in LLM-as-judge + custom code judges; dataset list page didn't refresh after creating one | Version × model sweep from real trace feedback | Depends |
-| Measured overhead | −44ms (not distinguishable from zero) | −63ms (not distinguishable from zero) | Tie |
+| Measured overhead | +135 to +225 ms across three 100-round runs, never crossing zero | +21 to +43 ms across the same three runs | AcruxCore |
 | Guardrails | Safety + PII detection + custom, per gateway endpoint | None | MLflow |
 | Spend controls | Budget policy per endpoint — reset period, on-exceeded action | Spend cap per team or virtual key, enforced before the provider call, plus RPM/TPM limits | Tie |
 
@@ -328,23 +330,23 @@ and
 ## Latency overhead — measured
 
 We timed the identical call three ways, interleaved in rotating order over 100 rounds
-so a network blip hits all three equally: a raw direct call to OpenRouter (baseline),
+so a network blip hits all three equally: a raw direct call to the provider (baseline),
 the same call through MLflow's AI Gateway endpoint, and the same call through
-AcruxCore's gateway. All three used `openai/gpt-4o` via OpenRouter — see the note at the
-top for why not `gpt-4o-mini`.
+AcruxCore's gateway. Both gateways were pointed at a native OpenAI provider on
+`gpt-4o-mini`, and the script refuses to start unless AcruxCore's model resolves to an
+OpenAI credential — so all three legs provably end at the same host. It ran three times.
 
-| Path | median | p95 | p99 |
+| Run | Direct-call median | MLflow gap | AcruxCore gap |
 |---|---|---|---|
-| Direct to provider | 1005 ms | 1267 ms | 1413 ms |
-| MLflow AI Gateway | 961 ms | 2162 ms | 2533 ms |
-| AcruxCore gateway | 943 ms | 2316 ms | 2735 ms |
+| 1 | 611 ms | +225 ms, CI [+112, +275] | +21 ms, CI [+5, +35] |
+| 2 | 611 ms | +157 ms, CI [+73, +250] | +43 ms, CI [+22, +58] |
+| 3 | 613 ms | +135 ms, CI [+63, +255] | +36 ms, CI [+23, +55] |
 
-With a 95% bootstrap confidence interval on the gap against the direct-call baseline:
-MLflow's gap is **−44ms** (CI [−98, +85]ms) and AcruxCore's is **−63ms** (CI [−120,
-+70]ms) — both cross zero, meaning neither gateway's overhead is statistically
-distinguishable from the direct call at this sample size. The p95/p99 tails are wider
-for both gateways than the direct baseline, which is the extra-hop cost showing up in
-the slower rounds even where the median doesn't move.
+This is the one row in this series where the two gateways are not close. MLflow's
+overhead lands between +135 ms and +225 ms and **no confidence interval crosses zero** in
+any run, so it is a real cost rather than measurement noise. AcruxCore's lands between
++21 ms and +43 ms — also real, and roughly five times smaller. Both are doing comparable
+work on the request path: resolve an endpoint, forward the call, record usage.
 
 Full script:
 [`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/mlflow-vs-acruxcore/python/latency_bench.py).
@@ -400,6 +402,21 @@ recent traces. AcruxCore has no in-product assistant or automated issue detectio
 AcruxCore has no equivalent to any of the three — no guardrails, no MCP server catalog,
 and no in-product AI assistant.
 
+## Is AcruxCore an MLflow alternative?
+
+Partly, and the split is clean. MLflow is much more than an LLM-ops tool — it is an
+experiment tracker with years of history, tens of thousands of GitHub stars and hundreds of
+contributors. If you already run MLflow for classical ML, nothing here suggests removing it.
+
+As an *LLM gateway*, it is the closest structural match to us of anything we have compared,
+which is what makes the measured numbers the interesting part: its AI Gateway added +135 to
++225 ms across three 100-round runs and never once crossed zero, where ours added +21 to
++43 ms in the same runs. Two identical designs, about 5× apart.
+
+What you would give up is real. MLflow has Safety and PII guardrails on every gateway
+endpoint and enforced spend Budgets with a reset period and an on-exceeded action. We have
+spend caps and rate limits, but no content guardrail at all.
+
 ## Verdict
 
 | | MLflow | AcruxCore |
@@ -410,8 +427,11 @@ and no in-product AI assistant.
 
 This is the closest structural match to AcruxCore of any competitor we've compared:
 both run a real gateway in the request path, and both trace as a side effect of that
-same call. Both enforce a spend cap on that path (**Spend controls** above). Where they
-diverge is what sits *around* the call — MLflow layers on guardrails that AcruxCore
+same call. Both enforce a spend cap on that path (**Spend controls** above). Because
+both sit in the request path, the cost of that hop is directly comparable, and it is the
+one place they diverge sharply: MLflow's gateway adds +135 to +225 ms where ours adds
++21 to +43 ms (**Latency overhead** above). Otherwise they diverge in what sits *around*
+the call — MLflow layers on guardrails that AcruxCore
 doesn't have (**What MLflow does that AcruxCore doesn't** above); AcruxCore keeps cost
 and prompt lineage automatic and
 inline where MLflow makes you dashboard-hunt for cost or make a second SDK call for

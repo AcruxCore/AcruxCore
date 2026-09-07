@@ -1,11 +1,11 @@
 ---
-title: "AcruxCore vs LangSmith: prompts, gateway, and tracing"
-description: An honest, feature-by-feature comparison of AcruxCore and LangSmith across prompt versioning, the model gateway, tracing, tools, and evaluation.
+title: "LangSmith alternative: prompts, gateway and tracing"
+description: A LangSmith alternative compared feature by feature — prompt versioning, a request-path gateway, tracing, tools and evals, open source and self-hostable.
 slug: acrux-core-vs-langsmith
 authors: [acrux]
 tags: [llmops-comparison, prompt-management, llm-tracing]
 image: /img/social-card.png
-keywords: [AcruxCore vs langsmith, langsmith alternative, llm ops, prompt management, ai gateway, llm tracing]
+keywords: [langsmith alternative, langsmith alternatives, open source langsmith alternative, AcruxCore vs langsmith, llm ops, prompt management, ai gateway, llm tracing]
 ---
 
 If you're building on LLMs, you eventually need four things: prompts you can change
@@ -106,7 +106,7 @@ between the feedback you already collect and the datasets you evaluate against.
 - **LangSmith** is primarily a managed cloud service (with enterprise
   self-hosting options).
 
-## Which should you pick?
+## Is AcruxCore a LangSmith alternative?
 
 - **Choose LangSmith** if you're deep in the LangChain/LangGraph ecosystem and
   want the most mature tracing and evaluation available today.

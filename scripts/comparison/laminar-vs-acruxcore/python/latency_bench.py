@@ -1,29 +1,41 @@
-"""Interleaved latency benchmark backing "Opik vs AcruxCore" (aspect 8).
+"""Interleaved latency benchmark backing "Laminar vs AcruxCore" (aspect 8).
 
-Same fixed prompt/model call ("Reply with the single word: pong.",
-gpt-4o-mini on api.openai.com) measured three ways:
+Same fixed prompt/model call ("Reply with the single word: pong.", gpt-4o-mini
+on api.openai.com) measured three ways:
 
   provider_direct   raw HTTPS POST to api.openai.com/v1                  (baseline)
-  opik_tracked      opik.integrations.openai.track_openai-wrapped client  (client-side
-                    instrumentation cost, same shape as Langfuse's wrapper)
+  laminar_traced    OpenAI client auto-instrumented by Laminar.initialize()
+                    (client-side OpenTelemetry cost, default batched export)
   acx_gateway       raw POST to a local AcruxCore gateway                (extra hop)
 
-Every path ends at **api.openai.com**, with the same key, model and body, so the
-model's own think time is a shared constant and whatever is left over is the path.
-An earlier revision of this script put the baseline on openrouter.ai while the
-gateway leg resolved to a model bound to a direct OpenAI credential — two
-different hosts, which made the gateway look faster than the call it proxies.
-`assert_gateway_upstream_matches_baseline()` now refuses to run unless ACX_MODEL
-is bound to a native OpenAI credential, so that cannot recur silently. Rounds run
-in a rotating order (not path-by-path) so a network blip hits all three equally,
-and warm-up rounds are discarded before any sample is kept.
+All three legs end at **api.openai.com**, with the same key, model and body, so
+the model's own think time is a shared constant and whatever is left over is the
+path itself.
 
-Env vars: OPENAI_API_KEY, ACX_GATEWAY_KEY, and optionally ACX_BASE_URL (defaults to
-http://localhost:3001/api/v1), OPIK_URL_OVERRIDE (defaults to
-http://localhost:5175/api for a local self-hosted Opik).
+Why that matters, and what this script now enforces: an earlier revision pointed
+the baseline at openrouter.ai while the gateway leg resolved to a model bound to
+a direct OpenAI credential. The two legs were calling different hosts, so the
+gateway measured 645ms *faster* than "direct" — a proxy appearing to beat the
+call it proxies, which is impossible. That gap was OpenRouter's own routing hop,
+not the gateway's overhead. `assert_gateway_upstream_matches_baseline()` below
+resolves ACX_MODEL through GET /gateway/models and refuses to run unless the
+model is bound to a native OpenAI credential, so the mismatch cannot recur
+silently.
+
+Rounds run in a rotating order (not path-by-path) so a network blip hits all
+three equally, and warm-up rounds are discarded before any sample is kept.
+
+The two overheads are different kinds of cost and the post says so: Laminar's is
+client-side instrumentation that batches spans off the hot path, AcruxCore's is a
+real extra network hop that buys routing, budgets and caching. Neither number is
+the other's like-for-like.
+
+Env vars: OPENAI_API_KEY, ACX_GATEWAY_KEY, LMNR_PROJECT_API_KEY, and optionally
+ACX_BASE_URL (default http://localhost:3001/api/v1), ACX_MODEL (default
+gpt-4o-mini) and LMNR_BASE_URL (default http://localhost:8000).
 
 Usage: python latency_bench.py [rounds] [warmup]
-Needs: pip install opik openai requests
+Needs: pip install lmnr openai requests
 """
 
 import json
@@ -35,24 +47,19 @@ import time
 
 import requests
 
-os.environ.setdefault("OPIK_URL_OVERRIDE", "http://localhost:5175/api")
-os.environ.setdefault("OPIK_WORKSPACE", "default")
-os.environ.setdefault("OPIK_PROJECT_NAME", "Default Project")
-
-from opik.integrations.openai import track_openai
-from openai import OpenAI
-
-ROUNDS = int(sys.argv[1]) if len(sys.argv) > 1 else 60
+ROUNDS = int(sys.argv[1]) if len(sys.argv) > 1 else 100
 WARMUP = int(sys.argv[2]) if len(sys.argv) > 2 else 3
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 GATEWAY_KEY = os.environ.get("ACX_GATEWAY_KEY")
+LMNR_KEY = os.environ.get("LMNR_PROJECT_API_KEY")
 ACX_BASE_URL = os.environ.get("ACX_BASE_URL", "http://localhost:3001/api/v1")
 # Must resolve to a gateway model bound to a *native OpenAI* credential, so the
 # gateway leg ends at the same host as the baseline. Enforced by the preflight
 # below rather than trusted — the model name alone says nothing about which
 # credential, and therefore which upstream host, it points at.
 ACX_MODEL = os.environ.get("ACX_MODEL", "gpt-4o-mini")
+LMNR_BASE_URL = os.environ.get("LMNR_BASE_URL", "http://localhost:8000")
 
 OPENAI_MODEL = "gpt-4o-mini"
 
@@ -60,6 +67,11 @@ if not OPENAI_API_KEY:
     sys.exit("OPENAI_API_KEY is not set")
 if not GATEWAY_KEY:
     sys.exit("ACX_GATEWAY_KEY is not set")
+if not LMNR_KEY:
+    sys.exit("LMNR_PROJECT_API_KEY is not set")
+
+from lmnr import Laminar
+from openai import OpenAI
 
 
 def assert_gateway_upstream_matches_baseline() -> None:
@@ -112,14 +124,15 @@ def assert_gateway_upstream_matches_baseline() -> None:
 
 assert_gateway_upstream_matches_baseline()
 
+Laminar.initialize(project_api_key=LMNR_KEY, base_url=LMNR_BASE_URL, http_port=8000, grpc_port=8001)
+
 MESSAGES = [{"role": "user", "content": "Reply with the single word: pong."}]
 BODY = {"messages": MESSAGES, "max_tokens": 5, "temperature": 0}
 
 session = requests.Session()
-opik_client = track_openai(
-    OpenAI(api_key=OPENAI_API_KEY),
-    project_name=os.environ["OPIK_PROJECT_NAME"],
-)
+# Laminar patches the OpenAI client globally at initialize(), so this plain client
+# is already instrumented — that is the whole point of its one-line integration.
+lmnr_client = OpenAI(api_key=OPENAI_API_KEY)
 
 
 def provider_direct():
@@ -133,8 +146,8 @@ def provider_direct():
     res.json()
 
 
-def opik_tracked():
-    opik_client.chat.completions.create(model=OPENAI_MODEL, **BODY)
+def laminar_traced():
+    lmnr_client.chat.completions.create(model=OPENAI_MODEL, **BODY)
 
 
 def acx_gateway():
@@ -150,7 +163,7 @@ def acx_gateway():
 
 PATHS = [
     {"key": "provider_direct", "label": "OpenAI direct", "run": provider_direct},
-    {"key": "opik_tracked", "label": "Opik tracked SDK", "run": opik_tracked},
+    {"key": "laminar_traced", "label": "Laminar traced SDK", "run": laminar_traced},
     {"key": "acx_gateway", "label": "AcruxCore gateway", "run": acx_gateway},
 ]
 
@@ -189,8 +202,9 @@ def main():
             line = "  ".join(
                 f"{p['key']}={round(sorted(samples[p['key']])[len(samples[p['key']]) // 2])}"
                 for p in PATHS
+                if samples[p["key"]]
             )
-            print(f"round {done}/{ROUNDS}  median  {line}")
+            print(f"round {done}/{ROUNDS}  median  {line}", flush=True)
 
     print("\n=== results ===")
     table = []
@@ -242,6 +256,9 @@ def main():
             f"95% CI=[{round(lo)}, {round(hi)}]ms"
             f"{'  <-- CROSSES ZERO: not statistically distinguishable' if crosses_zero else ''}"
         )
+
+    Laminar.flush()
+    Laminar.shutdown()
 
 
 if __name__ == "__main__":

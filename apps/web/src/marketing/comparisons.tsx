@@ -2,11 +2,11 @@ import { DOCS_URL, GITHUB_URL } from './marketing-chrome';
 
 /**
  * The competitors with a row on `/compare` and a matched-example blog post. Kept
- * in sync with the five `acruxcore-vs-<slug>` posts and the
+ * in sync with the six `acruxcore-vs-<slug>` posts and the
  * `comparing-open-source-alternatives` skill's competitor set (see
  * cross-cutting-faq: LangWatch and LiteLLM dropped).
  */
-export type CompetitorSlug = 'langfuse' | 'phoenix' | 'opik' | 'helicone' | 'mlflow';
+export type CompetitorSlug = 'langfuse' | 'phoenix' | 'opik' | 'helicone' | 'mlflow' | 'laminar';
 
 /** Where a fact came from, so a reader can check it themselves. */
 export interface Source {
@@ -102,7 +102,7 @@ export const ACRUX_CORE = {
   },
 } as const;
 
-/** The five competitors with a published comparison, in the order they appear on `/compare`. */
+/** The six competitors with a published comparison, in the order they appear on `/compare`. */
 export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
   langfuse: {
     slug: 'langfuse',
@@ -261,8 +261,8 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     },
     gateway: {
       value:
-        'In the request path, same as AcruxCore — but self-hosted routing 501\'d or misrouted on the calls tested. AcruxCore routed the same calls clean on 100/100 rounds.',
-      acruxWins: true,
+        'In the request path, same as AcruxCore, and it works — it forwarded 300/300 benchmark rounds on a native OpenAI key. Routing a non-native (OpenRouter) key 501\'d or misrouted, and it forwards without logging until an org key is set.',
+      tie: true,
     },
     toolCatalog: {
       value: 'No tool-catalog concept anywhere in self-hosted Helicone — no schema builder, no execution record, nothing',
@@ -329,6 +329,51 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     },
     communityStars: '27,416',
   },
+
+  laminar: {
+    slug: 'laminar',
+    name: 'Laminar',
+    tagline: 'Rust and ClickHouse observability built for agent runs — SQL over spans, LLM-watched Signals, and a coding-agent-first CLI.',
+    postHref: `${DOCS_URL}/blog/acruxcore-vs-laminar`,
+    githubHref: 'https://github.com/lmnr-ai/lmnr',
+    checkedOn: '2026-09-06',
+    license: {
+      value: 'Apache License 2.0, no gated ee/ directory found in the repo at the commit checked — the same terms as AcruxCore',
+      source: { label: 'LICENSE', href: 'https://github.com/lmnr-ai/lmnr/blob/main/LICENSE.md' },
+      tie: true,
+    },
+    selfHost: {
+      value: 'docker compose up, though the lite stack ships Signals switched off and its Quickwit span index uncreated',
+      source: { label: 'GitHub', href: 'https://github.com/lmnr-ai/lmnr' },
+      tie: true,
+    },
+    gateway: {
+      value:
+        'Not in the request path, by design — an OpenTelemetry SDK records the call your own client already made, so nothing can route, cap or cache it; the trade is that any provider works with no proxy to configure',
+      acruxWins: true,
+    },
+    toolCatalog: {
+      value: 'Tool schemas are a JSONB field on a single playground row, and tool calls appear as spans — no catalog page, no version history, and nothing here executes a tool',
+      acruxWins: true,
+    },
+    teamStructure: {
+      value: 'Two levels — workspace above project — with three roles, but the invite dialog takes an email only and assigns the role afterwards',
+      competitorWins: true,
+    },
+    pricingSummary: {
+      value: 'Free tier (1 GB, 7-day retention, 1 seat), then $30–$150/mo priced by GB ingested rather than by trace count',
+      source: { label: 'laminar.sh/pricing', href: 'https://laminar.sh/pricing' },
+    },
+    rbac: { value: 'Three workspace roles (owner, admin, member) against AcruxCore\'s single role per member', competitorWins: true },
+    auditLog: { value: 'Not found in any project or workspace settings page checked', acruxWins: true },
+    promptTemplating: {
+      value: 'No prompt registry at all — a playground is one mutable row of messages with no versions, aliases or variables, so there is nothing to template',
+      acruxWins: true,
+    },
+    communityStars: '3,230',
+    communityNote:
+      'Y Combinator S24; 29 contributors and release v0.2.3 as of the date checked. Ships a PII redaction toggle and an LLM-watched Signals engine AcruxCore has no equivalent for.',
+  },
 };
 
 /** The competitors as an ordered array — matches the order they appear on `/compare`. */
@@ -338,4 +383,5 @@ export const COMPARISON_LIST: Comparison[] = [
   COMPARISONS.opik,
   COMPARISONS.helicone,
   COMPARISONS.mlflow,
+  COMPARISONS.laminar,
 ];

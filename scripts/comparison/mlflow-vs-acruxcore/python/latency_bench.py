@@ -1,24 +1,29 @@
 """Interleaved latency benchmark backing "MLflow vs AcruxCore" (aspect 8).
 
-Same fixed prompt/model call ("Reply with the single word: pong.", openai/gpt-4o via
-OpenRouter) measured three ways:
+Same fixed prompt/model call ("Reply with the single word: pong.", gpt-4o-mini on
+api.openai.com) measured three ways:
 
-  provider_direct   raw HTTPS POST to openrouter.ai/api/v1                (baseline)
+  provider_direct   raw HTTPS POST to api.openai.com/v1                   (baseline)
   mlflow_gateway    raw POST to MLflow's AI Gateway endpoint              (extra hop
                     + usage-tracking/trace write)
   acx_gateway       raw POST to a local AcruxCore gateway                 (extra hop)
 
-All three call the same upstream model (openai/gpt-4o) so the model's own think time
-is a shared constant and whatever is left over is the path. gpt-4o, not gpt-4o-mini,
-because MLflow AI Gateway's own OpenRouter model picker doesn't offer gpt-4o-mini (see
-the design spec) — gpt-4o is the model both platforms can actually route to. Rounds
-run in a rotating order (not path-by-path) so a network blip hits all three equally,
-and warm-up rounds are discarded before any sample is kept.
+All three end at api.openai.com on the same model, key and body, so the model's own
+think time is a shared constant and whatever is left over is the path. This used to
+run on gpt-4o because MLflow AI Gateway's *OpenRouter* model picker offered no
+gpt-4o-mini; pointing the endpoint at a native OpenAI provider removes that
+constraint, and gpt-4o-mini is what the other four comparison benchmarks use, so the
+five numbers are now directly comparable. An earlier revision also put the baseline
+on openrouter.ai while the gateway leg resolved to a direct-OpenAI credential — two
+different hosts. `assert_gateway_upstream_matches_baseline()` now refuses to run
+unless ACX_MODEL is bound to a native OpenAI credential. Rounds run in a rotating
+order (not path-by-path) so a network blip hits all three equally, and warm-up
+rounds are discarded before any sample is kept.
 
-Env vars: OPENROUTER_KEY, ACX_GATEWAY_KEY, and optionally ACX_BASE_URL (defaults to
+Env vars: OPENAI_API_KEY, ACX_GATEWAY_KEY, and optionally ACX_BASE_URL (defaults to
 http://localhost:3001/api/v1), MLFLOW_TRACKING_URI (defaults to
 http://localhost:5000 for a local self-hosted MLflow) and MLFLOW_ENDPOINT_NAME
-(defaults to vip-support-triage, the Gateway endpoint created for this comparison).
+(defaults to latency-bench, the OpenAI-backed Gateway endpoint created for this run).
 
 Usage: python latency_bench.py [rounds] [warmup]
 Needs: pip install requests
@@ -36,16 +41,74 @@ import requests
 ROUNDS = int(sys.argv[1]) if len(sys.argv) > 1 else 60
 WARMUP = int(sys.argv[2]) if len(sys.argv) > 2 else 3
 
-OPENROUTER_KEY = os.environ.get("OPENROUTER_KEY")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 GATEWAY_KEY = os.environ.get("ACX_GATEWAY_KEY") or os.environ.get("ACRUXCORE_API_KEY")
 ACX_BASE_URL = os.environ.get("ACX_BASE_URL", "http://localhost:3001/api/v1")
-MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000")
-MLFLOW_ENDPOINT_NAME = os.environ.get("MLFLOW_ENDPOINT_NAME", "vip-support-triage")
+# Must resolve to a gateway model bound to a *native OpenAI* credential, so the
+# gateway leg ends at the same host as the baseline. Enforced by the preflight
+# below rather than trusted — the model name alone says nothing about which
+# credential, and therefore which upstream host, it points at.
+ACX_MODEL = os.environ.get("ACX_MODEL", "gpt-4o-mini")
 
-if not OPENROUTER_KEY:
-    sys.exit("OPENROUTER_KEY is not set")
+OPENAI_MODEL = "gpt-4o-mini"
+MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000")
+MLFLOW_ENDPOINT_NAME = os.environ.get("MLFLOW_ENDPOINT_NAME", "latency-bench")
+
+if not OPENAI_API_KEY:
+    sys.exit("OPENAI_API_KEY is not set")
 if not GATEWAY_KEY:
     sys.exit("ACX_GATEWAY_KEY (or ACRUXCORE_API_KEY) is not set")
+
+
+def assert_gateway_upstream_matches_baseline() -> None:
+    """Exits unless ACX_MODEL is bound to a native OpenAI credential.
+
+    A gateway model is just a public name pointing at a credential, and the
+    credential decides the upstream host. Two models named almost identically
+    (`gpt-4o-mini` vs `gpt-4o-mini-or`) can therefore resolve to api.openai.com
+    and openrouter.ai respectively. Comparing a gateway leg on one against a
+    baseline on the other measures the distance between two providers, not the
+    gateway's overhead, and it fails silently: every call returns 200 and the
+    only symptom is an impossible number.
+
+    `provider == "openai"` is the signal that matters. `openai_compatible` means
+    a custom base_url — OpenRouter, Together, or any other relay — which would
+    put the gateway leg on a different host from the baseline.
+    """
+    res = requests.get(
+        f"{ACX_BASE_URL}/gateway/models",
+        headers={"Authorization": f"Bearer {GATEWAY_KEY}"},
+        timeout=15,
+    )
+    res.raise_for_status()
+    models = res.json()
+
+    match = next((m for m in models if m.get("publicName") == ACX_MODEL), None)
+    if match is None:
+        available = ", ".join(sorted(m.get("publicName", "?") for m in models))
+        sys.exit(
+            f"preflight failed: no gateway model named {ACX_MODEL!r}.\n"
+            f"  available: {available}"
+        )
+
+    if match.get("provider") != "openai":
+        sys.exit(
+            f"preflight failed: gateway model {ACX_MODEL!r} is bound to credential "
+            f"{match.get('credentialLabel')!r} (provider {match.get('provider')!r}), "
+            f"not a native OpenAI credential.\n"
+            f"  The baseline leg calls api.openai.com, so this leg would measure the "
+            f"distance between two providers instead of the gateway's overhead.\n"
+            f"  Point ACX_MODEL at a model bound to an OpenAI credential."
+        )
+
+    print(
+        f"preflight ok: {ACX_MODEL!r} -> {match.get('upstreamModel')!r} "
+        f"via {match.get('credentialLabel')!r} (provider {match.get('provider')!r}); "
+        f"baseline -> api.openai.com/{OPENAI_MODEL}\n"
+    )
+
+
+assert_gateway_upstream_matches_baseline()
 
 MESSAGES = [{"role": "user", "content": "Reply with the single word: pong."}]
 BODY = {"messages": MESSAGES, "max_tokens": 5, "temperature": 0}
@@ -55,9 +118,9 @@ session = requests.Session()
 
 def provider_direct():
     res = session.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        headers={"Authorization": f"Bearer {OPENROUTER_KEY}"},
-        json={"model": "openai/gpt-4o", **BODY},
+        "https://api.openai.com/v1/chat/completions",
+        headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+        json={"model": OPENAI_MODEL, **BODY},
         timeout=30,
     )
     res.raise_for_status()
@@ -78,7 +141,7 @@ def acx_gateway():
     res = session.post(
         f"{ACX_BASE_URL}/gateway/chat/completions",
         headers={"Authorization": f"Bearer {GATEWAY_KEY}"},
-        json={"model": "gpt-4o", **BODY},
+        json={"model": ACX_MODEL, **BODY},
         timeout=30,
     )
     res.raise_for_status()
@@ -86,7 +149,7 @@ def acx_gateway():
 
 
 PATHS = [
-    {"key": "provider_direct", "label": "OpenRouter direct", "run": provider_direct},
+    {"key": "provider_direct", "label": "OpenAI direct", "run": provider_direct},
     {"key": "mlflow_gateway", "label": "MLflow AI Gateway", "run": mlflow_gateway},
     {"key": "acx_gateway", "label": "AcruxCore gateway", "run": acx_gateway},
 ]
