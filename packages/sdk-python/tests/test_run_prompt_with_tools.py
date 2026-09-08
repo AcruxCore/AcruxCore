@@ -74,6 +74,7 @@ def render_result(
         model=model,
         version_id="ver-123",
         version_number=4,
+        variables={"city": "Lisbon"},
     )
 
 
@@ -177,6 +178,95 @@ async def test_prompt_version_id_reaches_the_trace_without_being_restated():
 
     spans = [s for t in traces for tr in t["traces"] for s in tr["spans"]]
     assert [s["promptVersionId"] for s in spans] == ["ver-123"]
+
+
+async def test_the_renders_variables_travel_so_the_run_can_seed_a_dataset():
+    """The version id alone is not enough: an evaluation example *is* the variables plus
+    the version, so a call naming a version without them is permanently ineligible."""
+    seen: Dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["chat"] = body_of(request)
+        return httpx.Response(200, json=PLAIN_COMPLETION)
+
+    async with make_client(handler) as hub:
+        await hub.gateway.run_prompt_with_tools(render_result())
+
+    assert seen["chat"]["prompt_version_id"] == "ver-123"
+    assert seen["chat"]["variables"] == {"city": "Lisbon"}
+
+
+async def test_an_explicit_variables_argument_overrides_the_render_result():
+    seen: Dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["chat"] = body_of(request)
+        return httpx.Response(200, json=PLAIN_COMPLETION)
+
+    async with make_client(handler) as hub:
+        await hub.gateway.run_prompt_with_tools(render_result(), variables={"city": "Porto"})
+
+    assert seen["chat"]["variables"] == {"city": "Porto"}
+
+
+async def test_variables_never_reach_a_byo_provider_but_do_reach_the_span():
+    """`variables` is our field, not OpenAI's. On the BYO path the SDK writes the llm span
+    itself, so the lineage lands there instead of in the provider request."""
+    bodies: List[Dict[str, Any]] = []
+    traces: List[Dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/traces"):
+            traces.append(body_of(request))
+            return httpx.Response(200, json={"traceId": "tr-1"})
+        bodies.append(body_of(request))
+        return httpx.Response(200, json=PLAIN_COMPLETION)
+
+    async with make_client(handler) as hub:
+        await hub.gateway.run_prompt_with_tools(
+            render_result(), provider={"base_url": "https://localhost/v1", "api_key": "pk"}
+        )
+        await hub.gateway.flush()
+
+    assert bodies and all("variables" not in b for b in bodies)
+    spans = [s for t in traces for tr in t["traces"] for s in tr["spans"]]
+    assert [s["variables"] for s in spans] == [{"city": "Lisbon"}]
+
+
+async def test_an_empty_variables_dict_is_sent_rather_than_omitted():
+    """A prompt with no placeholders rendered with no variables really did render with
+    none. Recording that is what makes its feedback evaluable — the template still varies
+    across candidates even when the input does not — so ``{}`` travels and the dataset
+    build gets an example with an empty input instead of a skipped row."""
+    seen: Dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["chat"] = body_of(request)
+        return httpx.Response(200, json=PLAIN_COMPLETION)
+
+    r = render_result()
+    r.variables = {}
+    async with make_client(handler) as hub:
+        await hub.gateway.run_prompt_with_tools(r)
+
+    assert "variables" in seen["chat"]
+    assert seen["chat"]["variables"] == {}
+
+
+async def test_variables_is_omitted_when_the_caller_never_had_any():
+    """The prompt-in-code case: no version, no variables, nothing to record. The field
+    must be absent rather than ``{}``, so the span stores null and the dataset build can
+    tell "rendered with nothing" from "not a stored prompt at all"."""
+    seen: Dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["chat"] = body_of(request)
+        return httpx.Response(200, json=PLAIN_COMPLETION)
+
+    async with make_client(handler) as hub:
+        await hub.gateway.chat("gpt-4o-mini", [{"role": "user", "content": "hi"}])
+
+    assert "variables" not in seen["chat"]
 
 
 async def test_a_pinned_binding_travels_as_a_pin_not_as_an_alias():

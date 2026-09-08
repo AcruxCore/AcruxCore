@@ -136,6 +136,10 @@ export const ChatCompletionRequestSchema = z
      * Ignored (not rejected) alongside `prompt`, which renders server-side and therefore
      * knows the exact version it used. Must belong to the calling team — another team's id
      * is a 400, never a stamp.
+     *
+     * Send the values you rendered with as top-level `variables` too. They are stored on
+     * the span as replay lineage — not re-rendered — and without them the run can never
+     * become an evaluation dataset example (#412).
      */
     prompt_version_id: z.string().uuid('prompt_version_id must be a UUID').optional(),
     temperature: z.number().min(0).max(2).optional(),
@@ -145,7 +149,14 @@ export const ChatCompletionRequestSchema = z
     stream: z.boolean().optional(),
     /** G5: optional routing/retry control; stripped before the adapter call. */
     gateway: GatewayControlSchema.optional(),
-    /** B1: values for `{{ placeholders }}` in ad-hoc `messages`; rendered server-side. */
+    /**
+     * B1: values for `{{ placeholders }}` in ad-hoc `messages`; rendered server-side.
+     *
+     * Always recorded on the `llm` span's payload, whether or not they were rendered
+     * here. Alongside `prompt_version_id` they are lineage only — the caller has
+     * already rendered, so re-rendering could mangle model output that happens to
+     * contain `{{`, but the values are still what an evaluation replays (#412).
+     */
     variables: z.record(z.unknown()).optional(),
     /** Q5: inline OpenAI-shaped tool definitions. */
     tools: z.array(ToolDefinitionSchema).optional(),

@@ -25,7 +25,9 @@ the actual gateway calls and scoring in the background.
 Evaluation starts from signal on real traffic. On any trace (or span), leave a
 thumbs up/down and an optional comment — that comment becomes the example's grading
 criteria later. Feedback is only eligible for a dataset if its source trace
-**captured payloads** (so the prompt variables were stored).
+**captured payloads** (so the prompt variables were stored). If your app renders the
+prompt itself and sends `prompt_version_id` with its own `messages`, send the values it
+rendered with as `variables` as well — those variables are what an example replays.
 
 ![Feedback page](/img/tutorials/evaluate-a-prompt/02-feedback.png)
 

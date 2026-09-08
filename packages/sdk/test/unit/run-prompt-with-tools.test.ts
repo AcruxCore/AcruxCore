@@ -55,6 +55,7 @@ describe('runPromptWithTools', () => {
     model: 'gpt-4o-mini',
     versionId: 'ver-123',
     versionNumber: 4,
+    variables: { city: 'Lisbon' },
     ...overrides,
   });
 
@@ -145,6 +146,73 @@ describe('runPromptWithTools', () => {
     const traceCall = calls().find(([url]) => url.includes('/traces'))!;
     const traces = bodyOf(traceCall[1]) as { traces: { spans: { promptVersionId?: string }[] }[] };
     expect(traces.traces[0]!.spans[0]!.promptVersionId).toBe('ver-123');
+  });
+
+  it("sends the render's variables to the gateway, so the run can seed a dataset", async () => {
+    // The version id alone is not enough: an evaluation example *is* the variables plus
+    // the version, so a call naming a version without them is permanently ineligible.
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(PLAIN_COMPLETION));
+
+    await hub.gateway.runPromptWithTools(renderResult());
+
+    const chat = chatBodies()[0]!;
+    expect(chat['prompt_version_id']).toBe('ver-123');
+    expect(chat['variables']).toEqual({ city: 'Lisbon' });
+  });
+
+  it('lets an explicit variables option override the render result', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(PLAIN_COMPLETION));
+
+    await hub.gateway.runPromptWithTools(renderResult(), { variables: { city: 'Porto' } });
+
+    expect(chatBodies()[0]!['variables']).toEqual({ city: 'Porto' });
+  });
+
+  it('never sends variables to a BYO provider, but stamps them on the span it writes', async () => {
+    // `variables` is our field, not OpenAI's. On the BYO path the SDK writes the llm span
+    // itself, so the lineage has to land there instead of in the provider request.
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(jsonResponse(PLAIN_COMPLETION))
+      .mockResolvedValueOnce(jsonResponse({ traceId: 'tr-1' }));
+
+    await hub.gateway.runPromptWithTools(renderResult(), {
+      provider: { baseUrl: 'https://localhost/v1', apiKey: 'pk' },
+    });
+    await hub.gateway.flush();
+
+    const providerCall = calls().find(([url]) => url.includes('localhost/v1'))!;
+    expect(bodyOf(providerCall[1])).not.toHaveProperty('variables');
+
+    const traceCall = calls().find(([url]) => url.includes('/traces'))!;
+    const traces = bodyOf(traceCall[1]) as {
+      traces: { spans: { promptVersionId?: string; variables?: unknown }[] }[];
+    };
+    expect(traces.traces[0]!.spans[0]!.variables).toEqual({ city: 'Lisbon' });
+  });
+
+  it('sends an EMPTY variables object rather than omitting it', async () => {
+    // A prompt with no placeholders rendered with no variables really did render with
+    // none. Recording that is what makes its feedback evaluable — the template still
+    // varies across candidates even when the input does not — so `{}` travels and the
+    // dataset build gets an example with an empty input instead of a skipped row.
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(PLAIN_COMPLETION));
+
+    await hub.gateway.runPromptWithTools(renderResult({ variables: {} }));
+
+    const chat = chatBodies()[0]!;
+    expect(chat).toHaveProperty('variables');
+    expect(chat['variables']).toEqual({});
+  });
+
+  it('omits variables entirely when the caller never had any', async () => {
+    // The prompt-in-code case: no version, no variables, nothing to record. The field
+    // must be absent rather than `{}`, so the span stores null and the dataset build
+    // can tell "rendered with nothing" from "not a stored prompt at all".
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(PLAIN_COMPLETION));
+
+    await hub.gateway.chat({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'hi' }] });
+
+    expect(chatBodies()[0]!).not.toHaveProperty('variables');
   });
 
   it('sends a pinned binding as a pin, not as its alias', async () => {

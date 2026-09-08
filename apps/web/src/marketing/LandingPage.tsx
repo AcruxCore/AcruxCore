@@ -127,8 +127,8 @@ export function LandingPage(): ReactNode {
                 'font-size:clamp(16px,1.6vw,18.5px);line-height:1.6;color:var(--muted);margin:0 0 34px;max-width:44ch;text-wrap:pretty;',
               )}
             >
-              AcruxCore sits between your app and every model provider — so you ship, change, and measure LLM features
-              without redeploying to move a prompt.
+              AcruxCore sits between your app and the model providers you connect — so you ship, change, and measure
+              LLM features without redeploying to move a prompt.
             </p>
             <div style={cssToStyle('display:flex;flex-wrap:wrap;gap:12px;')}>
               <Link to="/signup" className="acx-hover-bright" style={cssToStyle(btnPrimary())}>
@@ -193,11 +193,15 @@ export function LandingPage(): ReactNode {
             </h2>
             <p style={cssToStyle('font-size:16.5px;line-height:1.6;color:var(--muted);margin:0;text-wrap:pretty;')}>
               Follow one thread across the whole platform. Land on a session, open its trace, rate the span that missed,
-              and jump straight to the exact prompt version that produced it — edit, save, and move the production alias.
-              The next run picks up the change. No redeploy, no context-switch, no leaving AcruxCore.
+              and jump straight to the exact prompt version that produced it. Fix it — or let the optimizer draft the
+              fix — score it against the cases it got wrong, then move the production alias. No redeploy, no
+              context-switch, no leaving AcruxCore.
             </p>
           </div>
-          <div style={cssToStyle('display:grid;grid-template-columns:repeat(auto-fit,minmax(min(166px,100%),1fr));gap:12px;')}>
+          {/* 240px, not the old 166px: with seven nodes a 166px floor packed six
+              into row one and left the seventh alone underneath. A wider floor
+              wraps 4 + 3, which reads as a deliberate two-row loop. */}
+          <div style={cssToStyle('display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:12px;')}>
             {LOOP_NODES.map((node) => (
               <div
                 key={node.n}
@@ -241,7 +245,7 @@ export function LandingPage(): ReactNode {
                 <path d="M3 3v5h5" />
               </svg>
             </span>
-            Step&nbsp;6 loops back to step&nbsp;1 — the fix is already live the next time that session runs.
+            Step&nbsp;7 loops back to step&nbsp;1 — the fix is already live the next time that session runs.
           </p>
         </section>
 
@@ -257,7 +261,8 @@ export function LandingPage(): ReactNode {
               Five parts of the LLM stack, one control plane.
             </h2>
             <p style={cssToStyle('font-size:16.5px;line-height:1.6;color:var(--muted);margin:0;text-wrap:pretty;')}>
-              Each piece works on its own and composes with the rest. Adopt what you need, no rip-and-replace.
+              Each piece works on its own and composes with the rest. Adopt what you need, no rip-and-replace —
+              prompts, tracing and tools do not need your traffic routed through us at all.
             </p>
           </div>
           <div style={cssToStyle('display:grid;grid-template-columns:repeat(auto-fit,minmax(min(268px,100%),1fr));gap:16px;')}>
@@ -373,7 +378,7 @@ export function LandingPage(): ReactNode {
           )}
         >
           <div>
-            <Eyebrow>TypeScript &amp; Python SDKs</Eyebrow>
+            <Eyebrow>Why AcruxCore</Eyebrow>
             <h2
               style={cssToStyle(
                 'font-size:clamp(24px,3.2vw,36px);line-height:1.12;letter-spacing:-.02em;font-weight:700;margin:0 0 18px;',
@@ -651,8 +656,11 @@ const STEPS: { n: string; title: string; body: string; code: Record<string, stri
 
 const REASONS: { lead: string; rest: string }[] = [
   {
+    // The old line promised "every SDK cache refreshes in the background",
+    // which reads as instant. It is a 60-second window by default, and the
+    // /features/prompts page now says so — this has to match it.
     lead: 'Change prompts without a deploy.',
-    rest: 'Move the production alias; every SDK cache refreshes in the background.',
+    rest: 'Move the production alias: the next render returns it, and SDK callers pick it up within their cache window.',
   },
   { lead: 'Drop-in gateway.', rest: 'OpenAI-compatible, so your current client and code paths stay put.' },
   {
@@ -660,8 +668,18 @@ const REASONS: { lead: string; rest: string }[] = [
     rest: 'First-class async clients for both — same prompts, gateway, tool loops, and tracing — plus a plain REST API.',
   },
   {
+    // "No extra instrumentation" is only true of the gateway path. The OTel
+    // path is real and is an exporter you set up, so the claim names both.
     lead: 'Every call is a trace.',
-    rest: 'Spans for model, tokens, latency, and cost — no extra instrumentation.',
+    rest: 'Spans for model, tokens, latency, and cost — automatic through the gateway, or over OpenTelemetry.',
+  },
+  {
+    lead: 'Prove a change before you ship it.',
+    rest: 'Score prompt versions and models against a dataset, or let the optimizer draft the rewrites and rank them.',
+  },
+  {
+    lead: 'Guardrails on spend and failure.',
+    rest: 'Budgets and per-key rate limits, an ordered fallback chain per model, and caching you switch on per key.',
   },
   { lead: 'Own your keys and data.', rest: 'Bring your own provider keys, or self-host the whole platform.' },
   { lead: 'Open source.', rest: 'Apache License 2.0 — read the code, self-host it, or send a pull request.' },
@@ -767,9 +785,26 @@ const LOOP_NODES: { n: string; label: string; caption: string; arrow: ReactNode;
       ),
     },
     {
+      // The step the homepage never told: a fix is a claim until it is scored
+      // against the cases that failed. Offline experiment, or an optimize run
+      // that drafts the candidates and scores them for you.
       n: '06',
+      label: 'Score the fix',
+      caption: 'Run it against the cases that failed, or let the optimizer draft candidates.',
+      arrow: <Chevron />,
+      arrowColor: 'var(--faint)',
+      icon: (
+        <Ic>
+          <rect x={4} y={12} width={4} height={8} rx={1} />
+          <rect x={10} y={7} width={4} height={13} rx={1} />
+          <rect x={16} y={3} width={4} height={17} rx={1} />
+        </Ic>
+      ),
+    },
+    {
+      n: '07',
       label: 'Promote alias',
-      caption: "Move 'production' to it. No redeploy.",
+      caption: "Move 'production' to the version that won. No redeploy.",
       arrow: <LoopArrow />,
       arrowColor: 'var(--accent)',
       icon: (

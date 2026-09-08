@@ -1,0 +1,28 @@
+meta {
+  name: List Traces By Prompt
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v1/traces?prompt_id={{promptId}}&limit=5
+  body: none
+  auth: bearer
+}
+
+params:query {
+  prompt_id: {{promptId}}
+  limit: 5
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+docs {
+  Every version of one prompt, not just the version id you happen to remember.
+}
+
+assert {
+  res.status: eq 200
+}

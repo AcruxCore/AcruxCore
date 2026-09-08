@@ -1,0 +1,41 @@
+meta {
+  name: Build Dataset By Filter
+  type: http
+  seq: 14
+}
+
+post {
+  url: {{baseUrl}}/api/v1/datasets/from-feedback
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "e5eval-by-filter",
+    "filter": {
+      "rating": "down",
+      "has_comment": true
+    }
+  }
+}
+
+docs {
+  Selects the rows by criteria instead of by id. Send exactly one of
+  `feedback_ids` or `filter`. The response carries `matched` — how many rows the
+  criteria selected in total, since at most 100 are processed per request.
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setVar("e5ByFilterDatasetId", res.getBody().id);
+  }
+}

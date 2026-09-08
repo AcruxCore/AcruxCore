@@ -1,0 +1,30 @@
+meta {
+  name: Search Trace Content
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/traces?q=london&q_in=input&limit=5
+  body: none
+  auth: bearer
+}
+
+params:query {
+  q: london
+  q_in: input
+  limit: 5
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+docs {
+  `q` searches the captured input and output as well as names and attributes.
+  `q_in` narrows it to one side: input, output, or name.
+}
+
+assert {
+  res.status: eq 200
+}

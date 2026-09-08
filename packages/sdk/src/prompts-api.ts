@@ -636,7 +636,9 @@ export class PromptsNamespace {
    * @param name - The prompt name (slug, not ID).
    * @param alias - The alias to resolve (e.g. 'production', 'staging').
    * @param variables - Template variables to pass to the render endpoint.
-   * @returns `{ messages, tools }`; `tools` is `[]` when the alias binds none.
+   * @returns A {@link RenderResult}: the rendered messages, the alias's tools (`[]` when it
+   *   binds none), the resolved version, and the `variables` echoed back so a caller
+   *   holding only the result can still pass them on for replay lineage.
    * @throws {acruxcoreError} MISSING_VARIABLES if the template requires variables not supplied.
    * @throws {acruxcoreError} API_ERROR for non-retryable HTTP errors.
    * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable and no stale cache entry exists.
@@ -741,6 +743,11 @@ export class PromptsNamespace {
       model: data.model ?? null,
       versionId: data.versionId ?? null,
       versionNumber: data.versionNumber ?? null,
+      // Echoed from the argument rather than the response: the render endpoint does not
+      // return them, and it does not need to — we already have them here. Safe to cache
+      // alongside the rest because the cache key hashes the variables, so an entry can
+      // only ever be served to the same ones.
+      variables,
     };
 
     if (cacheKey !== null) {

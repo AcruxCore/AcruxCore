@@ -1,4 +1,6 @@
 export { Button } from './Button';
+export { IconButton, PencilIcon, TrashIcon } from './IconButton';
+export type { IconButtonProps } from './IconButton';
 export type { ButtonProps } from './Button';
 export { Input, Textarea } from './Input';
 export type { TextareaProps } from './Input';
@@ -26,3 +28,5 @@ export { CookieConsentBanner, REOPEN_COOKIE_BANNER_EVENT } from './CookieConsent
 export { MultiSelect } from './MultiSelect';
 export type { MultiSelectOption } from './MultiSelect';
 export { useClickOutside } from './useClickOutside';
+export { InfoTip } from './InfoTip';
+export type { InfoTipProps } from './InfoTip';

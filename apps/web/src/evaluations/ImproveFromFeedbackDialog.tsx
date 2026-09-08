@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ApiError, useAliases, useCreateDatasetFromFeedback, useModels, usePrompts, useOptimize } from '@/api';
 import type { StartRunResponse } from '@/api';
 import { Button, Dialog, DialogFooter, Field, Input, Select, Textarea } from '@/ui';
+import { ModelCheckboxList } from './ModelCheckboxList';
 
 export interface ImproveFromFeedbackDialogProps {
   open: boolean;
@@ -180,28 +181,22 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
           </Field>
         )}
 
-        <Field label="Models" hint="At least one — candidates (plus the baseline) are run against every selected model.">
+        <Field
+          label="Test the rewrites on"
+          hint="One set of rewrites is written, not one per model. Each rewrite, plus the baseline, is then run against every model you tick here."
+        >
           {gatewayModels.isLoading ? (
             <p className="text-[13px] text-muted">Loading…</p>
           ) : (gatewayModels.data ?? []).length === 0 ? (
             <p className="text-[13px] text-muted">No models registered — add one under Gateway → Models first.</p>
           ) : (
-            <ul className="flex flex-col gap-1.5 rounded-md border border-line-soft bg-elevated p-2.5" data-testid="improve-model-checkboxes">
-              {(gatewayModels.data ?? []).map((m) => (
-                <li key={m.id} className="flex items-center gap-2 text-[13px]">
-                  <input
-                    type="checkbox"
-                    id={`improve-model-${m.id}`}
-                    checked={models.has(m.publicName)}
-                    onChange={(e) => toggleModel(m.publicName, e.target.checked)}
-                    className="h-4 w-4 accent-varhi"
-                  />
-                  <label htmlFor={`improve-model-${m.id}`} className="flex-1 cursor-pointer">
-                    <span className="font-mono">{m.publicName}</span>
-                  </label>
-                </li>
-              ))}
-            </ul>
+            <ModelCheckboxList
+              models={gatewayModels.data ?? []}
+              selected={models}
+              onToggle={toggleModel}
+              idPrefix="improve-model"
+              data-testid="improve-model-checkboxes"
+            />
           )}
         </Field>
 

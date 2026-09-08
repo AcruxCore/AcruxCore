@@ -1,0 +1,23 @@
+meta {
+  name: List Views
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/trace-views?surface=traces
+  body: none
+  auth: bearer
+}
+
+params:query {
+  surface: traces
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+assert {
+  res.status: eq 200
+}

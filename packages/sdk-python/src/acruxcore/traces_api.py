@@ -349,10 +349,12 @@ class TracesNamespace:
         model: Optional[str] = None,
         session_id: Optional[str] = None,
         prompt_version_id: Optional[str] = None,
+        prompt_id: Optional[str] = None,
         min_latency_ms: Optional[int] = None,
         min_cost_usd: Optional[float] = None,
         min_tokens: Optional[int] = None,
         q: Optional[str] = None,
+        q_in: Optional[str] = None,
         page: Optional[int] = None,
         limit: Optional[int] = None,
     ) -> ListTracesResult:
@@ -363,11 +365,16 @@ class TracesNamespace:
         :param status: Filter by span status.
         :param model: Filter by model.
         :param session_id: Filter by session id.
-        :param prompt_version_id: Filter by prompt version id.
+        :param prompt_version_id: Filter by that exact prompt version.
+        :param prompt_id: Filter by any version of that prompt.
         :param min_latency_ms: Minimum latency.
         :param min_cost_usd: Minimum cost.
         :param min_tokens: Minimum total tokens.
-        :param q: Free-text search.
+        :param q: Free-text search over trace and span names, span attributes,
+            and the captured request and response. Payload text is only
+            searchable where payload capture was on for the trace.
+        :param q_in: Narrows ``q`` to one part of the trace — ``"input"``,
+            ``"output"`` or ``"name"``. Defaults to ``"all"``.
         :param page: 1-based page number.
         :param limit: Page size.
         :returns: :class:`~acruxcore.types.ListTracesResult`.
@@ -386,6 +393,8 @@ class TracesNamespace:
             params["session_id"] = session_id
         if prompt_version_id:
             params["prompt_version_id"] = prompt_version_id
+        if prompt_id:
+            params["prompt_id"] = prompt_id
         if min_latency_ms is not None:
             params["min_latency_ms"] = str(min_latency_ms)
         if min_cost_usd is not None:
@@ -394,6 +403,8 @@ class TracesNamespace:
             params["min_tokens"] = str(min_tokens)
         if q:
             params["q"] = q
+        if q_in:
+            params["q_in"] = q_in
         if page is not None:
             params["page"] = str(page)
         if limit is not None:

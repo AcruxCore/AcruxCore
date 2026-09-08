@@ -340,10 +340,12 @@ export class TracesNamespace {
     if (options.model) params.set('model', options.model);
     if (options.sessionId) params.set('session_id', options.sessionId);
     if (options.promptVersionId) params.set('prompt_version_id', options.promptVersionId);
+    if (options.promptId) params.set('prompt_id', options.promptId);
     if (options.minLatencyMs !== undefined) params.set('min_latency_ms', String(options.minLatencyMs));
     if (options.minCostUsd !== undefined) params.set('min_cost_usd', String(options.minCostUsd));
     if (options.minTokens !== undefined) params.set('min_tokens', String(options.minTokens));
     if (options.q) params.set('q', options.q);
+    if (options.qIn) params.set('q_in', options.qIn);
     if (options.page !== undefined) params.set('page', String(options.page));
     if (options.limit !== undefined) params.set('limit', String(options.limit));
 

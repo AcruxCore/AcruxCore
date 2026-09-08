@@ -46,6 +46,16 @@ export type OptimizeResult = z.infer<typeof OptimizeResultSchema>;
 export const StartOptimizeSchema = z.object({
   dataset_id: z.string().uuid(),
   models: z.array(z.string().min(1)).min(1),
+  // The model that writes the candidates, as opposed to `models`, which is what
+  // they are tested on. Team-registered public name; validated in the service
+  // (a 400 naming the model, like `judgeModel`) rather than here, since the
+  // check needs the team. Omitted -> the first entry of `models`.
+  optimizer_model: z.string().min(1).optional(),
+  // Optional team Prompt used as the optimizer's instructions instead of the
+  // built-in ones. Mirrors `EvalRule.judgePromptId`. The output contract and the
+  // untrusted-data message are appended regardless, so a custom template can
+  // change the rewriting philosophy but not the parser's shape.
+  optimizer_prompt_id: z.string().uuid().optional(),
   draft_count: z.number().int().positive().optional(),
   // Which alias's version to use as the comparison baseline (design
   // "Alias-based baseline"). Omitted -> OptimizeService/processOptimize

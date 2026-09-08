@@ -168,4 +168,10 @@ rule](../guides/score-live-traffic-with-an-evaluation-rule) to set one up.
 ## Where to go next
 
 - **[Quickstart](./quickstart)** — make your first traced gateway call in ten minutes.
+- **Feature overviews** — one page per block, with what it does and what it does not:
+  [Prompts](https://acruxcore.com/features/prompts),
+  [Gateway](https://acruxcore.com/features/gateway),
+  [Tracing](https://acruxcore.com/features/tracing),
+  [Tools](https://acruxcore.com/features/tools),
+  [Evaluation](https://acruxcore.com/features/evaluation).
 - **[Tutorials](../tutorials/)** — eight end-to-end agent builds, from no-code dashboard to multi-agent systems. Start with [Level 1](../tutorials/#level-1--start-here-no-code) if you're new.

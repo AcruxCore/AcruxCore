@@ -116,9 +116,18 @@ example uses a feedback row from a real gateway completion made with
 then `POST /traces/:id/feedback` with `{"rating":-1,"comment":"Use third
 person, do not say I"}`.
 
-`feedback_ids` takes at most 100 ids per request — the build runs
-synchronously and reads several rows per id. Split a larger selection into
-batches; each batch builds its own dataset.
+The rows come from one of two mutually exclusive fields — send exactly one:
+
+- `feedback_ids` — an explicit list, at most 100 per request.
+- `filter` — the criteria that select them, using the same vocabulary as
+  [`GET /api/v1/traces/feedback`](./traces/feedback.mdx) (`prompt_id`, `rating`,
+  `has_comment`, `tags`, `metadata`, `q`, `from`/`to`, and the rest).
+
+Either way at most 100 rows are processed — the build runs synchronously and
+reads several rows per id. A `filter` request also returns `matched`, the total
+the criteria selected, so a capped selection is visible rather than silently
+truncated. Split a larger selection into batches; each batch builds its own
+dataset.
 
 <Tabs groupId="lang">
 <TabItem value="curl" label="curl">
@@ -207,9 +216,56 @@ Response (status 201) — one example built, the uncaptured one skipped with a r
   "overall_feedback": null,
   "example_count": 1,
   "skipped": [
-    { "feedbackId": "3ef48b8c-c731-441d-8c76-0019f2807b3d", "reason": "no captured variables (payload capture was off)" }
+    { "feedbackId": "3ef48b8c-c731-441d-8c76-0019f2807b3d", "reason": "the prompt is not stored in AcruxCore" }
   ]
 }
+```
+
+---
+
+#### Selecting rows by criteria instead of by id
+
+"Every thumbs-down that carries a written comment" is one request, rather than
+a morning of ticking boxes. `matched` is how many rows the criteria selected in
+total; `example_count` is how many of them became examples.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/datasets/from-feedback \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "checkout-regressions", "filter": {"rating": "down", "has_comment": true}}'
+```
+
+Response (status 201):
+
+```json
+{
+  "id": "7c9aa45f-8411-45e6-9e73-edfb64963d43",
+  "name": "checkout-regressions",
+  "overall_feedback": null,
+  "example_count": 3,
+  "skipped": [
+    {
+      "feedbackId": "5c9baf1d-3a51-4e38-8dab-76de04ebf8c7",
+      "reason": "the prompt is not stored in AcruxCore"
+    }
+  ],
+  "matched": 4
+}
+```
+
+Sending both `feedback_ids` and `filter`, or neither, is rejected before
+anything is read:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/datasets/from-feedback \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "x", "feedback_ids": ["d3cabcc9-2275-4b04-b1e6-41d1db0bef57"], "filter": {"rating": "down"}}'
+```
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "Provide exactly one of feedback_ids or filter." } }
 ```
 
 ---
@@ -223,12 +279,19 @@ same as "none eligible" below rather than a partial 201:
 curl -X POST $ACRUXCORE_BASE_URL/datasets/from-feedback \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"name": "empty", "feedback_ids": ["3ef48b8c-c731-441d-8c76-0019f2807b3d"]}'
+  -d '{"name": "empty", "feedback_ids": ["5c9baf1d-3a51-4e38-8dab-76de04ebf8c7"]}'
 ```
 
+The message names the reason the rows were actually skipped. Here the run never
+rendered a prompt stored in AcruxCore, so there are no variables to replay:
+
 ```json
-{ "error": { "code": "UNPROCESSABLE", "message": "No eligible feedback rows — enable payload capture and collect new traffic" } }
+{ "error": { "code": "UNPROCESSABLE", "message": "No eligible feedback rows — the prompt is not stored in AcruxCore." } }
 ```
+
+When the rows failed for more than one reason, each is listed with its count:
+`"No eligible feedback rows — 2 because the prompt is not stored in AcruxCore; 1
+because no prompt variables were captured."`
 
 A feedback id that does not exist (status 422, same message/code as above —
 a nonexistent id is just another way to have zero eligible rows):
@@ -241,7 +304,7 @@ curl -X POST $ACRUXCORE_BASE_URL/datasets/from-feedback \
 ```
 
 ```json
-{ "error": { "code": "UNPROCESSABLE", "message": "No eligible feedback rows — enable payload capture and collect new traffic" } }
+{ "error": { "code": "UNPROCESSABLE", "message": "No eligible feedback rows — feedback not found." } }
 ```
 
 More than 100 `feedback_ids` (status 400) — the request is rejected before any
@@ -421,9 +484,16 @@ Response (status 200):
       "datasetId": "4c979706-3e84-4e8f-a089-6ce4dd9f6e4a",
       "input": { "name": "Alice" },
       "criteria": "Use third person, do not say I",
+      "history": null,
       "sourceTraceId": "131cffd7-3729-4b69-95e1-7c073ecffdc9",
       "sourceFeedbackId": "44c64fa2-8189-4ab0-a08a-a28a14893a06",
       "sourcePromptVersionId": "41014d2e-9a06-4053-9514-afacc4b06676",
+      "sourcePrompt": {
+        "promptId": "a290cf2f-a724-4389-8bea-da8b53229e00",
+        "name": "support-reply",
+        "versionNumber": 1,
+        "lastUserMessage": "Reply to {{ name }}"
+      },
       "createdAt": "2026-07-07T08:31:14.773Z"
     }
   ]
@@ -588,6 +658,135 @@ curl -X POST $ACRUXCORE_BASE_URL/datasets/54fd9af3-c470-4d1a-a0eb-ea192b5b43ab/e
 
 ```json
 { "error": { "code": "VALIDATION_ERROR", "message": "Array must contain at most 20 element(s)" } }
+```
+
+---
+
+### POST /api/v1/datasets/:id/examples/from-feedback
+
+Appends feedback rows to a dataset that already exists. The counterpart to
+`POST /datasets/from-feedback`, which always creates a new one — this is the
+call for the second and every later pass over the feedback list.
+
+Each eligible row contributes the variables captured on its trace as `input`,
+its comment as `criteria`, and its reconstructed session history. A feedback id
+whose example is already in this dataset is reported in `skipped`, not inserted
+twice. At most 100 rows per call.
+
+Takes the same two mutually exclusive selectors as
+`POST /datasets/from-feedback`: `feedback_ids`, or a `filter`. The `filter` form
+is what makes a dataset something you top up — save the criteria once, and every
+later pass picks up only the new traffic.
+
+The status distinguishes the two outcomes: **201** when at least one example was
+created, **200** when none were. Neither is an error — "all three rows were
+already filed" is a normal answer.
+
+:::note[curl only for now]
+Neither published SDK exposes this endpoint yet. Use the REST call directly.
+:::
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/datasets/0981fbbf-51a0-419c-a9e4-4e9a08bb7dc9/examples/from-feedback \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"feedback_ids": ["055effc3-b3fe-4951-b24f-e9428aa9df09", "11157385-e9eb-4cc4-9bea-9851034493c5"]}'
+```
+
+Response (status 201):
+
+```json
+{ "added": 2, "example_count": 2, "skipped": [] }
+```
+
+Running the same call again reports the rows as already present rather than
+duplicating them.
+
+Response (status 200):
+
+```json
+{
+  "added": 0,
+  "example_count": 2,
+  "skipped": [
+    { "feedbackId": "055effc3-b3fe-4951-b24f-e9428aa9df09", "reason": "already in this dataset" }
+  ]
+}
+```
+
+The same call driven by criteria rather than ids. Everything the filter matched
+this time was either already filed or ineligible, so nothing was added:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/datasets/7c9aa45f-8411-45e6-9e73-edfb64963d43/examples/from-feedback \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"filter": {"rating": "down", "has_comment": true}}'
+```
+
+Response (status 200):
+
+```json
+{
+  "added": 0,
+  "example_count": 3,
+  "skipped": [
+    {
+      "feedbackId": "5c9baf1d-3a51-4e38-8dab-76de04ebf8c7",
+      "reason": "the prompt is not stored in AcruxCore"
+    },
+    { "feedbackId": "055effc3-b3fe-4951-b24f-e9428aa9df09", "reason": "already in this dataset" },
+    { "feedbackId": "11157385-e9eb-4cc4-9bea-9851034493c5", "reason": "already in this dataset" },
+    { "feedbackId": "f6548350-b0dc-4292-9948-385c4f546530", "reason": "already in this dataset" }
+  ],
+  "matched": 4
+}
+```
+
+---
+
+### PATCH /api/v1/datasets/:id/examples/:exampleId
+
+Edits one example's `criteria` — the per-example rubric the judge grades
+against. Send `null` to clear it; omit the key to leave it unchanged.
+
+Only `criteria` is editable. `input` and `history` are the frozen record of what
+actually ran, so rewriting them would invalidate every past run that graded
+against them.
+
+:::note[curl only for now]
+Neither published SDK exposes this endpoint yet. Use the REST call directly.
+:::
+
+```bash
+curl -X PATCH $ACRUXCORE_BASE_URL/datasets/0981fbbf-51a0-419c-a9e4-4e9a08bb7dc9/examples/99684fdf-2b1e-4b68-8a7a-896272dc3c32 \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"criteria": "Says plainly whether a date exists, names what is known, and gives one next step."}'
+```
+
+Response (status 200):
+
+```json
+{
+  "id": "99684fdf-2b1e-4b68-8a7a-896272dc3c32",
+  "datasetId": "0981fbbf-51a0-419c-a9e4-4e9a08bb7dc9",
+  "input": {
+    "message": "Our API keys stopped working this morning — every call comes back 401 and nothing changed on our side. We have a customer demo at 2pm and I am getting nervous."
+  },
+  "criteria": "Says plainly whether a date exists, names what is known, and gives one next step.",
+  "history": null,
+  "sourceTraceId": "82a2f4d6-f6ce-4abd-b21b-beaff6b59fd2",
+  "sourceFeedbackId": "11157385-e9eb-4cc4-9bea-9851034493c5",
+  "sourcePromptVersionId": "4ccc4890-c7ca-4352-af8a-0a74896b1ff9",
+  "sourcePrompt": {
+    "promptId": "a290cf2f-a724-4389-8bea-da8b53229e00",
+    "name": "support-reply",
+    "versionNumber": 1,
+    "lastUserMessage": "Reply to {{ name }}"
+  },
+  "createdAt": "2026-09-07T19:52:29.769Z"
+}
 ```
 
 ---

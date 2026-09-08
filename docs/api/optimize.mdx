@@ -54,16 +54,28 @@ real (candidate + production-baseline) x model grid, and enqueuing the
 cell/finalize BullMQ Flow all happen out of the request path, in the
 `optimizeWorker` process (`processOptimize`).
 
-Two more fields exist alongside `dataset_id`/`models`/`draft_count`, both
-optional:
+Four more fields exist alongside `dataset_id`/`models`/`draft_count`:
 
-- `alias` (request) — resolves the comparison baseline to a named alias's
-  current version (e.g. `staging`). Omitted, the baseline resolves to the
-  prompt's `production` alias if one exists, otherwise its latest committed
+- `optimizer_model` (request, optional) — the model that **writes** the
+  candidate rewrites. This is not `models`, which is what the rewrites are then
+  **tested** on. Omitted, it defaults to the first entry of `models`. It must be
+  a model registered for your team under Gateway → Models, or the call is
+  rejected before anything is started.
+- `optimizer_prompt_id` (request, optional) — one of your own prompts, used as
+  the optimizer's instructions instead of the built-in ones. The required JSON
+  output shape and the untrusted-data isolation are always applied on top, so a
+  custom template can change what a good rewrite looks like but cannot break the
+  response format. Omitted, the built-in optimizer instructions are used.
+- `alias` (request, optional) — resolves the comparison baseline to a named
+  alias's current version (e.g. `staging`). Omitted, the baseline resolves to
+  the prompt's `production` alias if one exists, otherwise its latest committed
   version. See "Alias-based baseline" below.
 - `prompt_mismatch_warning` (response only) — a non-blocking notice
   returned when the dataset's examples were sourced from a prompt other
   than the one being optimized. See "Prompt-mismatch warning" below.
+
+The response echoes `optimizer_model`, because it is usually defaulted rather
+than sent and you should not have to guess which model you are billed for.
 
 Demo setup: prompt "support-reply-e6t6" v1 (`production`) is deliberately
 weak — a vague, unconstrained system message ("You are a friendly customer
@@ -120,7 +132,48 @@ result = await hub.optimize.start(
 Response (status 202):
 
 ```json
-{ "run_id": "97584f62-79ca-4575-ab68-34c6ae5ada03", "status": "queued" }
+{ "run_id": "97584f62-79ca-4575-ab68-34c6ae5ada03", "status": "queued", "optimizer_model": "gpt-4o-mini" }
+```
+
+#### Choosing the optimizer model
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/prompts/a290cf2f-a724-4389-8bea-da8b53229e00/optimize \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"dataset_id": "50d1e513-7de5-4d73-b43c-7f7d584a3c3f", "models": ["gpt-4o-mini"], "optimizer_model": "claude-haiku", "draft_count": 2}'
+```
+
+Response (status 202):
+
+```json
+{
+  "run_id": "561c24be-0879-4b5d-937d-006238f98e76",
+  "status": "queued",
+  "optimizer_model": "claude-haiku"
+}
+```
+
+A model your team has not registered is rejected up front, before a run row
+exists — so an unusable optimizer model never becomes a run that fails later in
+the worker.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/prompts/a290cf2f-a724-4389-8bea-da8b53229e00/optimize \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"dataset_id": "50d1e513-7de5-4d73-b43c-7f7d584a3c3f", "models": ["gpt-4o-mini"], "optimizer_model": "claude-opus-4"}'
+```
+
+Response (status 400):
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Model 'claude-opus-4' is not registered. Add it under Gateway → Models."
+  }
+}
 ```
 
 Polling `GET /api/v1/runs/97584f62-79ca-4575-ab68-34c6ae5ada03` (E3's run

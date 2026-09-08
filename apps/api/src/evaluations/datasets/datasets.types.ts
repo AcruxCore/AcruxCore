@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { FeedbackFilterSchema } from '../../traces/feedback';
 
 /**
  * Payload for creating an empty dataset.
@@ -23,16 +24,41 @@ export type CreateDatasetDto = z.infer<typeof CreateDatasetSchema>;
 export const MAX_FEEDBACK_IDS_PER_BUILD = 100;
 
 /**
+ * How a `from-feedback` request names the rows it wants: either an explicit list
+ * of ids, or the criteria that select them.
+ *
+ * The `filter` form exists because hand-collecting ids does not scale past a
+ * screenful. "Every thumbs-down on the checkout prompt since August, with a
+ * written comment" is one object here and a morning of clicking otherwise.
+ *
+ * The message on the union is deliberately concrete: the common mistake is
+ * sending both, and a bare "invalid body" would not say which half to drop.
+ */
+const feedbackSelectorFields = {
+  feedback_ids: z.array(z.string().uuid()).min(1).max(MAX_FEEDBACK_IDS_PER_BUILD).optional(),
+  filter: FeedbackFilterSchema.optional(),
+};
+
+/** Enforces exactly one of `feedback_ids` / `filter` on a from-feedback body. */
+const exactlyOneSelector = (
+  d: { feedback_ids?: string[]; filter?: unknown },
+): boolean => (d.feedback_ids !== undefined) !== (d.filter !== undefined);
+
+const SELECTOR_MESSAGE = 'Provide exactly one of feedback_ids or filter.';
+
+/**
  * Payload for building a dataset from feedback rows.
- * Each feedback row becomes one example; `feedback_ids` must have at least one
- * and at most {@link MAX_FEEDBACK_IDS_PER_BUILD}.
+ * Each feedback row becomes one example. The rows come from `feedback_ids` (at
+ * most {@link MAX_FEEDBACK_IDS_PER_BUILD}) or from `filter`, never both.
  * `overall_feedback` applies to every example in the built dataset.
  */
-export const BuildFromFeedbackSchema = z.object({
-  name: z.string().min(1).max(200),
-  overall_feedback: z.string().max(5000).optional(),
-  feedback_ids: z.array(z.string().uuid()).min(1).max(MAX_FEEDBACK_IDS_PER_BUILD),
-});
+export const BuildFromFeedbackSchema = z
+  .object({
+    name: z.string().min(1).max(200),
+    overall_feedback: z.string().max(5000).optional(),
+    ...feedbackSelectorFields,
+  })
+  .refine(exactlyOneSelector, { message: SELECTOR_MESSAGE });
 
 /** Validated build-from-feedback payload. */
 export type BuildFromFeedbackDto = z.infer<typeof BuildFromFeedbackSchema>;
@@ -157,8 +183,64 @@ export interface DatasetExampleDto {
   sourceTraceId: string | null;
   sourceFeedbackId: string | null;
   sourcePromptVersionId: string | null;
+  /**
+   * The prompt version this example was captured from, resolved to readable
+   * names so a client never has to render a bare UUID. Null for a manually
+   * added row, and also null when the source version has since been deleted —
+   * `sourcePromptVersionId` may be non-null while this is null.
+   */
+  sourcePrompt: SourcePromptInfo | null;
   createdAt: string;
 }
+
+/** Readable identity of the prompt version an example was captured from. */
+export interface SourcePromptInfo {
+  promptId: string;
+  name: string;
+  versionNumber: number;
+  /**
+   * The version's last user message, as committed. Raw template text, so it can
+   * contain `{{ placeholders }}` — it is deliberately NOT rendered against the
+   * example's `input`.
+   *
+   * It is version-level, not example-level: every example captured from this
+   * version carries the same string. A client shows it only where there is no
+   * per-example `input` to show instead, so that a row is never blank when the
+   * prompt itself says what was asked. Null when the version has no user message
+   * at all — the shape an app that appends the user's turn at request time
+   * commits.
+   */
+  lastUserMessage: string | null;
+}
+
+/**
+ * Payload for appending feedback rows to an existing dataset. Same selector and
+ * same ceiling as {@link BuildFromFeedbackSchema} — the work per row is
+ * identical, only the destination differs.
+ */
+export const AddExamplesFromFeedbackSchema = z
+  .object(feedbackSelectorFields)
+  .refine(exactlyOneSelector, { message: SELECTOR_MESSAGE });
+
+/** Validated append-from-feedback payload. */
+export type AddExamplesFromFeedbackDto = z.infer<typeof AddExamplesFromFeedbackSchema>;
+
+/**
+ * Payload for editing one example in place. `criteria` is `.nullable()` so the
+ * caller can distinguish "not sent, leave unchanged" (key absent) from
+ * "explicitly clear this rubric" (`null`) — the same shape
+ * {@link UpdateDatasetSchema} uses.
+ *
+ * Only `criteria` is editable. `input` and `history` are the frozen record of
+ * what actually ran (FAQ Q19); editing them would silently invalidate every
+ * past run that graded against them.
+ */
+export const UpdateExampleSchema = z.object({
+  criteria: z.string().min(1).max(5000, 'criteria must be 5000 characters or fewer.').nullable().optional(),
+});
+
+/** Validated example update payload. */
+export type UpdateExampleDto = z.infer<typeof UpdateExampleSchema>;
 
 /** One prompt whose examples don't match the run's target prompt, and how many. */
 export interface MismatchedPromptInfo {

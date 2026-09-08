@@ -28,6 +28,24 @@ import type {
 
 // ── Module-level helpers (moved from client.ts) ──
 
+/**
+ * Prompt lineage for one span: which version the messages came from, and the variables
+ * they were rendered from.
+ *
+ * The two travel together because they are only useful together — an evaluation replays
+ * an example by rendering a candidate version of the prompt against those same variables,
+ * so a span holding one and not the other cannot seed a dataset example at all.
+ */
+interface PromptLineage {
+  promptVersionId?: string;
+  variables?: Record<string, unknown>;
+}
+
+/** Pulls the lineage pair off any call's options, so no site can pick up just one. */
+function lineageOf(options: ChatOptions | RunToolLoopOptions): PromptLineage {
+  return { promptVersionId: options.promptVersionId, variables: options.variables };
+}
+
 /** The subset of a `trace` option that becomes `x-trace-*` request headers. */
 interface TraceHeaderConf {
   name?: string;
@@ -332,6 +350,7 @@ export class GatewayNamespace {
           usage: result.usage,
           costUsd: result.gateway.costUsd ?? undefined,
           promptVersionId: options.promptVersionId,
+          variables: options.variables,
           input: { messages: options.messages },
           output: result.message,
         }],
@@ -462,6 +481,7 @@ export class GatewayNamespace {
       messages: options.messages ?? rendered.messages,
       toolRefs: options.toolRefs ?? derivedRefs,
       promptVersionId: options.promptVersionId ?? rendered.versionId ?? undefined,
+      variables: options.variables ?? rendered.variables,
     });
   }
 
@@ -491,6 +511,12 @@ export class GatewayNamespace {
   private _buildChatBody(options: ChatOptions, forGateway = false): Record<string, unknown> {
     const body: Record<string, unknown> = { model: options.model, messages: options.messages };
     if (forGateway && options.promptVersionId) body['prompt_version_id'] = options.promptVersionId;
+    // `!== undefined`, not truthiness: `{}` is sent deliberately. A prompt with no
+    // placeholders rendered with no variables really did render with none, and recording
+    // that is what lets its feedback be evaluated — the template still varies across
+    // candidates even when the input does not. Dropping an empty object here would
+    // silently discard something the caller supplied, which is the bug this field fixed.
+    if (forGateway && options.variables !== undefined) body['variables'] = options.variables;
     if (options.tools) body['tools'] = options.tools;
     if (options.toolRefs) body['tool_refs'] = options.toolRefs;
     if (options.toolChoice) body['tool_choice'] = options.toolChoice;
@@ -843,7 +869,7 @@ export class GatewayNamespace {
         sessionId: traceConf.sessionId,
         name: 'chat',
         spans: [
-          this._byoLlmSpan(state, options.messages, providerConfig, options.promptVersionId, randomUUID()),
+          this._byoLlmSpan(state, options.messages, providerConfig, lineageOf(options), randomUUID()),
         ],
       });
     }
@@ -855,12 +881,17 @@ export class GatewayNamespace {
    * Shared by the public BYO stream and the streaming tool loop so a streamed turn
    * records the same span either way — the failure mode this avoids is streaming silently
    * costing observability.
+   *
+   * `lineage` is one parameter rather than two because `promptVersionId` and `variables`
+   * are one fact: a span carrying the version without the values it was rendered from
+   * cannot become an evaluation dataset example, so passing one and forgetting the other
+   * is the mistake worth making impossible.
    */
   private _byoLlmSpan(
     state: ByoStreamState,
     messages: Message[],
     providerConfig: import('./types').ProviderConfig,
-    promptVersionId: string | undefined,
+    lineage: PromptLineage,
     spanId: string,
   ): IngestSpan {
     const toolCalls = state.toolCalls ?? [];
@@ -875,7 +906,8 @@ export class GatewayNamespace {
       model,
       provider: inferProviderName(providerConfig.baseUrl),
       usage: state.usage,
-      promptVersionId,
+      promptVersionId: lineage.promptVersionId,
+      variables: lineage.variables,
       input: { messages },
       output: {
         role: 'assistant',
@@ -1049,6 +1081,7 @@ export class GatewayNamespace {
               maxTokens: options.maxTokens,
               responseFormat: effectiveResponseFormat,
               promptVersionId: options.promptVersionId,
+              variables: options.variables,
             },
             extraHeaders,
           );
@@ -1069,6 +1102,7 @@ export class GatewayNamespace {
           provider: result.gateway.provider ?? undefined,
           usage: result.usage,
           promptVersionId: options.promptVersionId,
+          variables: options.variables,
           input: { messages },
           output: result.message,
         };
@@ -1360,6 +1394,7 @@ export class GatewayNamespace {
       maxTokens: options.maxTokens,
       responseFormat: args.responseFormat,
       promptVersionId: options.promptVersionId,
+      variables: options.variables,
       stream: true,
     };
 
@@ -1400,7 +1435,7 @@ export class GatewayNamespace {
           sessionId: traceConf.sessionId,
           name: args.payloadTraceName,
           spans: [
-            this._byoLlmSpan(byoState, convo, providerConfig, options.promptVersionId, out.spanRef),
+            this._byoLlmSpan(byoState, convo, providerConfig, lineageOf(options), out.spanRef),
           ],
         });
       }

@@ -1,0 +1,382 @@
+---
+title: Trace a LangChain Research Agent
+description: Build a two-tool LangChain agent in Python or Node, and watch every chain, tool, and model call land in AcruxCore automatically over OTLP — no AcruxCore code inside the agent.
+sidebar_position: 12
+keywords: [langchain, langgraph, opentelemetry, otlp, tracing, agent, openinference, node, python]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Trace a LangChain Research Agent
+
+**What you'll build:** a [LangChain](https://www.langchain.com/) research agent with two
+tools — Tavily web search, and a local calculator it is told to use for any arithmetic —
+run twice in the same conversation: once to find a price, once to split that price between
+four people. Every chain, tool, and model call lands in AcruxCore automatically, with no
+AcruxCore code anywhere in the agent.
+
+This tutorial ships the same agent in **Python and Node**, because LangChain does. Pick a
+tab and follow it end to end; both produce the same span tree.
+
+Most tutorials on this site build the agent loop yourself, on top of AcruxCore's gateway or
+SDK. LangChain is different: it has its own agent loop, its own tool calling, and its own
+way of instrumenting itself for observability — the [OpenTelemetry](https://opentelemetry.io/)
+(OTel) wire protocol, the same one nearly every agent framework speaks. AcruxCore's
+`POST /api/v1/traces/otlp` endpoint accepts that protocol directly, so pointing an
+already-working LangChain app at AcruxCore is a few lines of setup, not a rewrite.
+
+## 1. Create an AcruxCore API key
+
+Open **Account & keys → New key**, name it `langchain-tutorial`, and create it.
+
+Copy the key the moment it's shown — this is the only time the full value appears.
+
+## 2. Install the SDK's OTel helper
+
+LangChain doesn't know about AcruxCore, and it never will — the wiring lives entirely
+outside the agent, in `register()`, a small convenience helper both SDKs ship for exactly
+this: pointing a standard OpenTelemetry pipeline at AcruxCore's OTLP endpoint.
+
+```bash
+export ACRUXCORE_API_KEY=<your-acruxcore-key>
+export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
+```
+
+`register()` reads those two variables and does nothing you couldn't do by hand — it builds
+the same tracer provider, batch span processor, and OTLP exporter every OTel pipeline needs,
+pointed at `$ACRUXCORE_BASE_URL/traces/otlp`. If you'd rather not add the SDK as a
+dependency, the [OTLP API reference](/api-reference/traces/otlp) shows the same wiring
+written out by hand — both reach the identical endpoint.
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python">
+
+```bash
+pip install 'acruxcore[otel]' openinference-instrumentation-langchain
+```
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+```bash
+npm install @acruxcoreai/sdk @arizeai/openinference-instrumentation-langchain \
+  @arizeai/openinference-core @opentelemetry/api @opentelemetry/sdk-trace-node \
+  @opentelemetry/sdk-trace-base @opentelemetry/exporter-trace-otlp-http \
+  @opentelemetry/resources @opentelemetry/semantic-conventions
+```
+
+:::note[Node needs SDK 0.12.0]
+`instrument: ['langchain']` arrived in `@acruxcoreai/sdk` 0.12.0. Earlier versions raise
+`UNKNOWN_INSTRUMENTOR` for the name. On the Python side, `acruxcore` has shipped its
+`langchain` instrumentor since 0.11.0.
+:::
+
+</TabItem>
+</Tabs>
+
+## 3. Turn on tracing
+
+This is the only AcruxCore-aware code in the whole file, and it goes above the agent:
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python">
+
+```python
+from acruxcore.otel import register
+
+tracer_provider = register(
+    service_name="langchain-research-agent",
+    instrument=["langchain"],
+)
+```
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+```javascript
+import { register } from '@acruxcoreai/sdk/otel';
+
+const provider = await register({
+  serviceName: 'langchain-research-agent',
+  instrument: ['langchain'],
+});
+```
+
+</TabItem>
+</Tabs>
+
+:::note[One instrumentor, not two]
+If you have followed the [CrewAI tutorial](./trace-a-crewai-trip-planner), note the
+difference: that one needs `"crewai"` **and** `"openai"`, because CrewAI calls the model
+through the plain OpenAI SDK, outside its own instrumentation. LangChain doesn't. The
+LangChain instrumentor patches LangChain's own `CallbackManager`, which already sees the
+model call — so chain, LLM, tool, and retriever spans all arrive from that one name.
+
+Adding `"openai"` alongside it is not harmless. Both instrumentors then report the same
+model call: the LangChain one inside your agent's trace, where it belongs, and the OpenAI
+one again as a **separate single-span trace** with no agent around it — carrying the same
+tokens and the same cost, so every model call is counted twice in your usage totals.
+:::
+
+That one name also covers LangGraph and every LangChain integration package, since they all
+route their callbacks through the same manager.
+
+## 4. Build the agent
+
+Two tools. Tavily searches the web for prices the model doesn't know; `split_cost` does the
+arithmetic, because the system prompt forbids the model from doing it itself — which is what
+makes the tool call happen reliably rather than occasionally.
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python">
+
+```python
+from langchain.agents import create_agent
+from langchain_core.tools import tool
+from langchain_openai import ChatOpenAI
+from langchain_tavily import TavilySearch
+
+@tool
+def split_cost(total_amount: float, people: int, months: int) -> str:
+    """Split a total cost between people and across months."""
+    return f"Per person per month: {total_amount / people:.2f}."
+
+agent = create_agent(
+    model=ChatOpenAI(model="gpt-4o-mini", temperature=0),
+    tools=[TavilySearch(max_results=5), split_cost],
+    system_prompt=SYSTEM_PROMPT,
+)
+```
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+```javascript
+import { createAgent, tool } from 'langchain';
+import { ChatOpenAI } from '@langchain/openai';
+import { TavilySearch } from '@langchain/tavily';
+import { z } from 'zod';
+
+const splitCost = tool(
+  async ({ totalAmount, people }) => `Per person per month: ${(totalAmount / people).toFixed(2)}.`,
+  {
+    name: 'split_cost',
+    description: 'Split a total cost between people and across months.',
+    schema: z.object({ totalAmount: z.number(), people: z.number().int(), months: z.number().int() }),
+  },
+);
+
+const agent = createAgent({
+  model: new ChatOpenAI({ model: 'gpt-4o-mini', temperature: 0 }),
+  tools: [new TavilySearch({ maxResults: 5 }), splitCost],
+  systemPrompt: SYSTEM_PROMPT,
+});
+```
+
+</TabItem>
+</Tabs>
+
+### Give the run a name
+
+Invoke the agent with a `run_name`. Without one, LangGraph names every root span after the
+graph class, so your trace list fills up with identical rows called `LangGraph` and you
+cannot tell one run from another:
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python">
+
+```python
+result = agent.invoke({"messages": messages}, config={"run_name": "research-agent"})
+```
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+```javascript
+const result = await agent.invoke({ messages }, { runName: 'research-agent' });
+```
+
+</TabItem>
+</Tabs>
+
+### Group the two turns into one conversation
+
+Both turns run inside a session, so AcruxCore shows them as one conversation instead of two
+unrelated traces:
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python">
+
+```python
+from openinference.instrumentation import using_session
+
+with using_session("langchain-research-agent-demo"):
+    answer = run_turn(messages)
+```
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+```javascript
+import { context } from '@opentelemetry/api';
+import { setSession } from '@arizeai/openinference-core';
+
+await context.with(setSession(context.active(), { sessionId }), async () => {
+  const answer = await runTurn(messages);
+});
+```
+
+</TabItem>
+</Tabs>
+
+The full scripts thread turn 1's real answer into turn 2, so the follow-up is a genuine
+revision rather than a second unrelated question — see
+[research_agent.py](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/trace-a-langchain-research-agent/python/research_agent.py)
+and
+[research_agent.mjs](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/trace-a-langchain-research-agent/typescript/research_agent.mjs)
+for the complete source.
+
+## 5. Run it
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python">
+
+```bash
+export OPENAI_API_KEY=sk-...
+export TAVILY_API_KEY=tvly-...
+python research_agent.py
+```
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+```bash
+export OPENAI_API_KEY=sk-...
+export TAVILY_API_KEY=tvly-...
+node research_agent.mjs
+```
+
+</TabItem>
+</Tabs>
+
+Turn 2 gets the price from turn 1 and only has to divide it — which is exactly the call the
+system prompt reserved for the tool:
+
+```text
+=== Turn 1 answer ===
+
+A hot desk at Second Home Lisboa costs approximately €250 per month.
+
+Source: [Monis Rent](https://www.monis.rent/post/best-coworking-spaces-in-lisbon)
+
+=== Turn 2 answer (follow-up) ===
+
+The total cost for four people to use the hot desk for 3 months is €750. Each person will
+pay €62.50 per month, which totals €187.50 for the entire 3 months.
+
+session.id used for both turns: langchain-research-agent-demo
+```
+
+Live web search means your prices will differ from these. That is the point — nothing here
+is a fixture.
+
+## 6. See both turns grouped into one session
+
+Open **Observability → Sessions** and click the session: both runs are there, each its own
+trace, with real token counts and real cost. LangChain never told AcruxCore these two runs
+were related; the shared `session.id` attribute on every span did that.
+
+![The langchain-research-agent-demo session page showing 2 traces, 7,144 tokens and $0.00113 total, with both research-agent runs listed at 7 spans each](/img/tutorials/trace-a-langchain-research-agent/01-session.png)
+
+## 7. Follow the agent's own span tree
+
+Open the first trace. The tree is LangChain's own execution order, captured without a single
+line of tracing code in the agent: the agent calls the model, the model asks for a search,
+the Tavily tool runs, and the model is called again with the results to write the answer.
+
+![Trace detail for research-agent showing an agent root span, a chain span named model containing an LLM span for ChatOpenAI, a chain span named tools containing the tavily_search tool span, and a second model chain with its own ChatOpenAI LLM span](/img/tutorials/trace-a-langchain-research-agent/02-trace-tree.png)
+
+Each LLM span carries the resolved model name, its token counts, and the cost AcruxCore
+computed from them — none of which the agent reported by hand.
+
+Click the **tavily_search** span to see the real query the model chose, and the raw result
+it got back:
+
+![The expanded tavily_search span showing Input with the model's own hot desk pricing query for Second Home Lisboa, and Output with the raw JSON Tavily returned](/img/tutorials/trace-a-langchain-research-agent/03-tool-span.png)
+
+Nothing here was reported by hand. `openinference-instrumentation-langchain` captured the
+whole run, and AcruxCore's OTLP endpoint mapped the OpenInference attributes it received
+onto the same `chain` / `tool` / `llm` span kinds every other tutorial on this site
+produces — including model, token counts, and computed cost on each LLM span.
+
+## 8. What a failing tool looks like
+
+Traces earn their keep when something breaks, so break something. Replace the body of
+`split_cost` with a failure and run the script again:
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python">
+
+```python
+@tool
+def split_cost(total_amount: float, people: int, months: int) -> str:
+    """Split a total cost between people and across months."""
+    raise RuntimeError("upstream pricing API returned 503")
+```
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+```javascript
+const splitCost = tool(
+  async () => {
+    throw new Error('upstream pricing API returned 503');
+  },
+  {
+    name: 'split_cost',
+    description: 'Split a total cost between people and across months.',
+    schema: z.object({
+      totalAmount: z.number(),
+      people: z.number().int(),
+      months: z.number().int(),
+    }),
+  },
+);
+```
+
+</TabItem>
+</Tabs>
+
+In Python the run stops there: the exception propagates out of `agent.invoke`, and you get a
+traceback. The trace still arrives, with the tool span, the `tools` chain above it, and the
+root span all red.
+
+Node is the more interesting case, and the one this screenshot shows. `createAgent` catches
+the tool error, feeds it back to the model, and lets the model carry on. So the root span
+stays green, only the two `split_cost` spans are red — and the trace as a whole is marked
+**Error**:
+
+![Trace detail titled research-agent with status Error, showing a green chain root span and two red split_cost tool spans among otherwise green model_request, ChatOpenAI and tools spans](/img/tutorials/trace-a-langchain-research-agent/04-error.png)
+
+Now read what the user actually got back from that run:
+
+```text
+So, the total cost for four people for three months is €3000, and the cost
+per person per month is €250.
+```
+
+Both numbers are wrong — the real answers are €750 and €62.50. With its calculator broken,
+the model did the arithmetic itself, exactly what the system prompt forbade, and returned a
+confident wrong answer with no error anywhere the user could see. Nothing about that reply
+looks like a failure. The trace is the only place the failure is visible.
+
+That is the whole argument for tracing an agent rather than logging its final answer: a run
+that quietly degraded and a run that worked produce the same-looking output.
+
+## What's next
+
+- **[Trace a CrewAI Trip-Planning Crew](./trace-a-crewai-trip-planner)** — the same OTLP integration on a framework that calls the model outside its own instrumentation, so it needs two instrumentors instead of one.
+- **[Trace an OpenAI Agents SDK Support-Triage System](./trace-an-openai-agents-sdk-triage-system)** — again the same integration, on a framework whose signature feature (agent-to-agent handoffs) produces a different-shaped trace.
+- More `register()` examples — a bare pipeline, one framework, several at once, session grouping: [Send OTel traces to AcruxCore with the SDK helper](../guides/send-otel-traces-with-the-sdk-helper).
+- API details: see the [OTLP Trace Ingestion](/api-reference/traces/otlp) reference for the full endpoint contract, including gzip, batching, and error responses.

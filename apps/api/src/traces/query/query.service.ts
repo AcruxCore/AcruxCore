@@ -4,6 +4,7 @@ import { buildSpanTree } from './span-tree';
 import { VersionsService } from '../../prompts/versions';
 import { FeedbackService, FeedbackRepository } from '../feedback';
 import { EvalRuleRepository } from '../../evaluations/online';
+import { toTraceFilters } from '../filters';
 import type {
   TraceListQuery,
   TraceListResponse,
@@ -37,21 +38,7 @@ export class TraceQueryService {
     const from = query.from ?? new Date(to.getTime() - THIRTY_DAYS_MS);
 
     const { data, total } = await this.repo.listTraces(teamId, {
-      from,
-      to,
-      status: query.status,
-      model: query.model,
-      sessionId: query.session_id,
-      promptVersionId: query.prompt_version_id,
-      minLatencyMs: query.min_latency_ms,
-      minCostUsd: query.min_cost_usd,
-      minTokens: query.min_tokens,
-      minScore: query.min_score,
-      maxScore: query.max_score,
-      ruleId: query.rule_id,
-      q: query.q,
-      tags: query.tags,
-      metadata: query.metadata,
+      ...toTraceFilters({ ...query, from, to }),
       page: query.page,
       limit: query.limit,
     });

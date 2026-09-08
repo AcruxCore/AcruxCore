@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Button, Empty, PageSpinner } from '@/ui';
-import { useDatasets } from '@/api';
+import { Button, Empty, IconButton, PageSpinner, TrashIcon, useToast } from '@/ui';
+import { ApiError, useDatasets, useDeleteDataset } from '@/api';
+import type { Dataset } from '@/api/types';
 import { timeAgo, dateTime } from '@/lib/format';
+import { ConfirmDialog } from './ConfirmDialog';
 import { EvaluationsTabs } from './EvaluationsTabs';
 import { NewDatasetDialog } from './NewDatasetDialog';
 
@@ -15,9 +17,25 @@ import { NewDatasetDialog } from './NewDatasetDialog';
  * history for those experiments lives on the sibling Runs tab.
  */
 export function DatasetsPage() {
+  const toast = useToast();
   const { data, isLoading, isError } = useDatasets();
   const datasets = data?.data ?? [];
   const [creating, setCreating] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Dataset | null>(null);
+  // Keyed by the row awaiting confirmation: the hook is rebuilt whenever that
+  // changes, so one instance serves every row without a hook inside the loop.
+  const deleteDataset = useDeleteDataset(pendingDelete?.id ?? '');
+
+  async function handleDelete() {
+    if (!pendingDelete) return;
+    try {
+      await deleteDataset.mutateAsync();
+      setPendingDelete(null);
+      toast.success('Dataset deleted');
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'Could not delete the dataset.');
+    }
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -52,6 +70,9 @@ export function DatasetsPage() {
                 <th className="px-4 py-2.5 font-medium">Name</th>
                 <th className="px-4 py-2.5 text-right font-medium">Examples</th>
                 <th className="px-4 py-2.5 text-right font-medium">Created</th>
+                <th className="w-10 px-4 py-2.5 font-medium">
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -65,6 +86,16 @@ export function DatasetsPage() {
                   </td>
                   <td className="px-4 py-2.5 text-right font-mono">{d.exampleCount}</td>
                   <td className="px-4 py-2.5 text-right text-muted" title={dateTime(d.createdAt)}>{timeAgo(d.createdAt)}</td>
+                  <td className="px-4 py-2.5 text-right">
+                    <IconButton
+                      tone="danger"
+                      aria-label={`Delete ${d.name}`}
+                      onClick={() => setPendingDelete(d)}
+                      data-testid="dataset-row-delete"
+                    >
+                      <TrashIcon />
+                    </IconButton>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -73,6 +104,20 @@ export function DatasetsPage() {
       )}
 
       <NewDatasetDialog open={creating} onOpenChange={setCreating} />
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+        title={pendingDelete ? `Delete \u201C${pendingDelete.name}\u201D?` : 'Delete dataset?'}
+        description={
+          pendingDelete
+            ? `This dataset and its ${pendingDelete.exampleCount} example${pendingDelete.exampleCount === 1 ? '' : 's'} stop appearing anywhere. Past experiment runs against it keep their reports.`
+            : ''
+        }
+        confirmLabel="Delete dataset"
+        pending={deleteDataset.isPending}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

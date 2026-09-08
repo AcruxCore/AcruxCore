@@ -1,0 +1,19 @@
+meta {
+  name: Delete View
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/trace-views/{{savedViewId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+assert {
+  res.status: eq 204
+}

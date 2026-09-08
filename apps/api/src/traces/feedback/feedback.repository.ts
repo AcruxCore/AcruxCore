@@ -1,7 +1,21 @@
 import { Prisma } from '@prisma/client';
 import prisma from '../../shared/db/client';
 import { FeedbackRow } from '../../shared/db/schema';
-import { FeedbackBucket, FeedbackGroupBy, FeedbackSummary } from './feedback.types';
+
+/**
+ * The author join every read path carries, so the UI can name the team member
+ * behind a `developer` row instead of only its source. Null for feedback posted
+ * with a team-scoped API key or by an end user, where there is no user row.
+ */
+const CREATOR_SELECT = { creator: { select: { id: true, displayName: true, email: true } } } as const;
+
+/** A feedback row with its span reference and its author, as every read returns it. */
+export type FeedbackRowWithRelations = FeedbackRow & {
+  span: { spanRef: string } | null;
+  creator: { id: string; displayName: string | null; email: string } | null;
+};
+import { FeedbackBucket, FeedbackFilters, FeedbackGroupBy, FeedbackSummary } from './feedback.types';
+import { buildTraceConditions } from '../filters';
 
 /**
  * Data access for the `trace_feedback` table plus the trace/span lookups the
@@ -26,7 +40,7 @@ export class FeedbackRepository {
     comment: string | null;
     source: string;
     createdBy: string | null;
-  }): Promise<FeedbackRow> {
+  }): Promise<FeedbackRowWithRelations> {
     return prisma.traceFeedback.create({
       data: {
         teamId: input.teamId,
@@ -38,6 +52,7 @@ export class FeedbackRepository {
         source: input.source,
         createdBy: input.createdBy,
       },
+      include: { span: { select: { spanRef: true } }, ...CREATOR_SELECT },
     });
   }
 
@@ -51,39 +66,141 @@ export class FeedbackRepository {
   async listForTrace(
     teamId: string,
     traceId: string,
-  ): Promise<Array<FeedbackRow & { span: { spanRef: string } | null }>> {
+  ): Promise<FeedbackRowWithRelations[]> {
     return prisma.traceFeedback.findMany({
       where: { teamId, traceId },
       orderBy: { createdAt: 'desc' },
-      include: { span: { select: { spanRef: true } } },
+      include: { span: { select: { spanRef: true } }, ...CREATOR_SELECT },
     });
   }
 
   /**
-   * Lists a team's feedback newest-first across all traces, paginated — the raw
-   * feed behind the feedback visualization page (T10). Joins the span reference
-   * the same way {@link listForTrace} does.
+   * Builds the WHERE for a filtered feedback search over
+   * `trace_feedback f JOIN traces t`.
+   *
+   * The trace half comes from {@link buildTraceConditions}, so `?prompt_id=` or
+   * `?q=` mean exactly what they mean on the trace list. The date window is the
+   * one deliberate exception: it is applied to the feedback row rather than to
+   * its trace, because a critique is usually written after the run it grades.
+   *
+   * @param teamId - Isolation boundary, applied to the feedback row itself.
+   * @param filters - Resolved feedback filters.
+   * @returns One ANDed boolean expression over aliases `f` and `t`.
+   */
+  private buildFeedWhere(teamId: string, filters: FeedbackFilters): Prisma.Sql {
+    const { from, to, ...traceFilters } = filters;
+
+    const conds: Prisma.Sql[] = [
+      Prisma.sql`f.team_id = ${teamId}::uuid`,
+      ...buildTraceConditions(traceFilters, 't'),
+    ];
+
+    if (from) conds.push(Prisma.sql`f.created_at >= ${from}`);
+    if (to) conds.push(Prisma.sql`f.created_at < ${to}`);
+
+    if (filters.rating === 'up') conds.push(Prisma.sql`f.rating > 0`);
+    if (filters.rating === 'down') conds.push(Prisma.sql`f.rating < 0`);
+    if (filters.rating === 'none') conds.push(Prisma.sql`f.rating IS NULL`);
+
+    if (filters.source) conds.push(Prisma.sql`f.source = ${filters.source}`);
+    if (filters.label) conds.push(Prisma.sql`f.label = ${filters.label}`);
+
+    if (filters.hasComment === true) conds.push(Prisma.sql`f.comment IS NOT NULL`);
+    if (filters.hasComment === false) conds.push(Prisma.sql`f.comment IS NULL`);
+
+    return Prisma.join(conds, ' AND ');
+  }
+
+  /**
+   * Returns the ids of a team's feedback rows matching `filters`, newest-first.
+   *
+   * Kept separate from {@link listForTeam} because the dataset builders need
+   * "which rows does this criteria select" without a page of hydrated DTOs.
    *
    * @param teamId - Isolation boundary.
+   * @param filters - Resolved feedback filters.
+   * @param limit - Hard ceiling on how many ids to return.
+   * @returns `ids` (newest-first, at most `limit`) and `total`, the full match
+   *   count — so a caller can tell the user their criteria selected more than
+   *   one request can process.
+   */
+  async listIdsForTeam(
+    teamId: string,
+    filters: FeedbackFilters,
+    limit: number,
+  ): Promise<{ ids: string[]; total: number }> {
+    const where = this.buildFeedWhere(teamId, filters);
+
+    const [rows, totalRows] = await Promise.all([
+      prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+        SELECT f.id FROM trace_feedback f JOIN traces t ON t.id = f.trace_id
+        WHERE ${where}
+        ORDER BY f.created_at DESC, f.id DESC
+        LIMIT ${limit}
+      `),
+      prisma.$queryRaw<{ total: number }[]>(Prisma.sql`
+        SELECT COUNT(*)::int AS "total" FROM trace_feedback f JOIN traces t ON t.id = f.trace_id
+        WHERE ${where}
+      `),
+    ]);
+
+    return { ids: rows.map((r) => r.id), total: totalRows[0].total };
+  }
+
+  /**
+   * Lists a team's feedback newest-first across all traces, filtered and
+   * paginated — the raw feed behind the feedback visualization page (T10) and
+   * the dataset "add rows" dialog. Joins the span reference the same way
+   * {@link listForTrace} does.
+   *
+   * Two queries by design: a raw one selects the page's ids (the filters reach
+   * into `traces`, `spans` and `span_payloads`, which the Prisma query builder
+   * cannot express as one readable expression), then the existing `findMany`
+   * hydrates them with their span and creator joins so the DTO shape is
+   * untouched. Postgres does not promise to preserve the `IN` order, so the
+   * newest-first order is restored from the id list rather than assumed.
+   *
+   * @param teamId - Isolation boundary.
+   * @param filters - Resolved feedback filters (all optional).
    * @param page - 1-based page.
    * @param limit - Page size (already capped upstream).
    */
   async listForTeam(
     teamId: string,
+    filters: FeedbackFilters,
     page: number,
     limit: number,
-  ): Promise<{ data: Array<FeedbackRow & { span: { spanRef: string } | null }>; total: number }> {
-    const [data, total] = await Promise.all([
-      prisma.traceFeedback.findMany({
-        where: { teamId },
-        orderBy: { createdAt: 'desc' },
-        include: { span: { select: { spanRef: true } } },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      prisma.traceFeedback.count({ where: { teamId } }),
+  ): Promise<{ data: FeedbackRowWithRelations[]; total: number }> {
+    const where = this.buildFeedWhere(teamId, filters);
+    const offset = (page - 1) * limit;
+
+    const [idRows, totalRows] = await Promise.all([
+      prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+        SELECT f.id FROM trace_feedback f JOIN traces t ON t.id = f.trace_id
+        WHERE ${where}
+        ORDER BY f.created_at DESC, f.id DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `),
+      prisma.$queryRaw<{ total: number }[]>(Prisma.sql`
+        SELECT COUNT(*)::int AS "total" FROM trace_feedback f JOIN traces t ON t.id = f.trace_id
+        WHERE ${where}
+      `),
     ]);
-    return { data, total };
+
+    const ids = idRows.map((r) => r.id);
+    if (ids.length === 0) return { data: [], total: totalRows[0].total };
+
+    const rows = await prisma.traceFeedback.findMany({
+      where: { id: { in: ids }, teamId },
+      include: { span: { select: { spanRef: true } }, ...CREATOR_SELECT },
+    });
+
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const data = ids
+      .map((id) => byId.get(id))
+      .filter((r): r is FeedbackRowWithRelations => r !== undefined);
+
+    return { data, total: totalRows[0].total };
   }
 
   /**
@@ -98,10 +215,10 @@ export class FeedbackRepository {
     teamId: string,
     traceId: string,
     id: string,
-  ): Promise<(FeedbackRow & { span: { spanRef: string } | null }) | null> {
+  ): Promise<FeedbackRowWithRelations | null> {
     return prisma.traceFeedback.findFirst({
       where: { id, teamId, traceId },
-      include: { span: { select: { spanRef: true } } },
+      include: { span: { select: { spanRef: true } }, ...CREATOR_SELECT },
     });
   }
 
@@ -115,10 +232,11 @@ export class FeedbackRepository {
   async update(
     id: string,
     data: { rating: number | null; label: string | null; comment: string | null },
-  ): Promise<FeedbackRow> {
+  ): Promise<FeedbackRowWithRelations> {
     return prisma.traceFeedback.update({
       where: { id },
       data: { rating: data.rating, label: data.label, comment: data.comment },
+      include: { span: { select: { spanRef: true } }, ...CREATOR_SELECT },
     });
   }
 

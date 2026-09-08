@@ -41,17 +41,26 @@ const INSTRUMENTOR_REGISTRY = {
     instrumentationPackage: '@arizeai/openinference-instrumentation-openai-agents',
     className: 'OpenAIAgentsInstrumentation',
   },
+  langchain: {
+    // Not the top-level `langchain` package: LangChain.js's instrumentor patches
+    // `CallbackManager` on this submodule, so this is the exact object its
+    // `manuallyInstrument()` expects. Instrumenting the callback manager covers
+    // LangGraph and every LangChain integration package too — they all route their
+    // chain, LLM, tool and retriever callbacks through it.
+    frameworkPackage: '@langchain/core/callbacks/manager',
+    instrumentationPackage: '@arizeai/openinference-instrumentation-langchain',
+    className: 'LangChainInstrumentation',
+  },
 } as const satisfies Record<string, InstrumentorEntry>;
 
 /**
  * Framework names accepted by `register({ instrument: [...] })`, sorted for display.
  *
- * Shorter than the Python SDK's list by design: LangChain.js's OpenInference
- * instrumentor patches `@langchain/core/callbacks/manager` rather than the top-level
- * package, and LlamaIndex.TS's `@arizeai/openinference-instrumentation-llama-index` is
- * an empty placeholder as of `0.0.12` — neither has a stable wiring to hardcode yet.
- * Both frameworks still work with {@link register}'s bare pipeline plus their own
- * hand-wired instrumentor, the same as any framework outside this list.
+ * Still shorter than the Python SDK's list: LlamaIndex.TS's
+ * `@arizeai/openinference-instrumentation-llama-index` is an empty placeholder as of
+ * `0.0.12`, so there is no stable wiring to hardcode. It still works with
+ * {@link register}'s bare pipeline plus its own hand-wired instrumentor, the same as
+ * any framework outside this list.
  */
 export const SUPPORTED_FRAMEWORKS = Object.keys(INSTRUMENTOR_REGISTRY).sort() as SupportedFramework[];
 

@@ -12,6 +12,7 @@ import {
 } from '@/api';
 import type { Experiment } from '@/api';
 import { Button, Empty, Field, Input, PageSpinner, Select } from '@/ui';
+import { ModelCheckboxList } from './ModelCheckboxList';
 
 /** Toggles membership of `id` in a `Set`, returning a new set (never mutates in place). */
 function toggled(set: Set<string>, id: string, checked: boolean): Set<string> {
@@ -209,23 +210,13 @@ export function ExperimentConfigPage() {
           ) : (gatewayModels.data ?? []).length === 0 ? (
             <Empty title="No models registered" description="Register a model under Gateway → Models first." />
           ) : (
-            <ul className="flex flex-col gap-1.5 rounded-md border border-line-soft bg-elevated p-2.5" data-testid="model-checkboxes">
-              {(gatewayModels.data ?? []).map((m) => (
-                <li key={m.id} className="flex items-center gap-2 text-[13px]">
-                  <input
-                    type="checkbox"
-                    id={`model-${m.id}`}
-                    checked={models.has(m.publicName)}
-                    onChange={(e) => setModels((cur) => toggled(cur, m.publicName, e.target.checked))}
-                    className="h-4 w-4 accent-varhi"
-                  />
-                  <label htmlFor={`model-${m.id}`} className="flex-1 cursor-pointer">
-                    <span className="font-mono">{m.publicName}</span>
-                    <span className="ml-2 text-[12px] text-faint">{m.provider}</span>
-                  </label>
-                </li>
-              ))}
-            </ul>
+            <ModelCheckboxList
+              models={gatewayModels.data ?? []}
+              selected={models}
+              onToggle={(publicName, checked) => setModels((cur) => toggled(cur, publicName, checked))}
+              idPrefix="model"
+              data-testid="model-checkboxes"
+            />
           )}
         </Field>
 

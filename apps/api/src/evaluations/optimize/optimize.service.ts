@@ -8,13 +8,17 @@ import { OptimizeRepository } from './optimize.repository';
 import { VersionsService } from '../../prompts/versions/versions.service';
 import { AliasesService } from '../../prompts/aliases/aliases.service';
 import { getOptimizeQueue, type OptimizeJobData } from '../queue';
-import { NotFoundError, UnprocessableError } from '../../shared/errors';
+import { ModelsRepository } from '../../gateway/models/models.repository';
+import { NotFoundError, UnprocessableError, ValidationError } from '../../shared/errors';
 import type { ExperimentConfig } from '../experiments/experiments.types';
 import type { RunSnapshotExample } from '../runs/runs.types';
 import type { StartOptimizeDto, PromoteCandidateDto, CandidateDetail } from './optimize.types';
 import type { VersionDetail } from '../../prompts/versions/versions.types';
 import type { AliasDetail } from '../../prompts/aliases/aliases.types';
 import type { PromptMismatchWarning } from '../datasets/datasets.types';
+
+/** Shared, stateless — mirrors how `OnlineEvalRuleService` reaches the model registry. */
+const modelsRepo = new ModelsRepository();
 
 /** Default number of candidate rewrites requested when `draft_count` is omitted. */
 const DEFAULT_DRAFT_COUNT = 3;
@@ -26,6 +30,12 @@ const MAX_DRAFT_COUNT = 6;
 export interface StartOptimizeResult {
   runId: string;
   status: string;
+  /**
+   * The model that will do the rewriting, echoed back because it is usually
+   * defaulted rather than sent — a caller should not have to guess which model
+   * it is about to be billed for.
+   */
+  optimizerModel: string;
   promptMismatchWarning?: PromptMismatchWarning;
 }
 
@@ -74,6 +84,8 @@ export class OptimizeService {
    * @param dto - Validated payload: dataset id, models to sweep, optional draft_count.
    * @returns The created run's id and its initial `queued` status.
    * @throws {UnprocessableError} If `draft_count` exceeds {@link MAX_DRAFT_COUNT}.
+   * @throws {ValidationError} If the resolved optimizer model is not registered
+   *   for this team.
    * @throws {NotFoundError} If the prompt or dataset does not resolve for this team.
    */
   async startOptimize(
@@ -87,11 +99,36 @@ export class OptimizeService {
       throw new UnprocessableError(`draft_count must be at most ${MAX_DRAFT_COUNT}.`);
     }
 
+    // A custom optimizer prompt is just another of the team's prompts, so the
+    // same team-scoped lookup that guards `promptId` guards this one.
+    if (dto.optimizer_prompt_id) {
+      const optimizerPrompt = await this.promptsRepo.findById(dto.optimizer_prompt_id, teamId);
+      if (!optimizerPrompt) throw new NotFoundError('Optimizer prompt not found.');
+    }
+
     const prompt = await this.promptsRepo.findById(promptId, teamId);
     if (!prompt) throw new NotFoundError('Prompt not found.');
 
     const dataset = await this.datasetsRepo.getDatasetById(teamId, dto.dataset_id);
     if (!dataset) throw new NotFoundError('Dataset not found.');
+
+    // Which model writes the candidates. Defaulting to the first swept model is
+    // what makes this safe without configuration: those are the team's own
+    // registered names, so the default is always a model they hold keys for.
+    // The previous default was a deployment-wide env var (`gpt-4o-mini`), which
+    // failed for any team that had not registered that exact public name — and
+    // failed inside the worker, after the run row already existed.
+    //
+    // Checked AFTER the prompt/dataset lookups on purpose: a caller probing
+    // another team's prompt id must get the same 404 they always did, not a
+    // 400 about their own model registry.
+    const optimizerModel = dto.optimizer_model ?? dto.models[0];
+    const registered = await modelsRepo.findByPublicName(teamId, optimizerModel);
+    if (!registered) {
+      throw new ValidationError(
+        `Model '${optimizerModel}' is not registered. Add it under Gateway → Models.`,
+      );
+    }
 
     const promptMismatchWarning = await new DatasetsService(this.datasetsRepo).checkPromptMismatch(
       dataset.examples,
@@ -140,6 +177,8 @@ export class OptimizeService {
       runId: run.id,
       datasetId: dto.dataset_id,
       models: dto.models,
+      optimizerModel,
+      ...(dto.optimizer_prompt_id ? { optimizerPromptId: dto.optimizer_prompt_id } : {}),
       alias: dto.alias,
       draftCount,
     };
@@ -151,7 +190,12 @@ export class OptimizeService {
     // write), so job-level retries are neither needed nor safe here.
     await getOptimizeQueue().add('optimize', jobData);
 
-    return { runId: run.id, status: 'queued', ...(promptMismatchWarning ? { promptMismatchWarning } : {}) };
+    return {
+      runId: run.id,
+      status: 'queued',
+      optimizerModel,
+      ...(promptMismatchWarning ? { promptMismatchWarning } : {}),
+    };
   }
 
   /**

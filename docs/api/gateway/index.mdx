@@ -458,6 +458,72 @@ Sending `prompt_version_id` alongside `prompt` is allowed and ignored: the
 reference renders here, so the gateway already knows the exact version it used.
 Neither field ever reaches the provider.
 
+#### Send `variables` with it
+
+Add the values you rendered with as a top-level `variables` object. They are
+**not** re-rendered — you already rendered, and a second pass could rewrite model
+or user text that happens to contain `{{` — but they are stored on the `llm` span
+as the run's replay lineage. An evaluation dataset example *is* those variables,
+so a client-rendered run that omits them can never seed one.
+
+This is the shape to use when the stored version has no placeholders at all — a
+fixed system message with the user turn composed by your app:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "model": "gpt-4o-mini",
+        "messages": [
+          {"role": "system", "content": "You are a terse support agent. Answer in one sentence."},
+          {"role": "user", "content": "How do I rotate an API key?"}
+        ],
+        "prompt_version_id": "792cf7a8-d061-4b2f-82a9-f9ad3200eb3b",
+        "variables": {"question": "How do I rotate an API key?"}
+      }'
+```
+
+Response (status 200):
+
+```json
+{
+  "id": "chatcmpl-ELkmu7PgavkoKukav8n0B6pGAXGVE",
+  "model": "gpt-4o-mini-2024-07-18",
+  "object": "chat.completion",
+  "created": 1788853448,
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "To rotate an API key, generate a new key in your API management console and update your applications to use it while deactivating the old key after verification."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": { "prompt_tokens": 31, "completion_tokens": 32, "total_tokens": 63 }
+}
+```
+
+The span that call wrote carries both halves. From `GET /traces/:id`, the fields
+that matter here (the full span also carries timings, tokens and cost):
+
+```json
+{
+  "spanId": "90244880-496e-4021-90d6-8e4bd0aac682",
+  "kind": "llm",
+  "promptVersionId": "792cf7a8-d061-4b2f-82a9-f9ad3200eb3b",
+  "payload": {
+    "variables": { "question": "How do I rotate an API key?" }
+  }
+}
+```
+
+Feedback on that trace can then become a
+[dataset example](../datasets.mdx). Without `variables` the build skips the row
+with *"no prompt variables were captured"*.
+
 The SDKs fill all of this in for you — `gateway.runPromptWithTools(rendered)` /
 `gateway.run_prompt_with_tools(rendered)` derive the model, messages, refs and
 version id from one render result. See

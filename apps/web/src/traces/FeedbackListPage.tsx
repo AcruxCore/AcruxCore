@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { Button, Empty, PageSpinner, Select } from '@/ui';
 import { useFeedbackFeed, useFeedbackSummary } from '@/api';
 import { CreateDatasetDialog, ImproveFromFeedbackDialog } from '@/evaluations';
-import { SOURCE_LABELS } from './format';
+import { feedbackByline } from './format';
+import { FilterBar, useUrlFilterState } from './filter-bar';
 import { timeAgo } from '@/lib/format';
 import type { FeedbackGroupBy } from '@/api/types';
 
@@ -83,10 +84,21 @@ export function FeedbackListPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [datasetDialogOpen, setDatasetDialogOpen] = useState(false);
   const [improveDialogOpen, setImproveDialogOpen] = useState(false);
+  const [filters, setFiltersInUrl] = useUrlFilterState();
   const summary = useFeedbackSummary({ groupBy });
-  const feed = useFeedbackFeed({ page, limit: LIMIT });
+  const feed = useFeedbackFeed({ ...filters, page, limit: LIMIT });
+
+  // A filter change means a different result set, so page 4 of the old one is
+  // meaningless — and a selection made under the old filters is no longer
+  // something the person can see or check.
+  const setFilters = (next: typeof filters) => {
+    setFiltersInUrl(next);
+    setPage(1);
+    setSelected(new Set());
+  };
 
   const totalPages = feed.data ? Math.max(1, Math.ceil(feed.data.total / LIMIT)) : 1;
+  const hasFilters = Object.keys(filters).length > 0;
   const pageIds = feed.data ? feed.data.data.map((f) => f.id) : [];
 
   function toggleRow(id: string, checked: boolean) {
@@ -152,21 +164,34 @@ export function FeedbackListPage() {
       </section>
 
       <section className="rounded-xl border border-line bg-surface p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-[15px] font-semibold">All feedback</h2>
-          {feed.data && feed.data.data.length > 0 && (
-            <label className="flex items-center gap-2 text-[12px] text-muted">
-              <SelectAllCheckbox ids={pageIds} selected={selected} onToggle={toggleAllOnPage} />
-              Select all on page
-            </label>
-          )}
+        <div className="mb-3 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[15px] font-semibold">All feedback</h2>
+            {feed.data && feed.data.data.length > 0 && (
+              <label className="flex items-center gap-2 text-[12px] text-muted">
+                <SelectAllCheckbox ids={pageIds} selected={selected} onToggle={toggleAllOnPage} />
+                Select all on page
+              </label>
+            )}
+          </div>
+          {/* The same bar as the trace list, so "thumbs-down on the checkout
+              prompt with a comment" is a filter here too, and the selection
+              below can be a whole filtered set rather than hand-ticked rows. */}
+          <FilterBar value={filters} onChange={setFilters} surface="feedback" />
         </div>
         {feed.isLoading ? (
           <PageSpinner />
         ) : feed.isError || !feed.data ? (
           <Empty title="Couldn’t load feedback" description="Something went wrong. Try again." />
         ) : feed.data.data.length === 0 ? (
-          <Empty title="No feedback yet" description="Feedback posted on any trace or span will show up here." />
+          <Empty
+            title={hasFilters ? 'No feedback matches these filters' : 'No feedback yet'}
+            description={
+              hasFilters
+                ? 'Clear a filter, or widen the date range.'
+                : 'Feedback posted on any trace or span will show up here.'
+            }
+          />
         ) : (
           <>
             <ul className="flex flex-col gap-2" data-testid="feedback-feed">
@@ -193,8 +218,8 @@ export function FeedbackListPage() {
                     trace: {f.traceId.slice(0, 8)}
                   </Link>
                   {f.spanId && <span className="rounded border border-line-soft px-1.5 py-0.5 font-mono text-[11px] text-muted">span: {f.spanId}</span>}
-                  <span className="ml-auto text-[11px] text-faint">
-                    {SOURCE_LABELS[f.source] ?? f.source} · {timeAgo(f.createdAt)}
+                  <span className="ml-auto text-[11px] text-faint" title={f.author?.email}>
+                    {feedbackByline(f.source, f.author)} · {timeAgo(f.createdAt)}
                   </span>
                 </li>
               ))}

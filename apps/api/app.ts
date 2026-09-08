@@ -35,6 +35,7 @@ import { ingestRouter } from './src/traces/ingest';
 import { otlpRouter } from './src/traces/ingest/otlp';
 import { sessionsRouter } from './src/traces/sessions';
 import { traceQueryRouter, promptTracesRouter } from './src/traces/query';
+import { viewsRouter } from './src/traces/views';
 import { feedbackRouter } from './src/traces/feedback';
 import evaluationsRouter from './src/evaluations/evaluations.router';
 import { notificationsRouter } from './src/notifications';
@@ -163,6 +164,9 @@ export function createApp(): express.Application {
   // ahead of `express.json()`; see the body-parsing note there.
   // Traces — sessions (Phase 3 T3): GET /api/v1/sessions, /sessions/:id
   app.use('/api/v1/sessions', sessionsRouter);
+  // Saved filter views for the trace and feedback lists: /api/v1/trace-views.
+  // A sibling of /traces rather than a child, so it never races /traces/:id.
+  app.use('/api/v1', viewsRouter);
   // Traces — user feedback (T6): /api/v1/traces/:id/feedback, /traces/feedback/summary.
   // MUST be mounted BEFORE the T4 traces query router so /traces/feedback/summary
   // is not swallowed by /traces/:id. (Deviates from conventions §5's single

@@ -48,8 +48,8 @@ const CANNED_CELL_OPENAI = {
   usage: { prompt_tokens: 12, completion_tokens: 4, total_tokens: 16 },
 };
 
-function mockFetchOnce(body: unknown, ok = true, status = 200): void {
-  jest.spyOn(global, 'fetch').mockResolvedValue({
+function mockFetchOnce(body: unknown, ok = true, status = 200): jest.SpyInstance {
+  return jest.spyOn(global, 'fetch').mockResolvedValue({
     ok,
     status,
     json: async () => body,
@@ -321,6 +321,162 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
     expect(runRow!.error).toContain('optimizer produced no valid candidates');
     expect(runRow!.error).toContain('candidate 1: template does not parse');
     expect(runRow!.endedAt).not.toBeNull();
+  });
+
+  it('rejects an optimizer_model the team has not registered, naming where to add it', async () => {
+    const { agent } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agent);
+
+    const res = await agent
+      .post(`/api/v1/prompts/${promptId}/optimize`)
+      .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], optimizer_model: 'not-registered-anywhere' })
+      .expect(400);
+
+    expect(res.body.error.message).toContain("not-registered-anywhere");
+    expect(res.body.error.message).toContain('Gateway');
+    // Nothing was started: an unusable optimizer model must fail before a run exists.
+    expect(await prisma.experimentRun.count()).toBe(0);
+  });
+
+  it('defaults the optimizer model to the first swept model, which is registered by construction', async () => {
+    const { agent } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agent);
+
+    const run = (
+      await agent
+        .post(`/api/v1/prompts/${promptId}/optimize`)
+        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'] })
+        .expect(202)
+    ).body;
+
+    expect(run.optimizer_model).toBe('gpt-4o-mini');
+  });
+
+  it('uses the requested optimizer_model for the drafting call, not the swept model', async () => {
+    const { agent, teamId, userId } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agent);
+
+    // A second registered model, so the optimizer and the sweep can differ.
+    const credId = (
+      await agent
+        .post('/api/v1/gateway/connections')
+        .send({ provider: 'openai', label: 'openai 2', apiKey: 'sk-test-abcdAB12', config: {} })
+        .expect(201)
+    ).body.id;
+    await agent
+      .post('/api/v1/gateway/models')
+      .send({ publicName: 'gpt-4o', upstreamModel: 'gpt-4o', credentialId: credId })
+      .expect(201);
+
+    const run = (
+      await agent
+        .post(`/api/v1/prompts/${promptId}/optimize`)
+        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], optimizer_model: 'gpt-4o', draft_count: 1 })
+        .expect(202)
+    ).body;
+    expect(run.optimizer_model).toBe('gpt-4o');
+
+    const spy = mockFetchOnce(
+      cannedOptimizer([
+        { messages: [{ role: 'system', content: 'Answer about {{ name }} plainly' }], rationale: 'plain' },
+      ]),
+    );
+
+    const runRow = await prisma.experimentRun.findUnique({ where: { id: run.run_id } });
+    await processOptimize({
+      teamId,
+      userId,
+      promptId,
+      experimentId: runRow!.experimentId,
+      runId: run.run_id,
+      datasetId,
+      models: ['gpt-4o-mini'],
+      optimizerModel: 'gpt-4o',
+      draftCount: 1,
+    });
+
+    // The drafting call is the one that must carry the optimizer model.
+    const body = JSON.parse((spy.mock.calls[0][1] as { body: string }).body);
+    expect(body.model).toBe('gpt-4o');
+  });
+
+  it('a team optimizer prompt replaces the built-in instructions but never the data message or the JSON contract', async () => {
+    const { agent, teamId, userId } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agent);
+
+    const optimizerPrompt = (
+      await agent.post('/api/v1/prompts').send({ name: 'house-optimizer' }).expect(201)
+    ).body;
+    await agent
+      .post(`/api/v1/prompts/${optimizerPrompt.id}/versions`)
+      .send({
+        messages: [
+          { role: 'system', content: 'Rewrite in our house style. Never exceed {{ draftCount }} options.' },
+        ],
+      })
+      .expect(201);
+    await agent
+      .post(`/api/v1/prompts/${optimizerPrompt.id}/aliases/production/promote`)
+      .send({ version_number: 1 })
+      .expect(200);
+
+    const run = (
+      await agent
+        .post(`/api/v1/prompts/${promptId}/optimize`)
+        .send({
+          dataset_id: datasetId,
+          models: ['gpt-4o-mini'],
+          optimizer_prompt_id: optimizerPrompt.id,
+          draft_count: 2,
+        })
+        .expect(202)
+    ).body;
+
+    const spy = mockFetchOnce(
+      cannedOptimizer([
+        { messages: [{ role: 'system', content: 'House style about {{ name }}' }], rationale: 'house' },
+      ]),
+    );
+
+    const runRow = await prisma.experimentRun.findUnique({ where: { id: run.run_id } });
+    await processOptimize({
+      teamId,
+      userId,
+      promptId,
+      experimentId: runRow!.experimentId,
+      runId: run.run_id,
+      datasetId,
+      models: ['gpt-4o-mini'],
+      optimizerModel: 'gpt-4o-mini',
+      optimizerPromptId: optimizerPrompt.id,
+      draftCount: 2,
+    });
+
+    const sent = JSON.parse((spy.mock.calls[0][1] as { body: string }).body).messages;
+    const joined = sent.map((m: { content: string }) => m.content).join('\n');
+
+    // The team's instructions are in, rendered.
+    expect(joined).toContain('Rewrite in our house style');
+    expect(joined).toContain('Never exceed 2 options');
+    // The built-in instructions are out.
+    expect(joined).not.toContain('You are an expert prompt engineer');
+    // The untrusted-data isolation and the parser's contract are NOT optional.
+    expect(joined).toContain('<<<PRODUCTION_TEMPLATE_START>>>');
+    expect(joined).toContain('COMPLETE message array');
+    expect(sent[sent.length - 1].role).toBe('system');
+    expect(sent[sent.length - 1].content).toContain('Return AT MOST 2 candidates');
+  });
+
+  it('404s for an optimizer prompt belonging to another team', async () => {
+    const { agent: agentA } = await authedAgent(app);
+    const { agent: agentB } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agentB);
+    const foreign = (await agentA.post('/api/v1/prompts').send({ name: 'theirs' }).expect(201)).body;
+
+    await agentB
+      .post(`/api/v1/prompts/${promptId}/optimize`)
+      .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], optimizer_prompt_id: foreign.id })
+      .expect(404);
   });
 
   it('draft_count above the hard cap (6) is rejected with a 422', async () => {

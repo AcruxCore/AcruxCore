@@ -512,6 +512,21 @@ Newest-first, paginated (`page`/`limit`, `limit` capped at 100 like other list
 endpoints). Same row shape as the other feedback endpoints; `spanId` is the
 OTel ref (null for whole-trace feedback).
 
+**Filters.** Every filter on [`GET /api/v1/traces`](./index.mdx) applies here
+and describes the feedback row's trace — `prompt_id`, `tags`, `metadata[key]`,
+`q`, `q_in`, `model`, `status`, `session_id`, and the score bounds. Four
+filters are specific to the feedback row itself:
+
+- `rating` — `up` (rating above 0), `down` (below 0), or `none` (no rating).
+- `source` — `user`, `developer`, `end_user`, or `api`.
+- `label` — exact match.
+- `has_comment` — `true` for rows carrying a written critique, `false` for rows
+  without one.
+
+One exception to the shared vocabulary: `from`/`to` window the **feedback
+row's** timestamp, not its trace's, because a critique is often written days
+after the run it grades. There is no default window here.
+
 ```bash
 curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   "$ACRUXCORE_BASE_URL/traces/feedback?limit=2"
@@ -553,6 +568,46 @@ this page shows the 2 newest:
   "limit": 2
 }
 ```
+
+#### Filtering the feed
+
+Thumbs-down rows that carry a written comment — the shape worth turning into
+evaluation data, since the comment becomes the example's judge criteria:
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces/feedback?rating=down&has_comment=true&limit=1"
+```
+
+Response (status 200) — `total` counts the filtered set, not the whole feed:
+
+```json
+{
+  "data": [
+    {
+      "id": "5c9baf1d-3a51-4e38-8dab-76de04ebf8c7",
+      "traceId": "faa16a20-9a25-48b1-9396-e9b4720b0666",
+      "spanId": null,
+      "rating": -1,
+      "label": "test",
+      "comment": "test",
+      "source": "developer",
+      "createdBy": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+      "author": {
+        "id": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+        "name": "Demo",
+        "email": "demo@acruxcore.com"
+      },
+      "createdAt": "2026-09-07T19:24:52.773Z",
+      "updatedAt": "2026-09-07T19:25:04.214Z"
+    }
+  ],
+  "total": 4,
+  "page": 1,
+  "limit": 1
+}
+```
+
 
 No Authorization header (status 401):
 

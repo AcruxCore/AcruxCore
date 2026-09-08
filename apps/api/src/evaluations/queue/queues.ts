@@ -130,6 +130,20 @@ export interface OptimizeJobData {
   /** Models to run each candidate + the production baseline against. */
   models: string[];
   /**
+   * The model that does the rewriting — a team-registered
+   * `GatewayModel.publicName`, resolved and validated in `startOptimize`.
+   *
+   * Distinct from `models`, which is what the resulting candidates are *tested*
+   * on. Optional only so a job enqueued before this field existed still runs;
+   * `processOptimize` falls back to the legacy env default for those.
+   */
+  optimizerModel?: string;
+  /**
+   * Team Prompt supplying the optimizer's instructions, or undefined for the
+   * built-in ones. Validated as team-owned in `startOptimize`.
+   */
+  optimizerPromptId?: string;
+  /**
    * Alias whose version is the comparison baseline, or undefined to use the
    * prompt's latest committed version (design "Alias-based baseline").
    */

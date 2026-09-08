@@ -98,6 +98,52 @@ async def test_render_prompt_basic_and_auth():
     assert seen["body"] == {"variables": {"name": "Alice"}}
 
 
+async def test_render_prompt_echoes_the_variables_it_rendered_with():
+    """The render endpoint does not return them and does not need to — the SDK was handed
+    them. Without this a caller holding only a RenderResult has no way to send the lineage
+    an evaluation dataset example is built from."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"messages": [{"role": "system", "content": "Hi"}]})
+
+    async with make_client(handler) as c:
+        result = await c.prompts.render("greeting", "production", {"name": "Alice"})
+    assert result.variables == {"name": "Alice"}
+
+
+async def test_render_prompt_echoes_an_empty_dict_when_called_with_no_variables():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"messages": []})
+
+    async with make_client(handler) as c:
+        result = await c.prompts.render("greeting", "production")
+    assert result.variables == {}
+
+
+async def test_chat_sends_variables_alongside_prompt_version_id():
+    seen: Dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = body_of(request)
+        return httpx.Response(200, json={
+            "id": "chatcmpl-1",
+            "model": "gpt-4o-mini",
+            "choices": [
+                {"index": 0, "message": {"role": "assistant", "content": "Hi"}, "finish_reason": "stop"}
+            ],
+        })
+
+    async with make_client(handler) as c:
+        await c.gateway.chat(
+            "gpt-4o-mini",
+            [{"role": "user", "content": "Say hi to Alice"}],
+            prompt_version_id="ver-9",
+            variables={"name": "Alice"},
+        )
+
+    assert seen["body"]["prompt_version_id"] == "ver-9"
+    assert seen["body"]["variables"] == {"name": "Alice"}
+
+
 async def test_render_prompt_returns_bound_model():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"messages": [{"role": "system", "content": "x"}], "model": "gpt-4o-mini"})

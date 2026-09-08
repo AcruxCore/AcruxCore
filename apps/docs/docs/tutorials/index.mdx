@@ -46,7 +46,7 @@ The hardest two. Both build on everything above and add either multi-agent orche
 - **[Build a supervisor multi-agent system](/docs/tutorials/build-a-supervisor-multi-agent-system)** — a router that classifies a request and hands it to one of three specialist subagents, all in one trace. Introduces: the **supervisor/router** pattern, multi-agent hand-off, `response_format` used for the routing decision itself, and the `@acrux.tool` decorator.
 - **[Build a Medical-Information QA agent](/docs/tutorials/build-a-medical-information-qa-agent)** — a typed, cited, policy-aware agent that refuses off-label questions and escalates adverse events, with every answer forced into one JSON shape. Introduces: `response_format` for a **typed answer**, citations, refusal/escalation policy, and mixed code/dashboard tool-description ownership. Fully keyless.
 
-## Already building with CrewAI or the OpenAI Agents SDK?
+## Already building with LangChain, CrewAI or the OpenAI Agents SDK?
 
 The eight tutorials above all build the agent loop on top of AcruxCore's own gateway or SDK.
 If you're instead using a framework that has its **own** agents and its own way of tracing
@@ -57,6 +57,7 @@ already-working app at AcruxCore is an environment-variable change:
 
 - **[Trace a CrewAI Trip-Planning Crew](/docs/tutorials/trace-a-crewai-trip-planner)** — a Researcher + Planner crew with a real web-search tool, run twice in one conversation.
 - **[Trace an OpenAI Agents SDK Support-Triage System](/docs/tutorials/trace-an-openai-agents-sdk-triage-system)** — a Triage agent that hands off to a Billing or Tech Support specialist.
+- **[Trace a LangChain Research Agent](/docs/tutorials/trace-a-langchain-research-agent)** — a two-tool research agent, in Python **and** Node, with a failing tool to show what a degraded run looks like.
 
 ## How they compare
 

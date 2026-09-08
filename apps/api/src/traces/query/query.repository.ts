@@ -1,6 +1,7 @@
 import prisma from '../../shared/db/client';
 import { Prisma } from '@prisma/client';
-import type { TraceFilters, TraceListItem } from './query.types';
+import type { TraceListFilters, TraceListItem } from './query.types';
+import { buildTraceConditions } from '../filters';
 import type { TraceRow, SpanRow, SpanPayloadRow } from '../../shared/db/schema';
 
 /** Raw row shape returned by the list query before Date→ISO mapping. */
@@ -87,14 +88,12 @@ export class TraceQueryRepository {
   }
 
   /**
-   * Lists traces newest-first with optional filters. `from`/`to` window
-   * `created_at` as `[from, to)`. Span-level filters (`model`, `promptVersionId`,
-   * the span half of `q`) use EXISTS sub-queries so each trace appears once.
-   * Tags/metadata (T8) filter the trace row directly via GIN-indexed containment
-   * (@>), independent of the span-level q filter. `ruleId`/`minScore`/`maxScore`
-   * (online eval) each add their own `EXISTS (SELECT 1 FROM eval_rule_scores …)`
-   * sub-query over `trace_id`, so a trace with multiple scored spans still
-   * appears once.
+   * Lists traces newest-first with optional filters.
+   *
+   * Every condition beyond team scope comes from {@link buildTraceConditions},
+   * the one filter definition this endpoint shares with the feedback feed and
+   * the dataset builders — so `?prompt_id=` means the same thing everywhere,
+   * and a filter is never added to one surface and forgotten on another.
    *
    * @param teamId - Team scope.
    * @param filters - Resolved (camelCase) filters incl. page/limit.
@@ -102,62 +101,12 @@ export class TraceQueryRepository {
    */
   async listTraces(
     teamId: string,
-    filters: TraceFilters,
+    filters: TraceListFilters,
   ): Promise<{ data: TraceListItem[]; total: number }> {
-    const conds: Prisma.Sql[] = [Prisma.sql`t.team_id = ${teamId}::uuid`];
-
-    if (filters.from) conds.push(Prisma.sql`t.created_at >= ${filters.from}`);
-    if (filters.to) conds.push(Prisma.sql`t.created_at < ${filters.to}`);
-    if (filters.status) conds.push(Prisma.sql`t.status = ${filters.status}::span_status`);
-    if (filters.sessionId) conds.push(Prisma.sql`t.session_id = ${filters.sessionId}`);
-    if (filters.model) {
-      conds.push(
-        Prisma.sql`EXISTS (SELECT 1 FROM spans s WHERE s.trace_id = t.id AND s.model = ${filters.model})`,
-      );
-    }
-    if (filters.promptVersionId) {
-      conds.push(
-        Prisma.sql`EXISTS (SELECT 1 FROM spans s WHERE s.trace_id = t.id AND s.prompt_version_id = ${filters.promptVersionId}::uuid)`,
-      );
-    }
-    if (filters.minCostUsd !== undefined) {
-      conds.push(Prisma.sql`t.total_cost_usd >= ${filters.minCostUsd}`);
-    }
-    if (filters.minTokens !== undefined) {
-      conds.push(Prisma.sql`t.total_tokens >= ${filters.minTokens}`);
-    }
-    if (filters.minLatencyMs !== undefined) {
-      conds.push(
-        Prisma.sql`(t.ended_at IS NOT NULL AND EXTRACT(EPOCH FROM (t.ended_at - t.started_at)) * 1000 >= ${filters.minLatencyMs})`,
-      );
-    }
-    if (filters.q) {
-      const like = `%${filters.q}%`;
-      conds.push(
-        Prisma.sql`(t.name ILIKE ${like} OR EXISTS (SELECT 1 FROM spans s WHERE s.trace_id = t.id AND (s.name ILIKE ${like} OR s.attributes::text ILIKE ${like})))`,
-      );
-    }
-    if (filters.tags && filters.tags.length > 0) {
-      conds.push(Prisma.sql`t.tags @> ARRAY[${Prisma.join(filters.tags)}]::text[]`);
-    }
-    if (filters.metadata && Object.keys(filters.metadata).length > 0) {
-      conds.push(Prisma.sql`t.metadata @> ${JSON.stringify(filters.metadata)}::jsonb`);
-    }
-    if (filters.ruleId) {
-      conds.push(
-        Prisma.sql`EXISTS (SELECT 1 FROM eval_rule_scores ers WHERE ers.trace_id = t.id AND ers.rule_id = ${filters.ruleId}::uuid)`,
-      );
-    }
-    if (filters.minScore !== undefined) {
-      conds.push(
-        Prisma.sql`EXISTS (SELECT 1 FROM eval_rule_scores ers WHERE ers.trace_id = t.id AND ers.score >= ${filters.minScore})`,
-      );
-    }
-    if (filters.maxScore !== undefined) {
-      conds.push(
-        Prisma.sql`EXISTS (SELECT 1 FROM eval_rule_scores ers WHERE ers.trace_id = t.id AND ers.score <= ${filters.maxScore})`,
-      );
-    }
+    const conds: Prisma.Sql[] = [
+      Prisma.sql`t.team_id = ${teamId}::uuid`,
+      ...buildTraceConditions(filters, 't'),
+    ];
 
     return this.runList(Prisma.join(conds, ' AND '), filters.page, filters.limit);
   }

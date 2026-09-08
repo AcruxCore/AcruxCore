@@ -243,6 +243,34 @@ export class GatewayService {
   }
 
   /**
+   * The variables to store on this call's `llm` span payload.
+   *
+   * `variables` carries two jobs that are easy to conflate. It is a *render input*,
+   * which only matters when the gateway does the rendering; and it is *replay
+   * lineage* — the pre-render values an evaluation re-renders a candidate template
+   * against — which matters whenever a prompt version is named, no matter who
+   * rendered. A client-rendered call (`messages` + `prompt_version_id` +
+   * `variables`) gives us nothing to render, but its variables are still the only
+   * replay lineage that exists. Dropping them left the span with a version id and
+   * null variables, which is permanently ineligible as a dataset example — the
+   * caller had supplied exactly what the build said was missing (#412).
+   *
+   * A `prompt` reference can never arrive with top-level `variables` (the schema's
+   * superRefine rejects that pair), so the two sources never compete.
+   *
+   * @param req - The in-flight request, read before `variables` is stripped for the adapter.
+   * @param fromPromptRef - Variables taken off a `prompt` reference, when it was one.
+   * @returns The variables to write to `span_payloads.variables`, or null when the
+   *   caller sent none.
+   */
+  private replayVariables(
+    req: GatewayCompletionRequest,
+    fromPromptRef: Record<string, unknown> | null,
+  ): Record<string, unknown> | null {
+    return fromPromptRef ?? (req.variables as Record<string, unknown> | undefined) ?? null;
+  }
+
+  /**
    * Whether this call may read from / write to the cache. Requires: caching
    * enabled on the key (cacheTtlSeconds > 0), no no-store bypass, non-streaming,
    * and an EXPLICIT temperature of 0 (deterministic — see the G6 temperature-gate
@@ -608,6 +636,10 @@ export class GatewayService {
     // A caller who rendered the prompt itself sends the version id instead.
     promptVersionId = await this.resolveClientPromptVersionId(ctx, req, promptVersionId);
 
+    // #412: record the values behind the messages whoever rendered them, so a
+    // client-rendered run is as replayable as a server-rendered one.
+    promptVariables = this.replayVariables(req, promptVariables);
+
     // ── B1: render ad-hoc templated messages when the caller supplied variables ──
     // Mirrors the prompt-ref render (same nunjucks engine, same 422 on error) so an
     // edited/unsaved Playground experiment behaves identically to a stored prompt.
@@ -922,6 +954,9 @@ export class GatewayService {
     // A caller who rendered the prompt itself sends the version id instead (mirror
     // of the non-streaming path).
     promptVersionId = await this.resolveClientPromptVersionId(ctx, req, promptVersionId);
+
+    // #412: mirror of complete() — see `replayVariables`.
+    promptVariables = this.replayVariables(req, promptVariables);
 
     // ── B1: render ad-hoc templated messages when the caller supplied variables ──
     // Mirror of the non-streaming path (see complete()) — skipped when a prompt ref

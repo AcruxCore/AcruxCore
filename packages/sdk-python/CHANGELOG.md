@@ -12,7 +12,27 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
-_Nothing yet._
+### Added
+
+- `prompt_id` on `traces.list_traces()`. Matches traces using any version of a prompt,
+  where `prompt_version_id` matches one exact version.
+- `q_in` on `traces.list_traces()` — narrows `q` to `"input"`, `"output"` or `"name"`.
+  `q` now also searches the captured request and response, not only names and attributes.
+- `variables=` on `gateway.chat()`, `gateway.stream()` and `gateway.run_tool_loop()`.
+  Sent as the gateway's top-level `variables`, and recorded on the `llm` span so feedback
+  on the run can become an evaluation dataset example.
+- `gateway.run_prompt_with_tools(rendered)` now forwards the render's variables for you,
+  the same way it already derives the model, messages, tool refs and `prompt_version_id`.
+- `RenderResult.variables` echoes what `prompts.render()` was called with, so a caller
+  holding only the result can still pass the lineage on. Defaults to `{}`, so existing
+  code that builds one by hand keeps working.
+- `IngestSpan["variables"]` for a self-reported `llm` span. The API has always accepted
+  it; the TypedDict never exposed it.
+
+### Changed
+
+- `variables` is a keyword-only argument in every position, added after
+  `prompt_version_id`. No positional call sites move.
 
 ## 0.11.0 — 2026-09-06
 

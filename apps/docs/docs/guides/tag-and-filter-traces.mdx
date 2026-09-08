@@ -348,7 +348,97 @@ values = httpx.get(
 </TabItem>
 </Tabs>
 
-## 5. Group traces under a session
+## 5. Search what was actually said
+
+Tags and metadata only find a trace if someone thought to label it. Often the
+only thing you remember is the conversation itself — a customer said they wanted
+to visit London, and you need that run.
+
+`q` searches the captured request and response as well as trace and span names
+and attributes:
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces?q=london"
+```
+
+When a word appears on both sides of the exchange, `q_in` picks one:
+
+- `q_in=input` — only what was sent to the model.
+- `q_in=output` — only what the model answered.
+- `q_in=name` — only trace and span names, no payload text.
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces?q=london&q_in=input"
+```
+
+:::note[Payload capture is required]
+Only traces whose payloads were captured can be searched by content. If a search
+returns nothing you expected, check payload capture is on — see
+[Configure trace payload capture](./configure-trace-payload-capture.mdx).
+:::
+
+## 6. Filter by prompt
+
+`prompt_version_id` narrows to one exact version. `prompt_id` matches **every**
+version of a prompt, which is what you want when several versions have shipped
+and you are asking how the prompt as a whole behaves:
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces?prompt_id=$PROMPT_ID"
+```
+
+A trace matches when at least one of its spans used the prompt. One run can use
+several prompts, so the same trace can appear under more than one `prompt_id`.
+
+## 7. Filter the feedback feed with the same words
+
+Everything above also filters `GET /traces/feedback`, the team-wide feed of
+ratings and comments — the list you work through when deciding which production
+traffic becomes evaluation data:
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces/feedback?prompt_id=$PROMPT_ID&rating=down&has_comment=true"
+```
+
+Four filters there describe the feedback row rather than its trace:
+
+- `rating` — `up`, `down`, or `none`.
+- `source` — `user`, `developer`, `end_user`, `api`.
+- `label` — exact match.
+- `has_comment` — `true` for rows carrying a written critique.
+
+The same criteria object builds a dataset in one call — see
+[Improve a prompt from feedback](./improve-a-prompt-from-feedback.mdx).
+
+## 8. Filter in the dashboard, and save a view
+
+Everything above is one input box in the dashboard. Type into the filter bar on
+**Traces** or **Feedback** and it suggests the filter you are reaching for:
+
+- `tag:` and `meta.<key>:` suggest values your team has actually used.
+- `prompt:` searches your prompts by name, so you never need a version id.
+- `input:`, `output:` and `name:` narrow a text search to one part of the trace.
+- `status:`, `rating:`, `source:` and `comment:` suggest their allowed values.
+- `score>`, `latency>`, `cost>` and `tokens>` take a number.
+- Anything with no prefix becomes a plain search across names, input and output.
+
+Each committed filter becomes a chip. Backspace on an empty box removes the last
+one, and **Clear all filters** removes them all. The filters live in the URL, so
+a filtered list can be linked and shared, and back/forward work.
+
+**Save the ones you use often.** Press **Views → Save current filters**, give it
+a name, and it is one click for everyone on the team from then on. A view stores
+the filter string exactly as it was, and any member can rename or delete it.
+
+The same bar appears inside **Add example → From feedback** on a dataset. Filter
+there, and **Add all N matching** pulls in every row the criteria select —
+including rows on pages you never opened.
+
+## 9. Group traces under a session
 
 Tags and metadata live on individual traces. When you want several traces to
 roll up as one conversation — a support ticket, a multi-turn chat, a single
@@ -457,6 +547,10 @@ This means you can set base tags once (e.g. `prod`) and add per-request tags
 | Set metadata on a trace | `x-trace-metadata: {"k":"v"}` header (gateway) or `metadata: {...}` in trace input (SDK) |
 | Filter by tags | `?tags=a&tags=b` (AND match) |
 | Filter by metadata | `?metadata[k1]=v1&metadata[k2]=v2` (AND match) |
+| Search the conversation | `?q=london`, narrowed with `?q_in=input\|output\|name` |
+| Filter by prompt | `?prompt_id=<id>` (any version) or `?prompt_version_id=<id>` (one version) |
+| Filter the feedback feed | Same params on `GET /traces/feedback`, plus `rating`, `source`, `label`, `has_comment` |
+| Save a filter set | **Views → Save current filters**, or `POST /trace-views` |
 | Discover tags | `GET /traces/facets` |
 | Discover metadata values | `GET /traces/facets/values?key=<key>` |
 | Group traces under a session | `x-session-id: <id>` header (gateway) or `sessionId` / `session_id` in trace input (SDK) |

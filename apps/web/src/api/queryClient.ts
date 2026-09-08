@@ -64,7 +64,8 @@ export const keys = {
   traceFacets: ['traceFacets'] as const,
   traceFacetValues: (key: string) => ['traceFacetValues', key] as const,
   feedbackSummary: (params: Record<string, string | undefined>) => ['feedbackSummary', params] as const,
-  feedbackFeed: (page: number, limit: number) => ['feedbackFeed', page, limit] as const,
+  feedbackFeed: (query: unknown) => ['feedbackFeed', query] as const,
+  savedViews: (surface: string) => ['savedViews', surface] as const,
   // Evaluations: datasets (E2)
   datasets: ['datasets'] as const,
   dataset: (id: string) => ['dataset', id] as const,

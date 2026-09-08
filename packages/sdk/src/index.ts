@@ -49,6 +49,7 @@ export type {
   TraceSpan,
   GetTraceResult,
   ListTracesOptions,
+  TraceSearchScope,
   ListTracesResult,
   ToolVersionSource,
   ToolSyncResult,

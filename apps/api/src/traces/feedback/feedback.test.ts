@@ -237,6 +237,49 @@ describe('POST /api/v1/traces/:id/feedback', () => {
     expect(listRes.body.data[0].comment).toBe('bad');
   });
 
+  it('names the team member behind a developer row, on POST, on the trace list, and on the team feed', async () => {
+    const ctx = await signup();
+    const { traceId } = await postTrace(ctx.agent);
+
+    const created = await ctx.agent
+      .post(`/api/v1/traces/${traceId}/feedback`)
+      .send({ rating: -1, comment: 'buries the urgent part', source: 'developer' })
+      .expect(201);
+
+    const owner = await prisma.user.findUnique({ where: { id: created.body.createdBy } });
+    expect(created.body.author).toEqual({
+      id: created.body.createdBy,
+      name: owner!.displayName,
+      email: owner!.email,
+    });
+
+    // The same identity has to survive both read paths, since the UI renders
+    // the author on the trace panel and on the team-wide feedback feed.
+    const perTrace = await ctx.agent.get(`/api/v1/traces/${traceId}/feedback`).expect(200);
+    expect(perTrace.body.data[0].author.email).toBe(owner!.email);
+
+    const teamFeed = await ctx.agent.get('/api/v1/traces/feedback').expect(200);
+    expect(teamFeed.body.data[0].author.email).toBe(owner!.email);
+  });
+
+  it('author is null for a row posted with a team-scoped key, where no user is behind it', async () => {
+    const ctx = await signup();
+    const { traceId } = await postTrace(ctx.agent);
+
+    const teamKey = (
+      await ctx.agent.post(`/api/v1/teams/${ctx.teamId}/api-keys`).send({ name: 't6-team-key' }).expect(201)
+    ).body.key as string;
+
+    const res = await request(app)
+      .post(`/api/v1/traces/${traceId}/feedback`)
+      .set('Authorization', `Bearer ${teamKey}`)
+      .send({ rating: -1, source: 'end_user' })
+      .expect(201);
+
+    expect(res.body.createdBy).toBeNull();
+    expect(res.body.author).toBeNull();
+  });
+
   it('a SESSION user maps created_by to the user id (contrast with the team-key case above)', async () => {
     const ctx = await signup();
     const { traceId } = await postTrace(ctx.agent);

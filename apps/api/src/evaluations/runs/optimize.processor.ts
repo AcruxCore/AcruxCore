@@ -6,7 +6,7 @@ import { PromptsRepository } from '../../prompts/prompts.repository';
 import { AliasesService } from '../../prompts/aliases/aliases.service';
 import { VersionsRepository } from '../../prompts/versions/versions.repository';
 import { OptimizeRepository } from '../optimize/optimize.repository';
-import { compileOptimizePrompt } from '../optimize/optimize.prompt';
+import { compileCustomOptimizePrompt, compileOptimizePrompt } from '../optimize/optimize.prompt';
 import { parseCandidatesDetailed } from '../optimize/optimize.parse';
 import { extractVariables } from '../../prompts/versions/nunjucks.utils';
 import { GatewayService } from '../../gateway/completions/gateway.service';
@@ -18,11 +18,16 @@ import { NotFoundError } from '../../shared/errors';
 import type { RunGridCell, RunSnapshotExample } from './runs.types';
 
 /**
- * The optimizer LLM, overridable per deployment. Defaults to the same model
- * `JUDGE_MODEL` uses (`judge.service.ts`) — cheap enough to run once per
- * optimize attempt, capable enough to rewrite a template meaningfully.
+ * Legacy fallback for the optimizer model, kept only for jobs enqueued before
+ * `OptimizeJobData.optimizerModel` existed and still sitting in Redis.
+ *
+ * It is not a good default and must not become one again: it names a public
+ * model name that a team may never have registered, and the failure surfaced
+ * here in the worker, after the run row already existed. `startOptimize` now
+ * resolves and validates the model up front (defaulting to the first swept
+ * model, which is registered by construction) and puts it on the job.
  */
-const OPTIMIZER_MODEL = process.env.EVAL_OPTIMIZER_MODEL ?? 'gpt-4o-mini';
+const LEGACY_OPTIMIZER_MODEL = process.env.EVAL_OPTIMIZER_MODEL ?? 'gpt-4o-mini';
 
 const runsRepo = new RunsRepository();
 const datasetsRepo = new DatasetsRepository();
@@ -155,14 +160,19 @@ export async function processOptimize(data: OptimizeJobData): Promise<void> {
   }
   const baselineLabel = baseline.alias ?? `v${baseline.versionNumber}`;
 
-  const optimizerMessages = compileOptimizePrompt({
+  const optimizerInput = {
     productionMessages: baselineVersion.messages,
     // No `priorOutput`: this is a brand-new optimize attempt, so there is no
     // earlier cell result for these examples to cite yet.
     cases: exampleSnapshot.map((example) => ({ input: example.input, criteria: example.criteria, history: example.history })),
     overallFeedback: dataset.overallFeedback,
     draftCount: data.draftCount,
-  });
+  };
+  const optimizerMessages = data.optimizerPromptId
+    ? await compileCustomOptimizePrompt(data.optimizerPromptId, optimizerInput)
+    : compileOptimizePrompt(optimizerInput);
+
+  const optimizerModel = data.optimizerModel ?? LEGACY_OPTIMIZER_MODEL;
 
   // Minted up front, same reasoning as cell.processor.ts/judge.service.ts:
   // GatewayResult does not carry the trace id it produced, but a
@@ -175,7 +185,7 @@ export async function processOptimize(data: OptimizeJobData): Promise<void> {
   // before any candidate is persisted — see `retryGatewayCall` for why this is
   // in-function rather than a BullMQ job retry.
   const gatewayResult = await retryGatewayCall(
-    () => gateway.complete(ctx, { model: OPTIMIZER_MODEL, messages: optimizerMessages }),
+    () => gateway.complete(ctx, { model: optimizerModel, messages: optimizerMessages }),
     OPTIMIZE_CALL_ATTEMPTS,
   );
   const assistantContent = gatewayResult.body.choices[0]?.message.content ?? '';

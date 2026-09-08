@@ -77,13 +77,23 @@ console.log(`Prerendered ${ROUTES.length} marketing route(s).`);
 // Dates come from git, with a committed cache as the fallback, because the
 // production image is built WITHOUT git: `.dockerignore` excludes `.git` (it is
 // several GB of history) and the builder never installs the binary. So:
-//   - a build that can see git (local, or any CI checkout) reads the real commit
-//     dates and rewrites PAGE_DATES_FILE when they have moved on;
+//   - a build that can see git (local, or any CI checkout) reads the real dates
+//     and rewrites PAGE_DATES_FILE when they have moved on;
 //   - the Docker build, which cannot, reads that committed file.
 // Committing a refreshed cache is therefore part of changing a marketing page —
 // the build says so explicitly when it happens.
+//
+// A file with uncommitted edits dates to today rather than to its last commit
+// (see `changeDate`), which is what makes the edit → build → commit flow produce
+// a date that matches the content instead of trailing it by one commit. A page's
+// date is the newest across every file it renders (see `routeLastmod`).
 const PAGE_DATES_FILE = resolve(webRoot, 'src/marketing/page-dates.json');
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Today, as YYYY-MM-DD, in UTC — the same shape git's `%cs` produces. */
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 /** Last commit date of one file as YYYY-MM-DD, or null when git cannot say. */
 function gitLastModified(relativePath) {
@@ -101,25 +111,75 @@ function gitLastModified(relativePath) {
   }
 }
 
+/** True when `relativePath` has edits git has not recorded yet. */
+function hasUncommittedChanges(relativePath) {
+  try {
+    const out = execFileSync('git', ['status', '--porcelain', '--', relativePath], {
+      cwd: webRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return out.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The change date to advertise for one source file.
+ *
+ * An uncommitted edit dates to **today**, not to the last commit. Without that,
+ * every local build stamped the cache with the date of the commit *before* the
+ * change being built — so the committed `page-dates.json` (which is what the
+ * git-less production image ships) was permanently one commit behind, and the
+ * sitemap told crawlers a page was older than its content. The normal flow is
+ * edit → build → commit both, and that now produces a date that matches.
+ *
+ * @param relativePath - Source file, relative to `apps/web`.
+ * @returns `YYYY-MM-DD`, or null when neither git nor the working tree can say.
+ */
+function changeDate(relativePath) {
+  if (hasUncommittedChanges(relativePath)) return today();
+  return gitLastModified(relativePath);
+}
+
 const cachedDates = existsSync(PAGE_DATES_FILE)
   ? JSON.parse(readFileSync(PAGE_DATES_FILE, 'utf8'))
   : {};
 
+// Keyed by source file, not by route, so several routes sharing a file (all five
+// pillar pages share features.tsx) resolve it once and cannot disagree.
 const resolvedDates = {};
 for (const route of ROUTES) {
-  if (!existsSync(resolve(webRoot, route.sourceFile))) {
-    throw new Error(
-      `Route ${route.path} points at a sourceFile that does not exist: ${route.sourceFile}. ` +
-        `Fix it in src/marketing/entry-prerender.tsx.`,
-    );
+  if (!Array.isArray(route.sourceFiles) || route.sourceFiles.length === 0) {
+    throw new Error(`Route ${route.path} has no sourceFiles. Fix it in src/marketing/entry-prerender.tsx.`);
   }
-  const date = gitLastModified(route.sourceFile) ?? cachedDates[route.sourceFile] ?? null;
-  if (date) {
-    resolvedDates[route.sourceFile] = date;
+  for (const sourceFile of route.sourceFiles) {
+    if (!existsSync(resolve(webRoot, sourceFile))) {
+      throw new Error(
+        `Route ${route.path} points at a sourceFile that does not exist: ${sourceFile}. ` +
+          `Fix it in src/marketing/entry-prerender.tsx.`,
+      );
+    }
+    if (resolvedDates[sourceFile]) continue;
+    const date = changeDate(sourceFile) ?? cachedDates[sourceFile] ?? null;
+    if (date) {
+      resolvedDates[sourceFile] = date;
+    }
   }
 }
 
-const undated = ROUTES.filter((route) => !resolvedDates[route.sourceFile]);
+/**
+ * A page's `<lastmod>`: the newest date among the files it renders, or null when
+ * none of them resolved. Newest rather than the component's own date, because a
+ * page whose copy lives elsewhere changes when that copy changes.
+ */
+function routeLastmod(route) {
+  const dates = route.sourceFiles.map((f) => resolvedDates[f]).filter(Boolean);
+  return dates.length > 0 ? dates.sort().at(-1) : null;
+}
+
+const undated = ROUTES.filter((route) => !routeLastmod(route));
 if (undated.length > 0) {
   // Never guess a date: a wrong one actively misinforms a crawler, whereas an
   // absent one just leaves it to its own judgement. But do say so loudly,
@@ -136,7 +196,7 @@ const sitemap = [
   '<?xml version="1.0" encoding="UTF-8"?>',
   '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
   ...ROUTES.map((route) => {
-    const lastmod = resolvedDates[route.sourceFile];
+    const lastmod = routeLastmod(route);
     return [
       '  <url>',
       `    <loc>${SITE_ORIGIN}${route.path}</loc>`,

@@ -740,9 +740,10 @@ class PromptsNamespace:
         :param name: Prompt name (slug, not id).
         :param alias: Alias to resolve (e.g. ``production``).
         :param variables: Template variables.
-        :returns: ``RenderResult(messages, tools, model)``; ``tools`` is ``[]`` if
-            the alias binds none, and ``model`` is the version's bound default
-            model (or ``None``).
+        :returns: A :class:`~acruxcore.types.RenderResult`; ``tools`` is ``[]`` if the
+            alias binds none, ``model`` is the version's bound default model (or
+            ``None``), and ``variables`` echoes back what was rendered with, so a caller
+            holding only the result can still pass them on for replay lineage.
         :raises AcruxCoreError: ``MISSING_VARIABLES`` if required variables are
             absent; ``API_ERROR`` for other HTTP errors; ``NETWORK_ERROR`` if the
             API is unreachable and no stale entry exists.
@@ -846,6 +847,11 @@ class PromptsNamespace:
             model=data.get("model"),
             version_id=data.get("versionId"),
             version_number=data.get("versionNumber"),
+            # Echoed from the argument, not the response: the render endpoint does not
+            # return them and does not need to — we already have them here. Safe to cache
+            # with the rest because the cache key hashes the variables, so an entry can
+            # only ever be served back to the same ones.
+            variables=variables,
         )
         if cache_key is not None:
             get_cache(self._max_cache_size).set(

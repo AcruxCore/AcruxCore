@@ -1,8 +1,11 @@
 import { useSearchParams } from 'react-router-dom';
 import { Button, Empty, PageSpinner } from '@/ui';
 import { useTraces } from '@/api';
-import { TraceFilters, parseTraceFilters } from './TraceFilters';
+import { FilterBar, useUrlFilterState } from './filter-bar';
 import { TraceTable } from './TraceTable';
+
+/** Rows per page. Fixed: the list is scanned, not paged through deliberately. */
+const PAGE_SIZE = 20;
 
 /**
  * The /traces screen: URL-synced filter bar over a paginated trace table. Loading,
@@ -10,11 +13,11 @@ import { TraceTable } from './TraceTable';
  */
 export function TraceListPage() {
   const [sp, setSp] = useSearchParams();
-  const filters = parseTraceFilters(sp);
-  const { data, isLoading, isError } = useTraces(filters);
+  const [filters, setFilters] = useUrlFilterState();
+  const page = Number(sp.get('page')) || 1;
+  const { data, isLoading, isError } = useTraces({ ...filters, page, limit: PAGE_SIZE });
 
-  const page = filters.page ?? 1;
-  const totalPages = data ? Math.max(1, Math.ceil(data.total / (filters.limit ?? 20))) : 1;
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
   const goTo = (p: number) => {
     const next = new URLSearchParams(sp);
     next.set('page', String(p));
@@ -29,11 +32,16 @@ export function TraceListPage() {
           <p className="mt-1 text-[13px] text-muted">Every gateway completion and SDK-reported run, newest first.</p>
         </div>
       </header>
-      <TraceFilters />
+      <FilterBar value={filters} onChange={setFilters} surface="traces" />
       {isLoading ? (
         <PageSpinner />
       ) : isError ? (
         <Empty title="Couldn’t load traces" description="Something went wrong fetching traces. Try again." />
+      ) : data!.data.length === 0 ? (
+        <Empty
+          title="No traces match these filters"
+          description="Clear a filter, or widen the date range. Searching input and output text only finds traces whose payloads were captured."
+        />
       ) : (
         <>
           <TraceTable traces={data!.data} />

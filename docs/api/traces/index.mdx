@@ -240,9 +240,12 @@ Paginated trace list, newest first. Query params (all optional):
 - `status` — `ok` | `error` | `unset`.
 - `model`, `session_id`, `prompt_version_id` — exact match against any span in
   the trace (`prompt_version_id` is the UUID from `POST /prompts/:id/versions`).
+- `prompt_id` — any version of that prompt. Use this when you know the prompt
+  but not which version was live at the time.
 - `min_latency_ms`, `min_cost_usd`, `min_tokens` — inclusive lower bounds.
-- `q` — free-text match over trace/span name and span attributes; blank/whitespace
-  is treated as "no filter".
+- `q` — free-text match over trace/span name, span attributes, and the captured
+  input and output; blank/whitespace is treated as "no filter".
+- `q_in` — narrows `q` to `input`, `output`, or `name`. Defaults to `all`.
 - `page` (default 1), `limit` (default 20, max 100).
 
 <Tabs groupId="lang">
@@ -393,6 +396,79 @@ curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   "total": 1,
   "page": 1,
   "limit": 20
+}
+```
+
+#### Filtering by `prompt_id`
+
+Every version of one prompt, in one filter. `prompt_version_id` narrows to a
+single version; `prompt_id` is what you want when the question is "how is the
+checkout prompt behaving" and several versions have shipped since.
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces?prompt_id=a290cf2f-a724-4389-8bea-da8b53229e00&limit=1"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "b89e372a-fe98-4d03-bebf-cfa87613e4a0",
+      "name": "asked from an MCP client",
+      "sessionId": null,
+      "status": "ok",
+      "startedAt": "2026-09-06T17:40:21.410Z",
+      "endedAt": "2026-09-06T17:40:22.931Z",
+      "spanCount": 1,
+      "totalCostUsd": 0.00004305,
+      "totalTokens": 143,
+      "durationMs": 1521,
+      "tags": []
+    }
+  ],
+  "total": 5,
+  "page": 1,
+  "limit": 1
+}
+```
+
+#### Searching what was actually said (`q` and `q_in`)
+
+`q` searches the captured request and response payloads as well as names and
+attributes, so a run can be found by a phrase from the conversation — the way
+you remember it. `q_in` narrows that to one side: `input` for what the user
+sent, `output` for what the model answered, `name` for the old
+names-and-attributes behaviour.
+
+Payload text is only searchable where payload capture was on for the trace. A
+team with capture off matches on names and attributes only.
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces?q=london&q_in=input&limit=1"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "dd71b6cb-8c20-c67b-fdbe-a47acde27b19",
+      "name": "research-agent",
+      "sessionId": "research-agent-degraded-202609071819",
+      "status": "ok",
+      "startedAt": "2026-09-07T18:21:32.832Z",
+      "endedAt": "2026-09-07T18:21:38.287Z",
+      "spanCount": 15,
+      "totalCostUsd": 0.0020097,
+      "totalTokens": 12915,
+      "durationMs": 5455,
+      "tags": []
+    }
+  ],
+  "total": 77,
+  "page": 1,
+  "limit": 1
 }
 ```
 

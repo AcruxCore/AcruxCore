@@ -134,7 +134,11 @@ describe('acruxcore SDK — hub.traces', () => {
 
     const summary = await hub.traces.getFeedbackSummary({ groupBy: 'model' });
     expect(summary.groupBy).toBe('model');
-    expect(summary.buckets).toEqual([{ key: 'gpt-4o-mini', count: 1, avgRating: 5, downCount: 0 }]);
+    // `label` and `promptId` (#383) are part of the bucket now; grouping by model
+    // makes the label the model name and leaves promptId null.
+    expect(summary.buckets).toEqual([
+      { key: 'gpt-4o-mini', label: 'gpt-4o-mini', promptId: null, count: 1, avgRating: 5, downCount: 0 },
+    ]);
 
     const list = await hub.traces.listFeedback();
     expect(list.total).toBe(1);

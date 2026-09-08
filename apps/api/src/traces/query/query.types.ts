@@ -1,47 +1,16 @@
 import { z } from 'zod';
+import { TraceFilterQuerySchema } from '../filters';
+import type { TraceFilters } from '../filters';
 import { FeedbackDto } from '../feedback';
 
 /**
- * Query params for GET /traces. All filters optional. `from`/`to` are ISO dates
- * (coerced to Date; invalid strings → 400) and default in the service to the last
- * 30 days. `limit` is capped at 100. Snake_case names mirror the wire contract.
- * `status` mirrors T1's `span_status` Postgres enum exactly (local literal set,
- * consistent with T2's `ingest.types.ts`). `q` is an optional free-text filter
- * (empty or whitespace-only values are treated as "no filter" and parse to
- * `undefined` rather than failing), matching the sessions endpoint (FAQ Q8).
- * `tags` (T8) accepts either a single repeated `?tags=` value (a plain string,
- * per `qs`'s parsing of a lone occurrence) or several (an array) — both coerce to
- * a string array; matches traces containing ALL supplied tags (FAQ Q10). `metadata`
- * (T8) is bracket-notation query params (`?metadata[env]=prod`), matching traces
- * whose metadata contains every supplied key/value pair. `min_score`/`max_score`
- * (online eval) match traces with an `eval_rule_scores` row at or above/below the
- * threshold; `rule_id` narrows that to a specific rule — all three are ANDed with
- * everything else and independent of each other (no rule_id required for
- * min/max_score).
+ * Query params for GET /traces: the shared trace filter vocabulary
+ * ({@link TraceFilterQuerySchema}) plus pagination. Every filter documented
+ * there applies here unchanged, so a filter added for the feedback feed or the
+ * dataset builders shows up on this endpoint too. `from`/`to` default in the
+ * service to the last 30 days; `limit` is capped at 100.
  */
-export const TraceListQuerySchema = z.object({
-  from: z.coerce.date().optional(),
-  to: z.coerce.date().optional(),
-  status: z.enum(['ok', 'error', 'unset']).optional(),
-  model: z.string().min(1).optional(),
-  session_id: z.string().min(1).optional(),
-  prompt_version_id: z.string().uuid().optional(),
-  min_latency_ms: z.coerce.number().int().min(0).optional(),
-  min_cost_usd: z.coerce.number().min(0).optional(),
-  min_tokens: z.coerce.number().int().min(0).optional(),
-  min_score: z.coerce.number().int().min(0).max(100).optional(),
-  max_score: z.coerce.number().int().min(0).max(100).optional(),
-  rule_id: z.string().uuid().optional(),
-  q: z
-    .string()
-    .trim()
-    .transform((v) => (v === '' ? undefined : v))
-    .optional(),
-  tags: z
-    .union([z.string().min(1), z.array(z.string().min(1))])
-    .transform((v) => (Array.isArray(v) ? v : [v]))
-    .optional(),
-  metadata: z.record(z.string()).optional(),
+export const TraceListQuerySchema = TraceFilterQuerySchema.extend({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
@@ -57,25 +26,12 @@ export const PromptVersionTracesQuerySchema = z.object({
 export type PromptVersionTracesQuery = z.infer<typeof PromptVersionTracesQuerySchema>;
 
 /**
- * Internal (camelCase) filter shape passed from the service into the repository.
- * `page`/`limit` are always present; every other field narrows the result set.
+ * The repository-facing shape for GET /traces: the shared {@link TraceFilters}
+ * plus the pagination this surface owns. Pagination lives here rather than in
+ * the shared filter type because the dataset builders select by criteria with
+ * no pages at all.
  */
-export interface TraceFilters {
-  from?: Date;
-  to?: Date;
-  status?: string;
-  model?: string;
-  sessionId?: string;
-  promptVersionId?: string;
-  minLatencyMs?: number;
-  minCostUsd?: number;
-  minTokens?: number;
-  minScore?: number;
-  maxScore?: number;
-  ruleId?: string;
-  q?: string;
-  tags?: string[];
-  metadata?: Record<string, string>;
+export interface TraceListFilters extends TraceFilters {
   page: number;
   limit: number;
 }

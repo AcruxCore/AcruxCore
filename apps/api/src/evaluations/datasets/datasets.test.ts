@@ -101,6 +101,56 @@ describe('POST /api/v1/datasets/from-feedback', () => {
     expect(example!.sourcePromptVersionId).not.toBeNull();
   });
 
+  it('builds a dataset from a client-rendered run whose stored prompt has no placeholders', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    // A team that deliberately keeps the user turn out of the template: the stored
+    // version is a fixed system message, and the app composes the messages itself.
+    // `messages` and `prompt` are mutually exclusive, so this is the only shape
+    // available to them — and it used to be permanently dataset-ineligible (#412).
+    const prompt = (await agent.post('/api/v1/prompts').send({ name: 'static-system' }).expect(201)).body;
+    const v1 = (
+      await agent
+        .post(`/api/v1/prompts/${prompt.id}/versions`)
+        .send({ messages: [{ role: 'system', content: 'You are a terse support agent.' }] })
+        .expect(201)
+    ).body;
+
+    mockFetchOnce(CANNED_OPENAI);
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .set('x-capture-payloads', 'true')
+      .send({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'You are a terse support agent.' },
+          { role: 'user', content: 'How do I rotate a key?' },
+        ],
+        prompt_version_id: v1.id,
+        variables: { question: 'How do I rotate a key?' },
+      })
+      .expect(200);
+
+    const trace = await prisma.trace.findFirst({ where: { teamId } });
+    const fb = (
+      await agent.post(`/api/v1/traces/${trace!.id}/feedback`).send({ rating: -1, comment: 'Too vague' }).expect(201)
+    ).body;
+
+    const res = await agent
+      .post('/api/v1/datasets/from-feedback')
+      .send({ name: 'vague-answers', feedback_ids: [fb.id] })
+      .expect(201);
+
+    expect(res.body.skipped).toEqual([]);
+    expect(res.body.example_count).toBe(1);
+
+    const example = await prisma.datasetExample.findFirst({ where: { datasetId: res.body.id } });
+    expect(example!.input).toEqual({ question: 'How do I rotate a key?' });
+    expect(example!.sourcePromptVersionId).toBe(v1.id);
+  });
+
   it('captures prior-turn history (incl. a tool round trip) when the feedback trace belongs to a session', async () => {
     const { agent, teamId } = await authedAgent(app);
     const credId = await createConnection(agent);
@@ -472,6 +522,71 @@ describe('POST /api/v1/datasets/from-feedback', () => {
       .expect(422);
   });
 
+  it('names the real cause: a raw-messages call is not blamed on payload capture', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    // Capture is ON (the team default). This call simply sends raw messages
+    // rather than rendering a stored prompt, so there are no variables to
+    // replay — a different problem from capture being off, and one that
+    // changing the capture setting cannot fix.
+    mockFetchOnce(CANNED_OPENAI);
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .set('x-capture-payloads', 'true')
+      .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'Say hi' }] })
+      .expect(200);
+
+    const trace = await prisma.trace.findFirst({ where: { teamId } });
+    const fb = (
+      await agent.post(`/api/v1/traces/${trace!.id}/feedback`).send({ comment: 'too terse' }).expect(201)
+    ).body;
+
+    const dataset = (await agent.post('/api/v1/datasets').send({ name: 'curated' }).expect(201)).body;
+    const res = await agent
+      .post(`/api/v1/datasets/${dataset.id}/examples/from-feedback`)
+      .send({ feedback_ids: [fb.id] })
+      .expect(200);
+
+    expect(res.body.added).toBe(0);
+    expect(res.body.skipped).toHaveLength(1);
+    expect(res.body.skipped[0].reason).toContain('the prompt is not stored in AcruxCore');
+    expect(res.body.skipped[0].reason).not.toContain('capture was off');
+  });
+
+  it('names the real cause: capture genuinely off says so', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    const prompt = (await agent.post('/api/v1/prompts').send({ name: 'g4' }).expect(201)).body;
+    await agent
+      .post(`/api/v1/prompts/${prompt.id}/versions`)
+      .send({ messages: [{ role: 'user', content: 'Hi {{ name }}' }] })
+      .expect(201);
+    await agent.post(`/api/v1/prompts/${prompt.id}/aliases/production/promote`).send({ version_number: 1 }).expect(200);
+
+    mockFetchOnce(CANNED_OPENAI);
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .set('x-capture-payloads', 'false')
+      .send({ model: 'gpt-4o-mini', prompt: { name: 'g4', alias: 'production', variables: { name: 'Al' } } })
+      .expect(200);
+
+    const trace = await prisma.trace.findFirst({ where: { teamId } });
+    const fb = (await agent.post(`/api/v1/traces/${trace!.id}/feedback`).send({ comment: 'x' }).expect(201)).body;
+
+    const dataset = (await agent.post('/api/v1/datasets').send({ name: 'curated' }).expect(201)).body;
+    const res = await agent
+      .post(`/api/v1/datasets/${dataset.id}/examples/from-feedback`)
+      .send({ feedback_ids: [fb.id] })
+      .expect(200);
+
+    expect(res.body.added).toBe(0);
+    expect(res.body.skipped[0].reason).toContain('nothing was captured for this run');
+  });
+
   it('skips a feedback row whose captured variables exceed the 8KB size cap, but still builds the dataset from the remaining eligible rows', async () => {
     const { agent, teamId } = await authedAgent(app);
     const credId = await createConnection(agent);
@@ -599,6 +714,251 @@ describe('POST /api/v1/datasets/from-feedback', () => {
       .expect(422);
 
     expect(await prisma.dataset.count({ where: { teamId: b.teamId } })).toBe(0);
+  });
+});
+
+describe('POST /api/v1/datasets/:id/examples/from-feedback', () => {
+  it('appends feedback rows to an existing dataset instead of creating a new one', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    const prompt = (await agent.post('/api/v1/prompts').send({ name: 'greeting' }).expect(201)).body;
+    await agent
+      .post(`/api/v1/prompts/${prompt.id}/versions`)
+      .send({ messages: [{ role: 'user', content: 'Say hi to {{ name }}' }] })
+      .expect(201);
+    await agent.post(`/api/v1/prompts/${prompt.id}/aliases/production/promote`).send({ version_number: 1 }).expect(200);
+
+    mockFetchOnce(CANNED_OPENAI);
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .set('x-capture-payloads', 'true')
+      .send({ model: 'gpt-4o-mini', prompt: { name: 'greeting', alias: 'production', variables: { name: 'Al' } } })
+      .expect(200);
+
+    const trace = await prisma.trace.findFirst({ where: { teamId } });
+    const fb = (
+      await agent
+        .post(`/api/v1/traces/${trace!.id}/feedback`)
+        .send({ rating: -1, comment: 'Use third person' })
+        .expect(201)
+    ).body;
+
+    const dataset = (await agent.post('/api/v1/datasets').send({ name: 'curated' }).expect(201)).body;
+
+    const res = await agent
+      .post(`/api/v1/datasets/${dataset.id}/examples/from-feedback`)
+      .send({ feedback_ids: [fb.id] })
+      .expect(201);
+
+    expect(res.body.added).toBe(1);
+    expect(res.body.example_count).toBe(1);
+    expect(res.body.skipped).toEqual([]);
+
+    // The dataset count did not grow: nothing new was created alongside it.
+    expect(await prisma.dataset.count({ where: { teamId, deletedAt: null } })).toBe(1);
+
+    const example = await prisma.datasetExample.findFirst({ where: { datasetId: dataset.id } });
+    expect(example!.input).toEqual({ name: 'Al' });
+    expect(example!.criteria).toBe('Use third person');
+    expect(example!.sourceFeedbackId).toBe(fb.id);
+    expect(example!.sourcePromptVersionId).not.toBeNull();
+  });
+
+  it('dedupes repeated feedback ids and skips one already in the dataset', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    const prompt = (await agent.post('/api/v1/prompts').send({ name: 'greeting' }).expect(201)).body;
+    await agent
+      .post(`/api/v1/prompts/${prompt.id}/versions`)
+      .send({ messages: [{ role: 'user', content: 'Say hi to {{ name }}' }] })
+      .expect(201);
+    await agent.post(`/api/v1/prompts/${prompt.id}/aliases/production/promote`).send({ version_number: 1 }).expect(200);
+
+    mockFetchOnce(CANNED_OPENAI);
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .set('x-capture-payloads', 'true')
+      .send({ model: 'gpt-4o-mini', prompt: { name: 'greeting', alias: 'production', variables: { name: 'Al' } } })
+      .expect(200);
+
+    const trace = await prisma.trace.findFirst({ where: { teamId } });
+    const fb = (
+      await agent.post(`/api/v1/traces/${trace!.id}/feedback`).send({ rating: -1, comment: 'nope' }).expect(201)
+    ).body;
+
+    const dataset = (await agent.post('/api/v1/datasets').send({ name: 'curated' }).expect(201)).body;
+
+    const first = await agent
+      .post(`/api/v1/datasets/${dataset.id}/examples/from-feedback`)
+      .send({ feedback_ids: [fb.id, fb.id] })
+      .expect(201);
+    expect(first.body.added).toBe(1);
+
+    // Adding the same row a second time is a no-op, reported as skipped.
+    const second = await agent
+      .post(`/api/v1/datasets/${dataset.id}/examples/from-feedback`)
+      .send({ feedback_ids: [fb.id] })
+      .expect(200);
+    expect(second.body.added).toBe(0);
+    expect(second.body.skipped).toEqual([{ feedbackId: fb.id, reason: 'already in this dataset' }]);
+    expect(await prisma.datasetExample.count({ where: { datasetId: dataset.id } })).toBe(1);
+  });
+
+  it('concurrent appends of the same feedback row insert it exactly once', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    const prompt = (await agent.post('/api/v1/prompts').send({ name: 'greeting' }).expect(201)).body;
+    await agent
+      .post(`/api/v1/prompts/${prompt.id}/versions`)
+      .send({ messages: [{ role: 'user', content: 'Say hi to {{ name }}' }] })
+      .expect(201);
+    await agent.post(`/api/v1/prompts/${prompt.id}/aliases/production/promote`).send({ version_number: 1 }).expect(200);
+
+    mockFetchOnce(CANNED_OPENAI);
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .set('x-capture-payloads', 'true')
+      .send({ model: 'gpt-4o-mini', prompt: { name: 'greeting', alias: 'production', variables: { name: 'Al' } } })
+      .expect(200);
+
+    const trace = await prisma.trace.findFirst({ where: { teamId } });
+    const fb = (
+      await agent.post(`/api/v1/traces/${trace!.id}/feedback`).send({ rating: -1, comment: 'nope' }).expect(201)
+    ).body;
+
+    const dataset = (await agent.post('/api/v1/datasets').send({ name: 'curated' }).expect(201)).body;
+
+    // The service checks "is this feedback already here?" and then inserts.
+    // Fired together, several requests all pass that check before any of them
+    // writes, so only the unique index can stop the duplicates.
+    const responses = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        agent.post(`/api/v1/datasets/${dataset.id}/examples/from-feedback`).send({ feedback_ids: [fb.id] }),
+      ),
+    );
+
+    expect(await prisma.datasetExample.count({ where: { datasetId: dataset.id } })).toBe(1);
+
+    // Exactly one caller may claim it added the row; every other one has to say
+    // it skipped, or the counts it reports are a lie about what is stored.
+    const totalAdded = responses.reduce((sum, r) => sum + r.body.added, 0);
+    expect(totalAdded).toBe(1);
+    for (const r of responses) {
+      expect([200, 201]).toContain(r.status);
+      expect(r.body.example_count).toBe(1);
+      if (r.body.added === 0) {
+        expect(r.body.skipped).toEqual([{ feedbackId: fb.id, reason: 'already in this dataset' }]);
+      }
+    }
+  });
+
+  it('team isolation: team B cannot append to team A dataset', async () => {
+    const { agent: a } = await authedAgent(app);
+    const { agent: b } = await authedAgent(app);
+    const dataset = (await a.post('/api/v1/datasets').send({ name: 'a-only' }).expect(201)).body;
+    await b
+      .post(`/api/v1/datasets/${dataset.id}/examples/from-feedback`)
+      .send({ feedback_ids: [randomUUID()] })
+      .expect(404);
+  });
+});
+
+describe('PATCH /api/v1/datasets/:id/examples/:exampleId', () => {
+  it('edits criteria in place, and clears it with null', async () => {
+    const { agent } = await authedAgent(app);
+    const dataset = (await agent.post('/api/v1/datasets').send({ name: 'd' }).expect(201)).body;
+    const example = (
+      await agent
+        .post(`/api/v1/datasets/${dataset.id}/examples`)
+        .send({ input: { q: 'hi' }, criteria: 'original' })
+        .expect(201)
+    ).body;
+
+    const edited = await agent
+      .patch(`/api/v1/datasets/${dataset.id}/examples/${example.id}`)
+      .send({ criteria: 'rewritten so the judge grades the answer, not the complaint' })
+      .expect(200);
+    expect(edited.body.criteria).toBe('rewritten so the judge grades the answer, not the complaint');
+
+    const cleared = await agent
+      .patch(`/api/v1/datasets/${dataset.id}/examples/${example.id}`)
+      .send({ criteria: null })
+      .expect(200);
+    expect(cleared.body.criteria).toBeNull();
+
+    const row = await prisma.datasetExample.findUnique({ where: { id: example.id } });
+    expect(row!.criteria).toBeNull();
+    // Everything else on the row is untouched.
+    expect(row!.input).toEqual({ q: 'hi' });
+  });
+
+  it('404s for an example that is not in this dataset, and for another team', async () => {
+    const { agent: a } = await authedAgent(app);
+    const { agent: b } = await authedAgent(app);
+    const dataset = (await a.post('/api/v1/datasets').send({ name: 'd' }).expect(201)).body;
+    const other = (await a.post('/api/v1/datasets').send({ name: 'other' }).expect(201)).body;
+    const example = (
+      await a.post(`/api/v1/datasets/${dataset.id}/examples`).send({ input: { q: 'hi' } }).expect(201)
+    ).body;
+
+    await a.patch(`/api/v1/datasets/${other.id}/examples/${example.id}`).send({ criteria: 'x' }).expect(404);
+    await b.patch(`/api/v1/datasets/${dataset.id}/examples/${example.id}`).send({ criteria: 'x' }).expect(404);
+  });
+});
+
+describe('dataset example source prompt', () => {
+  it('GET /datasets/:id names the prompt version an example was captured from, and null for a manual row', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    const prompt = (await agent.post('/api/v1/prompts').send({ name: 'greeting' }).expect(201)).body;
+    await agent
+      .post(`/api/v1/prompts/${prompt.id}/versions`)
+      .send({ messages: [{ role: 'user', content: 'Say hi to {{ name }}' }] })
+      .expect(201);
+    await agent.post(`/api/v1/prompts/${prompt.id}/aliases/production/promote`).send({ version_number: 1 }).expect(200);
+
+    mockFetchOnce(CANNED_OPENAI);
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .set('x-capture-payloads', 'true')
+      .send({ model: 'gpt-4o-mini', prompt: { name: 'greeting', alias: 'production', variables: { name: 'Al' } } })
+      .expect(200);
+
+    const trace = await prisma.trace.findFirst({ where: { teamId } });
+    const fb = (
+      await agent.post(`/api/v1/traces/${trace!.id}/feedback`).send({ rating: -1, comment: 'c' }).expect(201)
+    ).body;
+
+    const built = (
+      await agent
+        .post('/api/v1/datasets/from-feedback')
+        .send({ name: 'from-fb', feedback_ids: [fb.id] })
+        .expect(201)
+    ).body;
+    await agent.post(`/api/v1/datasets/${built.id}/examples`).send({ input: { q: 'manual' } }).expect(201);
+
+    const res = await agent.get(`/api/v1/datasets/${built.id}`).expect(200);
+    const fromFeedback = res.body.examples.find((e: { sourceFeedbackId: string | null }) => e.sourceFeedbackId);
+    const manual = res.body.examples.find((e: { sourceFeedbackId: string | null }) => !e.sourceFeedbackId);
+
+    expect(fromFeedback.sourcePrompt).toEqual({
+      promptId: prompt.id,
+      name: 'greeting',
+      versionNumber: 1,
+      // The RAW template, not the rendered 'Say hi to Al' — a client that has an
+      // `input` to show ignores this, and one that doesn't must not imply the
+      // placeholder was filled in with this example's value.
+      lastUserMessage: 'Say hi to {{ name }}',
+    });
+    expect(manual.sourcePrompt).toBeNull();
   });
 });
 

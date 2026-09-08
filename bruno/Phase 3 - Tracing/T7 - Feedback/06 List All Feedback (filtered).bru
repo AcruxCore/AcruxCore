@@ -1,0 +1,31 @@
+meta {
+  name: List All Feedback (filtered)
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/v1/traces/feedback?rating=down&has_comment=true&limit=5
+  body: none
+  auth: bearer
+}
+
+params:query {
+  rating: down
+  has_comment: true
+  limit: 5
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+docs {
+  The feed takes every trace filter (prompt_id, tags, metadata, q, q_in) plus
+  rating, source, label and has_comment. `from`/`to` window the feedback row
+  itself, not its trace.
+}
+
+assert {
+  res.status: eq 200
+}

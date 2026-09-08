@@ -23,6 +23,134 @@ called out in the week it ships and in the SDK release notes.
 
 ---
 
+## Week of 7 September 2026
+
+### Major
+
+#### One filter bar, on every screen that picks traffic
+
+- Type `tag:`, `prompt:`, `input:`, `meta.<key>:` and the rest into a single box; each becomes a chip.
+- The same bar is on Traces, Feedback, and a dataset's **Add example → From feedback**.
+- Suggestions come from your team's own tags, metadata keys and prompt names.
+  [Reference →](/api-reference/traces/)
+
+#### Saved views
+
+- Name a filter set and it is one click for the whole team, on Traces or Feedback.
+- Any member can rename or delete a view; the filters are stored exactly as you set them.
+  [Reference →](/api-reference/traces/views)
+
+#### Add every row a filter selects, not just the page
+
+- **Add all N matching** in **From feedback** builds from criteria instead of ticked boxes.
+- It reaches rows on pages you never opened, and says when more matched than one request takes.
+  [Reference →](/api-reference/datasets)
+
+#### Find a trace by what was actually said
+
+- `q` now searches the captured request and response, not only names and attributes.
+- `q_in` narrows a search to `input`, `output` or `name` when a word appears on both sides.
+- Payload text is searchable wherever payload capture was on for the trace.
+  [Reference →](/api-reference/traces/)
+
+#### Filter by prompt, and filter the feedback feed
+
+- `prompt_id` matches every version of a prompt, so you no longer need the version id.
+- The feedback feed takes the full trace filter set plus `rating`, `source`, `label`, `has_comment`.
+- One filter vocabulary now covers traces, feedback and dataset building.
+  [Reference →](/api-reference/traces/feedback)
+
+#### Build a dataset from criteria instead of a hand-picked list
+
+- Both `from-feedback` endpoints accept a `filter` in place of `feedback_ids`.
+- "Every thumbs-down with a comment on the checkout prompt" is one request.
+- The response reports `matched`, so a selection capped at 100 rows is visible.
+  [Reference →](/api-reference/datasets)
+
+#### Curate a dataset after you build it
+
+- **Add example** now has a **From feedback** tab — pull real rows into a dataset that already exists.
+- A row brings its captured variables, its comment as criteria, and its session history.
+- A row already in the dataset is reported as skipped, never added twice.
+  [Reference →](/api-reference/datasets)
+
+#### Edit criteria, drop a row, delete a dataset
+
+- The criteria cell edits in place, so a rubric inherited from a complaint can be reworded.
+- Every example row has a remove control, and a dataset can be deleted from either screen.
+- Both ask for confirmation first; past experiment runs keep their reports either way.
+
+#### Choose the model and the instructions that optimize a prompt
+
+- **Optimizer model** picks which model writes the rewrites, not just what they run on.
+- **Optimizer prompt** swaps the built-in instructions for your own, format still enforced.
+- An unregistered optimizer model is now rejected up front instead of failing mid-run.
+  [Reference →](/api-reference/optimize)
+
+#### Trace a LangChain or LangGraph agent, in Python or Node
+
+- New tutorial builds a two-tool research agent in both languages, traced end to end over OTLP.
+  [Tutorial →](/docs/tutorials/trace-a-langchain-research-agent)
+- One instrumentor covers chain, tool and LLM spans; adding `openai` double-counts every call.
+- `instrument: ['langchain']` ships in Node SDK 0.12.0; Python has had it since 0.11.0.
+
+#### Evaluate a run your own app rendered
+
+- Send `variables` beside `prompt_version_id` and they are stored on the span, not discarded.
+- A stored prompt with no placeholders can now produce dataset examples from real traffic.
+- Those messages are never re-rendered — you rendered them, so the values are lineage only.
+  [Reference →](/api-reference/gateway#send-variables-with-it)
+
+### Minor
+
+- Dataset examples show a **Prompt** column naming the prompt version the row was captured from.
+- A dataset row with no variables now shows the prompt's own last message instead of a dash.
+- Long variable values in a dataset row clip to one line each, with **Show all** to read them.
+- Feedback rows now name the team member who posted them, not just "Developer".
+- **Fixed** — feedback skipped when building a dataset blamed payload capture even when it was on.
+- **Fixed** — the real reason is now named: a call that sent raw messages has no variables to replay.
+- Row delete and edit controls use proper icons and stay visible, instead of a hover-only ✕.
+- The dataset page's Optimize button and dialog now say they optimize a prompt, not the dataset.
+- **Fixed** — deleting a dataset logged a 404 in the browser console on the way out.
+- **Fixed** — optimize used a fixed model name a team may never have registered.
+- The model picker scrolls past seven models and shows a selected count, instead of growing.
+- The models field now says one set of rewrites is tested on every model picked, not one each.
+- **Fixed** — a dialog taller than the window put its own buttons out of reach; it scrolls now.
+- **Fixed** — two appends of the same feedback row at once could file it into a dataset twice.
+- Feature pages now explain fallbacks, OTel ingestion, bindings and the optimizer.
+- **Fixed** — the evaluation page's curl sample dropped every id from its URLs.
+- **Fixed** — that sample passed `version_ids: ["v7","v8"]`; the API takes version UUIDs.
+- Tracing is no longer gateway-only on the page; the OpenTelemetry path is named.
+- The gateway page names the native providers and the compatible connections.
+- Each feature page carries a real product screenshot and a first action of its own.
+- The homepage names the step it was missing: score a fix before promoting it.
+- The homepage lists evaluation and spend guardrails among the reasons to switch.
+- **Fixed** — sitemap `lastmod` dates trailed one commit behind the content they describe.
+- Sitemap dates now track every file a page renders, not only its own component.
+
+---
+#### Trace a LangChain or LangGraph agent, in Python or Node
+
+- New tutorial builds a two-tool research agent in both languages, traced end to end over OTLP.
+  [Tutorial →](/docs/tutorials/trace-a-langchain-research-agent)
+- One instrumentor covers chain, tool and LLM spans; adding `openai` double-counts every call.
+- `instrument: ['langchain']` ships in Node SDK 0.12.0; Python has had it since 0.11.0.
+
+### Minor
+
+- **Fixed** — the "no eligible rows" error now names each real reason and how many rows hit it.
+- A skipped feedback row now says what is missing in a few words, and never points at a setting.
+- A tag or model shown on a span is now a link that opens the trace list filtered to it.
+- Filtering a list resets the page and clears any selection, instead of leaving both stale.
+- **Fixed** — a span's input and output showed as one long escaped line; nested JSON is decoded now.
+- **Fixed** — "Expand" on a payload removed the height cap and pushed the page away; it scrolls now.
+- **Fixed** — long attribute and metadata values were cut off with nothing to click; they expand now.
+- **Fixed** — a run cell's output was shown as quoted, escaped text instead of what the model wrote.
+- The dataset examples table says what a row is in a plain line above the table.
+- Both tutorial scripts and a runnable Python notebook ship with the output of a real run.
+- The notebook demonstrates a failing tool: the agent answers confidently, and gets it wrong.
+- **Fixed** — the `traces.ingest()` link in both SDK references jumped nowhere.
+
 ## Week of 31 August 2026
 
 ### Major

@@ -62,10 +62,13 @@ const { messages, tools, model, versionId } = await hub.prompts.render(
 | `alias` | `string` | yes | e.g. `'production'`, `'staging'`. |
 | `variables` | `Record<string, unknown>` | no | Template variables. Defaults to `{}`. |
 
-**Returns** `{ messages, tools, model, versionId, versionNumber }`. `model` is the
-version's bound default (or `null`); pass `versionId` to `gateway.chat()`/`gateway.runToolLoop()`
-as `promptVersionId` for prompt lineage on a trace. Throws `MISSING_VARIABLES`
-if the template needs a variable you did not supply.
+**Returns** `{ messages, tools, model, versionId, versionNumber, variables }`. `model` is
+the version's bound default (or `null`); `variables` echoes back what you called with.
+Pass `versionId` as `promptVersionId` **and** `variables` as `variables` to
+`gateway.chat()`/`gateway.runToolLoop()` — the pair is what gives a trace prompt lineage
+and lets feedback on it become an evaluation dataset example.
+`gateway.runPromptWithTools(rendered)` does both for you. Throws `MISSING_VARIABLES` if
+the template needs a variable you did not supply.
 
 ## Prompt lifecycle (`hub.prompts`)
 
@@ -271,6 +274,7 @@ for await (const chunk of stream) process.stdout.write(chunk.delta.content ?? ''
 | `stream` | `boolean` | no | Return an async iterable of `ChatChunk` instead of `ChatResult`. |
 | `provider` | [`ProviderConfig`](#byo-provider) | no | Per-call BYO override. |
 | `promptVersionId` | `string` | no | From `prompts.render().versionId`; stamped on the trace span. |
+| `variables` | `Record<string, unknown>` | no | From `prompts.render().variables`. Recorded on the span, never sent to a BYO provider. Send it whenever `promptVersionId` is set — without it the run cannot seed a dataset. With no `promptVersionId`, a gateway call renders `{{ placeholders }}` in your messages with these instead. |
 | `trace` | `boolean \| { traceId?; sessionId? }` | no | Default `true` on the BYO path, `false` on the gateway path. |
 
 **Returns** `ChatResult` (`{ id, model, content, message, finishReason, usage?, gateway }`)
@@ -323,6 +327,7 @@ const { content, traceId } = await hub.gateway.runToolLoop({
 | `trace` | `boolean \| { traceId?; name?; sessionId? }` | no | Default `true`. |
 | `provider` | [`ProviderConfig`](#byo-provider) | no | Per-call BYO override. |
 | `promptVersionId` | `string` | no | Stamped on every `llm` span this loop records. |
+| `variables` | `Record<string, unknown>` | no | Stamped alongside it. Same field as on `chat()`. |
 
 **Returns** `RunToolLoopResult` (`{ content, messages, iterations, stoppedAtLimit, traceId? }`).
 Throws `MISSING_DISPATCH` before the first model call if a tool has no runner — the
@@ -830,7 +835,7 @@ never saw the call). Throws `PROVIDER_ERROR` for a non-2xx provider response.
 
 ## Span shapes
 
-`IngestSpan` (passed to [`traces.ingest()`](#tracesingestinput)):
+`IngestSpan` (passed to [`traces.ingest()`](#tracesingestinput-options)):
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -845,6 +850,7 @@ never saw the call). Throws `PROVIDER_ERROR` for a non-2xx provider response.
 | `usage` | `{ promptTokens?; completionTokens?; totalTokens? }` | Token usage. |
 | `costUsd` | `number` | Cost in USD. |
 | `promptVersionId` | `string` | Prompt lineage. |
+| `variables` | `unknown` | The prompt variables behind `input`. Read back when feedback becomes a dataset example. |
 | `input` / `output` | `unknown` | Stored only with payload capture on. |
 | `attributes` | `Record<string, unknown>` | Free-form. |
 | `error` | `string` | Error message for failed spans. |

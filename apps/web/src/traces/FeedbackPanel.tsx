@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button, Input, useToast } from '@/ui';
 import { usePatchFeedback, usePostFeedback } from '@/api';
 import { useAuth } from '@/auth/AuthContext';
-import { SOURCE_LABELS } from './format';
+import { feedbackByline } from './format';
 import { timeAgo } from '@/lib/format';
 import type { Feedback } from '@/api/types';
 
@@ -94,7 +94,7 @@ export function FeedbackPanel({ traceId, feedback }: FeedbackPanelProps) {
             )}
             {f.comment && <span className="text-ink">{f.comment}</span>}
             <span className="ml-auto text-[11px] text-faint">
-              {SOURCE_LABELS[f.source] ?? f.source} · {timeAgo(f.createdAt)}
+              {feedbackByline(f.source, f.author)} · {timeAgo(f.createdAt)}
               {/* createdAt (DB default) and updatedAt (Prisma @updatedAt) come from different
                   clocks and can differ by a few ms even on a fresh, never-edited row — a >1s
                   gap is a real edit, not clock skew. */}

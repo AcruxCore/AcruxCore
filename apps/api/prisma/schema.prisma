@@ -72,6 +72,7 @@ model Team {
   budgets             Budget[]
   evalRules           EvalRule[]
   evalRuleScores      EvalRuleScore[]
+  savedViews          SavedView[]
   gatewayCache        GatewayCache[]
   gatewayModels       GatewayModel[]
   traces              Trace[]
@@ -1076,6 +1077,7 @@ model DatasetExample {
   sourceVersion  PromptVersion? @relation(fields: [sourcePromptVersionId], references: [id], onDelete: SetNull)
   evalResults    EvalResult[]
 
+  @@unique([datasetId, sourceFeedbackId], map: "uq_dataset_examples_dataset_feedback")
   @@index([datasetId], map: "idx_dataset_examples_dataset")
   @@map("dataset_examples")
 }
@@ -1270,4 +1272,29 @@ model EvalRuleScore {
   @@index([teamId, createdAt(sort: Desc)], map: "idx_eval_rule_scores_team_time")
   @@index([spanId], map: "idx_eval_rule_scores_span")
   @@map("eval_rule_scores")
+}
+
+/// A named, team-visible filter set for the trace or feedback list. Team-scoped
+/// rather than per-user because a view worth naming is worth a teammate seeing
+/// (trace-filtering-redesign design §3.7).
+model SavedView {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId    String   @map("team_id") @db.Uuid
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  /// Which list the view belongs to: `traces` or `feedback`. A plain string, not
+  /// an enum, so adding a third surface needs no migration.
+  surface   String
+  name      String
+  /// The raw query string, stored verbatim. Deliberately not parsed: the filter
+  /// bar already speaks URL params, so a saved view is just a string handed
+  /// back to it, and a param a later schema stops recognising simply stops
+  /// filtering instead of corrupting anything.
+  query     String
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([teamId, surface, name], map: "uq_saved_views_team_surface_name")
+  @@index([teamId, surface], map: "idx_saved_views_team_surface")
+  @@map("saved_views")
 }

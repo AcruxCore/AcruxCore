@@ -13,7 +13,7 @@ import {
   ExternalArrow,
   useDocumentTitle,
 } from '../marketing-chrome';
-import { FEATURE_LIST, type Feature } from '../features';
+import { FEATURE_LIST, type Feature, type FeatureSection } from '../features';
 
 /** A left-aligned section heading with an eyebrow and optional lead. */
 function SectionHead({ eyebrow, title, lead }: { eyebrow: string; title: string; lead?: string }): ReactNode {
@@ -53,6 +53,125 @@ function Check(): ReactNode {
     >
       <path d="m20 6-11 11-5-5" />
     </svg>
+  );
+}
+
+/** The card grid used by a {@link FeatureSection} — same shape as a capability card. */
+function SectionCards({ cards }: { cards: { title: string; body: string }[] }): ReactNode {
+  return (
+    <div style={cssToStyle('display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:16px;')}>
+      {cards.map((c) => (
+        <div
+          key={c.title}
+          className="acx-hover-border"
+          style={cssToStyle(
+            'border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:22px 20px;display:flex;flex-direction:column;gap:9px;transition:border-color .16s;',
+          )}
+        >
+          <h4 style={cssToStyle('font-size:15.5px;font-weight:650;letter-spacing:-.01em;margin:0;')}>{c.title}</h4>
+          <p style={cssToStyle('font-size:14.5px;line-height:1.62;color:var(--muted);margin:0;text-wrap:pretty;')}>
+            {c.body}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The two-column table used by a {@link FeatureSection}.
+ *
+ * The wrapper scrolls on its own (`overflow-x:auto`) so a long right-hand cell
+ * never widens the page itself on a phone — the rule the marketing site keeps
+ * breaking is a horizontally scrolling *body*, not a scrolling table.
+ */
+function SectionTableView({ head, rows }: { head: [string, string]; rows: Array<[string, string]> }): ReactNode {
+  return (
+    <div
+      style={cssToStyle(
+        'overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface);',
+      )}
+    >
+      <table style={cssToStyle('width:100%;min-width:520px;border-collapse:collapse;text-align:left;')}>
+        <thead>
+          <tr>
+            {head.map((h) => (
+              <th
+                key={h}
+                style={cssToStyle(
+                  'padding:13px 18px;border-bottom:1px solid var(--line);font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);',
+                )}
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([left, right]) => (
+            <tr key={left}>
+              <td
+                style={cssToStyle(
+                  'padding:14px 18px;border-bottom:1px solid var(--line-soft);vertical-align:top;font-size:14px;font-weight:600;white-space:nowrap;',
+                )}
+              >
+                {left}
+              </td>
+              <td
+                style={cssToStyle(
+                  'padding:14px 18px;border-bottom:1px solid var(--line-soft);vertical-align:top;font-size:14px;line-height:1.6;color:var(--muted);text-wrap:pretty;',
+                )}
+              >
+                {right}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/**
+ * One deep-dive section: heading, then cards or a table, then the qualification
+ * and its contextual links.
+ *
+ * @param section - The section to render, from `Feature.sections`.
+ */
+function DeepDive({ section }: { section: FeatureSection }): ReactNode {
+  return (
+    <section style={cssToStyle('padding:clamp(40px,6vw,72px) 0;border-top:1px solid var(--line-soft);')}>
+      <SectionHead eyebrow={section.eyebrow} title={section.title} lead={section.lead} />
+      {section.cards ? <SectionCards cards={section.cards} /> : null}
+      {section.table ? <SectionTableView head={section.table.head} rows={section.table.rows} /> : null}
+      {section.note ? (
+        <p
+          style={cssToStyle(
+            'margin:20px 0 0;max-width:70ch;font-size:14px;line-height:1.65;color:var(--faint);text-wrap:pretty;',
+          )}
+        >
+          {section.note}
+        </p>
+      ) : null}
+      {section.links ? (
+        <div style={cssToStyle('display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:18px;')}>
+          {section.links.map((l) => (
+            <a
+              key={l.href + l.label}
+              href={l.href}
+              target="_blank"
+              rel="noreferrer"
+              style={cssToStyle(
+                'display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:550;color:var(--accent);',
+              )}
+            >
+              {l.label}
+              <ExternalArrow />
+            </a>
+          ))}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -124,7 +243,7 @@ export function FeaturePage({ feature }: { feature: Feature }): ReactNode {
 
       {/* ===== CAPABILITIES ===== */}
       <section style={cssToStyle('padding:clamp(40px,6vw,72px) 0;border-top:1px solid var(--line-soft);')}>
-        <SectionHead eyebrow="What you get" title={`${feature.name}, in four parts.`} />
+        <SectionHead eyebrow="What you get" title={feature.capabilitiesTitle} />
         <div style={cssToStyle('display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:16px;')}>
           {feature.capabilities.map((c) => (
             <div
@@ -142,6 +261,11 @@ export function FeaturePage({ feature }: { feature: Feature }): ReactNode {
           ))}
         </div>
       </section>
+
+      {/* ===== DEEP DIVES ===== */}
+      {feature.sections.map((s) => (
+        <DeepDive key={s.title} section={s} />
+      ))}
 
       {/* ===== IN THE DASHBOARD ===== */}
       <section style={cssToStyle('padding:clamp(40px,6vw,72px) 0;border-top:1px solid var(--line-soft);')}>
@@ -164,6 +288,28 @@ export function FeaturePage({ feature }: { feature: Feature }): ReactNode {
             </li>
           ))}
         </ul>
+
+        {/* One real screenshot of the screen those bullets describe. `loading`
+            and explicit dimensions keep it off the critical path and stop the
+            page shifting when it arrives. */}
+        <figure style={cssToStyle('margin:clamp(28px,4vw,40px) 0 0;')}>
+          <img
+            src={feature.shot.src}
+            alt={feature.shot.alt}
+            width={feature.shot.width}
+            height={feature.shot.height}
+            loading="lazy"
+            decoding="async"
+            style={cssToStyle(
+              'display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:12px;background:var(--elevated);',
+            )}
+          />
+          <figcaption
+            style={cssToStyle('margin-top:11px;font-size:13.5px;line-height:1.55;color:var(--faint);text-wrap:pretty;')}
+          >
+            {feature.shot.caption}
+          </figcaption>
+        </figure>
       </section>
 
       {/* ===== DOCS ===== */}
@@ -232,10 +378,7 @@ export function FeaturePage({ feature }: { feature: Feature }): ReactNode {
         </div>
       </section>
 
-      <CtaSection
-        title={`Start with ${feature.name.toLowerCase()}. Add the rest when you need it.`}
-        body="No credit card required. Bring your own provider keys and route the first call in a few minutes."
-      />
+      <CtaSection title={feature.cta.title} body={feature.cta.body} />
     </MarketingShell>
   );
 }

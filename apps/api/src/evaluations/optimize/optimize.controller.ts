@@ -27,6 +27,7 @@ export class OptimizeController {
       res.status(202).json({
         run_id: result.runId,
         status: result.status,
+        optimizer_model: result.optimizerModel,
         ...(result.promptMismatchWarning
           ? {
               prompt_mismatch_warning: {

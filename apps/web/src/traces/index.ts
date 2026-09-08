@@ -1,7 +1,10 @@
-export { KIND_META, SOURCE_LABELS, formatUsd, formatCount, formatLatency, formatPercent } from './format';
+export { KIND_META, SOURCE_LABELS, feedbackByline, formatPayload, formatUsd, formatCount, formatLatency, formatPercent } from './format';
+export { KeyValueRows } from './KeyValueRows';
+export type { KeyValueRowsProps } from './KeyValueRows';
 export { TraceTable } from './TraceTable';
 export type { TraceTableProps } from './TraceTable';
-export { TraceFilters, parseTraceFilters } from './TraceFilters';
+export { FilterBar, SavedViews, useUrlFilterState, applyFilterInput, filterStateToParams, filterStateToBody, parseFilterState, removeChip, stateToChips, FILTER_PREFIXES } from './filter-bar';
+export type { FilterBarProps, SavedViewsProps, Chip, ChipLabels, FilterState, QueryScope, RatingFilter } from './filter-bar';
 export { TraceListPage } from './TraceListPage';
 export { flattenSpanTree, spanBarGeometry, traceWindow } from './span-tree';
 export type { SpanRow } from './span-tree';

@@ -69,10 +69,13 @@ print(rendered.messages, rendered.model)
 | `alias` | `str` | yes | e.g. `"production"`, `"staging"`. |
 | `variables` | `dict` | no | Template variables. Defaults to `{}`. |
 
-**Returns** `RenderResult(messages, tools, model, version_id, version_number)`.
-`model` is the version's bound default (or `None`); pass `version_id` to
-`gateway.chat()`/`gateway.run_tool_loop()` as `prompt_version_id` for prompt lineage on a trace.
-Raises `MISSING_VARIABLES` if the template needs a variable you did not supply.
+**Returns** `RenderResult(messages, tools, model, version_id, version_number, variables)`.
+`model` is the version's bound default (or `None`); `variables` echoes back what you
+called with. Pass `version_id` as `prompt_version_id` **and** `variables` as `variables`
+to `gateway.chat()`/`gateway.run_tool_loop()` — the pair is what gives a trace prompt
+lineage and lets feedback on it become an evaluation dataset example.
+`gateway.run_prompt_with_tools(rendered)` does both for you. Raises `MISSING_VARIABLES`
+if the template needs a variable you did not supply.
 
 ## Prompt lifecycle (`hub.prompts`)
 
@@ -265,6 +268,7 @@ async for chunk in stream:
 | `stream` | `bool` | no | Return an async iterator of `ChatChunk` instead of `ChatResult`. |
 | `provider` | [`ProviderConfig`](#byo-provider) | no | Per-call BYO override. |
 | `prompt_version_id` | `str` | no | From `prompts.render().version_id`; stamped on the trace span. |
+| `variables` | `dict` | no | From `prompts.render().variables`. Recorded on the span, never sent to a BYO provider. Send it whenever `prompt_version_id` is set — without it the run cannot seed a dataset. With no `prompt_version_id`, a gateway call renders `{{ placeholders }}` in your messages with these instead. |
 | `trace` | `bool \| {trace_id?, session_id?}` | no | Default `True` on the BYO path, `False` on the gateway path. |
 
 **Returns** `ChatResult` (`id`, `model`, `content`, `message`, `finish_reason`,
@@ -322,6 +326,7 @@ print(result.content, result.trace_id)
 | `trace` | `bool \| {trace_id?, name?, session_id?}` | no | Default `True`. |
 | `provider` | [`ProviderConfig`](#byo-provider) | no | Per-call BYO override. |
 | `prompt_version_id` | `str` | no | Stamped on every `llm` span this loop records. |
+| `variables` | `dict` | no | Stamped alongside it. Same argument as on `chat()`. |
 
 **Returns** `RunToolLoopResult(content, messages, iterations, stopped_at_limit, trace_id)`.
 Raises `MISSING_DISPATCH` before the first model call if a tool has no runner — the
@@ -840,7 +845,7 @@ response.
 
 ## Span shapes
 
-`IngestSpan` (the dict shape passed in `spans` to [`traces.ingest()`](#tracesingestinput)):
+`IngestSpan` (the dict shape passed in `spans` to [`traces.ingest()`](#tracesingestinput--waittrue)):
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -855,6 +860,7 @@ response.
 | `usage` | `dict` | `{promptTokens?, completionTokens?, totalTokens?}`. |
 | `costUsd` | `float` | Cost in USD. |
 | `promptVersionId` | `str` | Prompt lineage. |
+| `variables` | `Any` | The prompt variables behind `input`. Read back when feedback becomes a dataset example. |
 | `input` / `output` | `any` | Stored only with payload capture on. |
 | `attributes` | `dict` | Free-form. |
 | `error` | `str` | Error message for failed spans. |

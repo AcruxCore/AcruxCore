@@ -3,6 +3,7 @@ import { api, type ApiQuery } from './client';
 import { keys } from './queryClient';
 import type {
   AnalyticsParams,
+  CreateSavedViewInput,
   Feedback,
   FeedbackFeedParams,
   FeedbackSummary,
@@ -12,6 +13,7 @@ import type {
   PostFeedbackInput,
   SessionDetail,
   SessionSummary,
+  SavedView,
   SessionsParams,
   TraceAnalytics,
   TraceDetail,
@@ -31,14 +33,34 @@ function traceQuery(f: TraceFilters): ApiQuery {
     model: f.model,
     session_id: f.sessionId,
     prompt_version_id: f.promptVersionId,
+    prompt_id: f.promptId,
     min_latency_ms: f.minLatencyMs,
     min_cost_usd: f.minCostUsd,
     min_tokens: f.minTokens,
+    min_score: f.minScore,
+    max_score: f.maxScore,
     q: f.q,
+    q_in: f.qIn,
     tags: f.tags,
     metadata: f.metadata,
     page: f.page,
     limit: f.limit,
+  };
+}
+
+/**
+ * Maps feedback-feed params to query params: every trace filter, plus the four
+ * that describe the feedback row itself.
+ */
+function feedbackQuery(f: FeedbackFeedParams): ApiQuery {
+  return {
+    ...traceQuery(f),
+    rating: f.rating,
+    source: f.source,
+    label: f.label,
+    // Only sent when set: an absent `has_comment` means "either", which is not
+    // the same filter as `has_comment=false`.
+    has_comment: f.hasComment === undefined ? undefined : String(f.hasComment),
   };
 }
 
@@ -228,10 +250,47 @@ export function useFeedbackSummary(params: FeedbackSummaryParams = {}) {
  * @param params - page/limit; defaults to page 1, the server's default limit.
  */
 export function useFeedbackFeed(params: FeedbackFeedParams = {}) {
-  const page = params.page ?? 1;
-  const limit = params.limit ?? 20;
+  const query = feedbackQuery({ ...params, page: params.page ?? 1, limit: params.limit ?? 20 });
   return useQuery({
-    queryKey: keys.feedbackFeed(page, limit),
-    queryFn: () => api<Paginated<Feedback>>('/traces/feedback', { query: { page, limit } }),
+    queryKey: keys.feedbackFeed(query),
+    queryFn: () => api<Paginated<Feedback>>('/traces/feedback', { query }),
+  });
+}
+
+/**
+ * Lists the team's saved filter views for one list.
+ *
+ * @param surface - `traces` or `feedback`; a view belongs to exactly one.
+ */
+export function useSavedViews(surface: 'traces' | 'feedback') {
+  return useQuery({
+    queryKey: keys.savedViews(surface),
+    queryFn: () => api<{ data: SavedView[] }>('/trace-views', { query: { surface } }),
+  });
+}
+
+/**
+ * Saves the current filter set under a name, visible to the whole team.
+ *
+ * @param surface - The list the view belongs to; also the cache key to refresh.
+ */
+export function useCreateSavedView(surface: 'traces' | 'feedback') {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateSavedViewInput) => api<SavedView>('/trace-views', { method: 'POST', body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.savedViews(surface) }),
+  });
+}
+
+/**
+ * Deletes a saved view.
+ *
+ * @param surface - The list the view belongs to; also the cache key to refresh.
+ */
+export function useDeleteSavedView(surface: 'traces' | 'feedback') {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api<void>(`/trace-views/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.savedViews(surface) }),
   });
 }

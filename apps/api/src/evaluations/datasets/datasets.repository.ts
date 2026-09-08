@@ -5,6 +5,94 @@ import prisma from '../../shared/db/client';
  * Data access for the `datasets` and `dataset_examples` tables. The only file
  * in this domain that touches Prisma. All queries are team-scoped for isolation.
  */
+/**
+ * Why a feedback row's source payload could not be read, or the payload itself.
+ *
+ * Three separate causes used to return a bare `null` and surface as one skip
+ * reason blaming payload capture. Only `no-payload` is actually about capture;
+ * the other two are about the call never having rendered a stored prompt, which
+ * no setting change will fix.
+ */
+export type SourcePayloadLookup =
+  | { ok: true; variables: Prisma.JsonValue; promptVersionId: string | null }
+  | {
+      ok: false;
+      /**
+       * `no-prompt-span` — the trace has no LLM span bound to a prompt version,
+       * so the call sent raw messages rather than rendering a stored prompt.
+       * `no-payload` — the span exists but nothing was captured for it.
+       * `no-variables` — a payload was captured, but it holds no variables.
+       */
+      reason: 'no-prompt-span' | 'no-payload' | 'no-variables';
+    };
+
+/** One prompt version resolved to the readable facts a dataset row needs. */
+export interface ResolvedVersionPrompt {
+  promptId: string;
+  promptName: string;
+  versionNumber: number;
+  /** The version's last user message as stored — raw template, may be null. */
+  lastUserMessage: string | null;
+}
+
+/**
+ * Characters of a version's last user message kept for a client. The consumer is
+ * one table cell that clips to a single line, so anything past this is weight on
+ * every row of a page for text nobody can read.
+ */
+const LAST_USER_MESSAGE_CHARS = 300;
+
+/**
+ * Flattens a chat message's `content` to text.
+ *
+ * Content is a string in almost every stored version, but the OpenAI shape also
+ * allows an array of parts (text alongside images), so those are joined and the
+ * non-text parts dropped rather than rendering `[object Object]`.
+ *
+ * @param content - A message's `content` field, straight from JSONB.
+ * @returns The trimmed text, or null when there is none to show.
+ */
+function contentText(content: unknown): string | null {
+  if (typeof content === 'string') return content.trim() || null;
+  if (!Array.isArray(content)) return null;
+  const text = content
+    .map((part) =>
+      typeof part === 'object' && part !== null && typeof (part as { text?: unknown }).text === 'string'
+        ? (part as { text: string }).text
+        : '',
+    )
+    .join(' ')
+    .trim();
+  return text || null;
+}
+
+/**
+ * Reads the last user message out of a stored version's messages array.
+ *
+ * Projected here instead of returning the whole array: the only consumer is a
+ * dataset row with no variables to display, and a version's messages can be far
+ * larger than that cell. The text is the RAW template — nothing is rendered, so
+ * it can still contain `{{ placeholders }}`, which is the honest thing to show
+ * for a version whose message really does have them.
+ *
+ * @param messages - `PromptVersion.messages` as stored (OpenAI-compatible JSONB).
+ * @returns The message text capped at {@link LAST_USER_MESSAGE_CHARS}, or null
+ *   when the version has no user message (a system-only prompt, the shape an app
+ *   that appends the user's turn at request time commits) or its content is not
+ *   text.
+ */
+function lastUserMessageOf(messages: Prisma.JsonValue): string | null {
+  if (!Array.isArray(messages)) return null;
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (typeof message !== 'object' || message === null || Array.isArray(message)) continue;
+    if ((message as { role?: unknown }).role !== 'user') continue;
+    const text = contentText((message as { content?: unknown }).content);
+    return text === null ? null : text.slice(0, LAST_USER_MESSAGE_CHARS);
+  }
+  return null;
+}
+
 export class DatasetsRepository {
   /**
    * Creates an empty dataset for a team.
@@ -237,7 +325,7 @@ export class DatasetsRepository {
   async findSourceSpanPayload(
     teamId: string,
     feedback: { traceId: string; spanId: string | null },
-  ): Promise<{ variables: Prisma.JsonValue | null; promptVersionId: string | null } | null> {
+  ): Promise<SourcePayloadLookup> {
     let span: Prisma.SpanGetPayload<{ include: { payload: true } }> | null;
 
     if (feedback.spanId) {
@@ -268,40 +356,64 @@ export class DatasetsRepository {
       });
     }
 
-    if (!span) {
-      return null;
-    }
+    // Each of these three used to collapse into one "payload capture was off"
+    // skip reason, which is wrong for two of them and sends the reader to
+    // change a setting that was never the problem.
+    if (!span) return { ok: false, reason: 'no-prompt-span' };
+    if (!span.payload) return { ok: false, reason: 'no-payload' };
+    if (span.payload.variables == null) return { ok: false, reason: 'no-variables' };
 
     return {
-      variables: span.payload?.variables ?? null,
+      ok: true,
+      variables: span.payload.variables,
       promptVersionId: span.promptVersionId,
     };
   }
 
   /**
-   * Resolves each given prompt-version id to its parent prompt's id + name.
+   * Resolves each given prompt-version id to its parent prompt's id + name, plus
+   * the version's own last user message.
+   *
    * Used by `DatasetsService.checkPromptMismatch` to tell whether a dataset
-   * example's lineage points at a different prompt than a run's target.
+   * example's lineage points at a different prompt than a run's target, and by
+   * the example DTO so a row with no variables can still show what the prompt
+   * asked.
    *
    * @param versionIds - Prompt-version UUIDs to resolve (deduped by caller).
    * @param teamId - Isolation boundary. A version whose prompt belongs to a
    *   different team is treated as if it doesn't exist — this result feeds
    *   straight into an API response (the mismatch warning's prompt name), so
    *   it must never leak another team's data.
-   * @returns Map of versionId -> { promptId, promptName }. A version that no
-   *   longer exists (deleted), or belongs to another team, is simply absent
-   *   from the map.
+   * @returns Map of versionId -> { promptId, promptName, versionNumber,
+   *   lastUserMessage }. A version that no longer exists (deleted), or belongs
+   *   to another team, is simply absent from the map.
    */
   async resolveVersionPrompts(
     versionIds: string[],
     teamId: string,
-  ): Promise<Map<string, { promptId: string; promptName: string }>> {
+  ): Promise<Map<string, ResolvedVersionPrompt>> {
     if (versionIds.length === 0) return new Map();
     const rows = await prisma.promptVersion.findMany({
       where: { id: { in: versionIds }, prompt: { teamId } },
-      select: { id: true, promptId: true, prompt: { select: { name: true } } },
+      select: {
+        id: true,
+        promptId: true,
+        versionNumber: true,
+        messages: true,
+        prompt: { select: { name: true } },
+      },
     });
-    return new Map(rows.map((r) => [r.id, { promptId: r.promptId, promptName: r.prompt.name }]));
+    return new Map(
+      rows.map((r) => [
+        r.id,
+        {
+          promptId: r.promptId,
+          promptName: r.prompt.name,
+          versionNumber: r.versionNumber,
+          lastUserMessage: lastUserMessageOf(r.messages),
+        },
+      ]),
+    );
   }
 
   /**
@@ -457,5 +569,112 @@ export class DatasetsRepository {
         examplesCreated,
       };
     });
+  }
+
+  /**
+   * Edits one example in place, scoped to both its team and its dataset so a
+   * correct example id under the wrong dataset cannot be written.
+   *
+   * @param teamId - Isolation boundary.
+   * @param datasetId - The dataset the example must belong to.
+   * @param exampleId - Example UUID.
+   * @param data - Fields to write. `criteria: null` clears the rubric.
+   * @returns The updated row, or null when no row matched.
+   */
+  async updateExample(
+    teamId: string,
+    datasetId: string,
+    exampleId: string,
+    data: { criteria?: string | null },
+  ): Promise<Prisma.DatasetExampleGetPayload<{}> | null> {
+    const { count } = await prisma.datasetExample.updateMany({
+      where: { id: exampleId, datasetId, teamId },
+      data: { ...(data.criteria !== undefined ? { criteria: data.criteria } : {}) },
+    });
+    if (count === 0) return null;
+    return prisma.datasetExample.findUnique({ where: { id: exampleId } });
+  }
+
+  /**
+   * Bulk-appends examples to an existing dataset and returns the dataset's new
+   * total, both inside one transaction so the count a caller reports back can
+   * never disagree with what was written.
+   *
+   * Mirrors the insert in {@link createDatasetWithExamples} — same `Prisma.DbNull`
+   * handling for an absent `history`, so an appended row is indistinguishable
+   * from one written at build time.
+   *
+   * `skipDuplicates` leans on `uq_dataset_examples_dataset_feedback`: two
+   * concurrent appends of the same feedback row both pass the caller's
+   * "already in this dataset?" check, and the loser is dropped here instead of
+   * raising. Which rows actually landed is therefore only knowable from the
+   * insert itself, which is why the inserted feedback ids come back — the
+   * caller reports the rest as skipped rather than overstating what it added.
+   *
+   * @param teamId - Isolation boundary. Ownership of `datasetId` is the caller's job.
+   * @param datasetId - The dataset to append to.
+   * @param examples - Rows to insert. An empty array is a no-op that still returns the total.
+   * @returns How many rows were created, the feedback ids among them, and the
+   *   dataset's example count afterwards.
+   */
+  async appendExamples(
+    teamId: string,
+    datasetId: string,
+    examples: Array<{
+      input: Prisma.InputJsonValue;
+      criteria?: string;
+      history?: Prisma.InputJsonValue;
+      sourceTraceId?: string;
+      sourceFeedbackId?: string;
+      sourcePromptVersionId?: string;
+    }>,
+  ): Promise<{ added: number; insertedFeedbackIds: Set<string>; exampleCount: number }> {
+    return prisma.$transaction(async (tx) => {
+      let added = 0;
+      const insertedFeedbackIds = new Set<string>();
+      if (examples.length > 0) {
+        const created = await tx.datasetExample.createManyAndReturn({
+          data: examples.map((example) => ({
+            teamId,
+            datasetId,
+            input: example.input,
+            criteria: example.criteria ?? null,
+            // SQL NULL, not the JSON literal `null` — see `createExample`.
+            history: example.history ?? Prisma.DbNull,
+            sourceTraceId: example.sourceTraceId ?? null,
+            sourceFeedbackId: example.sourceFeedbackId ?? null,
+            sourcePromptVersionId: example.sourcePromptVersionId ?? null,
+          })),
+          select: { sourceFeedbackId: true },
+          skipDuplicates: true,
+        });
+        added = created.length;
+        for (const row of created) {
+          if (row.sourceFeedbackId) insertedFeedbackIds.add(row.sourceFeedbackId);
+        }
+      }
+      const exampleCount = await tx.datasetExample.count({ where: { datasetId, teamId } });
+      return { added, insertedFeedbackIds, exampleCount };
+    });
+  }
+
+  /**
+   * Of the given feedback ids, which already have an example in this dataset.
+   *
+   * Appending is expected to be repeated — a person triages feedback weekly and
+   * re-selects rows they have already filed — so the same feedback row must not
+   * silently become a second identical example.
+   *
+   * @param datasetId - The dataset to check within.
+   * @param feedbackIds - Candidate feedback ids.
+   * @returns The subset already present, as a Set for O(1) lookup.
+   */
+  async findFeedbackIdsAlreadyInDataset(datasetId: string, feedbackIds: string[]): Promise<Set<string>> {
+    if (feedbackIds.length === 0) return new Set();
+    const rows = await prisma.datasetExample.findMany({
+      where: { datasetId, sourceFeedbackId: { in: feedbackIds } },
+      select: { sourceFeedbackId: true },
+    });
+    return new Set(rows.map((r) => r.sourceFeedbackId).filter((id): id is string => id !== null));
   }
 }

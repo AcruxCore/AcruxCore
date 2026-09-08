@@ -415,6 +415,7 @@ class GatewayNamespace:
         stream: bool = False,
         provider: Optional[ProviderConfig] = None,
         prompt_version_id: Optional[str] = None,
+        variables: Optional[Dict[str, Any]] = None,
         trace: Union[bool, Dict[str, Any], None] = None,
     ) -> Union[ChatResult, "AsyncChatStream"]:
         """Call the gateway's ``POST /gateway/chat/completions`` once — or, when a
@@ -422,19 +423,29 @@ class GatewayNamespace:
 
         No tool-dispatch loop: if the model returns ``tool_calls`` they are handed
         back raw. Use :meth:`run_tool_loop` to dispatch them.
+
+        :param prompt_version_id: Which prompt version the messages came from, for trace
+            lineage. Send ``variables`` with it.
+        :param variables: The values the messages were rendered from. Recorded on the
+            ``llm`` span, never sent to a BYO provider. An evaluation dataset example is
+            the variables plus the version, so a call naming a version without them can
+            never seed one; alongside a version id they are lineage only and are not
+            re-rendered. Without a version id, a gateway call instead uses them to fill
+            ``{{ placeholders }}`` in the messages sent.
         """
         model = _require_model(model)
         provider_config = provider or self._host._provider_default
         body = self._build_chat_body(
             model, messages, tools, tool_refs, tool_choice, response_format, temperature, max_tokens, stream,
             prompt_version_id=None if provider_config is not None else prompt_version_id,
+            variables=None if provider_config is not None else variables,
         )
         if stream:
             if provider_config is not None:
                 return AsyncChatStream(
                     self, body,
                     provider_config=provider_config, model=model, messages=messages,
-                    prompt_version_id=prompt_version_id, trace_opt=trace,
+                    prompt_version_id=prompt_version_id, variables=variables, trace_opt=trace,
                 )
             # `trace_opt` is forwarded on this path too: without it the gateway never saw
             # the name, trace id, session id, tags or metadata of a streamed call.
@@ -467,6 +478,7 @@ class GatewayNamespace:
                 model, messages, tools=tools, tool_refs=tool_refs, tool_choice=tool_choice,
                 response_format=response_format,
                 temperature=temperature, max_tokens=max_tokens, extra_headers=trace_headers,
+                prompt_version_id=prompt_version_id, variables=variables,
             )
 
         if report_span:
@@ -495,6 +507,8 @@ class GatewayNamespace:
                 span["costUsd"] = result.gateway.cost_usd
             if prompt_version_id:
                 span["promptVersionId"] = prompt_version_id
+            if variables is not None:
+                span["variables"] = variables
             payload: TraceInput = {"name": "chat", "spans": [span]}
             if trace_id:
                 payload["traceId"] = trace_id
@@ -517,6 +531,7 @@ class GatewayNamespace:
         max_tokens: Optional[int] = None,
         provider: Optional[ProviderConfig] = None,
         prompt_version_id: Optional[str] = None,
+        variables: Optional[Dict[str, Any]] = None,
         trace: Union[bool, Dict[str, Any], None] = None,
     ) -> "AsyncChatStream":
         """Stream a chat completion — the standalone streaming entry point.
@@ -527,7 +542,8 @@ class GatewayNamespace:
             model, messages,
             tools=tools, tool_refs=tool_refs, tool_choice=tool_choice,
             response_format=response_format, temperature=temperature, max_tokens=max_tokens,
-            stream=True, provider=provider, prompt_version_id=prompt_version_id, trace=trace,
+            stream=True, provider=provider, prompt_version_id=prompt_version_id,
+            variables=variables, trace=trace,
         )  # type: ignore[return-value]
 
     def _build_chat_body(
@@ -542,6 +558,7 @@ class GatewayNamespace:
         max_tokens: Optional[int],
         stream: bool,
         prompt_version_id: Optional[str] = None,
+        variables: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Build the JSON body for one completion.
 
@@ -550,10 +567,17 @@ class GatewayNamespace:
             OpenAI's, so sending it to a BYO provider would be sending a stranger a
             field it never asked for. On a BYO call the SDK writes the span itself
             and stamps the lineage there instead.
+        :param variables: The values those messages were rendered from, the other half of
+            the same lineage — an evaluation dataset example is the variables plus the
+            version. Gateway-only for the same reason. Alongside a ``prompt_version_id``
+            the gateway records them without re-rendering; without one it uses them to
+            fill ``{{ placeholders }}`` in the messages sent.
         """
         body: Dict[str, Any] = {"model": model, "messages": messages}
         if prompt_version_id:
             body["prompt_version_id"] = prompt_version_id
+        if variables is not None:
+            body["variables"] = variables
         if tools:
             body["tools"] = tools
         if tool_refs:
@@ -583,10 +607,11 @@ class GatewayNamespace:
         max_tokens: Optional[int] = None,
         extra_headers: Optional[Dict[str, str]] = None,
         prompt_version_id: Optional[str] = None,
+        variables: Optional[Dict[str, Any]] = None,
     ) -> ChatResult:
         body = self._build_chat_body(
             model, messages, tools, tool_refs, tool_choice, response_format, temperature, max_tokens, False,
-            prompt_version_id=prompt_version_id,
+            prompt_version_id=prompt_version_id, variables=variables,
         )
         response = await self._host._request(
             "POST", "/gateway/chat/completions", body, "calling chat completions", extra_headers
@@ -922,6 +947,7 @@ class GatewayNamespace:
         body: Dict[str, Any],
         provider_config: ProviderConfig,
         prompt_version_id: Optional[str],
+        variables: Optional[Dict[str, Any]],
         trace_opt: Union[bool, Dict[str, Any]],
     ) -> Any:
         """Stream a BYO provider's ``/chat/completions`` directly, then file the span.
@@ -937,7 +963,8 @@ class GatewayNamespace:
         if trace_opt is not False:
             trace_conf: Dict[str, Any] = trace_opt if isinstance(trace_opt, dict) else {}
             span = self._byo_llm_span(
-                state, messages, provider_config, prompt_version_id, span_id=str(uuid.uuid4())
+                state, messages, provider_config, prompt_version_id, variables,
+                span_id=str(uuid.uuid4()),
             )
             trace_payload: TraceInput = {"name": "chat", "spans": [span]}
             if trace_conf.get("trace_id"):
@@ -952,6 +979,7 @@ class GatewayNamespace:
         messages: List[Message],
         provider_config: ProviderConfig,
         prompt_version_id: Optional[str],
+        variables: Optional[Dict[str, Any]],
         *,
         span_id: str,
     ) -> IngestSpan:
@@ -965,6 +993,9 @@ class GatewayNamespace:
         :param messages: The conversation sent for this turn (the span's input).
         :param provider_config: Used only to name the provider.
         :param prompt_version_id: Prompt lineage to stamp, when the caller has it.
+        :param variables: The values the messages were rendered from — the other half of
+            that lineage, and what an evaluation dataset example is built from. Stamped
+            whenever the caller has it, for the same reason.
         :param span_id: Id for the span.
         """
         output: Dict[str, Any] = {"role": "assistant", "content": state.get("content") or ""}
@@ -1122,6 +1153,7 @@ class GatewayNamespace:
         trace: Union[bool, Dict[str, Any]] = ...,
         provider: Optional[ProviderConfig] = ...,
         prompt_version_id: Optional[str] = ...,
+        variables: Optional[Dict[str, Any]] = ...,
     ) -> RunToolLoopResult: ...
 
     @overload
@@ -1144,6 +1176,7 @@ class GatewayNamespace:
         trace: Union[bool, Dict[str, Any]] = ...,
         provider: Optional[ProviderConfig] = ...,
         prompt_version_id: Optional[str] = ...,
+        variables: Optional[Dict[str, Any]] = ...,
     ) -> "AsyncToolLoopStream": ...
 
     async def run_tool_loop(
@@ -1164,11 +1197,18 @@ class GatewayNamespace:
         trace: Union[bool, Dict[str, Any]] = True,
         provider: Optional[ProviderConfig] = None,
         prompt_version_id: Optional[str] = None,
+        variables: Optional[Dict[str, Any]] = None,
         stream: bool = False,
     ) -> Union[RunToolLoopResult, "AsyncToolLoopStream"]:
         """Run the full tool-calling loop, then — when ``response_format`` is also
         given — shape the gathered facts into one typed answer.
 
+        :param variables: The values the messages were rendered from, stamped on every
+            ``llm`` span this loop records. Worth passing whenever ``prompt_version_id``
+            is, because the two are one fact together: an evaluation dataset example *is*
+            the variables plus the version, so a run naming a version without them can
+            never seed one. Alongside a version id these are lineage only — the messages
+            are already rendered and are not re-rendered. Never sent to a BYO provider.
         :param client_tools: ``{tool_name: function}`` for catalog tools whose executor is
             ``client``, so the loop can run them without a hand-written dispatcher. Only
             ``client`` tools belong here — an ``http`` tool runs on the platform, and
@@ -1198,7 +1238,7 @@ class GatewayNamespace:
                     max_iterations=max_iterations,
                     temperature=temperature, max_tokens=max_tokens,
                     response_format=response_format, trace=trace, provider=provider,
-                    prompt_version_id=prompt_version_id,
+                    prompt_version_id=prompt_version_id, variables=variables,
                 )
             )
 
@@ -1211,6 +1251,7 @@ class GatewayNamespace:
             temperature=temperature, max_tokens=max_tokens,
             response_format=None if shaping else response_format,
             trace=trace, provider=provider, prompt_version_id=prompt_version_id,
+            variables=variables,
         )
         if not shaping:
             return gathered
@@ -1230,7 +1271,7 @@ class GatewayNamespace:
             model, convo, tools=None, tool_defs=None, tool_refs=None, dispatch=dispatch,
             sync=False, max_iterations=1, temperature=temperature, max_tokens=max_tokens,
             response_format=response_format, trace=p2_trace, provider=provider,
-            prompt_version_id=prompt_version_id,
+            prompt_version_id=prompt_version_id, variables=variables,
         )
         shaped_assistant = shaped.messages[-1] if shaped.messages else None
         final_messages = list(gathered.messages)
@@ -1266,6 +1307,7 @@ class GatewayNamespace:
         trace: Union[bool, Dict[str, Any]] = ...,
         provider: Optional[ProviderConfig] = ...,
         prompt_version_id: Optional[str] = ...,
+        variables: Optional[Dict[str, Any]] = ...,
     ) -> RunToolLoopResult: ...
 
     @overload
@@ -1289,6 +1331,7 @@ class GatewayNamespace:
         trace: Union[bool, Dict[str, Any]] = ...,
         provider: Optional[ProviderConfig] = ...,
         prompt_version_id: Optional[str] = ...,
+        variables: Optional[Dict[str, Any]] = ...,
     ) -> "AsyncToolLoopStream": ...
 
     async def run_prompt_with_tools(
@@ -1310,6 +1353,7 @@ class GatewayNamespace:
         trace: Union[bool, Dict[str, Any]] = True,
         provider: Optional[ProviderConfig] = None,
         prompt_version_id: Optional[str] = None,
+        variables: Optional[Dict[str, Any]] = None,
         stream: bool = False,
     ) -> Union[RunToolLoopResult, "AsyncToolLoopStream"]:
         """Run a rendered prompt's own tools in the loop — the two-line way::
@@ -1338,6 +1382,10 @@ class GatewayNamespace:
             :meth:`AcruxCore.render_prompt`.
         :param model: Overrides the version's bound model.
         :param messages: Overrides the rendered messages.
+        :param variables: Overrides the variables taken from the render result. Those are
+            forwarded for you, which is what lets feedback on the run become an
+            evaluation dataset example — pass this only when the messages you supplied
+            were rendered from something else.
         :param tool_refs: Overrides the prompt's bindings entirely — pass ``[]`` to run the
             prompt with no tools at all.
         :param client_tools: ``{tool_name: function}`` for the prompt's ``client``-executor
@@ -1391,6 +1439,7 @@ class GatewayNamespace:
             trace=trace,
             provider=provider,
             prompt_version_id=prompt_version_id or rendered.version_id,
+            variables=variables if variables is not None else rendered.variables,
             stream=stream,
         )
 
@@ -1412,6 +1461,7 @@ class GatewayNamespace:
         trace: Union[bool, Dict[str, Any]] = True,
         provider: Optional[ProviderConfig] = None,
         prompt_version_id: Optional[str] = None,
+        variables: Optional[Dict[str, Any]] = None,
     ) -> RunToolLoopResult:
         routes, effective_refs, inlined_schemas = await self._prepare_tool_routes(
             tools, tool_refs, client_tools, dispatch, sync
@@ -1462,7 +1512,7 @@ class GatewayNamespace:
                     model, convo, tools=tool_defs, tool_refs=effective_refs or None,
                     response_format=response_format,
                     temperature=temperature, max_tokens=max_tokens, extra_headers=extra_headers,
-                    prompt_version_id=prompt_version_id,
+                    prompt_version_id=prompt_version_id, variables=variables,
                 )
 
             if trace_enabled and not trace_id:
@@ -1492,6 +1542,8 @@ class GatewayNamespace:
                     }
                 if prompt_version_id:
                     llm_span["promptVersionId"] = prompt_version_id
+                if variables is not None:
+                    llm_span["variables"] = variables
                 llm_trace_payload: TraceInput = {"name": payload_trace_name, "spans": [llm_span]}
                 if trace_id:
                     llm_trace_payload["traceId"] = trace_id
@@ -1579,6 +1631,7 @@ class GatewayNamespace:
         trace: Union[bool, Dict[str, Any]],
         provider: Optional[ProviderConfig],
         prompt_version_id: Optional[str],
+        variables: Optional[Dict[str, Any]],
     ) -> AsyncGenerator[ToolLoopEvent, None]:
         """The streaming twin of :meth:`_run_tool_loop_gather`, as an event stream.
 
@@ -1639,6 +1692,7 @@ class GatewayNamespace:
                 max_tokens=max_tokens,
                 provider_config=provider_config,
                 prompt_version_id=prompt_version_id,
+                variables=variables,
                 trace_enabled=trace_enabled,
                 trace_conf=trace_conf,
                 trace_name=trace_name,
@@ -1760,6 +1814,7 @@ class GatewayNamespace:
             max_tokens=max_tokens,
             provider_config=provider_config,
             prompt_version_id=prompt_version_id,
+            variables=variables,
             trace_enabled=trace_enabled,
             trace_conf=trace_conf,
             trace_name=trace_name,
@@ -1796,6 +1851,7 @@ class GatewayNamespace:
         max_tokens: Optional[int],
         provider_config: Optional[ProviderConfig],
         prompt_version_id: Optional[str],
+        variables: Optional[Dict[str, Any]],
         trace_enabled: bool,
         trace_conf: Dict[str, Any],
         trace_name: Optional[str],
@@ -1825,6 +1881,7 @@ class GatewayNamespace:
             max_tokens,
             True,
             prompt_version_id=None if provider_config is not None else prompt_version_id,
+            variables=None if provider_config is not None else variables,
         )
 
         content_parts: List[str] = []
@@ -1869,7 +1926,8 @@ class GatewayNamespace:
             span_ref = str(uuid.uuid4())
             if trace_enabled:
                 span = self._byo_llm_span(
-                    provider_state, convo, provider_config, prompt_version_id, span_id=span_ref
+                    provider_state, convo, provider_config, prompt_version_id, variables,
+                    span_id=span_ref,
                 )
                 payload: TraceInput = {"name": payload_trace_name, "spans": [span]}
                 payload["traceId"] = state["trace_id"]
@@ -2088,12 +2146,14 @@ class AsyncChatStream:
         model: Optional[str] = None,
         messages: Optional[List[Message]] = None,
         prompt_version_id: Optional[str] = None,
+        variables: Optional[Dict[str, Any]] = None,
         trace_opt: Union[bool, Dict[str, Any], None] = None,
     ) -> None:
         if provider_config is not None:
             self._gen = gw._stream_via_provider(
                 model or body.get("model"), messages or body.get("messages") or [], body,
-                provider_config, prompt_version_id, trace_opt if trace_opt is not None else True,
+                provider_config, prompt_version_id, variables,
+                trace_opt if trace_opt is not None else True,
             )
         else:
             stream_headers: Optional[Dict[str, str]] = (

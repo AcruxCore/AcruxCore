@@ -14,6 +14,12 @@ export interface DialogProps {
 /**
  * Accessible modal dialog (focus trap + Escape + overlay dismiss via Radix).
  *
+ * The panel is capped at the viewport height and scrolls inside itself. Without
+ * that cap a tall dialog — the model form with a long fallback list, the
+ * optimize form with a long model list — is centred on a box taller than the
+ * screen, so its own footer sits below the bottom edge with nothing to scroll:
+ * the buttons become genuinely unreachable rather than merely off-screen.
+ *
  * @param title - Required accessible title, rendered as the heading.
  * @param description - Optional supporting line under the title.
  */
@@ -32,6 +38,7 @@ export function Dialog({
         <RD.Content
           className={cn(
             'fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2',
+            'max-h-[calc(100vh-2rem)] overflow-y-auto overscroll-contain',
             'rounded-xl border border-line bg-surface p-5 shadow-2xl focus:outline-none',
             className,
           )}

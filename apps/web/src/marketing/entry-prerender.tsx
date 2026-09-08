@@ -26,15 +26,26 @@ export interface PrerenderRoute {
   /** The page component to render at {@link path}. */
   component: () => ReactNode;
   /**
-   * Source file backing this page, relative to `apps/web`.
+   * Every source file whose content this page renders, relative to `apps/web`.
    *
-   * `scripts/prerender.mjs` reads its last git commit date to fill in the
-   * page's sitemap `<lastmod>`. It cannot be derived from
-   * {@link PrerenderRoute.component}, because the bundler discards the original
-   * filename — hence stating it here, next to the page it describes, so adding
-   * a route cannot silently produce a sitemap entry with no date.
+   * `scripts/prerender.mjs` takes the **newest** change date across them as the
+   * page's sitemap `<lastmod>`. A list rather than a single file because most
+   * pages here render copy that does not live in their own component: all five
+   * pillar pages are `features.tsx` poured into `FeaturePage.tsx`, the landing
+   * page's pillar grid comes from `features.tsx` too, and `/compare` renders
+   * `comparisons.tsx`. Naming only the component meant editing the copy moved
+   * no date at all, which told crawlers the page had not changed when it had.
+   *
+   * Shared chrome (`marketing-chrome.tsx`, `MarketingShell.tsx`) is deliberately
+   * NOT listed: a nav or footer tweak is not a content change, and listing it
+   * would re-date all fourteen pages every time.
+   *
+   * It cannot be derived from {@link PrerenderRoute.component}, because the
+   * bundler discards the original filename — hence stating it here, next to the
+   * page it describes, so adding a route cannot silently produce a sitemap entry
+   * with no date.
    */
-  sourceFile: string;
+  sourceFiles: string[];
   /**
    * Relative importance in the sitemap, 0-1.
    *
@@ -65,7 +76,7 @@ export const ROUTES: PrerenderRoute[] = [
     description:
       'AcruxCore is an LLM-ops platform for engineering teams: version prompts, route LLM calls through an OpenAI-compatible gateway, trace every request, catalog tools, and evaluate quality — one platform, no redeploy to change a prompt.',
     component: LandingPage,
-    sourceFile: 'src/marketing/LandingPage.tsx',
+    sourceFiles: ['src/marketing/LandingPage.tsx', 'src/marketing/features.tsx'],
     priority: 1.0,
     changefreq: 'weekly',
   },
@@ -76,7 +87,7 @@ export const ROUTES: PrerenderRoute[] = [
     description:
       'AcruxCore is one control plane for the whole LLM stack: prompt versioning, an OpenAI-compatible gateway, tracing, a tool catalog, and evaluation — with first-class TypeScript and Python SDKs.',
     component: AboutPage,
-    sourceFile: 'src/marketing/pages/AboutPage.tsx',
+    sourceFiles: ['src/marketing/pages/AboutPage.tsx'],
     priority: 0.6,
     changefreq: 'monthly',
   },
@@ -87,7 +98,7 @@ export const ROUTES: PrerenderRoute[] = [
     description:
       'Get in touch with the AcruxCore team about the platform, self-hosting, pricing, or security reports.',
     component: ContactPage,
-    sourceFile: 'src/marketing/pages/ContactPage.tsx',
+    sourceFiles: ['src/marketing/pages/ContactPage.tsx'],
     priority: 0.5,
     changefreq: 'monthly',
   },
@@ -98,7 +109,7 @@ export const ROUTES: PrerenderRoute[] = [
     description:
       'How AcruxCore protects your provider keys, prompts, and trace data: team isolation, encryption, payload-capture controls, self-hosting, and responsible disclosure.',
     component: SecurityPage,
-    sourceFile: 'src/marketing/pages/SecurityPage.tsx',
+    sourceFiles: ['src/marketing/pages/SecurityPage.tsx'],
     priority: 0.5,
     changefreq: 'monthly',
   },
@@ -109,7 +120,7 @@ export const ROUTES: PrerenderRoute[] = [
     description:
       'What information AcruxCore collects, how we use it, and the choices you have across the hosted platform and website.',
     component: PrivacyPage,
-    sourceFile: 'src/marketing/pages/PrivacyPage.tsx',
+    sourceFiles: ['src/marketing/pages/PrivacyPage.tsx'],
     priority: 0.3,
     changefreq: 'yearly',
   },
@@ -119,7 +130,7 @@ export const ROUTES: PrerenderRoute[] = [
     title: 'Terms of Service — AcruxCore',
     description: 'The terms that govern your access to and use of the AcruxCore platform, SDKs, APIs, and website.',
     component: TermsPage,
-    sourceFile: 'src/marketing/pages/TermsPage.tsx',
+    sourceFiles: ['src/marketing/pages/TermsPage.tsx'],
     priority: 0.3,
     changefreq: 'yearly',
   },
@@ -130,7 +141,7 @@ export const ROUTES: PrerenderRoute[] = [
     description:
       'AcruxCore is free while in beta: the whole platform, with your own provider keys and no token markup. Self-hosted and enterprise options on request.',
     component: PricingPage,
-    sourceFile: 'src/marketing/pages/PricingPage.tsx',
+    sourceFiles: ['src/marketing/pages/PricingPage.tsx'],
     priority: 0.7,
     changefreq: 'monthly',
   },
@@ -141,7 +152,7 @@ export const ROUTES: PrerenderRoute[] = [
     description:
       'One client for prompts, the gateway, and tracing, with the same surface in TypeScript and Python: cached prompt rendering, OpenAI-compatible chat, single-trace tool loops, and feedback.',
     component: SdkPage,
-    sourceFile: 'src/marketing/pages/SdkPage.tsx',
+    sourceFiles: ['src/marketing/pages/SdkPage.tsx'],
     priority: 0.8,
     changefreq: 'monthly',
   },
@@ -153,9 +164,10 @@ export const ROUTES: PrerenderRoute[] = [
     title: feature.metaTitle,
     description: feature.metaDescription,
     component: () => <FeaturePage feature={feature} />,
-    // Every pillar page's copy lives in features.tsx, so that is the file
-    // whose commit date reflects a change to any of them.
-    sourceFile: 'src/marketing/features.tsx',
+    // A pillar page is features.tsx (the copy) rendered through
+    // FeaturePage.tsx (the sections that copy is poured into), so a change to
+    // either one changes the page a crawler sees.
+    sourceFiles: ['src/marketing/features.tsx', 'src/marketing/pages/FeaturePage.tsx'],
     priority: 0.8,
     changefreq: 'monthly' as const,
   })),
@@ -166,7 +178,7 @@ export const ROUTES: PrerenderRoute[] = [
     description:
       'AcruxCore vs Langfuse, Phoenix, Opik, Helicone, MLflow, and Laminar on license, self-hosting, pricing, team structure, security, and community stats — every fact sourced and dated.',
     component: ComparePage,
-    sourceFile: 'src/marketing/pages/ComparePage.tsx',
+    sourceFiles: ['src/marketing/pages/ComparePage.tsx', 'src/marketing/comparisons.tsx'],
     priority: 0.8,
     changefreq: 'monthly',
   },

@@ -191,7 +191,11 @@ export function ModelDialog({ open, onOpenChange, model }: ModelDialogProps) {
 
           {fallbackChoices.length > 0 && (
             <Field label="Fallbacks" htmlFor="model-fallbacks" hint="Tried in order if this model fails.">
-              <div id="model-fallbacks" className="flex flex-col gap-1.5 rounded-md border border-line-soft bg-bg p-2.5">
+              {/* Capped and scrolling for the same reason as the evaluation
+                  model picker: an uncapped list grows with the registry until
+                  it pushes this dialog's own buttons off the bottom of the
+                  screen, which is where I found it. */}
+              <div id="model-fallbacks" className="flex max-h-40 flex-col gap-1.5 overflow-y-auto rounded-md border border-line-soft bg-bg p-2.5">
                 {fallbackChoices.map((m) => {
                   const pos = fallbackIds.indexOf(m.id);
                   return (

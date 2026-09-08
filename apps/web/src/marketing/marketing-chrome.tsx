@@ -64,6 +64,30 @@ export const DOCS = {
   attachTool: `${DOCS_URL}/docs/guides/build-and-attach-a-tool`,
   evaluatePrompt: `${DOCS_URL}/docs/guides/evaluate-a-prompt`,
   inviteTeammate: `${DOCS_URL}/docs/guides/invite-a-teammate`,
+  /**
+   * The second wave of per-pillar guides, added when the feature pages started
+   * describing the capabilities they cover. Every one is a published guide —
+   * a page here that links a slug the docs site does not build fails the docs
+   * build, which is what keeps this list honest.
+   */
+  conditionalTemplates: `${DOCS_URL}/docs/guides/use-conditional-logic-in-prompt-templates`,
+  diffExportImport: `${DOCS_URL}/docs/guides/diff-export-and-import-your-prompt-library`,
+  promptsViaSdk: `${DOCS_URL}/docs/guides/manage-prompts-via-the-sdk`,
+  modelFallbacks: `${DOCS_URL}/docs/guides/automatic-model-fallbacks`,
+  virtualKeys: `${DOCS_URL}/docs/guides/scope-access-with-virtual-keys`,
+  budgetsAndRateLimits: `${DOCS_URL}/docs/guides/set-spend-limits-with-gateway-budgets-and-rate-limits`,
+  cachingBenchmark: `${DOCS_URL}/blog/exact-match-gateway-caching`,
+  otelHelper: `${DOCS_URL}/docs/guides/send-otel-traces-with-the-sdk-helper`,
+  tagAndFilterTraces: `${DOCS_URL}/docs/guides/tag-and-filter-traces`,
+  traceAnalytics: `${DOCS_URL}/docs/guides/view-trace-analytics`,
+  payloadCapture: `${DOCS_URL}/docs/guides/configure-trace-payload-capture`,
+  crewaiTracing: `${DOCS_URL}/docs/tutorials/trace-a-crewai-trip-planner`,
+  connectToolToPrompt: `${DOCS_URL}/docs/guides/connect-a-tool-to-a-prompt`,
+  toolInCodeOrCatalog: `${DOCS_URL}/docs/guides/define-a-tool-in-code-or-in-the-catalog`,
+  toolAliases: `${DOCS_URL}/docs/guides/alias-and-track-usage-of-tools-in-the-catalog`,
+  evaluationRules: `${DOCS_URL}/docs/guides/score-live-traffic-with-an-evaluation-rule`,
+  improveFromFeedback: `${DOCS_URL}/docs/guides/improve-a-prompt-from-feedback`,
+  evaluateWithHistory: `${DOCS_URL}/docs/guides/evaluate-a-prompt-with-conversation-history`,
 } as const;
 
 /**

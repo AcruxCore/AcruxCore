@@ -25,11 +25,11 @@ designed to snap together.
 
 | Block | What it does |
 |-------|--------------|
-| **Prompts** | Versioned, templated message sets. Move a `production` alias between versions without redeploying your app. |
-| **Gateway** | One OpenAI-compatible endpoint in front of every provider (OpenAI, Anthropic, Gemini, OpenRouter, …). Bring your own keys; get routing, cost, and caching. |
-| **Tracing** | Every gateway call is recorded as a trace with spans — model, tokens, latency, cost. Report your own spans from app code too. |
-| **Tools** | Functions the model can call, versioned exactly like prompts. Declare one in your own code and the catalog fills itself in, or declare an HTTP one that the platform calls for you. |
-| **Evaluation** | Build datasets from real feedback and run experiments to compare prompt or model versions on quality. |
+| [**Prompts**](https://acruxcore.com/features/prompts) | Versioned, templated message sets. Move a `production` alias between versions without redeploying your app. |
+| [**Gateway**](https://acruxcore.com/features/gateway) | One OpenAI-compatible endpoint in front of the providers you connect — OpenAI, Anthropic, Gemini, and any OpenAI-compatible endpoint you register. Bring your own keys; get routing, fallbacks, cost, and caching. |
+| [**Tracing**](https://acruxcore.com/features/tracing) | Every gateway call is recorded as a trace with spans — model, tokens, latency, cost. Or keep your own provider calls and export the same spans over OpenTelemetry. |
+| [**Tools**](https://acruxcore.com/features/tools) | Functions the model can call, versioned exactly like prompts. Declare one in your own code and the catalog fills itself in, or declare an HTTP one that the platform calls for you. |
+| [**Evaluation**](https://acruxcore.com/features/evaluation) | Build datasets from real feedback or by hand, run experiments to compare prompt and model versions, score live traffic with standing rules, and let the optimizer draft the next version. |
 
 ## How they connect
 

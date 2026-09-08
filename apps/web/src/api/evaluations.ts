@@ -3,6 +3,8 @@ import { api } from './client';
 import type { ApiQuery } from './client';
 import { keys } from './queryClient';
 import type {
+  AddExamplesFromFeedbackInput,
+  AddExamplesFromFeedbackResult,
   AddDatasetExampleInput,
   CandidateDetail,
   CreateDatasetFromFeedbackInput,
@@ -136,6 +138,68 @@ export function useAddDatasetExample(id: string) {
 }
 
 /**
+ * Appends feedback rows to a dataset that already exists — the second and every
+ * later pass over the feedback list, where {@link useCreateDatasetFromFeedback}
+ * only covers the first.
+ *
+ * The result's `added` can be 0 with no error: every selected row was already in
+ * the dataset, or none was eligible. `skipped[]` says which and why, so the
+ * caller reports that rather than a bare success.
+ *
+ * @param id - Dataset UUID to append to.
+ */
+export function useAddExamplesFromFeedback(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: AddExamplesFromFeedbackInput) =>
+      api<AddExamplesFromFeedbackResult>(`/datasets/${id}/examples/from-feedback`, { method: 'POST', body }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.datasets });
+      qc.invalidateQueries({ queryKey: keys.dataset(id) });
+    },
+  });
+}
+
+/**
+ * Edits one example's criteria — the per-example rubric the judge grades
+ * against. A row built from feedback inherits the raw complaint, which grades
+ * badly reused verbatim, so rewording it is ordinary curation.
+ *
+ * Send `criteria: null` to clear the rubric; omitting the key leaves it alone.
+ *
+ * @param id - Dataset UUID the example belongs to.
+ */
+export function useUpdateDatasetExample(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ exampleId, criteria }: { exampleId: string; criteria: string | null }) =>
+      api<DatasetExample>(`/datasets/${id}/examples/${exampleId}`, { method: 'PATCH', body: { criteria } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.dataset(id) }),
+  });
+}
+
+/**
+ * Removes one example from a dataset. Invalidates the detail query (the table)
+ * and the list (its example count).
+ *
+ * Past runs that graded this example keep their results — the run's frozen
+ * `exampleSnapshot` is what they read, not this row.
+ *
+ * @param id - Dataset UUID the example belongs to.
+ */
+export function useRemoveDatasetExample(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (exampleId: string) =>
+      api<{ success: true }>(`/datasets/${id}/examples/${exampleId}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.datasets });
+      qc.invalidateQueries({ queryKey: keys.dataset(id) });
+    },
+  });
+}
+
+/**
  * Deletes one evaluation/optimize run and its cells. The parent experiment and
  * any optimizer candidates the run drafted survive. Invalidates every `runs`
  * list query (the filters are part of the key, so an exact match is not enough)
@@ -156,9 +220,19 @@ export function useDeleteRun() {
 }
 
 /**
- * Soft-deletes a dataset. Invalidates `keys.datasets` so the list drops it;
- * a subsequent `GET /datasets/:id` for this id 404s just like a nonexistent
- * one, so the detail query is invalidated too (it will error if still mounted).
+ * Soft-deletes a dataset. Invalidates `keys.datasets` so the list drops it, and
+ * deliberately does **not** touch `keys.dataset(id)`.
+ *
+ * Both of the obvious things do the wrong thing here, because the delete is
+ * normally fired from the detail page, where that query still has a mounted
+ * observer. `invalidateQueries` refetches it; `removeQueries` drops the entry
+ * and the live observer immediately refetches to replace it. Either way
+ * `GET /datasets/:id` runs against an id that no longer resolves and logs a 404,
+ * which reads as a bug to anyone with devtools open.
+ *
+ * Leaving it alone is correct rather than merely quiet: the caller navigates
+ * away, the observer unmounts, and the stale entry is garbage-collected without
+ * anyone asking the server about a row that is gone.
  *
  * @param id - Dataset UUID to delete.
  */
@@ -166,10 +240,7 @@ export function useDeleteDataset(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => api<{ success: true }>(`/datasets/${id}`, { method: 'DELETE' }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: keys.datasets });
-      qc.invalidateQueries({ queryKey: keys.dataset(id) });
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.datasets }),
   });
 }
 

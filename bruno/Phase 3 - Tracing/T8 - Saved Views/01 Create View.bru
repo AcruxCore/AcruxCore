@@ -1,0 +1,38 @@
+meta {
+  name: Create View
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/trace-views
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "surface": "traces",
+    "name": "Checkout regressions",
+    "query": "tags=prod&q=london&q_in=input"
+  }
+}
+
+docs {
+  `query` is the raw filter query string, stored verbatim. A leading `?` is
+  stripped, so `location.search` can be sent as-is.
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setVar("savedViewId", res.getBody().id);
+  }
+}

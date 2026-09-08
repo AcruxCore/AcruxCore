@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Drawer, Empty, MonoBlock, PageSpinner } from '@/ui';
+import { formatPayload } from '@/traces';
 import { cn } from '@/lib/cn';
 import { useAuth } from '@/auth/AuthContext';
 import { useRunCell } from '@/api';
@@ -53,8 +54,8 @@ function ExampleRow({ example }: { example: RunCellExample }) {
       {example.criteria && <p className="text-[12px] text-muted">{example.criteria}</p>}
       <HistoryDisclosure history={example.history} />
 
-      <MonoBlock label="Input" value={JSON.stringify(example.input, null, 2)} />
-      <MonoBlock label="Output" value={JSON.stringify(example.output, null, 2)} />
+      <MonoBlock label="Input" value={formatPayload(example.input)} />
+      <MonoBlock label="Output" value={formatPayload(example.output)} />
 
       {example.reason && (
         <div className="flex flex-col gap-0.5">

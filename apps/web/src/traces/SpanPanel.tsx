@@ -4,8 +4,9 @@ import { Badge, Button, MonoBlock, useToast } from '@/ui';
 import { usePatchFeedback, usePostFeedback } from '@/api';
 import { useAuth } from '@/auth/AuthContext';
 import { buildPrefillFromSpan } from '@/gateway/playground-prefill';
-import { formatCount, formatLatency, formatUsd } from './format';
+import { formatCount, formatLatency, formatPayload, formatUsd } from './format';
 import { Collapsible } from './Collapsible';
+import { KeyValueRows } from './KeyValueRows';
 import type { Feedback, Span } from '@/api/types';
 
 export interface SpanPanelProps {
@@ -73,7 +74,16 @@ export function SpanPanel({ span, traceId, feedback }: SpanPanelProps) {
       data-testid="span-panel"
     >
       <section className="rounded-lg border border-line-soft bg-surface px-3 py-2" data-testid="span-metrics">
-        {span.model != null && <Metric label="Model" value={span.model} />}
+        {span.model != null && (
+          <Metric
+            label="Model"
+            value={
+              <Link to={`/traces?model=${encodeURIComponent(span.model)}`} className="text-varhi hover:underline">
+                {span.model}
+              </Link>
+            }
+          />
+        )}
         {span.provider != null && <Metric label="Provider" value={span.provider} />}
         {span.totalTokens != null && <Metric label="Tokens" value={formatCount(span.totalTokens)} />}
         {span.costUsd != null && <Metric label="Cost" value={formatUsd(span.costUsd)} />}
@@ -113,9 +123,13 @@ export function SpanPanel({ span, traceId, feedback }: SpanPanelProps) {
       )}
 
       {span.tags.length > 0 && (
+        // Click-to-filter: a value you can see is a filter you should not have
+        // to retype. Each tag opens the trace list already narrowed to it.
         <div className="flex flex-wrap gap-1.5" data-testid="span-tags">
           {span.tags.map((tag) => (
-            <Badge key={tag} className="px-2 py-0.5 text-[11px]">{tag}</Badge>
+            <Link key={tag} to={`/traces?tags=${encodeURIComponent(tag)}`} title={`Filter traces by ${tag}`}>
+              <Badge className="px-2 py-0.5 text-[11px] hover:border-varhi">{tag}</Badge>
+            </Link>
           ))}
         </div>
       )}
@@ -126,12 +140,7 @@ export function SpanPanel({ span, traceId, feedback }: SpanPanelProps) {
               metadata below: which executor ran a tool, which tool version it was, whether
               a response transform applied, whether a completion was a cache hit. */}
           <Collapsible label="Attributes" defaultOpen testId="span-attributes-toggle">
-            {Object.entries(span.attributes).map(([k, v]) => (
-              <div key={k} className="flex items-center justify-between gap-3 border-b border-line-soft py-1.5 text-[13px] last:border-0">
-                <span className="text-muted">{k}</span>
-                <span className="truncate font-mono text-ink">{typeof v === 'string' ? v : JSON.stringify(v)}</span>
-              </div>
-            ))}
+            <KeyValueRows entries={span.attributes} />
           </Collapsible>
         </section>
       )}
@@ -139,12 +148,7 @@ export function SpanPanel({ span, traceId, feedback }: SpanPanelProps) {
       {hasMetadata && (
         <section className="rounded-lg border border-line-soft bg-surface px-3 py-2" data-testid="span-metadata">
           <Collapsible label="Metadata" testId="span-metadata-toggle">
-            {Object.entries(span.metadata).map(([k, v]) => (
-              <div key={k} className="flex items-center justify-between border-b border-line-soft py-1.5 text-[13px] last:border-0">
-                <span className="text-muted">{k}</span>
-                <span className="font-mono text-ink">{typeof v === 'string' ? v : JSON.stringify(v)}</span>
-              </div>
-            ))}
+            <KeyValueRows entries={span.metadata} />
           </Collapsible>
         </section>
       )}
@@ -152,10 +156,10 @@ export function SpanPanel({ span, traceId, feedback }: SpanPanelProps) {
       {hasPayload ? (
         <div className="flex flex-col gap-3">
           {span.payload!.input !== undefined && (
-            <MonoBlock label="Input" value={JSON.stringify(span.payload!.input, null, 2)} />
+            <MonoBlock label="Input" value={formatPayload(span.payload!.input)} />
           )}
           {span.payload!.output !== undefined && (
-            <MonoBlock label="Output" value={JSON.stringify(span.payload!.output, null, 2)} />
+            <MonoBlock label="Output" value={formatPayload(span.payload!.output)} />
           )}
         </div>
       ) : (

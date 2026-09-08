@@ -145,7 +145,7 @@ describe('register()', () => {
       ).rejects.toMatchObject({ code: 'UNKNOWN_INSTRUMENTOR' });
     });
 
-    it.each(['openai', 'openai_agents'] as const)(
+    it.each(['openai', 'openai_agents', 'langchain'] as const)(
       'throws INSTRUMENTOR_NOT_INSTALLED with an install hint for %s when its packages are missing',
       async (name) => {
         // Neither framework's own package nor its OpenInference instrumentation
@@ -163,17 +163,19 @@ describe('register()', () => {
         expect(caught).toMatchObject({ code: 'INSTRUMENTOR_NOT_INSTALLED' });
         // The instrumentation package is imported before the framework package, so
         // its name is what actually appears in the message when neither is installed.
-        const expectedPackage =
-          name === 'openai'
-            ? '@arizeai/openinference-instrumentation-openai'
-            : '@arizeai/openinference-instrumentation-openai-agents';
+        const expectedPackage = {
+          openai: '@arizeai/openinference-instrumentation-openai',
+          openai_agents: '@arizeai/openinference-instrumentation-openai-agents',
+          langchain: '@arizeai/openinference-instrumentation-langchain',
+        }[name];
         expect((caught as Error).message).toContain(expectedPackage);
       },
     );
   });
 
-  it('SUPPORTED_FRAMEWORKS lists openai and openai_agents', () => {
+  it('SUPPORTED_FRAMEWORKS lists openai, openai_agents and langchain', () => {
     expect(SUPPORTED_FRAMEWORKS).toContain('openai');
     expect(SUPPORTED_FRAMEWORKS).toContain('openai_agents');
+    expect(SUPPORTED_FRAMEWORKS).toContain('langchain');
   });
 });

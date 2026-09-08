@@ -497,8 +497,21 @@ export interface Feedback {
   comment: string | null;
   source: string;
   createdBy: string | null;
+  /**
+   * The team member who posted this. Null for a row posted with a team-scoped
+   * API key or by an end user, where no user sits behind it.
+   */
+  author: FeedbackAuthor | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** The team member behind a feedback row. */
+export interface FeedbackAuthor {
+  id: string;
+  /** Display name, or null when they never set one — fall back to the email. */
+  name: string | null;
+  email: string;
 }
 
 /**
@@ -532,16 +545,33 @@ export interface TraceFilters {
   status?: SpanStatus;
   model?: string;
   sessionId?: string;
+  /** Traces with a span using this exact prompt version. */
   promptVersionId?: string;
+  /** Traces with a span using ANY version of this prompt. */
+  promptId?: string;
   minLatencyMs?: number;
   minCostUsd?: number;
   minTokens?: number;
+  minScore?: number;
+  maxScore?: number;
+  /**
+   * Free text over trace and span names, span attributes, and the captured
+   * request and response.
+   */
   q?: string;
+  /** Narrows `q` to one part of the trace. Omitted means `all`. */
+  qIn?: TraceSearchScope;
   tags?: string[];
   metadata?: Record<string, string>;
   page?: number;
   limit?: number;
 }
+
+/** Which part of a trace `q` searches. Mirrors the API's `q_in`. */
+export type TraceSearchScope = 'all' | 'input' | 'output' | 'name';
+
+/** How a feedback row's rating narrows a search. Mirrors the API's `rating`. */
+export type FeedbackRatingFilter = 'up' | 'down' | 'none';
 
 /** Response for GET /traces/facets: distinct tags + metadata keys for the team. */
 export interface TraceFacets {
@@ -656,7 +686,28 @@ export interface DatasetExample {
   sourceTraceId: string | null;
   sourceFeedbackId: string | null;
   sourcePromptVersionId: string | null;
+  /**
+   * The prompt version this example was captured from, already resolved to
+   * readable names. Null for a hand-written row, and also null when the source
+   * version has since been deleted — so this can be null while
+   * `sourcePromptVersionId` is not.
+   */
+  sourcePrompt: SourcePromptInfo | null;
   createdAt: string;
+}
+
+/** Readable identity of the prompt version an example was captured from. */
+export interface SourcePromptInfo {
+  promptId: string;
+  name: string;
+  versionNumber: number;
+  /**
+   * The version's last user message as committed — raw template text, so it can
+   * still contain `{{ placeholders }}`. Version-level, not example-level: every
+   * example from this version carries the same string, so show it only where the
+   * example has no `input` of its own. Null when the version has no user message.
+   */
+  lastUserMessage: string | null;
 }
 
 /** One prompt whose dataset examples don't match the run's target prompt, and how many. */
@@ -718,10 +769,42 @@ export interface CreateDatasetFromFeedbackResult {
   skipped: { feedbackId: string; reason: string }[];
 }
 
-export interface CreateDatasetFromFeedbackInput {
+/**
+ * Result of `POST /datasets/:id/examples/from-feedback`. Snake_case
+ * `example_count` for the same reason {@link CreateDatasetFromFeedbackResult}
+ * uses it — the from-feedback endpoints return the wire shape as written.
+ *
+ * `added` can be 0 without an error: a selected row already in the dataset, or
+ * one with no captured variables, is reported in `skipped` rather than failing
+ * the call.
+ */
+export interface AddExamplesFromFeedbackResult {
+  added: number;
+  example_count: number;
+  skipped: { feedbackId: string; reason: string }[];
+  /**
+   * How many rows the criteria matched in total. Present only for a `filter`
+   * request, and above the API's 100-row ceiling it exceeds what was processed.
+   */
+  matched?: number;
+}
+
+/**
+ * Body for the two `from-feedback` endpoints' row selector. Exactly one of the
+ * two fields — the API rejects both together and neither.
+ */
+export interface FeedbackSelector {
+  feedback_ids?: string[];
+  /** Snake_case filter object; build it with `filterStateToBody`. */
+  filter?: Record<string, unknown>;
+}
+
+/** Body for POST /datasets/:id/examples/from-feedback. */
+export type AddExamplesFromFeedbackInput = FeedbackSelector;
+
+export interface CreateDatasetFromFeedbackInput extends FeedbackSelector {
   name: string;
   overall_feedback?: string;
-  feedback_ids: string[];
 }
 
 // ── Evaluations: experiments & runs (E3) ────────────────────────────────────
@@ -779,6 +862,8 @@ export interface ExperimentListResponse {
 export interface StartRunResponse {
   run_id: string;
   status: string;
+  /** Present on an optimize start: the model resolved to do the rewriting. */
+  optimizer_model?: string;
   prompt_mismatch_warning?: {
     mismatched_prompts: Array<{ prompt_id: string; name: string; example_count: number }>;
   };
@@ -966,6 +1051,14 @@ export interface RunCellDetail {
 export interface OptimizeInput {
   dataset_id: string;
   models: string[];
+  /**
+   * The model that writes the candidate rewrites — distinct from `models`,
+   * which is what they are then tested on. Omitted, the API defaults to the
+   * first entry of `models`.
+   */
+  optimizer_model?: string;
+  /** Team prompt supplying the optimizer's instructions; omitted uses the built-in ones. */
+  optimizer_prompt_id?: string;
   draft_count?: number;
   alias?: string;
 }
@@ -1022,10 +1115,38 @@ export interface FeedbackSummaryParams {
   groupBy?: FeedbackGroupBy;
 }
 
-/** Pagination for GET /traces/feedback (the team-wide raw feed, T10). */
-export interface FeedbackFeedParams {
-  page?: number;
-  limit?: number;
+/**
+ * Filters and pagination for GET /traces/feedback (the team-wide raw feed, T10).
+ *
+ * Extends `TraceFilters` because every trace filter applies here and describes
+ * the feedback row's trace. The four fields below describe the critique itself.
+ * One exception to the shared meaning: `from`/`to` window the feedback row, not
+ * its trace.
+ */
+export interface FeedbackFeedParams extends TraceFilters {
+  rating?: FeedbackRatingFilter;
+  source?: string;
+  label?: string;
+  hasComment?: boolean;
+}
+
+/** A named, team-visible filter set for the trace or feedback list. */
+export interface SavedView {
+  id: string;
+  surface: string;
+  name: string;
+  /** The raw filter query string, stored verbatim and handed back as-is. */
+  query: string;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Body for POST /trace-views. */
+export interface CreateSavedViewInput {
+  surface: 'traces' | 'feedback';
+  name: string;
+  query: string;
 }
 
 /** `updatedAt` is null until the team's row has ever been written (lazy default). */

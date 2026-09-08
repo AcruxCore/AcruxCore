@@ -156,6 +156,11 @@ class IngestSpan(TypedDict, total=False):
     usage: SpanUsage
     costUsd: float
     promptVersionId: str
+    #: The prompt variables behind this span's ``input``. Stored beside the payload and
+    #: read back when feedback on the trace is turned into an evaluation dataset example,
+    #: which is why a self-reported ``llm`` span wants it whenever ``promptVersionId``
+    #: is set.
+    variables: Any
     input: Any
     output: Any
     attributes: Dict[str, Any]
@@ -264,6 +269,12 @@ class RenderResult:
     version_id: Optional[str] = None
     #: The resolved prompt version's number (matches version_id 1:1), or ``None``.
     version_number: Optional[int] = None
+    #: The variables this render was performed with — exactly what was passed to
+    #: :meth:`AcruxCore.render_prompt`, echoed back so a caller holding only the result
+    #: still has them. :meth:`AcruxCore.run_prompt_with_tools` forwards them for you;
+    #: pass them yourself as ``variables=`` whenever you hand the rendered messages over
+    #: by hand, or the run cannot become an evaluation dataset example.
+    variables: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

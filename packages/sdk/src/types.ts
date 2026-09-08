@@ -97,6 +97,16 @@ export interface RenderResult {
   versionId: string | null;
   /** The resolved prompt version's number (matches versionId 1:1), or null. */
   versionNumber: number | null;
+  /**
+   * The variables this render was performed with — exactly what was passed to
+   * `prompts.render()`, echoed back so a caller holding only the result still has them.
+   *
+   * `runPromptWithTools` forwards these for you. Pass them yourself as `variables` on
+   * {@link acruxcore.chat} / {@link acruxcore.runToolLoop} whenever you hand the rendered
+   * messages over by hand, or the run cannot become an evaluation dataset example — see
+   * {@link ChatOptions.variables}.
+   */
+  variables: Record<string, unknown>;
 }
 
 /**
@@ -674,6 +684,11 @@ export interface RunToolLoopOptions {
   /** From renderPrompt().versionId; stamped on every llm span this loop records. */
   promptVersionId?: string;
   /**
+   * The variables the messages were rendered from, stamped on every `llm` span this
+   * loop records. See {@link ChatOptions.variables} — same field, same reasons.
+   */
+  variables?: Record<string, unknown>;
+  /**
    * Stream the loop as typed {@link ToolLoopEvent}s instead of awaiting the result, so a
    * UI can show model text as it arrives and render a running tool as its own state:
    *
@@ -809,6 +824,19 @@ export interface ChatOptions {
   provider?: ProviderConfig;
   /** From renderPrompt().versionId; stamped on the llm span for lineage. */
   promptVersionId?: string;
+  /**
+   * The variables the messages were rendered from. Recorded on the `llm` span, never
+   * sent to a BYO provider (it is our field, not OpenAI's).
+   *
+   * Worth passing whenever `promptVersionId` is set, because the two are one fact
+   * together: an evaluation dataset example *is* the variables plus the version, so a
+   * run that names a version without them can never seed one. Alongside a version id
+   * these are lineage only — the messages are already rendered and are not re-rendered.
+   *
+   * Without a `promptVersionId` on a gateway call, the gateway instead treats them as
+   * render input and fills `{{ placeholders }}` in the messages you sent.
+   */
+  variables?: Record<string, unknown>;
   /**
    * Auto-report a trace for this call. Default `true` when `provider` is set
    * (nothing else will trace a BYO call); default `false` otherwise (unchanged —
@@ -947,6 +975,9 @@ export interface ListTracesResult {
   limit: number;
 }
 
+/** Which part of a trace {@link ListTracesOptions.q} searches. */
+export type TraceSearchScope = 'all' | 'input' | 'output' | 'name';
+
 /** Query params for {@link acruxcore.listTraces}. All optional. */
 export interface ListTracesOptions {
   from?: string;
@@ -954,11 +985,24 @@ export interface ListTracesOptions {
   status?: SpanStatus;
   model?: string;
   sessionId?: string;
+  /** Traces with a span using this exact prompt version. */
   promptVersionId?: string;
+  /**
+   * Traces with a span using ANY version of this prompt. Use it when several
+   * versions have shipped and the question is about the prompt, not a version.
+   */
+  promptId?: string;
   minLatencyMs?: number;
   minCostUsd?: number;
   minTokens?: number;
+  /**
+   * Free text. Searches trace and span names, span attributes, and the captured
+   * request and response — so a run can be found by a phrase from the
+   * conversation. Payload text is only searchable where payload capture was on.
+   */
   q?: string;
+  /** Narrows {@link ListTracesOptions.q} to one side of the exchange. Default `all`. */
+  qIn?: TraceSearchScope;
   page?: number;
   limit?: number;
 }
@@ -1035,6 +1079,12 @@ export interface IngestSpan {
   usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number };
   costUsd?: number;
   promptVersionId?: string;
+  /**
+   * The prompt variables behind this span's `input`. Stored beside the payload and read
+   * back when feedback on the trace is turned into an evaluation dataset example, which
+   * is why a self-reported `llm` span wants it whenever `promptVersionId` is set.
+   */
+  variables?: unknown;
   input?: unknown;
   output?: unknown;
   attributes?: Record<string, unknown>;

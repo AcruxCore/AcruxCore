@@ -171,6 +171,64 @@ describe('POST /api/v1/gateway/chat/completions — prompt reference lineage', (
     expect(span!.promptVersionId).toBe(v1Id);
   });
 
+  it('records the variables a client-rendered call sends, so the run can seed a dataset', async () => {
+    const { agent, teamId, v1Id } = await arrangeOwnerWithPrompt();
+
+    // The client rendered `Hello {{ name }}` itself and tells us both which version it
+    // came from and what it rendered with. The variables are the only replay lineage
+    // that exists for this call — an evaluation renders a candidate template against
+    // them — so they have to reach `span_payloads`, not be dropped as an unused render
+    // input (#412).
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Hello Alice' }],
+        prompt_version_id: v1Id,
+        variables: { name: 'Alice' },
+      })
+      .expect(200);
+
+    const span = await prisma.span.findFirst({ where: { teamId, kind: 'llm' }, include: { payload: true } });
+    expect(span!.promptVersionId).toBe(v1Id);
+    expect(span!.payload!.variables).toEqual({ name: 'Alice' });
+  });
+
+  it('does not re-render a client-rendered call whose content contains template syntax', async () => {
+    const { agent, v1Id } = await arrangeOwnerWithPrompt();
+
+    // A user can legitimately ask about template syntax. The caller already rendered,
+    // so `variables` must not send these messages back through nunjucks — that would
+    // rewrite the question the user actually asked.
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: 'What does {{ name }} mean in a prompt?' }],
+        prompt_version_id: v1Id,
+        variables: { name: 'Alice' },
+      })
+      .expect(200);
+
+    expect(capturedProviderBody?.messages[0].content).toBe('What does {{ name }} mean in a prompt?');
+  });
+
+  it('never lets a variables object reach the provider', async () => {
+    const { agent, v1Id } = await arrangeOwnerWithPrompt();
+
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Hello Alice' }],
+        prompt_version_id: v1Id,
+        variables: { name: 'Alice' },
+      })
+      .expect(200);
+
+    expect(capturedProviderBody).not.toHaveProperty('variables');
+  });
+
   it('never lets a prompt_version_id reach the provider', async () => {
     const { agent, v1Id } = await arrangeOwnerWithPrompt();
 

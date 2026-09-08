@@ -12,7 +12,48 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
-_Nothing yet._
+### Added
+
+- `promptId` on `traces.list()`. Matches traces using ANY version of a prompt, where
+  `promptVersionId` matches one exact version.
+- `qIn` on `traces.list()` — narrows `q` to `'input'`, `'output'` or `'name'`. `q` now
+  also searches the captured request and response, not only names and attributes.
+- `TraceSearchScope` is exported for typing a `qIn` value.
+- `variables` on `gateway.chat()`, `gateway.stream()` and `gateway.runToolLoop()`. Sent
+  as the gateway's top-level `variables`, and recorded on the `llm` span so feedback on
+  the run can become an evaluation dataset example.
+- `gateway.runPromptWithTools(rendered)` now forwards the render's variables for you,
+  the same way it already derives the model, messages, tool refs and `promptVersionId`.
+- `RenderResult.variables` echoes what `prompts.render()` was called with, so a caller
+  holding only the result can still pass the lineage on.
+- `IngestSpan.variables` for a self-reported `llm` span. The API has always accepted it;
+  the type never exposed it.
+
+### Changed
+
+- `RenderResult` now has a required `variables` field. Reading a render result is
+  unaffected; only code that builds a `RenderResult` by hand (usually a test double) has
+  to add it.
+
+#### Migrating from 0.12
+
+1. If you construct a `RenderResult` yourself, add `variables: {}` (or the real values).
+   The compiler catches this — `Property 'variables' is missing`.
+2. If you call the gateway with `promptVersionId` and rendered the prompt yourself, add
+   `variables` too. Nothing breaks without it, but the run cannot seed a dataset, so grep
+   for `promptVersionId` and pair each one up.
+
+## 0.12.0 — 2026-09-07
+
+### Added
+
+- `register({ instrument: ['langchain'] })` in `@acruxcoreai/sdk/otel`. Traces LangChain
+  and LangGraph agents to AcruxCore over OTLP, matching the Python SDK's `langchain`
+  instrumentor. Needs `@arizeai/openinference-instrumentation-langchain` installed.
+- One instrumentor covers the whole framework: it patches LangChain's `CallbackManager`,
+  so chain, LLM, tool and retriever spans all report. Do not add `'openai'` alongside it
+  for a `ChatOpenAI` model — the model call is then reported twice, once inside the agent
+  trace and again as a separate single-span trace, double-counting its tokens and cost.
 
 ## 0.11.0 — 2026-09-06
 

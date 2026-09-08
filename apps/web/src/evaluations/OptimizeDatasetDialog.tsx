@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ApiError, useAliases, useModels, usePrompts, useOptimize } from '@/api';
+import { ApiError, useAliases, useCreatePrompt, useModels, usePrompts, useOptimize } from '@/api';
 import type { StartRunResponse } from '@/api';
-import { Button, Dialog, DialogFooter, Field, Input, Select } from '@/ui';
+import { Button, Dialog, DialogFooter, Field, Input, Select, useToast } from '@/ui';
+import { ModelCheckboxList } from './ModelCheckboxList';
+import { PromptPicker } from './PromptPicker';
 
 export interface OptimizeDatasetDialogProps {
   open: boolean;
@@ -12,10 +14,19 @@ export interface OptimizeDatasetDialogProps {
 }
 
 /**
- * "Optimize this dataset": kicks off an optimize attempt directly against a
- * dataset that already exists, with no feedback-selection or dataset-build
- * step first (design "Optimize an existing dataset") — the counterpart to
- * `ImproveFromFeedbackDialog`, which always builds a fresh dataset.
+ * Starts an optimize attempt against a dataset that already exists, with no
+ * feedback-selection or dataset-build step first (design "Optimize an existing
+ * dataset") — the counterpart to `ImproveFromFeedbackDialog`, which always
+ * builds a fresh dataset.
+ *
+ * It lives on the dataset page because the dataset is the input: the optimizer
+ * reads these examples to work out what to change. What it rewrites is a
+ * *prompt*, which the title says plainly — "Optimize this dataset" read as
+ * though the dataset were being improved, and it never is.
+ *
+ * The optimizer model and optimizer prompt are surfaced here for the same
+ * reason the judge surfaces its own: the run bills a model and follows
+ * instructions, and neither should be invisible.
  */
 export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: OptimizeDatasetDialogProps) {
   const navigate = useNavigate();
@@ -23,6 +34,8 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
   const [promptId, setPromptId] = useState('');
   const [alias, setAlias] = useState('');
   const [models, setModels] = useState<Set<string>>(new Set());
+  const [optimizerModel, setOptimizerModel] = useState('');
+  const [optimizerPrompt, setOptimizerPrompt] = useState<{ id: string; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [mismatchWarning, setMismatchWarning] = useState<{
@@ -34,6 +47,8 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
   const aliases = useAliases(promptId);
   const gatewayModels = useModels();
   const optimize = useOptimize(promptId || 'unset');
+  const createPrompt = useCreatePrompt();
+  const toast = useToast();
 
   useEffect(() => {
     if (open) {
@@ -41,6 +56,8 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
       setPromptId('');
       setAlias('');
       setModels(new Set());
+      setOptimizerModel('');
+      setOptimizerPrompt(null);
       setError(null);
       setSubmitting(false);
       setMismatchWarning(null);
@@ -71,6 +88,8 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
       const result = await optimize.mutateAsync({
         dataset_id: datasetId,
         models: [...models],
+        ...(optimizerModel ? { optimizer_model: optimizerModel } : {}),
+        ...(optimizerPrompt ? { optimizer_prompt_id: optimizerPrompt.id } : {}),
         ...(alias ? { alias } : {}),
       });
       if (result.prompt_mismatch_warning) {
@@ -90,8 +109,8 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Optimize this dataset"
-      description="Drafts candidate rewrites for a prompt and runs them against this dataset's existing examples."
+      title="Optimize a prompt"
+      description="An optimizer model reads this dataset's examples, drafts candidate rewrites of a prompt, then runs them against those same examples."
     >
       <div className="flex flex-col gap-4">
         <Field label="Prompt to improve" htmlFor="optimize-dataset-prompt-search" hint="Which prompt's version the optimizer should rewrite.">
@@ -133,28 +152,73 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
           </Field>
         )}
 
-        <Field label="Models" hint="At least one — candidates (plus the baseline) are run against every selected model.">
+        <Field
+          label="Test the rewrites on"
+          hint="One set of rewrites is written, not one per model. Each rewrite, plus the baseline, is then run against every model you tick here — so two models means the same candidates are graded twice, once per model."
+        >
           {gatewayModels.isLoading ? (
             <p className="text-[13px] text-muted">Loading…</p>
           ) : (gatewayModels.data ?? []).length === 0 ? (
             <p className="text-[13px] text-muted">No models registered — add one under Gateway → Models first.</p>
           ) : (
-            <ul className="flex flex-col gap-1.5 rounded-md border border-line-soft bg-elevated p-2.5" data-testid="optimize-dataset-model-checkboxes">
-              {(gatewayModels.data ?? []).map((m) => (
-                <li key={m.id} className="flex items-center gap-2 text-[13px]">
-                  <input
-                    type="checkbox"
-                    id={`optimize-dataset-model-${m.id}`}
-                    checked={models.has(m.publicName)}
-                    onChange={(e) => toggleModel(m.publicName, e.target.checked)}
-                    className="h-4 w-4 accent-varhi"
-                  />
-                  <label htmlFor={`optimize-dataset-model-${m.id}`} className="flex-1 cursor-pointer">
-                    <span className="font-mono">{m.publicName}</span>
-                  </label>
-                </li>
-              ))}
-            </ul>
+            <ModelCheckboxList
+              models={gatewayModels.data ?? []}
+              selected={models}
+              onToggle={toggleModel}
+              idPrefix="optimize-dataset-model"
+              data-testid="optimize-dataset-model-checkboxes"
+            />
+          )}
+        </Field>
+
+        <Field
+          label="Optimizer model"
+          htmlFor="optimize-dataset-optimizer-model"
+          hint="The one model that writes the candidate rewrites. It is a different job from the list above, which is what the finished rewrites get tested on."
+        >
+          <Select
+            id="optimize-dataset-optimizer-model"
+            aria-label="Optimizer model"
+            value={optimizerModel}
+            onChange={(e) => setOptimizerModel(e.target.value)}
+            disabled={gatewayModels.isLoading}
+          >
+            <option value="">Use the first model selected above</option>
+            {(gatewayModels.data ?? []).map((m) => (
+              <option key={m.id} value={m.publicName}>
+                {m.publicName}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
+        <Field
+          label="Optimizer prompt"
+          htmlFor="optimize-dataset-optimizer-prompt"
+          hint="Optional — rewrite using your own instructions instead of the built-in optimizer. The required JSON output format is always added for you."
+        >
+          <PromptPicker
+            id="optimize-dataset-optimizer-prompt"
+            value={optimizerPrompt}
+            onChange={setOptimizerPrompt}
+            placeholder="Built-in optimizer"
+          />
+          {!optimizerPrompt && (
+            <button
+              type="button"
+              className="mt-1.5 self-start text-[12px] text-accent hover:underline"
+              onClick={async () => {
+                try {
+                  const created = await createPrompt.mutateAsync({ name: 'Optimizer instructions' });
+                  setOptimizerPrompt({ id: created.id, name: created.name });
+                  toast.success('Prompt created — write its optimizer instructions, then commit a version.');
+                } catch (e) {
+                  toast.error(e instanceof ApiError ? e.message : 'Could not create the prompt');
+                }
+              }}
+            >
+              + Create a new optimizer prompt
+            </button>
           )}
         </Field>
 

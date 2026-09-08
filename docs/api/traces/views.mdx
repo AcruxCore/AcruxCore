@@ -1,0 +1,126 @@
+---
+title: "Saved Views"
+description: "Name a filter set on the trace or feedback list so the whole team can apply it in one click."
+---
+
+# Saved views
+
+A saved view is a named filter set for the trace list or the feedback list. It
+stores the **raw filter query string**, verbatim — applying a view hands that
+string straight back to the filter bar, so nothing has to stay in sync with the
+filter grammar, and a param a later release stops recognising simply stops
+filtering instead of breaking the page.
+
+Views are **team-visible**: any member can create, rename and delete one. A view
+worth naming is worth a teammate seeing.
+
+Mounted at `/api/v1/trace-views`, deliberately not under `/api/v1/traces` — that
+path is followed by `/traces/:id`, and a saved view is not a trace.
+
+## GET /api/v1/trace-views
+
+Lists the team's views for one surface, alphabetically. `surface` is required
+and is `traces` or `feedback`; a view belongs to exactly one.
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/trace-views?surface=traces"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "0051d9f2-730c-43d6-b3bc-84032dcffb0c",
+      "surface": "traces",
+      "name": "Checkout regressions",
+      "query": "tags=prod&q=london&q_in=input",
+      "createdBy": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+      "createdAt": "2026-09-08T06:51:04.134Z",
+      "updatedAt": "2026-09-08T06:51:04.134Z"
+    }
+  ]
+}
+```
+
+An unknown surface is rejected rather than returning an empty list, so a typo
+does not read as "you have no views".
+
+## POST /api/v1/trace-views
+
+Saves the current filters under a name. `query` is stored exactly as sent; a
+leading `?` is stripped, so `location.search` can be passed straight through.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/trace-views \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"surface": "traces", "name": "Checkout regressions", "query": "tags=prod&q=london&q_in=input"}'
+```
+
+Response (status 201):
+
+```json
+{
+  "id": "0051d9f2-730c-43d6-b3bc-84032dcffb0c",
+  "surface": "traces",
+  "name": "Checkout regressions",
+  "query": "tags=prod&q=london&q_in=input",
+  "createdBy": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+  "createdAt": "2026-09-08T06:51:04.134Z",
+  "updatedAt": "2026-09-08T06:51:04.134Z"
+}
+```
+
+One name per surface per team. A second view by the same name is a rename, not a
+new view:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/trace-views \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"surface": "traces", "name": "Checkout — thumbs down", "query": "status=error"}'
+```
+
+```json
+{ "error": { "code": "VIEW_NAME_TAKEN", "message": "A view with that name already exists." } }
+```
+
+The same name is free on the other surface — "Recent" on the trace list and
+"Recent" on the feedback list are different views.
+
+## PATCH /api/v1/trace-views/:id
+
+Renames a view and/or re-points it at different filters. Both fields are
+optional; a body that changes nothing is rejected.
+
+```bash
+curl -X PATCH $ACRUXCORE_BASE_URL/trace-views/0051d9f2-730c-43d6-b3bc-84032dcffb0c \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Checkout — thumbs down"}'
+```
+
+Response (status 200) — `query` is untouched, `updatedAt` moves:
+
+```json
+{
+  "id": "0051d9f2-730c-43d6-b3bc-84032dcffb0c",
+  "surface": "traces",
+  "name": "Checkout — thumbs down",
+  "query": "tags=prod&q=london&q_in=input",
+  "createdBy": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+  "createdAt": "2026-09-08T06:51:04.134Z",
+  "updatedAt": "2026-09-08T06:51:11.441Z"
+}
+```
+
+## DELETE /api/v1/trace-views/:id
+
+```bash
+curl -X DELETE $ACRUXCORE_BASE_URL/trace-views/0051d9f2-730c-43d6-b3bc-84032dcffb0c \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+Response: status 204, no body. A view id from another team returns 404, the same
+as one that never existed.

@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { TraceFilterQuerySchema, toTraceFilters } from '../filters';
+import type { TraceFilters } from '../filters';
 
 /** Where a piece of feedback came from. Mirrors the `source` TEXT column default 'user'. */
 export const FeedbackSourceSchema = z.enum(['user', 'developer', 'end_user', 'api']);
@@ -77,6 +79,13 @@ export type FeedbackSummaryQuery = z.infer<typeof FeedbackSummaryQuerySchema>;
  * (null for whole-trace feedback), not the internal UUID — symmetric with the
  * `spanId` clients see in GET /traces/:id.
  */
+export interface FeedbackAuthor {
+  id: string;
+  /** The member's display name, or null when they never set one. */
+  name: string | null;
+  email: string;
+}
+
 export interface FeedbackDto {
   id: string;
   traceId: string;
@@ -86,6 +95,13 @@ export interface FeedbackDto {
   comment: string | null;
   source: string;
   createdBy: string | null;
+  /**
+   * The team member who posted this, when there is one. `source` alone says
+   * "developer" but not *which* developer, which is the thing a reviewer needs
+   * when several people triage the same feedback list. Null for rows posted via
+   * a team-scoped API key or by an end user — there is no user behind those.
+   */
+  author: FeedbackAuthor | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -119,16 +135,81 @@ export interface FeedbackSummary {
   buckets: FeedbackBucket[];
 }
 
+/** How a feedback row's rating narrows a search. */
+export const FeedbackRatingFilterSchema = z.enum(['up', 'down', 'none']);
+/** `up` = rating > 0, `down` = rating < 0, `none` = no rating at all. */
+export type FeedbackRatingFilter = z.infer<typeof FeedbackRatingFilterSchema>;
+
 /**
- * Query params for GET /traces/feedback (T10) — the team-wide raw feed backing
- * the feedback visualization page. Pagination only; `limit` capped at 100 like
- * the other list surfaces.
+ * A boolean that survives a query string. `z.coerce.boolean()` cannot be used
+ * here: it applies JavaScript truthiness, so `?has_comment=false` arrives as
+ * the string `"false"` and coerces to `true` — the exact opposite of what was
+ * asked for.
  */
-export const FeedbackListQuerySchema = z.object({
+const BooleanParamSchema = z.union([
+  z.boolean(),
+  z.enum(['true', 'false', '1', '0']).transform((v) => v === 'true' || v === '1'),
+]);
+
+/**
+ * The feedback filter vocabulary: every trace filter (they all describe the
+ * feedback row's trace) plus the four that only make sense on a critique.
+ *
+ * `has_comment` earns its place in dataset building specifically — the comment
+ * becomes an example's judge criteria, so a row without one yields a weaker
+ * example and is usually worth excluding up front.
+ *
+ * Note that `from`/`to` window the FEEDBACK row's `created_at`, not the trace's:
+ * a critique is often written days after the run it grades, and "the feedback I
+ * left this week" is what someone filtering this list means.
+ */
+export const FeedbackFilterSchema = TraceFilterQuerySchema.extend({
+  rating: FeedbackRatingFilterSchema.optional(),
+  source: FeedbackSourceSchema.optional(),
+  label: z.string().min(1).max(200).optional(),
+  has_comment: BooleanParamSchema.optional(),
+});
+/** Parsed feedback filters in their wire (snake_case) shape. */
+export type FeedbackFilterQuery = z.infer<typeof FeedbackFilterSchema>;
+
+/**
+ * Query params for GET /traces/feedback (T10) — the team-wide raw feed behind
+ * the feedback page and the dataset "add rows" dialog. The full filter set plus
+ * pagination; `limit` capped at 100 like the other list surfaces.
+ */
+export const FeedbackListQuerySchema = FeedbackFilterSchema.extend({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 export type FeedbackListQuery = z.infer<typeof FeedbackListQuerySchema>;
+
+/**
+ * Internal (camelCase) feedback filters, as the repository consumes them.
+ * Extends the shared {@link TraceFilters} because a feedback row is selected
+ * through its trace.
+ */
+export interface FeedbackFilters extends TraceFilters {
+  rating?: FeedbackRatingFilter;
+  source?: string;
+  label?: string;
+  hasComment?: boolean;
+}
+
+/**
+ * Maps validated wire feedback filters to the internal camelCase shape.
+ *
+ * @param query - Validated snake_case filters from a query string or JSON body.
+ * @returns The equivalent camelCase filters.
+ */
+export function toFeedbackFilters(query: FeedbackFilterQuery): FeedbackFilters {
+  return {
+    ...toTraceFilters(query),
+    rating: query.rating,
+    source: query.source,
+    label: query.label,
+    hasComment: query.has_comment,
+  };
+}
 
 /** Paginated envelope for GET /traces/feedback. */
 export interface FeedbackListResponse {

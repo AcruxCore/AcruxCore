@@ -2,9 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 import { DatasetsService } from './datasets.service';
 import {
   AddExampleSchema,
+  AddExamplesFromFeedbackSchema,
   BuildFromFeedbackSchema,
   CreateDatasetSchema,
   UpdateDatasetSchema,
+  UpdateExampleSchema,
 } from './datasets.types';
 import { ValidationError } from '../../shared/errors';
 
@@ -30,6 +32,10 @@ export class DatasetsController {
         overall_feedback: result.dataset.overallFeedback,
         example_count: result.exampleCount,
         skipped: result.skipped,
+        // Present only for a `filter` request: how many rows the criteria matched
+        // in total, so a selection capped at the per-request ceiling is visible
+        // rather than silently truncated.
+        ...(result.matched !== undefined ? { matched: result.matched } : {}),
       });
     } catch (err) {
       next(err);
@@ -101,6 +107,52 @@ export class DatasetsController {
 
       const result = await this.service.addExample(req.teamId!, req.params.id, parsed.data);
       res.status(201).json(result);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /**
+   * POST /api/v1/datasets/:id/examples/from-feedback — append feedback rows to
+   * an existing dataset.
+   *
+   * 201 when at least one example was created, 200 when none were — every id
+   * was already in the dataset, or none was eligible. Both are normal outcomes
+   * here (unlike the build path, which 422s on nothing eligible because it would
+   * otherwise leave an empty dataset behind), so the status distinguishes
+   * "something changed" from "nothing changed" without making the caller
+   * compare counts.
+   */
+  addExamplesFromFeedback = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const parsed = AddExamplesFromFeedbackSchema.safeParse(req.body);
+      if (!parsed.success) throw new ValidationError(parsed.error.issues[0].message);
+
+      const result = await this.service.addExamplesFromFeedback(req.teamId!, req.params.id, parsed.data);
+      res.status(result.added > 0 ? 201 : 200).json({
+        added: result.added,
+        example_count: result.exampleCount,
+        skipped: result.skipped,
+        ...(result.matched !== undefined ? { matched: result.matched } : {}),
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /** PATCH /api/v1/datasets/:id/examples/:exampleId — edit one example's criteria. */
+  updateExample = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const parsed = UpdateExampleSchema.safeParse(req.body);
+      if (!parsed.success) throw new ValidationError(parsed.error.issues[0].message);
+
+      const result = await this.service.updateExample(
+        req.teamId!,
+        req.params.id,
+        req.params.exampleId,
+        parsed.data,
+      );
+      res.status(200).json(result);
     } catch (err) {
       next(err);
     }

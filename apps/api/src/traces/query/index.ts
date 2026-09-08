@@ -5,7 +5,7 @@ export { buildSpanTree } from './span-tree';
 export type {
   TraceListQuery,
   PromptVersionTracesQuery,
-  TraceFilters,
+  TraceListFilters,
   TraceListItem,
   TraceListResponse,
   SpanNode,

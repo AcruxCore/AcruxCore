@@ -188,6 +188,35 @@ describe('gateway auto-trace hook — streaming (T1)', () => {
     expect(providerBody).not.toHaveProperty('prompt_version_id');
   });
 
+  it('records a client-rendered stream’s variables on the span payload (#412)', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    await createOpenAiConnection(agent);
+
+    const prompt = (await agent.post('/api/v1/prompts').send({ name: 'greeting' }).expect(201)).body;
+    const v1 = await agent
+      .post(`/api/v1/prompts/${prompt.id}/versions`)
+      .send({ messages: [{ role: 'user', content: 'Say hi to {{ name }}' }] })
+      .expect(201);
+
+    // The streaming path captures variables in its own code, and it is the half that
+    // is easy to leave behind when the non-streaming one is fixed.
+    jest.spyOn(global, 'fetch').mockResolvedValue(sseResponse(FRAMES_WITH_USAGE));
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Say hi to Al' }],
+        prompt_version_id: v1.body.id,
+        variables: { name: 'Al' },
+        stream: true,
+      })
+      .expect(200);
+
+    const span = await prisma.span.findFirst({ where: { teamId }, include: { payload: true } });
+    expect(span!.promptVersionId).toBe(v1.body.id);
+    expect(span!.payload!.variables).toEqual({ name: 'Al' });
+  });
+
   it('a client-supplied parent span ref nests the streamed llm span under it', async () => {
     const { agent, teamId } = await authedAgent(app);
     await createOpenAiConnection(agent);

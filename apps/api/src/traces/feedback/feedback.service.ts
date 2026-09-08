@@ -7,8 +7,9 @@ import {
   FeedbackSummary,
   FeedbackSummaryQuery,
   UpdateFeedbackDto,
+  toFeedbackFilters,
 } from './feedback.types';
-import { FeedbackRow } from '../../shared/db/schema';
+import type { FeedbackRowWithRelations } from './feedback.repository';
 import { AppError, ForbiddenError, NotFoundError, ValidationError } from '../../shared/errors';
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -126,14 +127,20 @@ export class FeedbackService {
   }
 
   /**
-   * Lists a team's feedback newest-first across all traces, paginated — the raw
-   * feed behind the feedback visualization page (T10).
+   * Lists a team's feedback newest-first across all traces, filtered and
+   * paginated — the raw feed behind the feedback visualization page (T10) and
+   * the dataset "add rows" dialog.
    *
    * @param teamId - Team scope.
-   * @param query - Validated page/limit.
+   * @param query - Validated filters plus page/limit.
    */
   async listForTeam(teamId: string, query: FeedbackListQuery): Promise<FeedbackListResponse> {
-    const { data, total } = await this.repo.listForTeam(teamId, query.page, query.limit);
+    const { data, total } = await this.repo.listForTeam(
+      teamId,
+      toFeedbackFilters(query),
+      query.page,
+      query.limit,
+    );
     return {
       data: data.map((r) => this.toDto(r, r.span?.spanRef ?? null)),
       total,
@@ -162,7 +169,7 @@ export class FeedbackService {
    * @param row - The Prisma `trace_feedback` row.
    * @param spanRef - The span's OTel reference, or null for whole-trace feedback.
    */
-  private toDto(row: FeedbackRow, spanRef: string | null): FeedbackDto {
+  private toDto(row: FeedbackRowWithRelations, spanRef: string | null): FeedbackDto {
     return {
       id: row.id,
       traceId: row.traceId,
@@ -172,6 +179,9 @@ export class FeedbackService {
       comment: row.comment,
       source: row.source,
       createdBy: row.createdBy,
+      author: row.creator
+        ? { id: row.creator.id, name: row.creator.displayName, email: row.creator.email }
+        : null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

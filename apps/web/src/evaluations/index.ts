@@ -42,3 +42,6 @@ export {
 } from './run-history.helpers';
 export type { RunStatusChip } from './run-history.helpers';
 export { formatDailyLimit, formatMeanScore, formatSampleRate } from './rules.helpers';
+export { ConfirmDialog } from './ConfirmDialog';
+export { ModelCheckboxList } from './ModelCheckboxList';
+export type { ModelCheckboxListProps } from './ModelCheckboxList';

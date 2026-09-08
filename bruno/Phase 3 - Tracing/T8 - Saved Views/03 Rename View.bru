@@ -1,0 +1,29 @@
+meta {
+  name: Rename View
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/trace-views/{{savedViewId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Checkout — thumbs down"
+  }
+}
+
+assert {
+  res.status: eq 200
+}

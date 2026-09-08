@@ -75,6 +75,13 @@ Feedback needs one more thing to be eligible: its source trace must have **captu
 payloads**, so the prompt variables were stored and the case can be replayed. See
 [Trace an LLM call](./trace-an-llm-call) for the capture setting.
 
+:::note[Rendering the prompt yourself?]
+A call that sends `prompt_version_id` with its own `messages` should send the values it
+rendered with as `variables` too. An example's input *is* those variables, so a run
+without them is skipped with *"no prompt variables were captured"*. Calls that pass a
+`prompt` reference already do this.
+:::
+
 ## 2. Start the optimize run
 
 In the dashboard, go to **Observability → Feedback**, tick the rows you disagreed with, and

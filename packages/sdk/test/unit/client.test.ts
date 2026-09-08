@@ -187,6 +187,20 @@ describe('acruxcore.renderPrompt', () => {
     expect(result.tools).toEqual([]);
   });
 
+  it('echoes the variables it rendered with, so the caller can pass them on', async () => {
+    // The render endpoint does not return them, and does not need to — the SDK was handed
+    // them. Without this a caller holding only a RenderResult has no way to send the
+    // lineage an evaluation dataset example is built from.
+    vi.mocked(fetch).mockResolvedValueOnce(makeOkResponse());
+    const result = await hub.prompts.render('my-prompt', 'production', { name: 'Alice' });
+    expect(result.variables).toEqual({ name: 'Alice' });
+  });
+
+  it('echoes an empty object when render is called with no variables', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(makeOkResponse());
+    expect((await hub.prompts.render('my-prompt', 'production')).variables).toEqual({});
+  });
+
   it('returns the version bound model, and null when the response omits it', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ messages: [{ role: 'user', content: 'Hi' }], model: 'gpt-4o-mini' }), { status: 200, headers: { 'content-type': 'application/json' } }));
     expect((await hub.prompts.render('bound-model-prompt', 'production')).model).toBe('gpt-4o-mini');
@@ -1003,6 +1017,27 @@ describe('acruxcore.chat', () => {
       requestId: 'req-1', provider: 'openai', model: 'gpt-4o-mini-2024-07-18', costUsd: 0.00000315, cache: 'miss',
       traceId: null, spanRef: null,
     });
+  });
+
+  it('sends variables alongside prompt_version_id on a gateway call', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(
+      JSON.stringify({
+        id: 'chatcmpl-1', model: 'gpt-4o-mini',
+        choices: [{ index: 0, message: { role: 'assistant', content: 'Hi' }, finish_reason: 'stop' }],
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+
+    await hub.gateway.chat({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: 'Say hi to Alice' }],
+      promptVersionId: 'ver-9',
+      variables: { name: 'Alice' },
+    });
+
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]!.body)) as Record<string, unknown>;
+    expect(body['prompt_version_id']).toBe('ver-9');
+    expect(body['variables']).toEqual({ name: 'Alice' });
   });
 
   it('passes tool_calls back raw without dispatching them', async () => {
