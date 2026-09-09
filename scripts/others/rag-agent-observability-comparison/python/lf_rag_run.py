@@ -1,4 +1,4 @@
-"""Runs the shared RAG agent (see `scripts/blogs/shared/rag_core.py`) traced
+"""Runs the shared RAG agent (see `rag_core.py` one folder up) traced
 through self-hosted Langfuse. Retrieval opens the parent span by hand;
 `langfuse.openai`'s wrapped client nests the generation call inside it
 automatically because it runs within the `start_as_current_observation`
@@ -9,7 +9,7 @@ Run:
   export LANGFUSE_PUBLIC_KEY=pk-lf-...
   export LANGFUSE_HOST=http://localhost:3050
   export OPENROUTER_KEY=sk-or-v1-...
-  python scripts/blogs/rag-agent-observability-comparison/python/lf_rag_run.py
+  python scripts/others/rag-agent-observability-comparison/python/lf_rag_run.py
 
 Needs: pip install langfuse openai chromadb requests beautifulsoup4
 """

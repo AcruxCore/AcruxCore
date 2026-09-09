@@ -168,8 +168,9 @@ export function LandingPage(): ReactNode {
               The whole platform in two and a half minutes.
             </h2>
             <p style={cssToStyle('font-size:16.5px;line-height:1.6;color:var(--muted);margin:0;text-wrap:pretty;')}>
-              A versioned prompt, one gateway call that renders it, the trace that call produced, and the tool catalog
-              behind it — recorded against a live instance, not a mockup.
+              One thread, end to end: a versioned prompt, the gateway call that renders it, the trace that call
+              produced, an agent traced over OpenTelemetry without the gateway, and a thumbs-down that becomes a scored
+              fix — shipped by moving an alias. Recorded against a live instance, not a mockup.
             </p>
           </div>
           <DemoVideo />
@@ -550,7 +551,7 @@ export function LandingPage(): ReactNode {
  * leaves stale copies at the edge for up to four hours. Either purge the cache or
  * upload under a new dated key and update this line.
  */
-const DEMO_VIDEO_URL = 'https://media.acruxcore.com/platform-overview-720p.mp4';
+const DEMO_VIDEO_URL = 'https://media.acruxcore.com/platform-overview-2026-09-720p.mp4';
 
 /** Poster and captions are same-origin: both are small and needed before playback. */
 const DEMO_POSTER = '/media/demo-poster.jpg';
@@ -593,7 +594,7 @@ const DemoVideo = (): ReactNode => {
         </video>
       </div>
       <figcaption style={cssToStyle('margin-top:12px;font-size:13.5px;color:var(--muted);')}>
-        2 min 36 s · captions on · recorded against a live instance
+        2 min 32 s · captions on · recorded against a live instance
       </figcaption>
     </figure>
   );

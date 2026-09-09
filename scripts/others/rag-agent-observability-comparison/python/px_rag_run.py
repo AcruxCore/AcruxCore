@@ -1,4 +1,4 @@
-"""Runs the shared RAG agent (see `scripts/blogs/shared/rag_core.py`) traced
+"""Runs the shared RAG agent (see `rag_core.py` one folder up) traced
 through Phoenix. Phoenix has no "trace this function" decorator of its own —
 this uses the raw OTel tracer for the outer span and the retrieval span, and
 lets `OpenAIInstrumentor` auto-wrap the OpenAI client so the generation call
@@ -6,7 +6,7 @@ nests as a third child span with no tracing code at the call site.
 
 Run:
   export OPENROUTER_KEY=sk-or-v1-...
-  python scripts/blogs/rag-agent-observability-comparison/python/px_rag_run.py
+  python scripts/others/rag-agent-observability-comparison/python/px_rag_run.py
 
 Needs: pip install arize-phoenix-otel openinference-instrumentation-openai openai chromadb requests beautifulsoup4
 Phoenix must be running locally at http://localhost:6006 (or set PHOENIX_COLLECTOR_ENDPOINT).

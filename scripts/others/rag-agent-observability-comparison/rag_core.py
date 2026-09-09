@@ -1,11 +1,13 @@
 """Shared RAG core for the rag-agent-observability-comparison post.
 
-Retrieval and chunking are identical across all five platform scripts — only
-the tracing/observability wrapper around them differs. This mirrors
-`scripts/tutorials/rag-agent-without-the-gateway/python/acrux_rag.py`, reusing
-the same five AcruxCore docs pages, the same chunking, and the same OpenRouter
-embedding call, so the retrieved context is byte-for-byte identical no matter
-which platform is instrumenting the run.
+Retrieval and chunking are identical across every platform script — only the
+tracing/observability wrapper around them differs, so the retrieved context is
+byte-for-byte identical no matter which platform is instrumenting the run.
+
+The corpus is five OpenTelemetry documentation pages, chosen because they belong
+to none of the platforms under comparison. An agent that answered questions
+about one of the tools being compared would make the example self-referential,
+and its output would appear inside every screenshot.
 
 Needs: pip install chromadb requests beautifulsoup4
 Requires OPENROUTER_KEY in the environment.
@@ -23,22 +25,26 @@ from bs4 import BeautifulSoup
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 EMBED_MODEL = "openai/text-embedding-3-small"
 
+# A vendor-neutral corpus, deliberately: the agent under test should not answer
+# questions about any of the platforms being compared, or the example becomes
+# self-referential. OpenTelemetry's own docs are on-topic for a tracing article
+# and belong to none of the tools.
 DOC_URLS = {
-    "prompts.md": "https://docs.acruxcore.com/docs/guides/version-a-prompt",
-    "gateway.md": "https://docs.acruxcore.com/docs/guides/route-calls-through-the-gateway",
-    "tracing.md": "https://docs.acruxcore.com/docs/guides/trace-an-llm-call",
-    "tools.md": "https://docs.acruxcore.com/docs/guides/build-and-attach-a-tool",
-    "evaluation.md": "https://docs.acruxcore.com/docs/guides/evaluate-a-prompt",
+    "traces.md": "https://opentelemetry.io/docs/concepts/signals/traces/",
+    "instrumentation.md": "https://opentelemetry.io/docs/concepts/instrumentation/",
+    "python.md": "https://opentelemetry.io/docs/languages/python/instrumentation/",
+    "semconv.md": "https://opentelemetry.io/docs/concepts/semantic-conventions/",
+    "trace-api.md": "https://opentelemetry.io/docs/specs/otel/trace/api/",
 }
 
-# One fixed question, asked identically against all five platforms, so the
-# retrieved context and the generated answer are comparable across the post.
-QUESTION = "How do I attach a tool to a prompt and see the call inside a trace?"
+# One fixed question, asked identically on every platform, so the retrieved
+# context and the generated answer are comparable across the whole comparison.
+QUESTION = "What is a span, and how do parent and child spans form a trace?"
 
 SYSTEM_PROMPT = (
-    "You answer questions about AcruxCore using only the documentation excerpts "
-    "below. If the excerpts do not contain the answer, say so plainly instead of "
-    "guessing.\n\nDocumentation:\n{context}"
+    "You answer questions about OpenTelemetry using only the documentation "
+    "excerpts below. If the excerpts do not contain the answer, say so plainly "
+    "instead of guessing.\n\nDocumentation:\n{context}"
 )
 
 
@@ -89,7 +95,7 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
     return [row["embedding"] for row in sorted(data, key=lambda r: r["index"])]
 
 
-def build_index(collection_name: str = "acrux_docs", batch_size: int = 64) -> Any:
+def build_index(collection_name: str = "otel_docs", batch_size: int = 64) -> Any:
     """Fetch every docs page, chunk it, embed it, and load it into a fresh Chroma collection."""
     client = chromadb.Client()
     try:

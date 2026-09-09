@@ -1,15 +1,17 @@
-"""Runs the shared RAG agent (see `scripts/blogs/shared/rag_core.py`) traced
+"""Runs the shared RAG agent (see `rag_core.py` one folder up) traced
 through AcruxCore. Retrieval opens the trace by hand with a single
-`hub.traces.ingest()` call, then hands its trace id to `hub.gateway.chat()`
-so the generation call lands in the same trace instead of minting its own —
-the gateway writes that span server-side, with no tracing code around the
-call itself.
+`hub.traces.ingest(..., wait=False)` call, which buffers the span in the SDK's
+queue and returns a client-minted trace id at once, then hands that id to
+`hub.gateway.chat()` so the generation call lands in the same trace instead
+of minting its own — the gateway writes that span server-side, with no
+tracing code around the call itself. `wait=False` needs acruxcore 0.11.0+;
+drop it for the awaited form, which returns a server-minted id instead.
 
 Run:
   export ACRUXCORE_API_KEY=acx_sk_...
   export ACRUXCORE_BASE_URL=http://localhost:3001/api/v1
   export OPENROUTER_KEY=sk-or-v1-...
-  python scripts/blogs/rag-agent-observability-comparison/python/acx_rag_run.py
+  python scripts/others/rag-agent-observability-comparison/python/acx_rag_run.py
 
 Needs: pip install acruxcore chromadb requests beautifulsoup4
 """
@@ -66,7 +68,8 @@ async def main() -> None:
                         "output": {"context": context},
                     }
                 ],
-            }
+            },
+            wait=False,  # buffered: no network wait at the call site
         )
 
         result = await hub.gateway.chat(

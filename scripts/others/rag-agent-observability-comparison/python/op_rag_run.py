@@ -1,4 +1,4 @@
-"""Runs the shared RAG agent (see `scripts/blogs/shared/rag_core.py`) traced
+"""Runs the shared RAG agent (see `rag_core.py` one folder up) traced
 through self-hosted Opik. `@opik.track` on both the outer function and the
 retrieval function nests them by call stack; `track_openai()` patches the
 client so the generation call is captured as a third, automatically nested
@@ -8,7 +8,7 @@ Run:
   export OPENROUTER_KEY=sk-or-v1-...
   export OPIK_URL_OVERRIDE=http://localhost:5273/api   # self-hosted Opik, no auth needed
   export OPIK_WORKSPACE=default
-  python scripts/blogs/rag-agent-observability-comparison/python/op_rag_run.py
+  python scripts/others/rag-agent-observability-comparison/python/op_rag_run.py
 
 Needs: pip install opik openai chromadb requests beautifulsoup4
 """

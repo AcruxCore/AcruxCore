@@ -127,17 +127,6 @@ called out in the week it ships and in the SDK release notes.
 - The homepage lists evaluation and spend guardrails among the reasons to switch.
 - **Fixed** — sitemap `lastmod` dates trailed one commit behind the content they describe.
 - Sitemap dates now track every file a page renders, not only its own component.
-
----
-#### Trace a LangChain or LangGraph agent, in Python or Node
-
-- New tutorial builds a two-tool research agent in both languages, traced end to end over OTLP.
-  [Tutorial →](/docs/tutorials/trace-a-langchain-research-agent)
-- One instrumentor covers chain, tool and LLM spans; adding `openai` double-counts every call.
-- `instrument: ['langchain']` ships in Node SDK 0.12.0; Python has had it since 0.11.0.
-
-### Minor
-
 - **Fixed** — the "no eligible rows" error now names each real reason and how many rows hit it.
 - A skipped feedback row now says what is missing in a few words, and never points at a setting.
 - A tag or model shown on a span is now a link that opens the trace list filtered to it.
@@ -150,6 +139,10 @@ called out in the week it ships and in the SDK release notes.
 - Both tutorial scripts and a runnable Python notebook ship with the output of a real run.
 - The notebook demonstrates a failing tool: the agent answers confidently, and gets it wrong.
 - **Fixed** — the `traces.ingest()` link in both SDK references jumped nowhere.
+- New landing-page overview video: one prompt from versioned template to promoted fix.
+- **Fixed** — a week in this changelog showed a duplicated entry and a stray heading.
+
+---
 
 ## Week of 31 August 2026
 

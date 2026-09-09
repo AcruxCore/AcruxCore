@@ -1,4 +1,4 @@
-"""Runs the shared RAG agent (see `scripts/blogs/shared/rag_core.py`) against
+"""Runs the shared RAG agent (see `rag_core.py` one folder up) against
 self-hosted Helicone.
 
 Helicone has no SDK call for a custom, non-LLM span — the request-path proxy
@@ -17,7 +17,7 @@ Run:
   export OPENROUTER_KEY=sk-or-v1-...
   export HELICONE_API_KEY=sk-helicone-...
   export HELICONE_BASE_URL=http://localhost:8585   # self-hosted jawn service
-  python scripts/blogs/rag-agent-observability-comparison/python/hl_rag_run.py
+  python scripts/others/rag-agent-observability-comparison/python/hl_rag_run.py
 
 Needs: pip install requests chromadb beautifulsoup4
 """
