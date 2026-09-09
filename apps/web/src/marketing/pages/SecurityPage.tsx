@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { MarketingShell, ContentHeader } from '../MarketingShell';
-import { SUPPORT_EMAIL } from '../marketing-chrome';
+import { SUPPORT_EMAIL, DOCS } from '../marketing-chrome';
 
 /**
  * Public "Security" page describing how AcruxCore protects team data and how to
@@ -16,7 +16,7 @@ export function SecurityPage(): ReactNode {
         docTitle="Security — AcruxCore"
         title="Security at AcruxCore."
         lead="AcruxCore sits between your application and every model provider, so protecting your keys, prompts, and trace data is the core of the product — not an add-on."
-        updated="July 24, 2026"
+        updated="September 10, 2026"
       />
       <div className="acx-prose">
         <h2>Data isolation</h2>
@@ -25,6 +25,35 @@ export function SecurityPage(): ReactNode {
           on a shared database with row-level access controls, so one team can never read or write
           another team's prompts, keys, traces, or evaluations. API requests are authenticated per
           team and authorized on every call.
+        </p>
+
+        <h2>Roles and access</h2>
+        <p>
+          Every member of a team holds exactly one role — <strong>owner</strong>,{' '}
+          <strong>admin</strong>, <strong>editor</strong> or <strong>viewer</strong> — and the API
+          authorizes each route against that role, rather than relying on the dashboard to hide a
+          button. Reads that cover the whole team, the audit trail included, are limited to owners
+          and admins.
+        </p>
+
+        <h2>The audit trail</h2>
+        <p>
+          Every write the platform performs is recorded with the person behind it: prompts, versions
+          and aliases, tools and their bindings, members and invites, API keys, gateway credentials,
+          virtual keys, budgets, secrets, and the team's own trace settings. An owner or admin can
+          read the whole team's trail and filter it by area, by a single event, or by the person who
+          did it — including someone who has since left the team, since their events stay in the
+          record. Secrets appear by name only; a secret's value is never written to the trail.
+        </p>
+        <p>
+          Reading the team-wide trail needs a signed-in session, not an API key: a record of what
+          people did should not be readable by a program holding a key. Two things it does not do
+          yet — there is no CSV or JSON export, and no retention window to configure, so every event
+          is kept. See{' '}
+          <a href={DOCS.auditTrail} target="_blank" rel="noreferrer">
+            Read the team audit trail
+          </a>{' '}
+          for what each area records.
         </p>
 
         <h2>Your provider keys</h2>

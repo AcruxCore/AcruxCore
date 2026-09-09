@@ -178,7 +178,7 @@ function DeepDive({ section }: { section: FeatureSection }): ReactNode {
 /**
  * One public page per platform pillar, at `/features/<slug>`.
  *
- * A single layout driven entirely by a {@link Feature} record, so all five pages
+ * A single layout driven entirely by a {@link Feature} record, so all six pages
  * stay structurally identical and adding a pillar means adding data, not markup.
  * Replaces the old footer links that all pointed at the same `/#pillars` anchor.
  *
@@ -340,7 +340,7 @@ export function FeaturePage({ feature }: { feature: Feature }): ReactNode {
       <section style={cssToStyle('padding:clamp(40px,6vw,72px) 0 clamp(20px,3vw,32px);border-top:1px solid var(--line-soft);')}>
         <SectionHead
           eyebrow="The rest of the platform"
-          title="It composes with the other four."
+          title="It composes with the other five."
           lead="Each piece works on its own, and they get better together — a trace links back to a prompt version, a dataset is built from feedback."
         />
         <div style={cssToStyle('display:grid;grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr));gap:14px;')}>

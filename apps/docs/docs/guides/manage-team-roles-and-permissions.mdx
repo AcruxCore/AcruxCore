@@ -58,6 +58,13 @@ notification settings, since losing access is security-relevant.
 
 ![Members list after the member has been removed, back to just the owner and one remaining member](/img/tutorials/manage-team-roles-and-permissions/05-member-removed.png)
 
+Both actions are recorded. A role change and a removal each land in the team's
+audit trail naming the member it happened to and the person who did it, so a
+question about access a month from now has an answer that does not depend on
+anyone remembering. Reading that trail is itself one of the things the `owner`
+and `admin` roles allow and the other two do not — see
+[Read the team audit trail](./read-the-team-audit-trail).
+
 ## Doing this over the API
 
 The same three actions are one call each — useful for scripting team
@@ -109,6 +116,8 @@ member can see the roster.
 ## What's next
 
 - Bring someone new onto the team — see [Invite a teammate](./invite-a-teammate).
+- See every role change, and every other recorded action — see
+  [Read the team audit trail](./read-the-team-audit-trail).
 - Scope what a service (rather than a person) can call — see
   [Scope Access with Virtual Keys](./scope-access-with-virtual-keys).
 - Full field reference: **Teams** in the [API Reference](/api-reference).

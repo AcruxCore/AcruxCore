@@ -11,7 +11,19 @@ import { PricingPage } from './pages/PricingPage';
 import { SdkPage } from './pages/SdkPage';
 import { FeaturePage } from './pages/FeaturePage';
 import { ComparePage } from './pages/ComparePage';
+import { FaqPage } from './pages/FaqPage';
+import { BestLlmOpsPlatformsPage } from './pages/BestLlmOpsPlatformsPage';
+import { faqStructuredData } from './faq';
+import { platformListStructuredData } from './comparisons';
 import { FEATURE_LIST } from './features';
+import { LANDING_TITLE } from './marketing-chrome';
+
+/**
+ * Re-exported so `scripts/prerender.mjs` can reach it: the prerenderer imports
+ * exactly one module (the SSR bundle built from this file), so anything it
+ * needs has to be reachable from here.
+ */
+export { buildLlmsTxt } from './llms-txt';
 
 /** A public marketing route baked to static HTML at build time. */
 export interface PrerenderRoute {
@@ -30,7 +42,7 @@ export interface PrerenderRoute {
    *
    * `scripts/prerender.mjs` takes the **newest** change date across them as the
    * page's sitemap `<lastmod>`. A list rather than a single file because most
-   * pages here render copy that does not live in their own component: all five
+   * pages here render copy that does not live in their own component: all six
    * pillar pages are `features.tsx` poured into `FeaturePage.tsx`, the landing
    * page's pillar grid comes from `features.tsx` too, and `/compare` renders
    * `comparisons.tsx`. Naming only the component meant editing the copy moved
@@ -56,6 +68,17 @@ export interface PrerenderRoute {
   priority: number;
   /** How often this page's content is rewritten. */
   changefreq: 'weekly' | 'monthly' | 'yearly';
+  /**
+   * An extra `application/ld+json` payload for this page only, already
+   * stringified.
+   *
+   * The two JSON-LD blocks in `index.html` are copied verbatim into every
+   * marketing page, which is right for Organization and WebSite and wrong for
+   * anything page-specific: a `FAQPage` block written there would tell crawlers
+   * that all fifteen pages are FAQs. `scripts/prerender.mjs` appends this one
+   * into the head of just this route's HTML.
+   */
+  structuredData?: string;
 }
 
 /**
@@ -72,9 +95,9 @@ export const ROUTES: PrerenderRoute[] = [
   {
     path: '/',
     out: 'index.html',
-    title: 'AcruxCore — LLM-ops platform for engineering teams',
+    title: LANDING_TITLE,
     description:
-      'AcruxCore is an LLM-ops platform for engineering teams: version prompts, route LLM calls through an OpenAI-compatible gateway, trace every request, catalog tools, and evaluate quality — one platform, no redeploy to change a prompt.',
+      'AcruxCore is an open-source, Apache-2.0, self-hostable LLMOps platform: version prompts, route calls through an OpenAI-compatible gateway, trace and evaluate.',
     component: LandingPage,
     sourceFiles: ['src/marketing/LandingPage.tsx', 'src/marketing/features.tsx'],
     priority: 1.0,
@@ -85,7 +108,7 @@ export const ROUTES: PrerenderRoute[] = [
     out: 'about/index.html',
     title: 'About — AcruxCore',
     description:
-      'AcruxCore is one control plane for the whole LLM stack: prompt versioning, an OpenAI-compatible gateway, tracing, a tool catalog, and evaluation — with first-class TypeScript and Python SDKs.',
+      'AcruxCore is one control plane for the whole LLM stack: prompt versioning, an OpenAI-compatible gateway, tracing, a tool catalog and evaluation.',
     component: AboutPage,
     sourceFiles: ['src/marketing/pages/AboutPage.tsx'],
     priority: 0.6,
@@ -107,7 +130,7 @@ export const ROUTES: PrerenderRoute[] = [
     out: 'security/index.html',
     title: 'Security — AcruxCore',
     description:
-      'How AcruxCore protects your provider keys, prompts, and trace data: team isolation, encryption, payload-capture controls, self-hosting, and responsible disclosure.',
+      'How AcruxCore protects provider keys, prompts and trace data: team isolation, encryption, payload-capture controls, self-hosting and disclosure.',
     component: SecurityPage,
     sourceFiles: ['src/marketing/pages/SecurityPage.tsx'],
     priority: 0.5,
@@ -150,7 +173,7 @@ export const ROUTES: PrerenderRoute[] = [
     out: 'sdk/index.html',
     title: 'TypeScript & Python SDKs — AcruxCore',
     description:
-      'One client for prompts, the gateway, and tracing, with the same surface in TypeScript and Python: cached prompt rendering, OpenAI-compatible chat, single-trace tool loops, and feedback.',
+      'One client for prompts, the gateway and tracing, in TypeScript and Python: cached prompt rendering, OpenAI-compatible chat and single-trace tool loops.',
     component: SdkPage,
     sourceFiles: ['src/marketing/pages/SdkPage.tsx'],
     priority: 0.8,
@@ -176,11 +199,38 @@ export const ROUTES: PrerenderRoute[] = [
     out: 'compare/index.html',
     title: 'LLM Observability Tools Compared (2026) | AcruxCore',
     description:
-      'AcruxCore vs Langfuse, Phoenix, Opik, Helicone, MLflow, and Laminar on license, self-hosting, pricing, team structure, security, and community stats — every fact sourced and dated.',
+      'AcruxCore vs Langfuse, Phoenix, Opik, Helicone, MLflow and Laminar on license, self-hosting, pricing, team structure and community — sourced and dated.',
     component: ComparePage,
     sourceFiles: ['src/marketing/pages/ComparePage.tsx', 'src/marketing/comparisons.tsx'],
     priority: 0.8,
     changefreq: 'monthly',
+  },
+  {
+    path: '/faq',
+    out: 'faq/index.html',
+    title: 'AcruxCore FAQ — how it compares, and where it does not fit',
+    description:
+      'Straight answers on what AcruxCore does, how it compares to Langfuse, Phoenix, Opik, Helicone, MLflow and Laminar, and where another tool fits better.',
+    component: FaqPage,
+    sourceFiles: ['src/marketing/pages/FaqPage.tsx', 'src/marketing/faq.tsx'],
+    priority: 0.8,
+    changefreq: 'monthly',
+    structuredData: faqStructuredData(),
+  },
+  {
+    path: '/best-open-source-llmops-platforms',
+    out: 'best-open-source-llmops-platforms/index.html',
+    title: 'Best Open-Source LLMOps Platforms in 2026 | AcruxCore',
+    description:
+      'Seven open-source LLMOps platforms compared — Langfuse, MLflow, Opik, Phoenix, Helicone, Laminar and AcruxCore — each self-hosted and run for real.',
+    component: BestLlmOpsPlatformsPage,
+    sourceFiles: [
+      'src/marketing/pages/BestLlmOpsPlatformsPage.tsx',
+      'src/marketing/comparisons.tsx',
+    ],
+    priority: 0.9,
+    changefreq: 'monthly',
+    structuredData: platformListStructuredData(),
   },
 ];
 

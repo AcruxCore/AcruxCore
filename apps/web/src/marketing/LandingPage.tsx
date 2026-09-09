@@ -7,6 +7,7 @@ import {
   DOCS,
   API_BASE_URL,
   GITHUB_URL,
+  LANDING_TITLE,
   GitHubIcon,
   MARKETING_CSS,
   MarketingHeader,
@@ -36,8 +37,64 @@ type CodeTab = 'ts' | 'py' | 'curl';
  *
  * @returns The rendered landing page.
  */
+/**
+ * The facts a reader — or a model summarising this page — needs to classify
+ * AcruxCore correctly, in one block under the demo video.
+ *
+ * These are all stated elsewhere on the site, which is the point: an answer
+ * engine reading the landing page should not have to infer the licence from a
+ * footer link or the deployment model from a screenshot, and a human comparing
+ * six tools in a browser tab each should not have to either. Short, literal,
+ * and quotable without surrounding context.
+ *
+ * **Where the limitations live.** This block carried a Limitations row for one
+ * revision; the owner removed it from the landing page on 2026-09-09. They are
+ * still answered in full, and in the same words, by "Where is AcruxCore the
+ * wrong choice?" on `/faq` and by AcruxCore's own card on
+ * `/best-open-source-llmops-platforms` — so the concession the comparison work
+ * is built around is intact, on the two pages a reader weighing alternatives
+ * actually reaches. Don't reintroduce the row here without asking.
+ */
+const AT_A_GLANCE: { label: string; value: ReactNode }[] = [
+  {
+    label: 'Category',
+    value: 'LLMOps platform — prompts, gateway, tracing, tools, evaluation, audit trail',
+  },
+  {
+    label: 'Licence',
+    value: (
+      <>
+        <a href={`${GITHUB_URL}/blob/main/LICENSE`} target="_blank" rel="noreferrer">
+          Apache 2.0
+        </a>
+        , with no enterprise-only directory
+      </>
+    ),
+  },
+  { label: 'Deployment', value: 'Hosted, or self-hosted with docker compose up — the same code either way' },
+  { label: 'SDKs', value: 'TypeScript (@acruxcoreai/sdk) and Python (acruxcore)' },
+  {
+    label: 'Price',
+    value: 'Self-hosted is free, always. The hosted platform is free during beta. Bring your own provider keys; no markup on tokens',
+  },
+  {
+    label: 'Audit trail',
+    value: (
+      <>
+        Every change recorded with the person who made it — keys, members, roles, gateway,
+        secrets, prompts and tools — on every plan and when self-hosted.{' '}
+        <Link to="/features/audit">What the trail records</Link>
+      </>
+    ),
+  },
+  {
+    label: 'Best for',
+    value: 'Teams that want the gateway in the request path, so budgets, caching and virtual keys have a call to act on',
+  },
+];
+
 export function LandingPage(): ReactNode {
-  useDocumentTitle('AcruxCore — LLM-ops platform for engineering teams');
+  useDocumentTitle(LANDING_TITLE);
   const [tab, setTab] = useState<CodeTab>('ts');
 
   const tabBase =
@@ -112,7 +169,7 @@ export function LandingPage(): ReactNode {
               <span style={cssToStyle('color:var(--line);')}>·</span>
               <span>Open source</span>
               <span style={cssToStyle('color:var(--line);')}>·</span>
-              <span>LLM-ops for engineering teams</span>
+              <span>LLMOps platform for engineering teams</span>
             </div>
             <h1
               style={cssToStyle(
@@ -127,8 +184,9 @@ export function LandingPage(): ReactNode {
                 'font-size:clamp(16px,1.6vw,18.5px);line-height:1.6;color:var(--muted);margin:0 0 34px;max-width:44ch;text-wrap:pretty;',
               )}
             >
-              AcruxCore sits between your app and the model providers you connect — so you ship, change, and measure
-              LLM features without redeploying to move a prompt.
+              AcruxCore is an open-source, Apache-2.0, self-hostable LLMOps platform for engineering teams. It sits
+              between your app and the model providers you connect — so you ship, change, and measure LLM features
+              without redeploying to move a prompt.
             </p>
             <div style={cssToStyle('display:flex;flex-wrap:wrap;gap:12px;')}>
               <Link to="/signup" className="acx-hover-bright" style={cssToStyle(btnPrimary())}>
@@ -176,6 +234,43 @@ export function LandingPage(): ReactNode {
           <DemoVideo />
         </section>
 
+        {/* ===== AT A GLANCE ===== */}
+        {/* Kept immediately under the hero, and kept plain: this is the block a
+            reader scanning six tools, and a model summarising the page, both
+            need first. See AT_A_GLANCE. */}
+        <section
+          aria-label="AcruxCore at a glance"
+          style={cssToStyle(
+            'padding:clamp(28px,4vw,44px) 0;border-top:1px solid var(--line-soft);',
+          )}
+        >
+          <dl
+            style={cssToStyle(
+              'margin:0;display:grid;gap:18px 32px;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));',
+            )}
+          >
+            {AT_A_GLANCE.map((fact) => (
+              <div key={fact.label}>
+                <dt
+                  style={cssToStyle(
+                    'font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);margin-bottom:5px;',
+                  )}
+                >
+                  {fact.label}
+                </dt>
+                <dd
+                  className="acx-prose"
+                  style={cssToStyle(
+                    'margin:0;font-size:14px;line-height:1.55;color:var(--muted);text-wrap:pretty;',
+                  )}
+                >
+                  {fact.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+
         {/* ===== NAVIGATION LOOP ===== */}
         <section
           id="loop"
@@ -193,15 +288,16 @@ export function LandingPage(): ReactNode {
               From a bad answer to a fixed prompt — without leaving the app.
             </h2>
             <p style={cssToStyle('font-size:16.5px;line-height:1.6;color:var(--muted);margin:0;text-wrap:pretty;')}>
-              Follow one thread across the whole platform. Land on a session, open its trace, rate the span that missed,
-              and jump straight to the exact prompt version that produced it. Fix it — or let the optimizer draft the
-              fix — score it against the cases it got wrong, then move the production alias. No redeploy, no
+              Follow one thread across the whole platform. Open the trace behind a bad answer, widen to the session it
+              belonged to, rate the span that missed, and jump straight to the exact prompt version that produced it.
+              Fix it — or let the optimizer draft the fix — score it against the cases it got wrong, then move the
+              production alias. The promotion is recorded, so the change has a name against it. No redeploy, no
               context-switch, no leaving AcruxCore.
             </p>
           </div>
           {/* 240px, not the old 166px: with seven nodes a 166px floor packed six
               into row one and left the seventh alone underneath. A wider floor
-              wraps 4 + 3, which reads as a deliberate two-row loop. */}
+              wraps 4 + 4 at eight nodes, which reads as a deliberate two-row loop. */}
           <div style={cssToStyle('display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:12px;')}>
             {LOOP_NODES.map((node) => (
               <div
@@ -246,7 +342,7 @@ export function LandingPage(): ReactNode {
                 <path d="M3 3v5h5" />
               </svg>
             </span>
-            Step&nbsp;7 loops back to step&nbsp;1 — the fix is already live the next time that session runs.
+            Step&nbsp;8 loops back to step&nbsp;1 — the fix is already live the next time that session runs.
           </p>
         </section>
 
@@ -259,7 +355,7 @@ export function LandingPage(): ReactNode {
                 'font-size:clamp(26px,3.4vw,40px);line-height:1.1;letter-spacing:-.02em;font-weight:700;margin:0 0 14px;',
               )}
             >
-              Five parts of the LLM stack, one control plane.
+              Six parts of the LLM stack, one control plane.
             </h2>
             <p style={cssToStyle('font-size:16.5px;line-height:1.6;color:var(--muted);margin:0;text-wrap:pretty;')}>
               Each piece works on its own and composes with the rest. Adopt what you need, no rip-and-replace —
@@ -682,6 +778,10 @@ const REASONS: { lead: string; rest: string }[] = [
     lead: 'Guardrails on spend and failure.',
     rest: 'Budgets and per-key rate limits, an ordered fallback chain per model, and caching you switch on per key.',
   },
+  {
+    lead: 'Every change has a name against it.',
+    rest: 'A team-wide audit trail of keys, members, gateway, secrets, prompts and tools — filter it by area, event or person.',
+  },
   { lead: 'Own your keys and data.', rest: 'Bring your own provider keys, or self-host the whole platform.' },
   { lead: 'Open source.', rest: 'Apache License 2.0 — read the code, self-host it, or send a pull request.' },
 ];
@@ -721,23 +821,22 @@ const OPEN_SOURCE_POINTS: { label: string; body: string; icon: ReactNode }[] = [
   },
 ];
 
+/**
+ * The round-trip, in the order a reader actually walks it.
+ *
+ * Trace comes before Session on purpose. A bad answer is one response, so the
+ * trace is the thing that exists first; a session is the rollup of traces you
+ * widen to for the context around it. Listing the rollup first said the loop
+ * starts somewhere the data does not.
+ *
+ * The last node is the audit trail: of the seven steps this section used to
+ * show, the promotion was the only one that left a record nobody could read,
+ * and the loop now closes on it.
+ */
 const LOOP_NODES: { n: string; label: string; caption: string; arrow: ReactNode; arrowColor: string; icon: ReactNode }[] =
   [
     {
       n: '01',
-      label: 'Session',
-      caption: 'Replay a full agent run, span by span.',
-      arrow: <Chevron />,
-      arrowColor: 'var(--faint)',
-      icon: (
-        <Ic>
-          <rect x={3} y={4} width={18} height={16} rx={2} />
-          <path d="M7 9h7M7 13h4" />
-        </Ic>
-      ),
-    },
-    {
-      n: '02',
       label: 'Trace',
       caption: 'Model, tokens, latency, cost on every call.',
       arrow: <Chevron />,
@@ -745,6 +844,19 @@ const LOOP_NODES: { n: string; label: string; caption: string; arrow: ReactNode;
       icon: (
         <Ic>
           <path d="M4 6h16M4 12h10M4 18h7" />
+        </Ic>
+      ),
+    },
+    {
+      n: '02',
+      label: 'Session',
+      caption: 'Widen to the whole agent run, span by span.',
+      arrow: <Chevron />,
+      arrowColor: 'var(--faint)',
+      icon: (
+        <Ic>
+          <rect x={3} y={4} width={18} height={16} rx={2} />
+          <path d="M7 9h7M7 13h4" />
         </Ic>
       ),
     },
@@ -806,12 +918,26 @@ const LOOP_NODES: { n: string; label: string; caption: string; arrow: ReactNode;
       n: '07',
       label: 'Promote alias',
       caption: "Move 'production' to the version that won. No redeploy.",
-      arrow: <LoopArrow />,
-      arrowColor: 'var(--accent)',
+      arrow: <Chevron />,
+      arrowColor: 'var(--faint)',
       icon: (
         <Ic>
           <circle cx={12} cy={12} r={9} />
           <path d="M8 12l4-4 4 4M12 8v8" />
+        </Ic>
+      ),
+    },
+    {
+      n: '08',
+      label: 'Audit trail',
+      caption: 'Who promoted what, and when — recorded for the whole team.',
+      arrow: <LoopArrow />,
+      arrowColor: 'var(--accent)',
+      icon: (
+        <Ic>
+          <rect x={4} y={3} width={16} height={18} rx={2} />
+          <path d="M8 8h8M8 12h5" />
+          <path d="m8.5 17 1.5 1.5L13 15" />
         </Ic>
       ),
     },

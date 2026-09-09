@@ -16,7 +16,7 @@ const webRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SITE_ORIGIN = 'https://acruxcore.com';
 const MARKER = '<!--app-html-->';
 
-const { render, ROUTES } = await import(resolve(webRoot, 'dist-ssr/entry-prerender.js'));
+const { render, ROUTES, buildLlmsTxt } = await import(resolve(webRoot, 'dist-ssr/entry-prerender.js'));
 
 const indexPath = resolve(webRoot, 'dist/index.html');
 const template = readFileSync(indexPath, 'utf8');
@@ -51,9 +51,31 @@ function patchHead(html, route) {
     .replace(/(<meta\s+name="twitter:description"\s+content=")[^"]*("\s*\/>)/, `$1${d}$2`);
 }
 
+/**
+ * Append a route's own JSON-LD block to the end of its <head>.
+ *
+ * The two blocks already in index.html (Organization, WebSite) describe the
+ * site and are correct on every page, so they stay in the shared template. A
+ * page-specific type — FAQPage on /faq — has to be added per route instead, or
+ * it would claim every marketing page is that type.
+ *
+ * The payload is JSON produced by JSON.stringify, so the only sequence that can
+ * break out of the script element is `</`, which cannot appear in valid JSON
+ * outside a string and is escaped here for the case where it appears inside
+ * one.
+ */
+function addStructuredData(html, route) {
+  if (!route.structuredData) return html;
+  const json = route.structuredData.replace(/<\//g, '<\\/');
+  return html.replace(
+    '</head>',
+    `<script type="application/ld+json">${json}</script></head>`,
+  );
+}
+
 for (const route of ROUTES) {
   const appHtml = render(route.path);
-  const page = patchHead(template, route).replace(MARKER, appHtml);
+  const page = addStructuredData(patchHead(template, route), route).replace(MARKER, appHtml);
   const outPath = resolve(webRoot, 'dist', route.out);
   mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, page);
@@ -223,3 +245,16 @@ if (Object.keys(resolvedDates).length > 0 && refreshed !== JSON.stringify(cached
 console.log(
   `Wrote dist/sitemap.xml with ${ROUTES.length} URL(s), ${ROUTES.length - undated.length} carrying a lastmod date.`,
 );
+
+// --- llms.txt --------------------------------------------------------------
+//
+// A Markdown index of the site for AI crawlers and answer engines, generated
+// from the same ROUTES array as the sitemap for the same reason: a hand-written
+// copy in public/ goes stale the first time a page is added or renamed, and
+// nothing fails when it does. buildLlmsTxt throws when a route has no section
+// or a section names a route that no longer exists, so the two cannot disagree
+// past a build. The curation — section order, and a one-line summary per page —
+// stays hand-written in src/marketing/llms-txt.ts.
+const llmsTxt = buildLlmsTxt(ROUTES, SITE_ORIGIN);
+writeFileSync(resolve(webRoot, 'dist/llms.txt'), llmsTxt);
+console.log(`Wrote dist/llms.txt (${llmsTxt.length} bytes, ${ROUTES.length} page(s) indexed).`);

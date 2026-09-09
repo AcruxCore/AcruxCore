@@ -1,7 +1,7 @@
 ---
 sidebar_position: 12
 title: "Audit"
-description: "Read the paginated, newest-first audit trail of changes made to a prompt or a tool."
+description: "Read the paginated, newest-first audit trail of changes made to a prompt, a tool, or the whole team."
 ---
 
 # Audit API
@@ -161,4 +161,155 @@ Response (status 404) — tool not found or belongs to another team:
 
 ```json
 { "error": { "code": "NOT_FOUND", "message": "Tool not found." } }
+```
+
+---
+
+## GET /api/v1/teams/:id/audit
+
+Returns a paginated, newest-first list of **every** audit event in the team — not just
+the ones tied to a prompt or a tool. This is the endpoint behind the dashboard's
+**Audit trail** screen, and the one to call for a compliance question: API keys
+generated and revoked, members added and removed, roles changed, invites sent and
+accepted, provider credentials, virtual keys, budgets, gateway models, secrets and trace
+settings all appear here and nowhere else.
+
+**Session authentication only, owner or admin.** A Bearer API key is rejected with a 401:
+the trail records what people did, and a key belongs to a service rather than a person.
+Editors and viewers are authenticated but get a 403.
+
+```bash
+curl -X GET "$ACRUXCORE_BASE_URL/teams/8d3ceb9b-39d0-463b-8b91-aa2ef20ac9ba/audit?limit=2" \
+  -H "Cookie: $ACRUXCORE_SESSION_COOKIE"
+```
+
+### Query parameters
+
+| Param   | Type   | Default | Description                                                        |
+|---------|--------|---------|--------------------------------------------------------------------|
+| page    | number | 1       | 1-indexed page number                                              |
+| limit   | number | 20      | Page size (max 100)                                                |
+| event   | string | —       | Comma-separated event names to include; unknown names return 400   |
+| actorId | uuid   | —       | Restrict to one person's events                                    |
+
+`event` and `actorId` are AND-ed, and both narrow `total` as well as the rows — so
+`total` is always the size of the filtered set, safe to paginate against.
+
+### Response (status 200)
+
+```json
+{
+  "data": [
+    {
+      "id": "3f84fa30-a1de-4ceb-a01c-aa33f0b1445b",
+      "event": "api_key_revoked",
+      "actor": { "id": "18c76b52-ee0d-4001-be8e-c29976488fbb", "email": "demo@acruxcore.com" },
+      "metadata": { "apiKeyId": "1df65dba-c2d2-490d-a41f-8331a2f5990a" },
+      "createdAt": "2026-09-08T11:45:31.890Z",
+      "promptId": null,
+      "target": null
+    },
+    {
+      "id": "7cf02538-efaa-4940-a954-3eb2477dc3b2",
+      "event": "api_key_generated",
+      "actor": { "id": "18c76b52-ee0d-4001-be8e-c29976488fbb", "email": "demo@acruxcore.com" },
+      "metadata": { "name": "video-capture", "apiKeyId": "1df65dba-c2d2-490d-a41f-8331a2f5990a" },
+      "createdAt": "2026-09-08T11:45:29.696Z",
+      "promptId": null,
+      "target": null
+    }
+  ],
+  "total": 1005,
+  "page": 1,
+  "limit": 2
+}
+```
+
+`promptId` is set on a prompt-scoped event and null otherwise. `target` is the person the
+event was performed *on* — filled in for `member_role_updated` and `member_removed`,
+where the stored metadata holds only a user id — and null everywhere else. It is resolved
+from the user record rather than from current membership, so a member who has since been
+removed still shows their address.
+
+### Filtering by event
+
+```bash
+curl -X GET "$ACRUXCORE_BASE_URL/teams/8d3ceb9b-39d0-463b-8b91-aa2ef20ac9ba/audit?event=api_key_generated,api_key_revoked&limit=1" \
+  -H "Cookie: $ACRUXCORE_SESSION_COOKIE"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "3f84fa30-a1de-4ceb-a01c-aa33f0b1445b",
+      "event": "api_key_revoked",
+      "actor": { "id": "18c76b52-ee0d-4001-be8e-c29976488fbb", "email": "demo@acruxcore.com" },
+      "metadata": { "apiKeyId": "1df65dba-c2d2-490d-a41f-8331a2f5990a" },
+      "createdAt": "2026-09-08T11:45:31.890Z",
+      "promptId": null,
+      "target": null
+    }
+  ],
+  "total": 126,
+  "page": 1,
+  "limit": 1
+}
+```
+
+### Error responses
+
+Response (status 400) — an event name that is not one of the 34 recorded events. The
+message lists every accepted value:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid enum value. Expected 'prompt_created' | 'prompt_renamed' | ... | 'prompt_tool_route_removed', received 'nope'"
+  }
+}
+```
+
+Response (status 403) — the caller is an editor or a viewer:
+
+```json
+{ "error": { "code": "FORBIDDEN", "message": "Insufficient role for this action." } }
+```
+
+Response (status 401) — no session cookie, or a Bearer API key instead of one:
+
+```json
+{ "error": { "code": "UNAUTHORIZED", "message": "Authentication required." } }
+```
+
+---
+
+## GET /api/v1/teams/:id/audit/actors
+
+Returns everyone who has written at least one audit event for the team, with their event
+count — the option list for a "who did this" filter. Unpaginated: one row per person,
+ascending by email. Same owner/admin, session-only gate as the trail itself.
+
+Built from the trail rather than from current membership, so a member who has since been
+removed is still listed. That is deliberate: their events remain in the record, and they
+are exactly who an access review asks about.
+
+```bash
+curl -X GET "$ACRUXCORE_BASE_URL/teams/8d3ceb9b-39d0-463b-8b91-aa2ef20ac9ba/audit/actors" \
+  -H "Cookie: $ACRUXCORE_SESSION_COOKIE"
+```
+
+### Response (status 200)
+
+```json
+{
+  "data": [
+    {
+      "id": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+      "email": "demo@acruxcore.com",
+      "eventCount": 1005
+    }
+  ]
+}
 ```

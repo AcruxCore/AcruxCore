@@ -13,6 +13,7 @@ import { AcceptInvitePage } from '@/auth/AcceptInvitePage';
 import { PromptListPage } from '@/prompts/PromptListPage';
 import { PromptDetailPage } from '@/prompts/PromptDetailPage';
 import { TeamPage } from '@/team/TeamPage';
+import { TeamAuditPage } from '@/team/audit';
 import { AccountPage } from '@/account/AccountPage';
 import { PlaygroundPage } from '@/gateway/PlaygroundPage';
 import { UsagePage } from '@/gateway/UsagePage';
@@ -54,6 +55,8 @@ import {
   FeaturePage,
   FEATURE_LIST,
   ComparePage,
+  FaqPage,
+  BestLlmOpsPlatformsPage,
 } from '@/marketing';
 
 /** Top-level route table: public marketing + auth routes, then protected app shell routes. */
@@ -76,6 +79,11 @@ export function App() {
         <Route key={feature.slug} path={`/features/${feature.slug}`} element={<FeaturePage feature={feature} />} />
       ))}
       <Route path="/compare" element={<ComparePage />} />
+      <Route path="/faq" element={<FaqPage />} />
+      <Route
+        path="/best-open-source-llmops-platforms"
+        element={<BestLlmOpsPlatformsPage />}
+      />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
@@ -92,6 +100,7 @@ export function App() {
         <Route path="/prompts" element={<PromptListPage />} />
         <Route path="/prompts/:id" element={<PromptDetailPage />} />
         <Route path="/team" element={<TeamPage />} />
+        <Route path="/team/audit" element={<TeamAuditPage />} />
         <Route path="/account" element={<AccountPage />} />
         <Route path="/gateway" element={<Navigate to="/gateway/playground" replace />} />
         <Route path="/gateway/playground" element={<PlaygroundPage />} />

@@ -211,6 +211,195 @@ describe('GET /api/v1/teams/:id/audit (Finding #13)', () => {
     expect(page2.body.data).toHaveLength(1);
     expect(page1.body.data[0].id).not.toBe(page2.body.data[0].id);
   });
+
+  it('filters by a single event name, and narrows total to the filtered set', async () => {
+    const owner = await authedAgent(app);
+    const p = await owner.agent.post('/api/v1/prompts').send({ name: 'filter-me' }).expect(201);
+    await owner.agent
+      .post(`/api/v1/prompts/${p.body.id}/versions`)
+      .send({ messages: [{ role: 'system', content: 'v1' }] })
+      .expect(201);
+    await owner.agent
+      .post(`/api/v1/prompts/${p.body.id}/versions`)
+      .send({ messages: [{ role: 'system', content: 'v2' }] })
+      .expect(201);
+
+    const all = await owner.agent.get(`/api/v1/teams/${owner.teamId}/audit`).expect(200);
+    const filtered = await owner.agent
+      .get(`/api/v1/teams/${owner.teamId}/audit?event=version_committed`)
+      .expect(200);
+
+    expect(filtered.body.total).toBe(2);
+    expect(filtered.body.total).toBeLessThan(all.body.total);
+    expect(filtered.body.data.map((e: { event: string }) => e.event)).toEqual([
+      'version_committed',
+      'version_committed',
+    ]);
+  });
+
+  it('filters by a comma-separated group of event names (OR within the list)', async () => {
+    const owner = await authedAgent(app);
+    const p = await owner.agent.post('/api/v1/prompts').send({ name: 'grouped' }).expect(201);
+    await owner.agent
+      .post(`/api/v1/prompts/${p.body.id}/versions`)
+      .send({ messages: [{ role: 'system', content: 'v1' }] })
+      .expect(201);
+    await owner.agent
+      .post('/api/v1/gateway/connections')
+      .send({ provider: 'openai', label: 'grouped', apiKey: 'sk-test-abcdAB12', config: {} })
+      .expect(201);
+
+    const res = await owner.agent
+      .get(`/api/v1/teams/${owner.teamId}/audit?event=prompt_created,provider_connection_created`)
+      .expect(200);
+
+    const events: string[] = res.body.data.map((e: { event: string }) => e.event);
+    expect(events.sort()).toEqual(['prompt_created', 'provider_connection_created']);
+    expect(res.body.total).toBe(2);
+  });
+
+  it('rejects an unknown event name with 400 rather than silently returning everything', async () => {
+    const owner = await authedAgent(app);
+    await owner.agent.post('/api/v1/prompts').send({ name: 'p' }).expect(201);
+
+    const res = await owner.agent
+      .get(`/api/v1/teams/${owner.teamId}/audit?event=not_a_real_event`)
+      .expect(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('filters by actorId, and 400s on a non-UUID actorId', async () => {
+    const owner = await authedAgent(app);
+    const admin = await addUserToTeam(app, owner.teamId, 'admin');
+
+    await owner.agent.post('/api/v1/prompts').send({ name: 'by-owner' }).expect(201);
+    await request(app)
+      .post('/api/v1/prompts')
+      .set(authHeaders(admin))
+      .send({ name: 'by-admin' })
+      .expect(201);
+
+    const res = await owner.agent
+      .get(`/api/v1/teams/${owner.teamId}/audit?actorId=${admin.userId}`)
+      .expect(200);
+
+    expect(res.body.total).toBeGreaterThanOrEqual(1);
+    for (const entry of res.body.data) {
+      expect(entry.actor.id).toBe(admin.userId);
+    }
+    const names = res.body.data.map((e: { metadata: { name?: string } | null }) => e.metadata?.name);
+    expect(names).toContain('by-admin');
+    expect(names).not.toContain('by-owner');
+
+    await owner.agent.get(`/api/v1/teams/${owner.teamId}/audit?actorId=nope`).expect(400);
+  });
+
+  it('resolves metadata.targetUserId to the affected member’s email', async () => {
+    const owner = await authedAgent(app);
+    const member = await addUserToTeam(app, owner.teamId, 'editor');
+
+    await owner.agent
+      .patch(`/api/v1/teams/${owner.teamId}/members/${member.userId}/roles`)
+      .send({ role: 'admin' })
+      .expect(200);
+    await owner.agent
+      .delete(`/api/v1/teams/${owner.teamId}/members/${member.userId}`)
+      .expect(204);
+
+    const res = await owner.agent
+      .get(`/api/v1/teams/${owner.teamId}/audit?event=member_removed,member_role_updated`)
+      .expect(200);
+
+    expect(res.body.data).toHaveLength(2);
+    for (const entry of res.body.data) {
+      expect(entry.target).toEqual({ id: member.userId, email: member.email });
+    }
+  });
+
+  it('leaves target null on an event that carries no targetUserId', async () => {
+    const owner = await authedAgent(app);
+    await owner.agent.post('/api/v1/prompts').send({ name: 'no-target' }).expect(201);
+
+    const res = await owner.agent
+      .get(`/api/v1/teams/${owner.teamId}/audit?event=prompt_created`)
+      .expect(200);
+    expect(res.body.data[0].target).toBeNull();
+  });
+
+  it('combines the event and actor filters with AND', async () => {
+    const owner = await authedAgent(app);
+    const admin = await addUserToTeam(app, owner.teamId, 'admin');
+
+    const p = await request(app)
+      .post('/api/v1/prompts')
+      .set(authHeaders(admin))
+      .send({ name: 'admin-prompt' })
+      .expect(201);
+    await request(app)
+      .post(`/api/v1/prompts/${p.body.id}/versions`)
+      .set(authHeaders(admin))
+      .send({ messages: [{ role: 'system', content: 'v1' }] })
+      .expect(201);
+    await owner.agent.post('/api/v1/prompts').send({ name: 'owner-prompt' }).expect(201);
+
+    const res = await owner.agent
+      .get(`/api/v1/teams/${owner.teamId}/audit?event=prompt_created&actorId=${admin.userId}`)
+      .expect(200);
+
+    expect(res.body.total).toBe(1);
+    expect(res.body.data[0].event).toBe('prompt_created');
+    expect(res.body.data[0].actor.id).toBe(admin.userId);
+  });
+});
+
+describe('GET /api/v1/teams/:id/audit/actors', () => {
+  it('returns one row per distinct actor with an event count, ascending by email', async () => {
+    const owner = await authedAgent(app);
+    const admin = await addUserToTeam(app, owner.teamId, 'admin');
+
+    await owner.agent.post('/api/v1/prompts').send({ name: 'a' }).expect(201);
+    await owner.agent.post('/api/v1/prompts').send({ name: 'b' }).expect(201);
+    await request(app).post('/api/v1/prompts').set(authHeaders(admin)).send({ name: 'c' }).expect(201);
+
+    const res = await owner.agent.get(`/api/v1/teams/${owner.teamId}/audit/actors`).expect(200);
+
+    expect(res.body.data).toHaveLength(2);
+    const emails = res.body.data.map((a: { email: string }) => a.email);
+    expect([...emails]).toEqual([...emails].sort((x, y) => x.localeCompare(y)));
+
+    const ownerRow = res.body.data.find((a: { id: string }) => a.id === owner.userId);
+    const adminRow = res.body.data.find((a: { id: string }) => a.id === admin.userId);
+    expect(ownerRow.eventCount).toBe(2);
+    expect(adminRow.eventCount).toBe(1);
+  });
+
+  it('still lists an actor after they are removed from the team', async () => {
+    const owner = await authedAgent(app);
+    const admin = await addUserToTeam(app, owner.teamId, 'admin');
+    await request(app).post('/api/v1/prompts').set(authHeaders(admin)).send({ name: 'gone' }).expect(201);
+
+    await owner.agent.delete(`/api/v1/teams/${owner.teamId}/members/${admin.userId}`).expect(204);
+
+    const res = await owner.agent.get(`/api/v1/teams/${owner.teamId}/audit/actors`).expect(200);
+    expect(res.body.data.map((a: { id: string }) => a.id)).toContain(admin.userId);
+  });
+
+  it('is empty for a team with no audit events', async () => {
+    const owner = await authedAgent(app);
+    await prisma.$executeRaw`DELETE FROM audit_log WHERE team_id = ${owner.teamId}::uuid`;
+
+    const res = await owner.agent.get(`/api/v1/teams/${owner.teamId}/audit/actors`).expect(200);
+    expect(res.body.data).toEqual([]);
+  });
+
+  it('rejects editors and viewers with 403', async () => {
+    const owner = await authedAgent(app);
+    const editor = await addUserToTeam(app, owner.teamId, 'editor');
+    const viewer = await addUserToTeam(app, owner.teamId, 'viewer');
+
+    await request(app).get(`/api/v1/teams/${owner.teamId}/audit/actors`).set(authHeaders(editor)).expect(403);
+    await request(app).get(`/api/v1/teams/${owner.teamId}/audit/actors`).set(authHeaders(viewer)).expect(403);
+  });
 });
 
 describe('GET /api/v1/tools/:id/audit', () => {

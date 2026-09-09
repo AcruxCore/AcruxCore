@@ -165,13 +165,41 @@ so a quality drop a rule catches feeds the same fix loop a human-rated one
 would. See [Score live traffic with an evaluation
 rule](../guides/score-live-traffic-with-an-evaluation-rule) to set one up.
 
+## The audit trail
+
+A **trace** records traffic: a call your app made. An **audit event** records a
+change: something a person did to the workspace. They are separate on purpose,
+because they answer different questions. "Why was this answer wrong?" is a
+trace. "Who moved `production` to v7 on Tuesday, and who revoked that key?" is
+an audit event.
+
+Every write the platform performs is recorded with the person behind it —
+prompts and their versions and aliases, tools and their bindings, members and
+invites, API keys, gateway credentials, models, virtual keys and budgets,
+secrets, and the team's trace settings. Thirty-four kinds of event in all,
+grouped into seven areas for filtering.
+
+You read the trail in three places, and the scope decides who may:
+
+| Trail | Where | Who can read it |
+|-------|-------|-----------------|
+| One prompt | The prompt's **Audit** tab | Any member, and an API key |
+| One tool | The tool's **Audit** tab | Any member, and an API key |
+| The whole team | **Team → Audit trail** | `owner` and `admin`, signed in |
+
+The team-wide trail is the only read in the platform an API key cannot make. It
+needs a signed-in session, because a record of what people did should not be
+readable by a program holding a key. See [Read the team audit
+trail](../guides/read-the-team-audit-trail).
+
 ## Where to go next
 
 - **[Quickstart](./quickstart)** — make your first traced gateway call in ten minutes.
 - **Feature overviews** — one page per block, with what it does and what it does not:
-  [Prompts](https://acruxcore.com/features/prompts),
-  [Gateway](https://acruxcore.com/features/gateway),
-  [Tracing](https://acruxcore.com/features/tracing),
-  [Tools](https://acruxcore.com/features/tools),
-  [Evaluation](https://acruxcore.com/features/evaluation).
+  [prompt management](https://acruxcore.com/features/prompts),
+  [the LLM gateway](https://acruxcore.com/features/gateway),
+  [LLM observability](https://acruxcore.com/features/tracing),
+  [LLM tool calling](https://acruxcore.com/features/tools),
+  [LLM evaluation](https://acruxcore.com/features/evaluation),
+  [the audit log](https://acruxcore.com/features/audit).
 - **[Tutorials](../tutorials/)** — eight end-to-end agent builds, from no-code dashboard to multi-agent systems. Start with [Level 1](../tutorials/#level-1--start-here-no-code) if you're new.

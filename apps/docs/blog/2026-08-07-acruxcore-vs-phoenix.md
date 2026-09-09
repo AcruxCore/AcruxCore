@@ -356,7 +356,7 @@ rather than a fork in the road.
 | | Phoenix | AcruxCore |
 |---|---|---|
 | Strongest at | Rich per-span trace attributes, a genuine LLM-vs-code evaluator split, a built-in dashboard assistant | A request-path gateway with routing, caching, and budgets on every call; tools that actually execute and get measured; server-side prompt rendering with zero tracing code |
-| Weakest at | No request-path gateway; no team/RBAC/audit at all in local OSS; Playground's flat inputs silently mis-render structured template data | No in-dashboard assistant; narrower eval-evaluator taxonomy; audit scoped per-prompt |
+| Weakest at | No request-path gateway; no team/RBAC/audit at all in local OSS; Playground's flat inputs silently mis-render structured template data | No in-dashboard assistant; narrower eval-evaluator taxonomy; no audit export |
 | Pick it if | You want OTel-native tracing and evals layered onto a client you already own, and don't need team/RBAC out of the box | You want the provider call itself — gateway, tools, feedback-driven datasets — traced for free, with a real team model, nothing bolted on after the fact; AcruxCore also accepts your own OTel-instrumented traces directly via its OTLP endpoint |
 
 Phoenix's tracing depth and its LLM/code evaluator split (**Tracing & observability**,

@@ -1,0 +1,23 @@
+meta {
+  name: List Audit Actors
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/teams/{{teamId}}/audit/actors
+  body: none
+  auth: none
+}
+
+headers {
+  Cookie: {{sessionCookie}}
+}
+
+docs {
+  Everyone who has written at least one event for this team, with their event
+  count — the source for the actor filter. Built from the trail rather than from
+  current membership, so a removed member is still listed and still selectable.
+
+  Unpaginated: one row per person, not per event.
+}

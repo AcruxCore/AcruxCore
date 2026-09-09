@@ -95,13 +95,21 @@ export class ApiKeysService {
    * Team keys can read prompts and call the render/versions endpoints but
    * cannot manage members or create other keys.
    *
-   * @param teamId - The team to create the key for.
-   * @param dto    - Optional name for the key.
+   * The key carries no user identity, but minting one is still the act of a
+   * signed-in owner or admin, so the audit event records who did it. Without
+   * that the team-wide trail is silent about the credential a whole
+   * application authenticates with — `scope: 'team'` is what tells the two
+   * kinds of key apart, since a team key outlives the member who minted it.
+   *
+   * @param teamId  - The team to create the key for.
+   * @param dto     - Optional name for the key.
+   * @param actorId - The signed-in user minting the key, recorded as the actor.
    * @returns The created key in full (only time it is returned).
    */
   async createTeamApiKey(
     teamId: string,
     dto: CreateApiKeyDto,
+    actorId: string,
   ): Promise<ApiKeyCreatedDto> {
     const { token, hash, lastFour } = generateKey();
     const row = await this.repo.createTeamKey({
@@ -110,6 +118,14 @@ export class ApiKeysService {
       keyLastFour: lastFour,
       name: dto.name,
     });
+
+    await audit(prisma, {
+      teamId,
+      actorId,
+      event: 'api_key_generated',
+      metadata: { apiKeyId: row.id, name: row.name, scope: 'team' },
+    });
+
     return { id: row.id, key: token, name: row.name, createdAt: row.createdAt };
   }
 
@@ -131,13 +147,21 @@ export class ApiKeysService {
   /**
    * Revokes a team-scoped API key by ID, verifying it belongs to the team.
    *
-   * @param id     - Key UUID to revoke.
-   * @param teamId - Isolation boundary.
+   * @param id      - Key UUID to revoke.
+   * @param teamId  - Isolation boundary.
+   * @param actorId - The signed-in user revoking the key, recorded as the actor.
    * @throws {NotFoundError} If the key is not found, already revoked, or belongs to a different team.
    */
-  async revokeTeamApiKey(id: string, teamId: string): Promise<void> {
+  async revokeTeamApiKey(id: string, teamId: string, actorId: string): Promise<void> {
     const row = await this.repo.findActiveTeamKeyById(id, teamId);
     if (!row) throw new NotFoundError('API key not found.');
     await this.repo.revoke(id);
+
+    await audit(prisma, {
+      teamId,
+      actorId,
+      event: 'api_key_revoked',
+      metadata: { apiKeyId: id, scope: 'team' },
+    });
   }
 }

@@ -1,6 +1,7 @@
 import { Link, NavLink } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/cn';
+import { useAuth } from '@/auth/AuthContext';
 import { BrandMark } from '@/marketing/brand';
 
 function Item({ to, icon, children }: { to: string; icon: ReactNode; children: ReactNode }) {
@@ -30,6 +31,8 @@ const ic = (path: ReactNode) => (
 
 /** Left navigation rail: brand + primary sections. */
 export function Sidebar() {
+  const { canManageTeam } = useAuth();
+
   return (
     <aside className="flex w-[232px] flex-none flex-col border-r border-line bg-surface p-3">
       <Link
@@ -55,6 +58,13 @@ export function Sidebar() {
       <Item to="/team" icon={ic(<><circle cx="9" cy="8" r="3" /><path d="M2 20a7 7 0 0 1 14 0" /><path d="M17 5a3 3 0 0 1 0 6" /><path d="M22 20a6 6 0 0 0-4-5.6" /></>)}>
         Team
       </Item>
+      {/* Owner/admin only: the endpoint behind it returns 403 for everyone else,
+          so showing the link to an editor would only advertise a dead end. */}
+      {canManageTeam && (
+        <Item to="/team/audit" icon={ic(<><path d="M9 12h6" /><path d="M9 16h4" /><path d="M14 3v4h4" /><path d="M15 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7Z" /></>)}>
+          Audit trail
+        </Item>
+      )}
       <Item to="/account" icon={ic(<><circle cx="12" cy="12" r="9" /><path d="m21 7-8 8-4-4" /></>)}>
         Account &amp; keys
       </Item>

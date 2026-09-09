@@ -42,7 +42,7 @@ const PLANS: Plan[] = [
     priceNote: 'while AcruxCore is in beta',
     blurb: 'The whole platform, unlocked. You connect your own provider keys, so the only model spend is the one you already have.',
     features: [
-      'Prompts, gateway, tracing, tools, and evaluation',
+      'Prompts, gateway, tracing, tools, evaluation, and the audit trail',
       'Bring your own provider keys — no token markup',
       'Unlimited prompt and tool versions',
       'Team members with roles and invites',

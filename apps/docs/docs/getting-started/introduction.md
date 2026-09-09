@@ -18,18 +18,19 @@ SDKs — [`@acruxcoreai/sdk`](https://www.npmjs.com/package/@acruxcoreai/sdk) fo
 and [`acruxcore`](https://pypi.org/project/acruxcore/) for Python. The two SDKs have
 the same feature set, so nothing here is Node-only.
 
-## The five building blocks
+## The six building blocks
 
-AcruxCore is built from five pieces that each stand on their own but are
+AcruxCore is built from six pieces that each stand on their own but are
 designed to snap together.
 
 | Block | What it does |
 |-------|--------------|
-| [**Prompts**](https://acruxcore.com/features/prompts) | Versioned, templated message sets. Move a `production` alias between versions without redeploying your app. |
-| [**Gateway**](https://acruxcore.com/features/gateway) | One OpenAI-compatible endpoint in front of the providers you connect — OpenAI, Anthropic, Gemini, and any OpenAI-compatible endpoint you register. Bring your own keys; get routing, fallbacks, cost, and caching. |
-| [**Tracing**](https://acruxcore.com/features/tracing) | Every gateway call is recorded as a trace with spans — model, tokens, latency, cost. Or keep your own provider calls and export the same spans over OpenTelemetry. |
-| [**Tools**](https://acruxcore.com/features/tools) | Functions the model can call, versioned exactly like prompts. Declare one in your own code and the catalog fills itself in, or declare an HTTP one that the platform calls for you. |
-| [**Evaluation**](https://acruxcore.com/features/evaluation) | Build datasets from real feedback or by hand, run experiments to compare prompt and model versions, score live traffic with standing rules, and let the optimizer draft the next version. |
+| [**Prompt management**](https://acruxcore.com/features/prompts) | Versioned, templated message sets. Move a `production` alias between versions without redeploying your app. |
+| [**LLM gateway**](https://acruxcore.com/features/gateway) | One OpenAI-compatible endpoint in front of the providers you connect — OpenAI, Anthropic, Gemini, and any OpenAI-compatible endpoint you register. Bring your own keys; get routing, fallbacks, cost, and caching. |
+| [**LLM observability**](https://acruxcore.com/features/tracing) | Every gateway call is recorded as a trace with spans — model, tokens, latency, cost. Or keep your own provider calls and export the same spans over OpenTelemetry. |
+| [**LLM tool calling**](https://acruxcore.com/features/tools) | Functions the model can call, versioned exactly like prompts. Declare one in your own code and the catalog fills itself in, or declare an HTTP one that the platform calls for you. |
+| [**LLM evaluation**](https://acruxcore.com/features/evaluation) | Build datasets from real feedback or by hand, run experiments to compare prompt and model versions, score live traffic with standing rules, and let the optimizer draft the next version. |
+| [**Audit log**](https://acruxcore.com/features/audit) | Every recorded change in the team — keys, members, gateway, secrets, prompts, tools — newest first, filtered by area, event, or the person who did it. |
 
 ## How they connect
 
@@ -56,6 +57,9 @@ A concrete run looks like this:
    for it, and adds a span for the call to the same trace.
 5. Users thumbs-up/down the answers; you turn that feedback into a dataset and
    **evaluate** a new prompt version against it.
+6. Each of those changes — the promotion in step 1, the tool you declared, the
+   key your app authenticates with — is recorded in the team's **audit** trail,
+   with the person who made it.
 
 ## Who it's for
 

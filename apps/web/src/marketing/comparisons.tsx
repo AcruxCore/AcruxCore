@@ -17,7 +17,7 @@ export interface Source {
 /**
  * One fact in a comparison row, with its source and which side (if either) it
  * clearly favors. All three flags live on the competitor's own `Fact` object — there
- * is one shared `ACRUX_CORE` record reused across all five competitors, so it has no
+ * is one shared `ACRUX_CORE` record reused across all six competitors, so it has no
  * per-competitor notion of "wins"; the competitor's object is what varies row by
  * row and comparison by comparison, so that is where every verdict gets recorded.
  *
@@ -38,6 +38,13 @@ export interface Fact {
    * "nobody scored this row."
    */
   tie?: boolean;
+  /**
+   * When this one fact was checked, if that is not the date in its column header.
+   * A row added after the original sweep carries its own date rather than silently
+   * borrowing the column's — the header claims a live self-hosted run, and a row
+   * checked later against docs and source is not the same evidence.
+   */
+  checkedOn?: string;
 }
 
 /** Everything needed to render one competitor's row in the `/compare` matrix. */
@@ -50,6 +57,17 @@ export interface Comparison {
   githubHref: string;
   /** The date these facts were checked against the competitor's own pages. */
   checkedOn: string;
+  /**
+   * The workload this platform is the better pick for, in one sentence.
+   *
+   * Every one of these is a restatement of a row below that this competitor
+   * wins or ties, never a new claim — the whole point of keeping them in this
+   * file is that `/best-open-source-llmops-platforms` cannot say something
+   * kinder or harsher about a tool than the sourced facts already do.
+   */
+  bestFor: string;
+  /** The gaps a reader should weigh, drawn from the same rows. */
+  limitations: string;
   license: Fact;
   selfHost: Fact;
   gateway: Fact;
@@ -59,6 +77,7 @@ export interface Comparison {
   rbac: Fact;
   auditLog: Fact;
   promptTemplating: Fact;
+  promptOptimizer: Fact;
   communityStars: string;
   communityNote?: string;
 }
@@ -70,6 +89,12 @@ export interface Comparison {
 export const ACRUX_CORE = {
   name: 'AcruxCore',
   checkedOn: '2026-08-07',
+  tagline:
+    'One control plane where the gateway sits in the request path and the tool catalog\u2019s calls are versioned and executed.',
+  bestFor:
+    'Teams that want the whole loop in one self-hostable product: versioned prompts, a request-path gateway, tracing, and a versioned tool catalog whose calls the gateway executes. Feedback then turns into datasets, standing eval rules and optimizer rewrites you promote as a normal prompt version. Every change anyone makes is recorded with their name on every plan, which is the one row here no other platform matches without a paid tier.',
+  limitations:
+    'A single flat team with no organisation layer and one role per member, no content or PII guardrails in the request path, and by far the smallest community of the seven.',
   license: {
     value: 'Apache License 2.0 — permissive and OSI-approved, with no enterprise-only directory',
     source: { label: 'LICENSE', href: `${GITHUB_URL}/blob/main/LICENSE` },
@@ -94,11 +119,27 @@ export const ACRUX_CORE = {
     value: 'Free during beta — bring your own provider keys, no published paid tier yet',
     source: { label: 'Pricing', href: '/pricing' },
   },
-  rbac: { value: 'Single role per team member, no org-level layer' },
-  auditLog: { value: 'Present and populated by default, no upgrade needed — but scoped to one prompt at a time' },
+  rbac: {
+    value: 'Single role per team member, no org-level layer',
+    source: {
+      label: 'Manage team roles and permissions',
+      href: `${DOCS_URL}/docs/guides/manage-team-roles-and-permissions`,
+    },
+  },
+  auditLog: {
+    value:
+      'Present and populated by default, no upgrade needed — per prompt, per tool, and team-wide, filtered by area, event or person',
+    source: { label: 'Read the team audit trail', href: `${DOCS_URL}/docs/guides/read-the-team-audit-trail` },
+  },
   promptTemplating: {
     value: 'Every prompt is a template — {% if %} conditionals, {% for %} loops, filters, same syntax as Jinja2',
     source: { label: 'Use conditional logic in prompt templates', href: `${DOCS_URL}/docs/guides/use-conditional-logic-in-prompt-templates` },
+  },
+  promptOptimizer: {
+    value:
+      'Built into the dashboard — the cases a run got wrong and your judge\'s feedback draft candidate rewrites, every candidate is scored against the live prompt across a model grid, and the winner is promoted from the report',
+    source: { label: 'Improve a prompt from feedback', href: `${DOCS_URL}/docs/guides/improve-a-prompt-from-feedback` },
+    checkedOn: '2026-09-10',
   },
 } as const;
 
@@ -111,6 +152,10 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     postHref: `${DOCS_URL}/blog/acruxcore-vs-langfuse`,
     githubHref: 'https://github.com/langfuse/langfuse',
     checkedOn: '2026-08-06',
+    bestFor:
+      'Teams that need an organisation layer above the project, and the largest community of the six by a wide margin.',
+    limitations:
+      'Not in the request path, so a budget, cache or virtual key has no call to act on. Variable substitution only, with no conditionals or loops. The audit log sits behind the $2,499/mo Enterprise plan, on hosted Langfuse as well as self-host. A separate enterprise licence governs the ee/ directory.',
     license: {
       value:
         'MIT on the core, but a separate Enterprise License governs the ee/ directory, so some features are gated. AcruxCore gates none.',
@@ -151,6 +196,13 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
       source: { label: 'Using external templating libraries', href: 'https://langfuse.com/faq/all/using-external-templating-libraries' },
       acruxWins: true,
     },
+    promptOptimizer: {
+      value:
+        'No optimizer in the product — the nearest thing is an Agent Skill for Claude Code that reads trace feedback and edits the prompt through the API, so the rewriting happens in your editor, not in Langfuse',
+      source: { label: 'Prompt improvement with Agent Skills', href: 'https://langfuse.com/blog/2026-02-16-prompt-improvement-claude-skills' },
+      acruxWins: true,
+      checkedOn: '2026-09-10',
+    },
     communityStars: '32,617',
   },
 
@@ -161,6 +213,10 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     postHref: `${DOCS_URL}/blog/acruxcore-vs-phoenix`,
     githubHref: 'https://github.com/Arize-ai/phoenix',
     checkedOn: '2026-08-07',
+    bestFor:
+      'Local-first tracing and evaluation on one machine, notebook-native, with nothing to set up and no account to create.',
+    limitations:
+      'Elastic License 2.0 is source-available rather than OSI-approved; there is no team or user-management concept in local OSS; nothing sits in the request path; and there is no tool catalog.',
     license: {
       value: 'Elastic License 2.0 — source-available, not OSI-approved and not permissive',
       source: { label: 'LICENSE', href: 'https://github.com/Arize-ai/phoenix/blob/main/LICENSE' },
@@ -195,6 +251,13 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
       source: { label: 'Using the Playground', href: 'https://arize.com/docs/phoenix/prompt-engineering/how-to-prompts/using-the-playground' },
       acruxWins: true,
     },
+    promptOptimizer: {
+      value:
+        'Arize\'s Prompt Learning optimizer does rewrite a prompt from eval results, but it lives in a separate research repo installed by cloning — not on PyPI, not part of the Phoenix app, and documented as a tutorial rather than a feature',
+      source: { label: 'Arize-ai/prompt-learning', href: 'https://github.com/Arize-ai/prompt-learning' },
+      acruxWins: true,
+      checkedOn: '2026-09-10',
+    },
     communityStars: '10,923',
   },
 
@@ -205,6 +268,10 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     postHref: `${DOCS_URL}/blog/acruxcore-vs-opik`,
     githubHref: 'https://github.com/comet-ml/opik',
     checkedOn: '2026-08-07',
+    bestFor:
+      'Evaluation-first work: datasets, experiments and online scoring rules, under the same Apache 2.0 terms as AcruxCore.',
+    limitations:
+      'No team, member or invite concept anywhere in self-host, since members are a Cloud-tier feature. Nothing in the request path, and no tool catalog. Mustache substitution by default, with playground conditionals still an open feature request.',
     license: {
       value: 'Apache License 2.0, no gated directory found in the repo — the same terms as AcruxCore',
       source: { label: 'LICENSE', href: 'https://github.com/comet-ml/opik/blob/main/LICENSE' },
@@ -239,6 +306,12 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
       source: { label: 'GitHub issue #5838', href: 'https://github.com/comet-ml/opik/issues/5838' },
       acruxWins: true,
     },
+    promptOptimizer: {
+      value:
+        'Opik Agent Optimizer (Apache 2.0) rewrites a prompt against a dataset and metric, with more algorithms than AcruxCore has — MetaPrompt, GEPA, evolutionary, few-shot Bayesian — and it optimizes MCP tool signatures too. Driven from the SDK; runs are logged back to the UI but cannot be started there.',
+      source: { label: 'Opik Agent Optimizer', href: 'https://github.com/comet-ml/opik/blob/main/sdks/opik_optimizer/README.md' },
+      checkedOn: '2026-09-10',
+    },
     communityStars: '21,169',
   },
 
@@ -249,6 +322,10 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     postHref: `${DOCS_URL}/blog/acruxcore-vs-helicone`,
     githubHref: 'https://github.com/Helicone/helicone',
     checkedOn: '2026-08-07',
+    bestFor:
+      'A small request-path proxy in front of a native provider key, when per-user metrics are the main thing wanted.',
+    limitations:
+      'In maintenance mode since the Mintlify acquisition, which is the first thing to weigh; a non-native (OpenRouter) key 501’d or misrouted in testing; the member-invite dialog has no role field at all; and there is no tool catalog.',
     license: {
       value: 'Apache-2.0, no ee/ split found — the same terms as AcruxCore',
       source: { label: 'LICENSE', href: 'https://github.com/Helicone/helicone/blob/main/LICENSE' },
@@ -282,6 +359,13 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
       source: { label: 'Prompt Management', href: 'https://docs.helicone.ai/gateway/prompt-integration' },
       acruxWins: true,
     },
+    promptOptimizer: {
+      value:
+        'The one optimizer was "Auto-Improve", a single-pass rewrite with no dataset and no scoring, and it sat in the prompt editor Helicone deprecated on 20 August 2025 — nothing replaced it in the current prompts feature',
+      source: { label: 'Prompt editor (deprecated)', href: 'https://docs.helicone.ai/features/prompts-legacy/editor' },
+      acruxWins: true,
+      checkedOn: '2026-09-10',
+    },
     communityStars: '6,044',
     communityNote:
       'Acquired by Mintlify; per Helicone\'s own announcement, "services will remain live... in maintenance mode."',
@@ -294,6 +378,10 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     postHref: `${DOCS_URL}/blog/acruxcore-vs-mlflow`,
     githubHref: 'https://github.com/mlflow/mlflow',
     checkedOn: '2026-08-08',
+    bestFor:
+      'Teams already running MLflow for classic ML, who want a prompt registry, tracing, full Jinja2 templating and a request-path gateway with per-endpoint PII and safety guardrails in a tool they already operate.',
+    limitations:
+      'No auth, teams, members or roles at all in self-hosted OSS, and no login screen at all. Its MCP Registry catalogs whole servers rather than individual tools, so there is no per-tool version history and nothing that executes a call.',
     license: {
       value: 'Apache License 2.0, no gated directory found in the repo — the same terms as AcruxCore',
       source: { label: 'LICENSE', href: 'https://github.com/mlflow/mlflow/blob/main/LICENSE' },
@@ -327,6 +415,12 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
       value: 'Full Jinja2 — {% if %} conditionals and {% for %} loops both render natively, plus a real version diff and @production/@staging aliases — the one competitor that matches AcruxCore\'s own templates',
       tie: true,
     },
+    promptOptimizer: {
+      value:
+        'mlflow.genai.optimize_prompts() (experimental) runs DSPy MIPROv2 or GEPA against a dataset and registers the rewritten template as a new prompt version — published research algorithms AcruxCore does not implement, but SDK-only, with no way to start a run from the UI',
+      source: { label: 'Optimize prompts', href: 'https://mlflow.org/docs/latest/genai/prompt-registry/optimize-prompts/' },
+      checkedOn: '2026-09-10',
+    },
     communityStars: '27,416',
   },
 
@@ -337,6 +431,10 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     postHref: `${DOCS_URL}/blog/acruxcore-vs-laminar`,
     githubHref: 'https://github.com/lmnr-ai/lmnr',
     checkedOn: '2026-09-06',
+    bestFor:
+      'Agent-run observability: SQL over spans, an LLM-watched Signals engine and PII redaction, with a workspace layer above the project and three roles.',
+    limitations:
+      'No prompt registry at all, so there is nothing to version or template; nothing in the request path; the lite self-host stack ships Signals switched off with its span index uncreated; and it has the smallest community of the six.',
     license: {
       value: 'Apache License 2.0, no gated ee/ directory found in the repo at the commit checked — the same terms as AcruxCore',
       source: { label: 'LICENSE', href: 'https://github.com/lmnr-ai/lmnr/blob/main/LICENSE.md' },
@@ -370,6 +468,11 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
       value: 'No prompt registry at all — a playground is one mutable row of messages with no versions, aliases or variables, so there is nothing to template',
       acruxWins: true,
     },
+    promptOptimizer: {
+      value: 'Nothing to optimize — with no prompt registry, there is no stored prompt for an optimizer to rewrite or version',
+      acruxWins: true,
+      checkedOn: '2026-09-10',
+    },
     communityStars: '3,230',
     communityNote:
       'Y Combinator S24; 29 contributors and release v0.2.3 as of the date checked. Ships a PII redaction toggle and an LLM-watched Signals engine AcruxCore has no equivalent for.',
@@ -385,3 +488,59 @@ export const COMPARISON_LIST: Comparison[] = [
   COMPARISONS.mlflow,
   COMPARISONS.laminar,
 ];
+
+/**
+ * The seven platforms on `/best-open-source-llmops-platforms`, ordered by the
+ * size of the project around them — largest community first, AcruxCore last.
+ *
+ * Community size rather than a scoreline, because the page's own answer is that
+ * there is no single best one, and ordering by anything we scored would
+ * contradict that in the first thing a reader sees. It also puts us at the
+ * bottom of our own list, which is where the star counts actually put us.
+ */
+export const PLATFORMS_BY_COMMUNITY: Comparison[] = [...COMPARISON_LIST].sort(
+  (a, b) => Number(b.communityStars.replace(/,/g, '')) - Number(a.communityStars.replace(/,/g, '')),
+);
+
+/**
+ * The `ItemList` structured-data block for `/best-open-source-llmops-platforms`.
+ *
+ * Marked explicitly as an **unordered** list. A schema.org `ItemList` is read as
+ * a ranking by default, and a ranking is the one thing this page says it will
+ * not give: the visible order is community size, and claiming it as a verdict in
+ * machine-readable form while the prose says otherwise is the kind of
+ * disagreement only a crawler would ever see.
+ *
+ * @returns A JSON string suitable for an `application/ld+json` script tag.
+ */
+export function platformListStructuredData(): string {
+  const entries = [
+    ...PLATFORMS_BY_COMMUNITY.map((c) => ({
+      name: c.name,
+      url: c.githubHref,
+      description: c.bestFor,
+    })),
+    { name: ACRUX_CORE.name, url: GITHUB_URL, description: ACRUX_CORE.bestFor },
+  ];
+
+  return JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: 'Open-source LLMOps platforms compared',
+    itemListOrder: 'https://schema.org/ItemListUnordered',
+    numberOfItems: entries.length,
+    itemListElement: entries.map((entry, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      item: {
+        '@type': 'SoftwareApplication',
+        name: entry.name,
+        url: entry.url,
+        applicationCategory: 'DeveloperApplication',
+        applicationSubCategory: 'LLMOps platform',
+        operatingSystem: 'Web',
+        description: entry.description,
+      },
+    })),
+  });
+}

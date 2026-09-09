@@ -63,7 +63,7 @@ export class ApiKeysController {
       const parsed = CreateApiKeySchema.safeParse(req.body);
       if (!parsed.success) throw new ValidationError(parsed.error.issues[0].message);
 
-      const result = await this.service.createTeamApiKey(req.params.id, parsed.data);
+      const result = await this.service.createTeamApiKey(req.params.id, parsed.data, req.user!.id);
       res.status(201).json(result);
     } catch (err) {
       next(err);
@@ -89,7 +89,7 @@ export class ApiKeysController {
    */
   revokeTeamApiKey = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      await this.service.revokeTeamApiKey(req.params.keyId, req.params.id);
+      await this.service.revokeTeamApiKey(req.params.keyId, req.params.id, req.user!.id);
       res.status(204).send();
     } catch (err) {
       next(err);

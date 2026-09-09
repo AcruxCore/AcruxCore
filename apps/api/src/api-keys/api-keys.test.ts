@@ -353,4 +353,51 @@ describe('API key create/revoke audit trail', () => {
     expect(rows[0]!.actorId).toBe(ctx.userId);
     expect((rows[0]!.metadata as Record<string, unknown>)['apiKeyId']).toBe(created.id);
   });
+
+  // A team-scoped key is the credential a whole application authenticates
+  // with, so its creation is the audit event a reviewer asks for first. The
+  // user-scoped routes above recorded one from the start and these did not,
+  // which left the team-wide trail silent about exactly those keys.
+  it('records an api_key_generated audit event when a team-scoped key is created', async () => {
+    const ctx = await signupTestUser(app);
+
+    const { body: created } = await request(app)
+      .post(`/api/v1/teams/${ctx.teamId}/api-keys`)
+      .set(authHeaders(ctx))
+      .send({ name: 'team audited key' })
+      .expect(201);
+
+    const rows = await prisma.auditLog.findMany({ where: { event: 'api_key_generated' } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.teamId).toBe(ctx.teamId);
+    expect(rows[0]!.actorId).toBe(ctx.userId);
+    const metadata = rows[0]!.metadata as Record<string, unknown>;
+    expect(metadata['apiKeyId']).toBe(created.id);
+    // The trail has to say which of the two kinds of key this was: a team key
+    // outlives the member who minted it, and a user key does not.
+    expect(metadata['scope']).toBe('team');
+  });
+
+  it('records an api_key_revoked audit event when a team-scoped key is revoked', async () => {
+    const ctx = await signupTestUser(app);
+
+    const { body: created } = await request(app)
+      .post(`/api/v1/teams/${ctx.teamId}/api-keys`)
+      .set(authHeaders(ctx))
+      .send({ name: 'team key to revoke' })
+      .expect(201);
+
+    await request(app)
+      .delete(`/api/v1/teams/${ctx.teamId}/api-keys/${created.id}`)
+      .set(authHeaders(ctx))
+      .expect(204);
+
+    const rows = await prisma.auditLog.findMany({ where: { event: 'api_key_revoked' } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.teamId).toBe(ctx.teamId);
+    expect(rows[0]!.actorId).toBe(ctx.userId);
+    const metadata = rows[0]!.metadata as Record<string, unknown>;
+    expect(metadata['apiKeyId']).toBe(created.id);
+    expect(metadata['scope']).toBe('team');
+  });
 });

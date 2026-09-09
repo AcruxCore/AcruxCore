@@ -1,6 +1,6 @@
 import { NotFoundError } from '../shared/errors/http-errors';
 import { AuditRepository } from './audit.repository';
-import type { AuditListResponse } from './audit.types';
+import type { AuditActor, AuditListResponse, TeamAuditFilters } from './audit.types';
 
 /**
  * Service for the audit log read feature.
@@ -73,17 +73,32 @@ export class AuditService {
    * `teamId` itself is the isolation boundary, already verified by the
    * `requireTeamRole` middleware before this is called.
    *
-   * @param teamId - UUID of the team.
-   * @param page   - 1-indexed page number.
-   * @param limit  - Page size (max 100).
-   * @returns Paginated list of audit events with actor details.
+   * @param teamId  - UUID of the team.
+   * @param page    - 1-indexed page number.
+   * @param limit   - Page size (max 100).
+   * @param filters - Optional `events` / `actorId` narrowing, AND-ed together.
+   * @returns Paginated list of audit events with actor details; `total` counts
+   *          the filtered set, not the whole trail.
    */
   async listForTeam(
     teamId: string,
     page: number,
     limit: number,
+    filters: TeamAuditFilters = {},
   ): Promise<AuditListResponse> {
-    const { rows, total } = await this.repo.listForTeam(teamId, page, limit);
+    const { rows, total } = await this.repo.listForTeam(teamId, page, limit, filters);
     return { data: rows, total, page, limit };
+  }
+
+  /**
+   * Returns the distinct actors behind a team's audit trail, for the dashboard's
+   * actor filter. Includes people no longer on the team — see
+   * {@link AuditRepository.listTeamActors}.
+   *
+   * @param teamId - UUID of the team.
+   * @returns One row per actor with an event count, ascending by email.
+   */
+  async listTeamActors(teamId: string): Promise<AuditActor[]> {
+    return this.repo.listTeamActors(teamId);
   }
 }

@@ -1,4 +1,86 @@
+# acruxcore.com — the marketing site.
+#
+# The wildcard group below already allows every crawler, so the named groups
+# that follow grant nothing extra. They are here to state the intent in the file
+# itself, because the intent was lost once already: Cloudflare's managed
+# robots.txt was serving a Disallow group for several AI crawlers that nothing in
+# this repository explained, and a named group beats "User-agent: *" whatever the
+# wildcard says. Anyone tightening this file should have to delete a line that
+# says out loud which crawlers we want.
+
 User-agent: *
 Allow: /
+
+# --- Answer engines --------------------------------------------------------
+# These fetch a page to cite it in an answer. Blocking one removes us from that
+# product's answers; it does not protect anything, since the pages are public.
+
+# ChatGPT search results
+User-agent: OAI-SearchBot
+Allow: /
+
+# ChatGPT browsing a link on a user's behalf
+User-agent: ChatGPT-User
+Allow: /
+
+# Claude search results, and Claude fetching a link for a user
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+# --- Model training --------------------------------------------------------
+# Separate decision from the one above: these collect pages as potential
+# training data rather than to answer a live query. Allowed on purpose — the
+# product is open source and the docs are the thing we want models to know.
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: meta-externalagent
+Allow: /
+
+# --- Search ----------------------------------------------------------------
+# Google AI Overviews and AI Mode are served from the normal search index, so
+# ordinary Googlebot access is what feeds them. There is no separate AI opt-in.
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+# A Markdown index of this site, written for AI crawlers and answer engines:
+# every page with a one-line summary, best pages first.
+# https://acruxcore.com/llms.txt
+#
+# The documentation, blog and changelog live on a separate host with its own
+# robots.txt and its own sitemap, which a crawler finds there rather than here:
+# https://docs.acruxcore.com/robots.txt
 
 Sitemap: https://acruxcore.com/sitemap.xml

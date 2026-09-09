@@ -6,6 +6,20 @@ import { REOPEN_COOKIE_BANNER_EVENT } from '@/ui';
 import { BrandLockup } from './brand';
 
 /** Public docs site (see cross-cutting-faq: docs.acruxcore.com). */
+/**
+ * The landing page's `<title>`, in one place.
+ *
+ * It is needed in three: the hand-written head in `apps/web/index.html` (what a
+ * crawler reads), the `/` entry in `ROUTES` (what the sitemap and llms.txt
+ * describe), and {@link useDocumentTitle} on the page itself (what the tab says
+ * after client-side navigation). The third one silently wins over the first,
+ * because hydration runs after the crawler-visible HTML is already parsed — so a
+ * title updated in the HTML and forgotten here looked correct in the built file
+ * and reverted in a real browser. `structured-data.test.ts` asserts the HTML
+ * still matches this constant.
+ */
+export const LANDING_TITLE = 'AcruxCore — open-source LLMOps platform for engineering teams';
+
 export const DOCS_URL = 'https://docs.acruxcore.com';
 
 /** Public source mirror — Apache License 2.0, synced from every deploy to `main`. */
@@ -88,6 +102,14 @@ export const DOCS = {
   evaluationRules: `${DOCS_URL}/docs/guides/score-live-traffic-with-an-evaluation-rule`,
   improveFromFeedback: `${DOCS_URL}/docs/guides/improve-a-prompt-from-feedback`,
   evaluateWithHistory: `${DOCS_URL}/docs/guides/evaluate-a-prompt-with-conversation-history`,
+  /**
+   * The audit pillar. `auditApi` is the one reference page covering all three
+   * trails — per prompt, per tool, and team-wide — so the feature page links it
+   * for both the coverage table and the endpoint list.
+   */
+  auditApi: `${DOCS_URL}/api-reference/audit`,
+  auditTrail: `${DOCS_URL}/docs/guides/read-the-team-audit-trail`,
+  teamRoles: `${DOCS_URL}/docs/guides/manage-team-roles-and-permissions`,
 } as const;
 
 /**
@@ -479,8 +501,11 @@ const FOOTER_COLS: { title: string; links: FooterLink[] }[] = [
       { label: 'Tracing', to: '/features/tracing' },
       { label: 'Tools', to: '/features/tools' },
       { label: 'Evaluation', to: '/features/evaluation' },
+      { label: 'Audit', to: '/features/audit' },
       { label: 'Pricing', to: '/pricing' },
       { label: 'Compare', to: '/compare' },
+      { label: 'Best LLMOps platforms', to: '/best-open-source-llmops-platforms' },
+      { label: 'FAQ', to: '/faq' },
     ],
   },
   {

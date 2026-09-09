@@ -27,6 +27,13 @@ called out in the week it ships and in the SDK release notes.
 
 ### Major
 
+#### The whole team's audit trail, in the dashboard
+
+- **Team → Audit trail** lists every recorded action — keys, members, gateway, secrets, prompts, tools.
+- Filter by area, by a single event, and by who did it; the filters are in the URL, so a view is shareable.
+- Owner and admin only; a Bearer key cannot read it, because the trail records what people did.
+  [Reference →](/api-reference/audit)
+
 #### One filter bar, on every screen that picks traffic
 
 - Type `tag:`, `prompt:`, `input:`, `meta.<key>:` and the rest into a single box; each becomes a chip.
@@ -101,8 +108,33 @@ called out in the week it ships and in the SDK release notes.
 - Those messages are never re-rendered — you rendered them, so the values are lineage only.
   [Reference →](/api-reference/gateway#send-variables-with-it)
 
+#### Team API keys now appear in the audit trail
+
+- **Fixed** — minting or revoking a team-scoped key wrote no audit event, so the trail missed it.
+- Both events now name the member who acted and mark the key as team-scoped.
+  [Reference →](/api-reference/audit)
+
 ### Minor
 
+- The team audit endpoint takes `event` (a comma-separated list) and `actorId`; both narrow `total`.
+- A new `/teams/:id/audit/actors` lists everyone in the trail, removed members included.
+- A member role change or removal now reports the affected member's address, not just their id.
+- The Team page previews the five newest recorded actions, with a link to the full trail.
+- A sixth feature page, **Audit**, covers what the trail records, the filters, and the roles.
+- New guide walks the trail from the Team page to a filtered URL you can paste into a ticket.
+  [Guide →](/docs/guides/read-the-team-audit-trail)
+- Core concepts names the split: a trace is traffic your app made, an audit event is a change.
+- The home page's round-trip now opens on the trace and closes on the audit trail.
+- The compare page's audit-log and RBAC rows now link the guides behind them.
+- **Fixed** — the compare page and the comparison post said five competitors; there are six.
+- The nine-platform comparison gains an audit-trail row, and says which two we never checked.
+- The docs home and the project README now name **Audit** among the building blocks.
+- The best-open-source-LLMOps page marks best-for, limitations and licence with a coloured icon.
+- The comparison matrix marks each verdict with a glyph and shades the AcruxCore column.
+- The FAQ's comparison answer now names the audit trail as the row no paid plan gates.
+- **Fixed** — the FAQ said the comparison matrix weighs nine criteria; it weighs ten.
+- The security page covers roles and the trail: what it records, and what it keeps out.
+- The roles guide says role changes are recorded, and which roles can read the trail.
 - Dataset examples show a **Prompt** column naming the prompt version the row was captured from.
 - A dataset row with no variables now shows the prompt's own last message instead of a dash.
 - Long variable values in a dataset row clip to one line each, with **Show all** to read them.
@@ -121,6 +153,18 @@ called out in the week it ships and in the SDK release notes.
 - **Fixed** — the evaluation page's curl sample dropped every id from its URLs.
 - **Fixed** — that sample passed `version_ids: ["v7","v8"]`; the API takes version UUIDs.
 - Tracing is no longer gateway-only on the page; the OpenTelemetry path is named.
+- The docs site now publishes `/llms.txt`, a summary index of every page for AI crawlers.
+- A new [FAQ page](https://acruxcore.com/faq) answers how AcruxCore compares, and where it does not fit.
+- A new [best open-source LLMOps platforms](https://acruxcore.com/best-open-source-llmops-platforms) page compares seven.
+- Each entry says what that platform is best for, where it falls short, and when it was checked.
+- The main site now publishes `/llms.txt` too, and both sites name the AI crawlers they allow.
+- The home page gained an at-a-glance block: category, licence, deployment, SDKs, price, audit trail.
+- Both `/llms.txt` files and the home page's structured data now state what the audit trail records.
+- The FAQ answers which platforms log who changed what, and what an audit log costs.
+- A new FAQ answer separates a trace from an audit event: traffic sent versus a change made.
+- The category page's seventh question asks who changed what, and whether it needs a paid plan.
+- The API reference now documents the team-wide audit trail, for owners and admins.
+  [Reference →](/api-reference/audit)
 - The gateway page names the native providers and the compatible connections.
 - Each feature page carries a real product screenshot and a first action of its own.
 - The homepage names the step it was missing: score a fix before promoting it.
@@ -141,6 +185,11 @@ called out in the week it ships and in the SDK release notes.
 - **Fixed** — the `traces.ingest()` link in both SDK references jumped nowhere.
 - New landing-page overview video: one prompt from versioned template to promoted fix.
 - **Fixed** — a week in this changelog showed a duplicated entry and a stray heading.
+- The compare page, the README and the nine-platform post gain a prompt-optimizer row.
+- **Fixed** — the comparison post said no competitor automates a prompt rewrite; two do.
+- Each feature page now names its capability in the title, the heading and the page summary.
+- The six feature pages link each other by capability, not by a one-word label.
+- **Fixed** — search previews cut every marketing page's description off halfway through.
 
 ---
 

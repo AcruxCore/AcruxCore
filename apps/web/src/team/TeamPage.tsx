@@ -3,8 +3,10 @@ import { useAuth } from '@/auth/AuthContext';
 import { ApiKeysPanel } from '@/account/ApiKeysPanel';
 import { MembersPanel } from './MembersPanel';
 import { InvitesPanel } from './InvitesPanel';
+import { RecentActivityPanel } from './audit';
 
-/** Team screen: members, invites, and team-scoped API keys for the current team. */
+/** Team screen: members, invites, team-scoped API keys, and a preview of the
+ *  team's audit trail for the current team. */
 export function TeamPage() {
   const { me, canManageTeam } = useAuth();
   const teamId = me?.team.id ?? '';
@@ -37,6 +39,7 @@ export function TeamPage() {
           onRevoke={(id) => revokeKey.mutateAsync(id)}
         />
       )}
+      {canManageTeam && <RecentActivityPanel teamId={teamId} />}
     </div>
   );
 }

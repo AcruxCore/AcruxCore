@@ -14,7 +14,8 @@ This picks up right after [Quickstart](./quickstart) — you should already have
 account, an API key, and a registered model (`support-model`). By the end of this
 page you'll have authored a prompt, attached a tool to it, called it both streaming
 and non-streaming, read the trace back, left feedback, and turned that feedback
-into an evaluation run — the whole loop, start to finish.
+into an evaluation run — then read back the record of every change you made
+along the way. The whole loop, start to finish.
 
 Every screenshot below is from a real run against a real team — nothing staged.
 
@@ -309,6 +310,26 @@ real, data-backed answer to "did this version actually help?"
 See [Evaluate a prompt against a dataset](../guides/evaluate-a-prompt) for the full
 SDK/curl walkthrough of everything in this section — `datasets.build_from_feedback()` /
 `buildFromFeedback()`, `experiments.create()`, and `runs.get_report()` / `getReport()`.
+:::
+
+## 7. See who changed what
+
+Everything in this tour was a change to the workspace: a prompt committed, a
+tool attached, a key created, an alias promoted. **Team → Audit trail** is the
+record of all of them, newest first, with the person behind each one:
+
+![The Audit trail page reading 1,005 events recorded, with area, event and actor filters above a table of API key and prompt events, each naming the actor](/img/tutorials/product-tour/08-audit-trail.png)
+
+Filter it by area (prompts, tools, members, keys, gateway, secrets, settings),
+by one event type, or by the person who did it — the filters live in the URL, so
+the view you are reading is the view you can send to someone else. The
+team-wide trail is readable by the `owner` and `admin` roles.
+
+:::note[Traces and audit events are different records]
+A trace is traffic your application produced. An audit event is a change a
+person made. Ask "why was this answer wrong?" of a trace, and "who moved
+`production` on Tuesday?" of the audit trail. See
+[Read the team audit trail](../guides/read-the-team-audit-trail).
 :::
 
 ## Where to next

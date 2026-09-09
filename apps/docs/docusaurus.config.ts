@@ -368,6 +368,11 @@ const config: Config = {
         sidebarPath: './sidebarsApi.ts',
       },
     ],
+    // Emits /llms.txt after the build — a Markdown index of every page, written
+    // for the AI crawlers that reach the docs through an answer engine rather
+    // than through search. Generated from each page's own front matter so it
+    // cannot drift; see the module's own comment for what stays hand-curated.
+    './plugins/llms-txt.ts',
   ],
 
   themes: [

@@ -166,6 +166,27 @@ export interface AuditEntry {
   actor: { id: string; email: string };
   metadata: Record<string, unknown> | null;
   createdAt: string;
+  /** The prompt the event belongs to; null on a team-wide event, absent on the
+   *  prompt endpoint where it would be the prompt already in the URL. */
+  promptId?: string | null;
+  /** The member the event was performed *on* (role change, removal). Resolved by
+   *  the team-wide endpoint only; null or absent elsewhere. */
+  target?: { id: string; email: string } | null;
+}
+
+/** One person who appears in a team's audit trail, with how many events they wrote. */
+export interface AuditActor {
+  id: string;
+  email: string;
+  eventCount: number;
+}
+
+/** Server-side narrowing for the team-wide audit trail. Both fields are AND-ed. */
+export interface TeamAuditFilters {
+  /** `AuditEvent` names to include; empty or omitted means every event. */
+  events?: string[];
+  /** Restrict to one actor's events. */
+  actorId?: string;
 }
 
 // ── API keys (personal + team share these shapes) ──────────────────────────

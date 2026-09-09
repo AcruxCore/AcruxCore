@@ -94,6 +94,18 @@ const GUIDES: Guide[] = [
       </Ic>
     ),
   },
+  {
+    title: 'Audit',
+    href: '/docs/guides/read-the-team-audit-trail',
+    body: 'Every recorded change in the team — keys, members, gateway, secrets, prompts and tools — filtered by area, event or person.',
+    icon: (
+      <Ic>
+        <rect x={4} y={3} width={16} height={18} rx={2} />
+        <path d="M8 8h8M8 12h5" />
+        <path d="m8.5 17 1.5 1.5L13 15" />
+      </Ic>
+    ),
+  },
 ];
 
 type StartLink = {n: string; title: string; body: string; href: string};

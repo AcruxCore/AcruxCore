@@ -6,7 +6,7 @@ import { invitesRouter } from './invites/invites.router';
 import { ApiKeysRepository } from '../api-keys/api-keys.repository';
 import { ApiKeysService } from '../api-keys/api-keys.service';
 import { ApiKeysController } from '../api-keys/api-keys.controller';
-import { listTeamAuditEvents } from '../audit/audit.controller';
+import { listTeamAuditActors, listTeamAuditEvents } from '../audit/audit.controller';
 
 const apiKeysRepo = new ApiKeysRepository();
 const apiKeysService = new ApiKeysService(apiKeysRepo);
@@ -53,6 +53,16 @@ teamsRouter.delete(
 );
 
 // ── Team-wide audit trail (Finding #13) ────────────────────────────────────
+// `/audit/actors` is declared first: Express matches in order, and `/:id/audit`
+// would not swallow it, but keeping the more specific path above the list route
+// keeps the intent obvious to the next reader.
+teamsRouter.get(
+  '/:id/audit/actors',
+  requireAuth,
+  requireTeamRole('owner', 'admin'),
+  listTeamAuditActors,
+);
+
 teamsRouter.get(
   '/:id/audit',
   requireAuth,

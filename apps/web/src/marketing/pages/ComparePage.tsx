@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { MarketingShell } from '../MarketingShell';
-import { cssToStyle, Eyebrow, CtaSection, useDocumentTitle, ExternalArrow } from '../marketing-chrome';
+import { cssToStyle, Eyebrow, CtaSection, Ic, useDocumentTitle, ExternalArrow } from '../marketing-chrome';
 import { ACRUX_CORE, COMPARISON_LIST, type Fact } from '../comparisons';
 
 /**
@@ -11,21 +11,55 @@ import { ACRUX_CORE, COMPARISON_LIST, type Fact } from '../comparisons';
 type Verdict = 'ours' | 'theirs' | 'tie';
 
 /**
- * Each verdict's pill: its label and the token it borrows. A tie takes `--faint`
- * rather than an accent so it reads as the quiet outcome it is, and does not compete
- * with the wins for attention when a column is scanned top to bottom.
+ * Each verdict's pill: its label, the token it borrows, and its glyph. A tie takes
+ * `--faint` rather than an accent so it reads as the quiet outcome it is, and does not
+ * compete with the wins for attention when a column is scanned top to bottom.
+ *
+ * The glyph carries no meaning the label does not already state — it is there so a
+ * reader scanning a column downwards can tell the three verdicts apart before reading
+ * any word, which is why it is `aria-hidden` in {@link FactCell}. The amber triangle is
+ * the same one `/best-open-source-llmops-platforms` uses for a limitation, so the two
+ * pages read as one vocabulary: amber triangle always means "this is where we are
+ * behind", never "this competitor is bad".
  */
-const VERDICTS: Record<Verdict, { label: string; color: string }> = {
-  ours: { label: 'Our edge', color: 'var(--accent)' },
-  theirs: { label: 'Their edge', color: 'var(--warn)' },
-  tie: { label: 'Tie', color: 'var(--faint)' },
+const VERDICTS: Record<Verdict, { label: string; color: string; icon: ReactNode }> = {
+  ours: {
+    label: 'Our edge',
+    color: 'var(--accent)',
+    icon: (
+      <Ic size={12} sw={2.8}>
+        <path d="M20 6 9 17l-5-5" />
+      </Ic>
+    ),
+  },
+  theirs: {
+    label: 'Their edge',
+    color: 'var(--warn)',
+    icon: (
+      <Ic size={12} sw={2.2}>
+        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+        <path d="M12 9v4" />
+        <path d="M12 17h.01" />
+      </Ic>
+    ),
+  },
+  tie: {
+    label: 'Tie',
+    color: 'var(--faint)',
+    icon: (
+      <Ic size={12} sw={2.4}>
+        <path d="M5 9h14" />
+        <path d="M5 15h14" />
+      </Ic>
+    ),
+  },
 };
 
 /**
  * The verdict for a whole row, shown once on the AcruxCore cell — set only when every
- * competitor lands the same way. A verdict that holds against all five is a statement
- * about the row, so it is made once; repeating "Our edge" in all five competitor
- * columns said the same thing five times and drowned out the rows that differ.
+ * competitor lands the same way. A verdict that holds against all six is a statement
+ * about the row, so it is made once; repeating "Our edge" in all six competitor
+ * columns said the same thing six times and drowned out the rows that differ.
  *
  * @returns The row-level verdict, or `undefined` when the competitors disagree — in
  *   which case each competitor column speaks for itself via {@link cellVerdict}.
@@ -56,7 +90,17 @@ function cellVerdict(fact: Fact, row: Verdict | undefined): Verdict | undefined 
  * A cell's fact plus an optional source link and verdict pill. The verdict is passed
  * in rather than read off the fact, because it depends on the whole row: the AcruxCore
  * column shares one `Fact` across every competitor, so its pill can only be decided by
- * looking at all five at once (see {@link rowVerdict}).
+ * looking at all six at once (see {@link rowVerdict}).
+ *
+ * The pill stays last, under the fact, and is found by its glyph rather than by its
+ * position. Two rejected alternatives, both tried: putting it first pushes that one
+ * cell's prose down so the facts no longer start on the same line, which is what reading
+ * a row across to compare platforms depends on; pinning it to the bottom of the row
+ * leaves it floating in empty space on the rows where only one or two cells carry one,
+ * detached from the fact it is judging.
+ *
+ * A fact carrying its own `checkedOn` prints it under the value: the column header's
+ * date covers the original sweep, and a row added later must not claim that evidence.
  */
 function FactCell({ fact, verdict }: { fact: Fact; verdict?: Verdict }): ReactNode {
   const pill = verdict ? VERDICTS[verdict] : undefined;
@@ -64,7 +108,7 @@ function FactCell({ fact, verdict }: { fact: Fact; verdict?: Verdict }): ReactNo
   // the way a win on either side does.
   const emphasised = verdict === 'ours' || verdict === 'theirs';
   return (
-    <div style={cssToStyle('display:flex;flex-direction:column;gap:5px;')}>
+    <div style={cssToStyle('display:flex;flex-direction:column;align-items:flex-start;gap:5px;')}>
       <span
         style={cssToStyle(
           `font-size:13.5px;line-height:1.5;color:${emphasised ? 'var(--ink)' : 'var(--muted)'};text-wrap:pretty;`,
@@ -72,6 +116,9 @@ function FactCell({ fact, verdict }: { fact: Fact; verdict?: Verdict }): ReactNo
       >
         {fact.value}
       </span>
+      {fact.checkedOn ? (
+        <span style={cssToStyle('font-size:11px;color:var(--faint);')}>Checked {fact.checkedOn}</span>
+      ) : null}
       {fact.source ? (
         <a
           href={fact.source.href}
@@ -85,9 +132,17 @@ function FactCell({ fact, verdict }: { fact: Fact; verdict?: Verdict }): ReactNo
       {pill ? (
         <span
           style={cssToStyle(
-            `display:inline-flex;width:fit-content;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:${pill.color};border:1px solid ${pill.color};border-radius:999px;padding:2px 7px;`,
+            `display:inline-flex;align-items:center;gap:5px;margin-top:3px;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:${pill.color};`,
           )}
         >
+          <span
+            aria-hidden="true"
+            style={cssToStyle(
+              `display:inline-flex;align-items:center;justify-content:center;flex:none;width:18px;height:18px;border-radius:5px;background:color-mix(in oklch, ${pill.color} 16%, transparent);`,
+            )}
+          >
+            {pill.icon}
+          </span>
           {pill.label}
         </span>
       ) : null}
@@ -110,17 +165,31 @@ const ROWS: MatrixRow[] = [
   { label: 'Team & org structure', acrux: ACRUX_CORE.teamStructure, competitor: (c) => c.teamStructure },
   { label: 'Pricing', acrux: ACRUX_CORE.pricing, competitor: (c) => c.pricingSummary },
   { label: 'RBAC', acrux: ACRUX_CORE.rbac, competitor: (c) => c.rbac },
-  { label: 'Audit log', acrux: ACRUX_CORE.auditLog, competitor: (c) => c.auditLog },
+  { label: 'Audit log (who changed what)', acrux: ACRUX_CORE.auditLog, competitor: (c) => c.auditLog },
   { label: 'Prompt templating logic', acrux: ACRUX_CORE.promptTemplating, competitor: (c) => c.promptTemplating },
+  { label: 'Prompt optimizer', acrux: ACRUX_CORE.promptOptimizer, competitor: (c) => c.promptOptimizer },
 ];
 
-const thStyle = cssToStyle(
-  'text-align:left;padding:10px 12px;font-size:12px;font-weight:650;letter-spacing:.02em;color:var(--muted);border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--surface);',
-);
+const TH_BASE =
+  'text-align:left;padding:10px 12px;font-size:12px;font-weight:650;letter-spacing:.02em;color:var(--muted);border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--surface);';
+const TD_BASE = 'padding:14px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top;min-width:172px;';
+
+/**
+ * The wash behind the AcruxCore column. Six competitor columns sit to its right and the
+ * table scrolls sideways, so without it the one column every row is measured against is
+ * found by counting from the left edge on every row. It is mixed into `--surface` rather
+ * than laid over it as a transparent tint because the header cells are `position:sticky`
+ * and would otherwise show the rows sliding underneath.
+ */
+const ACRUX_WASH = 'background:color-mix(in oklch, var(--accent) 7%, var(--surface));';
+
+const thStyle = cssToStyle(TH_BASE);
+const thAcruxStyle = cssToStyle(TH_BASE + ACRUX_WASH);
 const tdLabelStyle = cssToStyle(
   'text-align:left;padding:14px 12px;font-size:13px;font-weight:600;color:var(--ink);border-bottom:1px solid var(--line-soft);white-space:nowrap;',
 );
-const tdStyle = cssToStyle('padding:14px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top;min-width:172px;');
+const tdStyle = cssToStyle(TD_BASE);
+const tdAcruxStyle = cssToStyle(TD_BASE + ACRUX_WASH);
 
 /**
  * `/compare` — the full open-source/self-hosted-alternative comparison table.
@@ -162,14 +231,14 @@ export function ComparePage(): ReactNode {
 
       <section className="acx-compare-matrix" style={cssToStyle('padding:0 0 clamp(40px,6vw,64px);')}>
         <p className="acx-compare-hint" style={cssToStyle('font-size:12.5px;color:var(--faint);margin:0 4px 10px;')}>
-          Scroll right to see all five competitors →
+          Scroll right to see all six competitors →
         </p>
         <div style={cssToStyle('overflow-x:auto;border:1px solid var(--line);border-radius:14px;')}>
           <table style={cssToStyle('width:100%;border-collapse:collapse;background:var(--surface);')}>
             <thead>
               <tr>
                 <th style={thStyle}></th>
-                <th style={thStyle}>
+                <th style={thAcruxStyle}>
                   AcruxCore
                   <div style={cssToStyle('font-size:11px;font-weight:400;color:var(--faint);margin-top:2px;')}>
                     Checked {ACRUX_CORE.checkedOn}
@@ -195,7 +264,7 @@ export function ComparePage(): ReactNode {
                 return (
                   <tr key={row.label}>
                     <td style={tdLabelStyle}>{row.label}</td>
-                    <td style={tdStyle}>
+                    <td style={tdAcruxStyle}>
                       <FactCell fact={row.acrux} verdict={rowWide} />
                     </td>
                     {COMPARISON_LIST.map((c) => {
@@ -211,7 +280,7 @@ export function ComparePage(): ReactNode {
               })}
               <tr>
                 <td style={tdLabelStyle}>GitHub stars</td>
-                <td style={tdStyle}>
+                <td style={tdAcruxStyle}>
                   <span style={cssToStyle('font-size:13.5px;color:var(--muted);')}>Public mirror opened 2026-08-03</span>
                 </td>
                 {COMPARISON_LIST.map((c) => (

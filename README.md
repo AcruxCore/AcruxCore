@@ -6,7 +6,7 @@
   </picture>
 </p>
 
-<p align="center"><b>Prompt management, an AI gateway, tracing, a tool catalog, and evaluation<br>— one platform for teams shipping LLM products.</b></p>
+<p align="center"><b>Prompt management, an AI gateway, tracing, a tool catalog, evaluation, and an audit trail<br>— one platform for teams shipping LLM products.</b></p>
 
 <p align="center">
   <a href="https://acruxcore.com">Website</a> ·
@@ -43,6 +43,7 @@ Most teams end up gluing together a prompt spreadsheet, a logging library, and a
 - 🔍 **Tracing** — every gateway request lands as a trace automatically, tool spans included, no separate instrumentation to wire up
 - 🧰 **Tool catalog** — register a tool once, reuse it across prompts and agents
 - 📊 **Evaluation** — run a prompt, or a full session, against a dataset and compare scores across runs
+- 🧾 **Audit trail** — every recorded change to keys, members, gateway, secrets, prompts and tools, filtered by area, event or person
 - 🔓 **Open source, self-hostable** — Apache 2.0, no gated or enterprise-only directory, run it on your own infra against your own Postgres
 
 Hosted at [acruxcore.com](https://acruxcore.com) — or self-host it, below.
@@ -61,24 +62,28 @@ Open **http://localhost:8080**, sign up, and you're in.
 
 ## 📊 How it compares
 
-Checked by hand against each project's own docs and a live self-hosted instance, on **6–7 August 2026**. The rows we lose are in the table too — the full write-ups are linked below it.
+Checked by hand against each project's own docs and a live self-hosted instance of every one of them, in **August–September 2026** — except the prompt-optimizer row, checked against each project's docs and source on 10 September 2026. Columns are alphabetical after ours; the rows we lose are in the table too, and the full write-ups are linked below it.
 
-| | **AcruxCore** | Langfuse | Phoenix | Opik | Helicone |
-|---|---|---|---|---|---|
-| License | Apache 2.0 | MIT, gated `ee/` | Elastic 2.0 | Apache 2.0 | Apache 2.0 |
-| Self-host | `docker compose up` | `docker compose up` | `docker compose up` | `docker compose up` | `docker compose up` |
-| Gateway in the request path | ✅ | ❌ ingest-only | ❌ ingest-only | ❌ ingest-only | ✅ |
-| Versioned, executed tool catalog | ✅ | ⚠️ schema only | ❌ | ❌ | ❌ |
-| `{% if %}` / `{% for %}` in prompts | ✅ | ❌ substitution | ❌ substitution | ⚠️ SDK only | ❌ substitution |
-| Audit log without paying | ✅ | ❌ Enterprise | ❌ | ❌ | ❌ |
-| Organization → project hierarchy | ❌ single team | ✅ | ❌ | ❌ | ⚠️ org only |
-| GitHub stars | new project | 32.6k | 10.9k | 21.2k | 6.0k |
+| # | | **AcruxCore** | Helicone | Langfuse | Laminar | MLflow | Opik | Phoenix |
+|---|---|---|---|---|---|---|---|---|
+| 1 | License | Apache 2.0 | Apache 2.0 | MIT, some parts paid-only | Apache 2.0 | Apache 2.0 | Apache 2.0 | Elastic 2.0 |
+| 2 | Self-host | ✅ 1 command | ✅ 1 command | ✅ 1 command | ✅ 1 command | ✅ 1 command | ✅ 1 command | ✅ 1 command |
+| 3 | Gateway in the request path | ✅ | ✅ | ❌ ingest-only | ❌ ingest-only | ✅ + guardrails | ❌ ingest-only | ❌ ingest-only |
+| 4 | Versioned, executed tool catalog | ✅ | ❌ | ⚠️ schema only | ⚠️ schema only | ⚠️ MCP servers | ❌ | ❌ |
+| 5 | `{% if %}` / `{% for %}` in prompts | ✅ | ❌ substitution | ❌ substitution | ❌ no registry | ✅ full Jinja2 | ⚠️ SDK only | ❌ substitution |
+| 6 | Prompt optimizer (auto-rewrite from eval results) | ✅ | ❌ | ❌ | ❌ | ✅ SDK, experimental | ✅ SDK | ⚠️ separate repo |
+| 7 | Audit log without paying | ✅ | ❌ | ❌ Enterprise | ❌ | ❌ | ❌ | ❌ |
+| 8 | Built-in guardrails (PII / safety) | ❌ | ✅ | ⚠️ SDK hook | ✅ PII only | ✅ | ✅ | ❌ 3rd-party |
+| 9 | Alerts to Slack or webhooks | ❌ email only | ✅ | ✅ | ✅ | ✅ spend only | ✅ | ❌ paid AX only |
+| 10 | Human labeling queue | ❌ | ❌ | ✅ | ✅ | ❌ paid host only | ✅ | ⚠️ no queue |
+| 11 | Organization → project hierarchy | ❌ single team | ⚠️ org only | ✅ | ✅ workspace | ❌ | ❌ | ❌ |
+| 12 | GitHub stars | new project | 6.1k | 34.3k | 3.2k | 27.8k | 21.8k | 11.3k |
 
-**Where they beat us.** Langfuse has a real two-level organization/project hierarchy; AcruxCore is single-team, with no org layer above it. All four are far more established, and every one of them has a much larger community than a project this young. Opik and Helicone are Apache 2.0 with no gated directory, the same terms we ship, so the license row is a genuine tie for both, and all five self-host with the same one command.
+**Where they beat us.** Four rows go the other way. We ship no built-in guardrails, while Helicone, MLflow, Opik and Laminar (PII only) all do. Our alerts are email only — every platform except Phoenix can post to Slack or a webhook. There is no human labeling queue; Langfuse, Laminar and Opik have one. And there is no organization layer above the team, which Langfuse and Laminar both have. MLflow also matches us on two of our own rows: its gateway sits in the request path, and its prompt registry renders full Jinja2. Every project here is older than us and has a much larger community.
 
-**Where we're different.** The gateway sits *in* the request path, so routing, caching, budgets and virtual keys apply before the provider is called, and a trace is written without separate instrumentation. Tools are a persistent versioned catalog the gateway actually executes, not a schema saved next to a prompt. Prompts are real templates with conditionals and loops. And the audit log is on by default rather than behind an upgrade.
+**Where we're different.** The gateway sits *in* the request path, so routing, caching, budgets and virtual keys apply before the provider is called, and a trace is written without separate instrumentation — only Helicone and MLflow do the same. Tools are a persistent versioned catalog the gateway actually executes, which no other platform in the table has. Prompts are real templates with conditionals and loops, and a failing eval run can be turned straight into candidate rewrites that are scored and promoted from the dashboard — of the six, only Opik and MLflow ship an optimizer of their own, both SDK-only, and Phoenix's lives in a separate Arize repo rather than in the product. And the audit log is on by default rather than behind an upgrade — that row is ours alone.
 
-Full hands-on comparisons, each built by running the same prompt on both platforms: **[Langfuse](https://docs.acruxcore.com/blog/acruxcore-vs-langfuse)** · **[Phoenix](https://docs.acruxcore.com/blog/acruxcore-vs-phoenix)** · **[Opik](https://docs.acruxcore.com/blog/acruxcore-vs-opik)** · **[Helicone](https://docs.acruxcore.com/blog/acruxcore-vs-helicone)** — or the [side-by-side matrix](https://acruxcore.com/compare).
+Full hands-on comparisons, each built by running the same prompt on both platforms: **[Helicone](https://docs.acruxcore.com/blog/acruxcore-vs-helicone)** · **[Langfuse](https://docs.acruxcore.com/blog/acruxcore-vs-langfuse)** · **[Laminar](https://docs.acruxcore.com/blog/acruxcore-vs-laminar)** · **[MLflow](https://docs.acruxcore.com/blog/acruxcore-vs-mlflow)** · **[Opik](https://docs.acruxcore.com/blog/acruxcore-vs-opik)** · **[Phoenix](https://docs.acruxcore.com/blog/acruxcore-vs-phoenix)** — or the [side-by-side matrix](https://acruxcore.com/compare).
 
 ## 🏠 Self-hosting
 

@@ -35,6 +35,9 @@ export const keys = {
   diff: (id: string, from: number, to: number) => ['diff', id, from, to] as const,
   audit: (id: string, page: number) => ['audit', id, page] as const,
   toolAudit: (id: string, page: number) => ['tool-audit', id, page] as const,
+  teamAudit: (teamId: string, page: number, events: string[], actorId: string) =>
+    ['team-audit', teamId, page, events.join(','), actorId] as const,
+  teamAuditActors: (teamId: string) => ['team-audit-actors', teamId] as const,
   toolBindings: (promptId: string) => ['tool-bindings', promptId] as const,
   apiKeys: ['api-keys'] as const,
   teamKeys: (teamId: string) => ['team-keys', teamId] as const,

@@ -1,0 +1,35 @@
+meta {
+  name: Get Team Audit Log
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/teams/{{teamId}}/audit
+  body: none
+  auth: none
+}
+
+headers {
+  Cookie: {{sessionCookie}}
+}
+
+params:query {
+  ~page: 1
+  ~limit: 20
+  ~event: virtual_key_revoked
+  ~actorId: {{actorId}}
+}
+
+docs {
+  The whole team's trail, newest first. Owner and admin only, and only with a
+  signed-in session — a Bearer API key returns 401 UNAUTHORIZED here, unlike the
+  per-prompt and per-tool trails.
+
+  Grab {{sessionCookie}} from a signed-in browser (the better-auth session cookie,
+  name and value together) or from the Set-Cookie of a sign-in call.
+
+  `event` takes a comma-separated list of AuditEvent names; an unknown name is a
+  400 rather than being ignored. `actorId` is one user UUID, including someone who
+  has since been removed from the team. Both narrow `total`, not just the page.
+}
