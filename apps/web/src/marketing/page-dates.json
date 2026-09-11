@@ -1,6 +1,6 @@
 {
   "src/marketing/LandingPage.tsx": "2026-09-10",
-  "src/marketing/features.tsx": "2026-09-09",
+  "src/marketing/features.tsx": "2026-09-10",
   "src/marketing/pages/AboutPage.tsx": "2026-09-09",
   "src/marketing/pages/ContactPage.tsx": "2026-08-07",
   "src/marketing/pages/SecurityPage.tsx": "2026-09-10",
@@ -10,8 +10,8 @@
   "src/marketing/pages/SdkPage.tsx": "2026-08-08",
   "src/marketing/pages/FeaturePage.tsx": "2026-09-09",
   "src/marketing/pages/ComparePage.tsx": "2026-09-10",
-  "src/marketing/comparisons.tsx": "2026-09-10",
-  "src/marketing/pages/FaqPage.tsx": "2026-09-09",
-  "src/marketing/faq.tsx": "2026-09-10",
-  "src/marketing/pages/BestLlmOpsPlatformsPage.tsx": "2026-09-10"
+  "src/marketing/comparisons.tsx": "2026-09-11",
+  "src/marketing/pages/FaqPage.tsx": "2026-09-11",
+  "src/marketing/faq.tsx": "2026-09-11",
+  "src/marketing/pages/BestLlmOpsPlatformsPage.tsx": "2026-09-11"
 }
