@@ -34,7 +34,7 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
       <ContentHeader
         eyebrow="Comparison"
         title="7 best open-source LLMOps and observability platforms in 2026"
-        lead="Find the right platform to manage prompts and tools, trace LLM calls, and improve response quality. Compare seven open-source and source-available tools, with hands-on findings, clear trade-offs, and licensing details."
+        lead="We compared seven open-source and source-available platforms for prompt management, LLM gateways, tracing, and evaluation. We self-hosted each one and ran the same prompt through it. This page shows how each one handles prompts, tools, teams, audit logs, and licensing."
         docTitle="Best open-source LLMOps platforms in 2026 — AcruxCore"
       />
 
@@ -47,25 +47,26 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
           The short answer
         </h2>
         <p className="acx-prose" style={cssToStyle('margin:0 0 12px;')}>
-          Choose an LLMOps platform based on what you need to control and improve. LLM gateways sit <strong>in the request path</strong> to control calls before they reach a provider.
-          Observability tools{' '}
-          <strong>record calls made by your existing client</strong> so you can trace behavior and
-          evaluate responses. Use both when you need request controls and visibility into results.
+          Every platform here is an LLM gateway, an observability tool, or both. A gateway sits{' '}
+          <strong>in the request path</strong>, so it can route, cache, and cap spending before a
+          call reaches the provider. An observability tool{' '}
+          <strong>records the calls your own client already makes</strong>, so you can trace and
+          evaluate them afterwards. AcruxCore, MLflow, and Helicone are both. Langfuse, Phoenix,
+          Opik, and Laminar only observe.
         </p>
         <p className="acx-prose" style={cssToStyle('margin:0;')}>
-          AcruxCore is the only platform in this comparison with a{' '}
-          <strong>versioned tool catalog whose calls the gateway executes</strong>. Each tool is a
-          catalog entry with its own version history, so you can add, change, or roll back a tool
-          without deploying application code. Shortlist it if you want that alongside prompt
-          versioning and feedback-driven prompt optimization in one workflow. It is also the
-          only platform here whose <strong>audit trail needs no paid plan</strong>: every
-          change anyone makes is recorded with their name, on every plan and when
-          self-hosted. For the largest
-          community in this comparison, consider <strong>Langfuse</strong>. Already using{' '}
-          <strong>MLflow</strong>? Its prompt registry, tracing, and gateway may meet your needs. For
-          evaluation, explore <strong>Opik</strong>; for agent tracing, explore <strong>Laminar</strong>.
-          AcruxCore has a smaller community and a flat team structure; check its access controls if
-          you need an organization layer or multiple roles per member.
+          AcruxCore is the only platform in this comparison where you{' '}
+          <strong>define the tools a model can call, version them, and let the gateway run them</strong>.
+          Each tool has its own version history, so you can add, change, or roll back a tool
+          without deploying application code. AcruxCore is also the only platform here whose{' '}
+          <strong>audit trail needs no paid plan</strong>. Hosted or self-hosted, every change
+          anyone makes is recorded with their name. <strong>Langfuse</strong> has the
+          largest community and an organization layer above projects. <strong>MLflow</strong>{' '}
+          has a prompt registry, tracing, and a gateway, and many teams already run it for
+          classic ML. <strong>Opik</strong> is built around datasets, experiments, and online
+          scoring rules. <strong>Laminar</strong> traces agent runs, with SQL over spans and
+          three workspace roles. AcruxCore has the smallest community here, a single team layer with
+          no organization above it, and one role per member.
         </p>
       </section>
 
@@ -76,7 +77,7 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
             'font-size:clamp(22px,2.6vw,28px);line-height:1.15;letter-spacing:-.02em;font-weight:700;margin:12px 0 16px;',
           )}
         >
-          How to choose an LLMOps platform: seven key questions
+          How to choose: seven questions
         </h2>
         <div className="acx-prose">
           {DECISION_POINTS.map((point) => (
@@ -103,9 +104,9 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
           Seven LLMOps platforms compared
         </h2>
         <p className="acx-prose" style={cssToStyle('margin:0 0 24px;color:var(--muted);')}>
-          Competitors are listed by community size, followed by AcruxCore. The order does not rank
-          performance. Each entry includes a verification date; the comparison matrix links to
-          the platform&rsquo;s own documentation.
+          Competitors are listed by community size, with AcruxCore last. The order is not a
+          ranking. Each card shows the date we checked it. The comparison matrix links every claim
+          to the platform&rsquo;s own documentation.
         </p>
 
         {PLATFORMS_BY_COMMUNITY.map((platform) => (
@@ -131,23 +132,21 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
             hands-on tests.
           </p>
           <p style={cssToStyle('margin:0 0 12px;')}>
-            Findings reflect the versions and dates tested. A feature marked as absent was not found
-            in our tests or the sources linked in the{' '}
-            <Link to="/compare">comparison matrix</Link>. Features can change, so check the date
-            and source before making a decision.
+            A feature marked as absent means we did not find it. We looked in the version we ran
+            and in the sources linked from the <Link to="/compare">comparison matrix</Link>. Platforms change,
+            so each finding carries the date we checked it.
           </p>
           <p style={cssToStyle('margin:0 0 12px;')}>
-            In our benchmark, AcruxCore&rsquo;s gateway added about 42 ms compared with calling
-            OpenAI directly, with a confidence interval of +17 ms to +81 ms. Reproducible scripts
-            are available in the repository. The{' '}
+            AcruxCore&rsquo;s gateway added about 42 ms per call compared with calling OpenAI
+            directly. The confidence interval is +17 ms to +81 ms. The{' '}
             <a href={`${DOCS_URL}/blog/llm-gateway-overhead`} target="_blank" rel="noreferrer">
               gateway latency benchmark
             </a>{' '}
-            includes the full distribution and tail latency results.
+            has the full distribution, the tail latencies, and the scripts to rerun it.
           </p>
           <p style={cssToStyle('margin:0;')}>
-            This comparison is published by AcruxCore. We highlight competitor strengths and link
-            claims to sources so you can judge the fit for your team.
+            AcruxCore publishes this comparison. Every claim about a competitor links to that
+            competitor&rsquo;s own documentation, with the date we checked it.
           </p>
         </div>
       </section>
@@ -158,16 +157,16 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
         )}
       >
         <h2 style={cssToStyle('font-size:17px;font-weight:650;letter-spacing:-.01em;margin:0 0 8px;')}>
-          Compare features. Find your fit.
+          Where to look next
         </h2>
         <p className="acx-prose" style={cssToStyle('margin:0;')}>
-          Check the <Link to="/compare">comparison matrix</Link> for features, trade-offs, and
-          sources. Explore the{' '}
+          The <Link to="/compare">comparison matrix</Link> puts every platform side by side, row
+          by row, with a source for each cell. The{' '}
           <a href={`${DOCS_URL}/blog/hands-on-llm-ops-comparison`} target="_blank" rel="noreferrer">
             hands-on review of nine platforms
           </a>{' '}
-          for screenshots and test details. Considering AcruxCore? Read the <Link to="/faq">FAQ</Link>
-          to see how it fits your workflow and when to consider an alternative.
+          has the screenshots from each test. The <Link to="/faq">FAQ</Link> says which teams
+          AcruxCore fits and which should pick something else.
         </p>
       </section>
     </MarketingShell>
@@ -179,37 +178,37 @@ export const DECISION_POINTS: { question: string; answer: string }[] = [
   {
     question: 'Do you need an LLM gateway, observability, or both?',
     answer:
-      'An LLM gateway controls requests before they reach a provider. An observability tool records traces so you can inspect what happened. AcruxCore, MLflow’s gateway, and Helicone sit in the request path, where routing, caching, budget checks, and provider-key management can happen. Check support for each control. Langfuse, Phoenix, Opik, and Laminar collect traces without acting as gateways, so you can add visibility without introducing a new proxy.',
+      'An LLM gateway controls requests before they reach a provider. An observability tool records traces so you can inspect what happened. AcruxCore, MLflow’s gateway, and Helicone sit in the request path and act as a proxy. There they can route a call, cache it, check a budget, and hold the provider key. Langfuse, Phoenix, Opik, and Laminar collect traces without sitting in the request path, so they add no proxy.',
   },
   {
     question: 'Can you add and version the tools a model calls without deploying code?',
     answer:
-      'This is the one question where AcruxCore stood alone against all six. In AcruxCore a tool is a catalog entry with its own version history, and the gateway executes the call, so the definition the model reads and the call that ran are the same record. You can add a tool, change it, or roll it back without deploying application code. No other platform in this comparison had both a versioned catalog and execution. Langfuse saved playground tool schemas without versioning or execution. Laminar stored schemas within playground entries. Phoenix, Opik, and Helicone had no tool catalog. MLflow cataloged MCP servers rather than individual tools, without per-tool history or execution in the workflow tested. If your tools live in your own code and you want them to stay there, this question will not decide it for you.',
+      'In AcruxCore you define a tool once, keep every version of it, and the gateway runs it when the model calls it. So the tool the model sees and the code that ran are always the same version. You can add a tool, change it, or roll it back without deploying application code. No other platform in this comparison keeps versions of a tool and also runs it. Langfuse saves a tool schema in its playground, but does not version it or run it. Laminar stores tool schemas inside playground entries. Phoenix, Opik, and Helicone have no tool catalog. MLflow catalogs whole MCP servers rather than individual tools. In the MLflow workflow we tested, a single tool had no version history, and nothing ran the call.',
   },
   {
     question: 'Can you update prompts without deploying code?',
     answer:
-      'A versioned prompt registry lets you change prompts without redeploying code. Look for aliases, version comparisons, and the templating features you need. In our tests, AcruxCore and MLflow supported native Jinja2 conditionals and loops. Langfuse, Phoenix, Opik, and Helicone supported variable substitution but left branching logic to application code. Laminar’s playground had no prompt versions, aliases, or variables. Check the dated findings for current support.',
+      'Every platform here except Laminar has a prompt registry, so you can change a prompt without redeploying code. The registries differ in templating. AcruxCore and MLflow support Jinja2 conditionals and loops, so a prompt can branch on its inputs. Langfuse, Phoenix, Opik, and Helicone substitute variables only, and any branching logic stays in your application code. Laminar’s playground had no prompt versions, aliases, or variables.',
   },
   {
     question: 'What team structure and permissions do you need?',
     answer:
-      'Match access controls to how your team shares projects. In the self-hosted versions we tested, AcruxCore offered members, invites, and roles in a flat team structure. Langfuse and Laminar added an organization or workspace above projects. Laminar offered three workspace roles; AcruxCore offered one. Phoenix, Opik, and MLflow had no team, member, or invite management; MLflow also had no login screen. Helicone used one organization tier with no role selector in its invite dialog. For separate business units, compare the hierarchy and permissions in Langfuse and Laminar.',
+      'AcruxCore has members, invites, and roles inside a single team, with nothing above it, and one role per member. In the self-hosted versions we tested, Langfuse and Laminar had an organization or workspace layer above projects. Laminar had three workspace roles. Phoenix, Opik, and MLflow had no team, member, or invite management, and MLflow had no login screen. Helicone had one organization tier and no role field in its invite dialog.',
   },
   {
-    question: 'Can you see who changed what, and when — without paying for it?',
+    question: 'Can you see who changed what and when, and does it cost extra?',
     answer:
-      'An audit log answers this, and it is the question where paid tiers show up. Ask it about the whole account rather than about prompts alone: a compliance review asks who revoked an API key or changed a member\u2019s role as often as it asks who edited a prompt. In AcruxCore every prompt and every tool carries its own trail. Owners and admins also get one team-wide trail in the dashboard, covering 34 event types across seven areas. Those areas are prompts, tools, members and invites, API keys, gateway credentials and budgets, secrets, and trace settings. Filter the trail by area, by one event, or by the person, including someone who has since left the team. It is populated by default on every plan and when self-hosted, with no upgrade. Langfuse has an audit log in its UI, limited to its top paid plan for hosted and self-hosted use. For Phoenix, Opik, Helicone, MLflow and Laminar we found no audit log in the settings pages we checked. Export and a retention window are the two things AcruxCore\u2019s trail does not have yet.',
+      'Yes, in AcruxCore, and it costs nothing extra. Every prompt and every tool keeps its own change history. Owners and admins also see one audit trail for the whole team in the dashboard. That trail records 34 event types across seven areas: prompts, tools, members and invites, API keys, gateway credentials and budgets, secrets, and trace settings. You can filter the trail by area, by one event type, or by person. Entries stay in the trail after the person who made them leaves the team, so you can still filter by that person. The trail is on by default, whether hosted or self-hosted, with nothing to pay and nothing to switch on. Of the other six platforms, Langfuse is the only one where we found an audit log, and that log needs the top paid plan even if you self-host. For Phoenix, Opik, Helicone, MLflow and Laminar we found no activity audit option in the platform.',
   },
   {
     question: 'How do you turn feedback into better prompts?',
     answer:
-      'Feedback only helps if it leads to a prompt change you can test. AcruxCore keeps end-user feedback and developer notes apart, and either one can become a dataset of test cases. Experiments run those cases against different prompt versions and models so you can compare the results. Automated rules score live traffic as it arrives. The optimizer proposes rewrites and tests them on the same cases as your production prompt. Promoting a better rewrite creates a numbered version and moves the alias, so your app picks it up without a deployment. Opik also focuses on evaluation. Compare how many of these steps each platform handles for you and how many stay in your own code.',
+      'AcruxCore labels end-user feedback and developer notes separately, and both can be added to a dataset of test cases. Experiments run those cases against different prompt versions and models so you can compare the results. Automated rules score live traffic as it arrives. The optimizer uses a large language model to propose rewrites and tests them on the same cases as your production prompt. You can edit the prompt that instructs the optimizer, so the rewrites follow your own rules for a good prompt. Promoting a better rewrite creates a numbered version and moves the alias, so your app picks it up without a deployment. Opik and MLflow also have optimizers, with more algorithms than AcruxCore. Both run from the SDK only and cannot be started from the UI. Langfuse, Phoenix, and Helicone have no optimizer in the product, and Laminar has no stored prompt to optimize.',
   },
   {
     question: 'What does the license include?',
     answer:
-      'Check the license and which features require payment. Our recorded comparison lists Opik, Helicone, MLflow, Laminar, and AcruxCore as Apache 2.0, with no gated directory. Langfuse has an MIT-licensed core and an enterprise-licensed directory; its audit log was limited to the top paid plan for hosted and self-hosted use. Phoenix uses Elastic License 2.0: it is source-available, rather than OSI-approved open source. Check the dated licensing sources for terms that apply to your deployment.',
+      'Opik, Helicone, MLflow, Laminar, and AcruxCore are Apache 2.0, with no folder under a separate paid license. Langfuse has an MIT-licensed core and one folder under an enterprise license. Its audit log needs the top paid plan even if you self-host. Phoenix uses Elastic License 2.0, which is source-available rather than OSI-approved open source.',
   },
 ];
 
@@ -382,7 +381,7 @@ function PlatformCard({ platform }: { platform: Comparison }): ReactNode {
  * `comparisons.test.ts` fails the moment a competitor's row stops saying so.
  */
 const UNIQUE_IN_COMPARISON =
-  'A versioned tool catalog whose calls the gateway executes. Every other platform here either has no tool catalog, stores an unversioned schema that nothing runs, or catalogs whole MCP servers instead of tools.';
+  'Tools are defined and versioned in AcruxCore, and the gateway runs them when the model calls them. Every other platform here either has no tool catalog, stores a tool schema that nothing runs, or catalogs whole MCP servers instead of tools.';
 function AcruxCoreCard(): ReactNode {
   return (
     <article style={cssToStyle(cardStyle)}>
@@ -414,7 +413,7 @@ function AcruxCoreCard(): ReactNode {
           to="/faq"
           style={cssToStyle('font-size:13px;color:var(--accent);text-decoration:none;font-weight:550;')}
         >
-          Is AcruxCore right for your team?
+          Which teams AcruxCore fits
         </Link>
         <a
           href={GITHUB_URL}

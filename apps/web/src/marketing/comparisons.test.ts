@@ -122,7 +122,7 @@ describe('best-open-source-llmops-platforms decision points', () => {
     const audit = DECISION_POINTS.find((point) => /audit|who changed/i.test(point.question));
     expect(audit, 'no decision point asks about the audit trail').toBeDefined();
     expect(audit!.question).toMatch(/who changed what/i);
-    expect(audit!.answer).toMatch(/every plan/);
+    expect(audit!.answer).toMatch(/nothing to pay/);
     expect(audit!.answer).toMatch(/Enterprise|top paid plan/);
   });
 });

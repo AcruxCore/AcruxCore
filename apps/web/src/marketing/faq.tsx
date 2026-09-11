@@ -105,7 +105,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: 'What is AcruxCore?',
         answer: [
           [
-            'AcruxCore is an LLMOps platform for managing applications built on large language models. It brings prompt versioning, an OpenAI-compatible LLM gateway, tracing, a tool catalog, and evaluation into one place. Use the gateway to capture model requests as they pass through, or connect tracing directly.',
+            'AcruxCore is an LLMOps platform for managing applications built on large language models. It includes prompt versioning, an OpenAI-compatible LLM gateway, tracing, a tool catalog, and evaluation. The gateway records each model request that passes through it. If you do not use the gateway, your application can send its traces to AcruxCore directly.',
           ],
           [
             'AcruxCore is licensed under ',
@@ -118,13 +118,13 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: 'What problems does AcruxCore solve?',
         answer: [
           [
-            'AcruxCore helps teams update prompts without redeploying application code and understand what happens during model calls. Prompt versioning gives teams a shared place to manage and improve prompts.',
+            'AcruxCore lets a team change a prompt without redeploying the application. It also shows what happened inside each model call. Prompt versions live in one place that the whole team can edit.',
           ],
           [
-            'The gateway captures requests as they pass through it. This gives you visibility into model calls without relying only on traces reported by your application.',
+            'The gateway records each request that passes through it, so you do not depend only on the traces your application reports.',
           ],
           [
-            'The tool catalog stores tool definitions next to your prompts. Give a prompt access to a tool and the model can call it, so a plain prompt becomes an agent without extra glue code. See the ',
+            'The tool catalog stores tool definitions next to your prompts. Attach a tool to a prompt and the model can call it. The prompt then works as an agent, with no extra code to connect the tool and the prompt. See the ',
             { text: 'connect a tool to a prompt guide', href: `${DOCS_URL}/docs/guides/connect-a-tool-to-a-prompt` },
             '.',
           ],
@@ -134,13 +134,13 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: 'What is the difference between a trace and an audit event?',
         answer: [
           [
-            'A trace records traffic your application sent: one model call, its prompt, its tokens, its latency and its cost. An audit event records a change a person made, and names them.',
+            'A trace records traffic your application sent: one model call, its prompt, its tokens, its latency and its cost. An audit event records a change a person made, and names that person.',
           ],
           [
-            'The two answer different questions. "Why did this answer come out wrong?" is a trace. "Who changed the prompt on Tuesday, and what did it say before?" is an audit event. A completion never appears in the audit trail, and a role change never appears in a trace.',
+            'A trace answers why one model answer came out wrong. An audit event answers who changed the prompt on Tuesday, and what it said before. A model answer never becomes an audit event, and a role change never appears in a trace.',
           ],
           [
-            'AcruxCore keeps both, and both are on by default. See ',
+            'AcruxCore keeps traces and audit events, and both are on by default. See ',
             { text: 'core concepts', href: CORE_CONCEPTS },
             ' for how traces, prompts, versions and audit events relate.',
           ],
@@ -171,17 +171,17 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: 'How does AcruxCore compare with Langfuse, Phoenix, Opik, Helicone, MLflow, and Laminar?',
         answer: [
           [
-            'AcruxCore combines an LLM gateway with prompt management, tracing, and evaluation. The gateway applies routing, caching, budgets, and virtual keys before calls reach the provider. In our published comparison, Helicone and MLflow also offer gateways; Langfuse, Phoenix, Opik, and Laminar collect traces from calls made by your application.',
+            'AcruxCore combines an LLM gateway with prompt management, tracing, and evaluation. The gateway applies routing, caching, budgets, and virtual keys before calls reach the provider. Helicone and MLflow also have gateways. Langfuse, Phoenix, Opik, and Laminar have no gateway, and collect traces from the calls your application makes.',
           ],
           [
-            'AcruxCore brings prompt versioning and a versioned tool catalog together with gateway execution and tracing. It is also the only one of the seven whose audit log of who changed what needs no paid plan. This makes it a strong option for teams that want to manage their agents in one platform.',
+            'AcruxCore versions prompts and tools in the same place. The gateway runs those tools, and tracing records each model call. AcruxCore is also the only one of these platforms with an audit trail that costs nothing extra.',
           ],
           [
             'The ',
             { text: 'comparison matrix', to: '/compare' },
-            ' compares ten criteria per competitor, with supporting sources. For a deeper look, read our ',
+            ' puts the seven platforms side by side on ten criteria, with a source for each cell. The ',
             { text: 'hands-on test of nine platforms', href: COMPARE_POST },
-            '.',
+            ' covers these seven, plus LangSmith and PromptLayer, in more detail.',
           ],
         ],
       },
@@ -189,12 +189,12 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: 'What are AcruxCore’s key strengths?',
         answer: [
           [
-            'AcruxCore’s strengths include versioned tools, gateway-managed tool execution, and prompt templates with conditional logic. It also includes prompt optimization, trace-linked user feedback, and an audit log of who changed what, on every plan.',
+            'AcruxCore’s first strength is its tool catalog. Each tool has a version history, and the gateway runs the tool when a model calls it. The second strength is prompt templates with conditions and loops. AcruxCore also has a prompt optimizer, user feedback linked to traces, and an audit trail that costs nothing extra.',
           ],
           [
             'The ',
             { text: 'versioned tool catalog', href: `${DOCS_URL}/docs/guides/build-and-attach-a-tool` },
-            ' stores individual tools with their version history and lets the gateway execute their calls. Our published comparison distinguishes this from stored tool schemas, playground configurations, and catalogs of whole MCP servers.',
+            ' stores each tool with its version history, and the gateway runs the tool when a model calls it. No other platform in our comparison keeps versions of a tool and also runs it. Langfuse and Laminar store a tool schema inside a playground, and nothing runs it. Phoenix, Opik, and Helicone have no tool catalog. MLflow catalogs whole MCP servers, each a bundle of tools, rather than single tools.',
           ],
           [
             'Tools can connect to HTTP endpoints that the gateway calls for you. Add an existing endpoint as a tool without redeploying your application.',
@@ -202,20 +202,20 @@ export const FAQ_GROUPS: FaqGroup[] = [
           [
             'AcruxCore also supports ',
             { text: 'prompt templates with conditional logic', href: `${DOCS_URL}/docs/guides/use-conditional-logic-in-prompt-templates` },
-            ' using Jinja2 conditionals and loops. This keeps branching logic inside the template. In our published comparison, MLflow also supports this; the other five platforms use variable substitution.',
+            '. Jinja2 if statements and for loops keep the branching inside the template. MLflow also supports conditions and loops. Langfuse, Phoenix, Opik, Helicone, and Laminar only substitute variables.',
           ],
           [
             'The prompt optimizer drafts rewrites and evaluates them against the same test cases as your production prompt. You choose which candidate to promote as a new version. ',
             { text: 'Feedback', href: `${DOCS_URL}/docs/guides/improve-a-prompt-from-feedback` },
-            ' links to a trace or an individual span and records its source. This separates end-user ratings from developer notes, so you can build datasets specifically from user feedback.',
+            ' links to a trace or to one span inside it. Each entry is labeled as an end-user rating or a developer note, so you can build a dataset from user feedback alone.',
           ],
           [
             'The ',
             { text: 'team-wide audit trail', to: '/features/audit' },
-            ' records every change with the person who made it — API keys, members and roles, provider connections, virtual keys, budgets, secrets, prompts and tools. It is on by default on every plan and when self-hosted, and it filters by area, by event, or by the person.',
+            ' records every change with the name of the person who made it. The trail covers API keys, members and roles, provider connections, virtual keys, budgets, secrets, prompts, and tools. Hosted or self-hosted, the trail is on by default. You can filter it by area, by event type, or by person.',
           ],
           [
-            'These features help teams improve prompts using test results and user feedback. Other platforms also have evaluation strengths, including Opik; our comparison does not establish optimization or feedback as exclusive to AcruxCore. The audit trail is the exception. Of the seven platforms compared it is the only one that needs no paid plan: Langfuse gates its own behind a $2,499/mo Enterprise tier, and we found none in Phoenix, Opik, Helicone, MLflow or Laminar.',
+            'A prompt optimizer and linked feedback are not unique to AcruxCore. Other platforms, Opik among them, also have optimizers and evaluation tools. The audit trail is different. AcruxCore is the only platform in our comparison where the trail costs nothing extra.',
           ],
         ],
       },
@@ -223,27 +223,27 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: 'Which LLMOps platforms have an audit log of who changed what?',
         answer: [
           [
-            'AcruxCore records every change with the member who made it, on every plan, self-hosted included. It is on by default and there is nothing to switch on.',
+            'AcruxCore has an audit trail that records every change with the name of the person who made it, whether hosted or self-hosted. The trail is on by default and costs nothing extra.',
           ],
           [
-            'There are three trails. Each prompt and each tool has its own Audit tab — created, renamed, version committed, alias promoted, alias deleted. Owners and admins also get one ',
+            'Each prompt and each tool has its own Audit tab. The tab lists when that prompt or tool was created or renamed, when a version was committed, and when an alias was promoted or deleted. Owners and admins also get one ',
             { text: 'team-wide trail', to: '/features/audit' },
-            ' in the dashboard, covering what belongs to no prompt and no tool.',
+            ' in the dashboard. That trail covers the whole team, including the changes that belong to no single prompt or tool.',
           ],
           [
-            'The team-wide trail holds 34 event types across seven areas: API keys, members and roles, invites, provider connections, virtual keys, budgets, gateway models, secrets, trace settings, and prompt and tool changes. Filter it by area, by a single event, or by the person — including someone who has since left the team.',
+            'The team-wide trail holds 34 event types across multiple areas. The areas are API keys, members and roles, invites, provider connections, virtual keys, budgets, gateway models, secrets, trace settings, and prompt and tool changes. You can filter the trail by area, by one event type, or by person. Entries stay in the trail after the person who made them leaves the team.',
           ],
           [
-            'In our published comparison this is the row where the paid tiers show. Langfuse has an audit log in its UI, gated behind the Enterprise plan at $2,499/mo, on hosted Langfuse as well as self-hosted. For Phoenix, Opik, Helicone, MLflow and Laminar we found no audit log in any settings page we opened.',
+            'Langfuse has an audit log, but it needs the Enterprise plan at $2,499 a month, even if you self-host. In Phoenix, Opik, Helicone, MLflow, and Laminar we found no audit log in the settings pages we opened.',
           ],
           [
-            'Read the ',
+            'The ',
             { text: 'audit trail guide', href: AUDIT_GUIDE },
-            ' for the screens, or the ',
+            ' shows the dashboard screens, and the ',
             { text: 'audit API', href: AUDIT_API },
-            ' to pull the same events yourself. Check the dated ',
+            ' returns the same events to your own code. Each cell in the ',
             { text: 'comparison matrix', to: '/compare' },
-            ' before deciding: a feature can ship after the date we checked it, and this is a row worth re-checking yourself if a compliance review depends on it.',
+            ' has a check date. A platform can add an audit log after that date.',
           ],
         ],
       },
@@ -251,12 +251,12 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: 'How much latency does the AcruxCore gateway add?',
         answer: [
           [
-            'In our published benchmark, AcruxCore added about 42 ms of software overhead compared with calling OpenAI directly. The reported confidence interval was +17 ms to +81 ms. Actual overhead depends on your setup and workload.',
+            'In our published benchmark, AcruxCore added about 42 ms of latency to each call compared with calling OpenAI directly. The confidence interval was +17 ms to +81 ms. Actual overhead depends on your setup and workload.',
           ],
           [
             'The ',
             { text: 'benchmark write-up', href: LATENCY_POST },
-            ' includes the latency distribution, tail latency, and a reproducible test script. Run it with your workload to assess the trade-off.',
+            ' includes the latency distribution, the tail latency, and the test script, which you can run against your own workload.',
           ],
         ],
       },
@@ -264,13 +264,13 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: 'When should I consider an AcruxCore alternative?',
         answer: [
           [
-            'Consider an alternative if you need a hierarchy above teams, gateway-level content filtering, different role controls, or a larger project community. In our published comparison, Langfuse and Laminar offer two-level hierarchies; AcruxCore uses a flat team structure.',
+            'Pick something else if you need an organization or workspace above teams, or content filtering in the gateway. Also pick something else if you need more than one role per member, or a larger community. Langfuse has an organization above its projects, and Laminar has a workspace above its projects. AcruxCore has one team with nothing above it.',
           ],
           [
-            'Our comparison also identifies endpoint-level content guardrails and PII filtering in MLflow’s gateway, which AcruxCore does not offer. AcruxCore allows one role per member; review the documented role controls if your team needs more flexibility.',
+            'MLflow’s gateway can block content and personal data at each endpoint. AcruxCore has no such filter. AcruxCore also gives each member exactly one role at a time.',
           ],
           [
-            'Langfuse and MLflow have larger GitHub communities in our published comparison. If ecosystem size matters to your decision, weigh it alongside workflow fit and deployment needs.',
+            'Langfuse and MLflow have larger GitHub communities than AcruxCore.',
           ],
         ],
       },
@@ -278,15 +278,17 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: 'How can I verify AcruxCore’s comparisons?',
         answer: [
           [
-            'Our comparisons include sources, test details, and screenshots from actual sessions. We run each platform, self-host where possible, and rebuild the same example prompt on both sides.',
+            'Our comparisons link a source for each fact and include screenshots from our test sessions. We self-host each platform where we can, then build the same example prompt in that platform and in AcruxCore.',
           ],
           [
-            'Every row in the ',
+            'Every cell in the ',
             { text: 'comparison matrix', to: '/compare' },
-            ' includes a source link and a check date. We highlight competitor strengths alongside AcruxCore’s strengths so you can assess the trade-offs.',
+            ' has a source link and a check date.',
           ],
           [
-            'The latency test scripts are available in the repository. You can reproduce the benchmark and check how the results apply to your environment.',
+            'The latency test scripts are in the ',
+            { text: 'AcruxCore repository', href: GITHUB_URL },
+            ', so you can rerun the benchmark in your own environment.',
           ],
         ],
       },
@@ -294,12 +296,11 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: 'How does AcruxCore’s open-source license compare?',
         answer: [
           [
-            'AcruxCore uses Apache 2.0 for the whole platform, with no enterprise-only feature directory. Our published comparison identifies similar licensing for four alternatives and different terms for two.',
+            'AcruxCore uses Apache 2.0 for the whole platform, with no folder under a separate paid license.',
           ],
           [
-            'The comparison lists Opik, Helicone, MLflow, and Laminar as Apache 2.0 without a gated directory. It describes Langfuse as MIT at its core, with some features under an enterprise license. Phoenix uses the Elastic License 2.0, a source-available license that is not OSI-approved.',
+            'Opik, Helicone, MLflow, and Laminar use Apache 2.0 on the same terms. Langfuse is MIT at its core, and some features sit in a folder under an enterprise license. Phoenix uses the Elastic License 2.0, a source-available license that the Open Source Initiative has not approved.',
           ],
-          ['Check the linked sources and review each license before choosing a platform. AcruxCore’s Apache 2.0 license supports teams that want to run and manage the full platform themselves.'],
         ],
       },
     ],
@@ -314,7 +315,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
           [
             'Yes. Run ',
             { text: 'docker compose up', href: GITHUB_URL },
-            ' to self-host the same code used by the hosted platform. There is no separate community edition or enterprise-only feature directory.',
+            ' to self-host the same code used by the hosted platform. There is no separate community edition and no folder under a separate paid license.',
           ],
         ],
       },
@@ -322,12 +323,12 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: 'Does AcruxCore store my prompts and responses?',
         answer: [
           [
-            'Hosted AcruxCore stores request and response bodies for trace inspection. You can disable payload capture for your whole team or individual traces. The ',
+            'Hosted AcruxCore stores the request and response body of each call so you can inspect the trace. This stored body is called the payload, and you can turn payload capture off for the whole team or for single traces. The ',
             { text: 'payload capture guide', href: `${DOCS_URL}/docs/guides/configure-trace-payload-capture` },
             ' explains both options.',
           ],
           [
-            'With self-hosting, you manage AcruxCore on your own infrastructure. Data sent to external model providers still depends on your configuration. For hosted data handling, see the ',
+            'When you self-host, AcruxCore runs on your own servers. Self-hosting does not stop data going to the model providers you connect. Your own configuration decides what each call sends them. For hosted data handling, see the ',
             { text: 'security page', to: '/security' },
             '.',
           ],
@@ -337,7 +338,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: 'Can I export my prompts and traces?',
         answer: [
           [
-            'Yes. Export your prompt library as portable JSON, including its version history, and import it again when needed. The ',
+            'Yes. Export your prompt library as JSON, including its version history, and import it again when needed. The ',
             { text: 'diff, export and import guide', href: `${DOCS_URL}/docs/guides/diff-export-and-import-your-prompt-library` },
             ' explains the process. You can also retrieve traces through the REST API.',
           ],
@@ -353,15 +354,15 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: 'Is the AcruxCore audit log free, or does it need a paid plan?',
         answer: [
           [
-            'It is free. The audit trail is part of the platform on every plan, hosted and self-hosted, with no upgrade and no add-on. Self-hosting it costs nothing beyond your own infrastructure, because the whole platform is ',
+            'It is free. The audit trail is part of the platform whether hosted or self-hosted. Self-hosting costs nothing beyond your own servers, because the whole platform is ',
             { text: 'Apache 2.0', href: `${GITHUB_URL}/blob/main/LICENSE` },
-            ' with no enterprise-only directory.',
+            ' with no folder under a separate paid license.',
           ],
           [
-            'This is unusual in this category, and it is the reason the row is worth checking. Of the seven platforms in our hands-on comparison, AcruxCore is the only one whose audit trail needs no paid plan. Langfuse has one, behind its $2,499/mo Enterprise tier for hosted and self-hosted use alike. We found none in Phoenix, Opik, Helicone, MLflow or Laminar.',
+            'AcruxCore is the only platform we compared whose audit trail costs nothing extra.',
           ],
           [
-            'What it does not do yet: there is no CSV or JSON export and no retention window you can set. Events accumulate and are read in the dashboard or over the ',
+            'The trail has no CSV or JSON export yet, and you cannot set how long entries are kept. Events are never deleted. You read them in the dashboard or through the ',
             { text: 'audit API', href: AUDIT_API },
             '.',
           ],
@@ -371,18 +372,18 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: 'How much does AcruxCore cost? Is there a token markup?',
         answer: [
           [
-            'Self-hosted AcruxCore has no software license fee. The full platform is available under Apache 2.0, with no enterprise-only feature directory. You pay for your infrastructure and any model provider usage.',
+            'Self-hosted AcruxCore has no license fee, so you pay only for your own servers and for the model providers you use. The full platform is Apache 2.0, with no folder under a separate paid license.',
           ],
           [
             'Hosted AcruxCore is free during beta, with no credit card required at sign-up.',
           ],
           [
-            'AcruxCore does not mark up model tokens. Connect your own provider credentials and pay the provider’s rates. The gateway tracks per-call costs for visibility without adding a token surcharge.',
+            'AcruxCore does not mark up model tokens. Connect your own provider credentials and pay the provider’s rates. The gateway records the cost of each call and adds nothing to it.',
           ],
           [
-            'Post-beta hosted pricing has not been announced. Check the ',
+            'Hosted pricing after the beta is not announced yet. The ',
             { text: 'pricing page', to: '/pricing' },
-            ' for updates. Existing accounts will receive notice before pricing changes.',
+            ' will show it first, and existing accounts get notice before any price changes.',
           ],
         ],
       },

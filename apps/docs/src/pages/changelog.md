@@ -152,6 +152,7 @@ called out in the week it ships and in the SDK release notes.
 - Feature pages now explain fallbacks, OTel ingestion, bindings and the optimizer.
 - **Fixed** — the evaluation page's curl sample dropped every id from its URLs.
 - **Fixed** — that sample passed `version_ids: ["v7","v8"]`; the API takes version UUIDs.
+- **Fixed** — a docstring-less tool wrongly warned a deploy would undo its dashboard wording.
 - Tracing is no longer gateway-only on the page; the OpenTelemetry path is named.
 - The docs site now publishes `/llms.txt`, a summary index of every page for AI crawlers.
 - A new [FAQ page](https://acruxcore.com/faq) answers how AcruxCore compares, and where it does not fit.
@@ -190,6 +191,9 @@ called out in the week it ships and in the SDK release notes.
 - Each feature page now names its capability in the title, the heading and the page summary.
 - The six feature pages link each other by capability, not by a one-word label.
 - **Fixed** — search previews cut every marketing page's description off halfway through.
+- The best-open-source-LLMOps page answers the audit question in shorter, plainer sentences.
+- The FAQ and the open-source LLMOps comparison page are rewritten in shorter, plainer sentences.
+- The comparison matrix reads as plain sentences, and every licence row is worded the same way.
 
 ---
 

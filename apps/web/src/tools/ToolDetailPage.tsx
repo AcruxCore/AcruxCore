@@ -51,15 +51,18 @@ export function ToolDetailPage() {
     return [...new Set(nums)].sort((a, b) => b - a);
   }, [versions.data]);
 
-  // The source of whatever `production` points at. Drives the "Defined in code"
-  // badge and the New-version warning — a code-owned live version means the next
-  // deploy supersedes anything edited here.
-  const liveVersionSource = useMemo(() => {
+  // Whatever `production` points at. Its `source` drives the "Defined in code" badge
+  // and the New-version banner; its `description` decides which banner, because a code
+  // definition with no docstring sends no description and so cannot supersede one
+  // written here.
+  const liveVersion = useMemo(() => {
     const production = (aliases.data?.data ?? []).find((a) => a.alias === 'production');
     if (!production) return null;
-    const live = (versions.data?.data ?? []).find((v) => v.versionNumber === production.versionNumber);
-    return live?.source ?? null;
+    return (
+      (versions.data?.data ?? []).find((v) => v.versionNumber === production.versionNumber) ?? null
+    );
   }, [aliases.data, versions.data]);
+  const liveVersionSource = liveVersion?.source ?? null;
 
   async function handlePromote(alias: string, versionNumber: number) {
     try {
@@ -278,6 +281,7 @@ export function ToolDetailPage() {
         toolId={id}
         prefillVersion={versionNumbers[0] ?? null}
         liveVersionSource={liveVersionSource}
+        liveVersionDescription={liveVersion?.description}
         open={commitOpen}
         onOpenChange={setCommitOpen}
       />

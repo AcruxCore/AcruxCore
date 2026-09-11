@@ -90,13 +90,13 @@ export const ACRUX_CORE = {
   name: 'AcruxCore',
   checkedOn: '2026-08-07',
   tagline:
-    'One control plane where the gateway sits in the request path and the tool catalog\u2019s calls are versioned and executed.',
+    'A gateway in the request path, and tools that are defined, versioned, and run in the same place.',
   bestFor:
-    'Teams that want the whole loop in one self-hostable product: versioned prompts, a request-path gateway, tracing, and a versioned tool catalog whose calls the gateway executes. Feedback then turns into datasets, standing eval rules and optimizer rewrites you promote as a normal prompt version. Every change anyone makes is recorded with their name on every plan, which is the one row here no other platform matches without a paid tier.',
+    'Teams that want prompts, gateway, tracing, and tools in one self-hosted product. Prompts are versioned, and the gateway sits in the request path. Tools are defined and versioned in AcruxCore, and the gateway runs them. Feedback from users and notes from developers become a dataset of test cases. Standing rules score live traffic against that dataset. The optimizer proposes rewrites, and you promote a rewrite as a normal prompt version. Every change anyone makes is recorded with their name, whether you use the hosted product or self-host it. Langfuse is the only other platform here where we found an audit trail, and it needs a paid plan.',
   limitations:
-    'A single flat team with no organisation layer and one role per member, no content or PII guardrails in the request path, and by far the smallest community of the seven.',
+    'One team with no organization layer, and one role per member. No content or PII guardrails in the request path. A smaller community than any of the six competitors here.',
   license: {
-    value: 'Apache License 2.0 — permissive and OSI-approved, with no enterprise-only directory',
+    value: 'Apache License 2.0, permissive and OSI-approved. No part of the repository is under a different license.',
     source: { label: 'LICENSE', href: `${GITHUB_URL}/blob/main/LICENSE` },
   },
   selfHost: {
@@ -104,23 +104,23 @@ export const ACRUX_CORE = {
     source: { label: 'GitHub', href: GITHUB_URL },
   },
   gateway: {
-    value: 'In the request path — routing, caching, budgets and virtual keys apply before the provider is called',
+    value: 'In the request path. Routing, caching, budget checks, and virtual keys all take effect before a call reaches the provider.',
     source: { label: 'Route calls through the gateway', href: `${DOCS_URL}/docs/guides/route-calls-through-the-gateway` },
   },
   toolCatalog: {
-    value: 'Persistent, versioned Tool Catalog — real gateway-executed calls, with its own analytics page',
+    value: 'A Tool Catalog that keeps every version of each tool. The gateway runs those tools, and the catalog has its own analytics page.',
     source: { label: 'Build and attach a tool', href: `${DOCS_URL}/docs/guides/build-and-attach-a-tool` },
   },
   teamStructure: {
-    value: 'Single team-scoped model — members, invites, and roles, no org layer above it',
+    value: 'One team with members, invites, and roles. Nothing sits above the team.',
     source: { label: 'Invite a teammate', href: `${DOCS_URL}/docs/guides/invite-a-teammate` },
   },
   pricing: {
-    value: 'Free during beta — bring your own provider keys, no published paid tier yet',
+    value: 'Free during beta. You bring your own provider keys, and no paid tier is published yet.',
     source: { label: 'Pricing', href: '/pricing' },
   },
   rbac: {
-    value: 'Single role per team member, no org-level layer',
+    value: 'One role per team member, and no organization layer above the team.',
     source: {
       label: 'Manage team roles and permissions',
       href: `${DOCS_URL}/docs/guides/manage-team-roles-and-permissions`,
@@ -128,16 +128,16 @@ export const ACRUX_CORE = {
   },
   auditLog: {
     value:
-      'Present and populated by default, no upgrade needed — per prompt, per tool, and team-wide, filtered by area, event or person',
+      'On by default, with nothing to pay and nothing to switch on. Every prompt and every tool keeps its own history, and the team has one trail you can filter by area, event, or person.',
     source: { label: 'Read the team audit trail', href: `${DOCS_URL}/docs/guides/read-the-team-audit-trail` },
   },
   promptTemplating: {
-    value: 'Every prompt is a template — {% if %} conditionals, {% for %} loops, filters, same syntax as Jinja2',
+    value: 'Every prompt is a template. Templates take {% if %} conditionals, {% for %} loops, and filters, in the same syntax as Jinja2.',
     source: { label: 'Use conditional logic in prompt templates', href: `${DOCS_URL}/docs/guides/use-conditional-logic-in-prompt-templates` },
   },
   promptOptimizer: {
     value:
-      'Built into the dashboard — the cases a run got wrong and your judge\'s feedback draft candidate rewrites, every candidate is scored against the live prompt across a model grid, and the winner is promoted from the report',
+      'Built into the dashboard. The optimizer drafts candidate rewrites from the test cases that an eval run got wrong, and from the feedback that your LLM judge left. Every candidate is scored against the prompt you run today, across several models at once. The scores come back in one report, and you promote the winner from that report.',
     source: { label: 'Improve a prompt from feedback', href: `${DOCS_URL}/docs/guides/improve-a-prompt-from-feedback` },
     checkedOn: '2026-09-10',
   },
@@ -148,17 +148,17 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
   langfuse: {
     slug: 'langfuse',
     name: 'Langfuse',
-    tagline: 'OTel-native tracing and prompt management, with an org/project hierarchy above the team.',
+    tagline: 'OpenTelemetry-based tracing and prompt management, with an organization layer above projects.',
     postHref: `${DOCS_URL}/blog/acruxcore-vs-langfuse`,
     githubHref: 'https://github.com/langfuse/langfuse',
     checkedOn: '2026-08-06',
     bestFor:
-      'Teams that need an organisation layer above the project, and the largest community of the six by a wide margin.',
+      'Teams that need an organization layer above the project, and the largest community here.',
     limitations:
-      'Not in the request path, so a budget, cache or virtual key has no call to act on. Variable substitution only, with no conditionals or loops. The audit log sits behind the $2,499/mo Enterprise plan, on hosted Langfuse as well as self-host. A separate enterprise licence governs the ee/ directory.',
+      'Not in the request path, so it cannot enforce a budget, serve a cache hit, or issue a virtual key. Variable substitution only, with no conditionals or loops. The audit log needs the $2,499/mo Enterprise plan, even if you self-host. One folder in the repository, ee/, is under a separate enterprise licence.',
     license: {
       value:
-        'MIT on the core, but a separate Enterprise License governs the ee/ directory, so some features are gated. AcruxCore gates none.',
+        'MIT, except for the ee/ folder. A separate Enterprise License covers that folder, so the features in it are not MIT. AcruxCore has no such folder.',
       source: { label: 'LICENSE', href: 'https://github.com/langfuse/langfuse/blob/main/LICENSE' },
       acruxWins: true,
     },
@@ -169,15 +169,15 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     },
     gateway: {
       value:
-        'Not in the request path — ingests a trace after your own client calls the provider, so a budget, a cache hit or a virtual key has no call to act on',
+        'Not in the request path. Langfuse receives a trace after your own client has called the provider, so it cannot enforce a budget, serve a cache hit, or issue a virtual key.',
       acruxWins: true,
     },
     toolCatalog: {
-      value: 'A schema saved from the Playground, reusable project-wide — but no catalog page, no versioning, and nothing ever executes it',
+      value: 'You can save a tool schema from the Playground and reuse it anywhere in the same Langfuse project. There is no catalog page, no version history, and nothing ever runs the tool.',
       acruxWins: true,
     },
     teamStructure: {
-      value: 'Real two-level hierarchy — organization above project, visible in every settings breadcrumb',
+      value: 'Two levels, with an organization above the project. Every settings breadcrumb shows the organization and the project.',
       competitorWins: true,
     },
     pricingSummary: {
@@ -185,20 +185,20 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
       source: { label: 'langfuse.com/pricing', href: 'https://langfuse.com/pricing' },
     },
     rbac: {
-      value: 'Two-tiered by design (org role + project role), but Project Role read "N/A on plan" on the account checked',
+      value: 'Two levels of role, one on the organization and one on the project. On the account we checked, the project role showed "N/A on plan".',
     },
     auditLog: {
-      value: 'Present in the UI, gated behind the Enterprise plan ($2,499/mo — on hosted Langfuse too, not just self-host)',
+      value: 'The audit log is in the UI. It needs the Enterprise plan at $2,499/mo, whether you use hosted Langfuse or self-host it.',
       acruxWins: true,
     },
     promptTemplating: {
-      value: 'Variable substitution only ({{var}}) — Jinja2/Liquid isn\'t rendered natively; conditionals are an open feature request',
+      value: 'Variable substitution only, written as {{var}}. Langfuse does not render Jinja2 or Liquid itself, and a feature request for conditionals is still open.',
       source: { label: 'Using external templating libraries', href: 'https://langfuse.com/faq/all/using-external-templating-libraries' },
       acruxWins: true,
     },
     promptOptimizer: {
       value:
-        'No optimizer in the product — the nearest thing is an Agent Skill for Claude Code that reads trace feedback and edits the prompt through the API, so the rewriting happens in your editor, not in Langfuse',
+        'No optimizer in the product. The nearest thing is an Agent Skill that runs in Claude Code, reads trace feedback, and edits the prompt through Langfuse\'s API. The rewriting happens in your editor, not in Langfuse.',
       source: { label: 'Prompt improvement with Agent Skills', href: 'https://langfuse.com/blog/2026-02-16-prompt-improvement-claude-skills' },
       acruxWins: true,
       checkedOn: '2026-09-10',
@@ -209,16 +209,16 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
   phoenix: {
     slug: 'phoenix',
     name: 'Phoenix',
-    tagline: 'Local-first tracing and evaluation, notebook-native, from Arize.',
+    tagline: 'Arize\'s tracing and evaluation, running on your own machine inside a notebook.',
     postHref: `${DOCS_URL}/blog/acruxcore-vs-phoenix`,
     githubHref: 'https://github.com/Arize-ai/phoenix',
     checkedOn: '2026-08-07',
     bestFor:
-      'Local-first tracing and evaluation on one machine, notebook-native, with nothing to set up and no account to create.',
+      'Tracing and evaluation on one machine, from a notebook, with nothing to set up and no account to create.',
     limitations:
-      'Elastic License 2.0 is source-available rather than OSI-approved; there is no team or user-management concept in local OSS; nothing sits in the request path; and there is no tool catalog.',
+      'Elastic License 2.0 is source-available rather than OSI-approved. The local open-source version has no teams or user management. Nothing sits in the request path, and there is no tool catalog.',
     license: {
-      value: 'Elastic License 2.0 — source-available, not OSI-approved and not permissive',
+      value: 'Elastic License 2.0. Source-available, not OSI-approved, and not permissive.',
       source: { label: 'LICENSE', href: 'https://github.com/Arize-ai/phoenix/blob/main/LICENSE' },
       acruxWins: true,
     },
@@ -229,31 +229,31 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     },
     gateway: {
       value:
-        'Not in the request path — the Playground relays through Phoenix\'s own backend; the SDK path calls the provider directly, with nothing in between to route or cap it',
+        'Not in the request path. The Playground is the one place where a call goes through Phoenix\'s own backend. From the SDK your client calls the provider directly, with nothing in between to route or cap the call.',
       acruxWins: true,
     },
     toolCatalog: {
-      value: 'No nav item at all — the closest thing is an ad-hoc JSON Schema per prompt in the Playground; nothing gets executed or measured',
+      value: 'No catalog anywhere in Phoenix\'s navigation. The closest thing is a JSON Schema written per prompt in Phoenix\'s Playground, and nothing runs or measures that schema.',
       acruxWins: true,
     },
     teamStructure: {
-      value: 'No team or user-management concept in local OSS — visiting /account with auth disabled throws an error',
+      value: 'No teams and no user management in the local open-source version. Opening /account with authentication switched off throws an error.',
       acruxWins: true,
     },
     pricingSummary: {
-      value: 'Phoenix itself is free; hosted sibling Arize AX from $0–$50/mo',
+      value: 'Phoenix itself is free. Arize AX, Arize\'s hosted product, costs $0–$50/mo.',
       source: { label: 'arize.com/pricing', href: 'https://arize.com/pricing/' },
     },
-    rbac: { value: 'Not found — no team/user concept in local OSS', acruxWins: true },
-    auditLog: { value: 'Not found in any settings page checked', acruxWins: true },
+    rbac: { value: 'Not found. The local open-source version has no teams and no users.', acruxWins: true },
+    auditLog: { value: 'Not found in any settings page we checked.', acruxWins: true },
     promptTemplating: {
-      value: 'Variable substitution only (mustache or f-string) — no conditional or loop syntax',
+      value: 'Variable substitution only, in mustache or f-string form. There is no syntax for conditionals or loops.',
       source: { label: 'Using the Playground', href: 'https://arize.com/docs/phoenix/prompt-engineering/how-to-prompts/using-the-playground' },
       acruxWins: true,
     },
     promptOptimizer: {
       value:
-        'Arize\'s Prompt Learning optimizer does rewrite a prompt from eval results, but it lives in a separate research repo installed by cloning — not on PyPI, not part of the Phoenix app, and documented as a tutorial rather than a feature',
+        'Arize\'s Prompt Learning optimizer does rewrite a prompt from eval results. It sits in a separate research repository that you must clone to install. The optimizer is not on PyPI and not part of the Phoenix app, and Arize documents it as a tutorial rather than a feature.',
       source: { label: 'Arize-ai/prompt-learning', href: 'https://github.com/Arize-ai/prompt-learning' },
       acruxWins: true,
       checkedOn: '2026-09-10',
@@ -264,16 +264,16 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
   opik: {
     slug: 'opik',
     name: 'Opik',
-    tagline: 'Evaluation-first observability from Comet — datasets, experiments, and online scoring rules.',
+    tagline: 'Observability from Comet, built around datasets, experiments, and online scoring rules.',
     postHref: `${DOCS_URL}/blog/acruxcore-vs-opik`,
     githubHref: 'https://github.com/comet-ml/opik',
     checkedOn: '2026-08-07',
     bestFor:
-      'Evaluation-first work: datasets, experiments and online scoring rules, under the same Apache 2.0 terms as AcruxCore.',
+      'Evaluation work with datasets, experiments and online scoring rules, under the same Apache 2.0 terms as AcruxCore.',
     limitations:
-      'No team, member or invite concept anywhere in self-host, since members are a Cloud-tier feature. Nothing in the request path, and no tool catalog. Mustache substitution by default, with playground conditionals still an open feature request.',
+      'No teams, members or invites when self-hosted, because members are a Cloud-tier feature. Nothing in the request path, and no tool catalog. Mustache substitution by default, with playground conditionals still an open feature request.',
     license: {
-      value: 'Apache License 2.0, no gated directory found in the repo — the same terms as AcruxCore',
+      value: 'Apache License 2.0, and no part of the repository is under a different license. The same terms as AcruxCore.',
       source: { label: 'LICENSE', href: 'https://github.com/comet-ml/opik/blob/main/LICENSE' },
       tie: true,
     },
@@ -284,31 +284,31 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     },
     gateway: {
       value:
-        'Not in the request path — ingests a trace after your own client calls the provider, so a budget, a cache hit or a virtual key has no call to act on',
+        'Not in the request path. Opik receives a trace after your own client has called the provider, so it cannot enforce a budget, serve a cache hit, or issue a virtual key.',
       acruxWins: true,
     },
     toolCatalog: {
-      value: 'No tool catalog concept at all — its "Agent playground" is a live-connection debugger for your own code, not a schema-definition UI',
+      value: 'No tool catalog. Opik\'s "Agent playground" attaches to your own running code for debugging, rather than letting you define a tool schema.',
       acruxWins: true,
     },
     teamStructure: {
-      value: 'No team, member, invite, or org concept anywhere in self-host — Comet\'s own pricing page confirms members are a Cloud-tier feature',
+      value: 'No teams, members, invites, or organizations when you self-host. Comet\'s own pricing page says members are a Cloud-tier feature.',
       acruxWins: true,
     },
     pricingSummary: {
-      value: 'Open source is free; Comet Cloud from $0–$19/mo',
+      value: 'The open-source version is free. Comet Cloud costs $0–$19/mo.',
       source: { label: 'comet.com/site/pricing', href: 'https://www.comet.com/site/pricing/' },
     },
-    rbac: { value: 'Not found in self-host — Enterprise-only per Comet\'s pricing page', acruxWins: true },
-    auditLog: { value: 'Not found anywhere in the settings pages checked', acruxWins: true },
+    rbac: { value: 'Not found when you self-host. Comet\'s pricing page lists roles as Enterprise-only.', acruxWins: true },
+    auditLog: { value: 'Not found in any settings page we checked.', acruxWins: true },
     promptTemplating: {
-      value: 'Mustache substitution by default; a Jinja2 type exists in the SDK, but conditionals/loops in the playground are an open feature request',
+      value: 'Mustache substitution by default. Opik\'s SDK has a Jinja2 prompt type, but a feature request for conditionals and loops in the playground is still open.',
       source: { label: 'GitHub issue #5838', href: 'https://github.com/comet-ml/opik/issues/5838' },
       acruxWins: true,
     },
     promptOptimizer: {
       value:
-        'Opik Agent Optimizer (Apache 2.0) rewrites a prompt against a dataset and metric, with more algorithms than AcruxCore has — MetaPrompt, GEPA, evolutionary, few-shot Bayesian — and it optimizes MCP tool signatures too. Driven from the SDK; runs are logged back to the UI but cannot be started there.',
+        'Opik Agent Optimizer is Apache 2.0 and rewrites a prompt against a dataset and a metric. It has more algorithms than AcruxCore: MetaPrompt, GEPA, evolutionary, and few-shot Bayesian optimizers. It optimizes MCP tool signatures too. You drive it from the SDK, and a run is logged back to the UI but cannot be started there.',
       source: { label: 'Opik Agent Optimizer', href: 'https://github.com/comet-ml/opik/blob/main/sdks/opik_optimizer/README.md' },
       checkedOn: '2026-09-10',
     },
@@ -318,16 +318,16 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
   helicone: {
     slug: 'helicone',
     name: 'Helicone',
-    tagline: 'A request-path proxy with per-user metrics — now in maintenance mode after being acquired by Mintlify.',
+    tagline: 'A request-path proxy with per-user metrics. It has been in maintenance mode since Mintlify acquired it.',
     postHref: `${DOCS_URL}/blog/acruxcore-vs-helicone`,
     githubHref: 'https://github.com/Helicone/helicone',
     checkedOn: '2026-08-07',
     bestFor:
-      'A small request-path proxy in front of a native provider key, when per-user metrics are the main thing wanted.',
+      'A small request-path proxy in front of a native provider key, for teams that mainly want per-user metrics.',
     limitations:
-      'In maintenance mode since the Mintlify acquisition, which is the first thing to weigh; a non-native (OpenRouter) key 501’d or misrouted in testing; the member-invite dialog has no role field at all; and there is no tool catalog.',
+      'In maintenance mode since the Mintlify acquisition. A key from a provider Helicone does not support natively failed in our test. OpenRouter either returned a 501 or reached a provider we had not asked for. The member-invite dialog has no role field, and there is no tool catalog.',
     license: {
-      value: 'Apache-2.0, no ee/ split found — the same terms as AcruxCore',
+      value: 'Apache License 2.0, and no part of the repository is under a different license. The same terms as AcruxCore.',
       source: { label: 'LICENSE', href: 'https://github.com/Helicone/helicone/blob/main/LICENSE' },
       tie: true,
     },
@@ -338,86 +338,86 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     },
     gateway: {
       value:
-        'In the request path, same as AcruxCore, and it works — it forwarded 300/300 benchmark rounds on a native OpenAI key. Routing a non-native (OpenRouter) key 501\'d or misrouted, and it forwards without logging until an org key is set.',
+        'In the request path, same as AcruxCore. On a native OpenAI key, Helicone forwarded all 300 calls in our benchmark. A key from a provider Helicone does not support natively failed. In our test OpenRouter either returned a 501 or reached a provider we had not asked for. Until you set a Helicone organization key, Helicone forwards calls but logs nothing.',
       tie: true,
     },
     toolCatalog: {
-      value: 'No tool-catalog concept anywhere in self-hosted Helicone — no schema builder, no execution record, nothing',
+      value: 'No tool catalog in self-hosted Helicone. There is no schema builder and no record of a tool call.',
       acruxWins: true,
     },
     teamStructure: {
-      value: 'Single org tier, no project layer — but the "Add New Member" dialog has no role field at all, just an email address',
+      value: 'One organization level, with no project layer below it. The "Add New Member" dialog takes an email address and has no role field.',
     },
     pricingSummary: {
       value: 'Free Hobby tier, then $79–$799/mo',
       source: { label: 'helicone.ai/pricing', href: 'https://www.helicone.ai/pricing' },
     },
-    rbac: { value: 'No role picker found anywhere in the member-invite flow checked', acruxWins: true },
-    auditLog: { value: 'Not found in the settings pages checked', acruxWins: true },
+    rbac: { value: 'No role picker anywhere in the member-invite flow we checked.', acruxWins: true },
+    auditLog: { value: 'Not found in any settings page we checked.', acruxWins: true },
     promptTemplating: {
-      value: 'Variable substitution only (prompt_id + inputs) — no templating logic',
+      value: 'Variable substitution only, through a prompt_id and its inputs. There is no templating logic.',
       source: { label: 'Prompt Management', href: 'https://docs.helicone.ai/gateway/prompt-integration' },
       acruxWins: true,
     },
     promptOptimizer: {
       value:
-        'The one optimizer was "Auto-Improve", a single-pass rewrite with no dataset and no scoring, and it sat in the prompt editor Helicone deprecated on 20 August 2025 — nothing replaced it in the current prompts feature',
+        'Helicone\'s only optimizer was "Auto-Improve", a single-pass rewrite with no dataset and no scoring. It sat in the prompt editor that Helicone deprecated on 20 August 2025. Helicone\'s current prompts feature has no optimizer.',
       source: { label: 'Prompt editor (deprecated)', href: 'https://docs.helicone.ai/features/prompts-legacy/editor' },
       acruxWins: true,
       checkedOn: '2026-09-10',
     },
     communityStars: '6,044',
     communityNote:
-      'Acquired by Mintlify; per Helicone\'s own announcement, "services will remain live... in maintenance mode."',
+      'Acquired by Mintlify. Helicone\'s own announcement says "services will remain live... in maintenance mode."',
   },
 
   mlflow: {
     slug: 'mlflow',
     name: 'MLflow',
-    tagline: 'The open-source ML/GenAI platform — prompt registry, tracing, evaluation, and its own request-path AI Gateway.',
+    tagline: 'The open-source ML and GenAI platform, with a prompt registry, tracing, evaluation, and its own request-path AI Gateway.',
     postHref: `${DOCS_URL}/blog/acruxcore-vs-mlflow`,
     githubHref: 'https://github.com/mlflow/mlflow',
     checkedOn: '2026-08-08',
     bestFor:
-      'Teams already running MLflow for classic ML, who want a prompt registry, tracing, full Jinja2 templating and a request-path gateway with per-endpoint PII and safety guardrails in a tool they already operate.',
+      'Teams already running MLflow for classic ML. In a tool they already operate, they get a prompt registry, tracing, full Jinja2 templating, and a request-path gateway with PII and safety guardrails on each endpoint.',
     limitations:
-      'No auth, teams, members or roles at all in self-hosted OSS, and no login screen at all. Its MCP Registry catalogs whole servers rather than individual tools, so there is no per-tool version history and nothing that executes a call.',
+      'No auth, teams, members or roles in the self-hosted open-source version, and no login screen. Its MCP Registry catalogs whole servers rather than individual tools. A single tool has no version history, and nothing runs a tool call.',
     license: {
-      value: 'Apache License 2.0, no gated directory found in the repo — the same terms as AcruxCore',
+      value: 'Apache License 2.0, and no part of the repository is under a different license. The same terms as AcruxCore.',
       source: { label: 'LICENSE', href: 'https://github.com/mlflow/mlflow/blob/main/LICENSE' },
       tie: true,
     },
     selfHost: {
-      value: 'mlflow server (pip install mlflow), or docker compose for a Postgres-backed instance',
+      value: 'pip install mlflow, then mlflow server. There is also a docker compose stack backed by Postgres.',
       source: { label: 'GitHub', href: 'https://github.com/mlflow/mlflow' },
       tie: true,
     },
     gateway: {
       value:
-        'In the request path, same as AcruxCore — named endpoints route to 60+ providers with usage tracking, and add per-endpoint content guardrails (PII/safety) AcruxCore does not have; both platforms enforce a spend cap on that path',
+        'In the request path, same as AcruxCore. Named endpoints route to more than 60 providers and track usage. Each endpoint can also apply content guardrails for PII and safety. AcruxCore has no content guardrails. MLflow and AcruxCore both enforce a spend cap in the request path.',
       competitorWins: true,
     },
     toolCatalog: {
-      value: 'An MCP Registry (Beta) catalogs external MCP servers by their server.json manifest — the unit is a whole server, not a tool, so there is no per-tool version history, nothing here executes a tool call, and no page measures one',
+      value: 'An MCP Registry (Beta) catalogs each external MCP server from that server\'s server.json manifest. The registry stores a whole server, not a single tool, so a single tool has no version history. Nothing here runs or measures a tool call.',
       acruxWins: true,
     },
     teamStructure: {
-      value: 'No team, member, invite, or org concept anywhere — no login screen at all in self-hosted OSS',
+      value: 'No teams, members, invites, or organizations. The self-hosted open-source version has no login screen.',
       acruxWins: true,
     },
     pricingSummary: {
-      value: 'MLflow itself is free; Databricks-hosted Managed MLflow is usage-based (DBU consumption), no published flat price',
+      value: 'MLflow itself is free. Managed MLflow, hosted by Databricks, is priced by usage in DBUs, with no flat price published.',
       source: { label: 'databricks.com/product/managed-mlflow', href: 'https://www.databricks.com/product/managed-mlflow' },
     },
-    rbac: { value: 'Not found — no auth at all in self-hosted OSS, checked across every Settings page', acruxWins: true },
-    auditLog: { value: 'Not found — Settings has only General, LLM Connections, and Webhooks', acruxWins: true },
+    rbac: { value: 'Not found. The self-hosted open-source version has no authentication. We checked every Settings page.', acruxWins: true },
+    auditLog: { value: 'Not found. Settings has only General, LLM Connections, and Webhooks.', acruxWins: true },
     promptTemplating: {
-      value: 'Full Jinja2 — {% if %} conditionals and {% for %} loops both render natively, plus a real version diff and @production/@staging aliases — the one competitor that matches AcruxCore\'s own templates',
+      value: 'Full Jinja2. {% if %} conditionals and {% for %} loops both render natively. There is also a version diff, plus @production and @staging aliases. MLflow is the one competitor that matches AcruxCore\'s own templates.',
       tie: true,
     },
     promptOptimizer: {
       value:
-        'mlflow.genai.optimize_prompts() (experimental) runs DSPy MIPROv2 or GEPA against a dataset and registers the rewritten template as a new prompt version — published research algorithms AcruxCore does not implement, but SDK-only, with no way to start a run from the UI',
+        'mlflow.genai.optimize_prompts() is experimental. It runs DSPy MIPROv2 or GEPA against a dataset, then registers the rewritten template as a new prompt version. DSPy MIPROv2 and GEPA are published research algorithms that AcruxCore does not implement. You can start a run from the SDK only, not from the UI.',
       source: { label: 'Optimize prompts', href: 'https://mlflow.org/docs/latest/genai/prompt-registry/optimize-prompts/' },
       checkedOn: '2026-09-10',
     },
@@ -427,55 +427,55 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
   laminar: {
     slug: 'laminar',
     name: 'Laminar',
-    tagline: 'Rust and ClickHouse observability built for agent runs — SQL over spans, LLM-watched Signals, and a coding-agent-first CLI.',
+    tagline: 'Observability for agent runs, built in Rust on ClickHouse. Laminar has SQL over spans, LLM-watched Signals, and a CLI made for coding agents.',
     postHref: `${DOCS_URL}/blog/acruxcore-vs-laminar`,
     githubHref: 'https://github.com/lmnr-ai/lmnr',
     checkedOn: '2026-09-06',
     bestFor:
-      'Agent-run observability: SQL over spans, an LLM-watched Signals engine and PII redaction, with a workspace layer above the project and three roles.',
+      'Observability for agent runs, with SQL over spans, an LLM-watched Signals engine, and PII redaction. It has a workspace layer above projects, and three roles.',
     limitations:
-      'No prompt registry at all, so there is nothing to version or template; nothing in the request path; the lite self-host stack ships Signals switched off with its span index uncreated; and it has the smallest community of the six.',
+      'No prompt registry, so there is nothing to version or template. Nothing in the request path. The lite self-host stack switches Signals off and does not create the span index. The smallest community of the six competitors.',
     license: {
-      value: 'Apache License 2.0, no gated ee/ directory found in the repo at the commit checked — the same terms as AcruxCore',
+      value: 'Apache License 2.0. At the commit we checked, no part of the repository was under a different license. The same terms as AcruxCore.',
       source: { label: 'LICENSE', href: 'https://github.com/lmnr-ai/lmnr/blob/main/LICENSE.md' },
       tie: true,
     },
     selfHost: {
-      value: 'docker compose up, though the lite stack ships Signals switched off and its Quickwit span index uncreated',
+      value: 'docker compose up. Laminar\'s lite stack switches Signals off and does not create the Quickwit span index.',
       source: { label: 'GitHub', href: 'https://github.com/lmnr-ai/lmnr' },
       tie: true,
     },
     gateway: {
       value:
-        'Not in the request path, by design — an OpenTelemetry SDK records the call your own client already made, so nothing can route, cap or cache it; the trade is that any provider works with no proxy to configure',
+        'Not in the request path, by design. An OpenTelemetry SDK records the call your own client already made, so nothing can route, cap, or cache that call. In exchange, any provider works and there is no proxy to configure.',
       acruxWins: true,
     },
     toolCatalog: {
-      value: 'Tool schemas are a JSONB field on a single playground row, and tool calls appear as spans — no catalog page, no version history, and nothing here executes a tool',
+      value: 'Tool schemas are a JSONB field on a single playground row, and tool calls appear as spans. There is no catalog page, no version history, and nothing here runs a tool.',
       acruxWins: true,
     },
     teamStructure: {
-      value: 'Two levels — workspace above project — with three roles, but the invite dialog takes an email only and assigns the role afterwards',
+      value: 'Two levels, with a workspace above the project, and three roles. The invite dialog takes an email address only, and you assign a role afterwards.',
       competitorWins: true,
     },
     pricingSummary: {
-      value: 'Free tier (1 GB, 7-day retention, 1 seat), then $30–$150/mo priced by GB ingested rather than by trace count',
+      value: 'Free tier with 1 GB ingested, 7-day retention, and 1 seat. Paid plans run $30–$150/mo, priced by GB ingested rather than by trace count.',
       source: { label: 'laminar.sh/pricing', href: 'https://laminar.sh/pricing' },
     },
-    rbac: { value: 'Three workspace roles (owner, admin, member) against AcruxCore\'s single role per member', competitorWins: true },
-    auditLog: { value: 'Not found in any project or workspace settings page checked', acruxWins: true },
+    rbac: { value: 'Three workspace roles: owner, admin, and member. In AcruxCore each person has one role.', competitorWins: true },
+    auditLog: { value: 'Not found in any project or workspace settings page we checked.', acruxWins: true },
     promptTemplating: {
-      value: 'No prompt registry at all — a playground is one mutable row of messages with no versions, aliases or variables, so there is nothing to template',
+      value: 'No prompt registry. A playground holds a single row of messages that you overwrite. It has no versions, aliases, or variables, so there is nothing to template.',
       acruxWins: true,
     },
     promptOptimizer: {
-      value: 'Nothing to optimize — with no prompt registry, there is no stored prompt for an optimizer to rewrite or version',
+      value: 'Nothing to optimize. With no prompt registry, there is no stored prompt for an optimizer to rewrite or version.',
       acruxWins: true,
       checkedOn: '2026-09-10',
     },
     communityStars: '3,230',
     communityNote:
-      'Y Combinator S24; 29 contributors and release v0.2.3 as of the date checked. Ships a PII redaction toggle and an LLM-watched Signals engine AcruxCore has no equivalent for.',
+      'Y Combinator S24. On the date we checked it had 29 contributors and release v0.2.3. It ships a PII redaction toggle and an LLM-watched Signals engine. AcruxCore has no equivalent of either.',
   },
 };
 

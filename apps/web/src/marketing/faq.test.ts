@@ -102,9 +102,11 @@ describe('FAQ content', () => {
     expect(text).toMatch(/Enterprise/);
     expect(text).toMatch(/team-wide/);
     // The differentiator is the price, not the feature: Langfuse ships an audit
-    // log too. An edit that keeps the capability and drops "every plan" leaves
-    // a claim every competitor can match.
-    expect(text).toMatch(/every plan/);
+    // log too. An edit that keeps the capability and drops the "nothing to pay"
+    // point leaves a claim every competitor can match. AcruxCore has no plans or
+    // tiers (owner, 2026-09-11), so the wording must not mention a plan.
+    expect(text).toMatch(/nothing to pay|nothing extra/);
+    expect(text).not.toMatch(/every plan/);
   });
 
   // "What are AcruxCore's key strengths?" is the question an answer engine
@@ -120,10 +122,11 @@ describe('FAQ content', () => {
 
     const text = answerToPlainText(strengths?.answer ?? []);
     expect(text).toMatch(/audit trail/i);
-    expect(text).toMatch(/every plan/);
     // Without the price the claim is one every platform in the comparison can
-    // make, since Langfuse ships an audit log too.
-    expect(text).toMatch(/no paid plan/);
+    // make, since Langfuse ships an audit log too. "Every plan" is banned: the
+    // product has one edition, hosted or self-hosted.
+    expect(text).toMatch(/nothing extra/);
+    expect(text).not.toMatch(/every plan/);
   });
 
   // A trace and an audit event are the two records this product keeps, and

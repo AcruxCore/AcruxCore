@@ -23,7 +23,7 @@ export function FaqPage(): ReactNode {
       <ContentHeader
         eyebrow="Questions"
         title="Frequently asked questions"
-        lead="What AcruxCore does, how it compares to the alternatives, and where it is the wrong tool for the job. Every answer that could be argued with links to the evidence behind it."
+        lead="This page says what AcruxCore does, how it compares with six other platforms, and which teams should pick something else."
         docTitle="FAQ — AcruxCore"
       />
 
@@ -81,15 +81,16 @@ export function FaqPage(): ReactNode {
         )}
       >
         <h2 style={cssToStyle('font-size:17px;font-weight:650;letter-spacing:-.01em;margin:0 0 8px;')}>
-          Something not answered here?
+          Where to look next
         </h2>
         <p className="acx-prose" style={cssToStyle('margin:0;')}>
-          The <Link to="/compare">comparison matrix</Link> has the row-by-row detail with a source
-          for every fact, the{' '}
+          The <Link to="/compare">comparison matrix</Link> puts the seven platforms side by side with
+          a source for each cell. The{' '}
           <a href={`${DOCS_URL}/blog/hands-on-llm-ops-comparison`} target="_blank" rel="noreferrer">
             hands-on test of nine platforms
           </a>{' '}
-          is the long version, and <Link to="/contact">contact</Link> reaches a person.
+          covers these seven, plus LangSmith and PromptLayer, in more detail. The{' '}
+          <Link to="/contact">contact page</Link> reaches the AcruxCore team.
         </p>
       </section>
     </MarketingShell>
