@@ -16,6 +16,24 @@ beforeAll(async () => {
     req.on('data', (c) => (bodyRaw += c));
     req.on('end', () => {
       res.setHeader('content-type', 'application/json');
+      // Routes that exist only for the issue-#452 failure-classification tests. Every
+      // other path keeps the original always-200 behaviour the older tests rely on.
+      const path = new URL(req.url ?? '/', 'http://localhost').pathname;
+      if (path === '/down') {
+        res.statusCode = 503;
+        res.end(JSON.stringify({ error: 'service unavailable' }));
+        return;
+      }
+      if (path === '/soft-error') {
+        // The case only the tool's owner can judge: a perfectly successful HTTP request
+        // whose body says the call failed.
+        res.end(JSON.stringify({ error: 'location not found', code: 'NO_SUCH_CITY' }));
+        return;
+      }
+      if (path === '/wrong-shape') {
+        res.end(JSON.stringify({ tempC: 'quite warm' }));
+        return;
+      }
       res.end(
         JSON.stringify({
           ok: true,
@@ -528,5 +546,242 @@ describe('POST /tools/:id/execute — traceContext', () => {
     // Team A's trace is untouched: still exactly its one seeded span.
     const teamATrace = await prisma.trace.findUnique({ where: { id: teamATraceId } });
     expect(teamATrace?.spanCount).toBe(1);
+  });
+});
+
+/**
+ * Issue #452 — a tool call that failed must produce a red span, and the trace it lands
+ * in must be red with it. Every test here drives the real endpoint against the local
+ * stub server and then reads the span row back out of Postgres, because the bug being
+ * fixed was precisely that the HTTP response looked fine while the stored span lied.
+ */
+describe('POST /tools/:id/execute — failure classification', () => {
+  /** Creates a tool with one committed http version and returns its id. */
+  async function makeTool(apiKey: string, name: string, executor: Record<string, unknown>) {
+    const t = await request(app)
+      .post('/api/v1/tools')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ name })
+      .expect(201);
+    await request(app)
+      .post(`/api/v1/tools/${t.body.id}/versions`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        parametersSchema: { type: 'object', properties: { city: { type: 'string' } } },
+        executor,
+      })
+      .expect(201);
+    return t.body.id as string;
+  }
+
+  it('records a non-2xx upstream as an error span but still returns the body', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const toolId = await makeTool(apiKey, 'get_weather', {
+      type: 'http',
+      url: `${baseUrl}/down`,
+      method: 'GET',
+    });
+
+    // The call does NOT throw. Whether a failed tool stops the agent is the caller's
+    // decision; making the trace tell the truth is ours.
+    const res = await request(app)
+      .post(`/api/v1/tools/${toolId}/execute`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ arguments: { city: 'Paris' } })
+      .expect(200);
+
+    expect(res.body.status).toBe(503);
+    expect(res.body.result).toEqual({ error: 'service unavailable' });
+    expect(res.body.error).toEqual({ type: 'http_status', message: 'Upstream returned HTTP 503.' });
+
+    const span = await prisma.span.findFirstOrThrow({ where: { kind: 'tool', name: 'get_weather' } });
+    expect(span.status).toBe('error');
+    expect(span.errorMessage).toBe('Upstream returned HTTP 503.');
+    expect(span.attributes).toMatchObject({ errorType: 'http_status', httpStatus: 503 });
+
+    // The rollup has to follow, or the trace list still shows a green row.
+    const trace = await prisma.trace.findUniqueOrThrow({ where: { id: span.traceId } });
+    expect(trace.status).toBe('error');
+
+    // The upstream body is kept — "what did it actually say" is the first question
+    // anyone asks of a red span.
+    const payload = await prisma.spanPayload.findFirstOrThrow({ where: { spanId: span.id } });
+    expect(payload.output).toEqual({ error: 'service unavailable' });
+  });
+
+  it('classifies a 200 the tool owner calls a failure via failureWhen', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const toolId = await makeTool(apiKey, 'get_weather', {
+      type: 'http',
+      url: `${baseUrl}/soft-error`,
+      method: 'GET',
+      failureWhen:
+        'function transform(input) { return input.body.error ? { type: "upstream", message: input.body.error } : null; }',
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/tools/${toolId}/execute`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ arguments: { city: 'Atlantis' } })
+      .expect(200);
+
+    expect(res.body.status).toBe(200); // the protocol saw nothing wrong
+    expect(res.body.error).toEqual({ type: 'tool_declared', message: 'location not found' });
+
+    const span = await prisma.span.findFirstOrThrow({ where: { kind: 'tool', name: 'get_weather' } });
+    expect(span.status).toBe('error');
+    expect(span.attributes).toMatchObject({ errorType: 'tool_declared', httpStatus: 200 });
+  });
+
+  it('runs failureWhen on the RAW body, so a responseTransform cannot hide the error', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    // This transform is exactly the trap: it discards `error` and hands the model a
+    // tidy object. A detector reading the transformed result would see nothing wrong.
+    const toolId = await makeTool(apiKey, 'get_weather', {
+      type: 'http',
+      url: `${baseUrl}/soft-error`,
+      method: 'GET',
+      responseTransform: 'function transform(input) { return { city: "unknown" }; }',
+      failureWhen:
+        'function transform(input) { return input.body.error ? { message: input.body.error } : null; }',
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/tools/${toolId}/execute`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ arguments: { city: 'Atlantis' } })
+      .expect(200);
+
+    expect(res.body.result).toEqual({ city: 'unknown' });
+    expect(res.body.error?.type).toBe('tool_declared');
+    const span = await prisma.span.findFirstOrThrow({ where: { kind: 'tool', name: 'get_weather' } });
+    expect(span.status).toBe('error');
+  });
+
+  it('records a resultSchema mismatch as a warning, leaving the span ok', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const toolId = await makeTool(apiKey, 'get_weather', {
+      type: 'http',
+      url: `${baseUrl}/wrong-shape`,
+      method: 'GET',
+      resultSchema: { type: 'object', properties: { tempC: { type: 'number' } }, required: ['tempC'] },
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/tools/${toolId}/execute`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ arguments: { city: 'Paris' } })
+      .expect(200);
+
+    expect(res.body.error).toBeUndefined();
+    expect(res.body.warning?.type).toBe('schema_mismatch');
+
+    const span = await prisma.span.findFirstOrThrow({ where: { kind: 'tool', name: 'get_weather' } });
+    // Warn by default: our own declaration may be the wrong one, and a check that cries
+    // wolf gets switched off, taking the real signal with it.
+    expect(span.status).toBe('ok');
+    expect(span.attributes).toMatchObject({
+      errorType: 'schema_mismatch',
+      warning: { type: 'schema_mismatch' },
+    });
+    const trace = await prisma.trace.findUniqueOrThrow({ where: { id: span.traceId } });
+    expect(trace.status).toBe('ok');
+  });
+
+  it('promotes a resultSchema mismatch to an error when the tool asks for it', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const toolId = await makeTool(apiKey, 'get_weather', {
+      type: 'http',
+      url: `${baseUrl}/wrong-shape`,
+      method: 'GET',
+      resultSchema: { type: 'object', properties: { tempC: { type: 'number' } }, required: ['tempC'] },
+      resultSchemaSeverity: 'error',
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/tools/${toolId}/execute`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ arguments: { city: 'Paris' } })
+      .expect(200);
+
+    expect(res.body.error?.type).toBe('schema_mismatch');
+    const span = await prisma.span.findFirstOrThrow({ where: { kind: 'tool', name: 'get_weather' } });
+    expect(span.status).toBe('error');
+    expect(span.attributes).not.toMatchObject({ warning: expect.anything() });
+  });
+
+  it('lets the most authoritative detector win and keeps the others', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    // A 503 whose body ALSO fails the declared schema. The protocol's verdict is a fact
+    // and outranks an inferred mismatch, but the mismatch must not be silently dropped.
+    const toolId = await makeTool(apiKey, 'get_weather', {
+      type: 'http',
+      url: `${baseUrl}/down`,
+      method: 'GET',
+      resultSchema: { type: 'object', required: ['tempC'] },
+      resultSchemaSeverity: 'error',
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/tools/${toolId}/execute`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ arguments: { city: 'Paris' } })
+      .expect(200);
+
+    expect(res.body.error?.type).toBe('http_status');
+    const span = await prisma.span.findFirstOrThrow({ where: { kind: 'tool', name: 'get_weather' } });
+    expect(span.attributes).toMatchObject({
+      errorType: 'http_status',
+      alsoDetected: [{ errorType: 'schema_mismatch' }],
+    });
+  });
+
+  it('keeps a matching result green', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const toolId = await makeTool(apiKey, 'get_weather', {
+      type: 'http',
+      url: `${baseUrl}/weather`,
+      method: 'GET',
+      responseTransform: 'function transform(input) { return input.body.data; }',
+      resultSchema: { type: 'object', properties: { tempC: { type: 'number' } }, required: ['tempC'] },
+      failureWhen: 'function transform(input) { return input.body.error ? { message: "bad" } : null; }',
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/tools/${toolId}/execute`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ arguments: { city: 'Paris' } })
+      .expect(200);
+
+    expect(res.body.result).toEqual({ tempC: 18 });
+    expect(res.body.error).toBeUndefined();
+    expect(res.body.warning).toBeUndefined();
+    const span = await prisma.span.findFirstOrThrow({ where: { kind: 'tool', name: 'get_weather' } });
+    expect(span.status).toBe('ok');
+    expect(span.attributes).not.toMatchObject({ errorType: expect.anything() });
+  });
+
+  it('refuses a failureWhen that does not compile, at commit time', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const t = await request(app)
+      .post('/api/v1/tools')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ name: 'broken_detector' })
+      .expect(201);
+    // A detector that never runs is worse than none: the tool would read as one that
+    // simply never fails.
+    await request(app)
+      .post(`/api/v1/tools/${t.body.id}/versions`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        parametersSchema: { type: 'object' },
+        executor: {
+          type: 'http',
+          url: `${baseUrl}/weather`,
+          method: 'GET',
+          failureWhen: 'function transform(input) { return {',
+        },
+      })
+      .expect(400);
   });
 });

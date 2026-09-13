@@ -48,6 +48,25 @@ export class TraceFacetsRepository {
   }
 
   /**
+   * Distinct `errorCode` slugs the team's own tools have declared, alphabetical.
+   *
+   * `errorType` needs no facet — its six values are a closed set the frontend can hold.
+   * `errorCode` is the opposite: the vocabulary belongs to whoever writes the tools, so
+   * the only way to offer it in a picker is to read back what has actually been recorded.
+   *
+   * @param teamId - Team scope.
+   */
+  async listErrorCodes(teamId: string): Promise<string[]> {
+    const rows = await prisma.$queryRaw<{ code: string }[]>(Prisma.sql`
+      SELECT DISTINCT attributes->>'errorCode' AS code FROM spans
+      WHERE team_id = ${teamId}::uuid AND attributes->>'errorCode' IS NOT NULL
+      ORDER BY code
+      LIMIT ${FACET_LIMIT}
+    `);
+    return rows.map((r) => r.code);
+  }
+
+  /**
    * Distinct metadata keys in use for the team, alphabetical.
    *
    * @param teamId - Team scope.

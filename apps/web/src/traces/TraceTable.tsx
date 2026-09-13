@@ -64,7 +64,15 @@ export function TraceTable({ traces, showSession = true }: TraceTableProps) {
                   {dateTime(t.startedAt)}
                 </Link>
               </td>
-              <td className="px-4 py-2.5"><StatusDot status={t.status} /></td>
+              {/* A run the gateway rescued is still `ok`, so without the amber flag a model
+                  that fails every single call stays invisible behind its own fallback. */}
+              <td className="px-4 py-2.5">
+                <StatusDot
+                  status={t.status}
+                  warning={t.hasWarning}
+                  className={t.hasWarning && t.status === 'ok' ? 'cursor-help' : undefined}
+                />
+              </td>
               <td className="px-4 py-2.5">
                 {t.name ? (
                   <span className="block max-w-[260px] truncate text-ink" title={t.name}>

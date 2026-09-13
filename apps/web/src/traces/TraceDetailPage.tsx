@@ -7,6 +7,7 @@ import { FeedbackPanel } from './FeedbackPanel';
 import { ScoresPanel } from './ScoresPanel';
 import { Collapsible } from './Collapsible';
 import { formatCount, formatUsd } from './format';
+import { traceHasWarning } from './span-tree';
 
 /** Matches the `#span-<ref>` hash produced by feedback-row deep links (F4). */
 const SPAN_HASH_RE = /^#span-(.+)$/;
@@ -56,7 +57,11 @@ export function TraceDetailPage() {
           <h1 className="text-[20px] font-semibold tracking-tight">
             {trace.name ?? <span className="font-mono text-faint">{trace.id.slice(0, 8)}</span>}
           </h1>
-          <StatusDot status={trace.status} />
+          {/* Amber here for the same reason the trace list row is amber: a run that only
+              succeeded because the gateway retried or fell back is not a clean run. The
+              detail page already holds every span, so it derives this rather than asking
+              the API for the roll-up the list row gets. */}
+          <StatusDot status={trace.status} warning={traceHasWarning(spans)} />
           {trace.sessionId && (
             <Link
               to={`/sessions/${encodeURIComponent(trace.sessionId)}`}

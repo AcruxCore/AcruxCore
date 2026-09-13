@@ -100,6 +100,35 @@ class ProviderConfig(TypedDict):
     api_key: str
 
 
+class GatewayControl(TypedDict, total=False):
+    """Per-call gateway controls, sent as the request body's ``gateway`` object.
+
+    These govern what the **gateway** does with your call upstream. They are a
+    different layer from the client's own ``max_retries``, which only retries this
+    SDK's HTTP request to AcruxCore and never changes how many times a provider is
+    called.
+
+    ``max_retries``
+        How many extra times the gateway may call the **same model on the same
+        credential** after a transient failure (a ``429``, a ``5xx``, or a network
+        error). ``0`` to ``5``; the gateway's own default is 1. ``0`` turns
+        same-model retries off without touching the fallback chain — the setting for
+        a call that is not safe to repeat. Not honoured on a streaming call, where a
+        stream commits to a deployment as soon as its first chunk arrives.
+
+    ``fallback``
+        Whether a failed model may hand off to the next model in its fallback chain
+        (default ``True``). ``False`` means "this model or nothing": the failure
+        comes back as an error instead of a different model's answer. It does not
+        disable retries, because a retry is the same model.
+
+    Ignored on a BYO-provider call, which never reaches an AcruxCore gateway.
+    """
+
+    max_retries: int
+    fallback: bool
+
+
 # ``ToolChoice`` — how the model should use tools.
 ToolChoice = Union[Literal["auto", "none", "required"], Dict[str, Any]]
 
@@ -590,12 +619,19 @@ class ResolvedTool:
     :param version_number: The version the ref's alias resolved to.
     :param executor_type: ``'client'`` (you run it) or ``'http'`` (the platform can).
     :param function: The OpenAI-shaped ``{name, description?, parameters}``.
+    :param result_schema: The shape the tool promises to return, when its version
+        declares one. Present so a CLIENT-side tool is checked against the same contract
+        the platform applies to an ``http`` one — otherwise the same tool would be
+        validated or not depending on who ran it (issue #452).
+    :param result_schema_severity: ``'warn'`` or ``'error'`` — what a mismatch means.
     """
 
     tool_id: str
     version_number: int
     executor_type: str
     function: Dict[str, Any]
+    result_schema: Optional[Dict[str, Any]] = None
+    result_schema_severity: Optional[str] = None
 
     @property
     def name(self) -> str:
@@ -609,6 +645,8 @@ class ResolvedTool:
             version_number=d["versionNumber"],
             executor_type=d["executorType"],
             function=d["function"],
+            result_schema=d.get("resultSchema"),
+            result_schema_severity=d.get("resultSchemaSeverity"),
         )
 
 
@@ -620,12 +658,19 @@ class ToolExecuteResult:
     :param status: The upstream HTTP status the executor saw.
     :param latency_ms: Server-measured wall-clock duration.
     :param tool_version_id: The version that actually ran.
+    :param error: Present when a detector classified this call as failed. Note that this
+        does NOT mean the call raised — a tool whose upstream answered 503, or whose own
+        ``failureWhen`` predicate fired, still returns its body here while its span is
+        already red. Whether that stops the agent is the caller's decision.
+    :param warning: Present when a detector fired but did not consider the call failed.
     """
 
     result: Any
     status: int
     latency_ms: int
     tool_version_id: str
+    error: Optional[Dict[str, str]] = None
+    warning: Optional[Dict[str, str]] = None
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "ToolExecuteResult":
@@ -634,6 +679,8 @@ class ToolExecuteResult:
             status=d["status"],
             latency_ms=d["latencyMs"],
             tool_version_id=d["toolVersionId"],
+            error=d.get("error"),
+            warning=d.get("warning"),
         )
 
 

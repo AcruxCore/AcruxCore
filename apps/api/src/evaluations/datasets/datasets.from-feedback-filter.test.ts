@@ -48,6 +48,7 @@ async function postTrace(
     variables?: Record<string, unknown>;
     tags?: string[];
     input?: unknown;
+    attributes?: Record<string, unknown>;
   } = {},
 ): Promise<string> {
   const res = await agent
@@ -68,6 +69,7 @@ async function postTrace(
               model: 'gpt-4o-mini',
               ...(opts.promptVersionId ? { promptVersionId: opts.promptVersionId } : {}),
               ...(opts.variables ? { variables: opts.variables } : {}),
+              ...(opts.attributes ? { attributes: opts.attributes } : {}),
               input: opts.input ?? 'hello',
               output: 'hi there',
             },
@@ -132,6 +134,48 @@ describe('POST /api/v1/datasets/from-feedback — filter mode', () => {
     expect(dataset.body.examples).toHaveLength(1);
     expect(dataset.body.examples[0].input).toEqual({ name: 'Al' });
     expect(dataset.body.examples[0].criteria).toBe('greeted the wrong person');
+  });
+
+  /**
+   * Issue #460 — the "add all matching" dialog sends its chips as a JSON body, where a
+   * boolean is a real boolean rather than the string a query string carries. The failure
+   * chips the bar offers on this surface have to survive that trip, both in the schema
+   * and in the SQL, or a dataset quietly gets rows the person filtered out.
+   */
+  it('narrows by the failure filters the dialog offers, sent as JSON types', async () => {
+    const { agent } = await authedAgent(app);
+    const { promptId, versionId } = await createPrompt(agent, 'weather');
+
+    const declared = await postTrace(agent, {
+      promptVersionId: versionId,
+      variables: { name: 'Al' },
+      attributes: { errorType: 'tool_declared', errorCode: 'location_not_found' },
+    });
+    const otherCode = await postTrace(agent, {
+      promptVersionId: versionId,
+      variables: { name: 'Bo' },
+      attributes: { errorType: 'tool_declared', errorCode: 'ambiguous_city' },
+    });
+    await postFeedback(agent, declared, { rating: -1, comment: 'invented a forecast' });
+    await postFeedback(agent, otherCode, { rating: -1, comment: 'picked the wrong city' });
+
+    const res = await agent
+      .post('/api/v1/datasets/from-feedback')
+      .send({
+        name: 'atlantis-failures',
+        filter: {
+          prompt_id: promptId,
+          error_type: 'tool_declared',
+          error_code: 'location_not_found',
+          has_warning: false,
+        },
+      })
+      .expect(201);
+
+    expect(res.body.matched).toBe(1);
+    const dataset = await agent.get(`/api/v1/datasets/${res.body.id}`).expect(200);
+    expect(dataset.body.examples).toHaveLength(1);
+    expect(dataset.body.examples[0].criteria).toBe('invented a forecast');
   });
 
   it('a filter cannot reach another team\'s feedback', async () => {

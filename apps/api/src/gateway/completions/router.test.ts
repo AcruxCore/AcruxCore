@@ -88,7 +88,7 @@ describe('resolveDeployments', () => {
 // Minimal fake deployment — only fields the router touches.
 function dep(modelId: string, upstream = 'gpt-4o-mini'): ResolvedDeployment {
   return {
-    model: { id: modelId, upstreamModel: upstream } as GatewayModel,
+    model: { id: modelId, publicName: `model-${modelId}`, upstreamModel: upstream } as GatewayModel,
     credential: { id: `cred-${modelId}` } as ProviderConnection,
   };
 }
@@ -109,13 +109,26 @@ function provErr(status: number, retriable: boolean): ProviderError {
   return new ProviderError(`provider ${status}`, status, undefined, retriable);
 }
 
+/** Throws a ProviderError carrying no body detail, so only its message is available. */
+function provErrThrow(status: number): never {
+  throw provErr(status, false);
+}
+
 describe('callWithFallback', () => {
   it('returns the first deployment response when it succeeds', async () => {
     const invoke: DeploymentInvoker = async () => okResponse('gpt-4o-mini');
     const res = await callWithFallback([dep('a'), dep('b')], REQ, invoke);
     expect(res.deployment.model.id).toBe('a');
     expect(res.meta.attempts).toBe(1);
-    expect(res.meta.trail).toEqual([{ modelId: 'a', credentialId: 'cred-a' }]);
+    expect(res.meta.trail).toEqual([
+      {
+        modelId: 'a',
+        model: 'model-a',
+        upstreamModel: 'gpt-4o-mini',
+        credentialId: 'cred-a',
+        attempts: 1,
+      },
+    ]);
   });
 
   it('sends the deployment upstream model, not the public name', async () => {
@@ -138,8 +151,22 @@ describe('callWithFallback', () => {
     const res = await callWithFallback([dep('a'), dep('b')], REQ, invoke);
     expect(res.deployment.model.id).toBe('b');
     expect(res.meta.attempts).toBe(2);
-    expect(res.meta.trail[0]).toEqual({ modelId: 'a', credentialId: 'cred-a', error: '401' });
-    expect(res.meta.trail[1]).toEqual({ modelId: 'b', credentialId: 'cred-b' });
+    expect(res.meta.trail[0]).toEqual({
+      modelId: 'a',
+      model: 'model-a',
+      upstreamModel: 'gpt-4o-mini',
+      credentialId: 'cred-a',
+      attempts: 1,
+      error: '401',
+      errorMessage: 'provider 401',
+    });
+    expect(res.meta.trail[1]).toEqual({
+      modelId: 'b',
+      model: 'model-b',
+      upstreamModel: 'gpt-4o-mini',
+      credentialId: 'cred-b',
+      attempts: 1,
+    });
   });
 
   it('retries a transient 500 on the same deployment, then falls back on exhaustion', async () => {
@@ -153,7 +180,126 @@ describe('callWithFallback', () => {
     expect(calls).toEqual(['a', 'a', 'b']);
     expect(res.deployment.model.id).toBe('b');
     expect(res.meta.attempts).toBe(3);
-    expect(res.meta.trail[0]).toEqual({ modelId: 'a', credentialId: 'cred-a', error: '500' });
+    expect(res.meta.trail[0]).toEqual({
+      modelId: 'a',
+      model: 'model-a',
+      upstreamModel: 'gpt-4o-mini',
+      credentialId: 'cred-a',
+      attempts: 2,
+      error: '500',
+      errorMessage: 'provider 500',
+    });
+  });
+
+  it('names the model and its upstream in every trail entry', async () => {
+    const invoke: DeploymentInvoker = async (d) => {
+      if (d.model.id === 'a') throw provErr(500, true);
+      return okResponse('gpt-4o');
+    };
+    const res = await callWithFallback([dep('a'), dep('b', 'gpt-4o')], REQ, invoke, {
+      maxRetriesPerConn: 0,
+    });
+    expect(res.meta.trail).toEqual([
+      {
+        modelId: 'a',
+        model: 'model-a',
+        upstreamModel: 'gpt-4o-mini',
+        credentialId: 'cred-a',
+        attempts: 1,
+        error: '500',
+        errorMessage: 'provider 500',
+      },
+      {
+        modelId: 'b',
+        model: 'model-b',
+        upstreamModel: 'gpt-4o',
+        credentialId: 'cred-b',
+        attempts: 1,
+      },
+    ]);
+  });
+
+  it('counts each deployment own attempts, so a retry before a fallback is visible', async () => {
+    const invoke: DeploymentInvoker = async (d) => {
+      if (d.model.id === 'a') throw provErr(500, true);
+      return okResponse('gpt-4o');
+    };
+    const res = await callWithFallback([dep('a'), dep('b')], REQ, invoke, { maxRetriesPerConn: 2 });
+    // Three calls to 'a' (the first plus two retries), then one to 'b' that answered.
+    expect(res.meta.attempts).toBe(4);
+    expect(res.meta.trail.map((t) => t.attempts)).toEqual([3, 1]);
+  });
+
+  it('records one attempt on a deployment a 401 stopped without retrying', async () => {
+    const invoke: DeploymentInvoker = async (d) => {
+      if (d.model.id === 'a') throw provErr(401, false);
+      return okResponse('gpt-4o');
+    };
+    const res = await callWithFallback([dep('a'), dep('b')], REQ, invoke, { maxRetriesPerConn: 5 });
+    expect(res.meta.trail.map((t) => t.attempts)).toEqual([1, 1]);
+  });
+
+  it('carries what the provider actually said, not only its status code', async () => {
+    const invoke: DeploymentInvoker = async (d) => {
+      if (d.model.id === 'a') {
+        // `detail` is the provider's own body message, as the adapters record it.
+        throw new ProviderError('OpenAI request failed with status 401', 401, undefined, false, 'Incorrect API key provided: sk-***.');
+      }
+      return okResponse('gpt-4o');
+    };
+    const res = await callWithFallback([dep('a'), dep('b')], REQ, invoke);
+    expect(res.meta.trail[0].error).toBe('401');
+    expect(res.meta.trail[0].errorMessage).toBe('Incorrect API key provided: sk-***.');
+    // Nothing to report for a deployment that answered.
+    expect(res.meta.trail[1].errorMessage).toBeUndefined();
+  });
+
+  it('falls back to the thrown message when the provider sent no body detail', async () => {
+    const invoke: DeploymentInvoker = async () => provErrThrow(500);
+    await expect(
+      callWithFallback([dep('a')], REQ, invoke, { maxRetriesPerConn: 0 }),
+    ).rejects.toBeInstanceOf(FallbackExhaustedError);
+    try {
+      await callWithFallback([dep('a')], REQ, invoke, { maxRetriesPerConn: 0 });
+    } catch (err) {
+      expect((err as FallbackExhaustedError).meta.trail[0].errorMessage).toBe('provider 500');
+    }
+  });
+
+  it('truncates a provider message too long to belong on a span', async () => {
+    const long = 'x'.repeat(600);
+    const invoke: DeploymentInvoker = async () => {
+      throw new ProviderError('boom', 500, undefined, false, long);
+    };
+    try {
+      await callWithFallback([dep('a')], REQ, invoke, { maxRetriesPerConn: 0 });
+    } catch (err) {
+      const message = (err as FallbackExhaustedError).meta.trail[0].errorMessage!;
+      expect(message.length).toBeLessThanOrEqual(301);
+      expect(message.endsWith('\u2026')).toBe(true);
+    }
+  });
+
+  it('remembers what a retried deployment was failing on, once it finally answers', async () => {
+    let calls = 0;
+    const invoke: DeploymentInvoker = async () => {
+      calls++;
+      if (calls < 3) {
+        throw new ProviderError('provider 429', 429, undefined, true, 'Rate limit exceeded.');
+      }
+      return okResponse('gpt-4o-mini');
+    };
+    const res = await callWithFallback([dep('a')], REQ, invoke, { maxRetriesPerConn: 3 });
+    const entry = res.meta.trail[0];
+    expect(entry.attempts).toBe(3);
+    expect(entry.error).toBeUndefined(); // it answered, so its turn did not fail
+    expect(entry.retriedAfter).toEqual({ error: '429', errorMessage: 'Rate limit exceeded.' });
+  });
+
+  it('leaves retriedAfter off a deployment that answered first time', async () => {
+    const invoke: DeploymentInvoker = async () => okResponse('gpt-4o-mini');
+    const res = await callWithFallback([dep('a')], REQ, invoke);
+    expect(res.meta.trail[0].retriedAfter).toBeUndefined();
   });
 
   it('surfaces a provider 400 immediately with no fan-out', async () => {
@@ -171,9 +317,65 @@ describe('callWithFallback', () => {
     } catch (err) {
       const e = err as FallbackExhaustedError;
       expect(e.lastError.status).toBe(400);
-      expect(e.meta.trail).toEqual([{ modelId: 'a', credentialId: 'cred-a', error: '400' }]);
+      expect(e.meta.trail).toEqual([
+        {
+          modelId: 'a',
+          model: 'model-a',
+          upstreamModel: 'gpt-4o-mini',
+          credentialId: 'cred-a',
+          attempts: 1,
+          error: '400',
+          errorMessage: 'provider 400',
+        },
+      ]);
       expect(e.lastDeployment?.model.id).toBe('a');
     }
+  });
+
+  it('stops at the first deployment when fallback is disallowed', async () => {
+    const calls: string[] = [];
+    const invoke: DeploymentInvoker = async (d) => {
+      calls.push(d.model.id);
+      throw provErr(500, true);
+    };
+    try {
+      await callWithFallback([dep('a'), dep('b')], REQ, invoke, {
+        maxRetriesPerConn: 0,
+        allowFallback: false,
+      });
+      throw new Error('should have thrown');
+    } catch (err) {
+      const e = err as FallbackExhaustedError;
+      expect(e).toBeInstanceOf(FallbackExhaustedError);
+      expect(calls).toEqual(['a']);
+      expect(e.meta.trail).toEqual([
+        {
+          modelId: 'a',
+          model: 'model-a',
+          upstreamModel: 'gpt-4o-mini',
+          credentialId: 'cred-a',
+          attempts: 1,
+          error: '500',
+          errorMessage: 'provider 500',
+        },
+      ]);
+      expect(e.lastDeployment?.model.id).toBe('a');
+    }
+  });
+
+  it('still retries the same deployment when fallback is disallowed', async () => {
+    const calls: string[] = [];
+    const invoke: DeploymentInvoker = async (d) => {
+      calls.push(d.model.id);
+      throw provErr(500, true);
+    };
+    await expect(
+      callWithFallback([dep('a'), dep('b')], REQ, invoke, {
+        maxRetriesPerConn: 2,
+        allowFallback: false,
+      }),
+    ).rejects.toBeInstanceOf(FallbackExhaustedError);
+    expect(calls).toEqual(['a', 'a', 'a']);
   });
 
   it('throws FallbackExhaustedError with the full trail when the whole chain fails (500)', async () => {

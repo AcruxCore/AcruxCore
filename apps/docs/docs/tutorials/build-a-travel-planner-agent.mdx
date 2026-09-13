@@ -328,7 +328,7 @@ const version = await hub.tools.commitVersion(tool.id, {
 </TabItem>
 </Tabs>
 
-`headers` and `argMapping` are left out of the executor because they default to an empty list.
+`headers` is left out of the executor because it defaults to an empty list.
 
 :::note[Redirects are refused, not followed]
 The platform's outbound guard rejects a redirect rather than re-checking the new target. Point an `http` executor at the URL that answers directly — if the API you use has moved hosts, use the new host, or the tool fails with a guard error.

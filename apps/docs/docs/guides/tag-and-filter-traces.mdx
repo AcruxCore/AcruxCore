@@ -422,7 +422,10 @@ Everything above is one input box in the dashboard. Type into the filter bar on
 - `tag:` and `meta.<key>:` suggest values your team has actually used.
 - `prompt:` searches your prompts by name, so you never need a version id.
 - `input:`, `output:` and `name:` narrow a text search to one part of the trace.
-- `status:`, `rating:`, `source:` and `comment:` suggest their allowed values.
+- `status:`, `rating:`, `source:`, `comment:` and `error_type:` suggest their
+  allowed values.
+- `error_code:` suggests the failure slugs your own tools have declared — see
+  [Report a tool failure from your own code](./report-a-tool-failure-from-your-own-code.mdx).
 - `score>`, `latency>`, `cost>` and `tokens>` take a number.
 - Anything with no prefix becomes a plain search across names, input and output.
 
@@ -555,9 +558,11 @@ This means you can set base tags once (e.g. `prod`) and add per-request tags
 | Filter by metadata | `?metadata[k1]=v1&metadata[k2]=v2` (AND match) |
 | Search the conversation | `?q=london`, narrowed with `?q_in=input\|output\|name` |
 | Filter by prompt | `?prompt_id=<id>` (any version) or `?prompt_version_id=<id>` (one version) |
+| Filter by how a run failed | `?error_type=tool_declared`, `?error_code=<your slug>`, `?has_warning=true` |
 | Filter the feedback feed | Same params on `GET /traces/feedback`, plus `rating`, `source`, `label`, `has_comment` |
 | Save a filter set | **Views → Save current filters**, or `POST /trace-views` |
 | Discover tags | `GET /traces/facets` |
+| Discover declared error codes | `GET /traces/facets` (`errorCodes`) |
 | Discover metadata values | `GET /traces/facets/values?key=<key>` |
 | Group traces under a session | `x-session-id: <id>` header (gateway) or `sessionId` / `session_id` in trace input (SDK) |
 

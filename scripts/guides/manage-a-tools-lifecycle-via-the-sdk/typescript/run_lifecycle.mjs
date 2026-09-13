@@ -77,8 +77,7 @@ async function main() {
         url: 'https://httpbin.org/get',
         method: 'GET',
         headers: [],
-        query: [{ name: 'ticker', value: '{{ticker}}' }],
-        argMapping: [{ arg: 'ticker', in: 'query' }],
+        query: [{ name: 'ticker', value: '{{arg.ticker}}' }],
       },
     });
     console.log('version      :', v2.versionNumber);
@@ -98,8 +97,7 @@ async function main() {
         url: 'https://httpbin.org/get',
         method: 'GET',
         headers: [],
-        query: [{ name: 'ticker', value: '{{ticker}}' }],
-        argMapping: [{ arg: 'ticker', in: 'query' }],
+        query: [{ name: 'ticker', value: '{{arg.ticker}}' }],
       },
     });
     console.log('version      :', v3.versionNumber);

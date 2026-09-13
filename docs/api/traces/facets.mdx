@@ -1,6 +1,6 @@
 ---
 title: "Trace Facets"
-description: "Discover the distinct tags, metadata keys/values, and resolved span models a team has actually used, for populating filter pickers."
+description: "Discover the distinct tags, metadata keys/values, resolved span models and declared error codes a team has actually used, for populating filter pickers."
 ---
 
 import Tabs from '@theme/Tabs';
@@ -21,14 +21,21 @@ routes dedupe and sort their results alphabetically, capped at 200 values.
 
 ### GET /api/v1/traces/facets
 
-Returns every distinct tag, every distinct metadata key, and every distinct
-**resolved** model seen on the team's `llm` spans. No query params. Returns
-empty arrays when the team has no traces (or none carry tags/metadata/model).
+Returns every distinct tag, every distinct metadata key, every distinct
+**resolved** model seen on the team's `llm` spans, and every distinct error code
+the team's tools have declared. No query params. Returns empty arrays when the
+team has no traces (or none carry tags/metadata/model/error code).
 
 `models` is the resolved model actually called (e.g.
 `gpt-4o-mini-2024-07-18`), not a `GatewayModel.publicName` (e.g.
 `gpt-4o-mini`) — the same value an online-eval rule's `filter.model` is
 compared against.
+
+`errorCodes` holds the slugs your own tools passed to `ToolResult.error(...)`, and
+feeds the `error_code` filter on `GET /api/v1/traces`. There is no facet for
+`error_type`: its six values are fixed, so a client can hold them. Error codes are
+your team's own words, so the only way to list them is to read back what has been
+recorded.
 
 <Tabs groupId="lang">
 <TabItem value="curl" label="curl">
@@ -65,11 +72,13 @@ with metadata `{"env": "staging"}` and a span resolved to
 {
   "tags": ["nl", "prod", "staging"],
   "metadataKeys": ["env", "lang"],
-  "models": ["claude-3-5-sonnet-20241022", "gpt-4o-mini-2024-07-18"]
+  "models": ["claude-3-5-sonnet-20241022", "gpt-4o-mini-2024-07-18"],
+  "errorCodes": ["ambiguous_city", "location_not_found"]
 }
 ```
 
-Team-scoped: another team's tags/keys never appear in the response.
+Team-scoped: another team's tags, keys or error codes never appear in the
+response. Every list is deduped, sorted alphabetically and capped at 200 values.
 
 ---
 

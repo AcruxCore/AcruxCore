@@ -67,6 +67,28 @@ export function buildTraceConditions(filters: TraceFilters, alias = 't'): Prisma
   if (filters.status) conds.push(Prisma.sql`${t}.status = ${filters.status}::span_status`);
   if (filters.sessionId) conds.push(Prisma.sql`${t}.session_id = ${filters.sessionId}`);
 
+  // All three read `spans.attributes`, written by the shared classifier in
+  // `traces/spans/span-failure.ts`. `->>` rather than `->` so the comparison is against
+  // text. Key existence goes through `jsonb_exists(...)` rather than the `?` operator,
+  // because a bare `?` in a raw query is ambiguous with a driver placeholder.
+  if (filters.errorType) {
+    conds.push(
+      Prisma.sql`EXISTS (SELECT 1 FROM spans s WHERE s.trace_id = ${t}.id AND s.attributes->>'errorType' = ${filters.errorType})`,
+    );
+  }
+  // Equality on the key, not a substring of the JSON: `q=location_not_found` also matches
+  // that text inside an unrelated attribute or a captured payload, which is exactly why
+  // it cannot be used to count one failure mode.
+  if (filters.errorCode) {
+    conds.push(
+      Prisma.sql`EXISTS (SELECT 1 FROM spans s WHERE s.trace_id = ${t}.id AND s.attributes->>'errorCode' = ${filters.errorCode})`,
+    );
+  }
+  if (filters.hasWarning !== undefined) {
+    const exists = Prisma.sql`EXISTS (SELECT 1 FROM spans s WHERE s.trace_id = ${t}.id AND jsonb_exists(s.attributes, 'warning'))`;
+    conds.push(filters.hasWarning ? exists : Prisma.sql`NOT ${exists}`);
+  }
+
   if (filters.model) {
     conds.push(
       Prisma.sql`EXISTS (SELECT 1 FROM spans s WHERE s.trace_id = ${t}.id AND s.model = ${filters.model})`,

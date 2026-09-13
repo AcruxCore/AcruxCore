@@ -67,6 +67,7 @@ as a matched, paired comparison directly against AcruxCore, using a second fixtu
 - [MLflow alternative](/blog/acruxcore-vs-mlflow)
 - [Helicone alternative](/blog/acruxcore-vs-helicone)
 - [Laminar alternative](/blog/acruxcore-vs-laminar)
+- [Braintrust alternative](/blog/acruxcore-vs-braintrust)
 
 This post is the synthesis: what's actually different, what's genuinely unique to one
 platform, and an honest read on where AcruxCore stands next to the other eight.

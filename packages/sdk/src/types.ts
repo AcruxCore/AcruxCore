@@ -165,9 +165,30 @@ export interface ResolvedTool {
   executorType: 'client' | 'http';
   /** Ready to drop into an OpenAI-style `tools[].function`. */
   function: { name: string; description?: string; parameters: Record<string, unknown> };
+  /**
+   * The shape the tool promises to return, when its version declares one. Present so a
+   * CLIENT-side tool is checked against the same contract the platform applies to an
+   * `http` one — otherwise the same tool would be validated or not depending on who ran it.
+   */
+  resultSchema?: Record<string, unknown>;
+  /** Whether a `resultSchema` mismatch is recorded as a warning or as an error. */
+  resultSchemaSeverity?: 'warn' | 'error';
 }
 
-/** Outcome of a server-side tool execution (`POST /tools/:id/execute`). */
+/** One classified failure or warning, as the execute response reports it. */
+export interface ToolExecuteClassification {
+  /** A span error type: `http_status`, `tool_declared`, `schema_mismatch`, … */
+  type: string;
+  message: string;
+}
+
+/**
+ * Outcome of a server-side tool execution (`POST /tools/:id/execute`).
+ *
+ * `error` being present does NOT mean the call threw. A tool whose upstream answered 503,
+ * or whose own `failureWhen` predicate fired, still returns its body here while its span
+ * is already red — whether that stops the agent is the caller's decision.
+ */
 export interface ToolExecuteResult {
   /** The tool's (possibly response-transformed) return value. */
   result: unknown;
@@ -177,6 +198,10 @@ export interface ToolExecuteResult {
   latencyMs: number;
   /** The version that actually ran. */
   toolVersionId: string;
+  /** Present when a detector classified this call as failed. */
+  error?: ToolExecuteClassification;
+  /** Present when a detector fired but did not consider the call failed. */
+  warning?: ToolExecuteClassification;
 }
 
 // ── Prompts (PromptsNamespace, `hub.prompts`) ─────────────────────────────────
@@ -504,8 +529,17 @@ export type ToolExecutor =
       method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
       headers: { name: string; value: string }[];
       query: { name: string; value: string }[];
+      /**
+       * @deprecated Never applied. A commit carrying a non-empty value is rejected. The
+       * request body is the tool's arguments as sent; shape it with `requestTransform`.
+       */
       bodyTemplate?: string;
-      argMapping: { arg: string; in: 'query' | 'path' | 'header' | 'body'; path?: string }[];
+      /**
+       * @deprecated Never applied. A commit carrying a non-empty list is rejected. Bind an
+       * argument by putting `{{arg.NAME}}` in a query value, a header value or the URL:
+       * `query: [{ name: 'name', value: '{{arg.city}}' }]`.
+       */
+      argMapping?: { arg: string; in: 'query' | 'path' | 'header' | 'body'; path?: string }[];
       requestTransform?: string;
       responseTransform?: string;
     };
@@ -681,6 +715,11 @@ export interface RunToolLoopOptions {
   trace?: boolean | TraceOptions;
   /** Per-call BYO override; wins over the client's config.provider. */
   provider?: ProviderConfig;
+  /**
+   * Per-call gateway controls — retry count and whether fallback may run. See
+   * {@link GatewayControl}. Sent only on a gateway call.
+   */
+  gateway?: GatewayControl;
   /** From renderPrompt().versionId; stamped on every llm span this loop records. */
   promptVersionId?: string;
   /**
@@ -808,6 +847,38 @@ export interface ChatUsage {
 }
 
 /** Options for {@link acruxcore.chat} — a single, non-looping gateway completion call. */
+/**
+ * Per-call gateway controls, sent as the request body's `gateway` object.
+ *
+ * These govern what the **gateway** does with your call upstream. They are a
+ * different layer from the client constructor's {@link acruxcoreConfig.maxRetries},
+ * which only retries the SDK's own HTTP request to AcruxCore and never changes how
+ * many times a provider is called.
+ *
+ * Ignored on a BYO-provider call: that path never reaches an AcruxCore gateway, so
+ * there is nothing to control, and the object is not sent to the provider.
+ */
+export interface GatewayControl {
+  /**
+   * How many extra times the gateway may call the **same model on the same
+   * credential** after a transient failure (a `429`, a `5xx`, or a network error).
+   * `0` to `5`; the gateway's own default is 1. `0` turns same-model retries off
+   * without touching the fallback chain — the setting for a call that is not safe
+   * to repeat.
+   *
+   * Not honoured on a streaming call: a stream commits to a deployment as soon as
+   * its first chunk arrives, so there is nothing left to retry.
+   */
+  maxRetries?: number;
+  /**
+   * Whether a failed model may hand off to the next model in its fallback chain
+   * (default `true`). `false` means "this model or nothing": the failure comes back
+   * as an error instead of a different model's answer. It does not disable retries,
+   * because a retry is the same model.
+   */
+  fallback?: boolean;
+}
+
 export interface ChatOptions {
   model: string;
   messages: Message[];
@@ -822,6 +893,11 @@ export interface ChatOptions {
   stream?: boolean;
   /** Per-call BYO override; wins over the client's config.provider. */
   provider?: ProviderConfig;
+  /**
+   * Per-call gateway controls — retry count and whether fallback may run. See
+   * {@link GatewayControl}. Sent only on a gateway call.
+   */
+  gateway?: GatewayControl;
   /** From renderPrompt().versionId; stamped on the llm span for lineage. */
   promptVersionId?: string;
   /**

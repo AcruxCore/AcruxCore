@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyFilterExpression,
   applyFilterInput,
+  filterStateToBody,
   filterStateToParams,
   parseFilterState,
   removeChip,
@@ -25,6 +26,8 @@ describe('filter grammar — round trip', () => {
       metadata: { env: 'prod', lang: 'nl' },
       model: 'gpt-4o-mini',
       status: 'error',
+      errorType: 'http_status',
+      hasWarning: true,
       sessionId: 'sess-1',
       minScore: 80,
       maxScore: 95,
@@ -247,5 +250,150 @@ describe('filter grammar — chips', () => {
     };
     const cleared = stateToChips(state).reduce((acc, chip) => removeChip(acc, chip.key), state);
     expect(cleared).toEqual({});
+  });
+});
+
+/**
+ * Issue #452 — `status:error` says a run broke but not why, and a warning lives on a
+ * trace that is not red at all. Both filters have to survive the URL trip a saved view
+ * makes, or a saved "tool failures" view silently becomes "all failures".
+ */
+describe('filter grammar — failure kind and warnings', () => {
+  it('accepts every error type the API recognises', () => {
+    for (const type of [
+      'transport', 'http_status', 'tool_declared', 'schema_mismatch', 'transform', 'provider_error',
+    ]) {
+      const { state, error } = applyFilterExpression({}, `error_type:${type}`);
+      expect(error).toBeNull();
+      expect(state.errorType).toBe(type);
+    }
+  });
+
+  it('refuses a type the API would reject, and says what is allowed', () => {
+    const { state, error } = applyFilterExpression({ status: 'error' }, 'error_type:banana');
+    expect(state).toEqual({ status: 'error' }); // untouched, rather than half-applied
+    expect(error).toContain('http_status');
+  });
+
+  it('reads warning:yes and warning:no as a real boolean, not a search', () => {
+    expect(applyFilterExpression({}, 'warning:yes').state.hasWarning).toBe(true);
+    expect(applyFilterExpression({}, 'warning:no').state.hasWarning).toBe(false);
+    expect(applyFilterExpression({}, 'warning:maybe').error).toBe('warning: takes yes or no.');
+  });
+
+  it('round-trips both through the URL', () => {
+    const params = filterStateToParams({ errorType: 'tool_declared', hasWarning: false });
+    expect(params.get('error_type')).toBe('tool_declared');
+    expect(params.get('has_warning')).toBe('false');
+    expect(parseFilterState(params)).toEqual({ errorType: 'tool_declared', hasWarning: false });
+  });
+
+  it('drops an error_type a later release stopped recognising instead of breaking', () => {
+    // A saved view stores its query verbatim, so an unknown value must stop filtering
+    // rather than render an unusable page.
+    expect(parseFilterState(new URLSearchParams('error_type=banana'))).toEqual({});
+  });
+
+  it('renders and removes both chips', () => {
+    const state: FilterState = { errorType: 'http_status', hasWarning: true };
+    const chips = stateToChips(state);
+    expect(chips.map((c) => c.label)).toEqual(['error_type:http_status', 'warning:yes']);
+    expect(removeChip(state, 'errorType')).toEqual({ hasWarning: true });
+    expect(removeChip(state, 'hasWarning')).toEqual({ errorType: 'http_status' });
+  });
+
+  it('applies both in one typed expression', () => {
+    const { state, error } = applyFilterExpression({}, 'error_type:tool_declared warning:no');
+    expect(error).toBeNull();
+    expect(state).toEqual({ errorType: 'tool_declared', hasWarning: false });
+  });
+});
+
+/**
+ * Issue #460 — `error_code:` is the tool owner's own slug, so unlike `error_type:` it has
+ * no vocabulary to validate against. It still has to behave like a real filter: survive
+ * the URL trip a saved view makes, render its own chip, and sit alongside the type rather
+ * than replacing it.
+ */
+describe('filter grammar — the tool owner\'s own error code', () => {
+  it('takes any slug, because a team invents its own', () => {
+    for (const code of ['location_not_found', 'rate-limited', 'E42']) {
+      const { state, error } = applyFilterExpression({}, `error_code:${code}`);
+      expect(error).toBeNull();
+      expect(state.errorCode).toBe(code);
+    }
+  });
+
+  it('asks for a value rather than searching for the literal text "error_code:"', () => {
+    const { state, error } = applyFilterExpression({ status: 'error' }, 'error_code:');
+    expect(state).toEqual({ status: 'error' });
+    expect(error).toBe('error_code: needs a value after the colon.');
+  });
+
+  it('round-trips through the URL', () => {
+    const params = filterStateToParams({ errorCode: 'location_not_found' });
+    expect(params.get('error_code')).toBe('location_not_found');
+    expect(parseFilterState(params)).toEqual({ errorCode: 'location_not_found' });
+  });
+
+  it('renders and removes its chip', () => {
+    const state: FilterState = { errorCode: 'location_not_found' };
+    expect(stateToChips(state).map((c) => c.label)).toEqual(['error_code:location_not_found']);
+    expect(removeChip(state, 'errorCode')).toEqual({});
+  });
+
+  it('narrows one failure mode inside a kind, rather than replacing the kind', () => {
+    const { state, error } = applyFilterExpression({}, 'error_type:tool_declared error_code:location_not_found');
+    expect(error).toBeNull();
+    expect(state).toEqual({ errorType: 'tool_declared', errorCode: 'location_not_found' });
+  });
+});
+
+
+/**
+ * The dataset dialog sends criteria, not row ids, so the server resolves them — which
+ * means a chip this mapper forgets is a chip that silently adds rows the person filtered
+ * out. `filterStateToParams` has the URL round-trip tests above to catch an omission; the
+ * body had nothing, and had quietly fallen behind by three filters.
+ */
+describe('filter state as a dataset filter body', () => {
+  it('carries the failure filters the dialog lets you type', () => {
+    const body = filterStateToBody({
+      errorType: 'tool_declared',
+      errorCode: 'location_not_found',
+      hasWarning: true,
+    });
+    expect(body.error_type).toBe('tool_declared');
+    expect(body.error_code).toBe('location_not_found');
+    expect(body.has_warning).toBe(true);
+  });
+
+  it('leaves out has_warning when it is unset, because absent means either', () => {
+    expect(filterStateToBody({ status: 'error' })).not.toHaveProperty('has_warning');
+  });
+
+  it('names every chip the bar can render', () => {
+    // A chip whose body key is missing here is a filter the dialog shows and then
+    // ignores. Written out rather than derived, so adding a filter means adding a line.
+    const BODY_KEY: Record<string, string> = {
+      q: 'q', promptId: 'prompt_id', promptVersionId: 'prompt_version_id', tags: 'tags',
+      metadata: 'metadata', model: 'model', status: 'status', errorType: 'error_type',
+      errorCode: 'error_code', hasWarning: 'has_warning', sessionId: 'session_id',
+      rating: 'rating', source: 'source', label: 'label', hasComment: 'has_comment',
+      minScore: 'min_score', maxScore: 'max_score', minLatencyMs: 'min_latency_ms',
+      minCostUsd: 'min_cost_usd', minTokens: 'min_tokens',
+    };
+    const state: FilterState = {
+      q: 'london', qIn: 'input', promptId: 'p1', promptVersionId: 'v1', tags: ['prod'],
+      metadata: { env: 'prod' }, model: 'gpt-4o-mini', status: 'error', errorType: 'tool_declared',
+      errorCode: 'location_not_found', hasWarning: false, sessionId: 's1', minScore: 10, maxScore: 90,
+      minLatencyMs: 100, minCostUsd: 0.1, minTokens: 10, rating: 'down', source: 'user',
+      label: 'wrong', hasComment: true,
+    };
+    const body = filterStateToBody(state);
+    const missing = stateToChips(state)
+      .map((chip) => chip.key.split(':')[0])
+      .filter((key) => !(BODY_KEY[key] in body));
+    expect(missing).toEqual([]);
   });
 });

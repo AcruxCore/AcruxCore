@@ -492,6 +492,12 @@ export interface TraceListItem {
   totalTokens: number;
   durationMs?: number | null;
   tags: string[];
+  /**
+   * Whether any span on this run carries a warning — true for a gateway call that only
+   * succeeded because it was retried or answered by a fallback model. Optional so a row
+   * from an older API build still parses.
+   */
+  hasWarning?: boolean;
 }
 
 /** The trace summary object inside GET /traces/:id (no durationMs; compute from started/ended). */
@@ -564,6 +570,20 @@ export interface TraceFilters {
   from?: string;
   to?: string;
   status?: SpanStatus;
+  /**
+   * Which kind of failure a span inside the trace recorded — `http_status`,
+   * `tool_declared`, `schema_mismatch`, `provider_error`, … Separate from `status`,
+   * which only says that something broke, not what.
+   */
+  errorType?: string;
+  /**
+   * The slug the tool's owner gave this failure — `location_not_found`. Free-form
+   * where `errorType` is a fixed set, because the vocabulary belongs to the team
+   * that writes the tools.
+   */
+  errorCode?: string;
+  /** Whether any span carries a warning. A warned trace is usually `status: 'ok'`. */
+  hasWarning?: boolean;
   model?: string;
   sessionId?: string;
   /** Traces with a span using this exact prompt version. */
@@ -600,6 +620,8 @@ export interface TraceFacets {
   metadataKeys: string[];
   /** Distinct resolved `llm` span models seen for the team — NOT `GatewayModel.publicName`. */
   models: string[];
+  /** Distinct `errorCode` slugs the team's own tools have declared, for `error_code:`. */
+  errorCodes: string[];
 }
 
 export interface SessionSummary {
@@ -1226,7 +1248,9 @@ export interface Executor {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   headers?: HttpHeader[];
   query?: HttpHeader[];
+  /** @deprecated Never applied; a non-empty value is rejected at commit. Use `requestTransform`. */
   bodyTemplate?: string;
+  /** @deprecated Never applied; a non-empty list is rejected at commit. Use `{{arg.NAME}}` in a query/header value or the URL. */
   argMapping?: { arg: string; in: 'query' | 'path' | 'header' | 'body'; path?: string }[];
   requestTransform?: string;
   responseTransform?: string;

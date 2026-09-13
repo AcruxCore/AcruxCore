@@ -56,6 +56,7 @@ from .evaluations import (
 from .prompts_api import PromptsNamespace
 from .response_format import pydantic_response_format
 from .tooling import ToolSpec, spec_of, tool
+from .tool_result import ToolResult
 from .types import (
     AliasDetail,
     AliasToolBindings,
@@ -75,6 +76,7 @@ from .types import (
     FeedbackResult,
     FeedbackSummaryResult,
     GatewayCallMeta,
+    GatewayControl,
     GetTraceResult,
     ImportPromptResult,
     ImportPromptResultPrompt,
@@ -129,7 +131,7 @@ from .types import (
     VersionListResult,
 )
 
-__version__ = "0.13.0"
+__version__ = "0.14.0"
 
 __all__ = [
     "AcruxCore",
@@ -140,6 +142,7 @@ __all__ = [
     "acrux",
     "tool",
     "ToolSpec",
+    "ToolResult",
     "spec_of",
     "pydantic_response_format",
     "ToolSchemaError",
@@ -163,6 +166,7 @@ __all__ = [
     "FeedbackResult",
     "FeedbackSummaryResult",
     "GatewayCallMeta",
+    "GatewayControl",
     "GetTraceResult",
     "IngestSpan",
     "LatencyPercentiles",

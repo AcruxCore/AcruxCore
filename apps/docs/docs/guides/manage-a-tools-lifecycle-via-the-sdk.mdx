@@ -96,6 +96,9 @@ A shell has nothing to call yet. Committing a version gives it a
 `parametersSchema` (the JSON Schema the model reads to decide how to call the
 tool) and an `executor` — here, an `http` executor that points at a public,
 no-auth endpoint (`https://httpbin.org/get`) so the example is runnable as-is.
+`{{arg.order_id}}` in the query value is where the argument goes. The platform
+replaces it at call time with the `order_id` the caller sent. The same
+`{{arg.NAME}}` form works in a header value and in the URL.
 The **first** version committed for a tool auto-creates both the `production`
 and `staging` aliases pointing at it.
 
@@ -109,7 +112,7 @@ curl -X POST "$ACRUXCORE_BASE_URL/tools/41fd848e-ad01-43bb-bb3c-44869616d321/ver
   -d '{
     "description": "Looks up the status of a customer order by id.",
     "parametersSchema": {"type":"object","properties":{"order_id":{"type":"string","description":"The order id, e.g. \"ORD-1234\"."}},"required":["order_id"]},
-    "executor": {"type":"http","url":"https://httpbin.org/get","method":"GET","headers":[],"query":[{"name":"order_id","value":"{{order_id}}"}],"argMapping":[{"arg":"order_id","in":"query"}]}
+    "executor": {"type":"http","url":"https://httpbin.org/get","method":"GET","headers":[],"query":[{"name":"order_id","value":"{{arg.order_id}}"}]}
   }'
 ```
 
@@ -129,10 +132,10 @@ curl -X POST "$ACRUXCORE_BASE_URL/tools/41fd848e-ad01-43bb-bb3c-44869616d321/ver
   "executor": {
     "url": "https://httpbin.org/get",
     "type": "http",
-    "query": [{ "name": "order_id", "value": "{{order_id}}" }],
+    "query": [{ "name": "order_id", "value": "{{arg.order_id}}" }],
     "method": "GET",
     "headers": [],
-    "argMapping": [{ "in": "query", "arg": "order_id" }]
+    "argMapping": []
   },
   "createdBy": "b085d017-cf51-43f4-adb3-a7640337651c",
   "createdAt": "2026-08-04T16:18:52.604Z",
@@ -159,8 +162,7 @@ const v1 = await hub.tools.commitVersion(tool.id, {
     url: 'https://httpbin.org/get',
     method: 'GET',
     headers: [],
-    query: [{ name: 'order_id', value: '{{order_id}}' }],
-    argMapping: [{ arg: 'order_id', in: 'query' }],
+    query: [{ name: 'order_id', value: '{{arg.order_id}}' }],
   },
 });
 console.log(v1.versionNumber, v1.aliases?.map((a) => `${a.alias}->v${a.versionNumber}`));
@@ -186,8 +188,7 @@ v1 = await hub.tools.commit_version(
         "url": "https://httpbin.org/get",
         "method": "GET",
         "headers": [],
-        "query": [{"name": "order_id", "value": "{{order_id}}"}],
-        "argMapping": [{"arg": "order_id", "in": "query"}],
+        "query": [{"name": "order_id", "value": "{{arg.order_id}}"}],
     },
     description="Looks up the status of a customer order by id.",
 )
@@ -323,10 +324,10 @@ curl "$ACRUXCORE_BASE_URL/tools/41fd848e-ad01-43bb-bb3c-44869616d321/versions/1"
   "executor": {
     "url": "https://httpbin.org/get",
     "type": "http",
-    "query": [{ "name": "order_id", "value": "{{order_id}}" }],
+    "query": [{ "name": "order_id", "value": "{{arg.order_id}}" }],
     "method": "GET",
     "headers": [],
-    "argMapping": [{ "in": "query", "arg": "order_id" }]
+    "argMapping": []
   },
   "createdBy": "b085d017-cf51-43f4-adb3-a7640337651c",
   "createdAt": "2026-08-04T16:18:52.604Z"
@@ -342,7 +343,7 @@ console.log(JSON.stringify(fetchedV1.executor));
 ```
 
 ```text
-{"url":"https://httpbin.org/get","type":"http","query":[{"name":"order_id","value":"{{order_id}}"}],"method":"GET","headers":[],"argMapping":[{"in":"query","arg":"order_id"}]}
+{"url":"https://httpbin.org/get","type":"http","query":[{"name":"order_id","value":"{{arg.order_id}}"}],"method":"GET","headers":[],"argMapping":[]}
 ```
 
 </TabItem>
@@ -354,7 +355,7 @@ print(fetched_v1.executor)
 ```
 
 ```text
-{'url': 'https://httpbin.org/get', 'type': 'http', 'query': [{'name': 'order_id', 'value': '{{order_id}}'}], 'method': 'GET', 'headers': [], 'argMapping': [{'in': 'query', 'arg': 'order_id'}]}
+{'url': 'https://httpbin.org/get', 'type': 'http', 'query': [{'name': 'order_id', 'value': '{{arg.order_id}}'}], 'method': 'GET', 'headers': [], 'argMapping': []}
 ```
 
 </TabItem>

@@ -17,6 +17,7 @@ interface TraceListRaw {
   totalTokens: number;
   durationMs: number | null;
   tags: string[];
+  hasWarning: boolean;
 }
 
 /**
@@ -41,6 +42,7 @@ export class TraceQueryRepository {
       totalTokens: r.totalTokens,
       durationMs: r.durationMs,
       tags: r.tags,
+      hasWarning: r.hasWarning,
     };
   }
 
@@ -73,7 +75,13 @@ export class TraceQueryRepository {
         t.total_tokens AS "totalTokens",
         CASE WHEN t.ended_at IS NULL THEN NULL
              ELSE (EXTRACT(EPOCH FROM (t.ended_at - t.started_at)) * 1000)::int END AS "durationMs",
-        t.tags
+        t.tags,
+        -- Same predicate as the has_warning filter, selected rather than applied, so a
+        -- reader who did not think to filter still sees the mark on the row.
+        EXISTS (
+          SELECT 1 FROM spans s
+          WHERE s.trace_id = t.id AND jsonb_exists(s.attributes, 'warning')
+        ) AS "hasWarning"
       FROM traces t
       WHERE ${where}
       ORDER BY t.created_at DESC

@@ -1,0 +1,36 @@
+meta {
+  name: Filter By Failure
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/v1/traces?error_type=tool_declared&error_code=location_not_found&limit=5
+  body: none
+  auth: bearer
+}
+
+params:query {
+  error_type: tool_declared
+  error_code: location_not_found
+  limit: 5
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+docs {
+  `error_type` is one of six fixed platform classifications; `error_code` is the slug
+  the tool's own owner declared, so it is free text and the vocabulary is the team's.
+
+  Use `error_code` rather than `q` when counting one failure mode: `q` is a substring
+  match over the whole attributes JSON, so it also matches the slug written elsewhere.
+
+  `GET /api/v1/traces/facets` returns the codes a team has actually declared, under
+  `errorCodes`. Add `has_warning=true` to find green runs carrying a warning.
+}
+
+assert {
+  res.status: eq 200
+}

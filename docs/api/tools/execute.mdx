@@ -20,10 +20,10 @@ endpoint returns 422 for it. The target version is resolved as: explicit
 alias by default.
 
 Arguments are validated against the version's `parametersSchema.required` list
-(a missing required key is a 400), but they are **not** auto-interpolated into
-the request — a fixed `query`/`headers` entry stays fixed unless the executor
-defines a `requestTransform` (or `argMapping`, resolved by a future task) to
-map `arguments` into the outgoing request.
+(a missing required key is a 400). They reach the outgoing request in two ways.
+`{{arg.NAME}}` inside a `query` value, a `headers` value or the `url` is replaced
+with the argument `NAME` at call time. A `requestTransform` shapes the request
+body from the whole arguments object. A value carrying no placeholder stays fixed.
 
 The outgoing HTTP call goes through an SSRF guard (`safeFetch`): only public
 http(s) URLs are reachable, so testing this endpoint against a real target
@@ -91,6 +91,61 @@ curl -X POST $ACRUXCORE_BASE_URL/tools/8662ca24-69f2-4431-a7f4-82e9abc77ff1/exec
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"arguments":{"city":"Berlin"},"versionNumber":1}'
+```
+
+Response (status 200) — the version carries a `failureWhen` predicate and the
+predicate declared a failure. The HTTP status is still `200` and nothing threw:
+`error` is a field to read, not an exception to catch. The span this call wrote is
+red and carries `httpStatus: 200` at the same time. `error.type` is the
+classification, one of six fixed values; the slug the predicate returned is on the
+span as `errorCode`. See
+[`versions.mdx`](./versions.mdx#declaring-a-failure-the-http-status-cannot-show)
+for the predicate that produced this.
+
+```json
+{
+  "result": {"generationtime_ms": 0.22029877},
+  "status": 200,
+  "latencyMs": 521,
+  "toolVersionId": "2bbeb8d3-9162-4e57-90f2-6d55f35e3faa",
+  "error": {
+    "type": "tool_declared",
+    "message": "Open-Meteo has no coordinates for that city."
+  }
+}
+```
+
+The same tool called with a city that exists returns no `error` key at all — the
+field is absent on a healthy call, not null:
+
+```json
+{
+  "result": {
+    "results": [
+      {
+        "id": 1283240,
+        "name": "Kathmandu",
+        "latitude": 27.70169,
+        "longitude": 85.3206,
+        "elevation": 1317,
+        "feature_code": "PPLC",
+        "country_code": "NP",
+        "admin1_id": 12095449,
+        "admin2_id": 12095484,
+        "timezone": "Asia/Kathmandu",
+        "population": 1442271,
+        "country_id": 1282988,
+        "country": "Nepal",
+        "admin1": "Bagmati Province",
+        "admin2": "Kathmandu"
+      }
+    ],
+    "generationtime_ms": 0.24616718
+  },
+  "status": 200,
+  "latencyMs": 638,
+  "toolVersionId": "2bbeb8d3-9162-4e57-90f2-6d55f35e3faa"
+}
 ```
 
 Response (status 400) — missing required argument (per `parametersSchema.required`):

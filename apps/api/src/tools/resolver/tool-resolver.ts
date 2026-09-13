@@ -33,12 +33,23 @@ export interface ToolRef {
  * executor holds urls, headers and `{{secret.NAME}}` references that must not leave the
  * server — the type alone is enough for a caller to know whether to run the tool itself
  * or ask the platform to.
+ *
+ * `resultSchema` is the one exception to that rule, and it is safe: it holds no url, no
+ * header and no secret reference, only the shape the tool promises to return. It is here
+ * so a CLIENT-side tool running inside an SDK loop can be checked against the same
+ * declaration the platform applies to an `http` one — without it, the same tool would be
+ * validated or not depending on who happened to run it, and the per-tool error rate
+ * would count two different populations (issue #452).
  */
 export interface DetailedResolvedTool {
   toolId: string;
   versionNumber: number;
   executorType: 'client' | 'http';
   function: { name: string; description?: string; parameters: Record<string, unknown> };
+  /** The declared result shape, when the version has one. */
+  resultSchema?: Record<string, unknown>;
+  /** Whether a `resultSchema` mismatch is a warning or an error. */
+  resultSchemaSeverity?: 'warn' | 'error';
 }
 
 /**
@@ -290,7 +301,11 @@ export class ToolResolver {
       }
       const { tool, version } = looked;
 
-      const executor = version.executor as unknown as { type: 'client' | 'http' };
+      const executor = version.executor as unknown as {
+        type: 'client' | 'http';
+        resultSchema?: Record<string, unknown>;
+        resultSchemaSeverity?: 'warn' | 'error';
+      };
       // Same precedence as resolveRefs: the version's description wins, falling back to
       // the tool's. `changelog` is never consulted — that is the entire point of it
       // being a separate column.
@@ -306,6 +321,10 @@ export class ToolResolver {
           // *object* schemas at commit time, so this cast is safe by contract.
           parameters: version.parametersSchema as Record<string, unknown>,
         },
+        ...(executor.resultSchema ? { resultSchema: executor.resultSchema } : {}),
+        ...(executor.resultSchema
+          ? { resultSchemaSeverity: executor.resultSchemaSeverity ?? 'warn' }
+          : {}),
       });
     }
 

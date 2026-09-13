@@ -455,3 +455,162 @@ describe('team isolation', () => {
     expect(aSpans.every((s) => s.teamId === a.teamId)).toBe(true);
   });
 });
+
+/**
+ * Issue #452 — a model round that fails after every retry and fallback is spent used to
+ * write a `gateway_requests` row and no span at all. The usage page counted the failure
+ * and the trace view could not show it, for the same request.
+ */
+describe('gateway trace hook — failed rounds', () => {
+  it('writes a red llm span for a round the provider never answered', async () => {
+    const { agent, teamId } = await signupOwner();
+    const credentialId = await createConnection(agent);
+    await registerModel(agent, credentialId);
+
+    // Every attempt 500s, so `callWithFallback` exhausts and throws.
+    mockFetchOnce({ error: { message: 'upstream exploded' } }, false, 500);
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'Say hi.' }] })
+      .expect(502);
+
+    // The ledger row was already written before this change; the span is the new part.
+    const ledger = await prisma.gatewayRequest.findFirstOrThrow({ where: { teamId } });
+    expect(ledger.status).toBe('error');
+
+    const span = await prisma.span.findFirstOrThrow({ where: { kind: 'llm' } });
+    expect(span.status).toBe('error');
+    expect(span.gatewayRequestId).toBe(ledger.id);
+    expect(span.attributes).toMatchObject({ errorType: 'provider_error' });
+    // The retry history was written to the ledger's meta on day one and read by nothing.
+    expect(span.attributes).toMatchObject({ attempts: expect.any(Number) });
+
+    const trace = await prisma.trace.findUniqueOrThrow({ where: { id: span.traceId } });
+    expect(trace.status).toBe('error');
+
+    // The input is the whole value of a failed round's payload: it is the only way to
+    // see what was being asked when the provider gave up.
+    const payload = await prisma.spanPayload.findFirstOrThrow({ where: { spanId: span.id } });
+    expect(payload.input).toEqual([{ role: 'user', content: 'Say hi.' }]);
+  }, 20000);
+
+  it('lands the failed round in the caller-supplied trace, not a separate one', async () => {
+    const { agent } = await signupOwner();
+    const credentialId = await createConnection(agent);
+    await registerModel(agent, credentialId);
+
+    // One good round first, so the trace exists and already holds a span.
+    const ok = await complete(agent).expect(200);
+    const traceId = ok.headers['x-gateway-trace-id'];
+    expect(traceId).toBeDefined();
+
+    mockFetchOnce({ error: { message: 'upstream exploded' } }, false, 500);
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .set('x-trace-id', traceId)
+      .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'And again.' }] })
+      .expect(502);
+
+    // A failed middle round must not fork the trace — an agent loop would otherwise read
+    // as two unrelated runs, with the half that broke invisible from the half that worked.
+    const spans = await prisma.span.findMany({ where: { traceId }, orderBy: { startedAt: 'asc' } });
+    expect(spans).toHaveLength(2);
+    expect(spans.map((s) => s.status)).toEqual(['ok', 'error']);
+
+    const trace = await prisma.trace.findUniqueOrThrow({ where: { id: traceId } });
+    expect(trace.status).toBe('error'); // one bad span reddens the run
+    expect(trace.spanCount).toBe(2);
+  }, 20000);
+});
+
+/**
+ * A call the gateway rescued — by retrying, or by handing off to another model — used to
+ * be indistinguishable from a clean first-try call: same green dot, same `ok` status. A
+ * primary model that fails every single time is then invisible for as long as its
+ * fallback keeps answering. The warning is what makes the rescue visible without calling
+ * a successful request a failure.
+ */
+describe('gateway trace hook — a rescued call carries a warning', () => {
+  /** Registers a model and returns its id, so one can be named as another's fallback. */
+  async function registerModelId(
+    agent: ReturnType<typeof request.agent>,
+    credentialId: string,
+    publicName: string,
+    fallbackModelIds: string[] = [],
+  ): Promise<string> {
+    const res = await agent
+      .post('/api/v1/gateway/models')
+      .send({ publicName, upstreamModel: publicName, credentialId, fallbackModelIds })
+      .expect(201);
+    return res.body.id;
+  }
+
+  /** Queues responses in order: each call to `fetch` takes the next one. */
+  function mockFetchSequence(responses: { body: unknown; ok?: boolean; status?: number }[]): void {
+    const spy = jest.spyOn(global, 'fetch');
+    for (const r of responses) {
+      spy.mockResolvedValueOnce({
+        ok: r.ok ?? true,
+        status: r.status ?? 200,
+        json: async () => r.body,
+        text: async () => JSON.stringify(r.body),
+      } as unknown as Response);
+    }
+  }
+
+  it('warns that a different model answered, naming both, on an otherwise green span', async () => {
+    const { agent } = await signupOwner();
+    const credentialId = await createConnection(agent);
+    const backupId = await registerModelId(agent, credentialId, 'backup-model');
+    await registerModelId(agent, credentialId, 'primary-model', [backupId]);
+
+    // 401 is never retried, so the chain moves to `backup-model`, which answers.
+    mockFetchSequence([
+      { body: { error: { message: 'bad key' } }, ok: false, status: 401 },
+      { body: CANNED_OPENAI },
+    ]);
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({ model: 'primary-model', messages: [{ role: 'user', content: 'Say hi.' }] })
+      .expect(200);
+
+    const span = await prisma.span.findFirstOrThrow({ where: { kind: 'llm' } });
+    expect(span.status).toBe('ok'); // the caller got an answer; this is not a failure
+    const attributes = span.attributes as { warning?: { type?: string; message?: string } };
+    expect(attributes.warning?.type).toBe('model_fallback');
+    expect(attributes.warning?.message).toContain('primary-model');
+    expect(attributes.warning?.message).toContain('backup-model');
+  }, 20000);
+
+  it('warns that one model needed more than one attempt', async () => {
+    const { agent } = await signupOwner();
+    const credentialId = await createConnection(agent);
+    await registerModelId(agent, credentialId, 'only-model');
+
+    // 500 is retriable, and there is nothing to fall back to, so the retry answers.
+    mockFetchSequence([
+      { body: { error: { message: 'flaky' } }, ok: false, status: 500 },
+      { body: CANNED_OPENAI },
+    ]);
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({ model: 'only-model', messages: [{ role: 'user', content: 'Say hi.' }] })
+      .expect(200);
+
+    const span = await prisma.span.findFirstOrThrow({ where: { kind: 'llm' } });
+    expect(span.status).toBe('ok');
+    const attributes = span.attributes as { warning?: { type?: string } };
+    expect(attributes.warning?.type).toBe('provider_retry');
+  }, 20000);
+
+  it('leaves a clean first-try call unmarked, so the warning keeps meaning something', async () => {
+    const { agent } = await signupOwner();
+    const credentialId = await createConnection(agent);
+    await registerModel(agent, credentialId);
+
+    await complete(agent).expect(200);
+
+    const span = await prisma.span.findFirstOrThrow({ where: { kind: 'llm' } });
+    expect((span.attributes as { warning?: unknown }).warning).toBeUndefined();
+  }, 20000);
+});

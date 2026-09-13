@@ -489,6 +489,32 @@ describe('runToolLoop', () => {
     expect(headers['x-trace-id']).toBe('opened-elsewhere');
   });
 
+  it('forwards the gateway control object on every round of the loop', async () => {
+    const toolRound = new Response(JSON.stringify({
+      id: 'c1', model: 'm',
+      choices: [{ index: 0, message: { role: 'assistant', content: null, tool_calls: [{ id: 't1', type: 'function', function: { name: 'get_weather', arguments: '{}' } }] }, finish_reason: 'tool_calls' }],
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+    const finalRound = new Response(JSON.stringify({
+      id: 'c2', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'done' }, finish_reason: 'stop' }],
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+    vi.mocked(fetch).mockResolvedValueOnce(toolRound).mockResolvedValueOnce(finalRound).mockResolvedValue(traceAcceptedResponse());
+
+    await hub.gateway.runToolLoop({
+      model: 'm',
+      messages: [{ role: 'user', content: 'hi' }],
+      toolDefs: [{ type: 'function', function: { name: 'get_weather' } }],
+      dispatch: () => ({ temp: 1 }),
+      gateway: { maxRetries: 2 },
+      trace: false,
+    });
+
+    const bodies = vi.mocked(fetch).mock.calls
+      .filter(([url]) => String(url).endsWith('/gateway/chat/completions'))
+      .map(([, init]) => JSON.parse(String((init as RequestInit).body)) as Record<string, unknown>);
+    expect(bodies).toHaveLength(2);
+    expect(bodies.every((b) => JSON.stringify(b['gateway']) === JSON.stringify({ maxRetries: 2 }))).toBe(true);
+  });
+
   it('sends its default on the weak channel and a caller name as an instruction', async () => {
     // 'runToolLoop' is the SDK's own default, so it goes out as `x-trace-name-if-unset`:
     // the server fills it in for a trace with no real name and ignores it otherwise. A
@@ -1081,6 +1107,46 @@ describe('acruxcore.chat', () => {
       temperature: 0.2,
       max_tokens: 50,
     });
+  });
+
+  it('sends the gateway control object in the request body', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(
+      JSON.stringify({ id: 'c1', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }] }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+
+    await hub.gateway.chat({
+      model: 'm',
+      messages: [{ role: 'user', content: 'hi' }],
+      gateway: { maxRetries: 3, fallback: false },
+    });
+
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]!.body)) as Record<string, unknown>;
+    expect(body['gateway']).toEqual({ maxRetries: 3, fallback: false });
+  });
+
+  it('omits the gateway key entirely when no gateway options are given', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(
+      JSON.stringify({ id: 'c1', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }] }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+
+    await hub.gateway.chat({ model: 'm', messages: [{ role: 'user', content: 'hi' }] });
+
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]!.body)) as Record<string, unknown>;
+    expect('gateway' in body).toBe(false);
+  });
+
+  it('sends maxRetries 0 rather than dropping it as falsy', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(
+      JSON.stringify({ id: 'c1', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }] }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+
+    await hub.gateway.chat({ model: 'm', messages: [{ role: 'user', content: 'hi' }], gateway: { maxRetries: 0 } });
+
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]!.body)) as Record<string, unknown>;
+    expect(body['gateway']).toEqual({ maxRetries: 0 });
   });
 
   it('sends responseFormat as response_format in the request body', async () => {

@@ -204,4 +204,62 @@ describe('tool versions', () => {
       .expect(201);
     expect(quiet.body.warnings).toBeUndefined();
   });
+
+  // ── issue #458: two executor fields that were stored and never applied ────────
+  // `argMapping` and `bodyTemplate` were scaffolded for the http executor and the
+  // consumer was never written (phase-4 FAQ Q23). A commit carrying either one
+  // returned 201, and the tool then called upstream with the argument missing or
+  // the wrong body — a configuration mistake that reads as an upstream fault.
+  it('rejects an argMapping and points at the templating that does work', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const toolId = await createTool(apiKey);
+    const res = await request(app).post(`/api/v1/tools/${toolId}/versions`).set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        parametersSchema: paramsSchema,
+        executor: {
+          type: 'http',
+          url: 'https://1.1.1.1/search',
+          method: 'GET',
+          query: [{ name: 'count', value: '1' }],
+          argMapping: [{ arg: 'city', in: 'query', path: 'name' }],
+        },
+      })
+      .expect(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    // The message has to carry the working form, or the caller is left with a
+    // rejection and no way to fix it.
+    expect(res.body.error.message).toContain('{{arg.NAME}}');
+  });
+
+  // `@acruxcoreai/sdk` 0.13.0 and earlier type `argMapping` as a REQUIRED field, so
+  // every caller on a published SDK sends `[]` whether they meant to or not. An empty
+  // list claims nothing and binds nothing, so it keeps committing.
+  it('still accepts an empty argMapping, which older SDKs always send', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const toolId = await createTool(apiKey);
+    await request(app).post(`/api/v1/tools/${toolId}/versions`).set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        parametersSchema: paramsSchema,
+        executor: { type: 'http', url: 'https://1.1.1.1/w', method: 'GET', headers: [], query: [], argMapping: [] },
+      })
+      .expect(201);
+  });
+
+  it('rejects a bodyTemplate and points at the requestTransform that does work', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const toolId = await createTool(apiKey);
+    const res = await request(app).post(`/api/v1/tools/${toolId}/versions`).set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        parametersSchema: paramsSchema,
+        executor: {
+          type: 'http',
+          url: 'https://1.1.1.1/search',
+          method: 'POST',
+          bodyTemplate: '{"city": "{{arg.city}}"}',
+        },
+      })
+      .expect(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.message).toContain('requestTransform');
+  });
 });

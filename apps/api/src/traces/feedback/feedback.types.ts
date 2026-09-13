@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { TraceFilterQuerySchema, toTraceFilters } from '../filters';
+import { BooleanParamSchema, TraceFilterQuerySchema, toTraceFilters } from '../filters';
 import type { TraceFilters } from '../filters';
 
 /** Where a piece of feedback came from. Mirrors the `source` TEXT column default 'user'. */
@@ -139,17 +139,6 @@ export interface FeedbackSummary {
 export const FeedbackRatingFilterSchema = z.enum(['up', 'down', 'none']);
 /** `up` = rating > 0, `down` = rating < 0, `none` = no rating at all. */
 export type FeedbackRatingFilter = z.infer<typeof FeedbackRatingFilterSchema>;
-
-/**
- * A boolean that survives a query string. `z.coerce.boolean()` cannot be used
- * here: it applies JavaScript truthiness, so `?has_comment=false` arrives as
- * the string `"false"` and coerces to `true` — the exact opposite of what was
- * asked for.
- */
-const BooleanParamSchema = z.union([
-  z.boolean(),
-  z.enum(['true', 'false', '1', '0']).transform((v) => v === 'true' || v === '1'),
-]);
 
 /**
  * The feedback filter vocabulary: every trace filter (they all describe the

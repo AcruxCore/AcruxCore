@@ -31,7 +31,7 @@ export class ToolVersionsService {
    * code-authored executor is most likely to get wrong.
    *
    * Specifically: any
-   * `requestTransform`/`responseTransform` must compile (FAQ Q10), every
+   * `requestTransform`/`responseTransform`/`failureWhen` must compile (FAQ Q10), every
    * `{{secret.NAME}}` reference in headers/query must resolve to a secret that
    * exists for the team (FAQ Q11), and `url` must pass the SSRF guard
    * (`assertPublicUrl`). A `client` executor has nothing to check here.
@@ -63,6 +63,16 @@ export class ToolVersionsService {
         compileTransform(executor.responseTransform);
       } catch (err) {
         throw new ValidationError(err instanceof TransformError ? err.message : 'Invalid responseTransform.');
+      }
+    }
+    // Same commit-time gate as the transforms: a predicate that cannot parse would
+    // otherwise fail silently at execute time, and a failure detector that never runs is
+    // worse than none — it reads as "this tool never fails".
+    if (executor.failureWhen) {
+      try {
+        compileTransform(executor.failureWhen);
+      } catch (err) {
+        throw new ValidationError(err instanceof TransformError ? err.message : 'Invalid failureWhen.');
       }
     }
 

@@ -390,8 +390,10 @@ class ToolsNamespace:
         :param parameters_schema: The version's JSON Schema for its arguments.
         :param executor: ``{"type": "client"}`` (the caller's own app runs it) or
             ``{"type": "http", "url", "method", "headers", "query",
-            "bodyTemplate"?, "argMapping", "requestTransform"?,
-            "responseTransform"?}``. Kept as a plain dict on both input and
+            "requestTransform"?, "responseTransform"?}``. An argument reaches the
+            request through ``{{arg.NAME}}`` in a query value, a header value or
+            the URL. The legacy ``argMapping`` and ``bodyTemplate`` keys are never
+            applied and are rejected unless empty. Kept as a plain dict on both input and
             output rather than a typed union — this SDK already keeps
             :attr:`~acruxcore.types.ResolvedTool.function` untyped for the same
             reason, and inventing a Python discriminated union here would be new

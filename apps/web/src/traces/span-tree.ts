@@ -85,3 +85,33 @@ export function spanBarGeometry(
   const widthPct = Math.min(100 - offsetPct, Math.max(0.5, (dur / totalMs) * 100));
   return { offsetPct, widthPct };
 }
+
+/**
+ * Whether a span carries a warning — something seen on a run that did not fail: a gateway
+ * call answered by a fallback model, a stale cache, a tool result that missed its shape.
+ *
+ * Warnings live in `attributes.warning` rather than in `span_status` deliberately: a
+ * fourth status value would need a migration and would break the binary "any span errored
+ * → the trace errored" rollup, for a state that is not a verdict at all.
+ *
+ * @param span - The span to inspect.
+ * @returns True when the span has a `warning` object on its attributes.
+ */
+export function spanHasWarning(span: Span): boolean {
+  const warning = (span.attributes as { warning?: unknown } | undefined)?.warning;
+  return typeof warning === 'object' && warning !== null;
+}
+
+/**
+ * Whether any span on a trace carries a warning, for the detail header's status badge.
+ *
+ * The trace list gets this as `hasWarning` on the row, straight from the API. The detail
+ * page already holds every span, so it derives the same answer rather than asking again —
+ * and a header reading green beside an amber list row is the contradiction this avoids.
+ *
+ * @param spans - The trace's root spans; children are searched too.
+ * @returns True when at least one span in the tree has a warning.
+ */
+export function traceHasWarning(spans: Span[]): boolean {
+  return flattenSpanTree(spans).some((row) => spanHasWarning(row.span));
+}

@@ -7,6 +7,7 @@ import { buildPrefillFromSpan } from '@/gateway/playground-prefill';
 import { formatCount, formatLatency, formatPayload, formatUsd } from './format';
 import { Collapsible } from './Collapsible';
 import { KeyValueRows } from './KeyValueRows';
+import { summarizeAttempts } from './attempt-trail';
 import type { Feedback, Span } from '@/api/types';
 
 export interface SpanPanelProps {
@@ -14,6 +15,34 @@ export interface SpanPanelProps {
   traceId: string;
   /** This span's own feedback rows (already filtered by the caller), newest-first. */
   feedback: Feedback[];
+}
+
+/**
+ * Readable names for the `errorType` a classifier wrote onto the span (issue #452).
+ * Mirrors `SpanErrorType` in `apps/api/src/traces/spans/span-failure.ts`. A slug we do
+ * not recognise is shown verbatim rather than hidden — a newer API writing a type this
+ * build has not heard of must still be readable.
+ */
+const ERROR_TYPE_LABELS: Record<string, string> = {
+  transport: 'Never reached the server',
+  http_status: 'Upstream returned an error status',
+  tool_declared: 'The tool reported a failure',
+  schema_mismatch: 'Result did not match the declared shape',
+  transform: 'A transform failed',
+  provider_error: 'The model provider failed',
+};
+
+/** The classifier's own fields, as they are written into `span.attributes`. */
+interface FailureAttributes {
+  errorType?: string;
+  /** The tool owner's own slug, when the classification came from the tool rather than a
+   *  platform rule. Open-ended, so it is shown verbatim beside the readable label. */
+  errorCode?: string;
+  errorDetail?: string;
+  warning?: { type?: string; message?: string };
+  httpStatus?: number;
+  attempts?: number;
+  trail?: unknown[];
 }
 
 /** One metric row (label + monospace value). */
@@ -45,6 +74,14 @@ export function SpanPanel({ span, traceId, feedback }: SpanPanelProps) {
   const hasPayload = span.payload && (span.payload.input !== undefined || span.payload.output !== undefined);
   const hasMetadata = Object.keys(span.metadata).length > 0;
   const hasAttributes = Object.keys(span.attributes ?? {}).length > 0;
+  // Why this span is red, or what is odd about a green one. Read out of `attributes`
+  // rather than being its own column, so a new failure kind needs no migration.
+  const failure = (span.attributes ?? {}) as FailureAttributes;
+  const warning = failure.warning;
+  // "4 (retried or failed over)" never said which of the two happened, and the trail it
+  // hid in a tooltip identified models by uuid — so the panel could not answer the only
+  // two questions a reader has: retry or fallback, and which model actually answered.
+  const attemptSummary = summarizeAttempts(failure.attempts, failure.trail);
 
   // The caller's own feedback row on this span, if any (Q22 — a real toggle:
   // switching arrows PATCHes this row instead of appending a new one).
@@ -88,8 +125,99 @@ export function SpanPanel({ span, traceId, feedback }: SpanPanelProps) {
         {span.totalTokens != null && <Metric label="Tokens" value={formatCount(span.totalTokens)} />}
         {span.costUsd != null && <Metric label="Cost" value={formatUsd(span.costUsd)} />}
         <Metric label="Latency" value={formatLatency(span.latencyMs)} />
+        {failure.httpStatus != null && failure.httpStatus > 0 && (
+          <Metric label="HTTP status" value={failure.httpStatus} />
+        )}
+        {attemptSummary && (
+          <Metric
+            label="Attempts"
+            value={
+              <span>
+                {failure.attempts ?? attemptSummary.rows[0].attempts}
+                <span className="ml-1.5 text-warn">{attemptSummary.verdict}</span>
+              </span>
+            }
+          />
+        )}
+        {failure.errorType && (
+          <Metric
+            label="Failure"
+            value={
+              <span className={span.status === 'error' ? 'text-danger' : 'text-warn'}>
+                {ERROR_TYPE_LABELS[failure.errorType] ?? failure.errorType}
+                {failure.errorCode && (
+                  <span className="ml-1.5 font-mono text-[11.5px] text-muted">{failure.errorCode}</span>
+                )}
+              </span>
+            }
+          />
+        )}
         {span.errorMessage && <Metric label="Error" value={<span className="text-danger">{span.errorMessage}</span>} />}
+        {!span.errorMessage && failure.errorDetail && (
+          <Metric label="Detail" value={failure.errorDetail} />
+        )}
       </section>
+
+      {/* One row per model the gateway tried, in order. The Attempts metric says what
+          happened; this says to whom, because a uuid in the raw trail cannot. */}
+      {attemptSummary && (
+        <section
+          className="rounded-lg border border-line-soft bg-surface px-3 py-2"
+          data-testid="span-attempt-trail"
+        >
+          <div className="mb-1 text-[11px] uppercase tracking-wide text-muted">Attempt trail</div>
+          {attemptSummary.rows.map((row, i) => (
+            <div
+              key={`${row.model}-${i}`}
+              className="border-b border-line-soft py-1 text-[13px] last:border-0"
+            >
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="min-w-0 truncate">
+                  <span className="mr-1.5 font-mono text-[11px] text-faint">{i + 1}</span>
+                  <span className="font-mono text-ink">{row.model}</span>
+                  {row.upstreamModel && (
+                    <span className="ml-1.5 font-mono text-[11.5px] text-muted">{row.upstreamModel}</span>
+                  )}
+                </span>
+                <span className="shrink-0 font-mono text-[12px]">
+                  {row.attempts > 1 && (
+                    <span className="mr-1.5 text-muted">{row.attempts} calls</span>
+                  )}
+                  <span className={row.outcome === 'answered' ? 'text-ok' : 'text-danger'}>
+                    {row.outcome}
+                  </span>
+                </span>
+              </div>
+              {/* The status says an attempt failed; only the provider's own words say why.
+                  A model that answered after retries shows what those retries were for. */}
+              {row.errorMessage && (
+                <div className="mt-0.5 text-[12px] leading-snug text-muted">
+                  {row.retriedAfterStatus && (
+                    <span className="mr-1.5 font-mono text-warn">
+                      earlier calls failed {row.retriedAfterStatus}
+                    </span>
+                  )}
+                  {row.errorMessage}
+                </div>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
+
+      {/* A warning is not a verdict about the run, so it never turns the span red — it
+          gets its own band instead, and its own `warning:yes` filter. */}
+      {warning?.message && (
+        <div
+          className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-[13px] text-ink"
+          data-testid="span-warning"
+        >
+          <span className="font-mono text-[11.5px] uppercase tracking-wide text-warn">
+            {warning.type ?? 'warning'}
+          </span>
+          <div className="mt-0.5">{warning.message}</div>
+        </div>
+      )}
 
       {(span.promptVersionId || span.gatewayRequestId || span.model != null) && (
         <div className="flex flex-col gap-1.5">

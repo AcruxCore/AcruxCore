@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { acruxcoreError, serverDetail } from './error';
 import { fetchWithRetry } from './fetch';
 import { parseToolArgs, resolveParametersSchema } from './tools';
+import { isToolOutcome } from './tool-result';
+import { validateAgainstSchema } from './result-schema';
 import { inferProviderName } from './provider';
 import { resolveResponseFormat } from './responseFormat';
 import type { GatewayNamespaceHost } from './host';
@@ -210,6 +212,10 @@ interface ToolRoute {
   /** Set instead of `alias` when the ref pinned one exact version. */
   versionNumber?: number;
   toolVersionId?: string;
+  /** The catalog's declared result shape, when the resolved version has one. */
+  resultSchema?: Record<string, unknown>;
+  /** Whether a `resultSchema` mismatch is a warning or an error. */
+  resultSchemaSeverity?: 'warn' | 'error';
 }
 
 /** One streamed tool-loop round, as `_streamOneRound` hands it back to the loop. */
@@ -504,9 +510,10 @@ export class GatewayNamespace {
   /**
    * @internal Builds the JSON body shared by chat() and runToolLoop()'s gateway calls.
    *
-   * `forGateway` gates one field: `prompt_version_id` is ours, not OpenAI's, so sending
-   * it to a BYO provider would be sending a stranger a field it never asked for. On a BYO
-   * call the SDK writes the span itself and stamps the lineage there instead.
+   * `forGateway` gates the fields that are ours rather than OpenAI's — `prompt_version_id`,
+   * `variables` and `gateway` — because sending one to a BYO provider would be sending a
+   * stranger a field it never asked for. On a BYO call the SDK writes the span itself and
+   * stamps the lineage there instead, and there is no gateway to control.
    */
   private _buildChatBody(options: ChatOptions, forGateway = false): Record<string, unknown> {
     const body: Record<string, unknown> = { model: options.model, messages: options.messages };
@@ -524,6 +531,9 @@ export class GatewayNamespace {
     if (options.temperature !== undefined) body['temperature'] = options.temperature;
     if (options.maxTokens !== undefined) body['max_tokens'] = options.maxTokens;
     if (options.stream) body['stream'] = true;
+    // Gateway-only, like `prompt_version_id` above: a BYO provider has no gateway
+    // to control and never asked for this field.
+    if (forGateway && options.gateway) body['gateway'] = options.gateway;
     return body;
   }
 
@@ -1017,6 +1027,8 @@ export class GatewayNamespace {
             alias: ref.alias,
             versionNumber: ref.version,
             toolVersionId: versionId,
+            ...(item.resultSchema ? { resultSchema: item.resultSchema } : {}),
+            ...(item.resultSchemaSeverity ? { resultSchemaSeverity: item.resultSchemaSeverity } : {}),
           });
         } else if (options.dispatch) {
           routes.set(name, {
@@ -1105,109 +1117,115 @@ export class GatewayNamespace {
     const toolSpans: IngestSpan[] = [];
     let traceId: string | undefined = seedTraceId ?? traceConf.traceId;
 
-    for (let i = 0; i < max; i++) {
-      const extraHeaders: Record<string, string> | undefined = traceEnabled && !providerConfig
-        ? gatewayTraceHeaders({ ...traceConf, name: traceName, defaultName: 'runToolLoop', traceId })
-        : undefined;
+    // try/finally, not three call sites. The buffered tool spans used to be reported
+    // only on the three paths someone remembered to add a call to, so a round that threw
+    // — the provider erroring mid-loop — silently discarded every tool span the run had
+    // already produced. The trace then showed a run that made no tool calls at all
+    // (issue #452).
+    try {
+      for (let i = 0; i < max; i++) {
+        const extraHeaders: Record<string, string> | undefined = traceEnabled && !providerConfig
+          ? gatewayTraceHeaders({ ...traceConf, name: traceName, defaultName: 'runToolLoop', traceId })
+          : undefined;
 
-      const roundStartTime = new Date().toISOString();
-      const result = providerConfig
-        ? await this._completeViaProvider(
-            {
-              model: options.model,
-              messages,
-              tools: byoToolSchemas,
-              temperature: options.temperature,
-              maxTokens: options.maxTokens,
-              responseFormat: effectiveResponseFormat,
-            },
-            providerConfig,
-          )
-        : await this._completeOnce(
-            {
-              model: options.model,
-              messages,
-              tools: options.toolDefs?.length ? options.toolDefs : undefined,
-              toolRefs: effectiveRefs.length > 0 ? effectiveRefs : undefined,
-              temperature: options.temperature,
-              maxTokens: options.maxTokens,
-              responseFormat: effectiveResponseFormat,
-              promptVersionId: options.promptVersionId,
-              variables: options.variables,
-            },
-            extraHeaders,
-          );
+        const roundStartTime = new Date().toISOString();
+        const result = providerConfig
+          ? await this._completeViaProvider(
+              {
+                model: options.model,
+                messages,
+                tools: byoToolSchemas,
+                temperature: options.temperature,
+                maxTokens: options.maxTokens,
+                responseFormat: effectiveResponseFormat,
+              },
+              providerConfig,
+            )
+          : await this._completeOnce(
+              {
+                model: options.model,
+                messages,
+                tools: options.toolDefs?.length ? options.toolDefs : undefined,
+                toolRefs: effectiveRefs.length > 0 ? effectiveRefs : undefined,
+                temperature: options.temperature,
+                maxTokens: options.maxTokens,
+                responseFormat: effectiveResponseFormat,
+                promptVersionId: options.promptVersionId,
+                variables: options.variables,
+                gateway: options.gateway,
+              },
+              extraHeaders,
+            );
 
-      if (traceEnabled && !traceId) traceId = result.gateway.traceId ?? undefined;
-      const llmSpanRef = result.gateway.spanRef ?? undefined;
+        if (traceEnabled && !traceId) traceId = result.gateway.traceId ?? undefined;
+        const llmSpanRef = result.gateway.spanRef ?? undefined;
 
-      if (providerConfig && traceEnabled) {
-        const llmSpanId = result.gateway.spanRef ?? `llm-${i}`;
-        const llmSpan: IngestSpan = {
-          spanId: llmSpanId,
-          name: result.model,
-          kind: 'llm',
-          status: 'ok',
-          startTime: roundStartTime,
-          endTime: new Date().toISOString(),
-          model: result.model,
-          provider: result.gateway.provider ?? undefined,
-          usage: result.usage,
-          promptVersionId: options.promptVersionId,
-          variables: options.variables,
-          input: { messages },
-          output: result.message,
-        };
-        const roundTrace: TraceInput = {
-          traceId,
-          name: payloadTraceName,
-          sessionId: traceConf.sessionId,
-          spans: [llmSpan],
-        };
-        const mustAwaitTraceOpen = i === 0 && [...routes.values()].some((r) => r.kind === 'http');
-        if (mustAwaitTraceOpen) {
-          try {
-            await this.host._request('POST', '/traces', { traces: [roundTrace] }, 'reporting llm span');
-          } catch (err) {
-            console.warn('[acruxcore] runToolLoop llm-span report failed — continuing without it', err instanceof Error ? err.message : err);
-          }
-        } else {
-          this.host.spanQueue.enqueue(roundTrace);
-        }
-      }
-
-      const calls = result.message.tool_calls ?? [];
-      if (result.finishReason !== 'tool_calls' || calls.length === 0) {
-        this._reportToolSpans(traceEnabled, traceId, payloadTraceName, traceConf.sessionId, toolSpans);
-        return { content: result.content ?? '', messages: [...messages, result.message], iterations: i + 1, stoppedAtLimit: false, traceId };
-      }
-
-      const settled = await Promise.allSettled(
-        calls.map((call, callIndex) =>
-          this._dispatchToolCall(call, {
-            callIndex,
-            roundIndex: i,
-            routes,
-            dispatch: options.dispatch,
-            traceEnabled,
+        if (providerConfig && traceEnabled) {
+          const llmSpanId = result.gateway.spanRef ?? `llm-${i}`;
+          const llmSpan: IngestSpan = {
+            spanId: llmSpanId,
+            name: result.model,
+            kind: 'llm',
+            status: 'ok',
+            startTime: roundStartTime,
+            endTime: new Date().toISOString(),
+            model: result.model,
+            provider: result.gateway.provider ?? undefined,
+            usage: result.usage,
+            promptVersionId: options.promptVersionId,
+            variables: options.variables,
+            input: { messages },
+            output: result.message,
+          };
+          const roundTrace: TraceInput = {
             traceId,
-            llmSpanRef,
-            toolSpans,
-          }),
-        ),
-      );
+            name: payloadTraceName,
+            sessionId: traceConf.sessionId,
+            spans: [llmSpan],
+          };
+          const mustAwaitTraceOpen = i === 0 && [...routes.values()].some((r) => r.kind === 'http');
+          if (mustAwaitTraceOpen) {
+            try {
+              await this.host._request('POST', '/traces', { traces: [roundTrace] }, 'reporting llm span');
+            } catch (err) {
+              console.warn('[acruxcore] runToolLoop llm-span report failed — continuing without it', err instanceof Error ? err.message : err);
+            }
+          } else {
+            this.host.spanQueue.enqueue(roundTrace);
+          }
+        }
 
-      const failure = settled.find((s) => s.status === 'rejected');
-      if (failure) {
-        this._reportToolSpans(traceEnabled, traceId, payloadTraceName, traceConf.sessionId, toolSpans);
-        throw (failure as PromiseRejectedResult).reason;
+        const calls = result.message.tool_calls ?? [];
+        if (result.finishReason !== 'tool_calls' || calls.length === 0) {
+          return { content: result.content ?? '', messages: [...messages, result.message], iterations: i + 1, stoppedAtLimit: false, traceId };
+        }
+
+        const settled = await Promise.allSettled(
+          calls.map((call, callIndex) =>
+            this._dispatchToolCall(call, {
+              callIndex,
+              roundIndex: i,
+              routes,
+              dispatch: options.dispatch,
+              traceEnabled,
+              traceId,
+              llmSpanRef,
+              toolSpans,
+            }),
+          ),
+        );
+
+        const failure = settled.find((s) => s.status === 'rejected');
+        if (failure) {
+          throw (failure as PromiseRejectedResult).reason;
+        }
+
+        const toolMsgs = settled.map((s) => (s as PromiseFulfilledResult<Message>).value);
+        messages = [...messages, result.message, ...toolMsgs];
       }
-
-      const toolMsgs = settled.map((s) => (s as PromiseFulfilledResult<Message>).value);
-      messages = [...messages, result.message, ...toolMsgs];
+    } finally {
+      this._reportToolSpans(traceEnabled, traceId, payloadTraceName, traceConf.sessionId, toolSpans);
     }
-
-    this._reportToolSpans(traceEnabled, traceId, payloadTraceName, traceConf.sessionId, toolSpans);
     return { content: '', messages, iterations: max, stoppedAtLimit: true, traceId };
   }
 
@@ -1255,110 +1273,116 @@ export class GatewayNamespace {
     const state: { traceId?: string } = { traceId: traceConf.traceId };
     let gathered: RunToolLoopResult | undefined;
 
-    for (let i = 0; i < max; i++) {
-      const round: StreamedRound = {};
-      yield* this._streamOneRound({
-        options,
-        convo: messages,
-        roundIndex: i,
-        emitContent: !shaping,
-        effectiveRefs,
-        byoToolSchemas,
-        responseFormat: shaping ? undefined : options.responseFormat,
-        providerConfig,
-        traceEnabled,
-        traceConf,
-        traceName,
-        payloadTraceName,
-        state,
-        out: round,
-      });
-
-      const message = round.message as Message;
-      const calls = message.tool_calls ?? [];
-
-      if (round.finishReason !== 'tool_calls' || calls.length === 0) {
-        gathered = {
-          content: message.content ?? '',
-          messages: [...messages, message],
-          iterations: i + 1,
-          stoppedAtLimit: false,
-          traceId: state.traceId,
-        };
-        break;
-      }
-
-      for (const call of calls) {
-        yield {
-          type: 'tool_call',
-          id: call.id,
-          name: call.function.name,
-          arguments: parseCallArguments(call),
-          round: i,
-        };
-      }
-
-      // Every call reports back the moment it settles, so a slow tool cannot hold back a
-      // fast one's `tool_result` event.
-      const outcomes = new Map<string, { result?: unknown; error?: string }>();
-      const tasks = calls.map((call, callIndex) =>
-        this._dispatchToolCall(call, {
-          callIndex,
+    // Same try/finally as the blocking loop: a round that throws must not take the tool
+    // spans the run already produced down with it (issue #452). A generator makes this
+    // matter more, not less — an abandoned consumer triggers `finally` here too.
+    try {
+      for (let i = 0; i < max; i++) {
+        const round: StreamedRound = {};
+        yield* this._streamOneRound({
+          options,
+          convo: messages,
           roundIndex: i,
-          routes,
-          dispatch: options.dispatch,
+          emitContent: !shaping,
+          effectiveRefs,
+          byoToolSchemas,
+          responseFormat: shaping ? undefined : options.responseFormat,
+          providerConfig,
           traceEnabled,
-          traceId: state.traceId,
-          llmSpanRef: round.spanRef,
-          toolSpans,
-          onSettled: (id, _name, result, error) => outcomes.set(id, { result, error }),
-        }),
-      );
-      // Resolving with the call's own index either way is what guarantees exactly one
-      // report per call — including for a tool that throws before it ever runs, which
-      // never reaches `onSettled`.
-      const remaining = new Map<number, Promise<number>>(
-        tasks.map((task, index) => [
-          index,
-          task.then(
-            () => index,
-            (err) => {
-              const id = calls[index]!.id;
-              if (!outcomes.has(id)) {
-                outcomes.set(id, { error: err instanceof Error ? err.message : String(err) });
-              }
-              return index;
-            },
-          ),
-        ]),
-      );
+          traceConf,
+          traceName,
+          payloadTraceName,
+          state,
+          out: round,
+        });
 
-      while (remaining.size > 0) {
-        const index = await Promise.race(remaining.values());
-        remaining.delete(index);
-        const call = calls[index]!;
-        const outcome = outcomes.get(call.id) ?? {};
-        yield {
-          type: 'tool_result',
-          id: call.id,
-          name: call.function.name,
-          result: outcome.result,
-          error: outcome.error,
-          round: i,
-        };
-      }
+        const message = round.message as Message;
+        const calls = message.tool_calls ?? [];
 
-      const results = await Promise.allSettled(tasks);
-      const failure = results.find((r) => r.status === 'rejected');
-      if (failure) {
-        this._reportToolSpans(traceEnabled, state.traceId, payloadTraceName, traceConf.sessionId, toolSpans);
-        throw (failure as PromiseRejectedResult).reason;
+        if (round.finishReason !== 'tool_calls' || calls.length === 0) {
+          gathered = {
+            content: message.content ?? '',
+            messages: [...messages, message],
+            iterations: i + 1,
+            stoppedAtLimit: false,
+            traceId: state.traceId,
+          };
+          break;
+        }
+
+        for (const call of calls) {
+          yield {
+            type: 'tool_call',
+            id: call.id,
+            name: call.function.name,
+            arguments: parseCallArguments(call),
+            round: i,
+          };
+        }
+
+        // Every call reports back the moment it settles, so a slow tool cannot hold back a
+        // fast one's `tool_result` event.
+        const outcomes = new Map<string, { result?: unknown; error?: string }>();
+        const tasks = calls.map((call, callIndex) =>
+          this._dispatchToolCall(call, {
+            callIndex,
+            roundIndex: i,
+            routes,
+            dispatch: options.dispatch,
+            traceEnabled,
+            traceId: state.traceId,
+            llmSpanRef: round.spanRef,
+            toolSpans,
+            onSettled: (id, _name, result, error) => outcomes.set(id, { result, error }),
+          }),
+        );
+        // Resolving with the call's own index either way is what guarantees exactly one
+        // report per call — including for a tool that throws before it ever runs, which
+        // never reaches `onSettled`.
+        const remaining = new Map<number, Promise<number>>(
+          tasks.map((task, index) => [
+            index,
+            task.then(
+              () => index,
+              (err) => {
+                const id = calls[index]!.id;
+                if (!outcomes.has(id)) {
+                  outcomes.set(id, { error: err instanceof Error ? err.message : String(err) });
+                }
+                return index;
+              },
+            ),
+          ]),
+        );
+
+        while (remaining.size > 0) {
+          const index = await Promise.race(remaining.values());
+          remaining.delete(index);
+          const call = calls[index]!;
+          const outcome = outcomes.get(call.id) ?? {};
+          yield {
+            type: 'tool_result',
+            id: call.id,
+            name: call.function.name,
+            result: outcome.result,
+            error: outcome.error,
+            round: i,
+          };
+        }
+
+        const results = await Promise.allSettled(tasks);
+        const failure = results.find((r) => r.status === 'rejected');
+        if (failure) {
+          throw (failure as PromiseRejectedResult).reason;
+        }
+        messages = [
+          ...messages,
+          message,
+          ...results.map((r) => (r as PromiseFulfilledResult<Message>).value),
+        ];
       }
-      messages = [
-        ...messages,
-        message,
-        ...results.map((r) => (r as PromiseFulfilledResult<Message>).value),
-      ];
+    } finally {
+      this._reportToolSpans(traceEnabled, state.traceId, payloadTraceName, traceConf.sessionId, toolSpans);
     }
 
     gathered ??= {
@@ -1368,8 +1392,6 @@ export class GatewayNamespace {
       stoppedAtLimit: true,
       traceId: state.traceId,
     };
-
-    this._reportToolSpans(traceEnabled, state.traceId, payloadTraceName, traceConf.sessionId, toolSpans);
 
     if (!shaping) {
       yield { type: 'done', result: gathered };
@@ -1450,6 +1472,7 @@ export class GatewayNamespace {
       responseFormat: args.responseFormat,
       promptVersionId: options.promptVersionId,
       variables: options.variables,
+      gateway: options.gateway,
       stream: true,
     };
 
@@ -1566,7 +1589,10 @@ export class GatewayNamespace {
         parentSpanId: ctx.llmSpanRef,
       });
       const ret = executed.result;
-      ctx.onSettled?.(call.id, name, ret, undefined);
+      // The platform already wrote this span, classification included — nothing is pushed
+      // to `toolSpans` for an http route. What it could not do is tell the caller, so the
+      // classification is forwarded to onSettled here and a streaming consumer can react.
+      ctx.onSettled?.(call.id, name, ret, executed.error?.message);
       const content = typeof ret === 'string' ? ret : (JSON.stringify(ret) ?? 'null');
       return { role: 'tool', tool_call_id: call.id, content };
     }
@@ -1599,13 +1625,60 @@ export class GatewayNamespace {
       ...(route?.toolVersionId ? { toolVersionId: route.toolVersionId } : {}),
     };
     return Promise.resolve(run()).then(
-      (result): Message => {
+      (returned): Message => {
+        // A handler may hand back its own verdict via toolError/toolWarning. Unwrapping
+        // it HERE, in the one place either loop runs a tool, is what keeps the span shape
+        // identical to the platform's `http` executor — see traces/spans/span-failure.ts.
+        const outcome = isToolOutcome(returned) ? returned : null;
+        const result = outcome ? outcome.result : returned;
+
+        const declared = outcome
+          ? {
+              errorType: 'tool_declared',
+              code: outcome.type,
+              message: outcome.message,
+              fatal: outcome.level === 'error',
+            }
+          : null;
+        // The catalog's own contract, checked only when the owner declared nothing
+        // themselves — an explicit verdict outranks an inferred one.
+        const mismatch =
+          !declared && route?.resultSchema ? validateAgainstSchema(result, route.resultSchema) : null;
+        const failure =
+          declared ??
+          (mismatch
+            ? {
+                errorType: 'schema_mismatch',
+                message: mismatch,
+                fatal: route?.resultSchemaSeverity === 'error',
+              }
+            : null);
+
+        if (failure) {
+          attributes.errorType = failure.errorType;
+          // The owner's own slug, kept beside the closed-vocabulary `errorType` rather
+          // than inside it — see SpanFailure.code in the API's span-failure.ts.
+          if ('code' in failure && failure.code) attributes.errorCode = failure.code;
+          attributes.errorDetail = failure.message;
+          if (!failure.fatal) {
+            attributes.warning = {
+              type: ('code' in failure && failure.code) || failure.errorType,
+              message: failure.message,
+            };
+          }
+        }
+
         ctx.toolSpans.push({
           spanId: toolSpanId, parentSpanId: ctx.llmSpanRef, name, kind: 'tool',
-          status: 'ok', startTime: toolStart, endTime: new Date().toISOString(),
+          status: failure?.fatal ? 'error' : 'ok',
+          startTime: toolStart, endTime: new Date().toISOString(),
           input: args, output: result ?? null, attributes,
+          ...(failure?.fatal ? { error: failure.message } : {}),
         });
-        ctx.onSettled?.(call.id, name, result, undefined);
+        // A declared failure does NOT stop the loop. Whether the agent keeps going is the
+        // caller's decision; making the trace tell the truth is ours, and conflating the
+        // two would change the behaviour of every existing tool.
+        ctx.onSettled?.(call.id, name, result, failure?.fatal ? failure.message : undefined);
         const content = typeof result === 'string' ? result : (JSON.stringify(result) ?? 'null');
         return { role: 'tool', tool_call_id: call.id, content };
       },
@@ -1614,7 +1687,8 @@ export class GatewayNamespace {
         ctx.toolSpans.push({
           spanId: toolSpanId, parentSpanId: ctx.llmSpanRef, name, kind: 'tool',
           status: 'error', startTime: toolStart, endTime: new Date().toISOString(),
-          input: args, attributes, error: message,
+          input: args, attributes: { ...attributes, errorType: 'transport', errorDetail: message },
+          error: message,
         });
         ctx.onSettled?.(call.id, name, undefined, message);
         throw err;

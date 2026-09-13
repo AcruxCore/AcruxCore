@@ -75,8 +75,7 @@ async def main():
                 "url": "https://httpbin.org/get",
                 "method": "GET",
                 "headers": [],
-                "query": [{"name": "ticker", "value": "{{ticker}}"}],
-                "argMapping": [{"arg": "ticker", "in": "query"}],
+                "query": [{"name": "ticker", "value": "{{arg.ticker}}"}],
             }
             v2 = await hub.tools.commit_version(
                 tool.id,

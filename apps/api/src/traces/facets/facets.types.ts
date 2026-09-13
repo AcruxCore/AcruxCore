@@ -13,4 +13,10 @@ export interface TraceFacets {
   metadataKeys: string[];
   /** Distinct resolved `llm` span models seen for the team (see `facets.repository.ts`'s `listModels`). */
   models: string[];
+  /**
+   * Distinct `errorCode` slugs the team's tools have declared, for the `error_code:`
+   * filter. Unlike `error_type`, these are the team's own words, so they can only come
+   * from what has been recorded.
+   */
+  errorCodes: string[];
 }

@@ -193,6 +193,56 @@ describe('POST /gateway/chat/completions (stream)', () => {
     expect(rows[0]?.errorCode).toBe('429');
   });
 
+  it('gateway.fallback false keeps a failing stream on the primary model', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const bad = await agent
+      .post('/api/v1/gateway/connections')
+      .send({ provider: 'openai', label: 'bad', apiKey: 'sk-bad', config: {} })
+      .expect(201);
+    const good = await agent
+      .post('/api/v1/gateway/connections')
+      .send({ provider: 'openai', label: 'good', apiKey: 'sk-good', config: {} })
+      .expect(201);
+    const backup = await agent
+      .post('/api/v1/gateway/models')
+      .send({ publicName: 'backup', upstreamModel: 'gpt-4o-mini', credentialId: good.body.id })
+      .expect(201);
+    await agent
+      .post('/api/v1/gateway/models')
+      .send({
+        publicName: 'primary',
+        upstreamModel: 'gpt-4o-mini',
+        credentialId: bad.body.id,
+        fallbackModelIds: [backup.body.id],
+      })
+      .expect(201);
+
+    const spy = jest.spyOn(global, 'fetch').mockImplementation(async (_input, init) => {
+      const auth = new Headers(init?.headers as Record<string, string> | undefined).get('authorization') ?? '';
+      if (auth.includes('sk-bad')) {
+        return new Response('{"error":{"message":"invalid key"}}', { status: 401 });
+      }
+      return sseResponse(OPENAI_FRAMES_WITH_USAGE);
+    });
+
+    const res = await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({
+        model: 'primary',
+        messages: [{ role: 'user', content: 'hi' }],
+        stream: true,
+        gateway: { fallback: false },
+      })
+      .expect(502);
+
+    expect(res.body.error.code).toBe('PROVIDER_ERROR');
+    expect(spy).toHaveBeenCalledTimes(1); // the backup was never opened
+
+    const rows = await prisma.gatewayRequest.findMany({ where: { teamId } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.status).toBe('error');
+  });
+
   it('a non-provider exception before the first chunk still credits the budget reservation back in full (no permanent leak)', async () => {
     // Regression: in `completeStream`, the per-deployment selection loop only
     // credited the reservation back via `recordStreamRow`'s 'error' path when

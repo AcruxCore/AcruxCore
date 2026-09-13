@@ -202,11 +202,108 @@ Response (status 400) — http executor's url is not a public address (SSRF guar
 {"error":{"code":"VALIDATION_ERROR","message":"Blocked address: 127.0.0.1"}}
 ```
 
+Response (status 400) — the executor carries an `argMapping`. The field is stored and
+never applied, so a tool relying on it called upstream with the argument missing. It is
+rejected here instead, and `bodyTemplate` is rejected the same way:
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"argMapping is never applied. Put {{arg.NAME}} in a query value, a header value or the URL instead — for example \"query\": [{ \"name\": \"name\", \"value\": \"{{arg.city}}\" }]."}}
+```
+
+An empty `argMapping` still commits: every `http` executor already stored carries the
+key, and `@acruxcoreai/sdk` 0.13.0 and earlier type it as required.
+
 Response (status 404) — tool does not exist or belongs to another team:
 
 ```json
 {"error":{"code":"NOT_FOUND","message":"Tool not found."}}
 ```
+
+---
+
+## Declaring a failure the HTTP status cannot show
+
+An upstream API can answer `200` and still have failed the call: a geocoder that
+finds no city returns `200` with an empty list. For a `client` executor the tool's
+own code reports that with a `ToolResult` — see
+[Report a tool failure from your own code](https://docs.acruxcore.com/docs/guides/report-a-tool-failure-from-your-own-code).
+For an `http` executor the platform makes the call and the customer's code never
+runs, so the check is stored on the version instead, as `failureWhen`.
+
+`failureWhen` is a JavaScript predicate run against the raw upstream response on
+every call. It receives `{ status, headers, body }` and returns `null` for a
+healthy call, or `{ type, message }` to declare a failure. The returned `type` is
+your own slug and lands on the span as `errorCode`.
+
+**The function must be named `transform`.** All three JavaScript hooks on a version
+— `requestTransform`, `responseTransform` and `failureWhen` — run in the same
+sandbox, and that sandbox invokes whatever it is given under the name `transform`.
+A predicate whose function has any other name is still valid JavaScript, so it
+commits without complaint and then fails on every call, recording a `transform`
+warning instead of classifying anything.
+
+`failureWhen` runs **before** `responseTransform`, because a transform is free to
+drop the very field that carried the error.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/tools/d8b5a7cf-bd28-4df5-b03a-e3ae8ea9e4aa/versions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "Look up a city'"'"'s coordinates.",
+    "parametersSchema": {
+      "type": "object",
+      "properties": { "city": { "type": "string" } },
+      "required": ["city"]
+    },
+    "executor": {
+      "type": "http",
+      "method": "GET",
+      "url": "https://geocoding-api.open-meteo.com/v1/search",
+      "query": [
+        { "name": "name", "value": "{{arg.city}}" },
+        { "name": "count", "value": "1" }
+      ],
+      "failureWhen": "function transform(input) {\n  if ((input.body.results || []).length === 0) {\n    return { type: '"'"'location_not_found'"'"', message: '"'"'Open-Meteo has no coordinates for that city.'"'"' };\n  }\n  return null;\n}"
+    }
+  }'
+```
+
+Response (status 201), executor echoed back:
+
+```json
+{
+  "id": "2bbeb8d3-9162-4e57-90f2-6d55f35e3faa",
+  "toolId": "d8b5a7cf-bd28-4df5-b03a-e3ae8ea9e4aa",
+  "versionNumber": 1,
+  "description": "Look up a city's coordinates.",
+  "source": "api",
+  "executor": {
+    "url": "https://geocoding-api.open-meteo.com/v1/search",
+    "type": "http",
+    "query": [{"name": "name", "value": "{{arg.city}}"}, {"name": "count", "value": "1"}],
+    "method": "GET",
+    "headers": [],
+    "argMapping": [],
+    "failureWhen": "function transform(input) {\n  if ((input.body.results || []).length === 0) {\n    return { type: 'location_not_found', message: 'Open-Meteo has no coordinates for that city.' };\n  }\n  return null;\n}"
+  }
+}
+```
+
+Executing that version is in [`execute.mdx`](./execute.mdx), which shows the `200`
+response carrying an `error` field.
+
+### `resultSchema` and the order the checks run in
+
+`resultSchema` is a JSON Schema the result must match. It is checked **after**
+`responseTransform` has run, because the transformed object is what the model
+reads. A mismatch is recorded as a warning; set `resultSchemaSeverity` to
+`"error"` to make a mismatch fail the call instead.
+
+Three checks can fire on one call, and they run in this order: a non-2xx status,
+then `failureWhen`, then `resultSchema`. Whichever fires first is the one the span
+reports, and any other check that also fired is kept on the span in an
+`alsoDetected` attribute.
 
 ---
 

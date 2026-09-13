@@ -24,12 +24,25 @@ import type {
   UpdateTraceSettingsInput,
 } from './types';
 
-/** Maps a camelCase TraceFilters object to the API's snake_case/bracket query params. */
-function traceQuery(f: TraceFilters): ApiQuery {
+/**
+ * Maps a camelCase TraceFilters object to the API's snake_case/bracket query params.
+ *
+ * Exported for its own test. This is the fourth place the filter vocabulary is written
+ * out — after the API's `filters.types.ts` and `filters.sql.ts`, and the bar's
+ * `chips.ts` — and the only one where a missing line fails silently: the chip renders,
+ * the URL updates, and the list simply does not narrow. `traceQueryCoversEveryFilter`
+ * in the test file is what makes that omission fail loudly instead.
+ */
+export function traceQuery(f: TraceFilters): ApiQuery {
   return {
     from: f.from,
     to: f.to,
     status: f.status,
+    error_type: f.errorType,
+    error_code: f.errorCode,
+    // Only sent when set: an absent `has_warning` means "either", which is a different
+    // filter from `has_warning=false`.
+    has_warning: f.hasWarning === undefined ? undefined : String(f.hasWarning),
     model: f.model,
     session_id: f.sessionId,
     prompt_version_id: f.promptVersionId,

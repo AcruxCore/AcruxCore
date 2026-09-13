@@ -89,8 +89,7 @@ async def test_full_tool_lifecycle_create_versions_promote_analytics_delete(hub:
         "url": "https://example.com/weather",
         "method": "GET",
         "headers": [],
-        "query": [{"name": "city", "value": "{{city}}"}],
-        "argMapping": [{"arg": "city", "in": "query"}],
+        "query": [{"name": "city", "value": "{{arg.city}}"}],
     }
     v2 = await hub.tools.commit_version(
         created.id,
@@ -101,7 +100,9 @@ async def test_full_tool_lifecycle_create_versions_promote_analytics_delete(hub:
     assert v2.version_number == 2
     assert v2.aliases is None
     assert v2.warnings is None
-    assert v2.executor == http_executor
+    # The API writes `argMapping: []` onto every http executor it stores, so every
+    # version already committed keeps the same shape (phase-4 FAQ Q23).
+    assert v2.executor == {**http_executor, "argMapping": []}
 
     # commit_version v3 (changelog only, no description) — warnings present
     v3 = await hub.tools.commit_version(
@@ -205,8 +206,7 @@ async def test_execute_http_tool(hub: AcruxCore) -> None:
         "url": _EXECUTOR_UPSTREAM,
         "method": "GET",
         "headers": [],
-        "query": [{"name": "city", "value": "{{city}}"}],
-        "argMapping": [{"arg": "city", "in": "query"}],
+        "query": [{"name": "city", "value": "{{arg.city}}"}],
     }
     v1 = await hub.tools.commit_version(
         created.id,

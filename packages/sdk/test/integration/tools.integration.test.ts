@@ -406,8 +406,7 @@ describe('acruxcore SDK tools integration', () => {
           url: 'https://example.com/weather',
           method: 'GET',
           headers: [],
-          query: [{ name: 'city', value: '{{city}}' }],
-          argMapping: [{ arg: 'city', in: 'query' }],
+          query: [{ name: 'city', value: '{{arg.city}}' }],
         },
       });
       expect(v2.versionNumber).toBe(2);
@@ -418,8 +417,10 @@ describe('acruxcore SDK tools integration', () => {
         url: 'https://example.com/weather',
         method: 'GET',
         headers: [],
-        query: [{ name: 'city', value: '{{city}}' }],
-        argMapping: [{ arg: 'city', in: 'query' }],
+        query: [{ name: 'city', value: '{{arg.city}}' }],
+        // The API still writes the key for an http executor, so a stored executor keeps
+        // the shape every already-synced tool has.
+        argMapping: [],
       });
 
       // commitVersion v3 (changelog only, no description) — warnings present
@@ -505,8 +506,7 @@ describe('acruxcore SDK tools integration', () => {
             url: `${baseUrl}/health`,
             method: 'GET',
             headers: [],
-            query: [{ name: 'city', value: '{{city}}' }],
-            argMapping: [{ arg: 'city', in: 'query' }],
+            query: [{ name: 'city', value: '{{arg.city}}' }],
           },
           description: 'HTTP GET via the server-side executor',
         });

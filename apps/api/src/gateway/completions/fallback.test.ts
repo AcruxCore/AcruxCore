@@ -113,7 +113,16 @@ describe('gateway explicit per-model fallback / retry', () => {
     expect(row!.gatewayModelId).toBe(backup);
     const meta = row!.meta as { attempts: number; trail: TrailEntry[] };
     expect(meta.attempts).toBeGreaterThanOrEqual(2);
-    expect(meta.trail[0]).toEqual({ modelId: primary, credentialId: badCred, error: '401' });
+    expect(meta.trail[0]).toEqual({
+      modelId: primary,
+      model: 'primary',
+      upstreamModel: 'gpt-4o-mini',
+      credentialId: badCred,
+      attempts: 1,
+      error: '401',
+      // The provider's own words, not just its status — the point of the trail.
+      errorMessage: 'invalid key',
+    });
   });
 
   it('transient 500 on primary is retried, then falls back to the backup model', async () => {
@@ -137,7 +146,16 @@ describe('gateway explicit per-model fallback / retry', () => {
     expect(row!.providerConnectionId).toBe(goodCred);
     const meta = row!.meta as { attempts: number; trail: TrailEntry[] };
     expect(meta.attempts).toBeGreaterThanOrEqual(3); // flaky x2 + good x1
-    expect(meta.trail[0]).toEqual({ modelId: primary, credentialId: flakyCred, error: '500' });
+    expect(meta.trail[0]).toEqual({
+      modelId: primary,
+      model: 'primary',
+      upstreamModel: 'gpt-4o-mini',
+      credentialId: flakyCred,
+      // Two calls to the primary: the first plus the one retry its transient 500 earned.
+      attempts: 2,
+      error: '500',
+      errorMessage: 'server error',
+    });
   });
 
   it('primary + backup both fail (500) → 502 PROVIDER_ERROR; error row lists the full trail', async () => {
@@ -166,6 +184,62 @@ describe('gateway explicit per-model fallback / retry', () => {
     expect(meta.trail.every((t) => t.error === '500')).toBe(true);
   });
 
+  it('gateway.fallback false keeps a failing call on the primary and surfaces its error', async () => {
+    const ctx = await signupTestUser(app);
+    const badCred = await createCred(ctx, 'sk-bad');
+    const goodCred = await createCred(ctx, 'sk-good');
+    const backup = await registerModel(ctx, 'backup', goodCred);
+    const primary = await registerModel(ctx, 'primary', badCred, [backup]);
+    const spy = mockProvider({
+      'sk-bad': { status: 401, body: { error: { message: 'invalid key' } } },
+      'sk-good': { status: 200, body: OK_BODY },
+    });
+
+    const res = await complete(ctx, {
+      model: 'primary',
+      messages: [{ role: 'user', content: 'hi' }],
+      gateway: { fallback: false },
+    }).expect(502);
+    expect(res.body.error.code).toBe('PROVIDER_ERROR');
+    expect(spy).toHaveBeenCalledTimes(1); // the backup was never called
+
+    const row = await latestRow(ctx.teamId);
+    expect(row!.status).toBe('error');
+    const meta = row!.meta as { trail: TrailEntry[] };
+    expect(meta.trail).toEqual([
+      {
+        modelId: primary,
+        model: 'primary',
+        upstreamModel: 'gpt-4o-mini',
+        credentialId: badCred,
+        attempts: 1,
+        error: '401',
+        errorMessage: 'invalid key',
+      },
+    ]);
+  });
+
+  it('gateway.fallback true is the default and still falls back', async () => {
+    const ctx = await signupTestUser(app);
+    const badCred = await createCred(ctx, 'sk-bad');
+    const goodCred = await createCred(ctx, 'sk-good');
+    const backup = await registerModel(ctx, 'backup', goodCred);
+    await registerModel(ctx, 'primary', badCred, [backup]);
+    mockProvider({
+      'sk-bad': { status: 401, body: { error: { message: 'invalid key' } } },
+      'sk-good': { status: 200, body: OK_BODY },
+    });
+
+    await complete(ctx, {
+      model: 'primary',
+      messages: [{ role: 'user', content: 'hi' }],
+      gateway: { fallback: true },
+    }).expect(200);
+
+    const row = await latestRow(ctx.teamId);
+    expect(row!.gatewayModelId).toBe(backup);
+  });
+
   it('provider 400 → 400 PROVIDER_BAD_REQUEST immediately, no fallback attempted', async () => {
     const ctx = await signupTestUser(app);
     const credA = await createCred(ctx, 'sk-400');
@@ -185,6 +259,14 @@ describe('gateway explicit per-model fallback / retry', () => {
     expect(row!.status).toBe('error');
     const meta = row!.meta as { trail: TrailEntry[] };
     expect(meta.trail).toHaveLength(1);
-    expect(meta.trail[0]).toEqual({ modelId: primary, credentialId: credA, error: '400' });
+    expect(meta.trail[0]).toEqual({
+      modelId: primary,
+      model: 'primary',
+      upstreamModel: 'gpt-4o-mini',
+      credentialId: credA,
+      attempts: 1,
+      error: '400',
+      errorMessage: 'bad request',
+    });
   });
 });

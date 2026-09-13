@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SPAN_ERROR_TYPES } from '../spans/span-failure';
 
 /**
  * Which part of a trace the free-text `q` searches.
@@ -10,6 +11,19 @@ import { z } from 'zod';
  * or the other.
  */
 export const QueryScopeSchema = z.enum(['all', 'input', 'output', 'name']);
+
+/**
+ * A boolean filter that survives both wire shapes this vocabulary travels in: a query
+ * string, where it arrives as text, and a JSON `filter` body, where it is a real boolean.
+ *
+ * `z.coerce.boolean()` cannot be used: it applies JavaScript truthiness, so
+ * `?has_warning=false` arrives as the string `"false"` and coerces to `true` — the exact
+ * opposite of what was asked for.
+ */
+export const BooleanParamSchema = z.union([
+  z.boolean(),
+  z.enum(['true', 'false', '1', '0']).transform((v) => v === 'true' || v === '1'),
+]);
 
 /** Which part of a trace `q` searches. */
 export type QueryScope = z.infer<typeof QueryScopeSchema>;
@@ -32,11 +46,24 @@ export type QueryScope = z.infer<typeof QueryScopeSchema>;
  * `prompt_id` and `prompt_version_id` are both "the trace has at least one span
  * that used this" — `prompt_version_id` is a column on `spans`, not on
  * `traces`, so one trace can legitimately involve several prompts.
+ *
+ * `error_type`, `error_code` and `has_warning` read span attributes rather than trace
+ * columns, for the same reason: the question "which runs broke because an upstream tool
+ * 500'd" is about one span inside the trace, and `status: error` alone cannot answer it —
+ * every kind of failure rolls up to the same red trace.
+ *
+ * `error_type` is a closed set and `error_code` a free string, because they answer
+ * different questions: the type is one of six platform classifications, while the code is
+ * whatever slug the tool's owner chose for their own failure mode. A team invents its own
+ * codes, so no enum here could know them.
  */
 export const TraceFilterQuerySchema = z.object({
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
   status: z.enum(['ok', 'error', 'unset']).optional(),
+  error_type: z.enum(SPAN_ERROR_TYPES as unknown as [string, ...string[]]).optional(),
+  error_code: z.string().min(1).optional(),
+  has_warning: BooleanParamSchema.optional(),
   model: z.string().min(1).optional(),
   session_id: z.string().min(1).optional(),
   prompt_id: z.string().uuid().optional(),
@@ -73,6 +100,9 @@ export interface TraceFilters {
   from?: Date;
   to?: Date;
   status?: string;
+  errorType?: string;
+  errorCode?: string;
+  hasWarning?: boolean;
   model?: string;
   sessionId?: string;
   promptId?: string;
@@ -102,6 +132,9 @@ export function toTraceFilters(query: TraceFilterQuery): TraceFilters {
     from: query.from,
     to: query.to,
     status: query.status,
+    errorType: query.error_type,
+    errorCode: query.error_code,
+    hasWarning: query.has_warning,
     model: query.model,
     sessionId: query.session_id,
     promptId: query.prompt_id,

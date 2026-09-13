@@ -72,8 +72,52 @@ export type DeploymentInvoker = (
 /** One entry in the fallback trail: the deployment tried and its error (if any). */
 export interface FallbackTrailEntry {
   modelId: string;
+  /**
+   * The registered public name of the model tried, e.g. `unstable-4o-mini`. Carried
+   * beside `modelId` because the trail's only readers are humans — a trace panel and a
+   * support question — and a bare uuid cannot answer "which model actually served this".
+   */
+  model: string;
+  /** The upstream name that model's provider knows, e.g. `gpt-4o-mini`. */
+  upstreamModel: string;
   credentialId: string;
+  /**
+   * How many times *this* deployment was called before its turn ended. The `attempts`
+   * on {@link FallbackMeta} is the total across the whole chain, which cannot say which
+   * model was retried once a chain is longer than one entry — so the per-entry count is
+   * what separates "retried, then fell back" from "fell back without retrying".
+   */
+  attempts: number;
   error?: string;
+  /**
+   * What the provider itself said, when it said anything — the body message an adapter
+   * records as `ProviderError.detail`, otherwise the thrown message. The status code in
+   * `error` says a call failed; this says why, which is the difference between "401" and
+   * "Incorrect API key provided". Truncated, because a provider body can be long and this
+   * is stored on every failed attempt of every call.
+   */
+  errorMessage?: string;
+  /**
+   * The last failure this deployment hit before it finally answered — set only when
+   * `attempts` is above one and the entry itself has no `error`. A retried call that
+   * succeeds records how many times it was called and, without this, never records what
+   * was going wrong during those calls, which is the one thing worth knowing about it.
+   */
+  retriedAfter?: { error: string; errorMessage: string };
+}
+
+/** How much of a provider's own error message the trail keeps. */
+const MAX_TRAIL_ERROR_CHARS = 300;
+
+/**
+ * The provider's own explanation of a failure, trimmed to fit on a span.
+ *
+ * @param err - The error that ended one attempt.
+ * @returns The body detail when the adapter captured one, else the thrown message.
+ */
+function providerMessage(err: ProviderError): string {
+  const raw = (err.detail ?? err.message).trim();
+  return raw.length > MAX_TRAIL_ERROR_CHARS ? `${raw.slice(0, MAX_TRAIL_ERROR_CHARS)}\u2026` : raw;
 }
 
 /** Telemetry recorded on the gateway_requests row. */
@@ -89,9 +133,17 @@ export interface FallbackResult {
   meta: FallbackMeta;
 }
 
-/** Options controlling retry depth and the overall timeout budget. */
+/** Options controlling retry depth, cross-model fallback, and the overall timeout budget. */
 export interface FallbackOptions {
   maxRetriesPerConn?: number;
+  /**
+   * Whether a failed deployment may hand off to the next model in the chain
+   * (default `true`). `false` confines the call to the first deployment, so the
+   * caller gets the primary model's own error instead of a different model's
+   * answer. Same-deployment retries are unaffected — this governs which *model*
+   * runs, not how many times one is tried.
+   */
+  allowFallback?: boolean;
   timeoutBudgetMs?: number;
 }
 
@@ -124,6 +176,11 @@ export class FallbackExhaustedError extends Error {
  * deployment but does fall back to the next one. When the chain is exhausted the
  * last error is thrown.
  *
+ * `opts.allowFallback: false` stops the chain after the first deployment, which is
+ * how a caller says "this model or nothing" for a call that must not be silently
+ * answered by a different model. Retries still run, because retrying is the same
+ * model.
+ *
  * @param deployments - Ordered chain from `resolveDeployments`; must be non-empty.
  * @param req - The normalized request (already stripped of the `gateway` control field).
  * @param invoke - Bound provider call for a deployment (adapter + credentials + upstream model).
@@ -139,6 +196,7 @@ export async function callWithFallback(
   opts: FallbackOptions = {},
 ): Promise<FallbackResult> {
   const maxRetries = opts.maxRetriesPerConn ?? DEFAULT_MAX_RETRIES_PER_CONN;
+  const allowFallback = opts.allowFallback ?? true;
   const budgetMs = opts.timeoutBudgetMs ?? DEFAULT_TIMEOUT_BUDGET_MS;
   const startedAt = Date.now();
 
@@ -149,14 +207,32 @@ export async function callWithFallback(
 
   for (const deployment of deployments) {
     lastDeployment = deployment;
-    const entry = { modelId: deployment.model.id, credentialId: deployment.credential.id };
+    const entry = {
+      modelId: deployment.model.id,
+      model: deployment.model.publicName,
+      upstreamModel: deployment.model.upstreamModel,
+      credentialId: deployment.credential.id,
+    };
     let connError: ProviderError | undefined;
+    let tries = 0;
 
     for (let tryN = 0; tryN <= maxRetries; tryN++) {
       attempts++;
+      tries++;
       try {
         const response = await invoke(deployment, req);
-        trail.push({ ...entry });
+        trail.push({
+          ...entry,
+          attempts: tries,
+          ...(connError
+            ? {
+                retriedAfter: {
+                  error: String(connError.status),
+                  errorMessage: providerMessage(connError),
+                },
+              }
+            : {}),
+        });
         return { response, deployment, meta: { attempts, trail } };
       } catch (err) {
         if (!(err instanceof ProviderError)) throw err; // real bug — never swallow
@@ -165,7 +241,12 @@ export async function callWithFallback(
 
         // Caller's fault (malformed request): surface immediately, no fan-out.
         if (err.status === 400) {
-          trail.push({ ...entry, error: String(err.status) });
+          trail.push({
+            ...entry,
+            attempts: tries,
+            error: String(err.status),
+            errorMessage: providerMessage(err),
+          });
           throw new FallbackExhaustedError(err, { attempts, trail }, deployment);
         }
 
@@ -181,7 +262,16 @@ export async function callWithFallback(
       }
     }
 
-    trail.push({ ...entry, error: connError ? String(connError.status) : 'unknown' });
+    trail.push({
+      ...entry,
+      attempts: tries,
+      error: connError ? String(connError.status) : 'unknown',
+      ...(connError ? { errorMessage: providerMessage(connError) } : {}),
+    });
+
+    // "This model or nothing": the caller opted out of being answered by a
+    // different model, so the primary's own error is the answer.
+    if (!allowFallback) break;
   }
 
   // deployments is guaranteed non-empty by the caller (MODEL_NOT_REGISTERED handled

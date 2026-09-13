@@ -22,6 +22,10 @@ const ENUM_VALUES: Record<string, string[]> = {
   'rating:': ['up', 'down', 'none'],
   'source:': ['user', 'developer', 'end_user', 'api'],
   'comment:': ['yes', 'no'],
+  'warning:': ['yes', 'no'],
+  'error_type:': [
+    'transport', 'http_status', 'tool_declared', 'schema_mismatch', 'transform', 'provider_error',
+  ],
 };
 
 export interface FilterBarProps {
@@ -121,6 +125,16 @@ export function FilterBar({ value, onChange, surface, hideSavedViews }: FilterBa
         .filter((m) => m.toLowerCase().includes(partial))
         .slice(0, 8)
         .map((m) => ({ value: `model:${m}`, label: `model:${m}`, hint: 'model' }));
+    }
+
+    // The only value list that cannot be hardcoded: these slugs are whatever the team's
+    // own tools declared, so the suggestions are read back from what was recorded.
+    if (typedPrefix === 'error_code:') {
+      const partial = typedValue.toLowerCase();
+      return (facets?.errorCodes ?? [])
+        .filter((c) => c.toLowerCase().includes(partial))
+        .slice(0, 8)
+        .map((c) => ({ value: `error_code:${c}`, label: `error_code:${c}`, hint: 'declared by a tool' }));
     }
 
     if (typedPrefix && ENUM_VALUES[typedPrefix]) {

@@ -41,7 +41,7 @@ import type { DeploymentInvoker, ResolvedDeployment } from './router';
 import type { GatewayCallContext, GatewayCompletionRequest, GatewayResult } from './completions.types';
 import { CacheRepository } from '../cache/cache.repository';
 import { computeCacheKey } from '../cache/cache-key';
-import { recordGatewaySpan } from '../../traces/ingest/gateway-trace.hook';
+import { recordGatewaySpan, recordGatewayErrorSpan } from '../../traces/ingest/gateway-trace.hook';
 import {
   AppError,
   BadGatewayError,
@@ -775,6 +775,7 @@ export class GatewayService {
     try {
       served = await callWithFallback(deployments, normalized, invoke, {
         maxRetriesPerConn: gateway?.maxRetries ?? DEFAULT_MAX_RETRIES,
+        allowFallback: gateway?.fallback ?? true,
       });
     } catch (err) {
       // No real cost was incurred by ANY exception past this point — credit
@@ -790,7 +791,7 @@ export class GatewayService {
       if (err instanceof FallbackExhaustedError) {
         const latencyMs = Date.now() - startedAt;
         // Still record an error row (cost 0) so failures show up in analytics.
-        await this.gatewayRepo.recordRequest({
+        const errorRow = await this.gatewayRepo.recordRequest({
           teamId: ctx.teamId,
           virtualKeyId: ctx.virtualKeyId ?? null,
           providerConnectionId: err.lastDeployment?.credential.id ?? null,
@@ -809,6 +810,10 @@ export class GatewayService {
           errorCode: err.lastError.providerCode ?? String(err.lastError.status),
           meta: { attempts: err.meta.attempts, trail: err.meta.trail },
         });
+        // The row above only reaches the usage page. Without this the trace view showed
+        // nothing at all for a failed round, so an agent loop's trace simply stopped mid-run
+        // with every span green (issue #452).
+        await recordGatewayErrorSpan({ ctx, request: req, gatewayRequestId: errorRow.id });
         throw this.mapProviderError(err.lastError);
       }
       throw err;
@@ -987,8 +992,12 @@ export class GatewayService {
       throw new ValidationError('model is required');
     }
 
-    // Strip the gateway control field so the body stays OpenAI-compatible.
-    const { gateway: _gateway, prompt: _prompt, variables: _variables, tool_refs: _toolRefs, prompt_version_id: _pvid, ...rest } = req;
+    // Strip the gateway control field so the body stays OpenAI-compatible. Its
+    // `fallback` knob is kept (`maxRetries` is not: a stream commits to a
+    // deployment the moment its first chunk arrives, so there is nothing to
+    // retry on the same one).
+    const { gateway, prompt: _prompt, variables: _variables, tool_refs: _toolRefs, prompt_version_id: _pvid, ...rest } = req;
+    const allowFallback = gateway?.fallback ?? true;
     const normalized: NormalizedRequest = { ...rest, model: req.model!, messages: req.messages! };
 
     // 2 + 4a: full pre-call pipeline (throws before any stream is opened).
@@ -1062,8 +1071,10 @@ export class GatewayService {
           }
           throw err;
         }
-        // Nothing sent yet → fall through to the next deployment.
+        // Nothing sent yet → fall through to the next deployment, unless the
+        // caller asked for this model or nothing (`gateway.fallback: false`).
         lastProviderError = err;
+        if (!allowFallback) break;
         continue;
       }
     }
@@ -1092,6 +1103,10 @@ export class GatewayService {
         estimatedCostUsd,
         promptVersionId,
       });
+      // Same reason as the blocking path: a stream that never produced a first chunk used
+      // to leave the trace with no llm span at all (issue #452). `requestId` is the
+      // pre-minted id the row above was written under.
+      await recordGatewayErrorSpan({ ctx, request: req, gatewayRequestId: requestId });
       throw lastProviderError
         ? this.mapProviderError(lastProviderError)
         : new BadGatewayError('All providers failed before streaming started.');

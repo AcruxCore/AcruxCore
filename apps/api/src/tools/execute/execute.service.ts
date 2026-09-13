@@ -8,6 +8,8 @@ import { safeFetch } from './safe-fetch';
 import { compileTransform, evaluateTransform } from './js-transform';
 import { NotFoundError, ValidationError, AppError } from '../../shared/errors';
 import { SpansRepository } from '../../traces/spans/spans.repository';
+import { buildFailureAttributes, type SpanFailure } from '../../traces/spans/span-failure';
+import { validateAgainstSchema } from './result-schema';
 import { runInTransaction } from '../../shared/db/unit-of-work';
 import type { Executor } from '../versions/versions.types';
 import type { ToolVersionRow } from '../versions/versions.types';
@@ -15,6 +17,13 @@ import type { ExecuteBodyDto, ExecuteResult } from './execute.types';
 
 /** Wall-clock budget given to each requestTransform/responseTransform evaluation. */
 const TRANSFORM_TIMEOUT_MS = 1000;
+
+/**
+ * Wall-clock budget for a `failureWhen` predicate. Shorter than a transform's: it only
+ * inspects a response it was already handed, and a detector is never worth stalling a
+ * tool call for.
+ */
+const FAILURE_WHEN_TIMEOUT_MS = 500;
 
 /** A single header/query key-value pair, as stored on an http executor. */
 interface KeyValue {
@@ -95,7 +104,10 @@ export class ToolExecuteService {
     const started = Date.now();
     let status = 0;
     let rawBody: unknown = null;
-    let errorMessage: string | null = null;
+    // A classification that also ABORTS the call: the transport never delivered a
+    // response, or team-authored JS blew up. These keep the pre-issue-#452 behaviour of
+    // throwing, because there is genuinely no result to hand the model.
+    let aborting: SpanFailure | null = null;
     try {
       const method = executor.method;
       const res = await safeFetch(url, {
@@ -106,14 +118,19 @@ export class ToolExecuteService {
       status = res.status;
       rawBody = res.body;
     } catch (e) {
-      errorMessage = e instanceof Error ? e.message : 'request failed';
+      aborting = {
+        errorType: 'transport',
+        message: e instanceof Error ? e.message : 'request failed',
+        fatal: true,
+      };
     }
     const latencyMs = Date.now() - started;
 
-    // 4) responseTransform
+    // 4) responseTransform — runs on a non-2xx too, because that body is still what the
+    // model is about to read, and a transform is how a tool normalises an error shape.
     let responseTransformApplied = false;
     let result: unknown = rawBody;
-    if (!errorMessage && executor.responseTransform) {
+    if (!aborting && executor.responseTransform) {
       try {
         result = await evaluateTransform(
           compileTransform(executor.responseTransform),
@@ -122,26 +139,136 @@ export class ToolExecuteService {
         );
         responseTransformApplied = true;
       } catch (e) {
-        errorMessage = e instanceof Error ? e.message : 'responseTransform failed';
+        aborting = {
+          errorType: 'transform',
+          message: e instanceof Error ? e.message : 'responseTransform failed',
+          fatal: true,
+        };
       }
     }
 
-    // 5) tool span (best-effort — tracing must never fail the execution it observes)
-    await this.recordSpan(
-      teamId,
-      tool.name,
-      version.id,
-      dto,
-      body,
+    // 5) classify — the heart of issue #452. Everything below this line RECORDS and
+    // RETURNS; only the two aborting cases above still throw. Whether a failed tool call
+    // stops the agent is the caller's decision; whether the trace tells the truth is ours,
+    // and conflating the two would change the behaviour of every existing tool loop.
+    const detected = aborting
+      ? [aborting]
+      : await this.classify(executor, status, rawBody, result);
+    // Most-authoritative-wins: the first detector to fire owns the span's status, the
+    // rest ride along in `alsoDetected` so a second signal is never lost.
+    const winner = detected[0] ?? null;
+
+    const { attributes, status: spanStatus, errorMessage } = buildFailureAttributes(
+      {
+        toolVersionId: version.id,
+        executorType: 'http',
+        transformApplied: requestTransformApplied || responseTransformApplied,
+        ...(detected.length > 1
+          ? { alsoDetected: detected.slice(1).map((f) => ({ errorType: f.errorType, message: f.message })) }
+          : {}),
+      },
+      winner,
+      status,
+    );
+
+    // 6) tool span (best-effort — tracing must never fail the execution it observes)
+    await this.recordSpan(teamId, tool.name, dto, body, result, latencyMs, {
+      attributes,
+      status: spanStatus,
+      errorMessage,
+    });
+
+    if (aborting) throw new ValidationError(aborting.message);
+    return {
       result,
       status,
       latencyMs,
-      errorMessage,
-      requestTransformApplied || responseTransformApplied,
-    );
+      toolVersionId: version.id,
+      ...(winner && winner.fatal ? { error: { type: winner.errorType, message: winner.message } } : {}),
+      ...(winner && !winner.fatal ? { warning: { type: winner.errorType, message: winner.message } } : {}),
+    };
+  }
 
-    if (errorMessage) throw new ValidationError(errorMessage);
-    return { result, status, latencyMs, toolVersionId: version.id };
+  /**
+   * Runs every failure detector that applies to a completed call, most authoritative
+   * first: the protocol's own verdict, then the tool owner's `failureWhen`, then the
+   * declared `resultSchema`.
+   *
+   * The order is the point. A non-2xx is a fact; `failureWhen` is the owner's judgement
+   * about a response that looked fine to the protocol; a schema mismatch is the weakest
+   * signal, because our own declaration may be the wrong one.
+   *
+   * @param executor - The resolved http executor, carrying the optional declarations.
+   * @param status - Upstream HTTP status.
+   * @param rawBody - The response body BEFORE `responseTransform`.
+   * @param result - The response AFTER `responseTransform` — what the model will read.
+   * @returns Every classification that fired, most authoritative first. Empty on success.
+   */
+  private async classify(
+    executor: Extract<Executor, { type: 'http' }>,
+    status: number,
+    rawBody: unknown,
+    result: unknown,
+  ): Promise<SpanFailure[]> {
+    const found: SpanFailure[] = [];
+
+    if (status < 200 || status >= 300) {
+      found.push({
+        errorType: 'http_status',
+        message: `Upstream returned HTTP ${status}.`,
+        fatal: true,
+      });
+    }
+
+    if (executor.failureWhen) {
+      // Deliberately the RAW body: a responseTransform is free to drop the very field
+      // that carried the error, and a detector reading the cleaned-up result would then
+      // never see it.
+      try {
+        const verdict = await evaluateTransform(
+          compileTransform(executor.failureWhen),
+          { status, headers: {}, body: rawBody },
+          FAILURE_WHEN_TIMEOUT_MS,
+        );
+        if (verdict !== null && verdict !== undefined && verdict !== false) {
+          const v = (typeof verdict === 'object' ? verdict : {}) as { type?: unknown; message?: unknown };
+          found.push({
+            errorType: 'tool_declared',
+            // The owner's own slug for this failure mode, kept beside the closed-vocabulary
+            // `errorType` — the same attribute the SDKs write from ToolResult/toolError, so
+            // one `errorCode` means the same thing whoever ran the tool.
+            ...(typeof v.type === 'string' && v.type ? { code: v.type } : {}),
+            message: typeof v.message === 'string' && v.message ? v.message : 'The tool declared this call a failure.',
+            fatal: true,
+          });
+        }
+      } catch (e) {
+        // A broken detector is a warning, never a failure: reporting the tool call as
+        // failed because our own predicate threw would invent an outage that never
+        // happened. It still has to be visible, or the tool silently stops being checked.
+        found.push({
+          errorType: 'transform',
+          message: `failureWhen did not run: ${e instanceof Error ? e.message : 'unknown error'}`,
+          fatal: false,
+        });
+      }
+    }
+
+    if (executor.resultSchema) {
+      // The TRANSFORMED result, because that is the object handed to the model — the
+      // contract is what we produce, not what upstream sent.
+      const mismatch = validateAgainstSchema(result, executor.resultSchema);
+      if (mismatch) {
+        found.push({
+          errorType: 'schema_mismatch',
+          message: mismatch,
+          fatal: executor.resultSchemaSeverity === 'error',
+        });
+      }
+    }
+
+    // A non-fatal classification never outranks a fatal one, whatever the detector order.
+    return [...found.filter((f) => f.fatal), ...found.filter((f) => !f.fatal)];
   }
 
   /**
@@ -258,18 +385,24 @@ export class ToolExecuteService {
    * Tracing is best-effort: any failure here is logged and swallowed, never
    * thrown, so a span-write error can never fail an otherwise-successful (or
    * otherwise-failed, for its own reasons) tool execution.
+   *
+   * `classified` arrives pre-built from {@link buildFailureAttributes} rather than being
+   * derived here, so the platform executor and the SDK's client-side executor write the
+   * identical span shape — the thing that keeps `error_type:` filters and per-tool error
+   * rate counting one population instead of two.
    */
   private async recordSpan(
     teamId: string,
     toolName: string,
-    versionId: string,
     dto: ExecuteBodyDto,
     sentBody: unknown,
     result: unknown,
-    status: number,
     latencyMs: number,
-    errorMessage: string | null,
-    transformApplied: boolean,
+    classified: {
+      attributes: Record<string, unknown>;
+      status: 'ok' | 'error';
+      errorMessage: string | null;
+    },
   ): Promise<void> {
     try {
       await runInTransaction(async (tx) => {
@@ -304,12 +437,12 @@ export class ToolExecuteService {
             parentSpanRef,
             kind: 'tool',
             name: toolName,
-            status: errorMessage ? 'error' : 'ok',
+            status: classified.status,
             startedAt,
             endedAt: new Date(),
             latencyMs,
-            errorMessage,
-            attributes: { toolVersionId: versionId, executorType: 'http', transformApplied },
+            errorMessage: classified.errorMessage,
+            attributes: classified.attributes,
           },
           tx,
         );
@@ -317,8 +450,11 @@ export class ToolExecuteService {
           span.id,
           teamId,
           {
+            // The upstream body is stored even when the call is classified as failed —
+            // "what did it actually say" is the first question anyone asks of a red span,
+            // and replacing it with the classifier's own message threw that away.
             input: sentBody as object,
-            output: (errorMessage ? { error: errorMessage } : result) as object,
+            output: result as object,
             variables: dto.arguments,
           },
           tx,

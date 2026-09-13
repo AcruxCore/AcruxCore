@@ -542,6 +542,68 @@ async def test_chat_body_snake_case_mapping():
     assert seen["temperature"] == 0.2
 
 
+async def test_chat_sends_the_gateway_control_object():
+    seen: Dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(body_of(request))
+        return httpx.Response(200, json={"id": "1", "model": "m", "choices": [{"message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"}]})
+
+    async with make_client(handler) as c:
+        await c.gateway.chat("m", [{"role": "user", "content": "x"}], gateway={"max_retries": 3, "fallback": False})
+
+    assert seen["gateway"] == {"maxRetries": 3, "fallback": False}
+
+
+async def test_chat_omits_gateway_when_not_asked_for():
+    seen: Dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(body_of(request))
+        return httpx.Response(200, json={"id": "1", "model": "m", "choices": [{"message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"}]})
+
+    async with make_client(handler) as c:
+        await c.gateway.chat("m", [{"role": "user", "content": "x"}])
+
+    assert "gateway" not in seen
+
+
+async def test_chat_sends_max_retries_zero_rather_than_dropping_it():
+    """0 is the "never repeat this call" setting, so a falsy check would delete
+    exactly the value a caller went out of their way to send."""
+    seen: Dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(body_of(request))
+        return httpx.Response(200, json={"id": "1", "model": "m", "choices": [{"message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"}]})
+
+    async with make_client(handler) as c:
+        await c.gateway.chat("m", [{"role": "user", "content": "x"}], gateway={"max_retries": 0})
+
+    assert seen["gateway"] == {"maxRetries": 0}
+
+
+async def test_chat_byo_provider_never_sees_the_gateway_object():
+    """A BYO call goes straight to the provider, which never asked for our field."""
+    seen: Dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/chat/completions"):
+            seen.update(body_of(request))
+            return httpx.Response(200, json={"id": "c1", "model": "m", "choices": [{"index": 0, "message": {"role": "assistant", "content": "hi"}, "finish_reason": "stop"}]})
+        return httpx.Response(200, json={"accepted": 1, "traceIds": ["t1"]})
+
+    async with make_client(handler) as c:
+        await c.gateway.chat(
+            "m", [{"role": "user", "content": "hi"}],
+            provider={"base_url": "https://api.groq.com/openai/v1", "api_key": "k"},
+            gateway={"max_retries": 2},
+            trace=False,
+        )
+
+    assert "gateway" not in seen
+
+
 async def test_chat_sends_response_format():
     seen: Dict[str, Any] = {}
     schema = {"type": "json_schema", "json_schema": {"name": "ok", "schema": {"type": "object"}, "strict": True}}
@@ -721,6 +783,32 @@ async def test_run_tool_loop_without_a_model_fails_locally():
             await c.gateway.run_tool_loop("", [{"role": "user", "content": "hi"}],
                                           tool_defs=[], dispatch=lambda *a: {}, trace=False)
         assert ei.value.code == "VALIDATION_ERROR"
+
+
+async def test_run_tool_loop_forwards_the_gateway_control_on_every_round():
+    bodies: List[Dict[str, Any]] = []
+    rounds = [
+        {"id": "c1", "model": "m", "choices": [{"index": 0, "message": {"role": "assistant", "content": None, "tool_calls": [{"id": "t1", "type": "function", "function": {"name": "get_weather", "arguments": "{}"}}]}, "finish_reason": "tool_calls"}]},
+        {"id": "c2", "model": "m", "choices": [{"index": 0, "message": {"role": "assistant", "content": "done"}, "finish_reason": "stop"}]},
+    ]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/gateway/chat/completions"):
+            bodies.append(body_of(request))
+            return httpx.Response(200, json=rounds[len(bodies) - 1])
+        return httpx.Response(200, json={"accepted": 1, "traceIds": ["t1"]})
+
+    async with make_client(handler) as c:
+        await c.gateway.run_tool_loop(
+            "m", [{"role": "user", "content": "hi"}],
+            tool_defs=[{"type": "function", "function": {"name": "get_weather"}}],
+            dispatch=lambda name, args: {"temp": 1},
+            gateway={"max_retries": 2},
+            trace=False,
+        )
+
+    assert len(bodies) == 2
+    assert all(b["gateway"] == {"maxRetries": 2} for b in bodies)
 
 
 async def test_chat_byo_error_message_carries_the_providers_own_reason():

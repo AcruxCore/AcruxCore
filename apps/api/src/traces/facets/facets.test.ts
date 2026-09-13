@@ -66,7 +66,65 @@ describe('GET /api/v1/traces/facets', () => {
   it('returns empty arrays when the team has no traces', async () => {
     const { agent } = await authedAgent(app);
     const res = await agent.get('/api/v1/traces/facets').expect(200);
-    expect(res.body).toEqual({ tags: [], metadataKeys: [], models: [] });
+    expect(res.body).toEqual({ tags: [], metadataKeys: [], models: [], errorCodes: [] });
+  });
+
+  /**
+   * Issue #460 — the `error_code:` filter has no fixed vocabulary to suggest from, because
+   * the slugs are the team's own. Without this facet, using the filter means remembering
+   * the exact slug a tool writes, which is the discovery problem the filter was meant to
+   * solve.
+   */
+  it('returns the distinct error codes the team tools have declared', async () => {
+    const { agent } = await authedAgent(app);
+    const now = new Date();
+    await ingest(agent, [
+      {
+        spans: [
+          {
+            spanId: 's1', name: 'get_weather_brief', kind: 'tool', status: 'error', startTime: iso(now),
+            attributes: { errorType: 'tool_declared', errorCode: 'location_not_found' },
+          },
+          {
+            spanId: 's2', name: 'get_weather_brief', kind: 'tool', status: 'ok', startTime: iso(now),
+            attributes: { errorType: 'tool_declared', errorCode: 'ambiguous_city' },
+          },
+        ],
+      },
+    ]);
+    // A second run of the same failure must not produce a duplicate suggestion.
+    await ingest(agent, [
+      {
+        spans: [
+          {
+            spanId: 's3', name: 'get_weather_brief', kind: 'tool', status: 'error', startTime: iso(now),
+            attributes: { errorType: 'tool_declared', errorCode: 'location_not_found' },
+          },
+        ],
+      },
+    ]);
+
+    const res = await agent.get('/api/v1/traces/facets').expect(200);
+    expect(res.body.errorCodes).toEqual(['ambiguous_city', 'location_not_found']);
+  });
+
+  it('never suggests another team error codes', async () => {
+    const { agent } = await authedAgent(app);
+    const { agent: other } = await authedAgent(app);
+    const now = new Date();
+    await ingest(other, [
+      {
+        spans: [
+          {
+            spanId: 's1', name: 'their_tool', kind: 'tool', status: 'error', startTime: iso(now),
+            attributes: { errorType: 'tool_declared', errorCode: 'their_secret_code' },
+          },
+        ],
+      },
+    ]);
+
+    const res = await agent.get('/api/v1/traces/facets').expect(200);
+    expect(res.body.errorCodes).toEqual([]);
   });
 });
 

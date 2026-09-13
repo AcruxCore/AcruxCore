@@ -1,9 +1,15 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { StatusDot } from '@/ui';
 import { KIND_META, formatLatency } from './format';
-import { flattenSpanTree, spanBarGeometry, traceWindow } from './span-tree';
+import { flattenSpanTree, spanBarGeometry, spanHasWarning, traceWindow } from './span-tree';
 import { SpanPanel } from './SpanPanel';
 import type { Feedback, Span } from '@/api/types';
+
+/** The warning's own message, for the badge's tooltip. */
+function warningTitle(span: Span): string {
+  const warning = (span.attributes as { warning?: { message?: string } } | undefined)?.warning;
+  return warning?.message ?? 'This span carries a warning';
+}
 
 export interface SpanTreeProps {
   spans: Span[];
@@ -97,11 +103,25 @@ export function SpanTree({ spans, traceId, feedback, initialExpandedSpanId }: Sp
                     {span.model}
                   </span>
                 )}
+                {/* A green span can still carry something worth seeing — a stale cache, a
+                    result that missed its declared shape. Without a mark here nobody opens
+                    it, which is the whole shape of issue #452. */}
+                {span.status !== 'error' && spanHasWarning(span) && (
+                  <span
+                    className="shrink-0 rounded bg-warn/15 px-1.5 py-0.5 font-mono text-[10.5px] text-warn"
+                    title={warningTitle(span)}
+                    data-testid="span-warning-badge"
+                  >
+                    warning
+                  </span>
+                )}
                 <StatusDot status={span.status} dotOnly />
               </div>
               <div className="relative hidden h-2.5 w-40 shrink-0 rounded bg-bg sm:block" aria-hidden>
                 <div
-                  className={`absolute top-0 h-full rounded ${span.status === 'error' ? 'bg-danger' : 'bg-accent'}`}
+                  className={`absolute top-0 h-full rounded ${
+                    span.status === 'error' ? 'bg-danger' : spanHasWarning(span) ? 'bg-warn' : 'bg-accent'
+                  }`}
                   style={{ left: `${g.offsetPct}%`, width: `${g.widthPct}%` }}
                 />
               </div>

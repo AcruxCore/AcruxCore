@@ -243,10 +243,22 @@ Paginated trace list, newest first. Query params (all optional):
 - `prompt_id` — any version of that prompt. Use this when you know the prompt
   but not which version was live at the time.
 - `min_latency_ms`, `min_cost_usd`, `min_tokens` — inclusive lower bounds.
+- `error_type` — what kind of failure a span recorded: `transport`,
+  `http_status`, `tool_declared`, `schema_mismatch`, `transform` or
+  `provider_error`. Any other value is a 400.
+- `error_code` — the slug a tool's own owner declared, e.g.
+  `location_not_found`. Free text, matched exactly; blank is a 400.
+- `has_warning` — `true` or `false`. A warned trace is usually `status=ok`, so
+  no status filter can find it. Omit the param to mean "either".
 - `q` — free-text match over trace/span name, span attributes, and the captured
   input and output; blank/whitespace is treated as "no filter".
 - `q_in` — narrows `q` to `input`, `output`, or `name`. Defaults to `all`.
 - `page` (default 1), `limit` (default 20, max 100).
+
+Every row carries `hasWarning` — `true` when any span on that trace recorded a
+`warning` attribute, using the same predicate as the `has_warning` filter. The
+field is on the row so a reader who was not already looking for warned runs still
+sees them; a filter only helps someone who suspects the problem is there.
 
 <Tabs groupId="lang">
 <TabItem value="curl" label="curl">
@@ -432,6 +444,100 @@ curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   "limit": 1
 }
 ```
+
+#### Filtering by how a run failed (`error_type`, `error_code`, `has_warning`)
+
+`status=error` says a run broke. It cannot say why: every kind of failure rolls
+up to the same red trace. These three read the classification a failing span
+carries instead.
+
+`error_type` is one of six fixed values the platform assigns. `error_code` is the
+slug **your** tool declared — `ToolResult.error("location_not_found", ...)` — so
+the vocabulary is your team's, not ours. List the codes your tools have actually
+declared with [`GET /traces/facets`](./facets.mdx).
+
+Reach for `error_code` rather than `q` when you want a count. `q` is a substring
+match over the whole attributes JSON, so `q=location_not_found` also matches a
+trace that merely mentions the slug somewhere else; `error_code` matches the
+recorded value exactly.
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces?error_type=tool_declared&error_code=location_not_found&limit=1"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "9fe7edab-9cdf-4a51-9813-e9d0b03970ad",
+      "name": "weather-brief-atlantis",
+      "sessionId": null,
+      "status": "error",
+      "startedAt": "2026-09-13T18:11:45.000Z",
+      "endedAt": null,
+      "spanCount": 1,
+      "totalCostUsd": null,
+      "totalTokens": 0,
+      "durationMs": null,
+      "tags": []
+    }
+  ],
+  "total": 3,
+  "page": 1,
+  "limit": 1
+}
+```
+
+`has_warning=true` finds runs carrying something worth seeing that did not fail —
+those traces are usually `status=ok`, so no status filter reaches them. Both of the
+rows below are green, and `hasWarning` is what says otherwise.
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces?has_warning=true&limit=2"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "ec60bcfb-ede3-4160-86bf-dc47f3966025",
+      "name": "Say hi",
+      "sessionId": null,
+      "status": "ok",
+      "startedAt": "2026-09-13T20:07:55.139Z",
+      "endedAt": "2026-09-13T20:08:01.318Z",
+      "spanCount": 1,
+      "totalCostUsd": 0.000002375,
+      "totalTokens": 15,
+      "durationMs": 6179,
+      "tags": [],
+      "hasWarning": true
+    },
+    {
+      "id": "9102d6a7-35b9-475e-86d2-669fa5a46300",
+      "name": "retry-demo",
+      "sessionId": null,
+      "status": "ok",
+      "startedAt": "2026-09-13T20:06:25.898Z",
+      "endedAt": "2026-09-13T20:06:29.189Z",
+      "spanCount": 1,
+      "totalCostUsd": null,
+      "totalTokens": 40,
+      "durationMs": 3291,
+      "tags": [],
+      "hasWarning": true
+    }
+  ],
+  "total": 15,
+  "page": 1,
+  "limit": 2
+}
+```
+
+What each of those two warnings says is on the span, documented under
+[`GET /api/v1/traces/:id`](#a-call-the-gateway-rescued-trail-and-warning).
 
 #### Searching what was actually said (`q` and `q_in`)
 
@@ -673,6 +779,170 @@ trace was posted with `capturePayloads: true`); `root` and `tool1` have neither.
 `tags`/`metadata` (T9/T10) default to `[]`/`{}` on every span; `llm1` shows a
 non-empty example, of the kind set via the gateway's `x-span-tags`/
 `x-span-metadata` headers on a per-call basis.
+
+#### A call the gateway rescued (`trail` and `warning`)
+
+An `llm` span the gateway wrote carries three extra keys in `attributes`:
+`attempts` (provider calls across the whole chain), `cacheHit`, and `trail` — one
+entry per deployment tried, in the order they were tried. Each trail entry holds:
+
+- `modelId` — the registered model's UUID.
+- `model` — that model's public name, the one you pass as `model`.
+- `upstreamModel` — the name the provider itself knows the model by.
+- `credentialId` — the provider connection the attempt used.
+- `attempts` — how many times **this** deployment was called before its turn ended.
+  The span-level `attempts` is the chain total, so only this per-entry count separates
+  "retried, then fell back" from "fell back without retrying".
+- `error` — the status code that ended this deployment's turn, as a string. Absent on
+  the entry that answered.
+- `errorMessage` — what the provider itself said, truncated at 300 characters with a
+  trailing `…`. Absent on the entry that answered.
+- `retriedAfter` — `{ "error": "429", "errorMessage": "…" }` on a deployment that failed,
+  was retried, and then answered. That entry has no `error` of its own, because its turn
+  ended in success, so this is the only record of what the retries were for.
+
+A call that only succeeded because the gateway retried or fell back also carries a
+`warning` object — `type` is `model_fallback` or `provider_retry`, and `message` is a
+one-line summary. The span stays `status: "ok"`, because the request did succeed; the
+warning is what keeps a primary model that fails every time from being invisible while
+its fallback keeps answering. It is written only on an `ok` span — a span that is
+already red says the call failed. `has_warning=true` on
+[`GET /traces`](#filtering-by-how-a-run-failed-error_type-error_code-has_warning)
+lists these runs.
+
+`unstable-4o-mini` has a revoked credential and `mistral-small` behind it, so asking
+for it returns `200` from the fallback:
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces/ec60bcfb-ede3-4160-86bf-dc47f3966025"
+```
+
+```json
+{
+  "trace": {
+    "id": "ec60bcfb-ede3-4160-86bf-dc47f3966025",
+    "name": "Say hi",
+    "sessionId": null,
+    "status": "ok",
+    "startedAt": "2026-09-13T20:07:55.139Z",
+    "endedAt": "2026-09-13T20:08:01.318Z",
+    "spanCount": 1,
+    "totalCostUsd": 0.000002375,
+    "totalTokens": 15,
+    "tags": [],
+    "metadata": {}
+  },
+  "spans": [
+    {
+      "spanId": "858591a7-24c6-4960-b6ea-fd4de7adf2d0",
+      "parentSpanId": null,
+      "kind": "llm",
+      "name": "2026-09-13T20:07:55.139Z",
+      "status": "ok",
+      "startedAt": "2026-09-13T20:07:55.139Z",
+      "endedAt": "2026-09-13T20:08:01.318Z",
+      "latencyMs": 6179,
+      "model": "mistralai/mistral-small-3.2-24b-instruct",
+      "provider": "openai_compatible",
+      "promptTokens": 5,
+      "completionTokens": 10,
+      "totalTokens": 15,
+      "costUsd": 0.000002375,
+      "promptVersionId": null,
+      "gatewayRequestId": "b1ab662c-93bb-41c5-9bc1-88c5f3003cc0",
+      "errorMessage": null,
+      "attributes": {
+        "trail": [
+          {
+            "error": "401",
+            "model": "unstable-4o-mini",
+            "modelId": "4eeda09c-0bf6-409d-b19e-9f8b728d4013",
+            "attempts": 1,
+            "credentialId": "e9d85f7f-df56-427f-a324-c6dc3501df87",
+            "errorMessage": "Incorrect API key provided: sk-revok********************demo. You can find your API key at https://platform.openai.com/account/api-keys.",
+            "upstreamModel": "gpt-4o-mini"
+          },
+          {
+            "model": "mistral-small",
+            "modelId": "f02ba5ce-8064-40fc-a5d6-840040698ba8",
+            "attempts": 1,
+            "credentialId": "ae9d2cc1-cf07-4f78-9605-74596fc79b0e",
+            "upstreamModel": "mistralai/mistral-small-3.2-24b-instruct"
+          }
+        ],
+        "warning": {
+          "type": "model_fallback",
+          "message": "unstable-4o-mini failed 401, so mistral-small answered instead."
+        },
+        "attempts": 2,
+        "cacheHit": false
+      },
+      "tags": [],
+      "metadata": {},
+      "children": [],
+      "payload": {
+        "input": [{ "role": "user", "content": "Say hi" }],
+        "output": {
+          "id": "gen-1789330077-IA7FaZdBoBo7XZFI5mBa",
+          "model": "mistralai/mistral-small-3.2-24b-instruct",
+          "usage": { "total_tokens": 15, "prompt_tokens": 5, "completion_tokens": 10 },
+          "object": "chat.completion",
+          "choices": [
+            {
+              "index": 0,
+              "message": { "role": "assistant", "content": "Hi there! 😊 How can I help" },
+              "finish_reason": "length"
+            }
+          ],
+          "created": 1789330077
+        },
+        "variables": null
+      }
+    }
+  ],
+  "feedback": [],
+  "evalScores": []
+}
+```
+
+The trail's first entry names the model that failed, why (`401`), and the provider's
+own sentence; the second names the model that answered. The span's `model` is the
+upstream name of whichever deployment served the request.
+
+When a single model answers only after being called again, the trail is one entry
+whose `attempts` is above `1` and the warning is a `provider_retry`:
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces/9102d6a7-35b9-475e-86d2-669fa5a46300"
+```
+
+That trace's single span returned these `attributes` (the rest of the body has the
+same shape as above):
+
+```json
+{
+  "trail": [
+    {
+      "model": "free-tier-model",
+      "modelId": "96e72f1b-9346-4ce2-a38f-c674b949391a",
+      "attempts": 3,
+      "credentialId": "ae9d2cc1-cf07-4f78-9605-74596fc79b0e",
+      "upstreamModel": "liquid/lfm-2.5-2.6b:free"
+    }
+  ],
+  "warning": {
+    "type": "provider_retry",
+    "message": "free-tier-model answered only on attempt 3."
+  },
+  "attempts": 3,
+  "cacheHit": false
+}
+```
+
+A call answered first time by the model that was asked for carries no `warning` at
+all, and its one trail entry has `attempts: 1` and no `error`.
 
 #### Unknown or foreign trace id (404)
 

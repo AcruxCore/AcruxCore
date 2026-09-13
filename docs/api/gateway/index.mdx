@@ -636,6 +636,113 @@ RPM/TPM window. The codes differ because the fixes differ: `RATE_LIMITED` is rai
 lowered under Gateway → Virtual keys, while `PROVIDER_RATE_LIMITED` is the upstream
 account's limit and has to be resolved with that provider.
 
+### Retries and fallbacks (the `gateway` control field)
+
+A completion body may carry a `gateway` object beside the OpenAI-shaped fields. It is
+stripped before the request reaches the provider, so the outgoing call stays
+OpenAI-compatible. It holds two keys:
+
+- `maxRetries` — how many extra times to call the **same** model on the **same**
+  credential after a transient failure (network error, timeout, `5xx`, `429`). Integer
+  `0`–`5`, default `1`. Ignored on a streaming call, where the first chunk commits the
+  request to a model.
+- `fallback` — whether a failed model may hand off to the next model in its chain.
+  Boolean, default `true`. `false` confines the call to the model named in `model`, so a
+  failure is returned as an error rather than answered by a different model. It does not
+  disable retries, which are the same model. Which models stand behind a name is set on
+  the model itself as `fallbackModelIds`; this key only switches the chain off per call.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"unstable-4o-mini","messages":[{"role":"user","content":"Say hello in five words."}],"gateway":{"maxRetries":2}}'
+```
+
+Response (status 200) — served by the fallback, because this model's credential is
+revoked:
+
+```json
+{"id":"gen-1789322822-okaDxa8E8YEsYxi0WObY","model":"mistralai/mistral-small-3.2-24b-instruct","object":"chat.completion","created":1789322822,"choices":[{"index":0,"message":{"role":"assistant","content":"\"Hello, how are you today?\""},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":9,"total_tokens":18}}
+```
+
+Outside `0`–`5` the call is rejected before it reaches a provider:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"unstable-4o-mini","messages":[{"role":"user","content":"hi"}],"gateway":{"maxRetries":9}}'
+```
+
+Response (status 400):
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"Number must be less than or equal to 5"}}
+```
+
+`unstable-4o-mini` has a revoked credential and `mistral-small` as its first fallback,
+so the default answers `200` from a different model. With `fallback: false` the same
+call returns the revoked credential's own failure:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"unstable-4o-mini","messages":[{"role":"user","content":"Say OK"}],"max_tokens":5,"gateway":{"fallback":false}}'
+```
+
+Response (status 502):
+
+```json
+{"error":{"code":"PROVIDER_ERROR","message":"Provider error (401): OpenAI request failed with status 401"}}
+```
+
+#### What a rescued call leaves behind
+
+Nothing in a `200` says the model you asked for is the model that answered, so the
+gateway records the route on the call's `llm` span: `attempts` (provider calls across
+the whole chain) and `trail` (one entry per deployment tried, in order). Each trail
+entry names the model both ways — `model` is the public name you passed,
+`upstreamModel` is the provider's own — beside `modelId` and `credentialId`, carries
+its own `attempts` so a retried deployment is distinguishable from one that was only
+tried once, and on a failure carries `error` (the status code, as a string) and
+`errorMessage` (the provider's own sentence, truncated at 300 characters). A deployment
+that failed, was retried and then answered has no `error` of its own — it succeeded — so
+what it was failing on is kept as `retriedAfter`: `{"error": "429", "errorMessage": "…"}`.
+
+A call that succeeded only because of a retry or a fallback also gets a `warning`
+object on that span — `{"type": "model_fallback" | "provider_retry", "message": "…"}`.
+The span stays `ok`, so the warning is what stops a primary model that fails every
+time from going unnoticed while its fallback keeps answering. The trace list exposes
+it as `hasWarning`, and `has_warning=true` filters on it.
+
+The response header `x-gateway-trace-id` gives you the trace to read:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_VIRTUAL_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"unstable-4o-mini","messages":[{"role":"user","content":"Say hi"}],"max_tokens":10}'
+```
+
+Response (status 200) — served by the fallback, with these headers:
+
+```
+x-gateway-request-id: b1ab662c-93bb-41c5-9bc1-88c5f3003cc0
+x-gateway-model: mistralai/mistral-small-3.2-24b-instruct
+x-gateway-trace-id: ec60bcfb-ede3-4160-86bf-dc47f3966025
+```
+
+```json
+{"id":"gen-1789330077-IA7FaZdBoBo7XZFI5mBa","model":"mistralai/mistral-small-3.2-24b-instruct","object":"chat.completion","created":1789330077,"choices":[{"index":0,"message":{"role":"assistant","content":"Hi there! 😊 How can I help"},"finish_reason":"length"}],"usage":{"prompt_tokens":5,"completion_tokens":10,"total_tokens":15}}
+```
+
+The full `trail` and `warning` that call wrote are shown under
+[`GET /api/v1/traces/:id`](../traces/index.mdx#a-call-the-gateway-rescued-trail-and-warning).
+See also
+[Retries and Fallbacks](https://docs.acruxcore.com/docs/guides/automatic-model-fallbacks).
+
 ---
 
 ## Response Cache (G6)

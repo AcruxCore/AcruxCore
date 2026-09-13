@@ -25,6 +25,7 @@ from typing import (
     Set,
     Tuple,
     Union,
+    cast,
     overload,
 )
 from urllib.parse import quote, urlparse
@@ -46,12 +47,15 @@ from .http import request_with_retry
 from .provider import infer_provider_name
 from .response_format import normalize_response_format
 from .span_queue import SpanQueue
+from .result_schema import validate_against_schema
 from .tooling import ToolSpec, spec_of
+from .tool_result import ToolResult
 from .types import (
     ChatChunk,
     ChatResult,
     ChatUsage,
     GatewayCallMeta,
+    GatewayControl,
     IngestSpan,
     Literal,
     Message,
@@ -75,6 +79,31 @@ from .types import (
 if TYPE_CHECKING:
     from .host import GatewayNamespaceHost
     from .tools_api import ToolsNamespace
+
+def _gateway_control_body(control: GatewayControl) -> Dict[str, Any]:
+    """Map a ``gateway=`` control dict onto the wire's camelCase keys.
+
+    The gateway validates this object strictly, so an unrecognised key comes back as
+    a ``400`` rather than being quietly ignored. Both spellings of the retry count are
+    read — ``max_retries`` is the Python one, ``maxRetries`` is what the curl examples
+    in the docs show, and a caller who copies the latter should not get an error for
+    being consistent with our own documentation.
+
+    ``0`` and ``False`` are preserved: each is a deliberate setting, and a truthiness
+    check here would delete exactly the value the caller went out of their way to send.
+
+    :param control: The caller's control dict.
+    :returns: The wire-shaped object, empty when nothing was set.
+    """
+    raw = cast(Dict[str, Any], control)
+    out: Dict[str, Any] = {}
+    max_retries = raw.get("max_retries", raw.get("maxRetries"))
+    if max_retries is not None:
+        out["maxRetries"] = max_retries
+    if raw.get("fallback") is not None:
+        out["fallback"] = raw["fallback"]
+    return out
+
 
 # A dispatch function may be sync or async.
 DispatchFn = Callable[[str, Dict[str, Any]], Union[Any, "Awaitable[Any]"]]
@@ -274,6 +303,10 @@ class _ToolRoute:
     #: Set instead of ``alias`` when the ref pinned one exact version.
     version_number: Optional[int] = None
     tool_version_id: Optional[str] = None
+    #: The catalog's declared result shape, when the resolved version has one.
+    result_schema: Optional[Dict[str, Any]] = None
+    #: Whether a ``result_schema`` mismatch is a warning or an error.
+    result_schema_severity: Optional[str] = None
 
 
 #: Live clients that may still have spans to send, held weakly so an abandoned
@@ -414,6 +447,7 @@ class GatewayNamespace:
         max_tokens: Optional[int] = None,
         stream: bool = False,
         provider: Optional[ProviderConfig] = None,
+        gateway: Optional[GatewayControl] = None,
         prompt_version_id: Optional[str] = None,
         variables: Optional[Dict[str, Any]] = None,
         trace: Union[bool, Dict[str, Any], None] = None,
@@ -424,6 +458,10 @@ class GatewayNamespace:
         No tool-dispatch loop: if the model returns ``tool_calls`` they are handed
         back raw. Use :meth:`run_tool_loop` to dispatch them.
 
+        :param gateway: Per-call gateway controls — ``max_retries`` and ``fallback``, see
+            :class:`~acruxcore.types.GatewayControl`. These are what the *gateway* does
+            upstream, a different layer from the client's own ``max_retries``, which only
+            retries this SDK's request to AcruxCore. Ignored on a BYO-provider call.
         :param prompt_version_id: Which prompt version the messages came from, for trace
             lineage. Send ``variables`` with it.
         :param variables: The values the messages were rendered from. Recorded on the
@@ -439,6 +477,7 @@ class GatewayNamespace:
             model, messages, tools, tool_refs, tool_choice, response_format, temperature, max_tokens, stream,
             prompt_version_id=None if provider_config is not None else prompt_version_id,
             variables=None if provider_config is not None else variables,
+            gateway=None if provider_config is not None else gateway,
         )
         if stream:
             if provider_config is not None:
@@ -478,7 +517,7 @@ class GatewayNamespace:
                 model, messages, tools=tools, tool_refs=tool_refs, tool_choice=tool_choice,
                 response_format=response_format,
                 temperature=temperature, max_tokens=max_tokens, extra_headers=trace_headers,
-                prompt_version_id=prompt_version_id, variables=variables,
+                prompt_version_id=prompt_version_id, variables=variables, gateway=gateway,
             )
 
         if report_span:
@@ -559,6 +598,7 @@ class GatewayNamespace:
         stream: bool,
         prompt_version_id: Optional[str] = None,
         variables: Optional[Dict[str, Any]] = None,
+        gateway: Optional[GatewayControl] = None,
     ) -> Dict[str, Any]:
         """Build the JSON body for one completion.
 
@@ -572,6 +612,9 @@ class GatewayNamespace:
             version. Gateway-only for the same reason. Alongside a ``prompt_version_id``
             the gateway records them without re-rendering; without one it uses them to
             fill ``{{ placeholders }}`` in the messages sent.
+        :param gateway: Per-call gateway controls. GATEWAY-ONLY for the same reason as
+            the two above: a BYO provider has no gateway to control and never asked for
+            this field.
         """
         body: Dict[str, Any] = {"model": model, "messages": messages}
         if prompt_version_id:
@@ -592,6 +635,8 @@ class GatewayNamespace:
             body["max_tokens"] = max_tokens
         if stream:
             body["stream"] = True
+        if gateway:
+            body["gateway"] = _gateway_control_body(gateway)
         return body
 
     async def _complete_once(
@@ -608,10 +653,11 @@ class GatewayNamespace:
         extra_headers: Optional[Dict[str, str]] = None,
         prompt_version_id: Optional[str] = None,
         variables: Optional[Dict[str, Any]] = None,
+        gateway: Optional[GatewayControl] = None,
     ) -> ChatResult:
         body = self._build_chat_body(
             model, messages, tools, tool_refs, tool_choice, response_format, temperature, max_tokens, False,
-            prompt_version_id=prompt_version_id, variables=variables,
+            prompt_version_id=prompt_version_id, variables=variables, gateway=gateway,
         )
         response = await self._host._request(
             "POST", "/gateway/chat/completions", body, "calling chat completions", extra_headers
@@ -1133,6 +1179,8 @@ class GatewayNamespace:
                         alias=ref.get("alias"),
                         version_number=ref.get("version"),
                         tool_version_id=version_id,
+                        result_schema=item.result_schema,
+                        result_schema_severity=item.result_schema_severity,
                     )
                 elif dispatch is not None:
                     routes[name] = _ToolRoute(
@@ -1204,6 +1252,7 @@ class GatewayNamespace:
         response_format: Optional[ResponseFormat] = ...,
         trace: Union[bool, Dict[str, Any]] = ...,
         provider: Optional[ProviderConfig] = ...,
+        gateway: Optional[GatewayControl] = ...,
         prompt_version_id: Optional[str] = ...,
         variables: Optional[Dict[str, Any]] = ...,
     ) -> RunToolLoopResult: ...
@@ -1227,6 +1276,7 @@ class GatewayNamespace:
         response_format: Optional[ResponseFormat] = ...,
         trace: Union[bool, Dict[str, Any]] = ...,
         provider: Optional[ProviderConfig] = ...,
+        gateway: Optional[GatewayControl] = ...,
         prompt_version_id: Optional[str] = ...,
         variables: Optional[Dict[str, Any]] = ...,
     ) -> "AsyncToolLoopStream": ...
@@ -1248,6 +1298,7 @@ class GatewayNamespace:
         response_format: Optional[ResponseFormat] = None,
         trace: Union[bool, Dict[str, Any]] = True,
         provider: Optional[ProviderConfig] = None,
+        gateway: Optional[GatewayControl] = None,
         prompt_version_id: Optional[str] = None,
         variables: Optional[Dict[str, Any]] = None,
         stream: bool = False,
@@ -1290,6 +1341,7 @@ class GatewayNamespace:
                     max_iterations=max_iterations,
                     temperature=temperature, max_tokens=max_tokens,
                     response_format=response_format, trace=trace, provider=provider,
+                    gateway=gateway,
                     prompt_version_id=prompt_version_id, variables=variables,
                 )
             )
@@ -1302,7 +1354,8 @@ class GatewayNamespace:
             client_tools=client_tools, dispatch=dispatch, sync=sync, max_iterations=max_iterations,
             temperature=temperature, max_tokens=max_tokens,
             response_format=None if shaping else response_format,
-            trace=trace, provider=provider, prompt_version_id=prompt_version_id,
+            trace=trace, provider=provider, gateway=gateway,
+            prompt_version_id=prompt_version_id,
             variables=variables,
         )
         if not shaping:
@@ -1323,6 +1376,7 @@ class GatewayNamespace:
             model, convo, tools=None, tool_defs=None, tool_refs=None, dispatch=dispatch,
             sync=False, max_iterations=1, temperature=temperature, max_tokens=max_tokens,
             response_format=response_format, trace=p2_trace, provider=provider,
+            gateway=gateway,
             prompt_version_id=prompt_version_id, variables=variables,
         )
         shaped_assistant = shaped.messages[-1] if shaped.messages else None
@@ -1358,6 +1412,7 @@ class GatewayNamespace:
         response_format: Optional[ResponseFormat] = ...,
         trace: Union[bool, Dict[str, Any]] = ...,
         provider: Optional[ProviderConfig] = ...,
+        gateway: Optional[GatewayControl] = ...,
         prompt_version_id: Optional[str] = ...,
         variables: Optional[Dict[str, Any]] = ...,
     ) -> RunToolLoopResult: ...
@@ -1382,6 +1437,7 @@ class GatewayNamespace:
         response_format: Optional[ResponseFormat] = ...,
         trace: Union[bool, Dict[str, Any]] = ...,
         provider: Optional[ProviderConfig] = ...,
+        gateway: Optional[GatewayControl] = ...,
         prompt_version_id: Optional[str] = ...,
         variables: Optional[Dict[str, Any]] = ...,
     ) -> "AsyncToolLoopStream": ...
@@ -1404,6 +1460,7 @@ class GatewayNamespace:
         response_format: Optional[ResponseFormat] = None,
         trace: Union[bool, Dict[str, Any]] = True,
         provider: Optional[ProviderConfig] = None,
+        gateway: Optional[GatewayControl] = None,
         prompt_version_id: Optional[str] = None,
         variables: Optional[Dict[str, Any]] = None,
         stream: bool = False,
@@ -1490,6 +1547,7 @@ class GatewayNamespace:
             response_format=response_format,
             trace=trace,
             provider=provider,
+            gateway=gateway,
             prompt_version_id=prompt_version_id or rendered.version_id,
             variables=variables if variables is not None else rendered.variables,
             stream=stream,
@@ -1512,6 +1570,7 @@ class GatewayNamespace:
         response_format: Optional[ResponseFormat] = None,
         trace: Union[bool, Dict[str, Any]] = True,
         provider: Optional[ProviderConfig] = None,
+        gateway: Optional[GatewayControl] = None,
         prompt_version_id: Optional[str] = None,
         variables: Optional[Dict[str, Any]] = None,
     ) -> RunToolLoopResult:
@@ -1544,123 +1603,124 @@ class GatewayNamespace:
         tool_spans: List[IngestSpan] = []
         trace_id: Optional[str] = trace_conf.get("trace_id")
 
-        for i in range(max_iterations):
-            extra_headers: Optional[Dict[str, str]] = None
-            if trace_enabled and provider_config is None:
-                extra_headers = _gateway_trace_headers(
-                    {**trace_conf, "name": trace_name, "trace_id": trace_id,
-                     "_default_name": "runToolLoop"}
-                )
-
-            round_start_time = _now_iso()
-            if provider_config is not None:
-                result = await self._complete_via_provider(
-                    model, convo, tools=byo_tool_schemas,
-                    response_format=response_format,
-                    temperature=temperature, max_tokens=max_tokens,
-                    provider_config=provider_config,
-                )
-            else:
-                result = await self._complete_once(
-                    model, convo, tools=tool_defs, tool_refs=effective_refs or None,
-                    response_format=response_format,
-                    temperature=temperature, max_tokens=max_tokens, extra_headers=extra_headers,
-                    prompt_version_id=prompt_version_id, variables=variables,
-                )
-
-            if trace_enabled and not trace_id:
-                trace_id = result.gateway.trace_id
-            llm_span_ref = result.gateway.span_ref
-
-            if provider_config is not None and trace_enabled:
-                llm_span_id_for_round = result.gateway.span_ref or f"llm-{i}"
-                llm_span: IngestSpan = {
-                    "spanId": llm_span_id_for_round,
-                    "name": result.model,
-                    "kind": "llm",
-                    "status": "ok",
-                    "startTime": round_start_time,
-                    "endTime": _now_iso(),
-                    "model": result.model,
-                    "input": {"messages": convo},
-                    "output": result.message,
-                }
-                if result.gateway.provider:
-                    llm_span["provider"] = result.gateway.provider
-                if result.usage is not None:
-                    llm_span["usage"] = {
-                        "promptTokens": result.usage.prompt_tokens,
-                        "completionTokens": result.usage.completion_tokens,
-                        "totalTokens": result.usage.total_tokens,
-                    }
-                if prompt_version_id:
-                    llm_span["promptVersionId"] = prompt_version_id
-                if variables is not None:
-                    llm_span["variables"] = variables
-                llm_trace_payload: TraceInput = {"name": payload_trace_name, "spans": [llm_span]}
-                if trace_id:
-                    llm_trace_payload["traceId"] = trace_id
-                if session_id:
-                    llm_trace_payload["sessionId"] = session_id
-                must_await_trace_open = i == 0 and any(
-                    r.kind == "http" for r in routes.values()
-                )
-                if must_await_trace_open:
-                    try:
-                        await self._host._request("POST", "/traces", {"traces": [llm_trace_payload]}, "reporting llm span")
-                    except Exception as err:
-                        warnings.warn(
-                            "[acruxcore] run_tool_loop llm-span report failed — continuing "
-                            f"without it: {err}",
-                            stacklevel=2,
-                        )
-                else:
-                    self._host._span_queue.enqueue(llm_trace_payload)
-
-            calls = result.message.get("tool_calls") or []
-            if result.finish_reason != "tool_calls" or len(calls) == 0:
-                self._report_tool_spans(
-                    trace_enabled, trace_id, payload_trace_name, session_id, tool_spans
-                )
-                return RunToolLoopResult(
-                    content=result.content or "",
-                    messages=[*convo, result.message],
-                    iterations=i + 1,
-                    stopped_at_limit=False,
-                    trace_id=trace_id,
-                )
-
-            settled = await asyncio.gather(
-                *[
-                    self._dispatch_tool_call(
-                        call,
-                        call_index=idx,
-                        round_index=i,
-                        routes=routes,
-                        dispatch=dispatch,
-                        trace_enabled=trace_enabled,
-                        trace_id=trace_id,
-                        llm_span_ref=llm_span_ref,
-                        tool_spans=tool_spans,
+        # try/finally, not three call sites. The buffered tool spans used to be reported
+        # only on the three paths someone remembered to add a call to, so a round that
+        # raised — the provider erroring mid-loop — silently discarded every tool span the
+        # run had already produced. The trace then showed a run that made no tool calls at
+        # all (issue #452).
+        try:
+            for i in range(max_iterations):
+                extra_headers: Optional[Dict[str, str]] = None
+                if trace_enabled and provider_config is None:
+                    extra_headers = _gateway_trace_headers(
+                        {**trace_conf, "name": trace_name, "trace_id": trace_id,
+                         "_default_name": "runToolLoop"}
                     )
-                    for idx, call in enumerate(calls)
-                ],
-                return_exceptions=True,
+
+                round_start_time = _now_iso()
+                if provider_config is not None:
+                    result = await self._complete_via_provider(
+                        model, convo, tools=byo_tool_schemas,
+                        response_format=response_format,
+                        temperature=temperature, max_tokens=max_tokens,
+                        provider_config=provider_config,
+                    )
+                else:
+                    result = await self._complete_once(
+                        model, convo, tools=tool_defs, tool_refs=effective_refs or None,
+                        response_format=response_format,
+                        temperature=temperature, max_tokens=max_tokens, extra_headers=extra_headers,
+                        prompt_version_id=prompt_version_id, variables=variables, gateway=gateway,
+                    )
+
+                if trace_enabled and not trace_id:
+                    trace_id = result.gateway.trace_id
+                llm_span_ref = result.gateway.span_ref
+
+                if provider_config is not None and trace_enabled:
+                    llm_span_id_for_round = result.gateway.span_ref or f"llm-{i}"
+                    llm_span: IngestSpan = {
+                        "spanId": llm_span_id_for_round,
+                        "name": result.model,
+                        "kind": "llm",
+                        "status": "ok",
+                        "startTime": round_start_time,
+                        "endTime": _now_iso(),
+                        "model": result.model,
+                        "input": {"messages": convo},
+                        "output": result.message,
+                    }
+                    if result.gateway.provider:
+                        llm_span["provider"] = result.gateway.provider
+                    if result.usage is not None:
+                        llm_span["usage"] = {
+                            "promptTokens": result.usage.prompt_tokens,
+                            "completionTokens": result.usage.completion_tokens,
+                            "totalTokens": result.usage.total_tokens,
+                        }
+                    if prompt_version_id:
+                        llm_span["promptVersionId"] = prompt_version_id
+                    if variables is not None:
+                        llm_span["variables"] = variables
+                    llm_trace_payload: TraceInput = {"name": payload_trace_name, "spans": [llm_span]}
+                    if trace_id:
+                        llm_trace_payload["traceId"] = trace_id
+                    if session_id:
+                        llm_trace_payload["sessionId"] = session_id
+                    must_await_trace_open = i == 0 and any(
+                        r.kind == "http" for r in routes.values()
+                    )
+                    if must_await_trace_open:
+                        try:
+                            await self._host._request("POST", "/traces", {"traces": [llm_trace_payload]}, "reporting llm span")
+                        except Exception as err:
+                            warnings.warn(
+                                "[acruxcore] run_tool_loop llm-span report failed — continuing "
+                                f"without it: {err}",
+                                stacklevel=2,
+                            )
+                    else:
+                        self._host._span_queue.enqueue(llm_trace_payload)
+
+                calls = result.message.get("tool_calls") or []
+                if result.finish_reason != "tool_calls" or len(calls) == 0:
+                    return RunToolLoopResult(
+                        content=result.content or "",
+                        messages=[*convo, result.message],
+                        iterations=i + 1,
+                        stopped_at_limit=False,
+                        trace_id=trace_id,
+                    )
+
+                settled = await asyncio.gather(
+                    *[
+                        self._dispatch_tool_call(
+                            call,
+                            call_index=idx,
+                            round_index=i,
+                            routes=routes,
+                            dispatch=dispatch,
+                            trace_enabled=trace_enabled,
+                            trace_id=trace_id,
+                            llm_span_ref=llm_span_ref,
+                            tool_spans=tool_spans,
+                        )
+                        for idx, call in enumerate(calls)
+                    ],
+                    return_exceptions=True,
+                )
+
+                failure = next((s for s in settled if isinstance(s, BaseException)), None)
+                if failure is not None:
+                    raise failure
+
+                tool_msgs: List[Message] = [s for s in settled]  # type: ignore[misc]
+                convo = [*convo, result.message, *tool_msgs]
+        finally:
+            self._report_tool_spans(
+                trace_enabled, trace_id, payload_trace_name, session_id, tool_spans
             )
 
-            failure = next((s for s in settled if isinstance(s, BaseException)), None)
-            if failure is not None:
-                self._report_tool_spans(
-                    trace_enabled, trace_id, payload_trace_name, session_id, tool_spans
-                )
-                raise failure
-
-            tool_msgs: List[Message] = [s for s in settled]  # type: ignore[misc]
-            convo = [*convo, result.message, *tool_msgs]
-
-        self._report_tool_spans(
-            trace_enabled, trace_id, payload_trace_name, session_id, tool_spans
-        )
         return RunToolLoopResult(
             content="", messages=convo, iterations=max_iterations,
             stopped_at_limit=True, trace_id=trace_id,
@@ -1683,6 +1743,7 @@ class GatewayNamespace:
         response_format: Optional[ResponseFormat],
         trace: Union[bool, Dict[str, Any]],
         provider: Optional[ProviderConfig],
+        gateway: Optional[GatewayControl],
         prompt_version_id: Optional[str],
         variables: Optional[Dict[str, Any]],
     ) -> AsyncGenerator[ToolLoopEvent, None]:
@@ -1731,110 +1792,116 @@ class GatewayNamespace:
         state: Dict[str, Any] = {"trace_id": trace_conf.get("trace_id")}
         gathered: Optional[RunToolLoopResult] = None
 
-        for i in range(max_iterations):
-            round_out: Dict[str, Any] = {}
-            async for event in self._stream_one_round(
-                model=model,
-                convo=convo,
-                round_index=i,
-                emit_content=not shaping,
-                tool_defs=tool_defs,
-                effective_refs=effective_refs,
-                byo_tool_schemas=byo_tool_schemas,
-                response_format=gather_response_format,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                provider_config=provider_config,
-                prompt_version_id=prompt_version_id,
-                variables=variables,
-                trace_enabled=trace_enabled,
-                trace_conf=trace_conf,
-                trace_name=trace_name,
-                payload_trace_name=payload_trace_name,
-                session_id=session_id,
-                state=state,
-                out=round_out,
-            ):
-                yield event
+        # Same try/finally as the blocking loop: a round that raises must not take the
+        # tool spans the run already produced down with it (issue #452). An async
+        # generator makes this matter more, not less — an abandoned consumer unwinds
+        # through `finally` here too.
+        try:
+            for i in range(max_iterations):
+                round_out: Dict[str, Any] = {}
+                async for event in self._stream_one_round(
+                    model=model,
+                    convo=convo,
+                    round_index=i,
+                    emit_content=not shaping,
+                    tool_defs=tool_defs,
+                    effective_refs=effective_refs,
+                    byo_tool_schemas=byo_tool_schemas,
+                    response_format=gather_response_format,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    provider_config=provider_config,
+                    gateway=gateway,
+                    prompt_version_id=prompt_version_id,
+                    variables=variables,
+                    trace_enabled=trace_enabled,
+                    trace_conf=trace_conf,
+                    trace_name=trace_name,
+                    payload_trace_name=payload_trace_name,
+                    session_id=session_id,
+                    state=state,
+                    out=round_out,
+                ):
+                    yield event
 
-            message: Message = round_out["message"]
-            calls: List[Dict[str, Any]] = list(message.get("tool_calls") or [])
-            trace_id: Optional[str] = state["trace_id"]
+                message: Message = round_out["message"]
+                calls: List[Dict[str, Any]] = list(message.get("tool_calls") or [])
+                trace_id: Optional[str] = state["trace_id"]
 
-            if round_out["finish_reason"] != "tool_calls" or not calls:
-                gathered = RunToolLoopResult(
-                    content=message.get("content") or "",
-                    messages=[*convo, message],
-                    iterations=i + 1,
-                    stopped_at_limit=False,
-                    trace_id=trace_id,
-                )
-                break
-
-            for call in calls:
-                yield ToolLoopToolCallEvent(
-                    id=call["id"],
-                    name=call["function"]["name"],
-                    arguments=_parse_tool_arguments(call),
-                    round=i,
-                )
-
-            # One queue entry per call, whichever way it ended, so a tool that raises
-            # before it ever runs (nothing to dispatch it) cannot leave this waiting.
-            done_queue: "asyncio.Queue[str]" = asyncio.Queue()
-            outcomes: Dict[str, Tuple[Any, Optional[str]]] = {}
-
-            def note(call_id: str, _name: str, result: Any, error: Optional[str]) -> None:
-                outcomes[call_id] = (result, error)
-
-            async def run_one(call: Dict[str, Any], index: int) -> Message:
-                try:
-                    return await self._dispatch_tool_call(
-                        call,
-                        call_index=index,
-                        round_index=i,
-                        routes=routes,
-                        dispatch=dispatch,
-                        trace_enabled=trace_enabled,
+                if round_out["finish_reason"] != "tool_calls" or not calls:
+                    gathered = RunToolLoopResult(
+                        content=message.get("content") or "",
+                        messages=[*convo, message],
+                        iterations=i + 1,
+                        stopped_at_limit=False,
                         trace_id=trace_id,
-                        llm_span_ref=round_out["span_ref"],
-                        tool_spans=tool_spans,
-                        on_settled=note,
                     )
-                except BaseException as err:
-                    outcomes.setdefault(call["id"], (None, str(err)))
-                    raise
-                finally:
-                    done_queue.put_nowait(call["id"])
+                    break
 
-            tasks = [asyncio.ensure_future(run_one(c, idx)) for idx, c in enumerate(calls)]
-            names = {c["id"]: c["function"]["name"] for c in calls}
-            for _ in range(len(tasks)):
-                call_id = await done_queue.get()
-                result, error = outcomes.get(call_id, (None, None))
-                yield ToolLoopToolResultEvent(
-                    id=call_id, name=names.get(call_id, ""), round=i, result=result, error=error
+                for call in calls:
+                    yield ToolLoopToolCallEvent(
+                        id=call["id"],
+                        name=call["function"]["name"],
+                        arguments=_parse_tool_arguments(call),
+                        round=i,
+                    )
+
+                # One queue entry per call, whichever way it ended, so a tool that raises
+                # before it ever runs (nothing to dispatch it) cannot leave this waiting.
+                done_queue: "asyncio.Queue[str]" = asyncio.Queue()
+                outcomes: Dict[str, Tuple[Any, Optional[str]]] = {}
+
+                def note(call_id: str, _name: str, result: Any, error: Optional[str]) -> None:
+                    outcomes[call_id] = (result, error)
+
+                async def run_one(call: Dict[str, Any], index: int) -> Message:
+                    try:
+                        return await self._dispatch_tool_call(
+                            call,
+                            call_index=index,
+                            round_index=i,
+                            routes=routes,
+                            dispatch=dispatch,
+                            trace_enabled=trace_enabled,
+                            trace_id=trace_id,
+                            llm_span_ref=round_out["span_ref"],
+                            tool_spans=tool_spans,
+                            on_settled=note,
+                        )
+                    except BaseException as err:
+                        outcomes.setdefault(call["id"], (None, str(err)))
+                        raise
+                    finally:
+                        done_queue.put_nowait(call["id"])
+
+                tasks = [asyncio.ensure_future(run_one(c, idx)) for idx, c in enumerate(calls)]
+                names = {c["id"]: c["function"]["name"] for c in calls}
+                for _ in range(len(tasks)):
+                    call_id = await done_queue.get()
+                    result, error = outcomes.get(call_id, (None, None))
+                    yield ToolLoopToolResultEvent(
+                        id=call_id, name=names.get(call_id, ""), round=i, result=result, error=error
+                    )
+
+                settled = await asyncio.gather(*tasks, return_exceptions=True)
+                failure = next((s for s in settled if isinstance(s, BaseException)), None)
+                if failure is not None:
+                    raise failure
+
+                convo = [*convo, message, *[s for s in settled]]  # type: ignore[list-item]
+            else:
+                gathered = RunToolLoopResult(
+                    content="",
+                    messages=convo,
+                    iterations=max_iterations,
+                    stopped_at_limit=True,
+                    trace_id=state["trace_id"],
                 )
-
-            settled = await asyncio.gather(*tasks, return_exceptions=True)
-            failure = next((s for s in settled if isinstance(s, BaseException)), None)
-            if failure is not None:
-                self._report_tool_spans(trace_enabled, trace_id, payload_trace_name, session_id, tool_spans)
-                raise failure
-
-            convo = [*convo, message, *[s for s in settled]]  # type: ignore[list-item]
-        else:
-            gathered = RunToolLoopResult(
-                content="",
-                messages=convo,
-                iterations=max_iterations,
-                stopped_at_limit=True,
-                trace_id=state["trace_id"],
+        finally:
+            self._report_tool_spans(
+                trace_enabled, state["trace_id"], payload_trace_name, session_id, tool_spans
             )
 
-        self._report_tool_spans(
-            trace_enabled, state["trace_id"], payload_trace_name, session_id, tool_spans
-        )
         assert gathered is not None  # every path above assigns it
 
         if not shaping:
@@ -1867,6 +1934,7 @@ class GatewayNamespace:
             temperature=temperature,
             max_tokens=max_tokens,
             provider_config=provider_config,
+            gateway=gateway,
             prompt_version_id=prompt_version_id,
             variables=variables,
             trace_enabled=trace_enabled,
@@ -1904,6 +1972,7 @@ class GatewayNamespace:
         temperature: Optional[float],
         max_tokens: Optional[int],
         provider_config: Optional[ProviderConfig],
+        gateway: Optional[GatewayControl],
         prompt_version_id: Optional[str],
         variables: Optional[Dict[str, Any]],
         trace_enabled: bool,
@@ -1936,6 +2005,7 @@ class GatewayNamespace:
             True,
             prompt_version_id=None if provider_config is not None else prompt_version_id,
             variables=None if provider_config is not None else variables,
+            gateway=None if provider_config is not None else gateway,
         )
 
         content_parts: List[str] = []
@@ -2076,8 +2146,16 @@ class GatewayNamespace:
                 parent_span_id=llm_span_ref,
             )
             ret = executed.result
+            # The platform already wrote this span, classification included — nothing is
+            # appended to `tool_spans` for an http route. What it could not do is tell the
+            # caller, so the classification is forwarded here.
             if on_settled is not None:
-                on_settled(call["id"], name, ret, None)
+                on_settled(
+                    call["id"],
+                    name,
+                    ret,
+                    executed.error.get("message") if executed.error else None,
+                )
             content = ret if isinstance(ret, str) else json.dumps(ret)
             return {"role": "tool", "tool_call_id": call["id"], "content": content}
 
@@ -2111,6 +2189,8 @@ class GatewayNamespace:
             if inspect.isawaitable(ret):
                 ret = await ret
         except Exception as err:
+            attributes["errorType"] = "transport"
+            attributes["errorDetail"] = str(err)
             tool_spans.append(
                 {
                     "spanId": tool_span_id,
@@ -2129,22 +2209,69 @@ class GatewayNamespace:
                 on_settled(call["id"], name, None, str(err))
             raise
 
-        tool_spans.append(
-            {
-                "spanId": tool_span_id,
-                "parentSpanId": llm_span_ref,
-                "name": name,
-                "kind": "tool",
-                "status": "ok",
-                "startTime": tool_start,
-                "endTime": _now_iso(),
-                "input": args,
-                "output": ret,
-                "attributes": attributes,
+        # A handler may hand back its own verdict via ToolResult.error/warn. Unwrapping it
+        # HERE, in the one place either loop runs a tool, is what keeps the span shape
+        # identical to the platform's `http` executor — see
+        # apps/api/src/traces/spans/span-failure.ts.
+        outcome = ret if isinstance(ret, ToolResult) else None
+        if outcome is not None:
+            ret = outcome.result
+
+        failure: Optional[Dict[str, Any]] = None
+        if outcome is not None:
+            failure = {
+                "errorType": "tool_declared",
+                # The owner's own slug, kept beside the closed-vocabulary `errorType`
+                # rather than inside it — see SpanFailure.code in the API's
+                # span-failure.ts for why the two stay separate.
+                "code": outcome.type,
+                "message": outcome.message,
+                "fatal": outcome.level == "error",
             }
-        )
+        elif route is not None and route.result_schema:
+            # The catalog's own contract, checked only when the owner declared nothing
+            # themselves — an explicit verdict outranks an inferred one.
+            mismatch = validate_against_schema(ret, route.result_schema)
+            if mismatch:
+                failure = {
+                    "errorType": "schema_mismatch",
+                    "message": mismatch,
+                    "fatal": route.result_schema_severity == "error",
+                }
+
+        if failure is not None:
+            attributes["errorType"] = failure["errorType"]
+            if failure.get("code"):
+                attributes["errorCode"] = failure["code"]
+            attributes["errorDetail"] = failure["message"]
+            if not failure["fatal"]:
+                attributes["warning"] = {
+                    "type": failure.get("code") or failure["errorType"],
+                    "message": failure["message"],
+                }
+
+        span: IngestSpan = {
+            "spanId": tool_span_id,
+            "parentSpanId": llm_span_ref,
+            "name": name,
+            "kind": "tool",
+            "status": "error" if failure is not None and failure["fatal"] else "ok",
+            "startTime": tool_start,
+            "endTime": _now_iso(),
+            "input": args,
+            "output": ret,
+            "attributes": attributes,
+        }
+        if failure is not None and failure["fatal"]:
+            span["error"] = failure["message"]
+        tool_spans.append(span)
+
+        # A declared failure does NOT stop the loop. Whether the agent keeps going is the
+        # caller's decision; making the trace tell the truth is ours, and conflating the
+        # two would change the behaviour of every existing tool.
         if on_settled is not None:
-            on_settled(call["id"], name, ret, None)
+            settled_error = failure["message"] if failure is not None and failure["fatal"] else None
+            on_settled(call["id"], name, ret, settled_error)
         content = ret if isinstance(ret, str) else json.dumps(ret)
         return {"role": "tool", "tool_call_id": call["id"], "content": content}
 

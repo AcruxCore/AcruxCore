@@ -23,6 +23,20 @@ export interface FilterState {
   metadata?: Record<string, string>;
   model?: string;
   status?: SpanStatus;
+  /**
+   * Which kind of failure a span inside the trace recorded. Separate from `status`
+   * because every kind of failure rolls up to the same red trace — "which runs broke
+   * because an upstream tool 500'd" is unanswerable from `status: error` alone.
+   */
+  errorType?: string;
+  /**
+   * The slug the tool's own owner gave this failure — `location_not_found`. A free
+   * string, not a fixed set like {@link FilterState.errorType}: the vocabulary belongs to
+   * the team that writes the tools, so the bar cannot know it in advance.
+   */
+  errorCode?: string;
+  /** Whether any span carries a warning — something seen, but not a failure. */
+  hasWarning?: boolean;
   sessionId?: string;
   minScore?: number;
   maxScore?: number;
@@ -48,6 +62,10 @@ export interface Chip {
 }
 
 const STATUSES = new Set<string>(['ok', 'error', 'unset']);
+/** Mirrors `SpanErrorType` in `apps/api/src/traces/spans/span-failure.ts`. */
+const ERROR_TYPES = new Set<string>([
+  'transport', 'http_status', 'tool_declared', 'schema_mismatch', 'transform', 'provider_error',
+]);
 const SCOPES = new Set<string>(['all', 'input', 'output', 'name']);
 const RATINGS = new Set<string>(['up', 'down', 'none']);
 const SOURCES = new Set<string>(['user', 'developer', 'end_user', 'api']);
@@ -55,7 +73,7 @@ const SOURCES = new Set<string>(['user', 'developer', 'end_user', 'api']);
 /** Prefixes that name a filter, as opposed to appearing inside ordinary text. */
 const KNOWN_PREFIXES = new Set<string>([
   'prompt', 'version', 'tag', 'input', 'output', 'name', 'model', 'status',
-  'session', 'rating', 'source', 'label', 'comment',
+  'session', 'rating', 'source', 'label', 'comment', 'error_type', 'error_code', 'warning',
 ]);
 
 /** Strips one pair of surrounding quotes, so `label:"needs review"` works. */
@@ -118,6 +136,14 @@ export function parseFilterState(sp: URLSearchParams): FilterState {
   if (model) state.model = model;
   const status = sp.get('status');
   if (status && STATUSES.has(status)) state.status = status as SpanStatus;
+  const errorType = sp.get('error_type');
+  if (errorType && ERROR_TYPES.has(errorType)) state.errorType = errorType;
+  const errorCode = sp.get('error_code');
+  if (errorCode) state.errorCode = errorCode;
+  const hasWarning = sp.get('has_warning');
+  if (hasWarning === 'true') state.hasWarning = true;
+  if (hasWarning === 'false') state.hasWarning = false;
+
   const sessionId = sp.get('session_id');
   if (sessionId) state.sessionId = sessionId;
 
@@ -165,6 +191,7 @@ export function filterStateToParams(state: FilterState, base?: URLSearchParams):
   const sp = new URLSearchParams(base);
   for (const key of [
     'q', 'q_in', 'prompt_id', 'prompt_version_id', 'tags', 'model', 'status', 'session_id',
+    'error_type', 'error_code', 'has_warning',
     'min_score', 'max_score', 'min_latency_ms', 'min_cost_usd', 'min_tokens',
     'rating', 'source', 'label', 'has_comment', 'from', 'to',
   ]) {
@@ -182,6 +209,9 @@ export function filterStateToParams(state: FilterState, base?: URLSearchParams):
   for (const [k, v] of Object.entries(state.metadata ?? {})) sp.set(`metadata[${k}]`, v);
   if (state.model) sp.set('model', state.model);
   if (state.status) sp.set('status', state.status);
+  if (state.errorType) sp.set('error_type', state.errorType);
+  if (state.errorCode) sp.set('error_code', state.errorCode);
+  if (state.hasWarning !== undefined) sp.set('has_warning', String(state.hasWarning));
   if (state.sessionId) sp.set('session_id', state.sessionId);
   if (state.minScore !== undefined) sp.set('min_score', String(state.minScore));
   if (state.maxScore !== undefined) sp.set('max_score', String(state.maxScore));
@@ -233,6 +263,11 @@ export function stateToChips(state: FilterState, labels: ChipLabels = {}): Chip[
   }
   if (state.model) chips.push({ key: 'model', label: `model:${state.model}` });
   if (state.status) chips.push({ key: 'status', label: `status:${state.status}` });
+  if (state.errorType) chips.push({ key: 'errorType', label: `error_type:${state.errorType}` });
+  if (state.errorCode) chips.push({ key: 'errorCode', label: `error_code:${quoteIfNeeded(state.errorCode)}` });
+  if (state.hasWarning !== undefined) {
+    chips.push({ key: 'hasWarning', label: `warning:${state.hasWarning ? 'yes' : 'no'}` });
+  }
   if (state.sessionId) chips.push({ key: 'sessionId', label: `session:${state.sessionId}` });
   if (state.rating) chips.push({ key: 'rating', label: `rating:${state.rating}` });
   if (state.source) chips.push({ key: 'source', label: `source:${state.source}` });
@@ -296,6 +331,9 @@ export const FILTER_PREFIXES = [
   { prefix: 'name:', hint: 'trace or span name only' },
   { prefix: 'model:', hint: 'a model name' },
   { prefix: 'status:', hint: 'ok, error or unset' },
+  { prefix: 'error_type:', hint: 'what kind of failure' },
+  { prefix: 'error_code:', hint: "the tool owner's own slug" },
+  { prefix: 'warning:', hint: 'yes or no' },
   { prefix: 'session:', hint: 'a session id' },
   { prefix: 'rating:', hint: 'up, down or none' },
   { prefix: 'source:', hint: 'user, developer, end_user or api' },
@@ -403,6 +441,21 @@ function applyOne(state: FilterState, text: string): FilterInputResult {
           if (!STATUSES.has(value)) return keep('status: takes ok, error or unset.');
           next.status = value as SpanStatus;
           return { state: next, error: null };
+        case 'error_type':
+          if (!ERROR_TYPES.has(value)) {
+            return keep(`error_type: takes ${[...ERROR_TYPES].join(', ')}.`);
+          }
+          next.errorType = value;
+          return { state: next, error: null };
+        // No validation to do: the slug is whatever the tool's owner called it, so an
+        // unknown one is a filter that finds nothing, not a mistake to reject.
+        case 'error_code':
+          next.errorCode = value;
+          return { state: next, error: null };
+        case 'warning':
+          if (value !== 'yes' && value !== 'no') return keep('warning: takes yes or no.');
+          next.hasWarning = value === 'yes';
+          return { state: next, error: null };
         case 'session':
           next.sessionId = value;
           return { state: next, error: null };
@@ -503,6 +556,10 @@ export function filterStateToBody(state: FilterState): Record<string, unknown> {
   if (state.metadata && Object.keys(state.metadata).length > 0) body.metadata = state.metadata;
   if (state.model) body.model = state.model;
   if (state.status) body.status = state.status;
+  if (state.errorType) body.error_type = state.errorType;
+  if (state.errorCode) body.error_code = state.errorCode;
+  // Only when set: absent means "either", which is a different filter from `false`.
+  if (state.hasWarning !== undefined) body.has_warning = state.hasWarning;
   if (state.sessionId) body.session_id = state.sessionId;
   if (state.minScore !== undefined) body.min_score = state.minScore;
   if (state.maxScore !== undefined) body.max_score = state.maxScore;

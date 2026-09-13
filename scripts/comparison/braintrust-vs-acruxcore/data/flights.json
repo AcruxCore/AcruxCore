@@ -1,0 +1,22 @@
+{
+  "_comment": "A stand-in for whatever flight inventory your own app already owns. Routes are keyed 'origin|destination', lowercased. Times are local.",
+  "routes": {
+    "amsterdam|lisbon": [
+      { "flight_no": "KL1693", "airline": "KLM", "depart": "07:20", "arrive": "09:45", "duration": "3h25m", "price_eur": 189 },
+      { "flight_no": "TP671", "airline": "TAP Air Portugal", "depart": "12:05", "arrive": "14:30", "duration": "3h25m", "price_eur": 154 },
+      { "flight_no": "HV5171", "airline": "Transavia", "depart": "18:40", "arrive": "21:05", "duration": "3h25m", "price_eur": 118 }
+    ],
+    "amsterdam|tokyo": [
+      { "flight_no": "KL861", "airline": "KLM", "depart": "14:35", "arrive": "08:55", "duration": "11h20m", "price_eur": 742 },
+      { "flight_no": "NH218", "airline": "ANA", "depart": "19:10", "arrive": "13:40", "duration": "11h30m", "price_eur": 815 }
+    ],
+    "amsterdam|reykjavik": [
+      { "flight_no": "FI501", "airline": "Icelandair", "depart": "09:15", "arrive": "10:40", "duration": "3h25m", "price_eur": 231 },
+      { "flight_no": "KL1385", "airline": "KLM", "depart": "16:50", "arrive": "18:15", "duration": "3h25m", "price_eur": 267 }
+    ],
+    "lisbon|barcelona": [
+      { "flight_no": "TP1034", "airline": "TAP Air Portugal", "depart": "10:30", "arrive": "13:55", "duration": "2h25m", "price_eur": 96 },
+      { "flight_no": "VY8471", "airline": "Vueling", "depart": "20:15", "arrive": "23:40", "duration": "2h25m", "price_eur": 74 }
+    ]
+  }
+}

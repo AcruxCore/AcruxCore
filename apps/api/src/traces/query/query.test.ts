@@ -125,6 +125,169 @@ describe('GET /api/v1/traces — filters', () => {
     expect(res.body.data[0].id).toBe(tErr);
   });
 
+  /**
+   * Issue #452 — `status=error` says a run broke; it cannot say WHY, because every kind
+   * of failure rolls up to the same red trace. These two filters read the classifier's
+   * own attributes instead, which is what makes "show me the runs an upstream tool 500'd"
+   * an answerable question.
+   */
+  it('error_type selects only traces whose spans recorded that kind of failure', async () => {
+    const { agent } = await authedAgent(app);
+    const now = new Date();
+    const [tHttp] = await ingest(agent, [
+      {
+        name: 'tool-broke',
+        spans: [
+          {
+            spanId: 'h1', name: 'get_weather', kind: 'tool', status: 'error', startTime: iso(now),
+            error: 'Upstream returned HTTP 503.',
+            attributes: { errorType: 'http_status', httpStatus: 503 },
+          },
+        ],
+      },
+    ]);
+    await ingest(agent, [
+      {
+        name: 'model-broke',
+        spans: [
+          {
+            spanId: 'p1', name: 'gpt-4o', kind: 'llm', status: 'error', startTime: iso(now),
+            error: 'rate_limit', attributes: { errorType: 'provider_error' },
+          },
+        ],
+      },
+    ]);
+
+    // Both traces are red, so `status=error` cannot separate them — that is the point.
+    expect((await agent.get('/api/v1/traces?status=error').expect(200)).body.data).toHaveLength(2);
+
+    const res = await agent.get('/api/v1/traces?error_type=http_status').expect(200);
+    expect(res.body.data).toHaveLength(1);
+    expect(res.body.data[0].id).toBe(tHttp);
+    expect(res.body.total).toBe(1);
+  });
+
+  it('rejects an error_type outside the shared vocabulary', async () => {
+    const { agent } = await authedAgent(app);
+    await agent.get('/api/v1/traces?error_type=banana').expect(400);
+  });
+
+  /**
+   * Issue #460 — `errorType` answers "what kind of thing went wrong" from a fixed list;
+   * `errorCode` is the slug the tool's own owner chose, which is how a team names and
+   * counts its own failure modes. A free-text `q` cannot stand in for it: `q` is a
+   * substring match over the whole attributes JSON, so it also matches the slug written
+   * anywhere else, and a rate built on that is not trustworthy.
+   */
+  it('error_code selects only traces whose spans declared that slug', async () => {
+    const { agent } = await authedAgent(app);
+    const now = new Date();
+    const [tNotFound] = await ingest(agent, [
+      {
+        name: 'atlantis-prime',
+        spans: [
+          {
+            spanId: 'c1', name: 'get_weather_brief', kind: 'tool', status: 'error', startTime: iso(now),
+            error: 'No such place.',
+            attributes: { errorType: 'tool_declared', errorCode: 'location_not_found' },
+          },
+        ],
+      },
+    ]);
+    await ingest(agent, [
+      {
+        name: 'hyderabad',
+        spans: [
+          {
+            spanId: 'c2', name: 'get_weather_brief', kind: 'tool', status: 'ok', startTime: iso(now),
+            attributes: { errorType: 'tool_declared', errorCode: 'ambiguous_city' },
+          },
+        ],
+      },
+    ]);
+
+    // Both runs declared their own failure, so `error_type` cannot separate them — the
+    // slug is the only thing that tells these two failure modes apart.
+    expect((await agent.get('/api/v1/traces?error_type=tool_declared').expect(200)).body.data).toHaveLength(2);
+
+    const res = await agent.get('/api/v1/traces?error_code=location_not_found').expect(200);
+    expect(res.body.data).toHaveLength(1);
+    expect(res.body.data[0].id).toBe(tNotFound);
+    expect(res.body.total).toBe(1);
+  });
+
+  it('error_code matches the whole slug, not the slug written inside another attribute', async () => {
+    const { agent } = await authedAgent(app);
+    const now = new Date();
+    const [tDeclared] = await ingest(agent, [
+      {
+        name: 'declared-it',
+        spans: [
+          {
+            spanId: 'w1', name: 'get_weather_brief', kind: 'tool', status: 'error', startTime: iso(now),
+            attributes: { errorType: 'tool_declared', errorCode: 'location_not_found' },
+          },
+        ],
+      },
+    ]);
+    // The same words in prose on a span that declared nothing. This is the trace that
+    // makes `q=location_not_found` unusable as a count.
+    await ingest(agent, [
+      {
+        name: 'only-mentions-it',
+        spans: [
+          {
+            spanId: 'w2', name: 'gpt-4o-mini', kind: 'llm', status: 'ok', startTime: iso(now),
+            attributes: { note: 'retrying after location_not_found' },
+          },
+        ],
+      },
+    ]);
+
+    expect((await agent.get('/api/v1/traces?q=location_not_found').expect(200)).body.data).toHaveLength(2);
+
+    const res = await agent.get('/api/v1/traces?error_code=location_not_found').expect(200);
+    expect(res.body.data).toHaveLength(1);
+    expect(res.body.data[0].id).toBe(tDeclared);
+  });
+
+  it('rejects a blank error_code rather than matching every trace', async () => {
+    const { agent } = await authedAgent(app);
+    await agent.get('/api/v1/traces?error_code=').expect(400);
+  });
+
+  it('has_warning finds a green trace carrying a warning, and excludes it in reverse', async () => {
+    const { agent } = await authedAgent(app);
+    const now = new Date();
+    // The case the whole feature exists for: an entirely OK run that still has something
+    // worth seeing. No status filter can find this trace.
+    const [tWarn] = await ingest(agent, [
+      {
+        name: 'stale-data',
+        spans: [
+          {
+            spanId: 'w1', name: 'get_weather', kind: 'tool', status: 'ok', startTime: iso(now),
+            attributes: {
+              errorType: 'schema_mismatch',
+              warning: { type: 'schema_mismatch', message: "result is missing required property 'tempC'" },
+            },
+          },
+        ],
+      },
+    ]);
+    const [tClean] = await ingest(agent, [
+      { name: 'clean', spans: [{ spanId: 'c1', name: 'get_weather', kind: 'tool', status: 'ok', startTime: iso(now) }] },
+    ]);
+
+    const warned = await agent.get('/api/v1/traces?has_warning=true').expect(200);
+    expect(warned.body.data).toHaveLength(1);
+    expect(warned.body.data[0].id).toBe(tWarn);
+    expect(warned.body.data[0].status).toBe('ok'); // a warning is not a verdict
+
+    const clean = await agent.get('/api/v1/traces?has_warning=false').expect(200);
+    expect(clean.body.data.map((t: { id: string }) => t.id)).toEqual([tClean]);
+  });
+
   it('q matches on span name (case-insensitive substring over span attributes/name)', async () => {
     const { agent } = await authedAgent(app);
     const now = new Date();
@@ -367,5 +530,45 @@ describe('GET /api/v1/traces — filters', () => {
     const res = await b.agent.get(`/api/v1/traces?min_score=80&rule_id=${ruleId}`).expect(200);
     expect(res.body.total).toBe(0);
     expect(res.body.data).toHaveLength(0);
+  });
+});
+
+/**
+ * A trace whose spans all succeeded is green in the list, and until now that stayed true
+ * even when the gateway had to fall back to a different model to get that success. The
+ * filter `warning:yes` could find such a run, but only if someone already suspected it
+ * existed. Carrying the flag on the row is what puts it in front of a reader who does not.
+ */
+describe('GET /api/v1/traces — warnings on the list row', () => {
+  it('flags a green trace whose span carries a warning', async () => {
+    const { agent } = await authedAgent(app);
+    const now = new Date();
+    await ingest(agent, [
+      {
+        name: 'rescued-by-fallback',
+        spans: [
+          {
+            spanId: 'w1', name: 'gpt-4o', kind: 'llm', status: 'ok', startTime: iso(now),
+            attributes: {
+              warning: { type: 'model_fallback', message: 'backup-model answered instead.' },
+            },
+          },
+        ],
+      },
+    ]);
+    await ingest(agent, [
+      {
+        name: 'clean-run',
+        spans: [{ spanId: 'c1', name: 'gpt-4o', kind: 'llm', status: 'ok', startTime: iso(now) }],
+      },
+    ]);
+
+    const res = await agent.get('/api/v1/traces').expect(200);
+    const byName = Object.fromEntries(
+      (res.body.data as { name: string; status: string; hasWarning: boolean }[]).map((t) => [t.name, t]),
+    );
+    expect(byName['rescued-by-fallback'].status).toBe('ok');
+    expect(byName['rescued-by-fallback'].hasWarning).toBe(true);
+    expect(byName['clean-run'].hasWarning).toBe(false);
   });
 });

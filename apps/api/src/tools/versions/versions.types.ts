@@ -12,11 +12,18 @@ export type ToolVersionRow = ToolVersion;
 const ClientExecutorSchema = z.object({ type: z.literal('client') });
 
 const HttpHeaderSchema = z.object({ name: z.string().min(1), value: z.string() });
-const ArgMappingSchema = z.object({
-  arg: z.string().min(1),
-  in: z.enum(['query', 'path', 'header', 'body']),
-  path: z.string().optional(),
-});
+
+/**
+ * Rejection messages for the two http-executor fields that were scaffolded for TC4 and
+ * never wired to anything (phase-4 FAQ Q23, issue #458). Each names the mechanism that
+ * does work, because a caller who gets only a rejection has no way to fix the tool.
+ */
+const ARG_MAPPING_UNSUPPORTED =
+  'argMapping is never applied. Put {{arg.NAME}} in a query value, a header value or the URL instead — ' +
+  'for example "query": [{ "name": "name", "value": "{{arg.city}}" }].';
+const BODY_TEMPLATE_UNSUPPORTED =
+  'bodyTemplate is never applied. The request body is the tool arguments as sent; ' +
+  'shape it with a requestTransform instead.';
 
 /**
  * declarative HTTP executor. TC1 validates SHAPE only; TC4 adds JS transform
@@ -28,10 +35,61 @@ const HttpExecutorSchema = z.object({
   method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']),
   headers: z.array(HttpHeaderSchema).default([]),
   query: z.array(HttpHeaderSchema).default([]),
-  bodyTemplate: z.string().optional(),
-  argMapping: z.array(ArgMappingSchema).default([]),
+  /**
+   * Accepted only as an empty string, and never applied. See {@link BODY_TEMPLATE_UNSUPPORTED}.
+   *
+   * The body of a POST/PUT/PATCH call is the tool's arguments, or whatever a
+   * `requestTransform` returns. A committed `bodyTemplate` shaped nothing, so the tool
+   * sent the raw arguments while its own definition said otherwise.
+   */
+  bodyTemplate: z.string().max(0, { message: BODY_TEMPLATE_UNSUPPORTED }).optional(),
+  /**
+   * Accepted only as an empty list, and never applied. See {@link ARG_MAPPING_UNSUPPORTED}.
+   *
+   * Arguments reach an http request through `{{arg.NAME}}` templating in a header value,
+   * a query value or the URL. A non-empty `argMapping` bound nothing, so the tool called
+   * upstream with the argument missing and the span blamed the upstream for a 400 that
+   * the tool's own configuration caused.
+   *
+   * The empty list still commits, and `.default([])` still writes it: `@acruxcoreai/sdk`
+   * 0.13.0 and earlier type the field as required, so callers send `[]` whether they meant
+   * to or not, and every http executor already stored carries the key. Dropping it from
+   * newly committed JSON would change `specFingerprint` for tools that have not changed,
+   * and `POST /tools/sync` would commit a new version for every one of them.
+   */
+  argMapping: z.array(z.unknown()).max(0, { message: ARG_MAPPING_UNSUPPORTED }).default([]),
   requestTransform: z.string().optional(),
   responseTransform: z.string().optional(),
+  /**
+   * A JS predicate deciding whether a completed call actually failed, for the case only
+   * the tool's owner can judge: HTTP 200 carrying `{"error": "location not found"}`.
+   *
+   * Same contract and same `isolated-vm` sandbox as the two transforms — a source
+   * defining `function transform(input) { ... }`, which is the name `compileTransform`
+   * invokes; any other name commits fine and then fails at run time as a `transform`
+   * warning. Syntax-checked at commit. It receives the
+   * RAW `{ status, headers, body }`, deliberately BEFORE `responseTransform`, because a
+   * transform is free to discard the very field that carries the error. It returns
+   * `null` for a successful call, or `{ type?, message }` to declare a failure.
+   */
+  failureWhen: z.string().optional(),
+  /**
+   * JSON Schema the TRANSFORMED result must satisfy — the object the model actually
+   * consumes, which is where the contract lives. Checked with the small subset checker
+   * in `execute/result-schema.ts`, not a full validator.
+   */
+  resultSchema: z.record(z.unknown()).optional(),
+  /**
+   * What a `resultSchema` mismatch means. Absent reads as `warn`, because the declaration
+   * may itself be the wrong one, and a check that cries wolf gets ignored — taking the
+   * real signal down with it. A tool confident in its schema sets `error`.
+   *
+   * Deliberately `.optional()` rather than `.default('warn')`: a default would write the
+   * key into every executor ever committed, including the overwhelming majority that
+   * declare no result schema at all, silently changing stored JSON for a feature they do
+   * not use.
+   */
+  resultSchemaSeverity: z.enum(['warn', 'error']).optional(),
 });
 
 /** Typed executor union: `{ type: 'client' }` | `{ type: 'http', ... }`. Re-consumed by TC4. */

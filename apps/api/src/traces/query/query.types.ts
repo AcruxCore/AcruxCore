@@ -49,6 +49,13 @@ export interface TraceListItem {
   totalTokens: number;
   durationMs: number | null;
   tags: string[];
+  /**
+   * Whether any span on this trace carries a `warning` attribute — something seen and
+   * worth reading, on a run that did not fail. A gateway call answered by a fallback
+   * model is the common case: it is `ok`, so without this flag the list cannot tell it
+   * from a call the primary model served itself.
+   */
+  hasWarning: boolean;
 }
 
 /** Paginated envelope for GET /traces and the reverse-lineage endpoint. */

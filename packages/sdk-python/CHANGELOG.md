@@ -12,7 +12,44 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
-_Nothing yet._
+## 0.14.0 — 2026-09-14
+
+### Added
+
+- `gateway=` on `gateway.chat()`, `gateway.stream()`, `gateway.run_tool_loop()` and
+  `gateway.run_prompt_with_tools()` — the per-call gateway controls
+  `{"max_retries": ..., "fallback": ...}`, which until now could only be sent by leaving
+  the SDK and writing the HTTP request by hand.
+- `GatewayControl` is exported for typing that dict. `maxRetries` is accepted as a key
+  alongside `max_retries`, so a value copied from a curl example still works.
+- `ToolResult.error(type, message, result=...)` and `ToolResult.warn(...)` — return one from
+  a tool when only your code can tell a 200 response is really a failure. The span records
+  it; the loop keeps going and the model still reads `result`.
+- `type` lands on the span as `errorCode`, beside the closed-vocabulary `errorType`, so a
+  failure mode you name yourself stays matchable. A warning's `type` is that slug too.
+- Client-side tools are now checked against the catalog's `result_schema` when the resolved
+  version declares one. A mismatch is a warning unless the version sets its severity to error.
+- `error` and `warning` on `ToolExecuteResult`, carrying the platform's own classification
+  of a server-side tool call.
+- `result_schema` / `result_schema_severity` on `ResolvedTool`.
+
+### Changed
+
+- The client's own `max_retries` is documented as what it is: a retry of this SDK's request
+  to AcruxCore. Use the per-call `gateway={"max_retries": n}` to change how many times a
+  *provider* is called. Neither affects the other; nothing about the existing setting changed.
+- A call made with the per-call `gateway=` controls now shows in its trace whether it was
+  retried or served by a fallback model, and which model finally answered. The failing
+  attempt's own provider message is recorded beside its status. No SDK change is needed.
+- `tools.commit_version()` no longer documents `argMapping` or `bodyTemplate` on an `http`
+  executor. Neither was ever applied, and the API rejects a commit carrying a non-empty one.
+  Bind an argument with `{{arg.NAME}}` in a query value, a header value or the URL.
+
+### Fixed
+
+- Tool spans are no longer lost when a later round of `run_tool_loop` raises. They were only
+  reported on the paths that remembered to flush, so a provider error mid-loop produced a
+  trace showing a run that called no tools at all.
 
 ## 0.13.0 — 2026-09-13
 

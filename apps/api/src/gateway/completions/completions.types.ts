@@ -92,7 +92,13 @@ export const GatewayControlSchema = z
   .object({
     /** Max retries on the SAME connection for a transient error (default 1, capped at 5). */
     maxRetries: z.number().int().min(0).max(5).optional(),
-    /** Whether to fall back to the next connection on failure (default true). Reserved for v1. */
+    /**
+     * Whether a failed deployment may hand off to the next model in the chain
+     * (default true). `false` confines the call to the requested model, so a
+     * failure comes back as an error instead of a different model's answer.
+     * Honoured on both the streaming and non-streaming paths; it does not
+     * disable same-deployment retries, which are the same model.
+     */
     fallback: z.boolean().optional(),
   })
   .strict();

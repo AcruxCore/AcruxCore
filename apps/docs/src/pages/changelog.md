@@ -23,9 +23,88 @@ called out in the week it ships and in the SDK release notes.
 
 ---
 
+## Week of 14 September 2026
+
+### Major
+
+#### `gateway.fallback: false` keeps a call on the model you asked for
+
+- The key was accepted and read by nothing, so a `false` still returned a different model's answer.
+- It now returns the model's own failure instead, on streaming and non-streaming calls alike.
+- Retries are untouched: a retry is the same model, so `false` still allows them.
+  [Reference →](/api-reference/gateway/)
+
+#### Both SDKs can set the gateway's per-call retry and fallback controls
+
+- New `gateway` argument on `chat`, `stream`, `runToolLoop` and `runPromptWithTools` in both languages.
+- The client's own `maxRetries` retries the SDK's own request and never reached a provider.
+- Setting it no longer means leaving the SDK and writing the HTTP request by hand.
+  [Reference →](/docs/sdk-reference/python)
+
+#### A trace now says whether a call was retried or fell back, and to which model
+
+- The span panel now states it in words: "retried 3 times, then fell back to mistral-small".
+- One row per model tried shows its registered name, provider, calls, and how its turn ended.
+- Each attempt now records the provider's own error message, not only its HTTP status code.
+
+#### A call that only succeeded because of a retry or fallback is flagged, not plain green
+
+- A primary model failing every request was invisible while its fallback kept answering.
+- These runs stay `ok` rather than errors — the trace list now marks them amber.
+- The existing `warning:yes` filter finds them, so you can count them across a week.
+  [Reference →](/api-reference/traces/)
+
+#### Both SDKs released as 0.14.0
+
+- `@acruxcoreai/sdk` 0.14.0 on npm and `acruxcore` 0.14.0 on PyPI, from one set of changes.
+- Ships the per-call `gateway` controls and the client-side tool error and warning helpers.
+  [Reference →](/docs/sdk-reference/node)
+
+### Minor
+
+- The [Retries and Fallbacks guide](/docs/guides/automatic-model-fallbacks) now shows a retried trace and a fallback trace side by side.
+- The same guide covers registering a model with its first fallback, not only editing one.
+- The same guide now shows Python and Node SDK code beside every curl example.
+- The gateway API reference documents both keys of the `gateway` control object.
+
+---
+
 ## Week of 7 September 2026
 
 ### Major
+
+#### A failed tool call is no longer a green span
+
+- A tool whose upstream answers 4xx or 5xx now records an **error** span; the trace turns red too.
+- The call still returns the body to your agent — detecting the failure does not change control flow.
+- New `error_type:` and `warning:` filters say *which kind* of failure, not just that one happened.
+  [Reference →](/api-reference/traces/)
+
+#### Count the failure mode your own tool named
+
+- `error_code:<your slug>` matches one declared failure exactly; a text search also finds mentions.
+- The filter box suggests the slugs your tools have declared, and `GET /traces/facets` returns them.
+  [Reference →](/api-reference/traces/)
+
+#### A model round that fails now appears in the trace
+
+- A completion that fails after every retry and fallback writes a red `llm` span instead of nothing.
+- Retry and fallback history is on the span, so a call that only succeeded on its third attempt shows it.
+- A failed middle round lands in the same trace as the rounds around it, not a separate one.
+
+#### Tools can declare their own failures and warnings
+
+- Return `ToolResult.error(...)` / `toolError(...)` when a 200 response is really a failure.
+- An HTTP tool can declare `failureWhen` (a predicate on the raw response) and a `resultSchema`.
+- A schema mismatch is a warning by default; set `resultSchemaSeverity: "error"` to make it fatal.
+  [Reference →](/api-reference/tools/versions)
+
+#### An HTTP tool's `argMapping` is rejected instead of ignored
+
+- Neither `argMapping` nor `bodyTemplate` was ever applied, so a tool using one sent no argument.
+- Bind an argument with `{{arg.NAME}}` in a query value, a header value or the URL instead.
+- An empty list or string still commits, so every tool version already stored keeps working.
+  [Reference →](/api-reference/tools/versions)
 
 #### The whole team's audit trail, in the dashboard
 
@@ -129,8 +208,15 @@ called out in the week it ships and in the SDK release notes.
 
 ### Minor
 
+- A new guide shows how a tool reports a failure its HTTP status cannot: [Report a tool failure](/docs/guides/report-a-tool-failure-from-your-own-code).
+- The fallback guide now covers retries too, and which of the three retry settings does what.
+  [Guide →](/docs/guides/automatic-model-fallbacks)
+- The API reference documents the completion body's `gateway` control field and its `maxRetries`.
+  [Reference →](/api-reference/gateway/)
+- **Fixed** — the SDK tool-lifecycle guide bound its argument in a form the executor never read.
 - The filter bar takes two filters at once — `rating:down comment:yes` commits both chips.
 - **Fixed** — a value the filter bar rejects now stays in the box and says what that filter takes.
+- **Fixed** — failure filters set in the dataset dialog are applied now, not silently dropped.
 - **Fixed** — the Python tool-calling tutorial's first option produced traces with no prompt version.
 - The tagging and filtering guide now covers typing several filters in one go.
   [Guide →](/docs/guides/tag-and-filter-traces)

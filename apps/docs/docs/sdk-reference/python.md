@@ -39,7 +39,7 @@ asyncio.run(main())
 | `base_url` | `str` | `ACRUXCORE_BASE_URL` | Raises `MISSING_BASE_URL` if neither is set. |
 | `cache_ttl` | `int` (ms) | `60000` | Render cache window. `0` disables caching (and serve-stale). |
 | `max_cache_size` | `int` | `500` | Max LRU entries. Set by the first instance. |
-| `max_retries` | `int` | `1` | Retries on transient failure (2 total attempts). |
+| `max_retries` | `int` | `1` | Retries **this SDK's own request to AcruxCore** on a transient failure (2 total attempts). It does not change how many times a provider is called — that is the per-call [`gateway`](#gatewaychat) argument. |
 | `retry_interval` | `int` (ms) | `500` | Delay between retries. |
 | `timeout` | `float` (s) | `30.0` | Per-request timeout. |
 | `transport` | `httpx.AsyncBaseTransport` | — | For testing/injection. |
@@ -267,6 +267,7 @@ async for chunk in stream:
 | `max_tokens` | `int` | no | Max completion tokens. |
 | `stream` | `bool` | no | Return an async iterator of `ChatChunk` instead of `ChatResult`. |
 | `provider` | [`ProviderConfig`](#byo-provider) | no | Per-call BYO override. |
+| `gateway` | `{"max_retries": int, "fallback": bool}` | no | Per-call gateway controls: how many times the **provider** may be retried (0–5), and whether a failure may fall back to the next model in the chain. A different layer from the client's `max_retries`, which only retries this SDK's request to AcruxCore. Ignored on a BYO call. |
 | `prompt_version_id` | `str` | no | From `prompts.render().version_id`; stamped on the trace span. |
 | `variables` | `dict` | no | From `prompts.render().variables`. Recorded on the span, never sent to a BYO provider. Send it whenever `prompt_version_id` is set — without it the run cannot seed a dataset. With no `prompt_version_id`, a gateway call renders `{{ placeholders }}` in your messages with these instead. |
 | `trace` | `bool \| {trace_id?, session_id?}` | no | Default `True` on the BYO path, `False` on the gateway path. |
@@ -325,6 +326,7 @@ print(result.content, result.trace_id)
 | `response_format` | [`ResponseFormat`](#structured-output) | no | Shapes the final answer; may be combined with tools (gather + shape). |
 | `trace` | `bool \| {trace_id?, name?, session_id?}` | no | Default `True`. |
 | `provider` | [`ProviderConfig`](#byo-provider) | no | Per-call BYO override. |
+| `gateway` | `{"max_retries": int, "fallback": bool}` | no | Per-call gateway controls: how many times the **provider** may be retried (0–5), and whether a failure may fall back to the next model in the chain. A different layer from the client's `max_retries`, which only retries this SDK's request to AcruxCore. Ignored on a BYO call. Applied to every round of the loop. |
 | `prompt_version_id` | `str` | no | Stamped on every `llm` span this loop records. |
 | `variables` | `dict` | no | Stamped alongside it. Same argument as on `chat()`. |
 

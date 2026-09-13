@@ -1,10 +1,12 @@
 [build-system]
-requires = ["hatchling"]
+# Pinned: hatchling 1.28 emits Metadata-Version 2.5, which neither twine nor PyPI
+# accepts yet, so an unpinned backend fails the upload rather than the build.
+requires = ["hatchling<1.28"]
 build-backend = "hatchling.build"
 
 [project]
 name = "acruxcore"
-version = "0.13.0"
+version = "0.14.0"
 description = "Async Python SDK for AcruxCore — runtime prompt render, gateway chat, tool loops, traces, and feedback"
 readme = "README.md"
 license = { text = "MIT" }
