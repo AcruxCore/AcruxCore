@@ -30,9 +30,12 @@ async def query_database(sql: str) -> list[dict]:
 async def ask(hub: AcruxCore, question: str) -> str:
     rendered = await hub.prompts.render(PROMPT, "production")
     messages = [*rendered.messages, {"role": "user", "content": question}]
-    result = await hub.gateway.run_tool_loop(
-        rendered.model,
-        messages,
+    # run_prompt_with_tools, not run_tool_loop: it derives the prompt version id from
+    # `rendered` and stamps it on every llm span, which is the link behind "which traces
+    # did this prompt version produce". Passing the model by hand loses that silently.
+    result = await hub.gateway.run_prompt_with_tools(
+        rendered,
+        messages=messages,
         tools=[query_database],
         trace={"name": "sql-analyst-agent", "session_id": "sql-agent-demo"},
     )

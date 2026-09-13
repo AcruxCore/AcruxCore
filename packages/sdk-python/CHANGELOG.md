@@ -12,6 +12,13 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+_Nothing yet._
+
+## 0.13.0 — 2026-09-13
+
+There is no Python 0.12.0 — that number was a Node-only release. Both SDKs are
+back in step at 0.13.0.
+
 ### Added
 
 - `prompt_id` on `traces.list_traces()`. Matches traces using any version of a prompt,
@@ -33,6 +40,17 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 - `variables` is a keyword-only argument in every position, added after
   `prompt_version_id`. No positional call sites move.
+
+### Fixed
+
+- A tool decorated with `@acrux.tool` and no docstring now reaches a BYO provider with the
+  catalog's description. `run_tool_loop`/`run_prompt_with_tools` with `provider=` inlined
+  the local schema, so the model saw the tool with no description at all and nothing said so.
+- Only an undescribed tool costs the extra `POST /tools/resolve`; a documented one and the
+  gateway path are unchanged, since the gateway already resolves `tool_refs` itself.
+- A tool described neither in code nor in the catalog now warns on the BYO path, instead of
+  being sent with nothing telling the model when to call it.
+
 
 ## 0.11.0 — 2026-09-06
 

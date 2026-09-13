@@ -4,6 +4,7 @@ export { SavedViews } from './SavedViews';
 export type { SavedViewsProps } from './SavedViews';
 export { useUrlFilterState } from './useUrlFilterState';
 export {
+  applyFilterExpression,
   applyFilterInput,
   filterStateToParams,
   filterStateToBody,
@@ -12,4 +13,4 @@ export {
   stateToChips,
   FILTER_PREFIXES,
 } from './chips';
-export type { Chip, ChipLabels, FilterState, QueryScope, RatingFilter } from './chips';
+export type { Chip, ChipLabels, FilterInputResult, FilterState, QueryScope, RatingFilter } from './chips';

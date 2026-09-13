@@ -1,8 +1,8 @@
-import { useMemo, useRef, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import { Badge, Input, useClickOutside } from '@/ui';
 import { usePrompts, useTraceFacets, useTraceFacetValues } from '@/api';
 import {
-  applyFilterInput,
+  applyFilterExpression,
   FILTER_PREFIXES,
   filterStateToParams,
   parseFilterState,
@@ -63,6 +63,10 @@ export function FilterBar({ value, onChange, surface, hideSavedViews }: FilterBa
   const [draft, setDraft] = useState('');
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  // Why the last commit applied nothing. Cleared on the next keystroke, so it
+  // reads as a response to Enter rather than as a permanent complaint.
+  const [error, setError] = useState<string | null>(null);
+  const errorId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   useClickOutside(rootRef, () => setOpen(false));
 
@@ -148,10 +152,20 @@ export function FilterBar({ value, onChange, surface, hideSavedViews }: FilterBa
     // filter yet — keep it in the box so the next keystroke supplies the value.
     if (/[:<>]$/.test(text)) {
       setDraft(text);
+      setError(null);
       setActiveIndex(0);
       return;
     }
-    const next = applyFilterInput(value, text);
+    const { state: next, error: reason } = applyFilterExpression(value, text);
+    if (reason) {
+      // Nothing applied, so the text stays put and says why. Clearing the box
+      // here is what used to make a whole typed string disappear in silence.
+      setDraft(text);
+      setError(reason);
+      setActiveIndex(0);
+      return;
+    }
+    setError(null);
     if (next !== value) onChange(next);
     setDraft('');
     setActiveIndex(0);
@@ -224,6 +238,7 @@ export function FilterBar({ value, onChange, surface, hideSavedViews }: FilterBa
               value={draft}
               onChange={(e) => {
                 setDraft(e.target.value);
+                setError(null);
                 setOpen(true);
                 setActiveIndex(0);
               }}
@@ -232,9 +247,21 @@ export function FilterBar({ value, onChange, surface, hideSavedViews }: FilterBa
               placeholder={chips.length === 0 ? 'Filter or search — try tag:, prompt:, input:' : ''}
               className="min-w-[120px] flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-faint"
               aria-label="Filter traces"
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? errorId : undefined}
               data-testid="filter-bar-input"
             />
           </div>
+          {error && (
+            <p
+              id={errorId}
+              role="alert"
+              className="mt-1 text-[12px] text-danger"
+              data-testid="filter-bar-error"
+            >
+              {error}
+            </p>
+          )}
           {open && (
             <Suggestions
               items={suggestions}

@@ -1,6 +1,6 @@
 # Tool-Calling Agent in Python (SDK) Tutorial
 
-Runnable scripts for the [Build a tool-calling agent in Python (SDK)](https://docs.acruxcore.com/docs/tutorials/build-a-tool-calling-agent-in-python-sdk) tutorial — a text-to-SQL data analyst driven by the SDK's `run_tool_loop`.
+Runnable scripts for the [Build a tool-calling agent in Python (SDK)](https://docs.acruxcore.com/docs/tutorials/build-a-tool-calling-agent-in-python-sdk) tutorial — a text-to-SQL data analyst driven by the SDK's `run_prompt_with_tools`.
 
 ## Start here if you are new
 

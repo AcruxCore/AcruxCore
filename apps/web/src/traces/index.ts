@@ -3,7 +3,7 @@ export { KeyValueRows } from './KeyValueRows';
 export type { KeyValueRowsProps } from './KeyValueRows';
 export { TraceTable } from './TraceTable';
 export type { TraceTableProps } from './TraceTable';
-export { FilterBar, SavedViews, useUrlFilterState, applyFilterInput, filterStateToParams, filterStateToBody, parseFilterState, removeChip, stateToChips, FILTER_PREFIXES } from './filter-bar';
+export { FilterBar, SavedViews, useUrlFilterState, applyFilterExpression, applyFilterInput, filterStateToParams, filterStateToBody, parseFilterState, removeChip, stateToChips, FILTER_PREFIXES } from './filter-bar';
 export type { FilterBarProps, SavedViewsProps, Chip, ChipLabels, FilterState, QueryScope, RatingFilter } from './filter-bar';
 export { TraceListPage } from './TraceListPage';
 export { flattenSpanTree, spanBarGeometry, traceWindow } from './span-tree';

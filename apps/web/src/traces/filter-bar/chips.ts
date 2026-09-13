@@ -309,47 +309,67 @@ export const FILTER_PREFIXES = [
 ] as const;
 
 /**
- * Applies one typed filter expression to the state.
+ * The outcome of parsing one thing the person typed into the filter bar.
  *
- * Bare text with no recognised prefix becomes an unscoped `q`, which is what
- * someone typing a phrase from a conversation means. An unknown prefix is NOT
- * treated as a filter — `hello: world` is a sentence, not a `hello` filter — so
- * it falls through to `q` as well.
- *
- * @param state - The current filters.
- * @param input - One expression, e.g. `tag:prod`, `score>80`, `visit london`.
- * @returns A new state, or the same state when the input is blank or invalid.
+ * `error` is the half that keeps a mistake visible: a value the filter does not
+ * accept used to leave the state untouched while the box cleared itself, so the
+ * whole string vanished with nothing on screen saying why.
  */
-export function applyFilterInput(state: FilterState, input: string): FilterState {
-  const text = input.trim();
-  if (!text) return state;
+export interface FilterInputResult {
+  /** The filters after applying the input — the identical object when nothing applied. */
+  state: FilterState;
+  /** Why nothing was applied, written for the person who typed it. `null` on success. */
+  error: string | null;
+}
 
+/** Splits on whitespace, keeping a quoted run — `label:"needs review"` — in one piece. */
+function tokenize(text: string): string[] {
+  return text.match(/"[^"]*"|'[^']*'|\S+/g) ?? [];
+}
+
+/**
+ * Whether a token names a filter on its own, rather than being ordinary words.
+ *
+ * Only used to decide whether a multi-token string is *two filters* or *one filter
+ * with a spaced value*: `tag:my tag` has a second token that names nothing, so it
+ * stays one tag called "my tag".
+ */
+function namesAFilter(token: string): boolean {
+  if (/^meta\.[^:\s]+:.+$/.test(token)) return true;
+  if (/^(score|latency|cost|tokens)[<>].+$/.test(token)) return true;
+  const colon = token.indexOf(':');
+  return colon > 0 && KNOWN_PREFIXES.has(token.slice(0, colon).toLowerCase()) && !!token.slice(colon + 1);
+}
+
+/** Applies exactly one expression — no whitespace splitting. See {@link applyFilterExpression}. */
+function applyOne(state: FilterState, text: string): FilterInputResult {
   const next: FilterState = { ...state };
+  const keep = (error: string): FilterInputResult => ({ state, error });
 
   const metaMatch = /^meta\.([^:\s]+):(.*)$/.exec(text);
   if (metaMatch) {
     const value = unquote(metaMatch[2]);
-    if (!value) return state;
+    if (!value) return keep(`meta.${metaMatch[1]}: needs a value after the colon.`);
     next.metadata = { ...(next.metadata ?? {}), [metaMatch[1]]: value };
-    return next;
+    return { state: next, error: null };
   }
 
   const cmpMatch = /^(score|latency|cost|tokens)\s*([<>])\s*(.+)$/.exec(text);
   if (cmpMatch) {
-    const value = Number(unquote(cmpMatch[3]).replace(/ms$/, ''));
-    if (!Number.isFinite(value)) return state;
     const [, field, op] = cmpMatch;
+    const value = Number(unquote(cmpMatch[3]).replace(/ms$/, ''));
+    if (!Number.isFinite(value)) return keep(`${field}${op} needs a number, for example ${field}${op}80.`);
     if (field === 'score') {
       if (op === '>') next.minScore = value;
       else next.maxScore = value;
-      return next;
+      return { state: next, error: null };
     }
     // The other three only have a lower bound in the API, so `<` is not offered.
-    if (op === '<') return state;
+    if (op === '<') return keep(`${field} filters on a minimum only — try ${field}>${value}.`);
     if (field === 'latency') next.minLatencyMs = value;
     if (field === 'cost') next.minCostUsd = value;
     if (field === 'tokens') next.minTokens = value;
-    return next;
+    return { state: next, error: null };
   }
 
   const colon = text.indexOf(':');
@@ -358,49 +378,49 @@ export function applyFilterInput(state: FilterState, input: string): FilterState
     const value = unquote(text.slice(colon + 1));
     // A known prefix with nothing after it is an unfinished filter, not a search
     // for the literal text "tag:".
-    if (KNOWN_PREFIXES.has(prefix) && !value) return state;
+    if (KNOWN_PREFIXES.has(prefix) && !value) return keep(`${prefix}: needs a value after the colon.`);
     if (value) {
       switch (prefix) {
         case 'prompt':
           next.promptId = value;
-          return next;
+          return { state: next, error: null };
         case 'version':
           next.promptVersionId = value;
-          return next;
+          return { state: next, error: null };
         case 'tag':
           next.tags = [...new Set([...(next.tags ?? []), value])];
-          return next;
+          return { state: next, error: null };
         case 'input':
         case 'output':
         case 'name':
           next.q = value;
           next.qIn = prefix;
-          return next;
+          return { state: next, error: null };
         case 'model':
           next.model = value;
-          return next;
+          return { state: next, error: null };
         case 'status':
-          if (!STATUSES.has(value)) return state;
+          if (!STATUSES.has(value)) return keep('status: takes ok, error or unset.');
           next.status = value as SpanStatus;
-          return next;
+          return { state: next, error: null };
         case 'session':
           next.sessionId = value;
-          return next;
+          return { state: next, error: null };
         case 'rating':
-          if (!RATINGS.has(value)) return state;
+          if (!RATINGS.has(value)) return keep('rating: takes up, down or none.');
           next.rating = value as RatingFilter;
-          return next;
+          return { state: next, error: null };
         case 'source':
-          if (!SOURCES.has(value)) return state;
+          if (!SOURCES.has(value)) return keep('source: takes user, developer, end_user or api.');
           next.source = value;
-          return next;
+          return { state: next, error: null };
         case 'label':
           next.label = value;
-          return next;
+          return { state: next, error: null };
         case 'comment':
-          if (value !== 'yes' && value !== 'no') return state;
+          if (value !== 'yes' && value !== 'no') return keep('comment: takes yes or no.');
           next.hasComment = value === 'yes';
-          return next;
+          return { state: next, error: null };
         default:
           break;
       }
@@ -409,7 +429,56 @@ export function applyFilterInput(state: FilterState, input: string): FilterState
 
   next.q = unquote(text);
   next.qIn = 'all';
-  return next;
+  return { state: next, error: null };
+}
+
+/**
+ * Applies what someone typed into the filter bar, and says why when it will not apply.
+ *
+ * Bare text with no recognised prefix becomes an unscoped `q`, which is what
+ * someone typing a phrase from a conversation means. An unknown prefix is NOT
+ * treated as a filter — `hello: world` is a sentence, not a `hello` filter — so
+ * it falls through to `q` as well.
+ *
+ * Several filters typed in one go (`rating:down comment:yes`) are applied left to
+ * right, but **only when every whitespace-separated token names a filter**. That
+ * proviso is what keeps a spaced value whole: in `tag:my tag` the second token
+ * names nothing, so the whole string stays one tag called "my tag", exactly as
+ * before. Same for a phrase — `how do I rotate a key` is one `q`.
+ *
+ * @param state - The current filters.
+ * @param input - What is in the box, e.g. `tag:prod`, `score>80`, `visit london`.
+ * @returns The new state and `error: null`, or the unchanged state and the reason.
+ */
+export function applyFilterExpression(state: FilterState, input: string): FilterInputResult {
+  const text = input.trim();
+  if (!text) return { state, error: null };
+
+  const tokens = tokenize(text);
+  if (tokens.length > 1 && tokens.every(namesAFilter)) {
+    let running = state;
+    for (const token of tokens) {
+      const result = applyOne(running, token);
+      // One bad token fails the whole commit rather than applying a partial set —
+      // half a filter applied while the box still holds all of it is its own trap.
+      if (result.error) return { state, error: result.error };
+      running = result.state;
+    }
+    return { state: running, error: null };
+  }
+
+  return applyOne(state, text);
+}
+
+/**
+ * {@link applyFilterExpression} without the reason, for callers that only want the state.
+ *
+ * @param state - The current filters.
+ * @param input - One expression, e.g. `tag:prod`, `score>80`, `visit london`.
+ * @returns A new state, or the identical state when the input is blank or invalid.
+ */
+export function applyFilterInput(state: FilterState, input: string): FilterState {
+  return applyFilterExpression(state, input).state;
 }
 
 /**

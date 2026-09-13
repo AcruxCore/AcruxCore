@@ -12,6 +12,10 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+_Nothing yet._
+
+## 0.13.0 — 2026-09-13
+
 ### Added
 
 - `promptId` on `traces.list()`. Matches traces using ANY version of a prompt, where
@@ -42,6 +46,16 @@ changelog: <https://docs.acruxcore.com/changelog>
 2. If you call the gateway with `promptVersionId` and rendered the prompt yourself, add
    `variables` too. Nothing breaks without it, but the run cannot seed a dataset, so grep
    for `promptVersionId` and pair each one up.
+
+### Fixed
+
+- A tool declared with no `description` now reaches a BYO provider with the catalog's
+  description. `runToolLoop`/`runPromptWithTools` with `provider` inlined the local
+  schema, so the model saw the tool with no description at all and nothing reported it.
+- Only an undescribed tool costs the extra `POST /tools/resolve`; a described one and the
+  gateway path are unchanged, since the gateway already resolves `toolRefs` itself.
+- A tool described neither in code nor in the catalog now warns on the BYO path, instead
+  of being sent with nothing telling the model when to call it.
 
 ## 0.12.0 — 2026-09-07
 

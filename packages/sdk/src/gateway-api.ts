@@ -918,9 +918,23 @@ export class GatewayNamespace {
     };
   }
 
-  /** @internal Reconciles and resolves once, returning the route table and refs. */
+  /**
+   * @internal Reconciles and resolves once, returning the route table and refs.
+   *
+   * @param options - The loop's options: `tools`, `toolRefs`, `clientTools`, `dispatch`
+   *   and `sync` are the ones read here.
+   * @param inlineSchemas - True on the BYO-provider path, where the returned inline
+   *   schemas are what the model actually reads. Only then is a tool declared without a
+   *   `description` resolved against the catalog, so the dashboard-authored description
+   *   reaches the model the way it does on the gateway path — the gateway resolves
+   *   `toolRefs` itself, a BYO provider cannot.
+   * @returns The route table, the refs to send to the gateway, and the inline schemas.
+   * @throws {acruxcoreError} TOOL_SCHEMA_ERROR for an undeclared tool, MISSING_DISPATCH
+   *   when a client tool has no implementation.
+   */
   private async _prepareToolRoutes(
     options: RunToolLoopOptions,
+    inlineSchemas = false,
   ): Promise<{
     routes: Map<string, ToolRoute>;
     refs: ToolRef[];
@@ -929,6 +943,9 @@ export class GatewayNamespace {
     const routes = new Map<string, ToolRoute>();
     const refs: ToolRef[] = [];
     const inlinedSchemas: ToolDefinition[] = [];
+    // Index into inlinedSchemas plus the ref to resolve, for every synced tool declared
+    // with no description — the catalog owns its model-facing text.
+    const undescribed: Array<{ index: number; ref: ToolRef }> = [];
 
     for (const t of options.tools ?? []) {
       const { isAcruxTool } = await import('./tools');
@@ -947,6 +964,18 @@ export class GatewayNamespace {
       }
       routes.set(t.name, { kind: 'local', tool: t, alias: t.alias, toolVersionId });
       refs.push({ name: t.name, alias: t.alias });
+      if (inlineSchemas && !t.description) {
+        if (toolVersionId) {
+          undescribed.push({ index: inlinedSchemas.length, ref: { name: t.name, alias: t.alias } });
+        } else {
+          console.warn(
+            `[acruxcore] tool '${t.name}' was declared with no description and sync is off, so ` +
+              `its description cannot be read from the catalog. A BYO provider will see this ` +
+              `tool with no description at all. Add a description, or leave sync on so the ` +
+              `dashboard's description is fetched.`,
+          );
+        }
+      }
       inlinedSchemas.push({
         type: 'function',
         function: {
@@ -1021,6 +1050,26 @@ export class GatewayNamespace {
       });
     }
 
+    if (undescribed.length > 0) {
+      // One batched round trip, and only on the BYO path for tools that would otherwise
+      // reach the model with no description at all.
+      const catalog = await this.host.tools.resolve(undescribed.map((u) => u.ref));
+      undescribed.forEach((u, i) => {
+        const description = catalog[i]?.function?.description;
+        if (description) {
+          inlinedSchemas[u.index]!.function.description = description;
+        } else {
+          console.warn(
+            `[acruxcore] tool '${u.ref.name}' has no description — it was declared without one ` +
+              `and the catalog version behind alias '${u.ref.alias ?? 'production'}' carries none ` +
+              `either. A BYO provider will see this tool with no description at all, so the ` +
+              `model has nothing telling it when to call it. Add a description, or write one on ` +
+              `the tool in the dashboard.`,
+          );
+        }
+      });
+    }
+
     return { routes, refs, inlinedSchemas };
   }
 
@@ -1030,7 +1079,11 @@ export class GatewayNamespace {
     effectiveResponseFormat: ResponseFormat | undefined,
     seedTraceId: string | undefined,
   ): Promise<RunToolLoopResult> {
-    const { routes, refs: effectiveRefs, inlinedSchemas } = await this._prepareToolRoutes(options);
+    const providerConfig = options.provider ?? this.host.providerDefault;
+    const { routes, refs: effectiveRefs, inlinedSchemas } = await this._prepareToolRoutes(
+      options,
+      providerConfig !== undefined,
+    );
     const max = options.maxIterations ?? 10;
     const traceOpt = options.trace ?? true;
     const traceEnabled = traceOpt !== false;
@@ -1044,7 +1097,6 @@ export class GatewayNamespace {
     // applies, so its own payloads still need a concrete name.
     const payloadTraceName = traceName ?? 'runToolLoop';
     const model = requireModel(options.model);
-    const providerConfig = options.provider ?? this.host.providerDefault;
     const byoToolSchemas = providerConfig && ([...(options.toolDefs ?? []), ...inlinedSchemas].length > 0)
       ? [...(options.toolDefs ?? []), ...inlinedSchemas]
       : undefined;
@@ -1168,9 +1220,12 @@ export class GatewayNamespace {
    * tool.
    */
   private async *_runToolLoopStream(options: RunToolLoopOptions): AsyncGenerator<ToolLoopEvent> {
-    const { routes, refs: effectiveRefs, inlinedSchemas } = await this._prepareToolRoutes(options);
-    const model = requireModel(options.model);
     const providerConfig = options.provider ?? this.host.providerDefault;
+    const { routes, refs: effectiveRefs, inlinedSchemas } = await this._prepareToolRoutes(
+      options,
+      providerConfig !== undefined,
+    );
+    const model = requireModel(options.model);
     const byoToolSchemas = providerConfig && [...(options.toolDefs ?? []), ...inlinedSchemas].length > 0
       ? [...(options.toolDefs ?? []), ...inlinedSchemas]
       : undefined;

@@ -87,6 +87,19 @@ called out in the week it ships and in the SDK release notes.
 - Every example row has a remove control, and a dataset can be deleted from either screen.
 - Both ask for confirmation first; past experiment runs keep their reports either way.
 
+#### A tool's dashboard description now reaches your own provider
+
+- A tool defined in code with no docstring now takes its description from the catalog.
+- A bring-your-own-key run used to send that tool with no description at all.
+- A tool described in neither place now warns instead of going out silently.
+  [Guide →](/docs/guides/define-a-tool-in-code-or-in-the-catalog)
+
+#### Both SDKs released as 0.13.0
+
+- `npm i @acruxcoreai/sdk@0.13.0` and `pip install -U acruxcore` carry everything above.
+- `variables`, `prompt_id` and `q_in` are in both, as is the tool-description fix above.
+- Node only: `RenderResult` now requires `variables`; the migration step is in its notes.
+
 #### Choose the model and the instructions that optimize a prompt
 
 - **Optimizer model** picks which model writes the rewrites, not just what they run on.
@@ -116,6 +129,11 @@ called out in the week it ships and in the SDK release notes.
 
 ### Minor
 
+- The filter bar takes two filters at once — `rating:down comment:yes` commits both chips.
+- **Fixed** — a value the filter bar rejects now stays in the box and says what that filter takes.
+- **Fixed** — the Python tool-calling tutorial's first option produced traces with no prompt version.
+- The tagging and filtering guide now covers typing several filters in one go.
+  [Guide →](/docs/guides/tag-and-filter-traces)
 - The team audit endpoint takes `event` (a comma-separated list) and `actorId`; both narrow `total`.
 - A new `/teams/:id/audit/actors` lists everyone in the trail, removed members included.
 - A member role change or removal now reports the affected member's address, not just their id.

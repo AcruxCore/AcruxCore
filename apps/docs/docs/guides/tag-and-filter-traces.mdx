@@ -430,6 +430,12 @@ Each committed filter becomes a chip. Backspace on an empty box removes the last
 one, and **Clear all filters** removes them all. The filters live in the URL, so
 a filtered list can be linked and shared, and back/forward work.
 
+You can type several filters in one go — `rating:down comment:yes` commits both
+chips at once. A value with a space in it still counts as one filter, because
+`tag` alone names nothing: `tag:my tag` is a single tag called "my tag". If a
+value is one the filter does not accept, nothing is applied, the text stays in
+the box, and the bar says what that filter takes.
+
 **Save the ones you use often.** Press **Views → Save current filters**, give it
 a name, and it is one click for everyone on the team from then on. A view stores
 the filter string exactly as it was, and any member can rename or delete it.

@@ -1,8 +1,8 @@
 ---
 title: Build a tool-calling agent in Python (SDK)
-description: Set up a model, a client tool, and a prompt in the dashboard, then drive a text-to-SQL data analyst from Python with the async SDK's run_tool_loop — one trace, real SQLite queries, and streaming.
+description: Set up a model, a client tool, and a prompt in the dashboard, then drive a text-to-SQL data analyst from Python with the async SDK's run_prompt_with_tools — one trace, real SQLite queries, and streaming.
 sidebar_position: 3
-keywords: [python, sdk, tool calling, agent, sqlite, text-to-sql, run_tool_loop, tracing, async]
+keywords: [python, sdk, tool calling, agent, sqlite, text-to-sql, run_prompt_with_tools, run_tool_loop, tracing, async]
 ---
 
 import Tabs from '@theme/Tabs';
@@ -15,7 +15,7 @@ about a store by writing SQL, running it against a local **SQLite** file, and
 explaining the result — for example, *"Which product generated the most revenue?"*
 → **"The Aeron Chair, with $4,185.00."** You set up the model, the tool, and the
 prompt by **clicking through the dashboard**, then the run is a few lines of
-**async Python** using the SDK's `run_tool_loop`. The whole run lands in **one
+**async Python** using the SDK's `run_prompt_with_tools`. The whole run lands in **one
 trace**.
 
 A **tool** is a function you let the model call. AcruxCore has two kinds. An
@@ -25,7 +25,7 @@ makes it (see
 A **client tool** runs in *your* process: the platform stores only the tool's JSON
 schema, and when the model calls it, your code does the work. Querying a local
 database is the textbook case for a client tool — the gateway can't reach your
-SQLite file, but your Python can. The SDK's `run_tool_loop` handles the back and
+SQLite file, but your Python can. The SDK's `run_prompt_with_tools` handles the back and
 forth: it calls the model, hands each tool call to a function you supply, feeds
 the result back, and repeats until the model has an answer.
 
@@ -197,8 +197,18 @@ async def query_database(sql: str) -> list[dict]:
     conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
     ...
 
-result = await hub.gateway.run_tool_loop(rendered.model, messages, tools=[query_database])
+result = await hub.gateway.run_prompt_with_tools(
+    rendered,
+    messages=messages,
+    tools=[query_database],
+)
 ```
+
+Both options call `run_prompt_with_tools`, and for the same reason: it reads the model,
+the bound tools and the **prompt version id** off `rendered`. That last one is what links
+a trace back to the version that produced it. `run_tool_loop` takes a bare model string
+and derives nothing, so passing `rendered.model` by hand runs fine and records no
+lineage at all.
 
 See
 [sql_agent_decorator_tool.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/python/sql_agent_decorator_tool.py) for the complete source (named `sql_agent.py` in this page's prose, `sql_agent_decorator_tool.py` in the repo, to distinguish it from Option B below).
@@ -222,9 +232,8 @@ result = await hub.gateway.run_prompt_with_tools(
 )
 ```
 
-Nothing is written back to the catalog, unlike Option A, and the model, the bound tool
-and the prompt version id all come from `rendered`. The function's parameters are the
-schema's own field names — here `sql` — because that is how it is called.
+Nothing is written back to the catalog, unlike Option A. The function's parameters are
+the schema's own field names — here `sql` — because that is how it is called.
 
 See
 [sql_agent_client_tools.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/python/sql_agent_client_tools.py) for the complete source (named `sql_agent.py` in this page's prose, `sql_agent_client_tools.py` in the repo, to distinguish it from Option A above).
@@ -235,9 +244,8 @@ decorated tool's spec overwrites the dashboard's on every run. See
 reference.
 
 Notice there's **no hardcoded model** in either option. `hub.prompts.render` returns the
-model you bound to the prompt in the dashboard as `rendered.model`, and you hand it
-straight to `run_tool_loop`. Change the model in the dashboard and your code follows —
-no code edit.
+model you bound to the prompt in the dashboard, and `run_prompt_with_tools` reads it off
+`rendered`. Change the model in the dashboard and your code follows — no code edit.
 
 Run it:
 
@@ -268,7 +276,7 @@ appended in code rather than stored as a template variable, one prompt answers a
 number of different questions.
 
 :::tip[The model lives with the prompt]
-`run_tool_loop` gets its model from `rendered.model` — the default model you set
+`run_prompt_with_tools` gets its model from `rendered` — the default model you set
 on the prompt version in the dashboard. Switch a prompt to a cheaper or newer
 model in the UI and every caller picks it up on the next render, with no code
 change or redeploy. (The render API returns it too, so a plain `curl` client can
@@ -317,7 +325,7 @@ answer; reach for the loop in step 6 when the model needs to call tools.
 
 ## 8. Inspect the trace
 
-Every run landed in **one** trace, because `run_tool_loop` threads the same trace
+Every run landed in **one** trace, because `run_prompt_with_tools` threads the same trace
 across each model turn. Open **Observability → Traces** and click the newest
 `sql-analyst-agent` run: the LLM turn that asked for the tool, the `query_database`
 tool span your Python reported, and the final LLM turn — three spans, in order.
@@ -340,7 +348,7 @@ store request bodies.
 
 ## 9. Group the runs into a session
 
-The `trace={"session_id": "sql-agent-demo"}` you passed to `run_tool_loop` tags
+The `trace={"session_id": "sql-agent-demo"}` you passed to `run_prompt_with_tools` tags
 every run with that **session** — a caller-supplied id that groups related runs
 (one user's conversation, one job, one test run). Open **Observability →
 Sessions** and click `sql-agent-demo`: both questions are there, each its own
@@ -348,7 +356,7 @@ trace, with their real token counts.
 
 ![The sql-agent-demo session showing two sql-analyst-agent traces, each with 3 spans and a token count](/img/tutorials/build-a-tool-calling-agent-in-python-sdk/10-session.png)
 
-Use one session id per logical grouping — reuse it across many `run_tool_loop`
+Use one session id per logical grouping — reuse it across many `run_prompt_with_tools`
 calls and they all collect under the same session, which is how you follow a
 multi-turn agent conversation end to end.
 
@@ -592,7 +600,7 @@ console.log(rendered.tools);       // [{ type: "function", function: {...} }]
 
 - [Build a tool-calling agent in Python (no SDK)](./build-a-tool-calling-agent-in-python-no-sdk)
   — the same loop written by hand over plain REST, so you can see what
-  `run_tool_loop` does for you.
+  `run_prompt_with_tools` does for you.
 - [Build a tool-calling agent in the dashboard](./build-a-tool-calling-agent-in-the-dashboard-no-code)
   — the no-code path, with HTTP tools the gateway runs for you.
 - [Using sessions and traces](../guides/using-sessions-and-traces) — group related runs

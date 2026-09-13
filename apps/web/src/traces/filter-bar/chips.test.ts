@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyFilterExpression,
   applyFilterInput,
   filterStateToParams,
   parseFilterState,
@@ -113,6 +114,30 @@ describe('filter grammar — typed input', () => {
     expect(applyFilterInput({}, 'hello: world')).toEqual({ q: 'hello: world', qIn: 'all' });
   });
 
+  it('says why nothing applied instead of discarding it in silence', () => {
+    expect(applyFilterExpression({ status: 'ok' }, 'status:maybe')).toEqual({
+      state: { status: 'ok' },
+      error: 'status: takes ok, error or unset.',
+    });
+    expect(applyFilterExpression({}, 'rating:sideways').error).toBe('rating: takes up, down or none.');
+    expect(applyFilterExpression({}, 'comment:perhaps').error).toBe('comment: takes yes or no.');
+    expect(applyFilterExpression({}, 'source:robot').error).toBe(
+      'source: takes user, developer, end_user or api.',
+    );
+    expect(applyFilterExpression({}, 'tag:').error).toBe('tag: needs a value after the colon.');
+    expect(applyFilterExpression({}, 'meta.env:').error).toBe('meta.env: needs a value after the colon.');
+    expect(applyFilterExpression({}, 'score>lots').error).toBe('score> needs a number, for example score>80.');
+    expect(applyFilterExpression({}, 'latency<100').error).toBe(
+      'latency filters on a minimum only — try latency>100.',
+    );
+  });
+
+  it('reports no error for anything it does apply', () => {
+    for (const input of ['tag:prod', 'score>80', 'visit london', 'hello: world', '', '   ']) {
+      expect(applyFilterExpression({}, input).error).toBeNull();
+    }
+  });
+
   it('strips quotes so a value can hold a space', () => {
     expect(applyFilterInput({}, 'label:"needs review"')).toEqual({ label: 'needs review' });
   });
@@ -120,6 +145,41 @@ describe('filter grammar — typed input', () => {
   it('rejects an invalid enum value instead of storing it', () => {
     expect(applyFilterInput({ status: 'ok' }, 'status:maybe')).toEqual({ status: 'ok' });
     expect(applyFilterInput({}, 'rating:sideways')).toEqual({});
+  });
+
+  it('applies two filters typed in one go', () => {
+    // Issue #421: this used to split at the first colon, fail the rating enum on
+    // "down comment:yes", and silently discard the whole string.
+    expect(applyFilterInput({}, 'rating:down comment:yes')).toEqual({
+      rating: 'down',
+      hasComment: true,
+    });
+    expect(applyFilterInput({}, 'tag:prod tag:eu status:error')).toEqual({
+      tags: ['prod', 'eu'],
+      status: 'error',
+    });
+    expect(applyFilterInput({}, 'score>80 latency>1200ms meta.env:prod')).toEqual({
+      minScore: 80,
+      minLatencyMs: 1200,
+      metadata: { env: 'prod' },
+    });
+  });
+
+  it('keeps a spaced value whole rather than reading it as two filters', () => {
+    // The second token names no filter, so the whole string is still one tag.
+    expect(applyFilterInput({}, 'tag:my tag')).toEqual({ tags: ['my tag'] });
+    expect(applyFilterInput({}, 'label:needs review')).toEqual({ label: 'needs review' });
+    expect(applyFilterInput({}, 'how do I rotate a key')).toEqual({
+      q: 'how do I rotate a key',
+      qIn: 'all',
+    });
+  });
+
+  it('applies nothing at all when one of several tokens is invalid', () => {
+    // Half-applying would leave the box holding a string that is now partly live.
+    const result = applyFilterExpression({}, 'rating:down comment:maybe');
+    expect(result.state).toEqual({});
+    expect(result.error).toBeTruthy();
   });
 
   it('appends tags and never duplicates one', () => {

@@ -1031,10 +1031,32 @@ class GatewayNamespace:
         client_tools: Optional[ClientToolsMap],
         dispatch: Optional[DispatchFn],
         sync: bool,
+        *,
+        inline_schemas: bool = False,
     ) -> Tuple[Dict[str, _ToolRoute], List[ToolRef], List[ToolDefinition]]:
+        """Route every tool the caller passed, and build the two shapes a round needs.
+
+        :param tools: ``@acrux.tool``-decorated functions, synced then run locally.
+        :param tool_refs: Catalog refs, resolved here for their definitions and executors.
+        :param client_tools: Implementations for catalog tools whose executor is
+            ``client``, keyed by tool name.
+        :param dispatch: Fallback executor for client tools not in ``client_tools``.
+        :param sync: Whether ``tools=`` are reconciled with the catalog before the run.
+        :param inline_schemas: True on the BYO-provider path, where the returned inline
+            schemas are what the model actually reads. Only then is a decorated function
+            with no docstring resolved against the catalog, so the dashboard-authored
+            description reaches the model the way it does on the gateway path — the
+            gateway resolves ``tool_refs`` itself, a BYO provider cannot.
+        :returns: ``(routes, refs, inlined_schemas)``.
+        :raises AcruxCoreError: When a function is not decorated, when a client tool has
+            no implementation, or when a ref does not resolve.
+        """
         routes: Dict[str, _ToolRoute] = {}
         refs: List[ToolRef] = []
         inlined_schemas: List[Dict[str, Any]] = []
+        # (index into inlined_schemas, ref to resolve) for every synced spec whose
+        # function carries no docstring — the catalog owns its description.
+        undescribed: List[Tuple[int, ToolRef]] = []
 
         specs: List[ToolSpec] = []
         for fn in tools or []:
@@ -1057,6 +1079,17 @@ class GatewayNamespace:
                 kind="local", fn=spec.fn, alias=spec.alias, tool_version_id=tool_version_id
             )
             refs.append({"name": spec.name, "alias": spec.alias})
+            if inline_schemas and not spec.description:
+                if tool_version_id is not None:
+                    undescribed.append((len(inlined_schemas), {"name": spec.name, "alias": spec.alias}))
+                else:
+                    warnings.warn(
+                        f"acruxcore: tool '{spec.name}' has no docstring and sync=False, so its "
+                        f"description cannot be read from the catalog. A BYO provider will see "
+                        f"this tool with no description at all. Add a docstring, or leave sync on "
+                        f"so the dashboard's description is fetched.",
+                        stacklevel=4,
+                    )
             inlined_schemas.append({
                 "type": "function",
                 "function": {
@@ -1130,6 +1163,25 @@ class GatewayNamespace:
                     }
                 )
                 inlined_schemas.append({"type": "function", "function": item.function})
+
+        if undescribed:
+            # One batched round trip, and only on the BYO path for tools that would
+            # otherwise reach the model with no description at all.
+            catalog = await self._host.tools.resolve([ref for _, ref in undescribed])
+            for (index, ref), item in zip(undescribed, catalog):
+                description = (item.function or {}).get("description")
+                if description:
+                    inlined_schemas[index]["function"]["description"] = description
+                else:
+                    warnings.warn(
+                        f"acruxcore: tool '{ref['name']}' has no description — the function has "
+                        f"no docstring and the catalog version behind alias "
+                        f"'{ref.get('alias') or 'production'}' carries none either. A BYO provider "
+                        f"will see this tool with no description at all, so the model has nothing "
+                        f"telling it when to call it. Add a docstring, or write a description on "
+                        f"the tool in the dashboard.",
+                        stacklevel=4,
+                    )
 
         return routes, refs, inlined_schemas
 
@@ -1463,12 +1515,13 @@ class GatewayNamespace:
         prompt_version_id: Optional[str] = None,
         variables: Optional[Dict[str, Any]] = None,
     ) -> RunToolLoopResult:
+        provider_config = provider or self._host._provider_default
         routes, effective_refs, inlined_schemas = await self._prepare_tool_routes(
-            tools, tool_refs, client_tools, dispatch, sync
+            tools, tool_refs, client_tools, dispatch, sync,
+            inline_schemas=provider_config is not None,
         )
 
         model = _require_model(model)
-        provider_config = provider or self._host._provider_default
         byo_tool_schemas: Optional[List[ToolDefinition]] = (
             [*(tool_defs or []), *inlined_schemas]
             if provider_config is not None and (tool_defs or inlined_schemas)
@@ -1640,12 +1693,13 @@ class GatewayNamespace:
         running. Tool calls are dispatched through :meth:`_dispatch_tool_call`, the one
         place either loop runs a tool.
         """
+        provider_config = provider or self._host._provider_default
         routes, effective_refs, inlined_schemas = await self._prepare_tool_routes(
-            tools, tool_refs, client_tools, dispatch, sync
+            tools, tool_refs, client_tools, dispatch, sync,
+            inline_schemas=provider_config is not None,
         )
 
         model = _require_model(model)
-        provider_config = provider or self._host._provider_default
         byo_tool_schemas: Optional[List[ToolDefinition]] = (
             [*(tool_defs or []), *inlined_schemas]
             if provider_config is not None and (tool_defs or inlined_schemas)
