@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { ProtectedRoute } from './ProtectedRoute';
 import { ScrollToTop } from './ScrollToTop';
 import { LoginPage } from '@/auth/LoginPage';
@@ -24,7 +24,6 @@ import { BudgetsPage } from '@/gateway/BudgetsPage';
 import { ToolsPage } from '@/tools/ToolsPage';
 import { ToolDetailPage } from '@/tools/ToolDetailPage';
 import { SecretsPage } from '@/secrets/SecretsPage';
-import { ToolAnalyticsPage } from '@/tools/ToolAnalyticsPage';
 import {
   TraceDetailPage,
   TraceListPage,
@@ -58,6 +57,15 @@ import {
   FaqPage,
   BestLlmOpsPlatformsPage,
 } from '@/marketing';
+
+/**
+ * Sends a bookmarked `/gateway/tools/:id` on to the tool's new home, keeping the id.
+ * A plain `<Navigate>` cannot: the target path depends on the matched param.
+ */
+function LegacyToolRedirect() {
+  const { id = '' } = useParams();
+  return <Navigate to={`/tools/${id}`} replace />;
+}
 
 /** Top-level route table: public marketing + auth routes, then protected app shell routes. */
 export function App() {
@@ -110,9 +118,14 @@ export function App() {
         <Route path="/gateway/models" element={<ModelsPage />} />
         <Route path="/gateway/keys" element={<VirtualKeysPage />} />
         <Route path="/gateway/budgets" element={<BudgetsPage />} />
-        <Route path="/gateway/tools" element={<ToolsPage />} />
-        <Route path="/gateway/tools/analytics" element={<ToolAnalyticsPage />} />
-        <Route path="/gateway/tools/:id" element={<ToolDetailPage />} />
+        {/* Tools sit beside Prompts, not under Gateway: they are something you author,
+            and the gateway is only one of several things that can call them. The old
+            paths still resolve so links, bookmarks and older docs keep working. */}
+        <Route path="/tools" element={<ToolsPage />} />
+        <Route path="/tools/:id" element={<ToolDetailPage />} />
+        <Route path="/gateway/tools" element={<Navigate to="/tools" replace />} />
+        <Route path="/gateway/tools/analytics" element={<Navigate to="/tools?tab=analytics" replace />} />
+        <Route path="/gateway/tools/:id" element={<LegacyToolRedirect />} />
         <Route path="/traces" element={<TraceListPage />} />
         <Route path="/traces/:id" element={<TraceDetailPage />} />
         <Route path="/sessions" element={<SessionsPage />} />

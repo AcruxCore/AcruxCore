@@ -6,6 +6,7 @@ import { acruxcoreError } from '../../src/error';
 import { acrux } from '../../src/tools';
 import { _resetSyncCacheForTesting } from '../../src/tools-api';
 import { _resetCacheForTesting } from '../../src/cache';
+import type { ToolExecutor } from '../../src/types';
 
 /** JSON response helper, matching what the real API sends. */
 function json(body: unknown, status = 200): Response {
@@ -259,6 +260,85 @@ describe('hub.tools', () => {
     );
     await hub.tools.execute('t-1', { city: 'Lahore' });
     expect(bodyOf(0)).toEqual({ arguments: { city: 'Lahore' } });
+  });
+
+  /**
+   * `CommitToolVersionInput`'s http executor arm has to type every field the server's
+   * `HttpExecutorSchema` accepts — this is a compile-time assertion as much as a runtime
+   * one: if `failureWhen`/`resultSchema`/`resultSchemaSeverity` were missing from
+   * {@link ToolExecutor}, this file would fail to typecheck before ever running.
+   */
+  it('commitVersion accepts an http executor with failureWhen, resultSchema and resultSchemaSeverity', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        id: 'v-1',
+        toolId: 't-1',
+        versionNumber: 1,
+        description: null,
+        changelog: null,
+        source: 'api',
+        parametersSchema: {},
+        executor: { type: 'client' },
+        createdBy: 'u-1',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      }),
+    );
+
+    const executor: ToolExecutor = {
+      type: 'http',
+      url: 'https://example.com/weather',
+      method: 'GET',
+      headers: [],
+      query: [],
+      failureWhen: 'function transform(input) { return null; }',
+      resultSchema: { type: 'object', properties: { tempC: { type: 'number' } } },
+      resultSchemaSeverity: 'error',
+    };
+
+    await hub.tools.commitVersion('t-1', { parametersSchema: {}, executor });
+
+    expect(bodyOf(0)['executor']).toMatchObject({
+      failureWhen: 'function transform(input) { return null; }',
+      resultSchema: { type: 'object', properties: { tempC: { type: 'number' } } },
+      resultSchemaSeverity: 'error',
+    });
+  });
+
+  /**
+   * `GET /tools/:id` now returns readiness alongside the tool's mutable shell (PR #469).
+   * `ToolDetail` is a type-only cast over the parsed JSON, so nothing here transforms the
+   * fields — this test is the regression guard against a future change that DOES.
+   */
+  it("a tools.get() response's readiness fields survive the type boundary", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        id: 't-1',
+        name: 'get_weather',
+        description: 'Get the weather.',
+        teamId: 'team-1',
+        createdBy: 'u-1',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        callable: true,
+        versionCount: 3,
+        latestVersionNumber: 3,
+        executorType: 'http',
+        aliases: [
+          { alias: 'production', versionNumber: 2 },
+          { alias: 'staging', versionNumber: 3 },
+        ],
+      }),
+    );
+
+    const tool = await hub.tools.get('t-1');
+
+    expect(tool.callable).toBe(true);
+    expect(tool.versionCount).toBe(3);
+    expect(tool.latestVersionNumber).toBe(3);
+    expect(tool.executorType).toBe('http');
+    expect(tool.aliases).toEqual([
+      { alias: 'production', versionNumber: 2 },
+      { alias: 'staging', versionNumber: 3 },
+    ]);
   });
 });
 

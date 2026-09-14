@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ApiError,
+  filterPrompts,
   useAliases,
+  useAllPrompts,
   useCreateExperiment,
   useDataset,
   useModels,
-  usePrompts,
   useStartRun,
   useVersions,
 } from '@/api';
@@ -47,7 +48,11 @@ export function ExperimentConfigPage() {
     warning: NonNullable<Experiment['promptMismatchWarning']>;
   } | null>(null);
 
-  const prompts = usePrompts({ search: promptSearch || undefined });
+  const allPrompts = useAllPrompts();
+  const prompts = useMemo(
+    () => filterPrompts(allPrompts.data ?? [], promptSearch),
+    [allPrompts.data, promptSearch],
+  );
   const versions = useVersions(promptId);
   const aliases = useAliases(promptId);
   const gatewayModels = useModels();
@@ -143,10 +148,10 @@ export function ExperimentConfigPage() {
               aria-label="Prompt"
               value={promptId}
               onChange={(e) => selectPrompt(e.target.value)}
-              disabled={prompts.isLoading}
+              disabled={allPrompts.isLoading}
             >
-              <option value="">{prompts.isLoading ? 'Loading…' : 'Select a prompt'}</option>
-              {(prompts.data?.data ?? []).map((p) => (
+              <option value="">{allPrompts.isLoading ? 'Loading…' : 'Select a prompt'}</option>
+              {prompts.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </Select>
@@ -159,11 +164,11 @@ export function ExperimentConfigPage() {
               <PageSpinner />
             ) : versions.isError ? (
               <Empty title="Couldn’t load versions" description="Something went wrong. Try again." />
-            ) : (versions.data?.data ?? []).length === 0 ? (
+            ) : (versions.data ?? []).length === 0 ? (
               <Empty title="No versions yet" description="This prompt has no committed versions." />
             ) : (
               <ul className="flex flex-col gap-1.5 rounded-md border border-line-soft bg-elevated p-2.5" data-testid="version-checkboxes">
-                {(versions.data?.data ?? []).map((v) => (
+                {(versions.data ?? []).map((v) => (
                   <li key={v.id} className="flex items-center gap-2 text-[13px]">
                     <input
                       type="checkbox"

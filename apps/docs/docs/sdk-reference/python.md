@@ -235,6 +235,35 @@ traces = await hub.prompts.traces_for_version(prompt_id, 1, limit=10)
 
 **Returns** `TraceListResult(data, total, page, limit)`.
 
+## Which call runs your tools
+
+| You have | Call |
+|---|---|
+| Messages you wrote, no tools | [`gateway.chat`](#gatewaychat) |
+| Messages you wrote, and the tools named on the call | [`gateway.run_tool_loop`](#gatewayrun_tool_loop) |
+| A prompt from the catalog | [`prompts.render`](#promptsrendername-alias-variablesnone), then [`gateway.run_prompt_with_tools`](#gatewayrun_prompt_with_toolsrendered-) |
+
+`chat()` takes `tools` too, but only *offers* them: it returns with
+`finish_reason="tool_calls"` and the request on `message["tool_calls"]`, and running it
+is yours to do. It also rejects a function decorated with `@acrux.tool` — that shape
+belongs to `run_tool_loop`, and the error says so.
+
+Inside the loop, what you pass depends on where the definition lives and whose process
+runs the call:
+
+| Definition lives in | Runs in | Pass |
+|---|---|---|
+| Your code, declared with `@acrux.tool` | Your process | `tools=[get_weather]` |
+| The catalog, `http` executor | AcruxCore | Nothing — the prompt's binding is enough, or `tool_refs=[{"name": ...}]` |
+| The catalog, `client` executor | Your process | `client_tools={"get_weather": get_weather}` |
+| Nowhere — inline for this one call | Your process | `tool_defs=[...]` and `dispatch=` |
+
+`dispatch` is the escape hatch under all of them, for when tool names are not known
+until runtime.
+
+[Call a prompt's tools from the SDK](/docs/guides/call-a-prompts-tools-from-the-sdk)
+works through each shape end to end, streaming included.
+
 ## `gateway.chat(...)`
 
 One gateway completion at `POST /gateway/chat/completions` — no tool-dispatch
@@ -955,6 +984,6 @@ session = await hub.sessions.get(session_id)
 ## Where to next
 
 - [Quickstart](../getting-started/quickstart) — make your first call in ten minutes.
-- [Build and attach a tool](../guides/build-and-attach-a-tool) — the tool loop, end to end.
+- [Create a tool](../guides/create-a-tool) — put a tool in the catalog, from code or from the dashboard.
 - [Chat, stream, and collect feedback with the SDK](../guides/use-the-sdk-for-chat-and-feedback).
 - [Node SDK reference](./node) — same methods, TypeScript style.

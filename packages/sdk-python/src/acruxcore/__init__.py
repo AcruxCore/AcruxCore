@@ -100,6 +100,7 @@ from .types import (
     SessionSummary,
     SessionTraceItem,
     ToolAliasDetail,
+    ToolAliasTarget,
     ToolAnalyticsResult,
     ToolBindingDetail,
     ToolCall,
@@ -131,7 +132,7 @@ from .types import (
     VersionListResult,
 )
 
-__version__ = "0.14.0"
+__version__ = "0.15.0"
 
 __all__ = [
     "AcruxCore",
@@ -185,6 +186,7 @@ __all__ = [
     "SessionSummary",
     "SessionTraceItem",
     "ToolAliasDetail",
+    "ToolAliasTarget",
     "ToolAnalyticsResult",
     "ToolCall",
     "ToolChoice",

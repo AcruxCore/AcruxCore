@@ -104,6 +104,7 @@ async function main() {
     clientTools: CLIENT_TOOLS,
     toolRefs: r.toolResolutions.map((t) => ({ name: t.name, alias: t.alias })),
     promptVersionId: r.versionId,
+    variables: r.variables,
     maxIterations: 3,
   });
   console.log('answer        :', byHand.content);

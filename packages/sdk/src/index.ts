@@ -99,6 +99,7 @@ export type {
   ImportPromptInput,
   ImportPromptResult,
   ToolDetail,
+  ToolAliasTarget,
   ToolListResult,
   CreateToolInput,
   UpdateToolInput,

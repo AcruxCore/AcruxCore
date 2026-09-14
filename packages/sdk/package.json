@@ -1,7 +1,7 @@
 {
   "name": "@acruxcoreai/sdk",
-  "version": "0.14.0",
-  "description": "TypeScript SDK for AcruxCore \u2014 runtime prompt render, gateway chat, tool loops, traces, and feedback",
+  "version": "0.15.0",
+  "description": "TypeScript SDK for AcruxCore — runtime prompt render, gateway chat, tool loops, traces, and feedback",
   "license": "MIT",
   "keywords": [
     "acruxcore",
@@ -54,7 +54,8 @@
     "test:live": "jest --runInBand --testPathPattern=\"(byo|eval-live).integration\" --forceExit",
     "test": "npm run test:unit && npm run test:integration",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run typecheck && npm run test:unit && npm run build"
+    "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
+    "prepublishOnly": "npm run typecheck && npm run typecheck:test && npm run test:unit && npm run build"
   },
   "dependencies": {
     "lru-cache": "^10.2.2"

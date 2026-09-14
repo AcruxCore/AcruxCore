@@ -42,7 +42,7 @@ export function VersionsTab({ promptId, canWrite }: { promptId: string; canWrite
     (aliases.data ?? []).filter((a) => a.versionNumber === versionNumber);
 
   const versionNumbers = useMemo(() => {
-    const nums = (versions.data?.data ?? []).map((v) => v.versionNumber);
+    const nums = (versions.data ?? []).map((v) => v.versionNumber);
     return [...new Set(nums)].sort((a, b) => b - a);
   }, [versions.data]);
 
@@ -84,7 +84,7 @@ export function VersionsTab({ promptId, canWrite }: { promptId: string; canWrite
   }
 
   if (versions.isLoading) return <PageSpinner />;
-  const items = versions.data?.data ?? [];
+  const items = versions.data ?? [];
   if (items.length === 0) {
     return (
       <Empty

@@ -32,6 +32,40 @@ dashboard's path; a decorated function does both in one call and stays idempoten
 across deploys.
 :::
 
+## Readiness fields
+
+Every tool in a list or single fetch carries five read-only fields saying whether it can
+actually be called. `POST /tools` creates a **shell** — a name with no version — and a
+shell resolves to nothing, so a prompt bound to one runs with that tool missing and says
+so nowhere. These fields are how a caller tells the two states apart in one request,
+without a versions fetch per tool.
+
+| Field | Meaning |
+|---|---|
+| `callable` | `true` once a version exists and `production` points at one. This is the resolvable state — the one an unqualified `tool_ref` needs. |
+| `versionCount` | Committed versions. `0` means the tool is a name only. |
+| `latestVersionNumber` | Highest committed version, or `null`. |
+| `executorType` | `client` or `http` — who runs the call — read from the version `production` serves, not the newest one. `null` when not callable. |
+| `aliases` | Every alias with the version it points at, `production` first. |
+
+A tool that is not callable has one of two causes, and they need different fixes:
+`versionCount: 0` means commit a version (`POST /tools/:id/versions`), while a non-zero
+count with no `production` entry in `aliases` means promote one
+(`POST /tools/:id/aliases/production/promote`).
+
+:::note[Reading these fields needs SDK 0.15.0]
+The HTTP response carries all five fields today — every JSON example on this page,
+including the curl responses, is real. Both SDKs read them from **0.15.0** onward
+(`npm i @acruxcoreai/sdk@latest`, `pip install -U acruxcore`).
+
+On **0.14.0 and earlier** the two SDKs fail differently. In TypeScript, `hub.tools.get()`
+and `hub.tools.list()` return the raw response object, so the fields are there at runtime
+and only the compiled type is missing them — `tool.callable` is a type error unless you
+cast. In Python they are worse than untyped: `ToolDetail.from_dict` builds the dataclass
+field by field, so the five fields are dropped and never reach the object at all. On an
+older SDK, call the HTTP endpoint directly, as the curl examples below do.
+:::
+
 ---
 
 ### POST /api/v1/tools
@@ -52,7 +86,7 @@ different teams may each hold the same name.
 curl -X POST $ACRUXCORE_BASE_URL/tools \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"name":"get_weather","description":"Fetch current weather for a city."}'
+  -d '{"name":"docs_get_weather","description":"Fetch current weather for a city."}'
 ```
 
 </TabItem>
@@ -60,7 +94,7 @@ curl -X POST $ACRUXCORE_BASE_URL/tools \
 
 ```typescript
 const tool = await hub.tools.create({
-  name: 'get_weather',
+  name: 'docs_get_weather',
   description: 'Fetch current weather for a city.',
 });
 ```
@@ -70,7 +104,7 @@ const tool = await hub.tools.create({
 
 ```python
 tool = await hub.tools.create(
-    'get_weather',
+    'docs_get_weather',
     description='Fetch current weather for a city.',
 )
 ```
@@ -82,14 +116,23 @@ Response (status 201):
 
 ```json
 {
-  "id": "8662ca24-69f2-4431-a7f4-82e9abc77ff1",
-  "name": "get_weather",
+  "id": "d41a0bd2-0a55-4e73-a1e2-f9d7d8d84e58",
+  "name": "docs_get_weather",
   "description": "Fetch current weather for a city.",
-  "teamId": "66e0b84e-04fb-4811-8c62-2f1018474d02",
-  "createdBy": "67c79920-dda0-4916-9505-8abba3d4ea90",
-  "createdAt": "2026-07-12T04:22:58.156Z"
+  "teamId": "8d3ceb9b-39d0-463b-8b91-aa2ef20ac9ba",
+  "createdBy": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+  "createdAt": "2026-09-13T21:50:39.977Z",
+  "callable": false,
+  "versionCount": 0,
+  "latestVersionNumber": null,
+  "executorType": null,
+  "aliases": []
 }
 ```
+
+The tool is **not callable yet** — `POST /tools` writes the shell only. Commit its first
+version with [`POST /tools/:id/versions`](./versions.mdx), which also creates the
+`production` and `staging` aliases.
 
 Response (status 400) — name fails the safe-name pattern:
 
@@ -101,7 +144,7 @@ Response (status 409) — an active tool in this team already holds the name.
 `PATCH /tools/:id` returns the same error when a rename would collide:
 
 ```json
-{"error":{"code":"TOOL_NAME_TAKEN","message":"A tool named 'get_weather' already exists in this team."}}
+{"error":{"code":"TOOL_NAME_TAKEN","message":"A tool named 'docs_get_weather' already exists in this team."}}
 ```
 
 ---
@@ -126,6 +169,8 @@ curl $ACRUXCORE_BASE_URL/tools \
 const result = await hub.tools.list();
 // with search
 const filtered = await hub.tools.list({ search: 'weather' });
+// readiness fields (callable, versionCount, ...) reach this SDK's types in
+// its next release — see "Readiness fields" above
 ```
 
 </TabItem>
@@ -135,6 +180,8 @@ const filtered = await hub.tools.list({ search: 'weather' });
 result = await hub.tools.list()
 # with search
 filtered = await hub.tools.list(search='weather')
+# readiness fields (callable, version_count, ...) reach this SDK in its next
+# release — see "Readiness fields" above; today they are dropped
 ```
 
 </TabItem>
@@ -146,12 +193,17 @@ Response (status 200):
 {
   "data": [
     {
-      "id": "8662ca24-69f2-4431-a7f4-82e9abc77ff1",
-      "name": "get_weather",
+      "id": "d41a0bd2-0a55-4e73-a1e2-f9d7d8d84e58",
+      "name": "docs_get_weather",
       "description": "Fetch current weather for a city.",
-      "teamId": "66e0b84e-04fb-4811-8c62-2f1018474d02",
-      "createdBy": "67c79920-dda0-4916-9505-8abba3d4ea90",
-      "createdAt": "2026-07-12T04:22:58.156Z"
+      "teamId": "8d3ceb9b-39d0-463b-8b91-aa2ef20ac9ba",
+      "createdBy": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+      "createdAt": "2026-09-13T21:50:39.977Z",
+      "callable": false,
+      "versionCount": 0,
+      "latestVersionNumber": null,
+      "executorType": null,
+      "aliases": []
     }
   ],
   "total": 1,
@@ -170,7 +222,7 @@ Fetches a single active tool by ID.
 <TabItem value="curl" label="curl">
 
 ```bash
-curl $ACRUXCORE_BASE_URL/tools/8662ca24-69f2-4431-a7f4-82e9abc77ff1 \
+curl $ACRUXCORE_BASE_URL/tools/d41a0bd2-0a55-4e73-a1e2-f9d7d8d84e58 \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"
 ```
 
@@ -178,14 +230,18 @@ curl $ACRUXCORE_BASE_URL/tools/8662ca24-69f2-4431-a7f4-82e9abc77ff1 \
 <TabItem value="node" label="TypeScript">
 
 ```typescript
-const tool = await hub.tools.get('8662ca24-69f2-4431-a7f4-82e9abc77ff1');
+const tool = await hub.tools.get('d41a0bd2-0a55-4e73-a1e2-f9d7d8d84e58');
+// readiness fields (callable, versionCount, ...) reach this SDK's types in
+// its next release — see "Readiness fields" above
 ```
 
 </TabItem>
 <TabItem value="python" label="Python">
 
 ```python
-tool = await hub.tools.get('8662ca24-69f2-4431-a7f4-82e9abc77ff1')
+tool = await hub.tools.get('d41a0bd2-0a55-4e73-a1e2-f9d7d8d84e58')
+# readiness fields (callable, version_count, ...) reach this SDK in its next
+# release — see "Readiness fields" above; today they are dropped
 ```
 
 </TabItem>
@@ -195,14 +251,25 @@ Response (status 200):
 
 ```json
 {
-  "id": "8662ca24-69f2-4431-a7f4-82e9abc77ff1",
-  "name": "get_weather",
+  "id": "d41a0bd2-0a55-4e73-a1e2-f9d7d8d84e58",
+  "name": "docs_get_weather",
   "description": "Fetch current weather for a city.",
-  "teamId": "66e0b84e-04fb-4811-8c62-2f1018474d02",
-  "createdBy": "67c79920-dda0-4916-9505-8abba3d4ea90",
-  "createdAt": "2026-07-12T04:22:58.156Z"
+  "teamId": "8d3ceb9b-39d0-463b-8b91-aa2ef20ac9ba",
+  "createdBy": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+  "createdAt": "2026-09-13T21:50:39.977Z",
+  "callable": true,
+  "versionCount": 1,
+  "latestVersionNumber": 1,
+  "executorType": "http",
+  "aliases": [
+    { "alias": "production", "versionNumber": 1 },
+    { "alias": "staging", "versionNumber": 1 }
+  ]
 }
 ```
+
+This is the same tool after one `http` version was committed: `callable` is now `true`,
+and both aliases point at v1.
 
 Response (status 404) — tool not found, deleted, or belongs to another team:
 
@@ -220,7 +287,7 @@ Partially updates a tool's `name` and/or `description`. At least one field is re
 <TabItem value="curl" label="curl">
 
 ```bash
-curl -X PATCH $ACRUXCORE_BASE_URL/tools/8662ca24-69f2-4431-a7f4-82e9abc77ff1 \
+curl -X PATCH $ACRUXCORE_BASE_URL/tools/d41a0bd2-0a55-4e73-a1e2-f9d7d8d84e58 \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"description":"Fetch current weather for a city (v2)."}'
@@ -230,7 +297,7 @@ curl -X PATCH $ACRUXCORE_BASE_URL/tools/8662ca24-69f2-4431-a7f4-82e9abc77ff1 \
 <TabItem value="node" label="TypeScript">
 
 ```typescript
-const updated = await hub.tools.update('8662ca24-69f2-4431-a7f4-82e9abc77ff1', {
+const updated = await hub.tools.update('d41a0bd2-0a55-4e73-a1e2-f9d7d8d84e58', {
   description: 'Fetch current weather for a city (v2).',
 });
 ```
@@ -240,7 +307,7 @@ const updated = await hub.tools.update('8662ca24-69f2-4431-a7f4-82e9abc77ff1', {
 
 ```python
 updated = await hub.tools.update(
-    '8662ca24-69f2-4431-a7f4-82e9abc77ff1',
+    'd41a0bd2-0a55-4e73-a1e2-f9d7d8d84e58',
     description='Fetch current weather for a city (v2).',
 )
 ```
@@ -252,12 +319,20 @@ Response (status 200):
 
 ```json
 {
-  "id": "8662ca24-69f2-4431-a7f4-82e9abc77ff1",
-  "name": "get_weather",
+  "id": "d41a0bd2-0a55-4e73-a1e2-f9d7d8d84e58",
+  "name": "docs_get_weather",
   "description": "Fetch current weather for a city (v2).",
-  "teamId": "66e0b84e-04fb-4811-8c62-2f1018474d02",
-  "createdBy": "67c79920-dda0-4916-9505-8abba3d4ea90",
-  "createdAt": "2026-07-12T04:22:58.156Z"
+  "teamId": "8d3ceb9b-39d0-463b-8b91-aa2ef20ac9ba",
+  "createdBy": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+  "createdAt": "2026-09-13T21:50:39.977Z",
+  "callable": true,
+  "versionCount": 1,
+  "latestVersionNumber": 1,
+  "executorType": "http",
+  "aliases": [
+    { "alias": "production", "versionNumber": 1 },
+    { "alias": "staging", "versionNumber": 1 }
+  ]
 }
 ```
 
@@ -278,7 +353,7 @@ but the tool no longer appears in list/get, and a subsequent GET returns 404.
 <TabItem value="curl" label="curl">
 
 ```bash
-curl -X DELETE $ACRUXCORE_BASE_URL/tools/8662ca24-69f2-4431-a7f4-82e9abc77ff1 \
+curl -X DELETE $ACRUXCORE_BASE_URL/tools/d41a0bd2-0a55-4e73-a1e2-f9d7d8d84e58 \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"
 ```
 
@@ -286,14 +361,14 @@ curl -X DELETE $ACRUXCORE_BASE_URL/tools/8662ca24-69f2-4431-a7f4-82e9abc77ff1 \
 <TabItem value="node" label="TypeScript">
 
 ```typescript
-await hub.tools.delete('8662ca24-69f2-4431-a7f4-82e9abc77ff1');
+await hub.tools.delete('d41a0bd2-0a55-4e73-a1e2-f9d7d8d84e58');
 ```
 
 </TabItem>
 <TabItem value="python" label="Python">
 
 ```python
-await hub.tools.delete('8662ca24-69f2-4431-a7f4-82e9abc77ff1')
+await hub.tools.delete('d41a0bd2-0a55-4e73-a1e2-f9d7d8d84e58')
 ```
 
 </TabItem>
@@ -304,7 +379,7 @@ Response (status 204) — no body.
 Subsequent GET returns 404:
 
 ```bash
-curl $ACRUXCORE_BASE_URL/tools/8662ca24-69f2-4431-a7f4-82e9abc77ff1 \
+curl $ACRUXCORE_BASE_URL/tools/d41a0bd2-0a55-4e73-a1e2-f9d7d8d84e58 \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY"
 ```
 

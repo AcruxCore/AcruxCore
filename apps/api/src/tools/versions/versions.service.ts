@@ -85,7 +85,12 @@ export class ToolVersionsService {
     try {
       await assertPublicUrl(executor.url);
     } catch (err) {
-      if (err instanceof SsrfError) throw new ValidationError(err.message);
+      // Name the field. A version body carries a URL, header values and query values, and
+      // the bare SSRF message ("Host did not resolve.") named none of them — so a first-time
+      // author who pasted an example URL read a platform fault rather than their own typo.
+      if (err instanceof SsrfError) {
+        throw new ValidationError(`The executor's URL cannot be called: ${err.message}`);
+      }
       throw err;
     }
   }

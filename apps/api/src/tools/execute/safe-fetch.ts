@@ -163,10 +163,10 @@ async function resolveAndValidateTarget(rawUrl: string): Promise<ValidatedTarget
         family: r.family === 6 ? 6 : 4,
       }));
     } catch {
-      throw new SsrfError('Host did not resolve.');
+      throw new SsrfError(`Host '${bareHost}' did not resolve.`);
     }
   }
-  if (candidates.length === 0) throw new SsrfError('Host did not resolve.');
+  if (candidates.length === 0) throw new SsrfError(`Host '${bareHost}' did not resolve.`);
   for (const { address } of candidates) {
     if (testAllowedIps.has(address)) continue; // test-only seam; empty set in production
     if (isBlockedIp(address)) throw new SsrfError(`Blocked address: ${address}`);

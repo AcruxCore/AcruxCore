@@ -38,6 +38,18 @@ const env = loadEnv('development', findRepoRoot(), '');
 export const WEB_PORT = Number(env.VITE_PORT ?? env.WEB_PORT ?? 5173);
 
 /**
+ * Interface the Vite dev server binds.
+ *
+ * Vite's default is localhost, which is right for a laptop working alone. Set
+ * `WEB_HOST=0.0.0.0` in the root `.env` to reach the dashboard from a phone or
+ * a second machine on the same network. Two things must follow that change, or
+ * the page loads and nothing works: sign-in needs the LAN origin in
+ * `DEV_TRUSTED_ORIGINS` (the API's `Origin` check), and the machine's firewall
+ * has to allow the port.
+ */
+export const WEB_HOST = env.WEB_HOST ?? env.VITE_HOST ?? 'localhost';
+
+/**
  * Origin the dev server proxies `/api` to — the Express API, same-origin so the
  * httpOnly session cookie is sent.
  *

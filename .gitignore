@@ -57,3 +57,7 @@ social/
 # Promotion/ad planning notes — local working notes, not version-controlled.
 promotion/
 .opencode/index
+
+# SQLite file the tool-calling-agent tutorial's seed_db.py (and its notebook)
+# creates next to whichever directory you run it from — regenerated, never shipped.
+store.db

@@ -5,8 +5,8 @@ set -euo pipefail
 : "${ACRUXCORE_BASE_URL:?Set ACRUXCORE_BASE_URL first}"
 
 echo "curl has no decorator equivalent for tools. Create an HTTP tool via the"
-echo "dashboard (Gateway -> Tools -> New tool) or POST /tools, then attach it to"
-echo "support-reply's next commit -- see build-and-attach-a-tool.mdx or"
+echo "dashboard (Tools -> New tool) or POST /tools, then attach it to"
+echo "support-reply's next commit -- see create-a-tool.mdx or"
 echo "store-prompts-and-tools-via-api.mdx. This script picks up from there,"
 echo "covering the parts curl can do directly: streaming/non-streaming calls,"
 echo "reading the trace id back, and submitting feedback."

@@ -329,6 +329,15 @@ const config: Config = {
             '/blog/authors/**',
             '/blog/page/**',
             '/docs/category/**',
+            // The six guide-section indexes (docs/guides/<section>/_category_.json)
+            // carry a `slug` so their URL reads as /docs/guides/<section> instead of
+            // /docs/category/<section> — but a generated index is still just excerpts
+            // and links that already appear on the guides it lists, the same reason
+            // /docs/category/** is excluded above. Every guide's own page also sets
+            // its own flat `slug: /guides/<name>` (not nested under its section), so
+            // a bare `/docs/guides/*` would match the 29 real guides too — this
+            // brace-alternation names exactly the six section slugs instead.
+            '/docs/guides/{tools,prompts,gateway,traces,evaluation,team}',
           ],
           // Google ignores both changefreq and priority (the plugin's own types
           // say so, citing facebook/docusaurus#2604), so this is not what gets
@@ -366,6 +375,30 @@ const config: Config = {
         path: '../../docs/api',
         routeBasePath: 'api-reference',
         sidebarPath: './sidebarsApi.ts',
+      },
+    ],
+    [
+      '@docusaurus/plugin-client-redirects',
+      {
+        // A guide that merges into another keeps its old URL working. These pages
+        // are linked from published articles and notebooks we cannot edit, so a
+        // 404 would strand a real reader. The plugin emits a static HTML page per
+        // entry, so a crawler follows it too.
+        redirects: [
+          { from: '/docs/guides/build-and-attach-a-tool', to: '/docs/guides/create-a-tool' },
+          {
+            from: '/docs/guides/define-a-tool-in-code-or-in-the-catalog',
+            to: '/docs/guides/create-a-tool',
+          },
+          {
+            from: '/docs/guides/manage-a-tools-lifecycle-via-the-sdk',
+            to: '/docs/guides/version-and-track-a-tool',
+          },
+          {
+            from: '/docs/guides/alias-and-track-usage-of-tools-in-the-catalog',
+            to: '/docs/guides/version-and-track-a-tool',
+          },
+        ],
       },
     ],
     // Emits /llms.txt after the build — a Markdown index of every page, written

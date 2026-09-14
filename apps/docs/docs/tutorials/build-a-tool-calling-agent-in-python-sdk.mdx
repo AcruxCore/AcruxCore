@@ -104,25 +104,22 @@ completion and confirm the key works.
 
 ## 3. Create the `query_database` tool
 
-Open **Gateway → Tools**, click **New tool**, and name it `query_database`. The
-description is what the model reads to decide when to call the tool, so make it
-clear.
+Open **Tools** and click **New tool**. One dialog holds everything the tool
+needs:
 
-![New tool dialog with the name query_database and a description about running a read-only SQL SELECT](/img/tutorials/build-a-tool-calling-agent-in-python-sdk/03-new-tool.png)
-
-Click **Create tool**. A tool is versioned like a prompt — the shell holds no logic
-yet. Click **New version** to define its parameters and executor:
-
+- **Name**: `query_database`.
+- **Description**: what the model reads to decide when to call the tool, so make
+  it clear.
 - **Parameters**: add one row — `sql`, type `string`, marked **required**,
   described as the SQL SELECT the model should run.
-- **Executor**: leave it on **Client — the caller's app runs it**. This is the
+- **Executor**: leave it on **Client — your own code runs it**. This is the
   key choice: the platform stores the schema, but *your* Python executes the
-  query. (The other option, HTTP, is for tools the gateway calls itself.)
+  query. (The other option, HTTP, is for tools AcruxCore calls itself.)
 
-![New version form showing a required sql string parameter and the executor set to Client — the caller's app runs it](/img/tutorials/build-a-tool-calling-agent-in-python-sdk/04-client-executor.png)
+![New tool dialog with the name query_database, a description about running a read-only SQL SELECT, a required sql string parameter, and the executor set to Client — your own code runs it](/img/tutorials/build-a-tool-calling-agent-in-python-sdk/03-new-tool.png)
 
-Click **Commit version**. The first version automatically gets `production` and
-`staging` aliases.
+Click **Create tool**. That writes the tool and its first version together, and
+the first version automatically gets the `production` and `staging` aliases.
 
 ## 4. Connect the tool to a prompt
 
@@ -240,7 +237,7 @@ See
 
 Both options produce the same trace. Don't do both for the same tool — a
 decorated tool's spec overwrites the dashboard's on every run. See
-[Build and attach a tool](../guides/build-and-attach-a-tool) for the full decorator
+[Create a tool](../guides/create-a-tool) for the full decorator
 reference.
 
 Notice there's **no hardcoded model** in either option. `hub.prompts.render` returns the
@@ -430,7 +427,7 @@ async with AcruxCore() as hub:
 ```typescript
 import { acruxcore } from '@acruxcoreai/sdk';
 
-const hub = acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
+const hub = new acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
 const tool = await hub.tools.create({
   name: 'query_database',
   description: 'Run a single read-only SQL SELECT against the store database and return the matching rows.',
@@ -515,7 +512,7 @@ Full script: [`setup_prompt.py`](https://github.com/AcruxCore/AcruxCore/blob/mai
 ```typescript
 import { acruxcore } from '@acruxcoreai/sdk';
 
-const hub = acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
+const hub = new acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
 const prompt = await hub.prompts.create({
   name: 'sql-analyst-agent',
   description: 'Text-to-SQL data analyst.',
@@ -586,7 +583,7 @@ async with AcruxCore() as hub:
 ```typescript
 import { acruxcore } from '@acruxcoreai/sdk';
 
-const hub = acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
+const hub = new acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
 const rendered = await hub.prompts.render('sql-analyst-agent', 'production');
 console.log(rendered.model);       // "claude-haiku"
 console.log(rendered.messages);    // [{ role: "system", content: "..." }]

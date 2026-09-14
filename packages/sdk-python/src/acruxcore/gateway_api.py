@@ -39,6 +39,7 @@ from .errors import (
     MISSING_DISPATCH,
     NETWORK_ERROR,
     PROVIDER_ERROR,
+    TOOL_SCHEMA_ERROR,
     VALIDATION_ERROR,
     AcruxCoreError,
     server_detail,
@@ -143,6 +144,33 @@ def _require_model(model: Optional[str]) -> str:
         "acruxcore: a model is required. Pass one explicitly, or bind a default model to "
         "the prompt version so render() returns it — rendered.model is None otherwise.",
         VALIDATION_ERROR,
+    )
+
+
+def _assert_raw_tool_defs(tools: Optional[List[ToolDefinition]]) -> None:
+    """Reject a function declared with ``@acrux.tool`` handed to :meth:`chat`.
+
+    ``chat()`` and ``run_tool_loop()`` both take ``tools``, and they mean different things
+    by it: raw OpenAI definitions here, decorated functions there. Getting them the wrong
+    way round used to die inside ``json.dumps`` as ``Object of type function is not JSON
+    serializable``, which names neither the argument nor the call that would have run it.
+
+    :param tools: The ``tools`` argument as given.
+    :raises AcruxCoreError: ``TOOL_SCHEMA_ERROR`` when any entry is a declared tool.
+    """
+    if not tools:
+        return
+    declared = [spec.name for spec in (spec_of(t) for t in tools) if spec is not None]
+    if not declared:
+        return
+    names = ", ".join(repr(n) for n in declared)
+    was = "was" if len(declared) == 1 else "were"
+    raise AcruxCoreError(
+        f"acruxcore: {names} {was} declared with @acrux.tool, and chat() cannot run a tool "
+        f"— it only offers one to the model and hands the request back on "
+        f"message['tool_calls']. Use run_tool_loop(tools=[...]) to have the SDK run them, "
+        f"or pass raw OpenAI definitions here.",
+        TOOL_SCHEMA_ERROR,
     )
 
 
@@ -458,6 +486,10 @@ class GatewayNamespace:
         No tool-dispatch loop: if the model returns ``tool_calls`` they are handed
         back raw. Use :meth:`run_tool_loop` to dispatch them.
 
+        ``tools`` here is the raw OpenAI shape, not a function declared with
+        ``@acrux.tool`` — passing a declared tool raises ``TOOL_SCHEMA_ERROR`` naming the
+        call that does run it.
+
         :param gateway: Per-call gateway controls — ``max_retries`` and ``fallback``, see
             :class:`~acruxcore.types.GatewayControl`. These are what the *gateway* does
             upstream, a different layer from the client's own ``max_retries``, which only
@@ -472,6 +504,7 @@ class GatewayNamespace:
             ``{{ placeholders }}`` in the messages sent.
         """
         model = _require_model(model)
+        _assert_raw_tool_defs(tools)
         provider_config = provider or self._host._provider_default
         body = self._build_chat_body(
             model, messages, tools, tool_refs, tool_choice, response_format, temperature, max_tokens, stream,
@@ -1532,12 +1565,43 @@ class GatewayNamespace:
             for r in rendered.tool_resolutions
         ]
 
+        # Handing over an implementation and resolving nothing to run it is the mistake
+        # this method used to keep to itself. The plain-completion fallback is right by
+        # default — an unconfigured prompt should not raise — but the caller who passed
+        # `client_tools` has said what they expect, and the run answering anyway is how
+        # "my tool is never called" becomes a debugging session with no error to search
+        # for. A warning rather than a raise: the completion is still a real answer, and
+        # raising here would break callers who pass one map across several prompts.
+        #
+        # What decides whether anything is actually offered to the model is the same
+        # three inputs `_prepare_tool_routes` turns into a non-empty route/ref set: a
+        # `tools=` function, a resolved catalog ref (bound on the prompt, or passed as
+        # tool_refs= and overriding the binding), or a raw `tool_defs=` schema sent
+        # straight through. Only `client_tools` and `dispatch` are pure *implementations*
+        # with nothing of their own to offer — a `tools=` function or a `tool_defs=`
+        # schema is offered and dispatched regardless of whether tool_refs resolved to
+        # anything, so checking `derived_refs` alone (the old condition) warned on runs
+        # that worked fine.
+        effective_tool_refs = tool_refs if tool_refs is not None else derived_refs
+        will_offer_tools = bool(tools) or bool(effective_tool_refs) or bool(tool_defs)
+        if not will_offer_tools:
+            supplied = sorted(client_tools) if client_tools else []
+            if supplied or dispatch is not None:
+                named = f" for {', '.join(repr(n) for n in supplied)}" if supplied else ""
+                warnings.warn(
+                    f"acruxcore: you passed tool implementations{named}, but this prompt has "
+                    f"no tools bound, so the run is a plain completion and none of them will "
+                    f"be called. Connect the tool on the prompt's Tools tab in the dashboard, "
+                    f"or pass tool_refs=[{{'name': ...}}] to name it on this call.",
+                    stacklevel=2,
+                )
+
         return await self.run_tool_loop(  # type: ignore[call-overload,no-any-return]
             effective_model,
             messages if messages is not None else rendered.messages,
             tools=tools,
             tool_defs=tool_defs,
-            tool_refs=tool_refs if tool_refs is not None else derived_refs,
+            tool_refs=effective_tool_refs,
             client_tools=client_tools,
             dispatch=dispatch,
             sync=sync,

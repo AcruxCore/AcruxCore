@@ -1,6 +1,6 @@
 import { useId, useMemo, useRef, useState } from 'react';
 import { Badge, Input, useClickOutside } from '@/ui';
-import { usePrompts, useTraceFacets, useTraceFacetValues } from '@/api';
+import { filterPrompts, useAllPrompts, useTraceFacets, useTraceFacetValues } from '@/api';
 import {
   applyFilterExpression,
   FILTER_PREFIXES,
@@ -82,14 +82,15 @@ export function FilterBar({ value, onChange, surface, hideSavedViews }: FilterBa
   const typedValue = typedPrefix ? draft.slice(typedPrefix.length) : '';
   const metaKeyMatch = /^meta\.([^:\s]+):(.*)$/.exec(draft);
   const { data: metaValues } = useTraceFacetValues(metaKeyMatch ? metaKeyMatch[1] : null);
-  const { data: prompts } = usePrompts({
-    search: typedPrefix === 'prompt:' ? typedValue.trim() || undefined : undefined,
-  });
+  // The full catalog, not a server search scoped to whatever prefix is being typed: a
+  // committed `prompt:` chip can name a prompt that has nothing to do with what's
+  // currently typed (or nothing typed at all), and the label lookup below has to resolve
+  // it regardless. `filterPrompts` narrows this same list for the suggestion popover.
+  const { data: prompts } = useAllPrompts();
 
-  // Chips show a prompt by name, never by UUID. The lookup covers whatever the
-  // prompt search has loaded; an id it has not seen falls back to a short id.
+  // Chips show a prompt by name, never by UUID.
   const promptLabels = useMemo(
-    () => Object.fromEntries((prompts?.data ?? []).map((p) => [p.id, p.name])),
+    () => Object.fromEntries((prompts ?? []).map((p) => [p.id, p.name])),
     [prompts],
   );
   const chips = stateToChips(value, { prompts: promptLabels });
@@ -106,7 +107,7 @@ export function FilterBar({ value, onChange, surface, hideSavedViews }: FilterBa
     }
 
     if (typedPrefix === 'prompt:') {
-      return (prompts?.data ?? [])
+      return filterPrompts(prompts ?? [], typedValue)
         .slice(0, 8)
         .map((p) => ({ value: `prompt:${p.id}`, label: `prompt:${p.name}`, hint: 'prompt' }));
     }

@@ -1,67 +1,164 @@
 import { useMemo, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ApiError, usePromoteToolAlias, useTool, useToolAliases, useToolVersions } from '@/api';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import {
+  ApiError,
+  usePromoteToolAlias,
+  useTool,
+  useToolVersions,
+  type ToolAliasTarget,
+  type ToolVersionListItem,
+} from '@/api';
 import { useAuth } from '@/auth/AuthContext';
 import { timeAgo } from '@/lib/format';
 import { Badge, Button, Empty, Field, Input, PageSpinner, Select, Tabs, useToast } from '@/ui';
 import type { TabItem } from '@/ui';
+import { parseAliasVersionInput, toolStatus } from './catalog';
 import { CommitVersionDialog } from './CommitVersionDialog';
+import { ToolSettingsDialog } from './ToolSettingsDialog';
 import { ToolAuditTab } from './audit/ToolAuditTab';
 
 const TABS: TabItem[] = [
   { value: 'versions', label: 'Versions' },
-  { value: 'aliases', label: 'Aliases' },
   { value: 'audit', label: 'Audit' },
 ];
 
+/** How a version's provenance reads to someone who did not write it. */
+const SOURCE_LABEL: Record<string, string> = {
+  code: 'from code',
+  dashboard: 'from the dashboard',
+  api: 'from the API',
+};
+
 /**
- * Tool detail: name/description header, a "New version" action opening
- * {@link CommitVersionDialog}, and tabs for the tool's versions and its
- * resolved aliases (e.g. `production`/`staging`), each promotable to a
- * different version number. Mirrors `PromptDetailPage`'s tab + `useParams`
- * structure; mutations are gated behind `canWrite` (owner/admin/editor),
- * matching the server's commit/promote role gate.
+ * One version, with the aliases pointing at it and the control that moves them.
  *
- * Each version shows where it came from (`code`, `dashboard`, or `api`). When the
- * live `production` version came from a decorated function, the header carries a
- * "Defined in code" badge and the New-version dialog warns that the next deploy will
- * supersede whatever is committed by hand.
+ * Versions and aliases used to be two tabs, which meant the two halves of one question —
+ * "what is live, and how do I change it" — were never on screen together. Reading the
+ * aliases off the version they point at is the whole answer in one row.
+ */
+function VersionRow({
+  version,
+  aliases,
+  allVersionNumbers,
+  canWrite,
+  promoting,
+  onPromote,
+}: {
+  version: ToolVersionListItem;
+  aliases: ToolAliasTarget[];
+  allVersionNumbers: number[];
+  canWrite: boolean;
+  promoting: string | null;
+  onPromote: (alias: string, versionNumber: number) => void;
+}) {
+  const here = aliases.filter((a) => a.versionNumber === version.versionNumber);
+  // Aliases pointing somewhere else are what "promote to here" can move.
+  const elsewhere = aliases.filter((a) => a.versionNumber !== version.versionNumber);
+  const [moving, setMoving] = useState('');
+
+  return (
+    <li className="flex flex-wrap items-center gap-3 border-b border-line-soft bg-surface px-4 py-3.5 last:border-b-0">
+      <Badge tone="default" className="flex-none">
+        v{version.versionNumber}
+      </Badge>
+
+      <div className="min-w-0 flex-1">
+        {/* Two lines, not one: a model-facing description is a sentence or two, and the
+            row is the only place it is readable without opening the version. */}
+        <p className="line-clamp-2 text-[13.5px] text-ink">{version.description || '—'}</p>
+        <p className="mt-0.5 truncate text-[12px] text-faint">
+          {SOURCE_LABEL[version.source] ?? version.source} · created {timeAgo(version.createdAt)}
+          {version.changelog ? ` · ${version.changelog}` : ''}
+        </p>
+      </div>
+
+      <div className="flex flex-none flex-wrap items-center gap-1.5">
+        {here.map((a) => (
+          <Badge
+            key={a.alias}
+            tone={a.alias === 'production' ? 'prod' : a.alias === 'staging' ? 'staging' : 'default'}
+            dot
+          >
+            {a.alias}
+          </Badge>
+        ))}
+
+        {canWrite && elsewhere.length > 0 && allVersionNumbers.length > 1 && (
+          <Select
+            className="w-36"
+            value={moving}
+            disabled={promoting !== null}
+            onChange={(e) => {
+              const alias = e.target.value;
+              setMoving('');
+              if (alias) onPromote(alias, version.versionNumber);
+            }}
+          >
+            <option value="">Point here…</option>
+            {elsewhere.map((a) => (
+              <option key={a.alias} value={a.alias}>
+                {a.alias} (now v{a.versionNumber})
+              </option>
+            ))}
+          </Select>
+        )}
+      </div>
+    </li>
+  );
+}
+
+/**
+ * Tool detail: what the tool is, whether it can be called, its versions with the aliases
+ * riding on them, and its audit trail.
+ *
+ * Each version shows where it came from (`code`, `dashboard`, or `api`). When the live
+ * `production` version came from a decorated function, the header carries a "Defined in
+ * code" badge and the New-version dialog warns that the next deploy will supersede
+ * whatever is committed by hand.
  */
 export function ToolDetailPage() {
   const { id = '' } = useParams();
   const { canWrite } = useAuth();
   const toast = useToast();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = searchParams.get('tab') ?? 'versions';
+  // `?tab=aliases` was a real tab until versions and aliases became one view. Old links
+  // and bookmarks land on the merged list rather than on nothing.
+  const tab = searchParams.get('tab') === 'audit' ? 'audit' : 'versions';
   const setTab = (value: string) => setSearchParams({ tab: value });
 
   const tool = useTool(id);
   const versions = useToolVersions(id);
-  const aliases = useToolAliases(id);
   const promote = usePromoteToolAlias(id);
 
   const [commitOpen, setCommitOpen] = useState(false);
-  const [promoteVersionByAlias, setPromoteVersionByAlias] = useState<Record<string, string>>({});
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [promotingAlias, setPromotingAlias] = useState<string | null>(null);
   const [newAliasName, setNewAliasName] = useState('');
   const [newAliasVersion, setNewAliasVersion] = useState('');
 
-  const versionNumbers = useMemo(() => {
-    const nums = (versions.data?.data ?? []).map((v) => v.versionNumber);
-    return [...new Set(nums)].sort((a, b) => b - a);
-  }, [versions.data]);
+  const versionList = useMemo(() => versions.data ?? [], [versions.data]);
+  // The readiness DTO already puts every alias on the tool resource `useTool` holds
+  // (`{alias, versionNumber}`, `production` first) — a second `GET /tools/:id/aliases`
+  // request for the same data used to fail independently and silently: its `isError`
+  // was never rendered anywhere, so a failed fetch quietly emptied this to `[]` and the
+  // whole page read as "this tool is released nowhere" (no badges, no "Defined in code",
+  // no code-ownership warning) with nothing on screen saying why.
+  const aliasList = useMemo(() => tool.data?.aliases ?? [], [tool.data]);
+  const versionNumbers = useMemo(
+    () => [...new Set(versionList.map((v) => v.versionNumber))].sort((a, b) => b - a),
+    [versionList],
+  );
 
-  // Whatever `production` points at. Its `source` drives the "Defined in code" badge
-  // and the New-version banner; its `description` decides which banner, because a code
-  // definition with no docstring sends no description and so cannot supersede one
-  // written here.
+  // Whatever `production` points at. Its `source` drives the "Defined in code" badge and
+  // the New-version banner; its `description` decides which banner, because a code
+  // definition with no docstring sends no description and so cannot supersede one written
+  // here.
   const liveVersion = useMemo(() => {
-    const production = (aliases.data?.data ?? []).find((a) => a.alias === 'production');
+    const production = aliasList.find((a) => a.alias === 'production');
     if (!production) return null;
-    return (
-      (versions.data?.data ?? []).find((v) => v.versionNumber === production.versionNumber) ?? null
-    );
-  }, [aliases.data, versions.data]);
+    return versionList.find((v) => v.versionNumber === production.versionNumber) ?? null;
+  }, [aliasList, versionList]);
   const liveVersionSource = liveVersion?.source ?? null;
 
   async function handlePromote(alias: string, versionNumber: number) {
@@ -78,8 +175,8 @@ export function ToolDetailPage() {
 
   async function handleCreateAlias() {
     const name = newAliasName.trim();
-    const n = Number(newAliasVersion);
-    if (!name || !Number.isInteger(n)) return;
+    const n = parseAliasVersionInput(newAliasVersion);
+    if (!name || n === null) return;
     await handlePromote(name, n);
     setNewAliasName('');
     setNewAliasVersion('');
@@ -90,7 +187,7 @@ export function ToolDetailPage() {
     return (
       <div className="py-16 text-center">
         <p className="text-[15px] font-semibold text-ink">Tool not found</p>
-        <Link to="/gateway/tools" className="mt-2 inline-block text-[13px] text-accent hover:underline">
+        <Link to="/tools" className="mt-2 inline-block text-[13px] text-accent hover:underline">
           Back to tools
         </Link>
       </div>
@@ -98,11 +195,12 @@ export function ToolDetailPage() {
   }
 
   const t = tool.data;
+  const status = toolStatus(t);
 
   return (
     <div className="flex flex-col gap-5">
       <div className="text-[12.5px] text-faint">
-        <Link to="/gateway/tools" className="hover:text-ink">
+        <Link to="/tools" className="hover:text-ink">
           Tools
         </Link>
         <span className="px-1.5">/</span>
@@ -113,129 +211,78 @@ export function ToolDetailPage() {
         <div className="min-w-0">
           <h1 className="font-mono text-[22px] font-semibold tracking-tight text-ink">{t.name}</h1>
           {t.description && <p className="mt-1 text-[13.5px] text-muted">{t.description}</p>}
-          {liveVersionSource === 'code' && (
-            <span data-testid="defined-in-code" className="mt-2 inline-block">
-              <Badge tone="prod">Defined in code</Badge>
-            </span>
-          )}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <Badge tone={status.tone === 'warn' ? 'warn' : 'muted'}>{status.label}</Badge>
+            {liveVersionSource === 'code' && (
+              <span data-testid="defined-in-code">
+                <Badge tone="prod">Defined in code</Badge>
+              </span>
+            )}
+          </div>
+          {status.hint && <p className="mt-2 text-[12.5px] text-warn">{status.hint}</p>}
         </div>
 
         {canWrite && (
-          <Button variant="primary" size="sm" className="ml-auto" onClick={() => setCommitOpen(true)}>
-            New version
-          </Button>
+          <div className="ml-auto flex flex-none items-center gap-2">
+            <Button size="sm" onClick={() => setSettingsOpen(true)}>
+              Settings
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => setCommitOpen(true)}>
+              New version
+            </Button>
+          </div>
         )}
       </header>
 
       <Tabs items={TABS} value={tab} onChange={setTab} />
 
-      {tab === 'versions' &&
-        (versions.isLoading ? (
-          <PageSpinner />
-        ) : versions.isError ? (
-          <Empty title="Couldn't load versions" description="Please try again." />
-        ) : !versions.data || versions.data.data.length === 0 ? (
-          <Empty
-            title="No versions yet"
-            description="Commit a version to define this tool's parameters and executor."
-            action={
-              canWrite ? (
-                <Button variant="primary" onClick={() => setCommitOpen(true)}>
-                  New version
-                </Button>
-              ) : undefined
-            }
-          />
-        ) : (
-          <ul className="overflow-hidden rounded-xl border border-line">
-            {versions.data.data.map((v) => (
-              <li
-                key={v.id}
-                className="flex items-center gap-4 border-b border-line-soft bg-surface px-4 py-3.5 last:border-b-0"
-              >
-                <Badge tone="default">v{v.versionNumber}</Badge>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13.5px] text-ink">{v.description || '—'}</p>
-                  <p className="mt-0.5 truncate text-[12px] text-faint">
-                    created {timeAgo(v.createdAt)}
-                    {v.changelog ? ` · ${v.changelog}` : ''}
-                  </p>
-                </div>
-                <Badge tone="muted" className="ml-auto flex-none">
-                  {v.source}
-                </Badge>
-              </li>
-            ))}
-          </ul>
-        ))}
-
-      {tab === 'aliases' && (
+      {tab === 'versions' && (
         <div className="flex flex-col gap-4">
-          {aliases.isLoading ? (
+          {versions.isLoading ? (
             <PageSpinner />
-          ) : aliases.isError ? (
-            <Empty title="Couldn't load aliases" description="Please try again." />
-          ) : !aliases.data || aliases.data.data.length === 0 ? (
+          ) : versions.isError ? (
+            <Empty title="Couldn't load versions" description="Please try again." />
+          ) : versionList.length === 0 ? (
             <Empty
-              title="No aliases yet"
-              description="Promote a version below to create one (e.g. production, staging)."
+              title="No versions yet"
+              description="Commit a version to define this tool's parameters and executor. Until then, nothing can call it."
+              action={
+                canWrite ? (
+                  <Button variant="primary" onClick={() => setCommitOpen(true)}>
+                    New version
+                  </Button>
+                ) : undefined
+              }
             />
           ) : (
-            <ul className="overflow-hidden rounded-xl border border-line">
-              {aliases.data.data.map((a) => (
-                <li
-                  key={a.id}
-                  className="flex flex-wrap items-center gap-3 border-b border-line-soft bg-surface px-4 py-3.5 last:border-b-0"
-                >
-                  <Badge
-                    tone={a.alias === 'production' ? 'prod' : a.alias === 'staging' ? 'staging' : 'default'}
-                    dot
-                  >
-                    {a.alias}
-                  </Badge>
-                  <p className="text-[13px] text-muted">
-                    → v{a.versionNumber} · updated {timeAgo(a.updatedAt)}
-                  </p>
-
-                  {canWrite && versionNumbers.length > 0 && (
-                    <div className="ml-auto flex items-center gap-2">
-                      <Select
-                        className="w-24"
-                        value={promoteVersionByAlias[a.alias] ?? String(a.versionNumber)}
-                        onChange={(e) =>
-                          setPromoteVersionByAlias((prev) => ({ ...prev, [a.alias]: e.target.value }))
-                        }
-                      >
-                        {versionNumbers.map((n) => (
-                          <option key={n} value={n}>
-                            v{n}
-                          </option>
-                        ))}
-                      </Select>
-                      <Button
-                        size="sm"
-                        disabled={promotingAlias === a.alias}
-                        onClick={() =>
-                          handlePromote(
-                            a.alias,
-                            Number(promoteVersionByAlias[a.alias] ?? a.versionNumber),
-                          )
-                        }
-                      >
-                        {promotingAlias === a.alias ? 'Promoting…' : 'Promote'}
-                      </Button>
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <>
+              <p className="text-[12px] text-faint">
+                Versions are immutable. An alias — <span className="font-mono">production</span>,{' '}
+                <span className="font-mono">staging</span> — points at one of them, and moving it is
+                how you release and roll back.
+              </p>
+              <ul className="overflow-hidden rounded-xl border border-line">
+                {versionList.map((v) => (
+                  <VersionRow
+                    key={v.id}
+                    version={v}
+                    aliases={aliasList}
+                    allVersionNumbers={versionNumbers}
+                    canWrite={canWrite}
+                    promoting={promotingAlias}
+                    onPromote={handlePromote}
+                  />
+                ))}
+              </ul>
+            </>
           )}
 
           {canWrite && versionNumbers.length > 0 && (
             <div className="rounded-xl border border-line bg-surface p-4">
               <p className="text-[13px] font-medium text-ink">New alias</p>
               <p className="mt-0.5 text-[12px] text-faint">
-                Point a new alias name at a version — promoting an unused name creates it.
+                Another name a caller can point at, beside production and staging — a per-customer
+                build, say. Promoting an unused name creates it.
               </p>
               <div className="mt-3 flex flex-wrap items-end gap-2">
                 <Field label="Alias name" htmlFor="new-alias-name" className="w-40">
@@ -243,7 +290,7 @@ export function ToolDetailPage() {
                     id="new-alias-name"
                     value={newAliasName}
                     onChange={(e) => setNewAliasName(e.target.value)}
-                    placeholder="staging"
+                    placeholder="canary"
                   />
                 </Field>
                 <Field label="Version" htmlFor="new-alias-version" className="w-24">
@@ -267,7 +314,7 @@ export function ToolDetailPage() {
                   }
                   onClick={handleCreateAlias}
                 >
-                  Promote
+                  Create
                 </Button>
               </div>
             </div>
@@ -284,6 +331,13 @@ export function ToolDetailPage() {
         liveVersionDescription={liveVersion?.description}
         open={commitOpen}
         onOpenChange={setCommitOpen}
+      />
+
+      <ToolSettingsDialog
+        tool={t}
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        onDeleted={() => navigate('/tools')}
       />
     </div>
   );

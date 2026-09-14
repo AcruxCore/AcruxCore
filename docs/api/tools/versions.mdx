@@ -198,9 +198,31 @@ empty, on a clean commit.
 
 Response (status 400) — http executor's url is not a public address (SSRF guard, defense-in-depth):
 
-```json
-{"error":{"code":"VALIDATION_ERROR","message":"Blocked address: 127.0.0.1"}}
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/tools/347c9ef3-0be1-4603-827f-48a8dd42f49c/versions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "SSRF guard check",
+    "parametersSchema": {"type":"object","properties":{}},
+    "executor": {
+      "type": "http",
+      "url": "http://127.0.0.1:9/x",
+      "method": "GET",
+      "headers": [],
+      "query": [],
+      "argMapping": []
+    }
+  }'
 ```
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"The executor's URL cannot be called: Blocked address: 127.0.0.1"}}
+```
+
+The message names the field so a first-time author who pasted an example URL reads
+their own typo rather than a platform fault — see `assertExecutorDeepValid` in
+`versions.service.ts`.
 
 Response (status 400) — the executor carries an `argMapping`. The field is stored and
 never applied, so a tool relying on it called upstream with the argument missing. It is

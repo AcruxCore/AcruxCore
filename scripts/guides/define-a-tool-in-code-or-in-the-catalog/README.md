@@ -1,6 +1,6 @@
-# Define a tool in code, or in the catalog
+# Create a tool
 
-Runnable code for the [Define a tool in code or in the catalog](https://docs.acruxcore.com/docs/guides/define-a-tool-in-code-or-in-the-catalog)
+Runnable code for the [Create a tool](https://docs.acruxcore.com/docs/guides/create-a-tool)
 guide. Everything here builds the **same weather tool twice** — once with your code owning
 its definition, once with the catalog owning it — so the difference is the only variable.
 

@@ -34,7 +34,7 @@ export function PlaygroundPage() {
   // Tools the user has attached to this request via the chip row below. An
   // empty array means "no tools" — `send()` then takes the original
   // single-shot path unchanged (see the Global Constraint in the TC5 plan).
-  const { data: toolsPage } = useTools();
+  const { data: catalog } = useTools();
   const [attachedToolIds, setAttachedToolIds] = useState<string[]>([]);
 
   /**
@@ -46,7 +46,7 @@ export function PlaygroundPage() {
   async function send() {
     toolLoop.setActiveCalls([]);
     if (attachedToolIds.length > 0) {
-      const attached = (toolsPage?.data ?? []).filter((t) => attachedToolIds.includes(t.id));
+      const attached = (catalog ?? []).filter((t) => attachedToolIds.includes(t.id));
       await toolLoop.run(prompt.buildBody, attached);
       return;
     }
@@ -165,10 +165,10 @@ export function PlaygroundPage() {
             </label>
           </div>
 
-          {toolsPage && toolsPage.data.length > 0 && (
+          {catalog && catalog.length > 0 && (
             <div className="flex flex-col gap-1.5">
               <ToolPicker
-                tools={toolsPage.data}
+                tools={catalog}
                 selectedIds={attachedToolIds}
                 onChange={setAttachedToolIds}
                 disabled={running}

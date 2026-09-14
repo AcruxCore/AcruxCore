@@ -1,0 +1,11 @@
+{
+  "label": "Evaluation",
+  "position": 5,
+  "collapsed": true,
+  "link": {
+    "type": "generated-index",
+    "title": "Evaluation",
+    "slug": "/guides/evaluation",
+    "description": "An evaluation scores what a prompt produced, either against a dataset you built or against live traffic. These four guides turn real feedback into a dataset, sweep versions and models in one run, carry a session's history into an example, and score production calls with a standing rule."
+  }
+}

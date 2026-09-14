@@ -30,14 +30,16 @@ Click **Create secret**. You'll refer to it inside a tool as <code>&#123;&#123;s
 
 ## 2. Create the first tool — `search_movies`
 
-This tool takes a movie title and returns matching movies. Open **Gateway → Tools**, click **New tool**, and give it a name and description. The description is what the model reads to decide when to call the tool, so make it clear.
+This tool takes a movie title and returns matching movies. Open **Tools** and click **New tool**. One dialog collects everything a callable tool needs: its name, the description the model reads, its parameters, and its executor.
 
-![New tool dialog with the name search_movies and a description](/img/tutorials/build-a-tool-calling-agent-in-the-dashboard-no-code/03-new-tool.png)
+![New tool dialog with the name search_movies, its description, and the parameter and executor fields below](/img/tutorials/build-a-tool-calling-agent-in-the-dashboard-no-code/03-new-tool.png)
 
-A tool is versioned like a prompt: the shell you just made holds no logic yet. Click **New version** to define its parameters and its executor.
+Fill it in:
 
+- **Name** — `search_movies`.
+- **Description** — what the model reads to decide when to call the tool, so make it clear.
 - **Parameters** are the arguments the model fills in. Add one row: `query`, type `string`, marked **required**, described as the movie title to search for.
-- **Executor**: choose **HTTP — the gateway calls a URL**. Set the method to `GET` and the URL to `https://api.themoviedb.org/3/search/movie`.
+- **Executor**: choose **HTTP — AcruxCore calls a URL for you**. Set the method to `GET` and the URL to `https://api.themoviedb.org/3/search/movie`.
 - **Query params**: add two rows. TMDB wants the search text as `query` and the key as `api_key`, both in the query string:
   - `query` = <code>&#123;&#123;arg.query&#125;&#125;</code> — the <code>&#123;&#123;arg.NAME&#125;&#125;</code> placeholder is replaced with whatever the model passes as that argument.
   - `api_key` = <code>&#123;&#123;secret.TMDB_KEY&#125;&#125;</code> — resolved from your secret at call time. Secrets are injected into headers and query params only, never into the URL, so they stay out of request logs.
@@ -62,17 +64,17 @@ function transform(input) {
 Write the complete `function transform(input) { ... }`, including the `function` line — not just the `return`. (The in-form placeholder text is only a hint.) The sandbox has no network or filesystem access; it just reshapes JSON.
 :::
 
-Click **Commit version**. The first version automatically gets `production` and `staging` aliases.
+Click **Create tool**. That writes the tool and its first version together, and the first version automatically gets the `production` and `staging` aliases.
 
 ## 3. Create the second tool — `get_movie_details`
 
-`search_movies` returns an `id`; this tool takes that `id` and returns the full record. Create another tool named `get_movie_details`, then commit an HTTP version. This one shows a **path** argument.
+`search_movies` returns an `id`; this tool takes that `id` and returns the full record. Click **New tool** again and name it `get_movie_details`. This one shows a **path** argument.
 
 - **Parameters**: one row — `movie_id`, type `integer`, required.
 - **Executor**: HTTP, `GET`, URL `https://api.themoviedb.org/3/movie/{{arg.movie_id}}`. The <code>&#123;&#123;arg.movie_id&#125;&#125;</code> placeholder drops straight into the URL path.
 - **Query params**: just `api_key` = <code>&#123;&#123;secret.TMDB_KEY&#125;&#125;</code> — the same secret, reused.
 
-![New version form showing the movie_id integer parameter and the HTTP executor selected](/img/tutorials/build-a-tool-calling-agent-in-the-dashboard-no-code/05-get-movie-details-executor.png)
+![New tool form showing the movie_id integer parameter and the HTTP executor selected](/img/tutorials/build-a-tool-calling-agent-in-the-dashboard-no-code/05-get-movie-details-executor.png)
 
 Add a response transform that keeps the useful fields:
 
@@ -93,9 +95,9 @@ function transform(input) {
 }
 ```
 
-Commit it. Both tools now appear on the Tools page.
+Click **Create tool**. Both tools now appear on the Tools page, marked **Runs on AcruxCore** — the catalog states outright which tools can be called, and which are still waiting for a version.
 
-![Tools list showing search_movies and get_movie_details alongside other tools](/img/tutorials/build-a-tool-calling-agent-in-the-dashboard-no-code/06-tools-list.png)
+![Tools list filtered to movie, showing search_movies and get_movie_details each marked Runs on AcruxCore](/img/tutorials/build-a-tool-calling-agent-in-the-dashboard-no-code/06-tools-list.png)
 
 ## 4. Assemble the assistant in the Playground
 
@@ -193,7 +195,7 @@ async with AcruxCore() as hub:
 ```typescript
 import { acruxcore } from '@acruxcoreai/sdk';
 
-const hub = acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
+const hub = new acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
 const secret = await hub.secrets.create({ name: 'TMDB_KEY', value: '<your tmdb key>' });
 console.log(`secret_id=${secret.id}`);
 ```
@@ -296,7 +298,7 @@ async with AcruxCore() as hub:
 ```typescript
 import { acruxcore } from '@acruxcoreai/sdk';
 
-const hub = acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
+const hub = new acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
 const tool = await hub.tools.create({
   name: 'search_movies',
   description: 'Search TMDB for movies matching a title query.',
@@ -366,7 +368,7 @@ async with AcruxCore() as hub:
 ```typescript
 import { acruxcore } from '@acruxcoreai/sdk';
 
-const hub = acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
+const hub = new acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
 const result = await hub.tools.execute('<tool-id>', { arguments: { query: 'The Matrix' } });
 console.log(result);
 ```
@@ -377,6 +379,6 @@ console.log(result);
 ## What's next
 
 - [Store prompts and tools via the API](../guides/store-prompts-and-tools-via-api) — the code-first counterpart: define the prompt and tools over REST, then fetch and run them with the SDK.
-- [Build and attach a tool](../guides/build-and-attach-a-tool) — more on the tool model, versions, and aliases.
+- [Create a tool](../guides/create-a-tool) — more on the tool model, versions, and aliases.
 - [Using sessions and traces](../guides/using-sessions-and-traces) — group related runs and dig into what happened.
 - API details: see the **Tools** and **Secrets** domains in the [API Reference](/api-reference).

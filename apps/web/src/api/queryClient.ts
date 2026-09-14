@@ -28,6 +28,12 @@ export const keys = {
   myTeams: ['my-teams'] as const,
   prompts: (search?: string, page?: number) =>
     ['prompts', { search: search ?? '', page: page ?? 1 }] as const,
+  /**
+   * Separate from {@link keys.prompts} so a picker's full-list query never shares a cache
+   * entry with the list page's paginated one. Still under the `['prompts', …]` prefix, so
+   * `qc.invalidateQueries({ queryKey: ['prompts'] })` (create/update/delete) refetches both.
+   */
+  allPrompts: ['prompts', 'all'] as const,
   prompt: (id: string) => ['prompt', id] as const,
   versions: (id: string) => ['versions', id] as const,
   version: (id: string, n: number) => ['version', id, n] as const,
@@ -46,6 +52,10 @@ export const keys = {
   // Gateway (Phase 2)
   connections: ['gateway-connections'] as const,
   models: ['gateway-models'] as const,
+  // Sits under the `tools` prefix, so every tool mutation marks it stale too. That is
+  // harmless (it refetches on next mount) and nobody chose it — but do not "fix" it by
+  // narrowing `tools` below, which is what makes one invalidate reach the catalog, a
+  // tool, its versions and a single version at once. Renaming this key instead is safe.
   toolAnalytics: ['tools', 'analytics'] as const,
   virtualKeys: ['gateway-keys'] as const,
   budgets: ['gateway-budgets'] as const,
@@ -87,7 +97,6 @@ export const keys = {
   tool: (id: string) => ['tools', id] as const,
   toolVersions: (id: string) => ['tools', id, 'versions'] as const,
   toolVersion: (id: string, versionNumber: number) => ['tools', id, 'versions', versionNumber] as const,
-  toolAliases: (id: string) => ['tools', id, 'aliases'] as const,
   // Secrets (TC4)
   secrets: ['secrets'] as const,
   // Online Evaluation Rules

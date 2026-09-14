@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { acruxcoreError, serverDetail } from './error';
 import { fetchWithRetry } from './fetch';
-import { parseToolArgs, resolveParametersSchema } from './tools';
+import { parseToolArgs, resolveParametersSchema, isAcruxTool } from './tools';
+import type { AcruxTool } from './tools';
 import { isToolOutcome } from './tool-result';
 import { validateAgainstSchema } from './result-schema';
 import { inferProviderName } from './provider';
@@ -304,10 +305,16 @@ export class GatewayNamespace {
    * request/response, no tool-dispatch loop. If `options.provider` is set (or,
    * absent that, the client's own `config.provider` default), this instead calls
    * that BYO provider's `baseUrl` directly, skipping the gateway entirely.
+   *
+   * `tools` here is the raw OpenAI shape and is only *offered* to the model: when the
+   * model asks for one, the call returns with `finishReason: 'tool_calls'` and the
+   * request on `message.tool_calls`, and running it is yours to do. Use
+   * {@link runToolLoop} to have the SDK run them and come back with the answer.
    */
   async chat(options: ChatOptions & { stream: true }): Promise<AsyncGenerator<ChatChunk>>;
   async chat(options: ChatOptions & { stream?: false | undefined }): Promise<ChatResult>;
   async chat(options: ChatOptions): Promise<ChatResult | AsyncGenerator<ChatChunk>> {
+    this._assertRawToolDefs(options.tools);
     options.responseFormat = await resolveResponseFormat(options.responseFormat) as ChatOptions['responseFormat'];
     const model = requireModel(options.model);
     const providerConfig = options.provider ?? this.host.providerDefault;
@@ -481,17 +488,73 @@ export class GatewayNamespace {
           : { name: r.name },
     );
 
+    // Handing over an implementation and resolving nothing to run it is the mistake this
+    // method used to keep to itself. The plain-completion fallback is right by default —
+    // an unconfigured prompt should not throw — but the caller who passed `clientTools`
+    // has said what they expect, and the run answering anyway is how "my tool is never
+    // called" becomes a debugging session with no error to search for. A warning rather
+    // than a throw: the completion is still a real answer, and throwing here would break
+    // callers who pass one map across several prompts.
+    //
+    // What decides whether anything is actually offered to the model is the same three
+    // inputs `_prepareToolRoutes` turns into a non-empty route/ref set: a declared
+    // `tools` entry, a resolved catalog ref (bound on the prompt, or passed as toolRefs
+    // and overriding the binding), or a raw `toolDefs` schema sent straight through. Only
+    // `clientTools` and `dispatch` are pure *implementations* with nothing of their own to
+    // offer — a `tools` entry or a `toolDefs` schema is offered and dispatched regardless
+    // of whether toolRefs resolved to anything, so checking `derivedRefs` alone (the old
+    // condition) warned on runs that worked fine.
+    const effectiveToolRefs = options.toolRefs ?? derivedRefs;
+    const willOfferTools =
+      (options.tools?.length ?? 0) > 0 ||
+      effectiveToolRefs.length > 0 ||
+      (options.toolDefs?.length ?? 0) > 0;
+    if (!willOfferTools) {
+      const supplied = options.clientTools ? Object.keys(options.clientTools).sort() : [];
+      if (supplied.length > 0 || options.dispatch !== undefined) {
+        const named = supplied.length > 0 ? ` for ${supplied.map((n) => `'${n}'`).join(', ')}` : '';
+        console.warn(
+          `[acruxcore] You passed tool implementations${named}, but this prompt has no tools ` +
+            `bound, so the run is a plain completion and none of them will be called. Connect ` +
+            `the tool on the prompt's Tools tab in the dashboard, or pass ` +
+            `toolRefs: [{ name: ... }] to name it on this call.`,
+        );
+      }
+    }
+
     return this.runToolLoop({
       ...options,
       model,
       messages: options.messages ?? rendered.messages,
-      toolRefs: options.toolRefs ?? derivedRefs,
+      toolRefs: effectiveToolRefs,
       promptVersionId: options.promptVersionId ?? rendered.versionId ?? undefined,
       variables: options.variables ?? rendered.variables,
     });
   }
 
   // ── Private helpers ──
+
+  /**
+   * @internal Rejects a declared tool handed to `chat()`.
+   *
+   * `chat()` and `runToolLoop()` both take a `tools` array, and they mean different
+   * things by it: raw OpenAI definitions here, `acrux.tool` declarations there. Getting
+   * them the wrong way round used to reach the server and come back as
+   * `400 Invalid literal value, expected "function"`, which names neither the field nor
+   * the call that would have worked.
+   */
+  private _assertRawToolDefs(tools: ChatOptions['tools']): void {
+    if (!tools?.length) return;
+    const declared = tools.filter((t) => isAcruxTool(t)).map((t) => (t as unknown as AcruxTool).name);
+    if (declared.length === 0) return;
+    throw new acruxcoreError(
+      `acruxcore: ${declared.map((n) => `'${n}'`).join(', ')} ${declared.length === 1 ? 'was' : 'were'} ` +
+        `declared with acrux.tool, and chat() cannot run a tool — it only offers one to the model ` +
+        `and hands the request back on message.tool_calls. Use runToolLoop({ tools: [...] }) to have ` +
+        `the SDK run them, or pass raw OpenAI definitions here.`,
+      'TOOL_SCHEMA_ERROR',
+    );
+  }
 
   /** @internal Reads the gateway's `x-gateway-*` response metadata headers. */
   private _readGatewayMeta(response: Response): GatewayCallMeta {
@@ -958,7 +1021,6 @@ export class GatewayNamespace {
     const undescribed: Array<{ index: number; ref: ToolRef }> = [];
 
     for (const t of options.tools ?? []) {
-      const { isAcruxTool } = await import('./tools');
       if (!isAcruxTool(t)) {
         throw new acruxcoreError(
           'acruxcore: a value passed to tools was not created by acrux.tool. Declare it with ' +

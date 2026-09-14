@@ -4,6 +4,6 @@
   "link": {
     "type": "generated-index",
     "title": "End-to-end guides",
-    "description": "Task-oriented walkthroughs — each takes one AcruxCore feature from the UI to the API and SDK."
+    "description": "Each guide operates one AcruxCore capability from the dashboard, the API and the SDK. They are grouped by the part of the platform they cover, and every group reads in order the first time."
   }
 }

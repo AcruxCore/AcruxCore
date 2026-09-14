@@ -239,6 +239,35 @@ const traces = await hub.prompts.tracesForVersion(promptId, 1, { limit: 10 });
 
 **Returns** `{ data: TraceSummary[], total, page, limit }`.
 
+## Which call runs your tools
+
+| You have | Call |
+|---|---|
+| Messages you wrote, no tools | [`gateway.chat`](#gatewaychatoptions) |
+| Messages you wrote, and the tools named on the call | [`gateway.runToolLoop`](#gatewayruntoolloopoptions) |
+| A prompt from the catalog | [`prompts.render`](#promptsrendername-alias-variables), then [`gateway.runPromptWithTools`](#gatewayrunpromptwithtoolsrendered-options) |
+
+`chat()` takes `tools` too, but only *offers* them: it returns with
+`finishReason: 'tool_calls'` and the request on `message.tool_calls`, and running it is
+yours to do. It also rejects a tool declared with `acrux.tool` — that shape belongs to
+`runToolLoop`, and the error says so.
+
+Inside the loop, what you pass depends on where the definition lives and whose process
+runs the call:
+
+| Definition lives in | Runs in | Pass |
+|---|---|---|
+| Your code, declared with `acrux.tool` | Your process | `tools: [getWeather]` |
+| The catalog, `http` executor | AcruxCore | Nothing — the prompt's binding is enough, or `toolRefs: [{ name }]` |
+| The catalog, `client` executor | Your process | `clientTools: { get_weather: getWeather }` |
+| Nowhere — inline for this one call | Your process | `toolDefs: [...]` and `dispatch` |
+
+`dispatch` is the escape hatch under all of them, for when tool names are not known
+until runtime.
+
+[Call a prompt's tools from the SDK](/docs/guides/call-a-prompts-tools-from-the-sdk)
+works through each shape end to end, streaming included.
+
 ## `gateway.chat(options)`
 
 One gateway completion at `POST /gateway/chat/completions` — no tool-dispatch
@@ -945,6 +974,6 @@ const session = await hub.sessions.get(sessionId);
 ## Where to next
 
 - [Quickstart](../getting-started/quickstart) — make your first call in ten minutes.
-- [Build and attach a tool](../guides/build-and-attach-a-tool) — the tool loop, end to end.
+- [Create a tool](../guides/create-a-tool) — put a tool in the catalog, from code or from the dashboard.
 - [Chat, stream, and collect feedback with the SDK](../guides/use-the-sdk-for-chat-and-feedback).
 - [Python SDK reference](./python) — same methods, Python style.

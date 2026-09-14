@@ -279,3 +279,72 @@ async def test_execute_sends_no_trace_context_when_none_is_given():
         await client.tools.execute("t-1", {"city": "Lahore"})
 
     assert seen[0] == {"arguments": {"city": "Lahore"}}
+
+
+def test_tool_detail_from_dict_carries_every_readiness_field():
+    """``GET /tools/:id`` now returns readiness alongside the tool's mutable shell
+    (PR #469): whether it is callable, how many versions exist, the executor
+    `production` serves, and every alias target. ``from_dict`` used to copy exactly
+    id/name/description/teamId/createdBy/createdAt and silently drop the rest."""
+    from acruxcore.types import ToolDetail
+
+    detail = ToolDetail.from_dict(
+        {
+            "id": "t-1",
+            "name": "get_weather",
+            "description": "Get the weather.",
+            "teamId": "team-1",
+            "createdBy": "u-1",
+            "createdAt": "2026-01-01T00:00:00.000Z",
+            "callable": True,
+            "versionCount": 3,
+            "latestVersionNumber": 3,
+            "executorType": "http",
+            "aliases": [
+                {"alias": "production", "versionNumber": 2},
+                {"alias": "staging", "versionNumber": 3},
+            ],
+        }
+    )
+
+    assert detail.callable is True
+    assert detail.version_count == 3
+    assert detail.latest_version_number == 3
+    assert detail.executor_type == "http"
+    assert [(a.alias, a.version_number) for a in detail.aliases] == [
+        ("production", 2),
+        ("staging", 3),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_get_returns_the_readiness_fields_from_a_real_response():
+    """The same round trip through the real client, not just ``from_dict`` in isolation."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path.endswith("/tools/t-1")
+        return httpx.Response(
+            200,
+            json={
+                "id": "t-1",
+                "name": "get_weather",
+                "description": None,
+                "teamId": "team-1",
+                "createdBy": "u-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "callable": False,
+                "versionCount": 0,
+                "latestVersionNumber": None,
+                "executorType": None,
+                "aliases": [],
+            },
+        )
+
+    async with make_client(handler) as client:
+        detail = await client.tools.get("t-1")
+
+    assert detail.callable is False
+    assert detail.version_count == 0
+    assert detail.latest_version_number is None
+    assert detail.executor_type is None
+    assert detail.aliases == []

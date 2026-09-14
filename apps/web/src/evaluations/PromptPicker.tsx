@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { usePrompts } from '@/api';
+import { filterPrompts, useAllPrompts } from '@/api';
 import { useClickOutside } from '@/ui';
 
 export interface PromptPickerProps {
@@ -11,10 +11,12 @@ export interface PromptPickerProps {
 }
 
 /**
- * Searchable single-select for choosing one of the team's prompts, backed by
- * `usePrompts`' `search` param. Shared by {@link RuleDrawer}'s prompt-alias
- * filter picker and its judge-prompt picker — both need "find a prompt by
- * name", nothing more prompt-domain-specific than that.
+ * Searchable single-select for choosing one of the team's prompts, backed by the full
+ * catalog from {@link useAllPrompts} and filtered client-side by {@link filterPrompts} —
+ * not `usePrompts`' server-paginated `search`, which only ever searched the first 20
+ * rows and left any prompt past it unreachable from here. Shared by
+ * {@link RuleDrawer}'s prompt-alias filter picker and its judge-prompt picker — both need
+ * "find a prompt by name", nothing more prompt-domain-specific than that.
  */
 export function PromptPicker({ id, value, onChange, placeholder }: PromptPickerProps) {
   const [open, setOpen] = useState(false);
@@ -22,8 +24,8 @@ export function PromptPicker({ id, value, onChange, placeholder }: PromptPickerP
   const rootRef = useRef<HTMLDivElement>(null);
   useClickOutside(rootRef, () => setOpen(false));
 
-  const { data } = usePrompts({ search: query.trim() || undefined });
-  const results = data?.data ?? [];
+  const { data: prompts } = useAllPrompts();
+  const results = filterPrompts(prompts ?? [], query);
 
   return (
     <div ref={rootRef} className="relative">

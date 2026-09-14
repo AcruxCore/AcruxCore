@@ -193,7 +193,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
           ],
           [
             'The ',
-            { text: 'versioned tool catalog', href: `${DOCS_URL}/docs/guides/build-and-attach-a-tool` },
+            { text: 'versioned tool catalog', href: `${DOCS_URL}/docs/guides/create-a-tool` },
             ' stores each tool with its version history, and the gateway runs the tool when a model calls it. No other platform in our comparison keeps versions of a tool and also runs it. Langfuse and Laminar store a tool schema inside a playground, and nothing runs it. Phoenix, Opik, and Helicone have no tool catalog. MLflow catalogs whole MCP servers, each a bundle of tools, rather than single tools.',
           ],
           [

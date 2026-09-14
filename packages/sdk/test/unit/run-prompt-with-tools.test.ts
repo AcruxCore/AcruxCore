@@ -697,4 +697,136 @@ describe('runPromptWithTools', () => {
       expect(which).toEqual(['declared']);
     });
   });
+  /**
+   * A prompt with nothing bound runs as a plain completion, and used to say so nowhere.
+   * That is the right default — throwing would fail an unconfigured prompt for no reason —
+   * but it is the wrong silence once the caller has handed over an implementation.
+   * Passing `clientTools` says "run this function"; resolving zero tools means it never
+   * will, and the run still returns an answer that reads as though everything worked.
+   */
+  describe('when implementations are supplied but the prompt binds no tools', () => {
+    it('warns, naming the tool and the two ways to fix it', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+        jsonResponse(PLAIN_COMPLETION, { 'x-gateway-trace-id': 'tr-1' }),
+      );
+
+      const result = await hub.gateway.runPromptWithTools(renderResult(), {
+        clientTools: { search_flights: () => 'PK-999' },
+      });
+
+      expect(result.content).toBe('Sunny.');
+      const message = warn.mock.calls.map((c) => String(c[0])).join('\n');
+      expect(message).toContain('search_flights');
+      expect(message).toContain('no tools');
+      expect(message).toContain('toolRefs');
+      warn.mockRestore();
+    });
+
+    it('stays quiet when no implementation was supplied', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+        jsonResponse(PLAIN_COMPLETION, { 'x-gateway-trace-id': 'tr-1' }),
+      );
+
+      await hub.gateway.runPromptWithTools(renderResult());
+
+      expect(warn).not.toHaveBeenCalled();
+      warn.mockRestore();
+    });
+
+    it('stays quiet when toolRefs names the tool explicitly', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      (global.fetch as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(jsonResponse({ data: [resolvedTool('search_flights')] }))
+        .mockResolvedValue(jsonResponse(PLAIN_COMPLETION, { 'x-gateway-trace-id': 'tr-1' }));
+
+      await hub.gateway.runPromptWithTools(renderResult(), {
+        toolRefs: [{ name: 'search_flights' }],
+        clientTools: { search_flights: () => 'PK-999' },
+      });
+
+      expect(warn).not.toHaveBeenCalled();
+      warn.mockRestore();
+    });
+
+    it('warns when toolRefs is explicitly empty and clientTools was supplied, since nothing is offered either way', async () => {
+      // `toolRefs: []` genuinely opts out of every tool, the same as the prompt binding
+      // nothing at all — an old blanket "any explicit toolRefs silences the warning" was
+      // an oversight, not a deliberate opt-out signal, so this must warn just like the
+      // no-toolRefs-at-all case above.
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+        jsonResponse(PLAIN_COMPLETION, { 'x-gateway-trace-id': 'tr-1' }),
+      );
+
+      await hub.gateway.runPromptWithTools(renderResult(), {
+        toolRefs: [],
+        clientTools: { search_flights: () => 'PK-999' },
+      });
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(calls().some(([url]) => url.includes('/tools/resolve'))).toBe(false);
+      warn.mockRestore();
+    });
+
+    it('stays quiet for tools=[fn] with no bindings, and puts the tool in the request', async () => {
+      // The bug this closes: `tools` builds its own refs independently of the prompt's
+      // bindings, so the tool IS offered to the model and IS dispatched even though
+      // nothing is bound — the old condition warned here anyway.
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(PLAIN_COMPLETION));
+
+      const weather = acrux.tool(
+        { name: 'get_weather', description: 'Get the weather.', parameters: { city: 'string' } },
+        async () => ({ tempC: 30 }),
+      );
+
+      await hub.gateway.runPromptWithTools(renderResult(), { tools: [weather], sync: false });
+
+      expect(warn).not.toHaveBeenCalled();
+      expect(chatBodies()[0]!['tool_refs']).toEqual([
+        { name: 'get_weather', alias: 'production' },
+      ]);
+      warn.mockRestore();
+    });
+
+    it('stays quiet for dispatch + toolDefs with no bindings', async () => {
+      // toolDefs are raw schemas sent straight through as `tools`, independently of
+      // toolRefs — so dispatch really can run them, and the old condition was wrong to
+      // warn here too.
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(PLAIN_COMPLETION));
+
+      await hub.gateway.runPromptWithTools(renderResult(), {
+        toolDefs: [{ type: 'function', function: { name: 'get_weather', parameters: {} } }],
+        dispatch: () => 'x',
+      });
+
+      expect(warn).not.toHaveBeenCalled();
+      expect(chatBodies()[0]!['tools']).toEqual([
+        { type: 'function', function: { name: 'get_weather', parameters: {} } },
+      ]);
+      warn.mockRestore();
+    });
+
+    it('stays quiet when the prompt itself binds a tool, however the implementation was supplied', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(jsonResponse({ data: [resolvedTool('search_flights')] }))
+        .mockResolvedValue(jsonResponse(PLAIN_COMPLETION, { 'x-gateway-trace-id': 'tr-1' }));
+
+      await hub.gateway.runPromptWithTools(
+        renderResult({
+          toolResolutions: [
+            { name: 'search_flights', alias: 'production', versionNumber: 4, source: 'alias' },
+          ],
+        }),
+        { clientTools: { search_flights: () => 'PK-999' } },
+      );
+
+      expect(warn).not.toHaveBeenCalled();
+      warn.mockRestore();
+    });
+  });
 });

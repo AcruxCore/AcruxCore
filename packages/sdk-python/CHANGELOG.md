@@ -12,6 +12,44 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+## 0.15.0 — 2026-09-14
+
+### Added
+
+- `ToolDetail` now carries `callable`, `version_count`, `latest_version_number`,
+  `executor_type` and `aliases` — the same readiness fields the API's `tools.list()`/
+  `tools.get()` already return. `ToolAliasTarget` is exported for an `aliases` entry.
+
+### Changed
+
+- `gateway.run_prompt_with_tools()` warns when you pass `client_tools`, `dispatch` or
+  `tools` and the prompt has no tools bound. The run is still a plain completion, as
+  before — but the function you handed over is never called, and nothing used to say so.
+- **Breaking.** `ToolDetail` gained five required fields (`callable`, `version_count`,
+  `latest_version_number`, `executor_type`, `aliases`). It is a `@dataclass` with no
+  defaults, so code that *constructs* one — a test fixture or a fake client — now raises
+  `TypeError: __init__() missing 5 required positional arguments`. Code that only reads a
+  `ToolDetail` returned by `tools.get()` / `tools.list()` is unaffected.
+
+  **Migrating from 0.14**
+
+  1. Grep for `ToolDetail(` in your own code. Only literal constructions need changing;
+     there is no rename and no call-signature change.
+  2. Supply the five fields, or build the object from a payload with
+     `ToolDetail.from_dict(...)`, which fills them for you.
+
+  Python catches this at run time, not at import time — a fixture that is only built
+  inside one test path will not fail until that test runs.
+
+### Fixed
+
+- `gateway.chat(tools=[...])` now rejects a function decorated with `@acrux.tool` before
+  sending anything, naming the tool and pointing at `run_tool_loop`. It used to die inside
+  `json.dumps` as `Object of type function is not JSON serializable`.
+- The no-tools-bound warning above could fire even when `tools` or `tool_defs` already gave
+  the model something to call — it read only the prompt's own bindings. It now fires only
+  when the run truly offers the model nothing.
+
 ## 0.14.0 — 2026-09-14
 
 ### Added

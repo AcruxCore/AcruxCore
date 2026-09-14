@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ApiError, useAliases, useCreatePrompt, useModels, usePrompts, useOptimize } from '@/api';
+import { ApiError, filterPrompts, useAliases, useAllPrompts, useCreatePrompt, useModels, useOptimize } from '@/api';
 import type { StartRunResponse } from '@/api';
 import { Button, Dialog, DialogFooter, Field, Input, Select, useToast } from '@/ui';
 import { ModelCheckboxList } from './ModelCheckboxList';
@@ -43,7 +43,11 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
     warning: NonNullable<StartRunResponse['prompt_mismatch_warning']>;
   } | null>(null);
 
-  const prompts = usePrompts({ search: promptSearch || undefined });
+  const allPrompts = useAllPrompts();
+  const prompts = useMemo(
+    () => filterPrompts(allPrompts.data ?? [], promptSearch),
+    [allPrompts.data, promptSearch],
+  );
   const aliases = useAliases(promptId);
   const gatewayModels = useModels();
   const optimize = useOptimize(promptId || 'unset');
@@ -125,10 +129,10 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
               aria-label="Prompt to improve"
               value={promptId}
               onChange={(e) => setPromptId(e.target.value)}
-              disabled={prompts.isLoading}
+              disabled={allPrompts.isLoading}
             >
-              <option value="">{prompts.isLoading ? 'Loading…' : 'Select a prompt'}</option>
-              {(prompts.data?.data ?? []).map((p) => (
+              <option value="">{allPrompts.isLoading ? 'Loading…' : 'Select a prompt'}</option>
+              {prompts.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </Select>

@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "noEmit": true
+  },
+  "include": ["src/**/*", "test/unit/tools-api.test.ts", "test/unit/run-prompt-with-tools.test.ts", "test/unit/chat-tool-shape.test.ts"],
+  "exclude": ["node_modules", "dist"]
+}

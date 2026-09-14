@@ -64,7 +64,20 @@ A **tool** is a function the model can ask you to run — `get_weather`,
 `search_orders`. The model sees it in OpenAI-function shape: a name, a description,
 and a JSON Schema for its arguments.
 
-### The function is the definition
+Everything else about tools comes down to three questions, and they are independent.
+Keeping them apart is most of what makes the rest of this section readable:
+
+| Question | The answer |
+|---|---|
+| **Who writes the definition** — the name, description and argument schema | Your code (`@acrux.tool`), or the catalog (dashboard or API) |
+| **Who runs the call** | Your process (`client` executor), or AcruxCore (`http` executor) |
+| **How a prompt gets the tool** | A binding, set on the prompt's Tools tab |
+
+The one place they touch: a tool declared with `@acrux.tool` is always `client`,
+because the declaration includes the function body. A tool defined in the catalog can
+be either.
+
+### The function can be the definition
 
 Declare a tool where its code already lives, and AcruxCore derives the rest of it:
 
@@ -93,13 +106,19 @@ calling a field your function no longer has.
 Tools live in a **catalog** and are versioned exactly like prompts — immutable
 versions, with `production` and `staging` aliases.
 
-You don't create the catalog entry by hand. The first run **syncs** the tool you
-declared: it creates the entry if the name is new, commits a version, and moves the
-alias to it. Sync is reconcile-or-nothing — an unchanged spec commits nothing, a
-changed one commits the next version. From then on the model is served the tool as a
-catalog **reference** (name + alias) rather than an inline schema. So what the model
-reads is what the catalog holds, the two cannot drift apart, and every tool call can
-be traced back to the version that was live when it ran.
+A tool is a name plus at least one version. The name alone resolves to nothing, so a
+tool with no committed version cannot be called; the catalog marks that state rather
+than leaving you to find out from a run. Committing the first version creates both
+aliases at once, which is why creating a tool in the dashboard asks for the version in
+the same step.
+
+A declared tool needs no catalog entry written by hand. The first run **syncs** it: it
+creates the entry if the name is new, commits a version, and moves the alias to it.
+Sync is reconcile-or-nothing — an unchanged spec commits nothing, a changed one commits
+the next version. From then on the model is served the tool as a catalog **reference**
+(name + alias) rather than an inline schema. So what the model reads is what the catalog
+holds, the two cannot drift apart, and every tool call can be traced back to the version
+that was live when it ran.
 
 Two fields are easy to mix up, and keeping them apart matters:
 
@@ -112,10 +131,10 @@ Two fields are easy to mix up, and keeping them apart matters:
 
 Every version declares an **executor**, and that is what decides who runs the call:
 
-- **`client`** — your process runs it. A tool declared with `acrux.tool` is always
-  this, because the declaration includes the function body.
-- **`http`** — the platform calls a URL you declared. No local code and no deploy,
-  and the platform writes the span itself with the real request and response.
+- **`client`** — your process runs it. You supply the function at call time, under the
+  tool's name: `client_tools={"get_weather": get_weather}`.
+- **`http`** — AcruxCore calls a URL you declared. No local code and no deploy, and the
+  platform writes the span itself with the real request and response.
 
 The tool-calling loop resolves executors *before* the first model call, so a `client`
 tool with nothing able to run it fails right away instead of halfway through a run
@@ -123,24 +142,90 @@ you already paid tokens for.
 
 ### Who owns a definition
 
-Tools can also be authored in the dashboard or over the API, and every path writes to
-the same catalog — so each version records its **source**: `code`, `dashboard`, or
-`api`. The rule is that **code wins when it syncs, but never quietly**: the dashboard
-marks a code-owned tool with a *Defined in code* badge and warns before you edit it,
-and the SDK warns when a sync supersedes someone's dashboard edit. Nothing is ever
-lost, because versions are immutable — the superseded version stays in the list and
-can be promoted back.
+Every path — a decorated function, the dashboard, the API — writes to the same catalog,
+so each version records its **source**: `code`, `dashboard`, or `api`. The rule is that
+**code wins when it syncs, but never quietly**: the dashboard marks a code-owned tool
+with a *Defined in code* badge and warns before you edit it, and the SDK warns when a
+sync supersedes someone's dashboard edit. Nothing is ever lost, because versions are
+immutable — the superseded version stays in the list and can be promoted back.
 
-### Attaching a tool to a prompt
+### Binding a tool to a prompt
 
-- **Client** — your app runs the tool and returns the result. Declaring it with
-  `acrux.tool` is the shortest way there: the decorator derives the version's schema
-  from your function, and the SDK's tool-calling loop syncs it and runs it.
-- **HTTP** — the platform itself calls a URL you declare, so the tool runs
-  server-side and needs no local code.
+A prompt does not contain its tools. It **binds** them, and a binding is a small
+record: *when this prompt is served through this alias, call this tool at this
+version*. You set them on the prompt's Tools tab, and they take effect immediately —
+there is no prompt version to commit, because a tool choice is not part of the
+template.
 
-[Build and attach a tool](../guides/build-and-attach-a-tool) walks all of this
-through in code.
+Each binding resolves the tool one of two ways, and the difference is the whole
+reason bindings exist:
+
+- **Follow one of the tool's aliases** — usually `production`. Promoting that alias
+  changes what the prompt runs, with no edit to the prompt.
+- **Pin one exact version** — the prompt keeps running that build whatever the aliases
+  do afterwards.
+
+Bindings are keyed by the *prompt's* alias, not by its version. One default row is
+inherited by every prompt alias, and any alias can be given its own row to override
+it — which is how `staging` tries a new tool while `production` keeps the old one.
+An alias with no row of its own follows the default, so promoting a new prompt alias
+needs no setup at all.
+
+A caller can also skip bindings entirely and name the tools on the request itself, as
+`tool_refs`. That is the right shape when the tool set is decided at runtime rather
+than by configuration.
+
+### Which SDK call runs the tools
+
+Three calls run a model, and the only thing that separates them is how much you are
+holding already:
+
+| You have | Call | What it does |
+|---|---|---|
+| Messages you wrote, no tools | `gateway.chat()` | One request, one answer |
+| Messages you wrote, and the tools named on the call | `gateway.run_tool_loop()` | Calls the model, runs the tools it asks for, repeats until it answers |
+| A prompt from the catalog | `prompts.render()`, then `gateway.run_prompt_with_tools()` | The same loop, with the model, the messages and the tools all read from the prompt |
+
+The names above are the Python SDK's. Node spells the same three `chat`, `runToolLoop`
+and `runPromptWithTools` — see the [Node](../sdk-reference/node) and
+[Python](../sdk-reference/python) references.
+
+`chat()` also accepts `tools`, and that is the one pairing worth knowing about: it
+*offers* the definitions to the model but never runs them. The call comes back with
+`finish_reason="tool_calls"` and the model's request on `message["tool_calls"]`, and
+running it is yours to do. That is the right shape when you want your own loop, and the
+wrong one when you expected an answer.
+
+Once you are in the loop, a second question decides what you pass — where the
+definition lives, and whose process runs the call:
+
+| Definition lives in | Runs in | Pass |
+|---|---|---|
+| Your code, declared with `@acrux.tool` | Your process | `tools=[get_weather]` |
+| The catalog, `http` executor | AcruxCore | Nothing — the prompt's binding is enough, or `tool_refs=[...]` to name it on the call |
+| The catalog, `client` executor | Your process | `client_tools={"get_weather": get_weather}` |
+| Nowhere — declared inline for this one call | Your process | `tool_defs=[...]` and `dispatch=...` |
+
+`dispatch` is the escape hatch under all of them: one function taking a tool name and
+its arguments, for when the names are not known until runtime. Everything else is a
+shortcut for the common case where they are.
+
+The loop resolves all of this before the first model call, so a mistake here costs no
+tokens. A `client` tool with nothing able to run it raises `MISSING_DISPATCH` naming
+the tool and the keys you did supply, rather than failing halfway through a run.
+
+### Which page do you need
+
+The five guides under [Tools](/docs/guides/tools) run in this order, and each one
+answers a different question:
+
+| If you want to | Read |
+|---|---|
+| Put a tool in the catalog, from a decorated function or from the dashboard | [Create a tool](../guides/create-a-tool) |
+| Connect a catalog tool to a prompt, and give one alias its own tools | [Connect a tool to a prompt](../guides/connect-a-tool-to-a-prompt) |
+| Run a prompt's bound tools from the SDK, streaming or not | [Call a prompt's tools from the SDK](../guides/call-a-prompts-tools-from-the-sdk) |
+| Commit a second version, move an alias, read call volume and latency | [Version and track a tool](../guides/version-and-track-a-tool) |
+| Record a failure your tool can see but the HTTP status cannot | [Report a tool failure from your own code](../guides/report-a-tool-failure-from-your-own-code) |
 
 ## Datasets, experiments, and evaluation
 

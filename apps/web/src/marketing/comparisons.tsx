@@ -108,8 +108,8 @@ export const ACRUX_CORE = {
     source: { label: 'Route calls through the gateway', href: `${DOCS_URL}/docs/guides/route-calls-through-the-gateway` },
   },
   toolCatalog: {
-    value: 'A Tool Catalog that keeps every version of each tool. The gateway runs those tools, and the catalog has its own analytics page.',
-    source: { label: 'Build and attach a tool', href: `${DOCS_URL}/docs/guides/build-and-attach-a-tool` },
+    value: 'A Tool Catalog that keeps every version of each tool. The gateway runs those tools, and the catalog reports per-tool usage analytics.',
+    source: { label: 'Create a tool', href: `${DOCS_URL}/docs/guides/create-a-tool` },
   },
   teamStructure: {
     value: 'One team with members, invites, and roles. Nothing sits above the team.',

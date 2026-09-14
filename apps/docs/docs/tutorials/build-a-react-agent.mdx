@@ -46,7 +46,7 @@ The examples below were run against OpenAI, so that is the default. Two things v
 A tool is a **shell** (name + description) plus an immutable **version** carrying the JSON schema the model reads. Both tools use `"executor": {"type": "client"}` — "my own code runs this," the same contract [Build a tool-calling agent in Python (no SDK)](./build-a-tool-calling-agent-in-python-no-sdk) uses for its `get_weather` tool.
 
 :::tip[Other ways to create tools]
-You can also create tools through the [dashboard](../guides/build-and-attach-a-tool) (no code), or declare them in code with [`acrux.tool`](../guides/build-and-attach-a-tool) so the first run auto-registers them in the catalog.
+You can also create tools through the [dashboard](../guides/create-a-tool) (no code), or declare them in code with [`acrux.tool`](../guides/create-a-tool) so the first run auto-registers them in the catalog.
 :::
 
 <Tabs groupId="lang">
@@ -184,7 +184,7 @@ await hub.tools.commitVersion(tool2.id, {
 The prompt's system message is what turns two tools into a ReAct-style agent: it tells the model to reason before acting, names both tools, and says when to reach for each. Binding both tools to the prompt means a single render call returns everything the loop needs.
 
 :::tip[Other ways to create prompts]
-You can also author prompts in the [dashboard's visual editor](../guides/version-a-prompt), or declare tools in code with [`acrux.tool`](../guides/build-and-attach-a-tool) and have the first run auto-create the prompt.
+You can also author prompts in the [dashboard's visual editor](../guides/version-a-prompt), or declare tools in code with [`acrux.tool`](../guides/create-a-tool) and have the first run auto-create the prompt.
 :::
 
 <Tabs groupId="lang">

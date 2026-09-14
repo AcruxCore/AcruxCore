@@ -55,6 +55,13 @@ export function Sidebar() {
       <Item to="/prompts" icon={ic(<><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h10" /></>)}>
         Prompts
       </Item>
+      {/* Beside Prompts, not under Gateway. A tool is something you author, and the
+          gateway is only one of the things that can call it — filing it under Gateway
+          sent people looking for the catalog in the wrong half of the sidebar. Usage
+          numbers are a tab on this page rather than a nav entry of their own. */}
+      <Item to="/tools" icon={ic(<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.4 2.4-2-2 2.4-2.4Z" />)}>
+        Tools
+      </Item>
       <Item to="/team" icon={ic(<><circle cx="9" cy="8" r="3" /><path d="M2 20a7 7 0 0 1 14 0" /><path d="M17 5a3 3 0 0 1 0 6" /><path d="M22 20a6 6 0 0 0-4-5.6" /></>)}>
         Team
       </Item>
@@ -92,12 +99,6 @@ export function Sidebar() {
       </Item>
       <Item to="/gateway/budgets" icon={ic(<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>)}>
         Budgets
-      </Item>
-      <Item to="/gateway/tools" icon={ic(<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.4 2.4-2-2 2.4-2.4Z" />)}>
-        Tools
-      </Item>
-      <Item to="/gateway/tools/analytics" icon={ic(<><rect x="4" y="12" width="4" height="8" rx="1" /><rect x="10" y="7" width="4" height="13" rx="1" /><rect x="16" y="3" width="4" height="17" rx="1" /></>)}>
-        Tool analytics
       </Item>
 
       <div className="mt-4 px-2 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.09em] text-faint">

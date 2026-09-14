@@ -74,7 +74,7 @@ const GUIDES: Guide[] = [
   },
   {
     title: 'Tools',
-    href: '/docs/guides/build-and-attach-a-tool',
+    href: '/docs/guides/create-a-tool',
     body: 'Callable functions, versioned like prompts, that you attach to a prompt and hand to the model.',
     icon: (
       <Ic>

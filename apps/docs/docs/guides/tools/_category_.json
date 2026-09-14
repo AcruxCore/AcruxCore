@@ -1,0 +1,11 @@
+{
+  "label": "Tools",
+  "position": 4,
+  "collapsed": true,
+  "link": {
+    "type": "generated-index",
+    "title": "Tools",
+    "slug": "/guides/tools",
+    "description": "A tool is a function the model can ask you to run. These five guides take one from creation to a prompt, to your SDK call, to a second version, and to a failure you can see in a trace. Read them in order the first time."
+  }
+}

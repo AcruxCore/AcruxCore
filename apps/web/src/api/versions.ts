@@ -7,16 +7,26 @@ import type {
   VersionListItem,
 } from './types';
 import { api } from './client';
+import { fetchAllPages } from './paging';
 import { keys } from './queryClient';
 
-/** List a prompt's versions (newest first, paginated by the API). */
+/**
+ * List every one of a prompt's versions, newest first.
+ *
+ * Reads all pages rather than the API's first-page default (which the server caps at
+ * `limit=100`): this list feeds the promote/rollback control, so a prompt with more than
+ * 100 committed versions must not have its oldest versions quietly become impossible to
+ * roll back to.
+ */
 export function useVersions(promptId: string) {
   return useQuery({
     queryKey: keys.versions(promptId),
     queryFn: () =>
-      api<Paginated<VersionListItem>>(`/prompts/${promptId}/versions`, {
-        query: { limit: 100 },
-      }),
+      fetchAllPages<VersionListItem>(
+        (page, limit) =>
+          api<Paginated<VersionListItem>>(`/prompts/${promptId}/versions`, { query: { page, limit } }),
+        `GET /prompts/${promptId}/versions`,
+      ),
     enabled: !!promptId,
   });
 }

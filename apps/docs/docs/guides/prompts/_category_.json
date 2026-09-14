@@ -1,0 +1,11 @@
+{
+  "label": "Prompts",
+  "position": 1,
+  "collapsed": true,
+  "link": {
+    "type": "generated-index",
+    "title": "Prompts",
+    "slug": "/guides/prompts",
+    "description": "A prompt is a named, versioned set of messages your app renders at run time. These five guides create one, template it, ship a version to production, and move a whole library between teams."
+  }
+}

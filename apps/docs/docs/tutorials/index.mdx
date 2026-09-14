@@ -132,7 +132,7 @@ The options above aren't equally right for every situation. Each is a real decis
 **HTTP tool or client tool?**
 
 - **HTTP tool (#1)** when the tool is an external HTTP API the gateway can call for you — you describe the request once, including where a secret goes, and never run anything yourself.
-- **Client tool (#2 onward)** when the tool runs against your own systems — your code executes it and reports the result back onto the trace. See [Build and attach a tool](/docs/guides/build-and-attach-a-tool).
+- **Client tool (#2 onward)** when the tool runs against your own systems — your code executes it and reports the result back onto the trace. See [Create a tool](/docs/guides/create-a-tool).
 
 **Free-text answers or structured output?**
 
@@ -161,5 +161,5 @@ Recurring terms across the eight tutorials. Each is introduced in-line on first 
 - **BYO (bring your own key)** — skipping the gateway and calling a provider directly with your own key; AcruxCore still versions the prompt and records a client-side trace. Introduced in **#4**.
 - **`response_format`** — a request-time gateway parameter that forces the model's reply into a typed JSON shape. How it's enforced differs by provider: native on OpenAI and Gemini, translated to a forced tool call on Anthropic. Introduced in **#7** for a routing decision; used for a full typed answer in **#8**.
 - **Supervisor / router** — a small model call whose only job is to classify an incoming request and hand it to a specialist subagent. Introduced in **#7**.
-- **Tool-description ownership** — a decorated tool's model-facing description can live in code (a docstring) or in the dashboard; omit the docstring and `tools.sync()` leaves the dashboard copy untouched. Introduced in **#7**; see [Build and attach a tool](/docs/guides/build-and-attach-a-tool).
+- **Tool-description ownership** — a decorated tool's model-facing description can live in code (a docstring) or in the dashboard; omit the docstring and `tools.sync()` leaves the dashboard copy untouched. Introduced in **#7**; see [Create a tool](/docs/guides/create-a-tool).
 - **Trace** — the recorded tree of spans (model calls, tool calls) for one run. Every tutorial ends by reading one back. See [Trace an LLM call](/docs/guides/trace-an-llm-call).

@@ -51,7 +51,7 @@ export function PromptDetailPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Determine the version to seed the editor draft from: production, else latest.
   const versionNums = useMemo(
-    () => (versions.data?.data ?? []).map((v) => v.versionNumber),
+    () => (versions.data ?? []).map((v) => v.versionNumber),
     [versions.data],
   );
   const maxNum = versionNums.length ? Math.max(...versionNums) : null;

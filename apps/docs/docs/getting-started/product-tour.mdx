@@ -125,7 +125,7 @@ async with AcruxCore() as hub:
     print(result.trace_id)
 ```
 
-Open **Gateway → Tools → get_weather** and it's there, with a **Defined in code**
+Open **Tools → get_weather** and it's there, with a **Defined in code**
 badge:
 
 ![The get_weather tool after a sync, showing the Defined in code badge](/img/tutorials/product-tour/02-tool-catalog.png)
@@ -139,7 +139,7 @@ the messages:
 
 :::tip[No SDK? Connect a tool from the dashboard or curl]
 `acrux.tool` is the code-first path. Prefer clicking, or calling curl directly? See
-[Build and attach a tool](../guides/build-and-attach-a-tool) for the dashboard walkthrough,
+[Create a tool](../guides/create-a-tool) for the dashboard walkthrough,
 or [Store prompts and tools via the API](../guides/store-prompts-and-tools-via-api)
 for creating an HTTP-executor tool with `POST /tools` — no local code at all.
 :::
@@ -335,6 +335,6 @@ person made. Ask "why was this answer wrong?" of a trace, and "who moved
 ## Where to next
 
 - [Core concepts](./core-concepts) for the full mental model
-- [Alias and track usage of tools in the catalog](../guides/alias-and-track-usage-of-tools-in-the-catalog)
+- [Version and track a tool](../guides/version-and-track-a-tool)
 - [Improve a prompt from feedback](../guides/improve-a-prompt-from-feedback)
 - [Tutorials](../tutorials/) — eight agent builds from no-code to multi-agent

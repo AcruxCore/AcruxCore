@@ -478,7 +478,17 @@ export interface ImportPromptResult {
   version: { id: string; versionNumber: number };
 }
 
-/** A catalog tool's mutable shell — the shared shape for `create`/`get`/`update`/`list` items. */
+/** Where one of a tool's aliases currently points, as reported inline on the tool's readiness. */
+export interface ToolAliasTarget {
+  alias: string;
+  versionNumber: number;
+}
+
+/**
+ * A catalog tool's mutable shell plus its readiness — the shared shape for
+ * `create`/`get`/`update`/`list` items. List items carry the SAME full shape as
+ * `get`/`create`/`update` — there is no narrower list-item DTO for tools.
+ */
 export interface ToolDetail {
   id: string;
   name: string;
@@ -486,6 +496,20 @@ export interface ToolDetail {
   teamId: string;
   createdBy: string;
   createdAt: string;
+  /** True once a version exists and `production` points at one — the resolvable state. */
+  callable: boolean;
+  /** How many versions have been committed. Zero means the tool is a name only. */
+  versionCount: number;
+  /** Highest committed version number, or null when there are none. */
+  latestVersionNumber: number | null;
+  /**
+   * Executor of the version `production` currently serves — who runs the call. Null
+   * when the tool is not callable. Production's, not the latest version's, because
+   * that is what an unqualified `tool_ref` and a newly connected binding both resolve to.
+   */
+  executorType: 'client' | 'http' | null;
+  /** Every alias on the tool with the version it points at, `production` first. */
+  aliases: ToolAliasTarget[];
 }
 
 /** Result of {@link ToolsNamespace.list} — a page of tools. */
@@ -542,6 +566,28 @@ export type ToolExecutor =
       argMapping?: { arg: string; in: 'query' | 'path' | 'header' | 'body'; path?: string }[];
       requestTransform?: string;
       responseTransform?: string;
+      /**
+       * A JS predicate deciding whether a completed call actually failed, for the case
+       * only the tool's owner can judge — an HTTP 200 carrying
+       * `{"error": "location not found"}`. Same contract as the two transforms: a source
+       * defining `function transform(input) { ... }`, checked at commit. It receives the
+       * raw `{ status, headers, body }` and returns `null` for a success or
+       * `{ type?, message }` to declare a failure.
+       */
+      failureWhen?: string;
+      /**
+       * JSON Schema the transformed result must satisfy — the shape the model actually
+       * consumes.
+       */
+      resultSchema?: Record<string, unknown>;
+      /**
+       * What a `resultSchema` mismatch means. Absent on the server reads as `warn`, but
+       * this is deliberately left `.optional()` with no default here too: the server
+       * itself never defaults it (a default would rewrite every stored executor's JSON,
+       * including the overwhelming majority that declare no result schema at all), so a
+       * client-side default would just be a value this field never actually carries.
+       */
+      resultSchemaSeverity?: 'warn' | 'error';
     };
 
 /** Input to {@link ToolsNamespace.commitVersion}. */

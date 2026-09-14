@@ -74,6 +74,26 @@ Each `chunk` mirrors one `chat.completion.chunk` SSE frame (`id`, `model`,
 
 ## Tools
 
+Three calls run a model, and which one you want depends on what you are holding:
+
+| You have | Call |
+|---|---|
+| Messages you wrote, no tools | `gateway.chat` |
+| Messages you wrote, and the tools named on the call | `gateway.run_tool_loop` |
+| A prompt from the catalog | `prompts.render`, then `gateway.run_prompt_with_tools` |
+
+`chat` takes `tools` too, but only *offers* them: it returns
+`finish_reason="tool_calls"` with the request on `message["tool_calls"]` and runs
+nothing. Inside the loop, what you pass depends on where the tool is defined and
+whose process runs it:
+
+| Definition lives in | Runs in | Pass |
+|---|---|---|
+| Your code, declared with `@acrux.tool` | Your process | `tools=[get_weather]` |
+| The catalog, `http` executor | AcruxCore | Nothing — the binding is enough, or `tool_refs` |
+| The catalog, `client` executor | Your process | `client_tools={"get_weather": get_weather}` |
+| Nowhere — inline for this call | Your process | `tool_defs=` and `dispatch=` |
+
 Decorate a function with `@acrux.tool` and hand it to the loop. The name, the
 model-facing description and the parameter schema all come from the function, so
 there is nothing to keep in sync by hand:

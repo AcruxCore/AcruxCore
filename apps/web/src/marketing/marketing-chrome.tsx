@@ -75,7 +75,7 @@ export const DOCS = {
   useGateway: `${DOCS_URL}/docs/guides/route-calls-through-the-gateway`,
   traceCall: `${DOCS_URL}/docs/guides/trace-an-llm-call`,
   sessionsTraces: `${DOCS_URL}/docs/guides/using-sessions-and-traces`,
-  attachTool: `${DOCS_URL}/docs/guides/build-and-attach-a-tool`,
+  createTool: `${DOCS_URL}/docs/guides/create-a-tool`,
   evaluatePrompt: `${DOCS_URL}/docs/guides/evaluate-a-prompt`,
   inviteTeammate: `${DOCS_URL}/docs/guides/invite-a-teammate`,
   /**
@@ -97,8 +97,7 @@ export const DOCS = {
   payloadCapture: `${DOCS_URL}/docs/guides/configure-trace-payload-capture`,
   crewaiTracing: `${DOCS_URL}/docs/tutorials/trace-a-crewai-trip-planner`,
   connectToolToPrompt: `${DOCS_URL}/docs/guides/connect-a-tool-to-a-prompt`,
-  toolInCodeOrCatalog: `${DOCS_URL}/docs/guides/define-a-tool-in-code-or-in-the-catalog`,
-  toolAliases: `${DOCS_URL}/docs/guides/alias-and-track-usage-of-tools-in-the-catalog`,
+  toolVersions: `${DOCS_URL}/docs/guides/version-and-track-a-tool`,
   evaluationRules: `${DOCS_URL}/docs/guides/score-live-traffic-with-an-evaluation-rule`,
   improveFromFeedback: `${DOCS_URL}/docs/guides/improve-a-prompt-from-feedback`,
   evaluateWithHistory: `${DOCS_URL}/docs/guides/evaluate-a-prompt-with-conversation-history`,

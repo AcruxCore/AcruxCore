@@ -109,8 +109,10 @@ export class ToolsService {
       limit: query.limit,
     });
 
+    const readiness = await this.repo.readinessFor(rows.map((r) => r.id), teamId);
+
     return {
-      data: rows.map(toToolResponseDto),
+      data: rows.map((r) => toToolResponseDto(r, readiness.get(r.id))),
       total,
       page: query.page,
       limit: query.limit,
@@ -127,7 +129,8 @@ export class ToolsService {
   async getById(id: string, teamId: string): Promise<ToolResponseDto> {
     const row = await this.repo.findById(id, teamId);
     if (!row) throw new NotFoundError('Tool not found.');
-    return toToolResponseDto(row);
+    const readiness = await this.repo.readinessFor([row.id], teamId);
+    return toToolResponseDto(row, readiness.get(row.id));
   }
 
   /**
@@ -162,7 +165,8 @@ export class ToolsService {
       metadata: { toolId: id, updated: true },
     });
 
-    return toToolResponseDto(row);
+    const readiness = await this.repo.readinessFor([row.id], teamId);
+    return toToolResponseDto(row, readiness.get(row.id));
   }
 
   /**

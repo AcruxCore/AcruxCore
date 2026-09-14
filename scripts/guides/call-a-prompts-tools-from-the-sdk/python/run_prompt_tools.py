@@ -111,6 +111,7 @@ async def main() -> None:
             client_tools=CLIENT_TOOLS,
             tool_refs=[{"name": t.name, "alias": t.alias} for t in r.tool_resolutions],
             prompt_version_id=r.version_id,
+            variables=r.variables,
             max_iterations=3,
         )
         print("answer        :", by_hand.content)

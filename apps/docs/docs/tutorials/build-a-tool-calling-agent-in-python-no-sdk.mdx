@@ -184,7 +184,7 @@ Full script: [`setup_prompt.py`](https://github.com/AcruxCore/AcruxCore/blob/mai
 ```typescript
 import { acruxcore } from '@acruxcoreai/sdk';
 
-const hub = acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
+const hub = new acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
 
 const tool = await hub.tools.create({
   name: 'get_weather',

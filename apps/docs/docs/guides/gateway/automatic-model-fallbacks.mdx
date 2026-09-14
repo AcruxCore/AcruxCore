@@ -1,0 +1,365 @@
+---
+title: "Retries and fallbacks: what the gateway does when a provider call fails"
+description: Three separate things retry a failing LLM call, and each is set in a different place. Configure all three, then read two real traces to see which one fired.
+sidebar_position: 5
+keywords: [model fallback, gateway retries, maxRetries, fallbackModelIds, provider outage]
+slug: /guides/automatic-model-fallbacks
+sidebar_label: Retries and fallbacks
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Retries and fallbacks: what the gateway does when a provider call fails
+
+**What you'll build:** a model with a fallback chain, a call that sets its own
+retry count, a call that is not allowed to fall back, and two traces you can read
+side by side to tell a retry from a fallback.
+
+A retry and a fallback are not the same thing. A **retry** calls the same model on
+the same credential again, because the failure looked temporary. A **fallback**
+gives up on that model and calls a different registered model instead. The gateway
+does both, in that order. The two are configured in completely different places,
+and mixing them up is the common mistake.
+
+## Three layers, three places to set them
+
+There is a third retry above both of these: the SDK retrying its own HTTP request
+to AcruxCore. All three are called retries, and each one is a different setting.
+
+| What it re-sends | Where you set it | Default |
+|---|---|---|
+| The SDK's own request **to AcruxCore** | The client constructor: `new AcruxCore({ maxRetries })` in Node, `AcruxCore(max_retries=...)` in Python | 1 extra attempt, 500ms apart |
+| The **same model on the same credential** | The request body: `gateway.maxRetries`, 0 to 5 | 1 extra attempt, backing off |
+| A **different registered model** | The model's fallback chain | No fallbacks |
+
+The order inside one gateway call is fixed. The gateway tries the first model and
+retries it up to `gateway.maxRetries` times on a transient error. Only then does it
+move to the next model in the fallback chain, where the same retry budget starts
+again.
+
+A 30-second budget runs alongside this, and it governs retries only. Once 30 seconds
+have passed, no model is tried a second time, but the chain still walks the models it
+has not reached yet, one attempt each. So the budget caps how long the gateway spends
+repeating itself, not how long the whole chain can take.
+
+The SDK's own retry sits above all of that. It fires when the SDK cannot reach
+AcruxCore at all, and it re-sends the whole request, which starts the gateway's
+retry and fallback sequence over from the beginning.
+
+## 1. Give a model a fallback chain
+
+A fallback is a property of the model, not of the call. **Every caller of that
+model inherits the chain, and no caller can ask for a different one.** A request
+sends `"model": "free-tier-model"` and nothing else. Which models stand behind that
+name is decided once, in the registry, for everyone. The one thing a caller can do
+per request is switch the chain off, which is [step 3](#3-refuse-to-fall-back-for-one-call).
+
+Open **Gateway → Models** and click **New model**. The dialog asks for the public
+name callers will send, the credential to call it on, and the upstream model name
+that credential's provider knows. The **Fallbacks** list holds every other
+registered model as a checkbox, and each box you check is numbered with its position
+in the chain:
+
+![The New model dialog. Public name reads free-tier-model, Credential reads OpenRouter OpenAI-compatible, Upstream model reads liquid/lfm-2.5-2.6b:free. In the Fallbacks list mistral-small is checked and marked #1, under the caption Tried in order if this model fails](/img/tutorials/automatic-model-fallbacks/04-new-model-dialog.png)
+
+`free-tier-model` points at a free upstream model, which rate-limits under load.
+That is why this guide uses it: a free tier fails the way a busy provider fails, on
+demand, so the retry you will read in step 4 is a real one.
+
+Save, and the summary line under each model spells out its whole chain in order. You
+can read every fallback without opening anything:
+
+![The Models page. The free-tier-model row reads OpenRouter, in and out unpriced, fallback to mistral-small. The unstable-4o-mini row reads openai (revoked key), in $0.15 / out $0.6 per 1M, fallback to mistral-small then llama-3.3-70b](/img/tutorials/automatic-model-fallbacks/01-models-list.png)
+
+Click **Edit** on a model to change a chain that already exists. The same
+**Fallbacks** list appears, with the current chain checked and numbered:
+
+![The Edit model dialog for unstable-4o-mini, bound to a credential labelled openai (revoked key). In the Fallbacks list mistral-small is checked and marked #1 and llama-3.3-70b is checked and marked #2, under the caption Tried in order if this model fails](/img/tutorials/automatic-model-fallbacks/02-edit-fallback-chain.png)
+
+`unstable-4o-mini` is deliberately broken: its credential is a revoked OpenAI key, so
+every call to it fails at the provider and falls back to `mistral-small`. The rest of
+this guide uses both it and `free-tier-model`.
+
+A chain is registry configuration, not something an application changes per request, so
+there is no SDK method for it. To set one from a script instead of the dialog, send
+`fallbackModelIds` to `PATCH /gateway/models/:id` — see **Gateway Models** in the
+[API Reference](/api-reference/gateway/models).
+
+## 2. Set the retry count for a call
+
+The retry count is the opposite: it belongs to the call, not to the model. Send it
+in a `gateway` object alongside the normal OpenAI-shaped fields.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "unstable-4o-mini",
+    "messages": [{"role": "user", "content": "Say hello in five words."}],
+    "gateway": {"maxRetries": 2}
+  }'
+```
+
+```json
+{"id":"gen-1789326117-dHhmxpG4NKdNAaAf3359","model":"mistralai/mistral-small-3.2-24b-instruct","object":"chat.completion","created":1789326117,"choices":[{"index":0,"message":{"role":"assistant","content":"\"Hello, how are you today?\""},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":9,"total_tokens":18}}
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+result = await hub.gateway.chat(
+    "unstable-4o-mini",
+    [{"role": "user", "content": "Say hello in five words."}],
+    gateway={"max_retries": 2},
+)
+print(result.model)
+```
+
+```text
+mistralai/mistral-small-3.2-24b-instruct
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore();
+
+const result = await hub.gateway.chat({
+  model: 'unstable-4o-mini',
+  messages: [{ role: 'user', content: 'Say hello in five words.' }],
+  gateway: { maxRetries: 2 },
+});
+console.log(result.model);
+```
+
+```text
+mistralai/mistral-small-3.2-24b-instruct
+```
+
+</TabItem>
+</Tabs>
+
+Each SDK spells the key the way its own language does — `max_retries` in Python,
+`maxRetries` in Node — and both send `maxRetries` on the wire.
+
+The request asked for `unstable-4o-mini`. The answer came back from
+`mistralai/mistral-small-3.2-24b-instruct`, because the fallback served it. The
+`gateway` object is stripped from the body before it reaches the provider, so the
+outgoing request stays OpenAI-compatible.
+
+`maxRetries` accepts 0 to 5 and nothing else. Above that the call is rejected before
+it costs anything:
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "unstable-4o-mini", "messages": [{"role": "user", "content": "hi"}], "gateway": {"maxRetries": 9}}'
+```
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"Number must be less than or equal to 5"}}
+```
+
+Both SDKs raise that same rejection rather than clamping the number, so a value out of
+range fails on the first call instead of quietly running with a different one.
+
+Setting `maxRetries` to `0` turns same-model retries off entirely without touching
+the fallback chain. Use `0` when a call is not safe to repeat.
+
+## 3. Refuse to fall back for one call
+
+The other key in the same object is `fallback`. It defaults to `true`, and `false`
+means "this model or nothing": the call stays on the model you asked for, and its
+failure comes back to you as an error instead of a different model's answer.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "unstable-4o-mini", "messages": [{"role": "user", "content": "Say OK"}], "max_tokens": 5, "gateway": {"fallback": false}}'
+```
+
+```json
+{"error":{"code":"PROVIDER_ERROR","message":"Provider error (401): OpenAI request failed with status 401"}}
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCoreError
+
+try:
+    await hub.gateway.chat(
+        "unstable-4o-mini",
+        [{"role": "user", "content": "Say OK"}],
+        max_tokens=5,
+        gateway={"fallback": False},
+    )
+except AcruxCoreError as err:
+    print(err.status_code, err.code)
+    print(err)
+```
+
+```text
+502 API_ERROR
+acruxcore API error 502 calling chat completions: Provider error (401): OpenAI request failed with status 401
+```
+
+</TabItem>
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+import { acruxcoreError } from '@acruxcoreai/sdk';
+
+try {
+  await hub.gateway.chat({
+    model: 'unstable-4o-mini',
+    messages: [{ role: 'user', content: 'Say OK' }],
+    maxTokens: 5,
+    gateway: { fallback: false },
+  });
+} catch (err) {
+  if (err instanceof acruxcoreError) {
+    console.log(err.statusCode, err.code);
+    console.log(err.message);
+  }
+}
+```
+
+```text
+502 API_ERROR
+acruxcore API error 502 calling chat completions: Provider error (401): OpenAI request failed with status 401
+```
+
+</TabItem>
+</Tabs>
+
+The status is `502`, and the message carries the revoked credential's own `401`. From
+either SDK the call raises instead of returning, so a caller that ignores the return
+value still cannot miss it. The same call without the `gateway` object is answered by
+`mistral-small` with a `200`, and nothing in that response says a different model wrote
+it.
+
+Send `fallback: false` when a different model would be worse than an error. Three
+cases where it is: an evaluation run that has to name one model, a cost ceiling a
+larger fallback would break, and a prompt tuned to one model's output format.
+Retries are unaffected, because a retry is the same model.
+
+## 4. Read which one happened in the trace
+
+Open the trace for a call and expand its `llm` span. A call that took more than one
+attempt gets an **Attempts** row saying which of the two happened. Below it, an
+**Attempt trail** lists every model the gateway tried, in order.
+
+Here is a call that was **retried**. `free-tier-model` hit its provider's per-minute
+limit, the gateway called it again, and the second call answered:
+
+![A trace span panel headed Attempts 2, retried once. Below it an Attempt trail section holds one row reading free-tier-model, liquid slash lfm-2.5-2.6b free, 2 calls, answered, and under that row the line earlier calls failed 429 followed by Rate limit exceeded, free-models-per-min](/img/tutorials/automatic-model-fallbacks/05-trace-retry.png)
+
+And here is a call that **fell back**. `unstable-4o-mini` answered `401` on its revoked
+key, so `mistral-small` served the request instead:
+
+![A trace span panel headed Attempts 2, fell back to mistral-small, no retry first. The Attempt trail holds two rows: unstable-4o-mini with upstream gpt-4o-mini, 1 call, failed 401, and beneath it the message Incorrect API key provided; then mistral-small with upstream mistralai slash mistral-small-3.2-24b-instruct, 1 call, answered](/img/tutorials/automatic-model-fallbacks/03-trace-attempts-trail.png)
+
+Each row of the trail holds four things: the registered name of the model, the upstream
+name its provider knows, how many times that one model was called, and how its turn
+ended. One row means one model was used. Two rows mean the call fell back.
+
+The call count is per model, not for the whole chain. That matters for the third case,
+where a model is retried several times and *then* falls back. Its first row shows several
+calls and its second row shows one. A single total for the whole chain cannot tell that
+apart from a fallback that never retried.
+
+The line under a row is the provider's own message, not ours. `401` tells you that an
+attempt failed. "Incorrect API key provided" tells you what to fix. A model that answered
+only after a retry keeps that message too, marked `earlier calls failed`, so a rescued
+call still records what was going wrong.
+
+A call that succeeded first time has no **Attempts** row and no trail, because there is
+nothing to account for.
+
+## 5. Find a model that is failing behind its fallback
+
+A fallback leaves no sign that it ran. The caller gets an answer, the request counts as a
+success, and the trace is green. So a primary model that fails on *every* request stays
+invisible for as long as its fallback keeps answering. The model you are billed for
+changes and the model that wrote the answer changes, and the list says neither.
+
+That is why a run which only succeeded because it was retried or fell back is flagged
+amber in the trace list instead of green. It is still `ok`. It is not an error and it does
+not count as one. It is marked:
+
+![The trace list. Four rows at the top show a green dot labelled OK. Below them the rows named retry-demo and fallback-demo show an amber dot labelled Warning, with a third amber row under those and one red row labelled Error further down](/img/tutorials/automatic-model-fallbacks/06-trace-list-warning.png)
+
+Type `warning:yes` in the trace list's filter bar to see only those runs. Then look at
+which model sits in the first row of each trail. A model that appears there every time is
+one to fix or retire, because every call to it costs latency and returns no answer.
+
+## 6. What is never retried, and what is never fallen back to
+
+Not every failure gets the same treatment, and the differences are deliberate.
+
+| What the provider returned | Retried on the same model? | Falls back to the next model? |
+|---|---|---|
+| A network error, a timeout, a `5xx`, or a `429` | Yes, up to `maxRetries` | Yes, once the retries are used up |
+| `401` or `403`, a bad or revoked credential | No | Yes |
+| `400`, a request the provider rejected | No | No — the error is returned to you immediately |
+
+A bad credential is not going to fix itself between two attempts a fraction of a
+second apart, so retrying it only adds latency. A different model on a different
+credential might still work, so the fallback still runs.
+
+A `400` stops everything because it almost always means the request itself is wrong:
+a typo in the upstream model name, or a schema the provider will not accept. Every
+model in the chain would reject it the same way, so fanning out would turn one clear
+error into several slow ones.
+
+Between retries the gateway backs off: roughly 200ms, then 400ms, then 800ms, each
+with a little jitter and capped at 2 seconds. A provider that is already struggling
+is not hit harder by its own clients.
+
+## The same keys on the SDK's other calls
+
+`gateway.stream()`, `gateway.runToolLoop()` and `gateway.runPromptWithTools()` take the
+same `gateway` argument as `gateway.chat()` above, and the tool loop applies it to every
+round. The argument is sent only on a gateway call. A BYO-provider call never reaches an
+AcruxCore gateway, so there is nothing there to control.
+
+One difference on a streaming call: `gateway.maxRetries` is ignored, because a stream
+commits to a model as soon as its first chunk arrives and there is nothing left to retry.
+`gateway.fallback` still applies, because the model is chosen before the first chunk.
+
+:::warning[The constructor's retry count is a different layer]
+The client constructor takes a retry count of its own: `AcruxCore(max_retries=2)` in
+Python, `new AcruxCore({ maxRetries: 2 })` in Node. That one retries this SDK's own HTTP
+request to AcruxCore. It changes nothing about how many times OpenAI or Anthropic is
+called. The per-call `gateway` argument is the one that reaches the provider. Setting the
+constructor's when you meant the per-call one produces no error and no effect.
+:::
+
+## What's next
+
+- Send your first call through the gateway — see
+  [Route your app's LLM calls through the gateway](./route-calls-through-the-gateway).
+- Cap what a key can spend even when every deployment succeeds — see
+  [Set spend limits with gateway budgets and rate limits](./set-spend-limits-with-gateway-budgets-and-rate-limits).
+- Full field reference: **Gateway** and **Gateway Models** in the
+  [API Reference](/api-reference).

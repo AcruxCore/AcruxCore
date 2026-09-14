@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { CompletionBody, MessageRole } from '@/api';
-import { useAliases, useModels, usePrompts, useVersion, useVersionById } from '@/api';
+import { useAliases, useAllPrompts, useModels, useVersion, useVersionById } from '@/api';
 import type { PlaygroundPrefill } from '../playground-prefill';
 import { resolveModelPublicName } from '../playground-prefill';
 import type { DraftMessage } from './MessageListEditor';
@@ -24,8 +24,7 @@ export function usePromptSelection() {
   const location = useLocation();
   const navigate = useNavigate();
   const { data: models } = useModels();
-  const { data: promptPage } = usePrompts({ page: 1 });
-  const prompts = promptPage?.data;
+  const { data: prompts } = useAllPrompts();
 
   const [mode, setMode] = useState<Mode>('messages');
   const [model, setModel] = useState('');
@@ -63,11 +62,14 @@ export function usePromptSelection() {
   const [promptAlias, setPromptAlias] = useState('production');
   const [promptVars, setPromptVars] = useState('');
 
-  // A trace/feedback-prefilled prompt may not be on page 1 of `usePrompts`
-  // (F3 — Task 5), which would otherwise leave the picker showing a blank
-  // value. `useVersionById` (below) already resolves the prompt's name, so
-  // stash it here and inject it as a synthetic option when it's missing from
-  // the loaded page — the editor and Save menu key off `promptId`/
+  // `prompts` now comes from `useAllPrompts` (PR #469 review, 6c), so a prefilled prompt
+  // missing from it is far rarer than it was against `usePrompts({ page: 1 })` — but it's
+  // still reachable: `useAllPrompts` truncates past its own page cap on a team with an
+  // extreme number of prompts (`fetchAllPages`'s MAX_PAGES), and a query still in flight
+  // renders `prompts` as `undefined` before this effect's list has loaded at all. So this
+  // stays a real (if now rare) case, not dead code. `useVersionById` (below) already
+  // resolves the prompt's name, so stash it here and inject it as a synthetic option when
+  // it's missing from the loaded list — the editor and Save menu key off `promptId`/
   // `saveTargetPromptId`, never off this option list, so they work regardless.
   const [prefillPromptMeta, setPrefillPromptMeta] = useState<{ id: string; name: string } | null>(
     null,

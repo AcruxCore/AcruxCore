@@ -2,6 +2,7 @@ import request from 'supertest';
 import { createApp } from '../../app';
 import prisma from '../shared/db/client';
 import { signupTestUserWithApiKey } from '../test-utils';
+import { ToolsRepository } from './tools.repository';
 
 const app = createApp();
 
@@ -96,5 +97,149 @@ describe('tools CRUD', () => {
       .set('Authorization', `Bearer ${a.apiKey}`).send({ name: 'get_weather' }).expect(201);
     await request(app).post('/api/v1/tools')
       .set('Authorization', `Bearer ${b.apiKey}`).send({ name: 'get_weather' }).expect(201);
+  });
+});
+
+/**
+ * A tool's name and description say nothing about whether the model can actually call
+ * it. A shell with no committed version resolves to nothing, and the dashboard used to
+ * render it identically to a working tool — so the first sign of trouble was a prompt
+ * quietly running with one tool fewer than its author expected.
+ *
+ * These fields exist so one list request can answer "is this callable, where does it
+ * run, and what is live" without a version fetch per row.
+ */
+describe('tool readiness on list and detail', () => {
+  it('reports a version-less tool as not callable', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    await request(app).post('/api/v1/tools')
+      .set('Authorization', `Bearer ${apiKey}`).send({ name: 'shell_only' }).expect(201);
+
+    const list = await request(app).get('/api/v1/tools')
+      .set('Authorization', `Bearer ${apiKey}`).expect(200);
+    const row = list.body.data.find((t: { name: string }) => t.name === 'shell_only');
+    expect(row.callable).toBe(false);
+    expect(row.versionCount).toBe(0);
+    expect(row.latestVersionNumber).toBeNull();
+    expect(row.executorType).toBeNull();
+    expect(row.aliases).toEqual([]);
+  });
+
+  it('reports the live version, executor and every alias once a version is committed', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const { body: tool } = await request(app).post('/api/v1/tools')
+      .set('Authorization', `Bearer ${apiKey}`).send({ name: 'get_weather' }).expect(201);
+
+    await request(app).post(`/api/v1/tools/${tool.id}/versions`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        description: 'Get the current weather for a city.',
+        parametersSchema: { type: 'object', properties: { city: { type: 'string' } } },
+        // A literal public IP (Cloudflare) — no live DNS lookup needed, so this stays
+        // deterministic now that commit-time also runs the SSRF guard (`assertPublicUrl`).
+        executor: { type: 'http', url: 'https://1.1.1.1/w', method: 'GET' },
+      })
+      .expect(201);
+
+    // A second version, promoted on staging only, so production and staging differ.
+    await request(app).post(`/api/v1/tools/${tool.id}/versions`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ parametersSchema: { type: 'object', properties: {} }, executor: { type: 'client' } })
+      .expect(201);
+    await request(app).post(`/api/v1/tools/${tool.id}/aliases/staging/promote`)
+      .set('Authorization', `Bearer ${apiKey}`).send({ version_number: 2 }).expect(200);
+
+    const list = await request(app).get('/api/v1/tools')
+      .set('Authorization', `Bearer ${apiKey}`).expect(200);
+    const row = list.body.data.find((t: { name: string }) => t.name === 'get_weather');
+    expect(row.callable).toBe(true);
+    expect(row.versionCount).toBe(2);
+    expect(row.latestVersionNumber).toBe(2);
+    // The executor reported is production's, because that is what an unqualified
+    // `tool_ref` and a freshly connected binding both resolve to.
+    expect(row.executorType).toBe('http');
+    expect(row.aliases).toEqual(
+      expect.arrayContaining([
+        { alias: 'production', versionNumber: 1 },
+        { alias: 'staging', versionNumber: 2 },
+      ]),
+    );
+
+    // The single-tool fetch answers the same question, so the detail page does not
+    // have to re-derive it from two more requests.
+    const detail = await request(app).get(`/api/v1/tools/${tool.id}`)
+      .set('Authorization', `Bearer ${apiKey}`).expect(200);
+    expect(detail.body.callable).toBe(true);
+    expect(detail.body.versionCount).toBe(2);
+    expect(detail.body.executorType).toBe('http');
+  });
+
+  it('does not leak another team’s readiness into the list', async () => {
+    const a = await signupTestUserWithApiKey(app);
+    const b = await signupTestUserWithApiKey(app);
+    const { body: tool } = await request(app).post('/api/v1/tools')
+      .set('Authorization', `Bearer ${a.apiKey}`).send({ name: 'shared_name' }).expect(201);
+    await request(app).post(`/api/v1/tools/${tool.id}/versions`)
+      .set('Authorization', `Bearer ${a.apiKey}`)
+      .send({ parametersSchema: { type: 'object', properties: {} }, executor: { type: 'client' } })
+      .expect(201);
+
+    await request(app).post('/api/v1/tools')
+      .set('Authorization', `Bearer ${b.apiKey}`).send({ name: 'shared_name' }).expect(201);
+    const list = await request(app).get('/api/v1/tools')
+      .set('Authorization', `Bearer ${b.apiKey}`).expect(200);
+    expect(list.body.data).toHaveLength(1);
+    expect(list.body.data[0].callable).toBe(false);
+  });
+
+  it('never returns team A’s readiness to team B, over HTTP or straight from the repository', async () => {
+    const a = await signupTestUserWithApiKey(app);
+    const b = await signupTestUserWithApiKey(app);
+    const { body: tool } = await request(app).post('/api/v1/tools')
+      .set('Authorization', `Bearer ${a.apiKey}`).send({ name: 'team_a_only' }).expect(201);
+    await request(app).post(`/api/v1/tools/${tool.id}/versions`)
+      .set('Authorization', `Bearer ${a.apiKey}`)
+      .send({ parametersSchema: { type: 'object', properties: {} }, executor: { type: 'client' } })
+      .expect(201);
+
+    // The HTTP path was already safe: `findById`/`list` scope by team, so team B
+    // never gets far enough to hit `readinessFor` with team A's tool id.
+    const list = await request(app).get('/api/v1/tools')
+      .set('Authorization', `Bearer ${b.apiKey}`).expect(200);
+    expect(list.body.data).toEqual([]);
+    await request(app).get(`/api/v1/tools/${tool.id}`)
+      .set('Authorization', `Bearer ${b.apiKey}`).expect(404);
+
+    // `readinessFor` itself is the one method in the repository that took no
+    // `teamId` — call it directly, the way a future caller taking ids from a
+    // request body could, and prove it refuses to answer for another team's tool.
+    const repo = new ToolsRepository();
+    const readiness = await repo.readinessFor([tool.id], b.teamId);
+    expect(readiness.size).toBe(0);
+  });
+
+  it('stops reporting readiness for a tool once it is deleted', async () => {
+    const a = await signupTestUserWithApiKey(app);
+    const { body: tool } = await request(app).post('/api/v1/tools')
+      .set('Authorization', `Bearer ${a.apiKey}`).send({ name: 'deleted_tool_readiness' }).expect(201);
+    await request(app).post(`/api/v1/tools/${tool.id}/versions`)
+      .set('Authorization', `Bearer ${a.apiKey}`)
+      .send({ parametersSchema: { type: 'object', properties: {} }, executor: { type: 'client' } })
+      .expect(201);
+
+    const repo = new ToolsRepository();
+    // Committed and promoted, so the tool really does have readiness to leak.
+    const before = await repo.readinessFor([tool.id], a.teamId);
+    expect(before.get(tool.id)?.callable).toBe(true);
+
+    await request(app).delete(`/api/v1/tools/${tool.id}`)
+      .set('Authorization', `Bearer ${a.apiKey}`).expect(204);
+
+    // Delete is a soft delete, so the versions and aliases are still in the table.
+    // Every other read in this repository filters `deletedAt`; this one must too, or a
+    // caller passing ids straight from a request body still learns the tool's version
+    // count and which versions its aliases point at.
+    const after = await repo.readinessFor([tool.id], a.teamId);
+    expect(after.size).toBe(0);
   });
 });

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { MessageRole } from '@/api';
-import { ApiError, useCommitVersion, usePrompts } from '@/api';
+import { ApiError, useAllPrompts, useCommitVersion } from '@/api';
 import { Button, Dialog, DialogFooter, Field, Select, useToast } from '@/ui';
 
 export interface SaveVersionDialogProps {
@@ -35,8 +35,7 @@ export function SaveVersionDialog({
   onSaved,
 }: SaveVersionDialogProps) {
   const toast = useToast();
-  const { data: promptPage } = usePrompts({ page: 1 });
-  const prompts = promptPage?.data;
+  const { data: prompts } = useAllPrompts();
   const commit = useCommitVersion();
   const [promptId, setPromptId] = useState('');
   const [model, setModel] = useState('');

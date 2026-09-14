@@ -958,3 +958,167 @@ async def test_a_decorated_tool_of_the_same_name_wins_over_client_tools():
         )
 
     assert which == ["decorated"]
+
+
+# ── The silent "my tool is never called" case ─────────────────────────────────
+
+
+async def test_warns_when_implementations_are_supplied_but_the_prompt_binds_no_tools():
+    """A prompt with nothing bound runs as a plain completion, and used to say so nowhere.
+
+    That is the right default — erroring would fail an unconfigured prompt for no reason —
+    but it is the wrong silence once the caller has handed over an implementation. Passing
+    ``client_tools`` says "run this function"; resolving zero tools means it never will,
+    and the run still returns an answer that reads as though everything worked.
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=PLAIN_COMPLETION, headers={"x-gateway-trace-id": "tr-1"})
+
+    async with make_client(handler) as hub:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = await hub.gateway.run_prompt_with_tools(
+                render_result(resolutions=[]),
+                client_tools={"search_flights": lambda **_: "x"},
+            )
+
+    assert result.content == "Sunny."
+    messages = [str(w.message) for w in caught]
+    assert any("search_flights" in m and "no tools" in m for m in messages), messages
+    # The message has to name the fix, not just the symptom.
+    assert any("Tools tab" in m or "tool_refs" in m for m in messages), messages
+
+
+async def test_does_not_warn_when_the_prompt_binds_no_tools_and_none_were_supplied():
+    """Running a plain prompt through this method is legitimate, and must stay quiet."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=PLAIN_COMPLETION, headers={"x-gateway-trace-id": "tr-1"})
+
+    async with make_client(handler) as hub:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            await hub.gateway.run_prompt_with_tools(render_result(resolutions=[]))
+
+    assert [str(w.message) for w in caught] == []
+
+
+async def test_does_not_warn_when_tool_refs_were_passed_explicitly():
+    """`tool_refs=` overrides the bindings, so the prompt having none is not the story."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/tools/resolve"):
+            return httpx.Response(200, json={"data": [resolved("search_flights")]})
+        return httpx.Response(200, json=PLAIN_COMPLETION, headers={"x-gateway-trace-id": "tr-1"})
+
+    async with make_client(handler) as hub:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            await hub.gateway.run_prompt_with_tools(
+                render_result(resolutions=[]),
+                tool_refs=[{"name": "search_flights"}],
+                client_tools={"search_flights": lambda **_: "x"},
+            )
+
+    assert [str(w.message) for w in caught] == []
+
+
+async def test_warns_when_tool_refs_is_explicitly_empty_and_client_tools_was_supplied():
+    """``tool_refs=[]`` genuinely opts out of every tool, the same as the prompt
+    binding nothing at all — an old blanket "any explicit tool_refs silences the
+    warning" was an oversight, not a deliberate opt-out signal, so this must warn
+    just like the no-tool_refs-at-all case."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=PLAIN_COMPLETION, headers={"x-gateway-trace-id": "tr-1"})
+
+    async with make_client(handler) as hub:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            await hub.gateway.run_prompt_with_tools(
+                render_result(resolutions=[]),
+                tool_refs=[],
+                client_tools={"search_flights": lambda **_: "x"},
+            )
+
+    messages = [str(w.message) for w in caught]
+    assert len(messages) == 1
+    assert "search_flights" in messages[0] and "no tools" in messages[0]
+
+
+async def test_does_not_warn_when_the_prompt_does_bind_tools():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/tools/resolve"):
+            return httpx.Response(200, json={"data": [resolved("get_weather")]})
+        return httpx.Response(200, json=PLAIN_COMPLETION, headers={"x-gateway-trace-id": "tr-1"})
+
+    async with make_client(handler) as hub:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            await hub.gateway.run_prompt_with_tools(
+                render_result(
+                    resolutions=[
+                        ToolResolution(
+                            name="get_weather", alias="production", version_number=4, source="alias"
+                        )
+                    ]
+                ),
+                client_tools={"get_weather": lambda **_: "x"},
+            )
+
+    assert [str(w.message) for w in caught] == []
+
+
+async def test_does_not_warn_for_tools_with_no_bindings_and_puts_the_tool_in_the_request():
+    """`tools=` builds its own refs independently of the prompt's bindings, so the tool
+    IS offered to the model and IS dispatched even though nothing is bound — the old
+    condition warned here anyway."""
+    from acruxcore import acrux
+
+    seen: Dict[str, Any] = {}
+
+    @acrux.tool
+    def get_weather(city: str) -> dict:
+        """Get the weather."""
+        return {"tempC": 30}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["chat"] = body_of(request)
+        return httpx.Response(200, json=PLAIN_COMPLETION)
+
+    async with make_client(handler) as hub:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            await hub.gateway.run_prompt_with_tools(
+                render_result(resolutions=[]), tools=[get_weather], sync=False
+            )
+
+    assert [str(w.message) for w in caught] == []
+    assert seen["chat"]["tool_refs"] == [{"name": "get_weather", "alias": "production"}]
+
+
+async def test_does_not_warn_for_dispatch_and_tool_defs_with_no_bindings():
+    """tool_defs are raw schemas sent straight through as `tools`, independently of
+    tool_refs — so dispatch really can run them, and the old condition was wrong to
+    warn here too."""
+    seen: Dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["chat"] = body_of(request)
+        return httpx.Response(200, json=PLAIN_COMPLETION)
+
+    async with make_client(handler) as hub:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            await hub.gateway.run_prompt_with_tools(
+                render_result(resolutions=[]),
+                tool_defs=[
+                    {"type": "function", "function": {"name": "get_weather", "parameters": {}}}
+                ],
+                dispatch=lambda n, a: "x",
+            )
+
+    assert [str(w.message) for w in caught] == []
+    assert seen["chat"]["tools"] == [
+        {"type": "function", "function": {"name": "get_weather", "parameters": {}}}
+    ]

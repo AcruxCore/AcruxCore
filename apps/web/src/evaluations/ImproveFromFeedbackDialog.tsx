@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ApiError, useAliases, useCreateDatasetFromFeedback, useModels, usePrompts, useOptimize } from '@/api';
+import { ApiError, filterPrompts, useAliases, useAllPrompts, useCreateDatasetFromFeedback, useModels, useOptimize } from '@/api';
 import type { StartRunResponse } from '@/api';
 import { Button, Dialog, DialogFooter, Field, Input, Select, Textarea } from '@/ui';
 import { ModelCheckboxList } from './ModelCheckboxList';
@@ -41,7 +41,11 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
   const [submitting, setSubmitting] = useState(false);
   const [mismatchWarning, setMismatchWarning] = useState<{ runId: string; warning: NonNullable<StartRunResponse['prompt_mismatch_warning']> } | null>(null);
 
-  const prompts = usePrompts({ search: promptSearch || undefined });
+  const allPrompts = useAllPrompts();
+  const prompts = useMemo(
+    () => filterPrompts(allPrompts.data ?? [], promptSearch),
+    [allPrompts.data, promptSearch],
+  );
   const gatewayModels = useModels();
   const optimize = useOptimize(promptId || 'unset');
   const aliases = useAliases(promptId);
@@ -154,10 +158,10 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
               aria-label="Prompt to improve"
               value={promptId}
               onChange={(e) => setPromptId(e.target.value)}
-              disabled={prompts.isLoading}
+              disabled={allPrompts.isLoading}
             >
-              <option value="">{prompts.isLoading ? 'Loading…' : 'Select a prompt'}</option>
-              {(prompts.data?.data ?? []).map((p) => (
+              <option value="">{allPrompts.isLoading ? 'Loading…' : 'Select a prompt'}</option>
+              {prompts.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </Select>

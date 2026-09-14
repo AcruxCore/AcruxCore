@@ -65,7 +65,8 @@ function buildAuth() {
     baseURL: config.appUrl,
     basePath: AUTH_BASE_PATH,
     // Only our own origin may drive auth. Never `*` — cookies ride these requests.
-    trustedOrigins: [config.appUrl],
+    // `extraTrustedOrigins` is empty in production; see `loadAuthConfig`.
+    trustedOrigins: [config.appUrl, ...config.extraTrustedOrigins],
 
     advanced: {
       database: { generateId: false },

@@ -1400,8 +1400,26 @@ class ImportPromptResult:
 
 
 @dataclass
+class ToolAliasTarget:
+    """Where one of a tool's aliases currently points, from the tool's own readiness
+    (not from a promote call — see :class:`ToolAliasDetail` for that shape)."""
+
+    alias: str
+    version_number: int
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ToolAliasTarget":
+        return cls(alias=d["alias"], version_number=d["versionNumber"])
+
+
+@dataclass
 class ToolDetail:
-    """A catalog tool's shell (no schema/executor — those live on its versions).
+    """A catalog tool's shell (no schema/executor — those live on its versions) plus
+    its readiness: whether it can actually be called, and what a caller gets when it is.
+
+    A tool's name and description say nothing about readiness. Creating a tool makes a
+    shell with no version, and a shell resolves to nothing — so a prompt bound to one
+    silently runs with one tool fewer than its author intended.
 
     :param id: The tool's id.
     :param name: Matches ``^[a-zA-Z0-9_-]{1,64}$``, unique per team.
@@ -1409,6 +1427,18 @@ class ToolDetail:
     :param team_id: The owning team.
     :param created_by: The user id that created it.
     :param created_at: ISO-8601 creation timestamp.
+    :param callable: True once a version exists and ``production`` points at one —
+        the resolvable state.
+    :param version_count: How many versions have been committed. Zero means the tool
+        is a name only.
+    :param latest_version_number: Highest committed version number, or ``None`` when
+        there are none.
+    :param executor_type: Executor of the version ``production`` currently serves —
+        ``None`` when the tool is not callable. Production's, not the latest
+        version's, because that is what an unqualified tool ref and a newly connected
+        binding both resolve to.
+    :param aliases: Every alias on the tool with the version it points at,
+        ``production`` first.
     """
 
     id: str
@@ -1417,6 +1447,11 @@ class ToolDetail:
     team_id: str
     created_by: str
     created_at: str
+    callable: bool
+    version_count: int
+    latest_version_number: Optional[int]
+    executor_type: Optional[str]
+    aliases: List[ToolAliasTarget]
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "ToolDetail":
@@ -1427,6 +1462,11 @@ class ToolDetail:
             team_id=d["teamId"],
             created_by=d["createdBy"],
             created_at=d["createdAt"],
+            callable=bool(d.get("callable", False)),
+            version_count=d.get("versionCount", 0),
+            latest_version_number=d.get("latestVersionNumber"),
+            executor_type=d.get("executorType"),
+            aliases=[ToolAliasTarget.from_dict(a) for a in (d.get("aliases") or [])],
         )
 
 

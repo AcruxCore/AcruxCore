@@ -3,7 +3,7 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { fileURLToPath, URL } from 'node:url';
-import { WEB_PORT, API_PROXY_TARGET } from './ports';
+import { WEB_PORT, WEB_HOST, API_PROXY_TARGET } from './ports';
 
 /**
  * Vite config for the web app.
@@ -19,8 +19,11 @@ import { WEB_PORT, API_PROXY_TARGET } from './ports';
  * for the resolution order.
  *
  * `test` (Vitest) reuses this file's `resolve.alias` and plugins rather than a
- * separate `vitest.config.ts`, which would not inherit the `@` alias. Only pure
- * functions are unit-tested here — no jsdom/RTL — so the environment is `node`.
+ * separate `vitest.config.ts`, which would not inherit the `@` alias. Most suites are
+ * pure functions and run fine in the default `node` environment; a hook or component
+ * test that needs a DOM (React Testing Library, `renderHook`) opts into jsdom per file
+ * with a `// @vitest-environment jsdom` comment at the top, rather than paying jsdom's
+ * setup cost for every suite.
  */
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -30,6 +33,7 @@ export default defineConfig({
     },
   },
   server: {
+    host: WEB_HOST,
     port: WEB_PORT,
     // Fail loudly instead of silently drifting to the next free port. A dev
     // server that quietly moved to :5174 while the e2e suite, the proxy and
@@ -56,7 +60,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     // Task 1 ships the runner only — the first *.test.ts files land in later tasks.
     passWithNoTests: true,
   },

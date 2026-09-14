@@ -263,3 +263,47 @@ describe('tool versions', () => {
     expect(res.body.error.message).toContain('requestTransform');
   });
 });
+
+/**
+ * An http executor's URL is checked at commit time, and the rejection is the first thing
+ * a new user meets when they follow an example URL. "Host did not resolve." named neither
+ * the host nor the field, so it read as a platform fault rather than as a typo in a box
+ * the author had just filled in — and the box in question was not even obvious, since a
+ * version body carries a URL, header values and query values.
+ */
+describe('http executor URL rejections name what to fix', () => {
+  it('names the host that did not resolve', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const { body: tool } = await request(app).post('/api/v1/tools')
+      .set('Authorization', `Bearer ${apiKey}`).send({ name: 'unresolvable' }).expect(201);
+
+    const res = await request(app).post(`/api/v1/tools/${tool.id}/versions`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        parametersSchema: { type: 'object', properties: {} },
+        // .invalid is reserved by RFC 2606 and never resolves, anywhere.
+        executor: { type: 'http', url: 'https://nothing-here.invalid/x', method: 'GET' },
+      })
+      .expect(400);
+
+    expect(res.body.error.message).toContain('nothing-here.invalid');
+    expect(res.body.error.message).toContain("executor's URL");
+  });
+
+  it('names the address it blocked, and the field it came from', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const { body: tool } = await request(app).post('/api/v1/tools')
+      .set('Authorization', `Bearer ${apiKey}`).send({ name: 'private_target' }).expect(201);
+
+    const res = await request(app).post(`/api/v1/tools/${tool.id}/versions`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        parametersSchema: { type: 'object', properties: {} },
+        executor: { type: 'http', url: 'http://169.254.169.254/latest/meta-data', method: 'GET' },
+      })
+      .expect(400);
+
+    expect(res.body.error.message).toContain('169.254.169.254');
+    expect(res.body.error.message).toContain("executor's URL");
+  });
+});

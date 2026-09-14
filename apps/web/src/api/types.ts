@@ -1254,6 +1254,23 @@ export interface Executor {
   argMapping?: { arg: string; in: 'query' | 'path' | 'header' | 'body'; path?: string }[];
   requestTransform?: string;
   responseTransform?: string;
+  /**
+   * JS predicate deciding whether a completed call actually failed, for the case a
+   * status code cannot express: HTTP 200 carrying `{"error": "location not found"}`.
+   * Same `function transform(input) { … }` contract as the two transforms; receives the
+   * raw `{ status, headers, body }` and returns null, or `{ type?, message }`.
+   */
+  failureWhen?: string;
+  /** JSON Schema the transformed result must satisfy. */
+  resultSchema?: Record<string, unknown>;
+  /** Whether a `resultSchema` mismatch is a warning (the default) or an error. */
+  resultSchemaSeverity?: 'warn' | 'error';
+}
+
+/** Where one of a tool's aliases points, as returned inline on the tool. */
+export interface ToolAliasTarget {
+  alias: string;
+  versionNumber: number;
 }
 
 /** A tool's mutable shell (GET /tools list item and single-fetch shape). */
@@ -1264,6 +1281,20 @@ export interface ToolSummary {
   teamId: string;
   createdBy: string;
   createdAt: string;
+  /**
+   * Whether the model can actually call this tool — true once a version exists and
+   * `production` points at one. A tool created without a version is a name only, and
+   * resolves to nothing; without this flag the two look identical in every list.
+   */
+  callable: boolean;
+  /** Committed versions. Zero means the tool has never been defined. */
+  versionCount: number;
+  /** Highest committed version number, or null when there are none. */
+  latestVersionNumber: number | null;
+  /** Who runs the call, from the version `production` serves. Null when not callable. */
+  executorType: 'client' | 'http' | null;
+  /** Every alias with the version it points at, `production` first. */
+  aliases: ToolAliasTarget[];
 }
 
 /** GET /tools/:id returns the same shape as the list item — no extra fields. */
@@ -1316,10 +1347,11 @@ export interface ToolAlias {
   updatedAt: string;
 }
 
-/** Body for POST /tools. */
-export interface CreateToolInput {
-  name: string;
-  description?: string;
+/** Body for PATCH /tools/:id. At least one field must be present. */
+export interface UpdateToolInput {
+  name?: string;
+  /** `null` clears the tool-level description. */
+  description?: string | null;
 }
 
 /** Body for POST /tools/:id/versions. */

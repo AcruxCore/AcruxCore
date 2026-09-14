@@ -133,7 +133,7 @@ uses the second, which is why the tool here is named `get_weather_local` rather 
 that post's `get_weather`: one name per execution model, so neither version lies about who
 does the work.
 
-[Build and attach a tool](/docs/guides/build-and-attach-a-tool) walks through the whole
+[Create a tool](/docs/guides/create-a-tool) walks through the whole
 path — declaring, syncing, inspecting the result in the dashboard, attaching it to a prompt,
 and the routing rules for tools you did not declare locally.
 

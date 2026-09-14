@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 
-type Tone = 'default' | 'prod' | 'staging' | 'muted';
+type Tone = 'default' | 'prod' | 'staging' | 'muted' | 'warn';
 
 export interface BadgeProps {
   tone?: Tone;
@@ -16,12 +16,16 @@ const TONES: Record<Tone, { box: string; dot: string }> = {
   prod: { box: 'border-accent/45 text-ink', dot: 'bg-accent shadow-[0_0_8px_var(--accent-dim)]' },
   staging: { box: 'border-warn/45 text-ink', dot: 'bg-warn' },
   muted: { box: 'border-line text-faint', dot: 'bg-faint' },
+  // Amber text as well as border, unlike `staging` — this one marks something wrong,
+  // not something that is merely a non-production environment.
+  warn: { box: 'border-warn/45 bg-warn/10 text-warn', dot: 'bg-warn' },
 };
 
 /**
  * Pill badge, used for alias status (`production`, `staging`) and small labels.
  *
- * @param tone - Color intent. `prod` uses the accent, `staging` uses amber.
+ * @param tone - Color intent. `prod` uses the accent, `staging` uses an amber border, and
+ *   `warn` uses amber throughout for a state that needs fixing.
  * @param dot - Whether to render a leading status dot.
  */
 export function Badge({ tone = 'default', dot, className, children }: BadgeProps) {

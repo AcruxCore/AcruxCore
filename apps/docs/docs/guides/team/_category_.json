@@ -1,0 +1,11 @@
+{
+  "label": "Team",
+  "position": 6,
+  "collapsed": true,
+  "link": {
+    "type": "generated-index",
+    "title": "Team",
+    "slug": "/guides/team",
+    "description": "A team owns every prompt, tool and trace in AcruxCore. These three guides add a member, change what that member is allowed to do, and read the record of who changed what."
+  }
+}

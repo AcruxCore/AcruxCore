@@ -1,0 +1,11 @@
+{
+  "label": "Gateway",
+  "position": 2,
+  "collapsed": true,
+  "link": {
+    "type": "generated-index",
+    "title": "Gateway",
+    "slug": "/guides/gateway",
+    "description": "The gateway is one OpenAI-compatible endpoint in front of every provider you use. These five guides send your first call through it, then put a key, a budget and a fallback around that call."
+  }
+}

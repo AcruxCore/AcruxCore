@@ -1,5 +1,6 @@
 import { Prisma, Tool } from '@prisma/client';
 import prisma from '../shared/db/client';
+import type { ToolReadinessDto } from './tools.types';
 
 /** Parameters for creating a new tool shell. */
 interface CreateParams {
@@ -171,6 +172,96 @@ export class ToolsRepository {
     ]);
 
     return { rows, total };
+  }
+
+  /**
+   * Readiness for a batch of tools: version count, latest version, alias targets, and
+   * the executor `production` serves.
+   *
+   * Three queries for any number of tools, never one per tool. The naive shape — fetch
+   * a tool's versions and aliases to decide whether it is callable — is why no list
+   * screen showed it, and a list of 25 tools issuing 50 requests to say "yes, callable"
+   * is not a trade worth making.
+   *
+   * `executorType` reads only the `production` alias's version, so a tool with two hundred
+   * versions and a dozen aliases still loads exactly one executor.
+   *
+   * All three queries are scoped to `teamId` through the `Tool` relation rather than trusting
+   * the caller to have already filtered `toolIds` to one team: a future caller that takes
+   * ids straight from a request body must not be able to read another team's readiness by
+   * guessing or enumerating tool ids. The same relation filter excludes soft-deleted
+   * tools, matching {@link findById}, {@link findByName} and {@link list} — without it a
+   * deleted tool still reported its version count and alias targets to such a caller.
+   *
+   * @param toolIds - Tools to describe. An empty list returns an empty map.
+   * @param teamId - Isolation boundary. An id in `toolIds` that belongs to another team
+   *   (or does not exist) matches neither query and so has no entry in the returned map —
+   *   callers read it with {@link toToolResponseDto}'s default parameter, which treats a
+   *   missing entry the same as {@link NOT_CALLABLE}.
+   * @returns Readiness keyed by tool id, present only for ids this team actually owns.
+   *   A team-owned tool with no committed version has no entry either — the caller's
+   *   {@link NOT_CALLABLE} default reads the same either way.
+   */
+  async readinessFor(toolIds: string[], teamId: string): Promise<Map<string, ToolReadinessDto>> {
+    const out = new Map<string, ToolReadinessDto>();
+    if (toolIds.length === 0) return out;
+
+    const scope = { toolId: { in: toolIds }, tool: { teamId, deletedAt: null } };
+    const [counts, aliasRows, productionRows] = await Promise.all([
+      prisma.toolVersion.groupBy({
+        by: ['toolId'],
+        where: scope,
+        _count: { _all: true },
+        _max: { versionNumber: true },
+      }),
+      // Every alias, for the `aliases` list — version numbers only. The executor is
+      // deliberately not selected here: it is a JSON blob that can carry three JS
+      // transform sources, and only `production`'s is ever read. Selecting it per alias
+      // meant a 100-tool page pulled one blob per alias to use at most one in a hundred.
+      prisma.toolAlias.findMany({
+        where: scope,
+        select: { toolId: true, alias: true, version: { select: { versionNumber: true } } },
+      }),
+      // `production` alone, for `executorType`. At most one row per tool.
+      prisma.toolAlias.findMany({
+        where: { ...scope, alias: 'production' },
+        select: { toolId: true, version: { select: { executor: true } } },
+      }),
+    ]);
+
+    const executorByTool = new Map(productionRows.map((r) => [r.toolId, r.version.executor]));
+
+    const byTool = new Map<string, typeof aliasRows>();
+    for (const row of aliasRows) {
+      const list = byTool.get(row.toolId) ?? [];
+      list.push(row);
+      byTool.set(row.toolId, list);
+    }
+
+    // Only ids the scoped queries returned rows for are entered — see the JSDoc for why.
+    const knownIds = new Set<string>([...counts.map((c) => c.toolId), ...byTool.keys()]);
+    const countByTool = new Map(counts.map((c) => [c.toolId, c]));
+
+    for (const id of toolIds) {
+      if (!knownIds.has(id)) continue;
+      const count = countByTool.get(id);
+      const rows = byTool.get(id) ?? [];
+      // `production` first: it is the alias every unqualified reference resolves to,
+      // so it is the one a reader is looking for.
+      const sorted = [...rows].sort((a, b) =>
+        a.alias === 'production' ? -1 : b.alias === 'production' ? 1 : a.alias.localeCompare(b.alias),
+      );
+      const production = rows.find((r) => r.alias === 'production');
+      const executor = executorByTool.get(id) as { type?: 'client' | 'http' } | null | undefined;
+      out.set(id, {
+        callable: production !== undefined,
+        versionCount: count?._count._all ?? 0,
+        latestVersionNumber: count?._max.versionNumber ?? null,
+        executorType: executor?.type ?? null,
+        aliases: sorted.map((r) => ({ alias: r.alias, versionNumber: r.version.versionNumber })),
+      });
+    }
+    return out;
   }
 
   /**

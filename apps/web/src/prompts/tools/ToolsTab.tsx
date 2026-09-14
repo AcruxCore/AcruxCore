@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   useTools,
-  useToolAliases,
   useToolVersions,
   usePromptToolBindings,
   useSetToolBinding,
@@ -9,9 +9,14 @@ import {
   useResetAliasBindings,
   ApiError,
   type BindingValue,
+  type ToolAliasTarget,
   type ToolBinding,
+  type ToolSummary,
 } from '@/api';
-import { Badge, Button, Empty, PageSpinner, Select, useToast } from '@/ui';
+import { Badge, Button, Empty, Input, PageSpinner, Select, useToast } from '@/ui';
+import { filterTools } from '@/tools/catalog';
+import type { CellState } from './binding-cell';
+import { cellLabel, cellState } from './binding-cell';
 
 /** Props for {@link ToolsTab}. */
 export interface ToolsTabProps {
@@ -23,31 +28,15 @@ export interface ToolsTabProps {
 /** `null` means the default column; a string means that alias's own column. */
 type ColumnKey = string | null;
 
-/** What one cell currently holds, before the user touches it. */
-type CellState =
-  | { kind: 'alias'; toolAlias: string; resolved: number | null }
-  | { kind: 'pin'; version: number }
-  | { kind: 'off' }
-  | { kind: 'inherit' }
-  | { kind: 'unbound' };
-
-/** Reads a tool's row in one column, distinguishing "no row" from "row saying off". */
-function cellState(bindings: ToolBinding[], toolId: string, isDefault: boolean): CellState {
-  const b = bindings.find((x) => x.toolId === toolId);
-  if (!b) return isDefault ? { kind: 'unbound' } : { kind: 'inherit' };
-  if (b.off) return { kind: 'off' };
-  if (b.pinnedVersionNumber !== null) return { kind: 'pin', version: b.pinnedVersionNumber };
-  return { kind: 'alias', toolAlias: b.toolAlias ?? '', resolved: b.resolvedVersionNumber };
-}
-
 /**
  * One editable cell. Collapsed to its current value until clicked, then shows the
- * pickers — a grid of always-open dropdowns is unreadable past a couple of
- * columns, and most cells are never edited.
+ * pickers — a grid of always-open dropdowns is unreadable past a couple of columns, and
+ * most cells are never edited.
  */
 function BindingCell({
   promptId,
   toolId,
+  aliases,
   column,
   state,
   canWrite,
@@ -55,6 +44,8 @@ function BindingCell({
 }: {
   promptId: string;
   toolId: string;
+  /** This tool's aliases, straight off the catalog row — see {@link ToolsTab} for why. */
+  aliases: ToolAliasTarget[];
   column: ColumnKey;
   state: CellState;
   canWrite: boolean;
@@ -63,11 +54,9 @@ function BindingCell({
   const [open, setOpen] = useState(false);
   const setBinding = useSetToolBinding(promptId);
   const removeBinding = useRemoveToolBinding(promptId);
-  const aliases = useToolAliases(open ? toolId : '');
   const versions = useToolVersions(open ? toolId : '');
 
-  const aliasNames = (aliases.data?.data ?? []).map((a) => a.alias);
-  const versionNumbers = [...new Set((versions.data?.data ?? []).map((v) => v.versionNumber))].sort(
+  const versionNumbers = [...new Set((versions.data ?? []).map((v) => v.versionNumber))].sort(
     (a, b) => b - a,
   );
   const isDefault = column === null;
@@ -86,37 +75,22 @@ function BindingCell({
   }
 
   if (!open) {
-    const label =
-      state.kind === 'alias' ? (
-        <>
-          <span className="font-mono text-ink">{state.toolAlias}</span>
-          {state.resolved !== null && <span className="ml-1.5 text-faint">v{state.resolved}</span>}
-        </>
-      ) : state.kind === 'pin' ? (
-        <span className="font-mono text-muted">pinned v{state.version}</span>
-      ) : state.kind === 'off' ? (
-        <span className="font-mono text-faint line-through">none</span>
-      ) : state.kind === 'inherit' ? (
-        <span className="font-mono text-faint">inherits</span>
-      ) : (
-        <span className="font-mono text-faint">not connected</span>
-      );
-
-    const solid = state.kind === 'alias' || state.kind === 'pin';
-
+    const label = cellLabel(state);
     return (
       <button
         type="button"
         disabled={!canWrite}
         onClick={() => setOpen(true)}
-        title={canWrite ? 'Change' : 'Read-only role'}
+        title={canWrite ? `${label.title} Click to change.` : label.title}
         className={[
-          'rounded-md px-2 py-1 text-[12.5px] text-left transition-colors',
-          solid ? 'border border-line bg-elevated' : 'border border-dashed border-line',
+          'rounded-md px-2 py-1 text-left font-mono text-[12.5px] transition-colors',
+          label.bound
+            ? 'border border-line bg-elevated text-ink'
+            : 'border border-dashed border-line text-faint',
           canWrite ? 'hover:border-accent' : 'cursor-not-allowed opacity-70',
         ].join(' ')}
       >
-        {label}
+        {label.text}
       </button>
     );
   }
@@ -124,7 +98,7 @@ function BindingCell({
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <Select
-        className="w-28"
+        className="w-44"
         defaultValue=""
         onChange={(e) => {
           const v = e.target.value;
@@ -136,17 +110,17 @@ function BindingCell({
         }}
       >
         <option value="">Choose…</option>
-        {aliasNames.length > 0 && (
-          <optgroup label="Follow tool alias">
-            {aliasNames.map((a) => (
-              <option key={a} value={a}>
-                {a}
+        {aliases.length > 0 && (
+          <optgroup label="Follow an alias — moves when it is promoted">
+            {aliases.map((a) => (
+              <option key={a.alias} value={a.alias}>
+                {a.alias} (now v{a.versionNumber})
               </option>
             ))}
           </optgroup>
         )}
         {versionNumbers.length > 0 && (
-          <optgroup label="Pin to version">
+          <optgroup label="Pin a version — never moves">
             {versionNumbers.map((n) => (
               <option key={n} value={`v:${n}`}>
                 v{n}
@@ -154,12 +128,14 @@ function BindingCell({
             ))}
           </optgroup>
         )}
-        <optgroup label="Other">
-          {/* "off" only means something as a contradiction of a default, so the
-              default column does not offer it — the API rejects it there too. */}
-          {!isDefault && <option value="__off">none (exclude here)</option>}
+        <optgroup label="Stop calling it">
+          {/* "off" only means something as a contradiction of a default, so the default
+              column does not offer it — the API rejects it there too. */}
+          {!isDefault && <option value="__off">Not for this alias</option>}
           {state.kind !== 'inherit' && state.kind !== 'unbound' && (
-            <option value="__clear">{isDefault ? 'disconnect' : 'inherit default'}</option>
+            <option value="__clear">
+              {isDefault ? 'Disconnect from this prompt' : 'Go back to the default'}
+            </option>
           )}
         </optgroup>
       </Select>
@@ -175,17 +151,94 @@ function BindingCell({
 }
 
 /**
+ * The searchable list of catalog tools not yet on this prompt.
+ *
+ * It replaces a flat wrap of every tool name, which needed no thought at three tools and
+ * became a wall at twenty-five — with nothing to type into and no way to tell a callable
+ * tool from a shell that will resolve to nothing.
+ */
+function ToolPicker({
+  tools,
+  onPick,
+  onCancel,
+}: {
+  tools: ToolSummary[];
+  onPick: (tool: ToolSummary) => void;
+  onCancel: () => void;
+}) {
+  const [query, setQuery] = useState('');
+  const shown = filterTools(tools, query);
+
+  return (
+    <div className="flex w-full max-w-lg flex-col gap-2 rounded-md border border-line bg-surface p-3">
+      <div className="flex items-center gap-2">
+        <Input
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search the catalog…"
+          aria-label="Search the catalog"
+        />
+        <button type="button" className="flex-none text-[12px] text-faint hover:text-ink" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+
+      {shown.length === 0 ? (
+        <p className="px-1 py-2 text-[12.5px] text-faint">
+          Nothing matches “{query.trim()}”.{' '}
+          <Link to="/tools" className="text-accent hover:underline">
+            Create it in the catalog
+          </Link>
+          .
+        </p>
+      ) : (
+        <ul className="max-h-64 overflow-y-auto">
+          {shown.map((t) => (
+            <li key={t.id}>
+              <button
+                type="button"
+                disabled={!t.callable}
+                onClick={() => onPick(t)}
+                title={
+                  t.callable
+                    ? undefined
+                    : 'This tool has no version on production yet, so nothing can call it.'
+                }
+                className="flex w-full items-start gap-3 rounded px-2 py-1.5 text-left transition-colors hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-mono text-[12.5px] text-ink">{t.name}</span>
+                  {t.description && (
+                    <span className="block truncate text-[11.5px] text-faint">{t.description}</span>
+                  )}
+                </span>
+                {!t.callable && (
+                  <Badge tone="warn" className="mt-0.5 flex-none">
+                    no version
+                  </Badge>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
  * Tools panel for a prompt's detail page.
  *
- * One grid: tools down the side, this prompt's aliases across the top. A binding
- * says "when this prompt is served through this alias, call this tool at this
- * tool alias" — it takes effect immediately, with no commit, because tools are
- * keyed by the prompt's alias rather than by a prompt version.
+ * One grid: tools down the side, this prompt's aliases across the top. A binding says
+ * "when this prompt is served through this alias, call this tool at this tool alias" —
+ * it takes effect immediately, with no commit, because tools are keyed by the prompt's
+ * alias rather than by a prompt version.
  *
- * A column appears only for an alias that has bindings of its own. A column per
- * alias reads fine at two and becomes unusable at five, most of them repeating
- * the same inherited value; aliases still following the default are named as
- * pills above the grid instead, so all of them stay visible at no width cost.
+ * A column appears only for an alias that has bindings of its own. A column per alias
+ * reads fine at two and becomes unusable at five, most of them repeating the same
+ * inherited value; aliases still following the default are named as pills above the grid
+ * instead, so all of them stay visible at no width cost.
  */
 export function ToolsTab({ promptId, canWrite }: ToolsTabProps) {
   const toast = useToast();
@@ -193,35 +246,55 @@ export function ToolsTab({ promptId, canWrite }: ToolsTabProps) {
   const bindings = usePromptToolBindings(promptId);
   const setBinding = useSetToolBinding(promptId);
   const resetAlias = useResetAliasBindings(promptId);
-  const [addingTool, setAddingTool] = useState<{ id: string; name: string } | null>(null);
+  const [addingTool, setAddingTool] = useState<ToolSummary | null>(null);
   const [picking, setPicking] = useState(false);
   /**
-   * Alias columns the user asked to see that own no rows yet. A column normally
-   * appears once its alias has a binding, but you cannot click a cell that is not
-   * rendered — so "customise" materialises the column locally and the first cell
-   * edit is what actually writes. Nothing is persisted just to make a column
-   * visible.
+   * Alias columns the user asked to see that own no rows yet. A column normally appears
+   * once its alias has a binding, but you cannot click a cell that is not rendered — so
+   * "customise" materialises the column locally and the first cell edit is what actually
+   * writes. Nothing is persisted just to make a column visible.
    */
   const [extraColumns, setExtraColumns] = useState<string[]>([]);
 
   const data = bindings.data?.data;
-  const catalog = tools.data?.data ?? [];
+  const catalog = useMemo(() => tools.data ?? [], [tools.data]);
+  // Looked up by id rather than re-fetched per cell: `useTools` already reads every page
+  // of the team's catalog, aliases included, so a row's own `BindingCell` needs no
+  // `GET /tools/:id/aliases` of its own — see the `aliases` prop below.
+  const toolAliasesById = useMemo(
+    () => new Map(catalog.map((t) => [t.id, t.aliases] as const)),
+    [catalog],
+  );
 
-  /** Tools worth a row: anything bound anywhere. Unbound catalog tools live behind "Add". */
+  /**
+   * Tools worth a row: anything bound anywhere. Names come from the binding itself,
+   * which carries the tool's current name — deriving them by looking the id up in the
+   * catalog meant any tool the catalog did not happen to hold rendered as "(deleted
+   * tool)", which is what a first-page-only catalog fetch produced for every tool past
+   * the twentieth.
+   */
   const rows = useMemo(() => {
     if (!data) return [];
-    const ids = new Set<string>(data.default.map((b) => b.toolId));
-    for (const a of data.aliases) for (const b of a.bindings) ids.add(b.toolId);
-    return [...ids]
-      .map((id) => ({ id, name: catalog.find((t) => t.id === id)?.name ?? '(deleted tool)' }))
+    const names = new Map<string, string>();
+    for (const b of data.default) names.set(b.toolId, b.toolName);
+    for (const a of data.aliases) for (const b of a.bindings) names.set(b.toolId, b.toolName);
+    return [...names]
+      .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [data, catalog]);
+  }, [data]);
 
   const customised = (data?.aliases ?? []).filter((a) => a.customised);
   const following = (data?.aliases ?? []).filter(
     (a) => !a.customised && !extraColumns.includes(a.alias),
   );
-  const unbound = catalog.filter((t) => !rows.some((r) => r.id === t.id));
+  // Memoized: `catalog` now holds the whole team's tool list (not one page), so this scan
+  // is O(catalog × rows), and this component re-renders on every keystroke inside its own
+  // tree (e.g. the reset-alias and connect-tool flows below) — recomputing it unchanged on
+  // each one was avoidable work.
+  const unbound = useMemo(
+    () => catalog.filter((t) => !rows.some((r) => r.id === t.id)),
+    [catalog, rows],
+  );
 
   if (tools.isLoading || bindings.isLoading) return <PageSpinner />;
 
@@ -230,9 +303,8 @@ export function ToolsTab({ promptId, canWrite }: ToolsTabProps) {
   }
 
   /**
-   * Drops an alias's column. A column with no server rows is only local, so
-   * removing it must not call the API — which would 404, since there is nothing
-   * to reset.
+   * Drops an alias's column. A column with no server rows is only local, so removing it
+   * must not call the API — which would 404, since there is nothing to reset.
    */
   async function handleReset(alias: string) {
     setExtraColumns((c) => c.filter((x) => x !== alias));
@@ -270,7 +342,10 @@ export function ToolsTab({ promptId, canWrite }: ToolsTabProps) {
     {
       key: null,
       label: 'default',
-      sub: following.length > 0 ? `${following.length} alias${following.length === 1 ? '' : 'es'} inheriting` : 'every alias',
+      sub:
+        following.length > 0
+          ? `${following.length} alias${following.length === 1 ? '' : 'es'} inheriting`
+          : 'every alias',
     },
     ...shownAliases.map((a) => ({ key: a.alias as ColumnKey, label: a.alias, sub: `serving v${a.versionNumber}` })),
   ];
@@ -285,8 +360,8 @@ export function ToolsTab({ promptId, canWrite }: ToolsTabProps) {
       <section className="flex flex-col gap-1">
         <h3 className="text-[12px] font-semibold uppercase tracking-[0.06em] text-faint">Tools</h3>
         <p className="text-[12px] text-faint">
-          Set the tools once. Give an alias its own column only where it needs something different.
-          Changes save straight away — no commit.
+          The tools the model may call when this prompt runs. Set them once; give an alias its own
+          column only where it needs something different. Changes save straight away — no commit.
         </p>
       </section>
 
@@ -327,9 +402,7 @@ export function ToolsTab({ promptId, canWrite }: ToolsTabProps) {
             })}
           </div>
           {canWrite && (
-            <p className="text-[11.5px] text-faint">
-              Click an alias to give it its own column.
-            </p>
+            <p className="text-[11.5px] text-faint">Click an alias to give it its own column.</p>
           )}
         </div>
       )}
@@ -339,7 +412,7 @@ export function ToolsTab({ promptId, canWrite }: ToolsTabProps) {
           title="This prompt calls no tools"
           description={
             catalog.length === 0
-              ? 'Create a tool in the Tool Catalog, then connect it here.'
+              ? 'Create a tool in the catalog first, then connect it here.'
               : 'Connect a tool below to let the model call it.'
           }
         />
@@ -377,7 +450,13 @@ export function ToolsTab({ promptId, canWrite }: ToolsTabProps) {
               {rows.map((r) => (
                 <tr key={r.id}>
                   <td className="border-b border-line-soft px-4 py-3 align-middle last:border-b-0">
-                    <span className="whitespace-nowrap font-mono text-[13px] text-ink">{r.name}</span>
+                    <Link
+                      to={`/tools/${r.id}`}
+                      className="whitespace-nowrap font-mono text-[13px] text-ink hover:text-accent"
+                      title="Open this tool in the catalog"
+                    >
+                      {r.name}
+                    </Link>
                   </td>
                   {columns.map((c) => (
                     <td
@@ -387,6 +466,7 @@ export function ToolsTab({ promptId, canWrite }: ToolsTabProps) {
                       <BindingCell
                         promptId={promptId}
                         toolId={r.id}
+                        aliases={toolAliasesById.get(r.id) ?? []}
                         column={c.key}
                         state={cellState(bindingsFor(c.key), r.id, c.key === null)}
                         canWrite={canWrite}
@@ -412,35 +492,19 @@ export function ToolsTab({ promptId, canWrite }: ToolsTabProps) {
               + Connect a tool from the catalog
             </button>
           ) : !addingTool ? (
-            <div className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-surface p-3">
-              <span className="text-[12.5px] text-muted">Which tool?</span>
-              {unbound.map((t) => (
-                <Button
-                  key={t.id}
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    // With no alias customised there is only one place it could go,
-                    // so skip the second step rather than asking a question with one
-                    // possible answer.
-                    if (columns.length === 1) connect(null, { id: t.id, name: t.name });
-                    else {
-                      setPicking(false);
-                      setAddingTool({ id: t.id, name: t.name });
-                    }
-                  }}
-                >
-                  <span className="font-mono">{t.name}</span>
-                </Button>
-              ))}
-              <button
-                type="button"
-                className="text-[12px] text-faint hover:text-ink"
-                onClick={() => setPicking(false)}
-              >
-                Cancel
-              </button>
-            </div>
+            <ToolPicker
+              tools={unbound}
+              onCancel={() => setPicking(false)}
+              onPick={(t) => {
+                // With no alias customised there is only one place it could go, so skip
+                // the second step rather than asking a question with one possible answer.
+                if (columns.length === 1) connect(null, t);
+                else {
+                  setPicking(false);
+                  setAddingTool(t);
+                }
+              }}
+            />
           ) : (
             <div className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-surface p-3">
               <span className="text-[12.5px] text-muted">
@@ -449,8 +513,8 @@ export function ToolsTab({ promptId, canWrite }: ToolsTabProps) {
               <Button size="sm" variant="ghost" onClick={() => connect(null, addingTool)}>
                 default <span className="text-faint">(every alias)</span>
               </Button>
-              {/* Binding to one alias only is how a tool gets rolled out: it exists
-                  for that alias and nowhere else, with no default row to exclude. */}
+              {/* Binding to one alias only is how a tool gets rolled out: it exists for
+                  that alias and nowhere else, with no default row to exclude. */}
               {(data?.aliases ?? []).map((a) => (
                 <Button key={a.alias} size="sm" variant="ghost" onClick={() => connect(a.alias, addingTool)}>
                   {a.alias} <span className="text-faint">only</span>
@@ -469,8 +533,9 @@ export function ToolsTab({ promptId, canWrite }: ToolsTabProps) {
       )}
 
       <p className="text-[12px] text-faint">
-        A cell holds a tool alias, an exact pinned version, or nothing. An alias with no column of
-        its own follows the default, so a newly promoted alias works without any setup.
+        A cell either follows one of the tool's aliases, pins one exact version, or calls nothing.
+        An alias with no column of its own follows the default, so a newly promoted prompt alias
+        works with no setup.
       </p>
     </div>
   );

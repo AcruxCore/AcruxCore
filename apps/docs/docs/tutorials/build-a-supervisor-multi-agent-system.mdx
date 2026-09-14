@@ -262,14 +262,14 @@ get_todays_date: tool_id=d0a800d5-a484-4d4f-a9e2-05a715775682 v2 committed=True
 a v1 for both, created by curl in [Build a ReAct agent](./build-a-react-agent), with a plainer
 hand-written description. `tools.sync()` is idempotent per name — it found the existing tools
 and committed a new version carrying the source's real docstring, exactly the "code supersedes
-a dashboard/API version" behavior the SDK documents. Open **Gateway → Tools → finance_research**
+a dashboard/API version" behavior the SDK documents. Open **Tools → finance_research**
 and both versions are visible, `v1` tagged `api` and `v2` tagged `code`:
 
-![finance_research tool detail page showing v2 defined in code with the verbatim source docstring, and v1 from the API with a shorter description](/img/tutorials/build-a-supervisor-multi-agent-system/02-tool-versions.png)
+![finance_research tool detail page showing v2 from code carrying the production chip, above v1 from the API](/img/tutorials/build-a-supervisor-multi-agent-system/02-tool-versions.png)
 
 All four now appear in the catalog:
 
-![Tools list showing basic_research, advanced_research, web_research, get_todays_date, and finance_research among the team's tools](/img/tutorials/build-a-supervisor-multi-agent-system/03-tools-list.png)
+![The catalog filtered to research, listing finance_research, basic_research and advanced_research, each marked Runs in your code](/img/tutorials/build-a-supervisor-multi-agent-system/03-tools-list.png)
 
 ## 4. Create the router and subagent prompts over the API
 

@@ -12,6 +12,44 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+## 0.15.0 — 2026-09-14
+
+### Added
+
+- `ToolDetail` now carries `callable`, `versionCount`, `latestVersionNumber`, `executorType`
+  and `aliases` — the same readiness fields the API's `tools.list()`/`tools.get()` already
+  return. `ToolAliasTarget` is exported for the shape of an `aliases` entry.
+- `ToolExecutor`'s `http` variant gained `failureWhen`, `resultSchema` and
+  `resultSchemaSeverity`, matching what `tools.commitVersion()` already accepts.
+
+### Changed
+
+- `gateway.runPromptWithTools()` warns when you pass `clientTools`, `dispatch` or `tools`
+  and the prompt has no tools bound. The run is still a plain completion, as before — but
+  the function you handed over is never called, and nothing used to say so.
+- **Breaking.** `ToolDetail` gained five required fields (`callable`, `versionCount`,
+  `latestVersionNumber`, `executorType`, `aliases`). Code that only reads a `ToolDetail`
+  returned by `tools.get()` / `tools.list()` is unaffected; code that *constructs* one — a
+  test fixture, a stub, a fake client — no longer compiles.
+
+  **Migrating from 0.14**
+
+  1. Build and read the errors: `tsc` reports every literal that is missing the new fields,
+     at the exact line. There is no rename and no call-signature change.
+  2. Supply the five fields. A versionless tool is
+     `{ callable: false, versionCount: 0, latestVersionNumber: null, executorType: null, aliases: [] }`.
+
+  TypeScript catches this at compile time, so nothing here can reach production unnoticed.
+
+### Fixed
+
+- `gateway.chat({ tools: [...] })` now rejects a tool declared with `acrux.tool` before
+  sending anything, naming the tool and pointing at `runToolLoop`. It used to travel and
+  come back as the server's `400 Invalid literal value, expected "function"`.
+- The no-tools-bound warning above could fire even when `tools` or `toolDefs` already gave
+  the model something to call — it read only the prompt's own bindings. It now fires only
+  when the run truly offers the model nothing.
+
 ## 0.14.0 — 2026-09-14
 
 ### Added

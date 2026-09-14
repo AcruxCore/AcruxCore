@@ -6,6 +6,7 @@ const Schema = z.object({
   secret: z.string().min(16),
   claimSecret: z.string().min(16),
   appUrl: z.string().url(),
+  extraTrustedOrigins: z.array(z.string().url()),
   googleClientId: z.string().min(1).optional(),
   googleClientSecret: z.string().min(1).optional(),
   sessionTtlDays: z.coerce.number().int().positive().max(365),
@@ -132,6 +133,14 @@ export function loadAuthConfig(): AuthConfig {
     // Reuse the email layer's APP_URL so a link in an email and an OAuth
     // callback can never disagree about which host this install lives on.
     appUrl: loadEmailConfig().appUrl,
+    // Outside production only: origins that may drive auth beside `APP_URL`.
+    // Binding the dev web server to 0.0.0.0 so a phone or a second machine can
+    // reach it changes the browser's `Origin` to the LAN address, which
+    // Better Auth then rejects — the proxy rewrites `Host`, never `Origin`.
+    // Listing that address here is what makes signing in from the LAN work
+    // without pointing `APP_URL` away from localhost. Ignored in production,
+    // where the set of origins that may carry a session cookie is exactly one.
+    extraTrustedOrigins: isProduction ? [] : (csvEnv(process.env.DEV_TRUSTED_ORIGINS) ?? []),
     googleClientId: process.env.GOOGLE_CLIENT_ID || undefined,
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || undefined,
     sessionTtlDays: process.env.AUTH_SESSION_TTL_DAYS || DEFAULT_SESSION_TTL_DAYS,

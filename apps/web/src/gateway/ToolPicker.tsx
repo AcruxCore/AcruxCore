@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ToolSummary } from '@/api';
+import { Badge } from '@/ui';
+import { filterTools } from '@/tools/catalog';
 
 interface ToolPickerProps {
   /** All tools available to attach, from the catalog. */
@@ -48,11 +50,7 @@ export function ToolPicker({ tools, selectedIds, onChange, disabled }: ToolPicke
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const selectedTools = tools.filter((t) => selectedSet.has(t.id));
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return tools;
-    return tools.filter((t) => t.name.toLowerCase().includes(q));
-  }, [tools, query]);
+  const filtered = useMemo(() => filterTools(tools, query), [tools, query]);
 
   function toggle(id: string) {
     onChange(selectedSet.has(id) ? selectedIds.filter((x) => x !== id) : [...selectedIds, id]);
@@ -124,8 +122,14 @@ export function ToolPicker({ tools, selectedIds, onChange, disabled }: ToolPicke
                       type="button"
                       role="option"
                       aria-selected={on}
+                      disabled={!t.callable}
                       onClick={() => toggle(t.id)}
-                      className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition-colors hover:bg-elevated"
+                      title={
+                        t.callable
+                          ? undefined
+                          : 'This tool has no version on production yet, so nothing can call it.'
+                      }
+                      className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition-colors hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
                     >
                       <input
                         type="checkbox"
@@ -134,7 +138,14 @@ export function ToolPicker({ tools, selectedIds, onChange, disabled }: ToolPicke
                         tabIndex={-1}
                         className="h-3.5 w-3.5 flex-none accent-[var(--accent)]"
                       />
-                      <span className="truncate font-mono text-[12px] text-ink">{t.name}</span>
+                      <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-ink">
+                        {t.name}
+                      </span>
+                      {!t.callable && (
+                        <Badge tone="warn" className="flex-none">
+                          no version
+                        </Badge>
+                      )}
                     </button>
                   );
                 })

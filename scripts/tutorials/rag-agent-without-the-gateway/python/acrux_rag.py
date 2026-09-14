@@ -46,7 +46,7 @@ DOC_URLS = {
     "prompts.md": "https://docs.acruxcore.com/docs/guides/version-a-prompt",
     "gateway.md": "https://docs.acruxcore.com/docs/guides/route-calls-through-the-gateway",
     "tracing.md": "https://docs.acruxcore.com/docs/guides/trace-an-llm-call",
-    "tools.md": "https://docs.acruxcore.com/docs/guides/build-and-attach-a-tool",
+    "tools.md": "https://docs.acruxcore.com/docs/guides/create-a-tool",
     "evaluation.md": "https://docs.acruxcore.com/docs/guides/evaluate-a-prompt",
 }
 

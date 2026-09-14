@@ -1,8 +1,43 @@
 import { z } from 'zod';
 import { Tool } from '@prisma/client';
 
-/** HTTP response shape for a single tool (the mutable shell). */
-export interface ToolResponseDto {
+/**
+ * Where one of a tool's aliases currently points. Returned inline on the tool so a
+ * caller learns what `production` serves without a second request per tool.
+ */
+export interface ToolAliasTargetDto {
+  alias: string;
+  versionNumber: number;
+}
+
+/**
+ * Whether a tool can actually be called, and what a caller gets when it is.
+ *
+ * A tool's name and description say nothing about this. Creating a tool makes a shell
+ * with no version, and a shell resolves to nothing — so a prompt bound to one silently
+ * runs with one tool fewer than its author intended. Every surface that lists tools
+ * needs to distinguish the two states, and doing it with a versions fetch per row is
+ * what stopped it being done at all.
+ */
+export interface ToolReadinessDto {
+  /** True once a version exists and `production` points at one — the resolvable state. */
+  callable: boolean;
+  /** How many versions have been committed. Zero means the tool is a name only. */
+  versionCount: number;
+  /** Highest committed version number, or null when there are none. */
+  latestVersionNumber: number | null;
+  /**
+   * Executor of the version `production` currently serves — who runs the call. Null
+   * when the tool is not callable. Production's, not the latest version's, because
+   * that is what an unqualified `tool_ref` and a newly connected binding both resolve to.
+   */
+  executorType: 'client' | 'http' | null;
+  /** Every alias on the tool with the version it points at, `production` first. */
+  aliases: ToolAliasTargetDto[];
+}
+
+/** HTTP response shape for a single tool (the mutable shell plus its readiness). */
+export interface ToolResponseDto extends ToolReadinessDto {
   id: string;
   name: string;
   description: string | null;
@@ -19,8 +54,23 @@ export interface ToolListResponseDto {
   limit: number;
 }
 
-/** Maps a Prisma Tool row to the API response shape. */
-export function toToolResponseDto(row: Tool): ToolResponseDto {
+/** A tool with no versions — the state every tool starts in. */
+export const NOT_CALLABLE: ToolReadinessDto = {
+  callable: false,
+  versionCount: 0,
+  latestVersionNumber: null,
+  executorType: null,
+  aliases: [],
+};
+
+/**
+ * Maps a Prisma Tool row to the API response shape.
+ *
+ * @param row - The tool row.
+ * @param readiness - Its readiness, from {@link ToolsRepository.readinessFor}. Defaults
+ *   to {@link NOT_CALLABLE}, which is the honest answer for a tool that was just created.
+ */
+export function toToolResponseDto(row: Tool, readiness: ToolReadinessDto = NOT_CALLABLE): ToolResponseDto {
   return {
     id: row.id,
     name: row.name,
@@ -28,6 +78,7 @@ export function toToolResponseDto(row: Tool): ToolResponseDto {
     teamId: row.teamId,
     createdBy: row.createdBy,
     createdAt: row.createdAt,
+    ...readiness,
   };
 }
 

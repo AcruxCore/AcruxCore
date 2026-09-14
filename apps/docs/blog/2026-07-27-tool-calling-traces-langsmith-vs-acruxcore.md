@@ -869,4 +869,4 @@ The [SDK-level comparison](/blog/tool-agent-sdk-langchain-vs-acruxcore) — Lang
 layer up, where the loop and the registration stop being your problem.
 
 And if you want the step-by-step version of getting a tool into the catalog rather than a
-comparison, that is [Build and attach a tool](/docs/guides/build-and-attach-a-tool).
+comparison, that is [Create a tool](/docs/guides/create-a-tool).

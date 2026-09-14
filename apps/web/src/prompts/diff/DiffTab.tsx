@@ -55,7 +55,7 @@ function VersionSelect({
 /** Diff tab: pick two versions and view a colored unified diff. */
 export function DiffTab({ promptId }: { promptId: string }) {
   const versions = useVersions(promptId);
-  const nums = (versions.data?.data ?? []).map((v) => v.versionNumber).sort((a, b) => a - b);
+  const nums = (versions.data ?? []).map((v) => v.versionNumber).sort((a, b) => a - b);
 
   const [from, setFrom] = useState<number | null>(null);
   const [to, setTo] = useState<number | null>(null);

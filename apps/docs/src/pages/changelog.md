@@ -60,12 +60,77 @@ called out in the week it ships and in the SDK release notes.
 - Ships the per-call `gateway` controls and the client-side tool error and warning helpers.
   [Reference →](/docs/sdk-reference/node)
 
+#### Both SDKs released as 0.15.0
+
+- `@acruxcoreai/sdk` 0.15.0 on npm and `acruxcore` 0.15.0 on PyPI.
+- `ToolDetail` now reads the catalog's readiness fields, so `tool.callable` works in both.
+- Breaking for code that *builds* a `ToolDetail`; the release notes carry the migration.
+  [Reference →](/docs/sdk-reference/node)
+
+#### The tool catalog says whether each tool can actually be called
+
+- Every row shows its version count, where `production` points, and who runs the call.
+- A tool with no version is flagged **No version yet** instead of looking the same as a working one.
+- The prompt's tool picker disables those tools instead of offering a binding to nothing.
+  [Reference →](/api-reference/tools/)
+
+#### Creating a tool is one step instead of two
+
+- **New tool** asks for the name, description, parameters and executor in one dialog.
+- One click writes the tool and version 1 together, so you cannot leave a dead name behind.
+- The API is unchanged — `POST /tools` then `POST /tools/:id/versions`.
+
+#### A version committed in the dashboard no longer drops its failure checks
+
+- Every dashboard commit discarded `failureWhen`, `resultSchema` and its severity.
+- Both fields are now editable, and the section opens itself when a version carries them.
+- Recheck any HTTP tool re-committed from the dashboard since 7 September.
+  [Reference →](/api-reference/tools/versions)
+
+#### The tool catalog and its pickers were missing tools past the first page
+
+- **Fixed** — the catalog and tool pickers listed only the first 20 tools; the rest read as deleted.
+
+#### Prompt pickers were missing anything past the first page
+
+- **Fixed** — the Playground, Save Version and evaluation pickers listed only the first 20 prompts.
+- **Fixed** — a trace filter's saved prompt chip showed a raw id instead of a name past that page.
+
+#### A prompt past 100 commits lost its oldest versions
+
+- **Fixed** — the promote control, the Diff tab and the Versions tab could not see or restore them.
+
 ### Minor
 
 - The [Retries and Fallbacks guide](/docs/guides/automatic-model-fallbacks) now shows a retried trace and a fallback trace side by side.
 - The same guide covers registering a model with its first fallback, not only editing one.
 - The same guide now shows Python and Node SDK code beside every curl example.
 - The gateway API reference documents both keys of the `gateway` control object.
+- Tools moved into the sidebar's Workspace section, under Prompts; old links redirect.
+- Versions and aliases are one tab now — each version row shows the aliases pointing at it.
+- Renaming a tool, editing its catalog description and deleting it moved into a **Settings** dialog.
+- The prompt's Tools tab has a searchable picker, and each tool name links to its catalog page.
+- Both SDKs warn when you pass tool implementations to a prompt that has no tools bound.
+- The tool pages now share one routing table in [Core concepts](/docs/getting-started/core-concepts).
+- **Fixed** — an unreachable executor URL now names the host and says which field it came from.
+- **Fixed** — deleting a tool no longer leaves the page refetching endpoints that just became 404.
+- **Fixed** — a blank or zero tool alias version was accepted; it pointed at no real version.
+- Both SDK references open with a table saying which call runs your tools, and what to pass it.
+- The same table is in [Core concepts](/docs/getting-started/core-concepts), with where each tool runs.
+- Self-hosters can set `WEB_HOST` to reach a development dashboard from another machine.
+- **Fixed** — `chat()` now names the call that runs a tool when handed a declared one, not a 400.
+- **Fixed** — seven Node snippets in the tool tutorials were missing `new` and failed on paste.
+- The prompt-tools guide now shows `run_prompt_with_tools` as a wrapper over `run_tool_loop`.
+- **Fixed** — a guide and its two scripts omitted `variables` from the hand-written tool loop.
+- The prompt-tools guide now covers the three SDK calls only, matching its title.
+- The tool guides are one **Tools** section in the sidebar, in the order you would read them.
+- Seven tool guides became five; every retired URL redirects to the page that replaced it.
+- [Create a tool](/docs/guides/create-a-tool) is the one page for both ways to define one.
+- Every guide now sits in one of six sections: Prompts, Gateway, Traces, Tools, Evaluation, Team.
+- Guide URLs are unchanged, and each section has its own index, such as [Traces](/docs/guides/traces).
+- [Create a tool](/docs/guides/create-a-tool) now shows Python and Node SDK code beside every curl example.
+- [Evaluate a prompt](/docs/guides/evaluate-a-prompt) now shows SDK code for reporting feedback, not only curl.
+- **Fixed** — the SDK chat guide left `trace_id` out of the gateway metadata it documents.
 
 ---
 
@@ -171,7 +236,7 @@ called out in the week it ships and in the SDK release notes.
 - A tool defined in code with no docstring now takes its description from the catalog.
 - A bring-your-own-key run used to send that tool with no description at all.
 - A tool described in neither place now warns instead of going out silently.
-  [Guide →](/docs/guides/define-a-tool-in-code-or-in-the-catalog)
+  [Guide →](/docs/guides/create-a-tool)
 
 #### Both SDKs released as 0.13.0
 
@@ -470,9 +535,9 @@ called out in the week it ships and in the SDK release notes.
 - Tool parameters: a checkbox now writes `additionalProperties: false`, no raw JSON needed.
 - **Fixed** — "Back to builder" on a tool version no longer looks dead; it greys out with a reason.
 - New guide: where a tool's definition should live, and what changes in traces and deploys.
-  [Guide →](/docs/guides/define-a-tool-in-code-or-in-the-catalog)
+  [Guide →](/docs/guides/create-a-tool)
 - That guide also ships as a runnable notebook, with a preflight check for a brand new account.
-  [Guide →](/docs/guides/define-a-tool-in-code-or-in-the-catalog)
+  [Guide →](/docs/guides/create-a-tool)
 - The travel-planner tutorial now ships as a runnable notebook too, written for a first-timer.
   [Tutorial →](/docs/tutorials/build-a-travel-planner-agent)
 - The Python SDK tool-calling tutorial ships as a runnable notebook, with both setup routes shown.
@@ -605,7 +670,7 @@ called out in the week it ships and in the SDK release notes.
 #### SDK tool catalog lifecycle
 
 - `hub.tools`/`client.tools` gained: create, list, get, update, delete, versions, promote, analytics.
-- Available in both TypeScript and Python SDKs — see the [Tool Catalog guide](/docs/guides/manage-a-tools-lifecycle-via-the-sdk).
+- Available in both TypeScript and Python SDKs — see the [Tool Catalog guide](/docs/guides/version-and-track-a-tool).
 
 #### Apache License 2.0
 
@@ -780,7 +845,7 @@ called out in the week it ships and in the SDK release notes.
 - **New Tutorials section** — end-to-end agent builds split out from single-feature guides.
 - **New guide** — [manage team roles and permissions](/docs/guides/manage-team-roles-and-permissions).
 - **New guide** — [scope access with virtual keys](/docs/guides/scope-access-with-virtual-keys).
-- **New guide** — [alias and track usage of tools in the catalog](/docs/guides/alias-and-track-usage-of-tools-in-the-catalog).
+- **New guide** — [version and track a tool](/docs/guides/version-and-track-a-tool).
 - **New guide** — [automatic model fallbacks](/docs/guides/automatic-model-fallbacks).
 - **New guide** — [set spend limits with gateway budgets and rate limits](/docs/guides/set-spend-limits-with-gateway-budgets-and-rate-limits).
 - **New guide** — [diff, export, and import your prompt library](/docs/guides/diff-export-and-import-your-prompt-library).

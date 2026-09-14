@@ -1,0 +1,11 @@
+{
+  "label": "Traces",
+  "position": 3,
+  "collapsed": true,
+  "link": {
+    "type": "generated-index",
+    "title": "Traces",
+    "slug": "/guides/traces",
+    "description": "A trace is the record of one call, with a span for every step it took. These seven guides cover reading a trace in the dashboard, grouping calls into a session, tagging them so you can find them again, and sending in traces from an app that never touches the gateway."
+  }
+}

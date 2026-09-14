@@ -101,7 +101,7 @@ ${kw('await')} hub.traces.${fn('submit_feedback')}(
 const SDK_TUTORIALS: { label: string; href: string }[] = [
   { label: 'Register and fetch a prompt', href: `${DOCS.versionPrompt}#5-render-it-from-your-app` },
   { label: 'Call the gateway with chat()', href: `${DOCS.tsSdk}#1-a-plain-completion-with-chat` },
-  { label: 'Register a tool with a decorator', href: DOCS.attachTool },
+  { label: 'Register a tool with a decorator', href: DOCS.createTool },
   { label: 'Group calls into sessions and traces', href: DOCS.sessionsTraces },
   {
     label: 'Leave feedback on a trace',

@@ -172,7 +172,7 @@ The tool span nests under the model call that requested it, so a loop that searc
 
 On the BYO path there is no gateway to look tool schemas up server-side, so the SDK inlines the full JSON Schema into the request for you. It also syncs the tool to your catalog on the first call, deriving the name, description, and parameters from the function itself:
 
-![The search_docs tool page marked "Defined in code", with v2 "Search AcruxCore's documentation for relevant information." tagged code, above v1 "Search the internal docs for a phrase." tagged dashboard](/img/tutorials/build-a-rag-agent-without-the-gateway/06-tool-catalog.png)
+![The search_docs tool page marked "Defined in code", with v2 carrying the production chip and v1 the staging chip, both versions tagged as coming from code](/img/tutorials/build-a-rag-agent-without-the-gateway/06-tool-catalog.png)
 
 Tools are versioned like prompts. Here the docstring in the script became v2, and the earlier version someone wrote in the dashboard is still there to promote back to.
 

@@ -88,6 +88,25 @@ gateway sends `data: [DONE]`.
 
 ## Tools
 
+Three calls run a model, and which one you want depends on what you are holding:
+
+| You have | Call |
+|---|---|
+| Messages you wrote, no tools | `gateway.chat` |
+| Messages you wrote, and the tools named on the call | `gateway.runToolLoop` |
+| A prompt from the catalog | `prompts.render`, then `gateway.runPromptWithTools` |
+
+`chat` takes `tools` too, but only *offers* them: it returns `finishReason:
+'tool_calls'` with the request on `message.tool_calls` and runs nothing. Inside the
+loop, what you pass depends on where the tool is defined and whose process runs it:
+
+| Definition lives in | Runs in | Pass |
+|---|---|---|
+| Your code, declared with `acrux.tool` | Your process | `tools: [getWeather]` |
+| The catalog, `http` executor | AcruxCore | Nothing — the binding is enough, or `toolRefs` |
+| The catalog, `client` executor | Your process | `clientTools: { get_weather: getWeather }` |
+| Nowhere — inline for this call | Your process | `toolDefs` and `dispatch` |
+
 Declare a tool once with `acrux.tool` — name, description, parameter schema,
 and handler together, nothing to keep in sync by hand — and hand it to the loop:
 

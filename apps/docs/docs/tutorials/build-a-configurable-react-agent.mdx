@@ -136,19 +136,16 @@ export TAVILY_API_KEY=tvly-...
 
 ## 3. Create the `web_research` tool
 
-Open **Gateway → Tools**, click **New tool**, and name it `web_research`. Its
-schema is deliberately thin — the model only ever supplies a `query`; which depth
-that query runs at is decided by which alias is active, not by the model.
+Open **Tools** and click **New tool**. Name it `web_research`, give it one
+required `query` parameter of type `string`, and leave the executor on
+**Client — your own code runs it**: the platform stores the schema, your own
+code runs the real Tavily call. The schema is deliberately thin — the model only
+ever supplies a `query`; which depth that query runs at is decided by which
+alias is active, not by the model.
 
-![New tool dialog with the name web_research and a description about searching the live web](/img/tutorials/build-a-configurable-react-agent/01-new-tool.png)
+![New tool dialog with the name web_research, a description about searching the live web, a required query string parameter, and the executor set to Client](/img/tutorials/build-a-configurable-react-agent/01-new-tool.png)
 
-Click **Create tool**, then **New version** to define its one parameter and pick
-**Client — the caller's app runs it**: the platform stores the schema, your own
-code runs the real Tavily call.
-
-![New version form showing a required query string parameter and the executor set to Client](/img/tutorials/build-a-configurable-react-agent/02-tool-version.png)
-
-Click **Commit version**. `web_research` now exists with one parameter and no
+Click **Create tool**. `web_research` now exists with one parameter and no
 opinion at all about search depth — that lives entirely in the prompt versions
 you're about to create.
 

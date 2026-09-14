@@ -781,7 +781,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
         note: 'Bindings save immediately and are not part of a prompt version, so changing one is not a commit — and rolling a prompt alias back does not roll a binding back with it.',
         links: [
           { label: 'Guide: connect a tool to a prompt', href: DOCS.connectToolToPrompt },
-          { label: 'Guide: tool aliases and usage', href: DOCS.toolAliases },
+          { label: 'Guide: version and track a tool', href: DOCS.toolVersions },
         ],
       },
       {
@@ -802,7 +802,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
             body: 'Both paths write a tool span with input, output and duration, and both feed per-tool analytics — so a slow or failing tool is visible rather than hidden inside a model answer.',
           },
         ],
-        links: [{ label: 'Guide: define a tool in code or in the catalog', href: DOCS.toolInCodeOrCatalog }],
+        links: [{ label: 'Guide: create a tool', href: DOCS.createTool }],
       },
     ],
     shot: {
@@ -820,10 +820,9 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
       'Read per-tool usage analytics to find the calls that fail or run long.',
     ],
     docs: [
-      { label: 'Guide: build and attach a tool', href: DOCS.attachTool },
+      { label: 'Guide: create a tool', href: DOCS.createTool },
       { label: 'Guide: connect a tool to a prompt', href: DOCS.connectToolToPrompt },
-      { label: 'Guide: in code or in the catalog', href: DOCS.toolInCodeOrCatalog },
-      { label: 'Guide: tool aliases and usage', href: DOCS.toolAliases },
+      { label: 'Guide: version and track a tool', href: DOCS.toolVersions },
       { label: 'Tutorial: a tool-calling agent in Python', href: DOCS.pySdk },
       { label: 'API: tools & execution', href: DOCS.toolsApi },
     ],

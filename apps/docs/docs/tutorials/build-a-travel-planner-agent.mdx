@@ -98,23 +98,25 @@ Before creating anything, it is worth knowing what a tool is on this platform, b
 
 The first three fields are the prompt the model reads about that tool. The fourth is invisible to the model — it only decides who does the work.
 
-### Creating one takes two steps
+### A shell, plus versions
 
-A tool is stored as a **shell** plus a list of immutable **versions**. The shell is only an identity: a name, and a description used as its label in the catalog. Everything the model reads, and everything the executor needs, lives on a version. So creating a tool is always two steps, on either route:
+A tool is stored as a **shell** plus a list of immutable **versions**. The shell is only an identity: a name, and a description used as its label in the catalog. Everything the model reads, and everything the executor needs, lives on a version — so a shell on its own resolves to nothing and cannot be called.
 
-| Step | What it stores | In the dashboard | From code |
-|---|---|---|---|
-| **1. Create the shell** | name, catalog label | **Tools → New tool** | `POST /tools` — `tools.create()` |
-| **2. Commit version 1** | description, parameters schema, executor | **New version** on the tool's page | `POST /tools/:id/versions` — `commit_version()` / `commitVersion()` |
+The dashboard collects both at once. **Tools → New tool** asks for the name and then for the whole first version, and one click writes them together:
 
-The dashboard says as much when you create the shell — "Commit a version afterwards to define its parameters and executor":
+![New tool dialog asking for the name, the model-facing description, the parameters and the executor in one form](/img/tutorials/build-a-travel-planner-agent/09-new-tool-dialog.png)
 
-![New tool dialog asking only for a name and a description, with a note that a version must be committed afterwards to define parameters and the executor](/img/tutorials/build-a-travel-planner-agent/09-new-tool-dialog.png)
+From code it is two calls, because the shell has to exist before a version can be committed onto it:
+
+| Step | What it stores | From code |
+|---|---|---|
+| **1. Create the shell** | name, catalog label | `POST /tools` — `tools.create()` |
+| **2. Commit version 1** | description, parameters schema, executor | `POST /tools/:id/versions` — `commit_version()` / `commitVersion()` |
 
 Two things follow from the split, and both matter later:
 
 - **Versions are immutable.** To change a tool you commit a new version and move an alias, instead of editing what is already running. The first version you commit becomes both `production` and `staging` automatically.
-- **Two fields are called `description`** — one on the shell, one on the version — and only one of them normally reaches the model: the version's. The shell's is a fallback, used when the version has none. Write the sentence that steers the model on the version, and treat the shell's as a label for your team.
+- **Two fields are called `description`** — one on the shell, one on the version — and only one of them normally reaches the model: the version's. The shell's is a fallback, used when the version has none. The New tool dialog asks only for the version's, which is the one that matters; the shell's is set later under **Settings** if you want a separate label for your team.
 
 ### The parameters schema
 
@@ -148,9 +150,9 @@ The planner needs three tools, and they differ in **who runs them**, which the v
 
 An `http` executor is a declarative HTTP call the platform makes for you, so URLs, headers and secrets never leave the server. A `client` executor stores only the definition — the model learns the tool exists, and your app runs it. A travel planner needs both: public weather and currency APIs suit `http`, while flight inventory lives in your own database.
 
-This is the catalog once all three exist:
+This is the catalog once all three exist. Each row says which version `production` points at and who runs the call, so a tool that cannot be called yet is visible at a glance:
 
-![Tool Catalog listing search flights, convert currency and get city weather with their descriptions](/img/tutorials/build-a-travel-planner-agent/01-tool-catalog.png)
+![The catalog listing search_flights marked Runs in your code, and convert_currency and get_city_weather marked Runs on AcruxCore, each row showing where production points](/img/tutorials/build-a-travel-planner-agent/01-tool-catalog.png)
 
 Now build them one at a time.
 
@@ -201,19 +203,18 @@ Now create the tool:
 <Tabs groupId="lang">
 <TabItem value="dashboard" label="Dashboard">
 
-**Step 1 — the shell.** Go to **Tools → New tool**. Name it `get_city_weather`, describe it as "Current conditions and a three-day forecast for one city.", then click **Create tool**.
+Go to **Tools → New tool** and fill in four fields:
 
-**Step 2 — version 1.** On the tool's page click **New version**, and fill in three fields:
-
-- **Description** — "Current conditions plus a three-day forecast, trimmed from wttr.in's full payload."
+- **Name** — `get_city_weather`.
+- **Description** — "Get the current weather and a three-day forecast for one city. The forecast only reaches three days ahead, so it cannot answer a question about a season or a typical climate."
 - **Parameters** — one row: `city`, type `string`, description "City name, e.g. 'Lisbon' or 'Kyoto'. English names work best.", `req` checked. Tick **Reject arguments not listed above** as well.
-- **Executor** — `HTTP — the gateway calls a URL`, method `GET`, URL `https://wttr.in/{{arg.city}}`, one query param `format` = `j1`, and the function above pasted into **Response transform**.
+- **Executor** — `HTTP — AcruxCore calls a URL for you`, method `GET`, URL `https://wttr.in/{{arg.city}}`, one query param `format` = `j1`, and the function above pasted into **Response transform**.
 
-Then click **Commit version**. Because it is the first version, `production` and `staging` are created for you, both pointing at it.
+Then click **Create tool**. That writes the tool and version 1 together, and because it is the first version, `production` and `staging` are created for you, both pointing at it.
 
 Filled in, the top of the dialog looks like this. The hint under the Description field is the one to remember: that text is what the model reads on every call.
 
-![New version dialog for the weather tool: description, changelog, one city parameter row with reject-unknown ticked, and the HTTP executor below](/img/tutorials/build-a-travel-planner-agent/02-tool-description.png)
+![New tool dialog for the weather tool: description, changelog, one city parameter row with reject-unknown ticked, and the HTTP executor below](/img/tutorials/build-a-travel-planner-agent/02-tool-description.png)
 
 Scrolling down in the same dialog reaches the rest of the executor:
 
@@ -237,7 +238,7 @@ curl -X POST $ACRUXCORE_BASE_URL/tools/$TOOL_ID/versions \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
   -d "$(jq -n --rawfile t weather_transform.js '{
-    description: "Current conditions plus a three-day forecast, trimmed from the wttr.in payload.",
+    description: "Get the current weather and a three-day forecast for one city. The forecast only reaches three days ahead, so it cannot answer a question about a season or a typical climate.",
     parametersSchema: {
       type: "object",
       required: ["city"],
@@ -288,7 +289,7 @@ version = await hub.tools.commit_version(
         'query': [{'name': 'format', 'value': 'j1'}],
         'responseTransform': WEATHER_TRANSFORM,
     },
-    description='Current conditions plus a three-day forecast, trimmed from the wttr.in payload.',
+    description='Get the current weather and a three-day forecast for one city. The forecast only reaches three days ahead, so it cannot answer a question about a season or a typical climate.',
 )
 ```
 
@@ -308,7 +309,7 @@ const tool = await hub.tools.create({
 
 // Step 2 - version 1.
 const version = await hub.tools.commitVersion(tool.id, {
-  description: 'Current conditions plus a three-day forecast, trimmed from the wttr.in payload.',
+  description: 'Get the current weather and a three-day forecast for one city. The forecast only reaches three days ahead, so it cannot answer a question about a season or a typical climate.',
   parametersSchema: {
     type: 'object',
     required: ['city'],
@@ -336,26 +337,24 @@ The platform's outbound guard rejects a redirect rather than re-checking the new
 
 ### Tool 2: `convert_currency`, three arguments that become query params
 
-The same two steps, with two differences worth understanding. This tool takes three arguments instead of one, and they go into **query params** rather than the URL path. It also needs no `responseTransform`, because [Frankfurter](https://frankfurter.dev) already answers with a small object.
+The same dialog, with two differences worth understanding. This tool takes three arguments instead of one, and they go into **query params** rather than the URL path. It also needs no `responseTransform`, because [Frankfurter](https://frankfurter.dev) already answers with a small object.
 
 One detail here catches people out: the argument names the model fills in do not have to match the upstream API's parameter names. The model sends `from` and `to`; the executor maps them onto Frankfurter's `base` and `symbols`. Write the schema for the model, and let the executor translate.
 
 <Tabs groupId="lang">
 <TabItem value="dashboard" label="Dashboard">
 
-**Step 1 — the shell.** **Tools → New tool**, name `convert_currency`, description "Convert an amount from one currency to another at today's reference rate.", then **Create tool**.
+Go to **Tools → New tool**, name it `convert_currency`, then:
 
-**Step 2 — version 1.** Click **New version**, then:
-
-- **Description** — "Frankfurter reference rates; the upstream API does the multiplication."
+- **Description** — "Convert an amount of money from one currency to another at today's reference exchange rate."
 - **Parameters** — three rows, all `req`: `amount` (`number`, "How much to convert, e.g. 500."), `from` (`string`, "Three-letter ISO code of the source currency, e.g. 'EUR'."), `to` (`string`, "Three-letter ISO code of the target currency, e.g. 'JPY'."), plus **Reject arguments not listed above**.
-- **Executor** — `HTTP`, `GET`, URL `https://api.frankfurter.dev/v1/latest`, and three query params: `amount` = `{{arg.amount}}`, `base` = `{{arg.from}}`, `symbols` = `{{arg.to}}`.
+- **Executor** — `HTTP — AcruxCore calls a URL for you`, method `GET`, URL `https://api.frankfurter.dev/v1/latest`, and three query params: `amount` = `{{arg.amount}}`, `base` = `{{arg.from}}`, `symbols` = `{{arg.to}}`.
 
-Then **Commit version**.
+Then **Create tool**.
 
 The query-param rows are where the mapping happens: the upstream parameter name on the left, the model's argument on the right. Both transform fields stay empty here — what you see in them is placeholder text, not content:
 
-![New version dialog for the currency tool showing three query param rows that map amount, base and symbols to templated model arguments, with both transform fields empty](/img/tutorials/build-a-travel-planner-agent/11-currency-query-params.png)
+![New tool dialog for the currency tool showing three query param rows that map amount, base and symbols to templated model arguments, with both transform fields empty](/img/tutorials/build-a-travel-planner-agent/11-currency-query-params.png)
 
 </TabItem>
 <TabItem value="curl" label="curl">
@@ -373,29 +372,31 @@ TOOL_ID=<the id from step 1>
 curl -X POST $ACRUXCORE_BASE_URL/tools/$TOOL_ID/versions \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "description": "Frankfurter reference rates; the upstream API does the multiplication.",
-    "parametersSchema": {
-      "type": "object",
-      "required": ["amount", "from", "to"],
-      "properties": {
-        "amount": { "type": "number", "description": "How much to convert, e.g. 500." },
-        "from": { "type": "string", "description": "Three-letter ISO code of the source currency, e.g. EUR." },
-        "to": { "type": "string", "description": "Three-letter ISO code of the target currency, e.g. JPY." }
-      },
-      "additionalProperties": false
+  --data-binary @- <<'JSON'
+{
+  "description": "Convert an amount of money from one currency to another at today's reference exchange rate.",
+  "parametersSchema": {
+    "type": "object",
+    "required": ["amount", "from", "to"],
+    "properties": {
+      "amount": { "type": "number", "description": "How much to convert, e.g. 500." },
+      "from": { "type": "string", "description": "Three-letter ISO code of the source currency, e.g. EUR." },
+      "to": { "type": "string", "description": "Three-letter ISO code of the target currency, e.g. JPY." }
     },
-    "executor": {
-      "type": "http",
-      "method": "GET",
-      "url": "https://api.frankfurter.dev/v1/latest",
-      "query": [
-        { "name": "amount", "value": "{{arg.amount}}" },
-        { "name": "base", "value": "{{arg.from}}" },
-        { "name": "symbols", "value": "{{arg.to}}" }
-      ]
-    }
-  }'
+    "additionalProperties": false
+  },
+  "executor": {
+    "type": "http",
+    "method": "GET",
+    "url": "https://api.frankfurter.dev/v1/latest",
+    "query": [
+      { "name": "amount", "value": "{{arg.amount}}" },
+      { "name": "base", "value": "{{arg.from}}" },
+      { "name": "symbols", "value": "{{arg.to}}" }
+    ]
+  }
+}
+JSON
 ```
 
 </TabItem>
@@ -429,7 +430,7 @@ version = await hub.tools.commit_version(
             {'name': 'symbols', 'value': '{{arg.to}}'},
         ],
     },
-    description='Frankfurter reference rates; the upstream API does the multiplication.',
+    description="Convert an amount of money from one currency to another at today's reference exchange rate.",
 )
 ```
 
@@ -443,7 +444,7 @@ const tool = await hub.tools.create({
 });
 
 const version = await hub.tools.commitVersion(tool.id, {
-  description: 'Frankfurter reference rates; the upstream API does the multiplication.',
+  description: "Convert an amount of money from one currency to another at today's reference exchange rate.",
   parametersSchema: {
     type: 'object',
     required: ['amount', 'from', 'to'],
@@ -477,17 +478,15 @@ Flight inventory is your data, so this tool is `client`. Acrux Core stores the n
 <Tabs groupId="lang">
 <TabItem value="dashboard" label="Dashboard">
 
-**Step 1 — the shell.** **Tools → New tool**, name `search_flights`, description "Search available flights between two cities on a given date, from the in-house inventory.", then **Create tool**.
+Go to **Tools → New tool**, name it `search_flights`, then:
 
-**Step 2 — version 1.** Click **New version**, then:
-
-- **Description** — "Definition only - the calling app queries its own flight inventory."
+- **Description** — "Search available flights between two cities on one date, from the agency's own inventory. Returns the airline, flight number, departure and arrival times, and the price in euros."
 - **Parameters** — three `req` rows: `origin` (`string`, "Departure city name, e.g. 'Amsterdam'."), `destination` (`string`, "Arrival city name, e.g. 'Lisbon'."), `departure_date` (`string`, "Departure date as YYYY-MM-DD."), plus **Reject arguments not listed above**.
-- **Executor** — choose `Client — the caller's app runs it`. The URL, header, query and transform fields disappear, because there is nothing for the platform to call.
+- **Executor** — choose `Client — your own code runs it`. The URL, header, query and transform fields disappear, because there is nothing for the platform to call.
 
-Then **Commit version**.
+Then **Create tool**.
 
-![New version dialog for the flight tool with the executor dropdown set to Client, the caller's app runs it, and no URL fields shown](/img/tutorials/build-a-travel-planner-agent/10-client-executor.png)
+![New tool dialog for the flight tool with the executor dropdown set to Client, your own code runs it, and no URL fields shown](/img/tutorials/build-a-travel-planner-agent/10-client-executor.png)
 
 </TabItem>
 <TabItem value="curl" label="curl">
@@ -505,20 +504,22 @@ TOOL_ID=<the id from step 1>
 curl -X POST $ACRUXCORE_BASE_URL/tools/$TOOL_ID/versions \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "description": "Definition only - the calling app queries its own flight inventory.",
-    "parametersSchema": {
-      "type": "object",
-      "required": ["origin", "destination", "departure_date"],
-      "properties": {
-        "origin": { "type": "string", "description": "Departure city name, e.g. Amsterdam." },
-        "destination": { "type": "string", "description": "Arrival city name, e.g. Lisbon." },
-        "departure_date": { "type": "string", "description": "Departure date as YYYY-MM-DD." }
-      },
-      "additionalProperties": false
+  --data-binary @- <<'JSON'
+{
+  "description": "Search available flights between two cities on one date, from the agency's own inventory. Returns the airline, flight number, departure and arrival times, and the price in euros.",
+  "parametersSchema": {
+    "type": "object",
+    "required": ["origin", "destination", "departure_date"],
+    "properties": {
+      "origin": { "type": "string", "description": "Departure city name, e.g. Amsterdam." },
+      "destination": { "type": "string", "description": "Arrival city name, e.g. Lisbon." },
+      "departure_date": { "type": "string", "description": "Departure date as YYYY-MM-DD." }
     },
-    "executor": { "type": "client" }
-  }'
+    "additionalProperties": false
+  },
+  "executor": { "type": "client" }
+}
+JSON
 ```
 
 </TabItem>
@@ -543,7 +544,7 @@ version = await hub.tools.commit_version(
         'additionalProperties': False,
     },
     executor={'type': 'client'},
-    description='Definition only - the calling app queries its own flight inventory.',
+    description="Search available flights between two cities on one date, from the agency's own inventory. Returns the airline, flight number, departure and arrival times, and the price in euros.",
 )
 ```
 
@@ -557,7 +558,7 @@ const tool = await hub.tools.create({
 });
 
 const version = await hub.tools.commitVersion(tool.id, {
-  description: 'Definition only - the calling app queries its own flight inventory.',
+  description: "Search available flights between two cities on one date, from the agency's own inventory. Returns the airline, flight number, departure and arrival times, and the price in euros.",
   parametersSchema: {
     type: 'object',
     required: ['origin', 'destination', 'departure_date'],
@@ -623,7 +624,7 @@ The version also binds a default model, here `mistral-small` on an OpenRouter cr
 
 **Step 1 — the shell.** **Prompts → New prompt**, name it `travel-planner`.
 
-**Step 2 — version 1.** In the editor, keep one message, set its role to **SYSTEM** and paste the text above. Set the **default model** to `mistral-small`, then **Commit version**. As with tools, the first version becomes both `production` and `staging`.
+**Step 2 — version 1.** In the editor, keep one message, set its role to **SYSTEM** and paste the text above. Set the **default model** to `mistral-small`, then **Commit version**. A prompt is still two steps, unlike a tool — and as with tools, the first version becomes both `production` and `staging`.
 
 The editor highlights `{{ today }}` as a variable, and the header shows which aliases point at this version:
 
@@ -707,7 +708,7 @@ Open the prompt, go to its **Tools** tab, and add each of the three tools with t
 
 The `default` column is what every prompt alias inherits. A prompt alias can override it — bind a different tool version for `staging`, or switch one off there — but this agent uses the same three tools everywhere, so both aliases simply inherit:
 
-![The prompt's Tools tab showing convert currency, get city weather and search flights each bound to production v1 in the default column, with two aliases inheriting](/img/tutorials/build-a-travel-planner-agent/05-three-tool-bindings.png)
+![The prompt's Tools tab showing convert_currency, get_city_weather and search_flights each following production in the default column, with two aliases inheriting](/img/tutorials/build-a-travel-planner-agent/05-three-tool-bindings.png)
 
 </TabItem>
 <TabItem value="curl" label="curl">
@@ -997,5 +998,5 @@ The response is already trimmed by the transform you committed in step 1, and th
 ## What's next
 
 - [Call a prompt's tools from the SDK](../guides/call-a-prompts-tools-from-the-sdk) — the four shapes this loop can take, including streaming the rounds as they arrive.
-- [Build and attach a tool](../guides/build-and-attach-a-tool) — the tool catalog on its own, in more depth than this tutorial needs.
+- [Create a tool](../guides/create-a-tool) — the tool catalog on its own, in more depth than this tutorial needs.
 - API details: see **Tools** and **Prompts** in the [API Reference](/api-reference).
