@@ -318,10 +318,10 @@ async def main():
 ```
 
 ```text
-get_drug_profile: tool_id=262cde98-be21-4f54-a250-552550ee3b2c v1 committed=True
-get_inquiry: tool_id=37d08422-c608-48d7-8d09-88a213d2b79f v1 committed=True
-search_prescribing_info: tool_id=1ef2763b-a88d-488b-97fd-1606ff7da808 v1 committed=True
-check_safety_policy: tool_id=6f366a23-4b59-4847-911e-dd1ff98ab313 v1 committed=True
+get_drug_profile: tool_id=585b3871-6347-4bbe-b92b-388d60b55e94 v1 committed=True
+get_inquiry: tool_id=d8169234-0a0c-45b8-9014-dffaae100670 v1 committed=True
+search_prescribing_info: tool_id=f57c937c-3dd1-481a-863f-9336cfa42abb v1 committed=True
+check_safety_policy: tool_id=5ff86cac-a065-45b4-b636-fa592baea46e v1 committed=True
 ```
 
 All four exist now, `check_safety_policy` with a blank description. Open its tool page and
@@ -345,7 +345,7 @@ text forward onto it — a new version number, same live text. Once the dashboar
 matches what the code would generate, a sync becomes a true no-op:
 
 ```text
-check_safety_policy: tool_id=6f366a23-4b59-4847-911e-dd1ff98ab313 v4 committed=False
+check_safety_policy: tool_id=5ff86cac-a065-45b4-b636-fa592baea46e v4 committed=False
 ```
 
 ![check_safety_policy's version list after two syncs: v4 (dashboard) still holds the compliance description and stayed live, with v1-v3 in history below it](/img/tutorials/build-a-medical-information-qa-agent/06-tool-versions-after-resync.png)

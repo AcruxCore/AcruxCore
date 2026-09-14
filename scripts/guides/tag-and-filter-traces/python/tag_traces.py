@@ -13,6 +13,13 @@ Walks the Tag & filter traces guide (apps/docs/docs/guides/tag-and-filter-traces
 
 Requires:
   pip install acruxcore requests
+
+Env:
+  ACRUXCORE_API_KEY   -- required
+  ACRUXCORE_BASE_URL  -- defaults to http://localhost:3001/api/v1
+  ACRUXCORE_MODEL     -- a model registered under Gateway -> Models for your team.
+                         The default below is only the one this guide was written
+                         against; an unregistered name fails with a 400 naming it.
 """
 import asyncio
 import json
@@ -49,7 +56,7 @@ async def main():
     async with AcruxCore() as hub:
         # 1. chat() with trace tags + metadata --------------------------------
         section(1, "Trace tags via chat()")
-        chat = await hub.chat(
+        chat = await hub.gateway.chat(
             MODEL,
             [{"role": "user", "content": "Say hi in one word."}],
             trace={"tags": TAGS, "metadata": METADATA, "session_id": SESSION_ID},
@@ -64,7 +71,7 @@ async def main():
 
         # 2. run_tool_loop() -- tags land on the trace -----------------------
         section(2, "Trace tags via run_tool_loop()")
-        result = await hub.run_tool_loop(
+        result = await hub.gateway.run_tool_loop(
             MODEL,
             [{"role": "user", "content": "What time is it? Use the tool to check."}],
             tool_defs=[
@@ -89,7 +96,7 @@ async def main():
 
         # 3. read the trace back to prove the tags persisted ------------------
         section(3, "Read the trace back (get_trace)")
-        detail = await hub.get_trace(loop_trace_id)
+        detail = await hub.traces.get(loop_trace_id)
         print(f"trace session  : {detail.trace.session_id}")
         print(f"trace tags     : {detail.trace.raw.get('tags')}")
         print(f"trace metadata : {detail.trace.raw.get('metadata')}")

@@ -13,6 +13,13 @@
  *
  * Requires:
  *   npm install @acruxcoreai/sdk
+ *
+ * Env:
+ *   ACRUXCORE_API_KEY   -- required
+ *   ACRUXCORE_BASE_URL  -- defaults to http://localhost:3001/api/v1
+ *   ACRUXCORE_MODEL     -- a model registered under Gateway -> Models for your team.
+ *                          The default below is only the one this guide was written
+ *                          against; an unregistered name fails with a 400 naming it.
  */
 import AcruxCore from '@acruxcoreai/sdk';
 import { randomUUID } from 'node:crypto';
@@ -38,7 +45,7 @@ async function main() {
 
   // 1. chat() with trace tags + metadata ------------------------------------
   section(1, 'Trace tags via chat()');
-  const chat = await hub.chat({
+  const chat = await hub.gateway.chat({
     model: MODEL,
     messages: [{ role: 'user', content: 'Say hi in one word.' }],
     trace: { tags: TAGS, metadata: METADATA, sessionId: SESSION_ID },
@@ -52,7 +59,7 @@ async function main() {
 
   // 2. runToolLoop() -- tags land on the trace ------------------------------
   section(2, 'Trace tags via runToolLoop()');
-  const result = await hub.runToolLoop({
+  const result = await hub.gateway.runToolLoop({
     model: MODEL,
     messages: [{ role: 'user', content: 'What time is it? Use the tool to check.' }],
     toolDefs: [
@@ -76,7 +83,7 @@ async function main() {
 
   // 3. read the trace back to prove the tags persisted ----------------------
   section(3, 'Read the trace back (getTrace)');
-  const detail = await hub.getTrace(loopTraceId);
+  const detail = await hub.traces.get(loopTraceId);
   console.log('trace session  :', detail.trace.sessionId);
   console.log('trace tags     :', detail.trace.tags);
   console.log('trace metadata :', detail.trace.metadata);

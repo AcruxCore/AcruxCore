@@ -15,6 +15,13 @@ actually rolled up.
 
 Requires:
   pip install acruxcore requests
+
+Env:
+  ACRUXCORE_API_KEY   -- required
+  ACRUXCORE_BASE_URL  -- defaults to http://localhost:3001/api/v1
+  ACRUXCORE_MODEL     -- a model registered under Gateway -> Models for your team.
+                         The default below is only the one this guide was written
+                         against; an unregistered name fails with a 400 naming it.
 """
 import asyncio
 import os
@@ -44,7 +51,7 @@ async def main():
     async with AcruxCore() as hub:
         # --- Call 1: chat() no tools, with session_id ----------------------
         section(1, "chat() call 1 -- no tools")
-        r1 = await hub.chat(
+        r1 = await hub.gateway.chat(
             MODEL,
             [{"role": "user", "content": "Say hello in one word."}],
             trace={"tags": ["session-test"], "session_id": SESSION_ID},
@@ -55,7 +62,7 @@ async def main():
 
         # --- Call 2: chat() no tools, same session_id ----------------------
         section(2, "chat() call 2 -- no tools")
-        r2 = await hub.chat(
+        r2 = await hub.gateway.chat(
             MODEL,
             [{"role": "user", "content": "Say goodbye in one word."}],
             trace={"tags": ["session-test"], "session_id": SESSION_ID},
@@ -66,7 +73,7 @@ async def main():
 
         # --- Call 3: run_tool_loop(), same session_id ----------------------
         section(3, "run_tool_loop() -- with tool")
-        result = await hub.run_tool_loop(
+        result = await hub.gateway.run_tool_loop(
             MODEL,
             [{"role": "user", "content": "What time is it? Use the tool."}],
             tool_defs=[
@@ -91,13 +98,13 @@ async def main():
         # --- Read all three traces back ------------------------------------
         section(4, "Read traces back -- check session_id")
         for label, tid in [("chat call 1", trace1_id), ("chat call 2", trace2_id), ("run_tool_loop", trace3_id)]:
-            detail = await hub.get_trace(tid)
+            detail = await hub.traces.get(tid)
             sid = detail.trace.session_id
             print(f"  {label:20s}  trace={tid}  session_id={sid}")
 
         # --- Query the session via list_traces -----------------------------
         section(5, f"list_traces(session_id={SESSION_ID})")
-        session_traces = await hub.list_traces(session_id=SESSION_ID)
+        session_traces = await hub.traces.list(session_id=SESSION_ID)
         print(f"traces in session: {len(session_traces.data)}")
         for t in session_traces.data:
             print(f"  {t.id}")

@@ -131,6 +131,7 @@ called out in the week it ships and in the SDK release notes.
 - [Create a tool](/docs/guides/create-a-tool) now shows Python and Node SDK code beside every curl example.
 - [Evaluate a prompt](/docs/guides/evaluate-a-prompt) now shows SDK code for reporting feedback, not only curl.
 - **Fixed** — the SDK chat guide left `trace_id` out of the gateway metadata it documents.
+- **Fixed** — three guide scripts crashed on their first SDK call; they now use the current API.
 
 ---
 
