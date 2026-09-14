@@ -31,6 +31,7 @@ import {
   assertEmailConfig,
   assertUnsubscribeSecret,
   processEmail,
+  resolveTransport,
   type EmailJobData,
 } from '@acruxcore/api/email';
 import {
@@ -379,6 +380,49 @@ export async function startWorkers(): Promise<EvalWorkers> {
 }
 
 /**
+ * Registers the two repeatable schedules this process owns: the weekly usage
+ * digest and the daily trace-payload purge.
+ *
+ * Call this before any Worker starts consuming — see the call site for why the
+ * order is load-bearing rather than cosmetic.
+ *
+ * A failing registration is logged and swallowed on purpose. A bad `DIGEST_CRON`
+ * must be loud, but it has nothing to do with the six other queues and must not
+ * stop them from booting.
+ *
+ * @returns When both registrations have settled.
+ */
+export async function registerSchedules(): Promise<void> {
+  const digestConfig = loadDigestConfig();
+  const retentionScheduleConfig = loadRetentionConfig();
+
+  await Promise.all([
+    registerDigestSchedule(digestConfig)
+      .then((registered) => {
+        console.log(
+          registered
+            ? `[worker] weekly digest scheduled (${digestConfig.cron} UTC)`
+            : '[worker] weekly digest disabled (DIGEST_ENABLED)',
+        );
+      })
+      .catch((err) => {
+        console.error('[worker] failed to register the digest schedule', err);
+      }),
+    registerRetentionSchedule(retentionScheduleConfig)
+      .then((registered) => {
+        console.log(
+          registered
+            ? `[worker] trace payload purge scheduled (${retentionScheduleConfig.cron} UTC, ${retentionScheduleConfig.retentionDays}d retention)`
+            : '[worker] trace payload purge disabled (TRACE_PAYLOAD_PURGE_ENABLED)',
+        );
+      })
+      .catch((err) => {
+        console.error('[worker] failed to register the trace payload purge schedule', err);
+      }),
+  ]);
+}
+
+/**
  * Warns, loudly, when `apps/api`'s compiled output is older than its source.
  *
  * This process runs `apps/api`'s **dist**, not its TypeScript: every job processor arrives
@@ -416,6 +460,13 @@ if (require.main === module) {
   // a clear message at startup, the same contract `apps/api/server.ts`
   // already enforces for the request path.
   assertEmailConfig();
+  // Resolve the transport here rather than on the first email job, so a process
+  // that is not allowed to deliver for real says so at boot — the one moment a
+  // developer is actually reading the log — instead of staying quiet until a job
+  // arrives hours later. In production this also builds the provider client
+  // early, which turns a broken credential into a failed boot rather than a
+  // failed send.
+  resolveTransport();
   // Every digest and notification body carries an unsubscribe link, so a worker
   // without this secret would mail links it cannot honour. Same fail-fast
   // contract, in the same process that actually renders and sends.
@@ -428,25 +479,26 @@ if (require.main === module) {
   // this `.catch` logs it loudly and exits non-zero rather than leaving a
   // half-booted process running with a queue nobody is consuming.
   void (async () => {
-    const workers = await startWorkers();
+    // Both schedules are registered BEFORE any Worker starts consuming, and
+    // awaited rather than fired and forgotten.
+    //
+    // Both use a remove-then-add pattern, which is what makes `enabled: false`
+    // a real kill switch and what stops a changed cron leaving a second
+    // schedule behind. Neither works if a Worker is already draining the queue:
+    // an occurrence that came due while the process was down sits in Redis as a
+    // delayed job, and a Worker promotes it within milliseconds of connecting —
+    // measured at 4ms — which is long before a fire-and-forget registration
+    // gets to remove it. That is how booting this process locally could dispatch
+    // a weekly digest to every team in the database (issue #415).
+    //
+    // Registering first drops that stale occurrence instead: BullMQ schedules a
+    // re-added repeatable job from `Date.now()`, so a missed slot is skipped
+    // rather than replayed. Deterministically skipping one weekly digest after a
+    // worker outage is the intended trade — the alternative was a race whose
+    // outcome nobody could predict.
+    await registerSchedules();
 
-    // Register the weekly digest schedule on boot. Existing repeatable entries
-    // for this job are removed first, so a changed `DIGEST_CRON` replaces the
-    // schedule rather than adding a second one — see `registerDigestSchedule`.
-    const digestConfig = loadDigestConfig();
-    void registerDigestSchedule(digestConfig)
-      .then((registered) => {
-        console.log(
-          registered
-            ? `[worker] weekly digest scheduled (${digestConfig.cron} UTC)`
-            : '[worker] weekly digest disabled (DIGEST_ENABLED)',
-        );
-      })
-      .catch((err) => {
-        // A bad cron pattern must be loud, but it must not take the other five
-        // queues down with it — they have nothing to do with the digest.
-        console.error('[worker] failed to register the digest schedule', err);
-      });
+    const workers = await startWorkers();
 
     // Last-resort process guards. `'failed'`/`'error'` handlers above cover the
     // expected failure paths, but a genuinely stray async error must still not
@@ -466,21 +518,6 @@ if (require.main === module) {
       // race that usually loses.
       void Sentry.close(2000).finally(() => process.exit(1));
     });
-
-    // Register the daily span_payloads purge schedule on boot (Finding #7), same
-    // remove-then-add pattern as the digest schedule above.
-    const retentionScheduleConfig = loadRetentionConfig();
-    void registerRetentionSchedule(retentionScheduleConfig)
-      .then((registered) => {
-        console.log(
-          registered
-            ? `[worker] trace payload purge scheduled (${retentionScheduleConfig.cron} UTC, ${retentionScheduleConfig.retentionDays}d retention)`
-            : '[worker] trace payload purge disabled (TRACE_PAYLOAD_PURGE_ENABLED)',
-        );
-      })
-      .catch((err) => {
-        console.error('[worker] failed to register the trace payload purge schedule', err);
-      });
 
     // Graceful shutdown: on SIGTERM/SIGINT stop pulling new jobs and let in-flight
     // jobs finish (BullMQ re-queues any that don't drain in time as stalled), so

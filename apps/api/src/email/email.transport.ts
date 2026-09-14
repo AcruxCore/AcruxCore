@@ -1,4 +1,5 @@
 import { loadEmailConfig } from './email.config';
+import { isRealDeliveryAllowed, ReservedDomainGuard } from './delivery-guard';
 import { getMemoryTransport } from './memory.transport';
 import { SesTransport } from './ses.transport';
 import { SmtpTransport } from './smtp.transport';
@@ -33,6 +34,9 @@ let cached: EmailTransport | null = null;
  * between. `getMemoryTransport()` is itself memoized, so this still returns
  * the one shared instance tests assert against.
  *
+ * Outside production, `smtp` and `ses` are downgraded to the memory transport
+ * unless `EMAIL_ALLOW_REAL_DELIVERY=true` — see {@link isRealDeliveryAllowed}.
+ *
  * @returns The memoized transport, or the shared `MemoryTransport` when
  *   `NODE_ENV === 'test'`.
  * @throws {Error} When the configuration is invalid.
@@ -48,16 +52,42 @@ export function resolveTransport(): EmailTransport {
       cached = getMemoryTransport();
       break;
     case 'smtp':
-      cached = new SmtpTransport(config);
+      cached = guardRealTransport('smtp', () => new SmtpTransport(config));
       break;
     case 'ses':
-      cached = new SesTransport(config);
+      cached = guardRealTransport('ses', () => new SesTransport(config));
       break;
     case 'none':
       cached = new DisabledTransport();
       break;
   }
   return cached;
+}
+
+/**
+ * Builds a provider transport, or refuses to.
+ *
+ * The provider client is constructed lazily so a non-production process never
+ * opens an SMTP connection pool or an AWS client it is not allowed to use — and
+ * so a half-configured local `.env` cannot crash a boot that was never going to
+ * send anything anyway.
+ *
+ * @param name - The configured transport, for the refusal message.
+ * @param build - Constructs the provider transport.
+ * @returns The guarded provider transport, or the shared `MemoryTransport`.
+ */
+function guardRealTransport(
+  name: 'smtp' | 'ses',
+  build: () => EmailTransport,
+): EmailTransport {
+  if (!isRealDeliveryAllowed()) {
+    console.warn(
+      `[email] EMAIL_TRANSPORT=${name} ignored outside production — mail is being printed, not sent. ` +
+        'Set EMAIL_ALLOW_REAL_DELIVERY=true to deliver for real.',
+    );
+    return getMemoryTransport();
+  }
+  return new ReservedDomainGuard(build());
 }
 
 /**

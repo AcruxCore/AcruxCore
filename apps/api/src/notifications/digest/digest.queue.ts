@@ -110,6 +110,12 @@ export function digestJobId(teamId: string, isoWeek: string): string {
  * produce one schedule, and the ISO-week job id catches anything that slipped
  * through anyway.
  *
+ * **Call this before starting a Worker on `DIGEST_QUEUE`, and await it.** The
+ * removal above also deletes the pending delayed job the old entry produced —
+ * which is the only thing standing between a boot after a missed occurrence and
+ * an unscheduled digest going out. A Worker promotes an overdue delayed job
+ * within milliseconds of connecting, so a registration racing it loses (#415).
+ *
  * @param config - Whether the schedule is enabled, and its cron pattern.
  * @returns Whether a schedule is now registered.
  * @throws {Error} When BullMQ rejects the cron pattern.

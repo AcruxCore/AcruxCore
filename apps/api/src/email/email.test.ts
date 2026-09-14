@@ -7,6 +7,7 @@ import { loadEmailConfig, resetEmailConfig } from './email.config';
 import { resolveTransport, resetTransport } from './email.transport';
 import { MemoryTransport } from './memory.transport';
 import { SesTransport, type SesClientLike } from './ses.transport';
+import { ReservedDomainGuard } from './delivery-guard';
 import { EmailService } from './email.service';
 import { drainEmailQueue, getEmailQueue, toEmailJobId } from './email.queue';
 import { getMemoryTransport } from './memory.transport';
@@ -185,7 +186,11 @@ describe('email config', () => {
     process.env.SES_SECRET_ACCESS_KEY = 'secret';
     process.env.APP_URL = 'https://acruxcore.com';
 
-    expect(resolveTransport()).toBeInstanceOf(SesTransport);
+    // Real transports are wrapped by `ReservedDomainGuard`, so the provider is
+    // one hop down — see `guardRealTransport`.
+    const resolved = resolveTransport();
+    expect(resolved).toBeInstanceOf(ReservedDomainGuard);
+    expect((resolved as ReservedDomainGuard).inner).toBeInstanceOf(SesTransport);
 
     // No resetTransport() call here on purpose: the memo would still hold the
     // SesTransport above if the test-env check ran after the cache read.

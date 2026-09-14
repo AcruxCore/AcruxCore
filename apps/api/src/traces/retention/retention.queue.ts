@@ -55,6 +55,10 @@ export async function closeRetentionQueue(): Promise<void> {
  * would leave the old schedule behind and the job would fire on both
  * patterns. Removing first also makes `enabled: false` an actual kill switch.
  *
+ * Call this before starting a Worker on `RETENTION_QUEUE`, and await it — see
+ * `registerDigestSchedule` for why a registration that races a live Worker
+ * loses.
+ *
  * @param config - Whether the schedule is enabled, and its cron pattern.
  * @returns Whether a schedule is now registered.
  * @throws {Error} When BullMQ rejects the cron pattern.

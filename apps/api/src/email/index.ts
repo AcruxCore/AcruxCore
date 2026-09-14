@@ -1,6 +1,7 @@
 export * from './email.types';
 export * from './email.config';
 export * from './email.transport';
+export * from './delivery-guard';
 export * from './memory.transport';
 export * from './ses.transport';
 export * from './smtp.transport';

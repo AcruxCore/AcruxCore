@@ -100,6 +100,12 @@ called out in the week it ships and in the SDK release notes.
 
 - **Fixed** — the promote control, the Diff tab and the Versions tab could not see or restore them.
 
+#### A worker outside production no longer sends real email
+
+- `EMAIL_TRANSPORT=ses` and `smtp` deliver only when `NODE_ENV=production`, or with an opt-in.
+- Set `EMAIL_ALLOW_REAL_DELIVERY=true` to send for real from a non-production worker.
+- Mail to reserved domains such as `example.com` or `.invalid` is refused instead of bouncing.
+
 ### Minor
 
 - The [Retries and Fallbacks guide](/docs/guides/automatic-model-fallbacks) now shows a retried trace and a fallback trace side by side.
@@ -118,6 +124,9 @@ called out in the week it ships and in the SDK release notes.
 - Both SDK references open with a table saying which call runs your tools, and what to pass it.
 - The same table is in [Core concepts](/docs/getting-started/core-concepts), with where each tool runs.
 - Self-hosters can set `WEB_HOST` to reach a development dashboard from another machine.
+- **Fixed** — the weekly digest could dispatch at worker startup instead of at its scheduled time.
+- **Fixed** — `DIGEST_ENABLED=false` now also cancels a digest left pending from a worker outage.
+- The worker's first log line now says whether it will send mail for real or only print it.
 - **Fixed** — `chat()` now names the call that runs a tool when handed a declared one, not a 400.
 - **Fixed** — seven Node snippets in the tool tutorials were missing `new` and failed on paste.
 - The prompt-tools guide now shows `run_prompt_with_tools` as a wrapper over `run_tool_loop`.
