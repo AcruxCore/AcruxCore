@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button, Dialog, DialogFooter, Empty, PageSpinner, useToast } from '@/ui';
 import { ApiError, useDeleteEvalRule, useEvalRules } from '@/api';
 import type { EvalRule } from '@/api/types';
+import { useAuth } from '@/auth/AuthContext';
 import { RuleDrawer } from './RuleDrawer';
 import { RulesTable } from './RulesTable';
 
@@ -14,8 +15,15 @@ import { RulesTable } from './RulesTable';
  * `editing` holds the rule (or `'new'`) whose editor should be open; it
  * drives the `RuleDrawer` below in create mode (`'new'`) or edit mode (a
  * real `EvalRule`).
+ *
+ * Creating, changing and deleting a rule is owner or admin, because a rule
+ * scores live traffic continuously and turning one on is a standing spend. An
+ * editor may still open a rule, preview it and build a dataset from it, so the
+ * page stays useful to them — only the controls whose request would come back
+ * 403 are hidden (issue #510).
  */
 export function RulesPage() {
+  const { canManageTeam } = useAuth();
   const { data: rules, isLoading, isError } = useEvalRules();
   const [editing, setEditing] = useState<EvalRule | 'new' | null>(null);
 
@@ -45,9 +53,11 @@ export function RulesPage() {
             Rules that score live traffic automatically, without waiting for someone to run an experiment.
           </p>
         </div>
-        <Button variant="primary" className="ml-auto" onClick={() => setEditing('new')} data-testid="new-rule-button">
-          New rule
-        </Button>
+        {canManageTeam && (
+          <Button variant="primary" className="ml-auto" onClick={() => setEditing('new')} data-testid="new-rule-button">
+            New rule
+          </Button>
+        )}
       </header>
 
       {isLoading ? (
@@ -57,15 +67,26 @@ export function RulesPage() {
       ) : !rules || rules.length === 0 ? (
         <Empty
           title="No rules yet"
-          description="Score live traffic → filter the bad ones → build a dataset → run an experiment."
+          description={
+            canManageTeam
+              ? 'Score live traffic → filter the bad ones → build a dataset → run an experiment.'
+              : 'An owner or admin creates rules. Once one exists you can preview it and build a dataset from it.'
+          }
           action={
-            <Button variant="primary" onClick={() => setEditing('new')}>
-              New rule
-            </Button>
+            canManageTeam ? (
+              <Button variant="primary" onClick={() => setEditing('new')}>
+                New rule
+              </Button>
+            ) : undefined
           }
         />
       ) : (
-        <RulesTable rules={rules} onSelectRule={setEditing} onDeleteRule={setDeleteId} />
+        <RulesTable
+          rules={rules}
+          onSelectRule={setEditing}
+          onDeleteRule={setDeleteId}
+          canManage={canManageTeam}
+        />
       )}
 
       <RuleDrawer

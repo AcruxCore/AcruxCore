@@ -8,6 +8,7 @@ import type { DatasetExample } from '@/api/types';
 import { AddExampleDialog } from './AddExampleDialog';
 import { ConfirmDialog } from './ConfirmDialog';
 import { HistoryDisclosure } from './HistoryDisclosure';
+import { useAuth } from '@/auth/AuthContext';
 import { OptimizeDatasetDialog } from './OptimizeDatasetDialog';
 
 /** Renders a variable value the way the cell shows it — objects as JSON, strings raw. */
@@ -167,6 +168,8 @@ function CriteriaCell({ datasetId, example }: { datasetId: string; example: Data
     }
   }
 
+  const { canWrite } = useAuth();
+
   if (editing) {
     return (
       <div className="flex flex-col gap-2">
@@ -194,14 +197,16 @@ function CriteriaCell({ datasetId, example }: { datasetId: string; example: Data
   return (
     <div className="flex items-start gap-2">
       <span className="text-ink">{example.criteria ?? <span className="text-faint">No criteria</span>}</span>
-      <IconButton
-        onClick={startEditing}
-        aria-label={example.criteria ? 'Edit criteria' : 'Add criteria'}
-        className="shrink-0"
-        data-testid="criteria-edit"
-      >
-        <PencilIcon />
-      </IconButton>
+      {canWrite && (
+        <IconButton
+          onClick={startEditing}
+          aria-label={example.criteria ? 'Edit criteria' : 'Add criteria'}
+          className="shrink-0"
+          data-testid="criteria-edit"
+        >
+          <PencilIcon />
+        </IconButton>
+      )}
     </div>
   );
 }
@@ -216,6 +221,8 @@ function ExampleRow({
   example: DatasetExample;
   onRemove: (example: DatasetExample) => void;
 }) {
+  const { canWrite } = useAuth();
+
   return (
     <tr className="border-b border-line-soft bg-surface align-top last:border-b-0 hover:bg-elevated">
       <td className="px-4 py-2.5">
@@ -254,16 +261,18 @@ function ExampleRow({
           <span className="text-faint">—</span>
         )}
       </td>
-      <td className="px-4 py-2.5 text-right">
-        <IconButton
-          tone="danger"
-          aria-label="Remove this example"
-          onClick={() => onRemove(example)}
-          data-testid="example-remove"
-        >
-          <TrashIcon />
-        </IconButton>
-      </td>
+      {canWrite && (
+        <td className="px-4 py-2.5 text-right">
+          <IconButton
+            tone="danger"
+            aria-label="Remove this example"
+            onClick={() => onRemove(example)}
+            data-testid="example-remove"
+          >
+            <TrashIcon />
+          </IconButton>
+        </td>
+      )}
     </tr>
   );
 }
@@ -286,6 +295,7 @@ export function DatasetDetailPage() {
   const [addExampleOpen, setAddExampleOpen] = useState(false);
   const [pendingRemoval, setPendingRemoval] = useState<DatasetExample | null>(null);
   const [confirmDeleteDataset, setConfirmDeleteDataset] = useState(false);
+  const { canWrite } = useAuth();
 
   if (isLoading) return <PageSpinner />;
   if (isError || !data) {
@@ -333,20 +343,25 @@ export function DatasetDetailPage() {
             <span title={dateTime(data.createdAt)}>{timeAgo(data.createdAt)}</span>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="danger" onClick={() => setConfirmDeleteDataset(true)} data-testid="delete-dataset">
-            Delete
-          </Button>
-          <Button variant="ghost" onClick={() => setAddExampleOpen(true)} data-testid="add-example">
-            Add example
-          </Button>
-          <Button variant="ghost" onClick={() => setOptimizeOpen(true)} data-testid="optimize-prompt">
-            Optimize a prompt
-          </Button>
-          <Button variant="primary" onClick={() => navigate(`/evaluations/datasets/${data.id}/run`)}>
-            Run experiment
-          </Button>
-        </div>
+        {/* Every action here is a write the API gates at owner/admin/editor, and
+            "Run experiment" leads to a page whose only purpose is to start one. A
+            viewer reads the dataset instead of collecting 403s. */}
+        {canWrite && (
+          <div className="flex gap-2">
+            <Button variant="danger" onClick={() => setConfirmDeleteDataset(true)} data-testid="delete-dataset">
+              Delete
+            </Button>
+            <Button variant="ghost" onClick={() => setAddExampleOpen(true)} data-testid="add-example">
+              Add example
+            </Button>
+            <Button variant="ghost" onClick={() => setOptimizeOpen(true)} data-testid="optimize-prompt">
+              Optimize a prompt
+            </Button>
+            <Button variant="primary" onClick={() => navigate(`/evaluations/datasets/${data.id}/run`)}>
+              Run experiment
+            </Button>
+          </div>
+        )}
       </header>
 
       {data.examples.length === 0 ? (
@@ -385,9 +400,11 @@ export function DatasetDetailPage() {
                   <th className="px-4 py-2.5 font-medium">History</th>
                   <th className="px-4 py-2.5 font-medium">Prompt</th>
                   <th className="px-4 py-2.5 font-medium">Source trace</th>
-                  <th className="w-10 px-4 py-2.5 font-medium">
-                    <span className="sr-only">Actions</span>
-                  </th>
+                  {canWrite && (
+                    <th className="w-10 px-4 py-2.5 font-medium">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>

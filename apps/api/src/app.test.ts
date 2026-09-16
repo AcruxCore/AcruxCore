@@ -41,14 +41,44 @@ describe('body-parser failures map to 4xx, not 500 (issue #336)', () => {
   });
 
   it('a body over the parser limit returns 413 PAYLOAD_TOO_LARGE', async () => {
-    // express.json() defaults to a 100KB limit; 200KB of valid JSON clears it.
+    // 2MB clears JSON_BODY_LIMIT (1mb) on an ordinary route.
+    const res = await request(app)
+      .post('/api/v1/tools')
+      .set('Content-Type', 'application/json')
+      .send(JSON.stringify({ blob: 'x'.repeat(2 * 1024 * 1024) }));
+
+    expect(res.status).toBe(413);
+    expect(res.body.error.code).toBe('PAYLOAD_TOO_LARGE');
+  });
+
+  it('accepts a body the size of a real full trace batch', async () => {
+    // 200KB is what 200 llm spans with real payload text weigh. Rejecting it was
+    // invisible to users: the SDK warned once and dropped the batch (issue #485).
     const res = await request(app)
       .post('/api/v1/tools')
       .set('Content-Type', 'application/json')
       .send(JSON.stringify({ blob: 'x'.repeat(200 * 1024) }));
 
-    expect(res.status).toBe(413);
-    expect(res.body.error.code).toBe('PAYLOAD_TOO_LARGE');
+    expect(res.status).not.toBe(413);
+  });
+
+  it('gives the trace-ingest route the larger ceiling, and no other route', async () => {
+    // The ceiling a full batch needs exists only where a full batch is sent. The
+    // parser is mounted ahead of every router, so a limit set globally is a limit
+    // an unauthenticated caller can make the process buffer and parse on any path.
+    const body = JSON.stringify({ blob: 'x'.repeat(3 * 1024 * 1024) });
+
+    const ingest = await request(app)
+      .post('/api/v1/traces')
+      .set('Content-Type', 'application/json')
+      .send(body);
+    expect(ingest.status).not.toBe(413);
+
+    const ordinary = await request(app)
+      .post('/api/v1/tools')
+      .set('Content-Type', 'application/json')
+      .send(body);
+    expect(ordinary.status).toBe(413);
   });
 
   it('an unsupported Content-Encoding returns 415 UNSUPPORTED_ENCODING', async () => {

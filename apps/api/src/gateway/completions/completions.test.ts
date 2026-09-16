@@ -1365,3 +1365,118 @@ describe('POST /api/v1/gateway/chat/completions (live)', () => {
     expect(rows[0]?.promptTokens).toBeGreaterThan(0);
   });
 });
+
+describe('a virtual key’s provider allow-list covers fallbacks too (issue #479)', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('never lets a fallback serve a request on a forbidden provider', async () => {
+    const { agent } = await authedAgent(app);
+    const openAiCred = await createConnection(agent, 'openai', 'sk-test-abcdAB12');
+    const anthropicCred = await createConnection(agent, 'anthropic', 'sk-ant-test-abcdAB12');
+
+    const backup = await agent
+      .post('/api/v1/gateway/models')
+      .send({ publicName: 'guarded-backup', upstreamModel: 'claude-3-5-sonnet-latest', credentialId: anthropicCred })
+      .expect(201);
+    await agent
+      .post('/api/v1/gateway/models')
+      .send({
+        publicName: 'guarded',
+        upstreamModel: 'gpt-4o-mini',
+        credentialId: openAiCred,
+        fallbackModelIds: [backup.body.id],
+      })
+      .expect(201);
+
+    const vk = await agent
+      .post('/api/v1/gateway/keys')
+      .send({ name: 'fenced', allowedProviders: ['openai'], allowedModels: ['guarded'] })
+      .expect(201);
+
+    // The primary (OpenAI) is down; the fallback (Anthropic) would happily answer.
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 500,
+      headers: new Headers(),
+      json: async () => ({ error: 'upstream down' }),
+      text: async () => 'upstream down',
+    } as unknown as Response);
+
+    const res = await request(app)
+      .post('/api/v1/gateway/chat/completions')
+      .set('Authorization', `Bearer ${vk.body.key}`)
+      .send({ model: 'guarded', messages: [{ role: 'user', content: 'hi' }] });
+
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.headers['x-gateway-provider']).not.toBe('anthropic');
+    // The forbidden deployment must never even be dialled.
+    const hosts = fetchSpy.mock.calls.map(([url]) => String(url));
+    expect(hosts.some((u) => u.includes('anthropic'))).toBe(false);
+  }, 60000);
+
+  it('still uses a fallback that is on an allowed provider', async () => {
+    const { agent } = await authedAgent(app);
+    const cred = await createConnection(agent, 'openai', 'sk-test-abcdAB12');
+    const backup = await agent
+      .post('/api/v1/gateway/models')
+      .send({ publicName: 'ok-backup', upstreamModel: 'gpt-4o-mini', credentialId: cred })
+      .expect(201);
+    await agent
+      .post('/api/v1/gateway/models')
+      .send({ publicName: 'ok-primary', upstreamModel: 'gpt-4o-mini', credentialId: cred, fallbackModelIds: [backup.body.id] })
+      .expect(201);
+    const vk = await agent
+      .post('/api/v1/gateway/keys')
+      .send({ name: 'same-provider', allowedProviders: ['openai'] })
+      .expect(201);
+
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce({
+        ok: false, status: 500, headers: new Headers(),
+        json: async () => ({}), text: async () => 'down',
+      } as unknown as Response)
+      .mockResolvedValue({
+        ok: true, status: 200, headers: new Headers(),
+        json: async () => CANNED_OPENAI, text: async () => JSON.stringify(CANNED_OPENAI),
+      } as unknown as Response);
+
+    await request(app)
+      .post('/api/v1/gateway/chat/completions')
+      .set('Authorization', `Bearer ${vk.body.key}`)
+      .send({ model: 'ok-primary', messages: [{ role: 'user', content: 'hi' }] })
+      .expect(200);
+  }, 60000);
+});
+
+describe('budget warning fires on the reservation (issue #483)', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('emails the owner when spend passes the warning line', async () => {
+    const { agent, email } = await authedAgent(app);
+    const cred = await createConnection(agent, 'openai', 'sk-test-abcdAB12');
+    // Priced so one call moves a small budget past 80%.
+    await agent
+      .post('/api/v1/gateway/models')
+      .send({ publicName: 'gpt-4o-mini', upstreamModel: 'gpt-4o-mini', credentialId: cred,
+              inputPricePerM: 100, outputPricePerM: 100 })
+      .expect(201);
+    // $100 per million tokens, and the reservation prices prompt + max_tokens — so
+    // one call reserves about $0.101: past this budget's $0.096 warning line, and
+    // still inside its $0.12 cap so the call itself goes through.
+    await agent.post('/api/v1/gateway/budgets').send({ period: 'total', limitUsd: 0.12 }).expect(201);
+
+    mockFetchOnce(CANNED_OPENAI);
+    await request(app)
+      .post('/api/v1/gateway/chat/completions')
+      .set('Authorization', `Bearer ${(await agent.post('/api/v1/api-keys').send({ name: 'k' }).expect(201)).body.key}`)
+      .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'hi' }], max_tokens: 1000 })
+      .expect(200);
+
+    // The reservation is the only transition that raises spend, so this is the
+    // one the alert has to be detected on. Reconciliation credits back and would
+    // never cross anything.
+    const warnings = await prisma.emailLog.count({ where: { toEmail: email, type: 'budget_threshold' } });
+    expect(warnings).toBeGreaterThan(0);
+  }, 60000);
+});

@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
-import { authedAgent } from '../../test-utils';
+import { authedAgent, signupTestUser, authHeaders, uniqueTestEmail } from '../../test-utils';
 import { drainEmailQueue, getEmailQueue, getMemoryTransport, loadEmailConfig } from '../../email';
 import { getRedisConnection } from '../../evaluations/queue/connection';
 import { INVITE_EMAIL_CAP } from './invites.service';
@@ -432,4 +432,33 @@ describe('invite email', () => {
     const emails = res.body.map((i: { email: string | null }) => i.email).sort();
     expect(emails).toEqual(['listed@example.com', null]);
   });
+});
+
+describe('one invite admits exactly one person (issue #482)', () => {
+  it('rejects the losers when several accept the same token at once', async () => {
+    const owner = await signupTestUser(app);
+    const invite = await request(app)
+      .post(`/api/v1/teams/${owner.teamId}/invites`)
+      .set(authHeaders(owner))
+      .send({ email: uniqueTestEmail(), role: 'admin' })
+      .expect(201);
+
+    const guests = await Promise.all([signupTestUser(app), signupTestUser(app), signupTestUser(app)]);
+    const results = await Promise.all(
+      guests.map((g) =>
+        request(app)
+          .post(`/api/v1/teams/invites/${invite.body.token}/accept`)
+          .set(authHeaders(g)),
+      ),
+    );
+
+    // The read-then-stamp shape let all three pass the "already used?" check
+    // before any of them marked it used, so a single leaked admin link granted
+    // admin to everyone who clicked it.
+    expect(results.filter((r) => r.status === 200)).toHaveLength(1);
+    expect(results.filter((r) => r.status === 410)).toHaveLength(2);
+
+    const members = await prisma.teamMember.count({ where: { teamId: owner.teamId } });
+    expect(members).toBe(2); // the owner, plus exactly one guest
+  }, 60000);
 });

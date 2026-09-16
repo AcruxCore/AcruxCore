@@ -189,7 +189,12 @@ describe('POST /api/v1/email/unsubscribe', () => {
 });
 
 describe('GET /api/v1/email/unsubscribe', () => {
-  it('performs the same opt-out and renders a confirmation page', async () => {
+  // A GET is what a link-scanner issues, not what a person clicks. Outlook Safe
+  // Links, corporate mail gateways and antivirus scanners all fetch every URL in
+  // an email on its way through. If the GET wrote the opt-out, those fetches
+  // would silently turn off a recipient's budget alerts — the one email that
+  // warns them their gateway spend is about to run out.
+  it('writes nothing — it only offers the confirmation', async () => {
     const owner = await authedAgent(app);
     const token = mintUnsubscribeToken({
       userId: owner.userId,
@@ -201,19 +206,39 @@ describe('GET /api/v1/email/unsubscribe', () => {
       .get(`/api/v1/email/unsubscribe?token=${encodeURIComponent(token)}`)
       .expect(200);
 
-    expect(res.text).toContain('Unsubscribed');
     expect(res.text).toContain('budget alerts');
-    const row = await prisma.notificationPreference.findFirstOrThrow({
-      where: { userId: owner.userId, teamId: owner.teamId, category: 'budget_alerts' },
-    });
-    expect(row.enabled).toBe(false);
+    expect(res.text).toContain('method="post"');
+    expect(await prisma.notificationPreference.count()).toBe(0);
   });
 
   it('renders the same 200 page for an invalid token', async () => {
     const res = await request(app).get('/api/v1/email/unsubscribe?token=garbage.garbage').expect(200);
 
-    expect(res.text).toContain('Unsubscribed');
+    expect(res.text).toContain('method="post"');
     expect(await prisma.notificationPreference.count()).toBe(0);
+  });
+
+  it('the form it renders posts the same token back, which does apply the opt-out', async () => {
+    const owner = await authedAgent(app);
+    const token = mintUnsubscribeToken({
+      userId: owner.userId,
+      teamId: owner.teamId,
+      category: 'budget_alerts',
+    });
+
+    const page = await request(app)
+      .get(`/api/v1/email/unsubscribe?token=${encodeURIComponent(token)}`)
+      .expect(200);
+
+    // Follow the form exactly as a browser would: same action, POST, Accept: text/html.
+    const action = page.text.match(/action="([^"]+)"/)![1].replace(/&amp;/g, '&');
+    const confirmed = await request(app).post(action).set('Accept', 'text/html').expect(200);
+
+    expect(confirmed.text).toContain('Unsubscribed');
+    const row = await prisma.notificationPreference.findFirstOrThrow({
+      where: { userId: owner.userId, teamId: owner.teamId, category: 'budget_alerts' },
+    });
+    expect(row.enabled).toBe(false);
   });
 });
 

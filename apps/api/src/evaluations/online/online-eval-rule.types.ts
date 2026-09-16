@@ -81,6 +81,22 @@ export interface EvalRuleScoreResponse {
   createdAt: string;
 }
 
+/**
+ * Body for `POST /eval-rules/:id/preview`.
+ *
+ * `limit` is a spend control, not a formatting hint: every span past the first
+ * is one more paid judge completion. It is therefore validated rather than
+ * coerced — `Number("abc")` is `NaN`, `Math.min(NaN, 10)` is `NaN`, and
+ * `length >= NaN` is false forever, which is how an unvalidated limit turned a
+ * ten-call dry run into a two-hundred-call one. A value over the ceiling is
+ * refused rather than clamped, so a caller asking for 200 is told the maximum
+ * instead of quietly getting 10.
+ */
+export const PreviewSchema = z.object({
+  limit: z.number().int().min(1).max(10).default(10),
+});
+export type PreviewDto = z.infer<typeof PreviewSchema>;
+
 export const ToDatasetSchema = z.object({
   datasetName: z.string().min(1).max(200),
   threshold: z.number().int().min(0).max(100),

@@ -107,6 +107,35 @@ describe('auditSummary', () => {
     expect(auditSummary(entry('trace_settings_updated', { capturePayloads: false }))).toBe('payload capture off');
   });
 
+  it('names the dataset, which is the only place the name survives a delete', () => {
+    expect(auditSummary(entry('dataset_created', { name: 'regression set', datasetId: 'd1' }))).toBe(
+      'regression set',
+    );
+    expect(auditSummary(entry('dataset_deleted', { name: 'regression set', datasetId: 'd1' }))).toBe(
+      'regression set',
+    );
+  });
+
+  it('says what a rule change did, calling out the field that starts and stops the spend', () => {
+    expect(
+      auditSummary(entry('eval_rule_created', { name: 'quality gate', judgeModel: 'gpt-4o-mini' })),
+    ).toBe('quality gate · judged by gpt-4o-mini');
+
+    expect(
+      auditSummary(entry('eval_rule_updated', { name: 'quality gate', changed: ['enabled'], enabled: false })),
+    ).toBe('quality gate · disabled');
+
+    // Other fields are named, not spelled out: `criteria` is free text and is
+    // deliberately never copied into the trail.
+    expect(
+      auditSummary(entry('eval_rule_updated', { name: 'quality gate', changed: ['criteria', 'sampleRate'] })),
+    ).toBe('quality gate · criteria, sampleRate changed');
+
+    expect(auditSummary(entry('eval_rule_deleted', { name: 'quality gate', ruleId: 'r1' }))).toBe(
+      'quality gate',
+    );
+  });
+
   it('returns null rather than a broken string for a null or wrong-shaped payload', () => {
     expect(auditSummary(entry('prompt_created', null))).toBeNull();
     expect(auditSummary(entry('prompt_created', { name: 42 }))).toBeNull();

@@ -118,7 +118,13 @@ export async function processFinalize(data: FinalizeJobData): Promise<void> {
   const everyCellErrored = results.length > 0 && results.every((r) => r.errorMessage !== null);
   const status = expectedCellCount > 0 && everyCellErrored ? 'failed' : 'succeeded';
 
-  await runsRepo.setRunStatus(data.runId, status, { endedAt: new Date() });
+  await runsRepo.setRunStatus(data.runId, status, {
+    endedAt: new Date(),
+    // A run that failed because every cell failed used to be stored with a null
+    // `error`, so `GET /runs/:id` answered "failed" and said nothing else — the
+    // reason existed only on the individual `eval_results` rows (issue #504).
+    ...(status === 'failed' ? { error: summariseCellErrors(results) } : {}),
+  });
 
   // After the status transition, so the email never describes a state that was
   // not persisted. `notify()` swallows its own failures, so this cannot turn a
@@ -166,4 +172,26 @@ export async function markFinalizeExhausted(data: FinalizeJobData, failedReason:
   // `run:<runId>` dedupe key as the success path, so a run cannot be reported
   // twice if both paths somehow fire.
   await notifyRunFinished(data.runId, 'failed');
+}
+
+/**
+ * Condenses an all-cells-failed run into one line for `experiment_runs.error`.
+ *
+ * Every cell failing for the same reason is the common case — an unregistered
+ * model, an exhausted budget, a revoked credential — and repeating it once per
+ * cell would tell the reader nothing extra. When the reasons genuinely differ,
+ * naming the first is honest about there being more, and the per-cell messages
+ * are one click away in the cell drill-down.
+ *
+ * @param results - The run's `eval_results` rows, every one of which carries a
+ *   non-null `errorMessage` (the caller has already established that).
+ * @returns A single sentence for the run row.
+ */
+function summariseCellErrors(results: Array<{ errorMessage: string | null }>): string {
+  const messages = results.map((r) => r.errorMessage).filter((m): m is string => m !== null);
+  if (messages.length === 0) return 'Every cell failed.';
+  const distinct = new Set(messages);
+  return distinct.size === 1
+    ? `Every cell failed. ${messages[0]}`
+    : `Every cell failed. First error: ${messages[0]}`;
 }

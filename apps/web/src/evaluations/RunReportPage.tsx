@@ -7,7 +7,7 @@ import { LeaderboardMatrix } from './LeaderboardMatrix';
 import { CellDrilldownPanel } from './CellDrilldownPanel';
 
 /** One-line status strip shown above the matrix while a run is in flight or has failed; quiet (no strip) once it has succeeded. */
-function RunStatusBanner({ status }: { status: RunStatus }) {
+function RunStatusBanner({ status, error }: { status: RunStatus; error?: string | null }) {
   if (status === 'queued' || status === 'running') {
     return (
       <div className="flex items-center gap-2.5 rounded-lg border border-line-soft bg-elevated px-3 py-2 text-[13px] text-muted" data-testid="run-status-banner">
@@ -19,9 +19,22 @@ function RunStatusBanner({ status }: { status: RunStatus }) {
     );
   }
   if (status === 'failed') {
+    // `error` is written by several producers and only one of them is written for a
+    // reader: `summariseCellErrors` condenses the cell failures into a sentence, while
+    // `markFinalizeExhausted` stores a raw BullMQ message carrying a run UUID, and the
+    // worker stores a job's `failedReason`, which is `''` for `new Error()`. So the
+    // reason is shown BESIDE the standing sentence rather than instead of it: the
+    // "results are partial" warning is the thing a reader must not lose, and an empty
+    // string must not render an empty red box (issue #504).
+    const reason = error?.trim();
     return (
       <div className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-[13px] text-danger" data-testid="run-status-banner">
-        Run failed. Results below reflect whatever completed before the failure.
+        <p>Run failed. Results below reflect whatever completed before the failure.</p>
+        {reason && (
+          <p className="mt-1 text-[12px] text-danger/85" data-testid="run-status-reason">
+            {reason}
+          </p>
+        )}
       </div>
     );
   }
@@ -69,7 +82,7 @@ export function RunReportPage() {
         </p>
       </header>
 
-      <RunStatusBanner status={data.status} />
+      <RunStatusBanner status={data.status} error={run.data?.error} />
 
       <LeaderboardMatrix report={data} selectedCellKey={selectedCellKey} onSelectCell={setSelectedCellKey} />
 

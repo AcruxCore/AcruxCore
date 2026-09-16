@@ -10,6 +10,7 @@ import type {
   ResponseFormat,
 } from './types';
 import { parseSseStream } from './sse-parse';
+import { guardedFetch } from './guarded-fetch';
 
 const ANTHROPIC_BASE_URL = 'https://api.anthropic.com/v1';
 const ANTHROPIC_VERSION = '2023-06-01';
@@ -224,17 +225,33 @@ export class AnthropicAdapter implements ProviderAdapter {
 
     let res: Response;
     try {
-      res = await fetch(`${ANTHROPIC_BASE_URL}/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': creds.apiKey,
-          'anthropic-version': ANTHROPIC_VERSION,
+      // Through guardedFetch like every other adapter, so the headers deadline is armed
+      // in one place. Anthropic's base URL is hardcoded, so `usesCustomBaseUrl` is false
+      // and this stays on global fetch — the SSRF dispatcher is for caller-supplied hosts.
+      // The extra `AbortSignal.timeout` is the body deadline: guardedFetch's own clock
+      // stops at the headers, and res.json() below is read after it returns.
+      ({ res } = await guardedFetch(
+        `${ANTHROPIC_BASE_URL}/messages`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': creds.apiKey,
+            'anthropic-version': ANTHROPIC_VERSION,
+          },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
         },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
-      });
+        false,
+        'Anthropic',
+        GATEWAY_TIMEOUT_MS,
+        // Buffered: `res.json()` below reads the whole body into memory.
+        true,
+      ));
     } catch (err) {
+      // guardedFetch raises its own typed errors; passing one through keeps its status
+      // and retriable flag instead of flattening it to a generic 502 network error.
+      if (err instanceof ProviderError) throw err;
       const isTimeout = err instanceof Error && err.name === 'TimeoutError';
       throw new ProviderError(
         isTimeout ? 'Anthropic request timed out' : `Anthropic network error: ${(err as Error).message}`,
@@ -375,15 +392,42 @@ export class AnthropicAdapter implements ProviderAdapter {
       if (anthropicToolChoice) payload['tool_choice'] = anthropicToolChoice;
     }
 
-    const res = await fetch(`${ANTHROPIC_BASE_URL}/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': creds.apiKey,
-        'anthropic-version': ANTHROPIC_VERSION,
-      },
-      body: JSON.stringify(payload),
-    });
+    // Wrapped exactly like the non-streaming sibling above. Without this a DNS
+    // blip or ECONNRESET rejected with a bare TypeError, which `completeStream`
+    // treats as "not a ProviderError": it credits the reservation back and
+    // rethrows immediately, so no fallback deployment was tried and the caller got
+    // a generic 500 where the identical non-streaming request would have recovered.
+    let res: Response;
+    try {
+      // Only the caller's signal is forwarded. guardedFetch adds the headers deadline,
+      // and the gap between chunks is policed by parseSseStream below — a whole-request
+      // clock here would abort the body mid-answer on any long generation.
+      ({ res } = await guardedFetch(
+        `${ANTHROPIC_BASE_URL}/messages`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': creds.apiKey,
+            'anthropic-version': ANTHROPIC_VERSION,
+          },
+          body: JSON.stringify(payload),
+          ...(signal ? { signal } : {}),
+        },
+        false,
+        'Anthropic',
+      ));
+    } catch (err) {
+      if (err instanceof ProviderError) throw err;
+      const timedOut = err instanceof Error && err.name === 'TimeoutError';
+      throw new ProviderError(
+        timedOut ? 'Anthropic stream request timed out' : 'Anthropic stream request failed',
+        timedOut ? 504 : 502,
+        undefined,
+        true,
+        err instanceof Error ? err.message : undefined,
+      );
+    }
 
     if (!res.ok || !res.body) {
       const detail = await res.text().catch(() => '');

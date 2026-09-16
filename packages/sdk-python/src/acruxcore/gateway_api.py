@@ -860,6 +860,18 @@ class GatewayNamespace:
                             if payload == "[DONE]":
                                 return
                             parsed = json.loads(payload)
+                            # A mid-stream failure arrives as a frame carrying
+                            # ``error`` and no ``choices``. ``or [{}]`` turned that
+                            # into one empty chunk, and the ``[DONE]`` that follows
+                            # then closed the iterator cleanly — so a truncated
+                            # answer was reported to the caller as a complete one.
+                            if isinstance(parsed, dict) and parsed.get("error"):
+                                detail = parsed["error"].get("message") or "unknown error"
+                                raise AcruxCoreError(
+                                    f"acruxcore: stream ended with an error — {detail}",
+                                    API_ERROR,
+                                    body=parsed,
+                                )
                             choices = parsed.get("choices") or [{}]
                             choice = choices[0] if choices else {}
                             yield ChatChunk(

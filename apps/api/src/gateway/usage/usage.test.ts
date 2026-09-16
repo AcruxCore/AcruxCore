@@ -177,3 +177,27 @@ describe('GET /api/v1/gateway/requests', () => {
     void teamId;
   });
 });
+
+describe('daily usage buckets are UTC, not the server timezone (issue #491)', () => {
+  it('counts a 20:00 UTC request on that same UTC day', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    // 20:00 UTC is still the 14th everywhere in UTC, but already the 15th in any
+    // timezone east of +04:00. `date_trunc` on a timestamptz follows the Postgres
+    // *session* timezone, so on a non-UTC deployment this row was bucketed a day
+    // late while the from/to labels beside the chart stayed UTC.
+    await prisma.$executeRaw`
+      INSERT INTO gateway_requests
+        (id, team_id, requested_model, status, prompt_tokens, completion_tokens, total_tokens,
+         cost_usd, latency_ms, cache_hit, created_at)
+      VALUES (gen_random_uuid(), ${teamId}::uuid, 'tz-probe', 'success', 10, 10, 20,
+              0.01, 5, false, TIMESTAMPTZ '2026-09-14 20:00:00+00')`;
+
+    const res = await agent
+      .get('/api/v1/gateway/usage?group_by=day&from=2026-09-01&to=2026-10-01')
+      .expect(200);
+
+    const keys = (res.body.buckets ?? []).map((b: { key: string }) => b.key);
+    expect(keys).toContain('2026-09-14');
+    expect(keys).not.toContain('2026-09-15');
+  }, 60000);
+});

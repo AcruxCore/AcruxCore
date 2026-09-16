@@ -71,12 +71,30 @@ export class ToolExecuteService {
       throw new AppError('This tool has no server-side executor.', 422, 'NOT_EXECUTABLE');
     }
 
-    this.assertArgs(version.parametersSchema, dto.arguments);
+    const argFailure = this.assertArgs(version.parametersSchema, dto.arguments);
+
+    // 0) refuse, before anything is built. Not `aborting` below: a model that sent a
+    // bad argument gets a recorded tool failure it can read and retry from, exactly as
+    // issue #452 asks, rather than an exception that ends the whole agent loop.
+    // `transport` is the honest error type — no request is made — and the `code` slug
+    // says which rule refused it. Deciding here means a refused call never runs the
+    // team's requestTransform and never decrypts a secret.
+    const unsafeArgs = this.traversingUrlArgs(executor.url, dto.arguments);
+    const refused: SpanFailure | null = unsafeArgs.length
+      ? {
+          errorType: 'transport',
+          code: 'unsafe_url_argument',
+          message: `Argument ${unsafeArgs.map((n) => `'${n}'`).join(', ')} may not contain '..' or be a lone '.': it would move the request outside the path this tool declares.`,
+          fatal: true,
+        }
+      : argFailure
+        ? { errorType: 'transport', code: 'invalid_arguments', message: argFailure, fatal: true }
+        : null;
 
     // 1) build the request body (requestTransform, or raw arguments if none is defined)
     let requestTransformApplied = false;
     let body: unknown = dto.arguments;
-    if (executor.requestTransform) {
+    if (!refused && executor.requestTransform) {
       try {
         body = await evaluateTransform(
           compileTransform(executor.requestTransform),
@@ -93,12 +111,12 @@ export class ToolExecuteService {
     // transform never receives a decrypted secret value as input. Each value has its
     // {{secret.NAME}} refs resolved first (trusted), then its {{arg.NAME}} refs (the
     // model's arguments, inserted last so they can never be re-read as a secret ref).
-    const resolvedHeaders = await this.resolveValues(executor.headers, teamId, dto.arguments);
-    const resolvedQuery = await this.resolveValues(executor.query, teamId, dto.arguments);
+    const resolvedHeaders = refused ? [] : await this.resolveValues(executor.headers, teamId, dto.arguments);
+    const resolvedQuery = refused ? [] : await this.resolveValues(executor.query, teamId, dto.arguments);
     const headers: Record<string, string> = Object.fromEntries(resolvedHeaders.map((h) => [h.name, h.value]));
     // Args may also be templated into the URL itself (e.g. a /{{arg.id}} path segment);
     // secrets are deliberately NOT injected into the URL, to keep them out of request lines.
-    const url = this.buildUrl(this.substituteArgs(executor.url, dto.arguments), resolvedQuery);
+    const url = refused ? '' : this.buildUrl(this.substituteArgs(executor.url, dto.arguments, 'url'), resolvedQuery);
 
     // 3) guarded request
     const started = Date.now();
@@ -108,21 +126,23 @@ export class ToolExecuteService {
     // response, or team-authored JS blew up. These keep the pre-issue-#452 behaviour of
     // throwing, because there is genuinely no result to hand the model.
     let aborting: SpanFailure | null = null;
-    try {
-      const method = executor.method;
-      const res = await safeFetch(url, {
-        method,
-        headers: { 'content-type': 'application/json', ...headers },
-        ...(method === 'GET' || method === 'DELETE' ? {} : { body: JSON.stringify(body) }),
-      });
-      status = res.status;
-      rawBody = res.body;
-    } catch (e) {
-      aborting = {
-        errorType: 'transport',
-        message: e instanceof Error ? e.message : 'request failed',
-        fatal: true,
-      };
+    if (!refused) {
+      try {
+        const method = executor.method;
+        const res = await safeFetch(url, {
+          method,
+          headers: { 'content-type': 'application/json', ...headers },
+          ...(method === 'GET' || method === 'DELETE' ? {} : { body: JSON.stringify(body) }),
+        });
+        status = res.status;
+        rawBody = res.body;
+      } catch (e) {
+        aborting = {
+          errorType: 'transport',
+          message: e instanceof Error ? e.message : 'request failed',
+          fatal: true,
+        };
+      }
     }
     const latencyMs = Date.now() - started;
 
@@ -130,7 +150,7 @@ export class ToolExecuteService {
     // model is about to read, and a transform is how a tool normalises an error shape.
     let responseTransformApplied = false;
     let result: unknown = rawBody;
-    if (!aborting && executor.responseTransform) {
+    if (!aborting && !refused && executor.responseTransform) {
       try {
         result = await evaluateTransform(
           compileTransform(executor.responseTransform),
@@ -151,9 +171,11 @@ export class ToolExecuteService {
     // RETURNS; only the two aborting cases above still throw. Whether a failed tool call
     // stops the agent is the caller's decision; whether the trace tells the truth is ours,
     // and conflating the two would change the behaviour of every existing tool loop.
-    const detected = aborting
-      ? [aborting]
-      : await this.classify(executor, status, rawBody, result);
+    const detected = refused
+      ? [refused]
+      : aborting
+        ? [aborting]
+        : await this.classify(executor, status, rawBody, result);
     // Most-authoritative-wins: the first detector to fire owns the span's status, the
     // rest ride along in `alsoDetected` so a second signal is never lost.
     const winner = detected[0] ?? null;
@@ -292,18 +314,45 @@ export class ToolExecuteService {
   }
 
   /**
-   * Lightweight argument validation: checks that every property named in the
-   * schema's top-level `required` array is present. This is intentionally not a
-   * full JSON-Schema validator (no `ajv` dependency was already present in this
-   * package) — it is enough to satisfy the "missing required argument" 400 case.
+   * Checks the caller's arguments against the tool version's `parametersSchema`.
    *
-   * @throws {ValidationError} A required property is missing from `args`.
+   * `parametersSchema` is what the model is shown as the function's
+   * `parameters`, so an author who writes `enum`, `maximum` or
+   * `additionalProperties: false` there is describing a real constraint on
+   * their own upstream service. Only `required` used to be enforced, so every
+   * other constraint the author wrote was forwarded straight past (issue
+   * #506): a model's out-of-range `limit`, or an invented `sort`, reached
+   * their API with a 200 and no signal that anything was off contract.
+   *
+   * **A missing `required` argument still throws; every other violation does not.**
+   * That split is deliberate. Missing-required has thrown a 400 since long before
+   * #506, so callers are built around it. The checks #506 added — type, `enum`,
+   * numeric and string bounds, `additionalProperties` — catch the mistakes a model
+   * actually makes: `limit: "3"` for an integer, an invented key against a closed
+   * object. Throwing on those would abort the caller's whole agent loop (neither SDK
+   * wraps `tools.execute` in a try/catch) and write no tool span at all, so the trace
+   * would show the model asking for a tool and then nothing. They are returned as a
+   * recorded tool failure instead, which is the issue-#452 contract this file follows
+   * everywhere else, and which lets the model read what was wrong and try again.
+   *
+   * Uses the same checker as the result side ({@link validateAgainstSchema}),
+   * with `bounds` turned on — see `result-schema.ts`'s header for why the two
+   * callers want different strictness. Keywords outside that subset
+   * (`anyOf`, `$ref`, `pattern`, …) are still ignored rather than rejected, so
+   * an unsupported keyword can never manufacture a false rejection.
+   *
+   * @param schema - The version's `parametersSchema`, of unknown shape.
+   * @param args - The caller-supplied arguments.
+   * @returns The violated rule, or null when the arguments satisfy the schema.
+   * @throws {ValidationError} A required property is missing.
    */
-  private assertArgs(schema: unknown, args: Record<string, unknown>): void {
+  private assertArgs(schema: unknown, args: Record<string, unknown>): string | null {
     const s = schema as { required?: string[] };
     for (const req of s.required ?? []) {
       if (!(req in args)) throw new ValidationError(`Missing required argument: ${req}`);
     }
+
+    return validateAgainstSchema(args, schema, 'arguments', { bounds: true });
   }
 
   /**
@@ -327,23 +376,88 @@ export class ToolExecuteService {
    * Substitutes every `{{arg.NAME}}` occurrence in `value` with the string form of the
    * caller-supplied argument `NAME`; a missing/null argument resolves to an empty string.
    *
-   * Two deliberate properties:
+   * Three deliberate properties:
    * - Runs AFTER {@link resolveRefs}, so a model-controlled argument value that happens
    *   to contain the literal text `{{secret.X}}` is never resolved into a real secret
    *   (it is inserted verbatim instead) — this closes an exfiltration vector.
    * - Uses a replacer FUNCTION, so an argument value containing `$`-sequences (`$&`, `$1`,
    *   `$$`) is inserted literally rather than treated as a `String.replace` pattern.
+   * - When substituting into the **URL** (`target: 'url'`), the value is
+   *   percent-encoded. An argument is a value, not URL syntax: left raw, an `id` of
+   *   `../../internal/admin` turns the author's `https://host/v1/public/{{arg.id}}`
+   *   into a call to `https://host/internal/admin` once `new URL()` normalizes it,
+   *   and `1?role=admin` appends a query parameter the author never declared — both
+   *   carrying whatever `{{secret.*}}` header the tool sends. Encoding keeps the
+   *   value inside the one path segment (or one query value) the author wrote it
+   *   into. Header and query values are NOT encoded here: `URLSearchParams` already
+   *   encodes query values, and a header value is not a URL.
    *
    * @param value - A header/query/url template that may contain `{{arg.NAME}}` refs.
    * @param args - The validated tool arguments supplied on the execute request.
+   * @param target - `'url'` percent-encodes each substituted value; `'value'` (the
+   *   default, used for header and query values) inserts it verbatim.
    * @returns The value with every `{{arg.NAME}}` replaced by its argument's string form.
    */
-  private substituteArgs(value: string, args: Record<string, unknown>): string {
+  private substituteArgs(
+    value: string,
+    args: Record<string, unknown>,
+    target: 'url' | 'value' = 'value',
+  ): string {
     const re = /\{\{\s*arg\.([a-zA-Z0-9_]{1,64})\s*\}\}/g;
     return value.replace(re, (_match, name: string) => {
       const v = args[name];
-      return v === undefined || v === null ? '' : String(v);
+      if (v === undefined || v === null) return '';
+      const raw = String(v);
+      // Encoding stops a value SPANNING segments in OUR request line, which is the
+      // right thing for a client to do. It cannot stop a value from BEING a dot-segment,
+      // and it cannot decide what an upstream does with a `%2F` it receives. Those cases
+      // are refused before the request is built, in {@link traversingUrlArgs}.
+      return target === 'url' ? encodeURIComponent(raw) : raw;
     });
+  }
+
+  /**
+   * Names the URL-templated arguments carrying a relative-path escape, which encoding
+   * cannot neutralise.
+   *
+   * Two separate things defeat encoding here, which is why this refuses rather than
+   * escapes:
+   *
+   * 1. `encodeURIComponent` leaves `.` untouched — it is unreserved — and `new URL()`
+   *    in {@link buildUrl} then resolves dot-segments away. So `/v1/orders/{{arg.id}}/items`
+   *    with `id: '..'` becomes `/v1/items` before the request is even built: a different
+   *    collection, reached with the order API's `{{secret.*}}` headers. Percent-encoding
+   *    the dots does not help, because the URL parser counts `%2e`, `.%2e` and `%2e%2e`
+   *    as dot-segments too.
+   *
+   * 2. The encoded `%2F` in a value like `../../admin` survives our request line, but the
+   *    UPSTREAM decides what it means. Many servers and proxies percent-decode the path
+   *    before routing and then resolve the dot-segments themselves — verified against a
+   *    real public echo, which reported the path it received as
+   *    `/v1/public/../../internal/admin`. Encoding is the right thing for a client to do
+   *    and it is still done; it just cannot be the guarantee, because the guarantee would
+   *    depend on every upstream's normalisation settings.
+   *
+   * So any `..` in a URL-substituted value is refused, along with a lone `.`. A path
+   * argument meaning "the parent" addresses no resource of the author's, which keeps the
+   * rule nearly free of legitimate casualties: `report.pdf`, `1.2.3` and
+   * `user@example.com` all pass through untouched, because a single dot between other
+   * characters is neither a dot-segment nor a traversal.
+   *
+   * @param urlTemplate - The executor's raw URL, with its `{{arg.NAME}}` refs intact.
+   * @param args - The validated tool arguments supplied on the execute request.
+   * @returns The offending argument names, in template order; empty when the URL is safe.
+   */
+  private traversingUrlArgs(urlTemplate: string, args: Record<string, unknown>): string[] {
+    const re = /\{\{\s*arg\.([a-zA-Z0-9_]{1,64})\s*\}\}/g;
+    const bad: string[] = [];
+    for (const match of urlTemplate.matchAll(re)) {
+      const v = args[match[1]];
+      if (v === undefined || v === null) continue;
+      const raw = String(v);
+      if (raw === '.' || raw.includes('..')) bad.push(match[1]);
+    }
+    return bad;
   }
 
   /**

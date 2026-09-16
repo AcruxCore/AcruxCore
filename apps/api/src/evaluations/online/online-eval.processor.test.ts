@@ -129,6 +129,36 @@ describe('processOnlineEval', () => {
     expect(traces.body.data.some((t: { id: string }) => t.id === traceId)).toBe(true);
   });
 
+  it("judges the assistant's answer, not the whole provider response envelope (issue #505)", async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+    await agent
+      .post('/api/v1/eval-rules')
+      .send({ name: 'answer-shape', criteria: 'the answer must name a city', sampleRate: 1, judgeModel: 'gpt-4o-mini' })
+      .expect(201);
+
+    const { traceId, spanId } = await sendScoredCompletion(agent, teamId);
+
+    queueFetchResponseOnce(cannedJudge({ score: 95, passed: true, reason: 'names a city' }));
+    invalidateRuleCache();
+    await processOnlineEval({ teamId, traceId, spanId, spanKind: 'llm' });
+
+    // The last fetch is the judge's own gateway call. Read what it was
+    // actually asked to grade: before this fix it was the stored
+    // `span_payloads.output`, i.e. the entire `{id, object, created, model,
+    // usage, choices}` envelope, so every content criterion was graded
+    // against JSON bookkeeping instead of the answer.
+    const calls = (global.fetch as unknown as jest.Mock).mock.calls;
+    const judgeBody = JSON.parse(String((calls[calls.length - 1]![1] as { body: string }).body));
+    const judgePrompt = (judgeBody.messages as Array<{ content: string }>).map((m) => m.content).join('\n');
+
+    expect(judgePrompt).toContain('Paris is the capital of France.');
+    expect(judgePrompt).not.toContain('chatcmpl-int');
+    expect(judgePrompt).not.toContain('prompt_tokens');
+    expect(judgePrompt).not.toContain('finish_reason');
+  });
+
   it("never scores the judge's own call — the loop guard", async () => {
     const { agent, teamId } = await authedAgent(app);
     const credId = await createConnection(agent);

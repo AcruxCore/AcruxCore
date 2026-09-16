@@ -425,6 +425,50 @@ describe('POST /api/v1/prompts/:name/:alias/render', () => {
     expect(res.body.error.missing).toEqual(expect.arrayContaining(['name', 'company']));
   });
 
+  it('requires a variable a version was committed without, with no backfill (issue #503)', async () => {
+    // Every version already stored carries the list the extractor produced when it was
+    // committed. If render validated against that column, a correction to the extractor
+    // would reach no existing prompt — and committing the NEXT version would become the
+    // breaking step, because that is when the required list suddenly grows.
+    const { agent } = await authedAgent(app);
+    const keyRes = await agent.post('/api/v1/api-keys').send({ name: 'test' });
+    const apiKey: string = keyRes.body.key;
+    const promptName = `stale-vars-${Date.now()}`;
+
+    const promptRes = await agent.post('/api/v1/prompts').send({ name: promptName });
+    const promptId: string = promptRes.body.id;
+
+    const content = 'Hello {{ item }}. {% for item in items %}{{ item }}{% endfor %}';
+    const versionRes = await request(app)
+      .post(`/api/v1/prompts/${promptId}/versions`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ messages: [{ role: 'system', content }] })
+      .expect(201);
+
+    // Put the row back the way the old extractor would have written it: `item` missing.
+    await prisma.promptVersion.update({
+      where: { id: versionRes.body.id },
+      data: { variables: ['items'] },
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/prompts/${promptName}/production/render`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ variables: { items: ['i1'] } })
+      .expect(400);
+
+    expect(res.body.error.code).toBe('MISSING_VARIABLES');
+    expect(res.body.error.missing).toEqual(['item']);
+
+    // And supplying it renders the greeting, instead of "Hello .".
+    const ok = await request(app)
+      .post(`/api/v1/prompts/${promptName}/production/render`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ variables: { item: 'Ada', items: ['i1'] } })
+      .expect(200);
+    expect(ok.body.messages[0].content).toBe('Hello Ada. i1');
+  });
+
   it('returns 404 for an unknown prompt name', async () => {
     const { agent } = await authedAgent(app);
     const keyRes = await agent.post('/api/v1/api-keys').send({ name: 'test' });

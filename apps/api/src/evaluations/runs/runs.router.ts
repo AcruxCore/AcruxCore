@@ -47,17 +47,25 @@ const promoteController = new OptimizeController(promoteService);
  * since it spans two resource roots — `POST /experiments/:id/runs` (nested
  * under the experiments resource) and `GET /runs/:id` (its own resource) —
  * mounted at the evaluations aggregator's root in `evaluations.router.ts`.
- * Requires any authenticated member or API key — `requireAnyAuth`, no role
- * restriction (any team member may start/read runs).
+ *
+ * Reading a run is open to every member. Starting or deleting one is `editor`
+ * and above, the same gate `/runs/:id/promote` already carries: starting a run
+ * enqueues one paid provider call per (version × model × example) cell, so it
+ * is not something the read-only role should be able to do.
  */
 export const runsRouter: IRouter = Router();
 
-runsRouter.post('/experiments/:id/runs', requireAnyAuth, controller.startRun);
+runsRouter.post(
+  '/experiments/:id/runs',
+  requireAnyAuth,
+  requireRole('owner', 'admin', 'editor'),
+  controller.startRun,
+);
 // The run-history list. Registered before `/runs/:id` for readability only —
 // the two paths differ in segment count, so Express never confuses them.
 runsRouter.get('/runs', requireAnyAuth, controller.list);
 runsRouter.get('/runs/:id', requireAnyAuth, controller.getRun);
-runsRouter.delete('/runs/:id', requireAnyAuth, controller.remove);
+runsRouter.delete('/runs/:id', requireAnyAuth, requireRole('owner', 'admin', 'editor'), controller.remove);
 runsRouter.get('/runs/:id/report', requireAnyAuth, controller.getReport);
 runsRouter.get('/runs/:id/cells/:cellKey', requireAnyAuth, controller.getCell);
 

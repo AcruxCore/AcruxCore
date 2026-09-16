@@ -220,6 +220,11 @@ export interface RunCellExampleDto {
   criteria: string | null;
   history: EvalChatMessage[] | null;
   output: unknown;
+  /**
+   * Why this cell produced no output, when it produced none. `null` on a cell that
+   * ran — so a failed cell is a row with a reason rather than a blank one.
+   */
+  errorMessage: string | null;
   score: number | null;
   passed: boolean | null;
   reason: string | null;

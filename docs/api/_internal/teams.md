@@ -274,11 +274,46 @@ Unknown key (status 404):
 
 ---
 
+## An API key may only act on its own team
+
+Every `/teams/:id/*` route reads the target team from the URL. A browser session may name
+any team its user belongs to — the session's own team is just the one being viewed. An API
+key may not: it is pinned to the team it was minted for, and a URL naming a different team
+is refused before the role check runs.
+
+### GET /api/v1/teams/{teamId}/members — the key's own team
+
+```bash
+curl http://localhost:3010/api/v1/teams/ac6d106c-78ec-4f89-9978-d67bde2798a9/members \
+  -H "Authorization: Bearer acx_sk_..."
+
+# Response (status 200)
+[
+  {
+    "userId": "29bddc07-74e5-45bf-93d8-3b1013fff464",
+    "email": "kt-1789450821@example.com",
+    "role": "owner",
+    "joinedAt": "2026-09-15T05:40:21.971Z"
+  }
+]
+```
+
+### GET /api/v1/teams/{teamId}/members — a different team
+
+```bash
+curl http://localhost:3010/api/v1/teams/379bfeea-457d-4c44-a728-b324e4420ca3/members \
+  -H "Authorization: Bearer acx_sk_..."
+
+# Response (status 403)
+{ "error": { "code": "KEY_TEAM_MISMATCH", "message": "This API key belongs to a different team." } }
+```
+
 ## RBAC error codes
 
 | Code | Status | Meaning |
 |------|--------|---------|
 | `FORBIDDEN` | 403 | Authenticated but insufficient role |
+| `KEY_TEAM_MISMATCH` | 403 | API key used on a route naming a different team |
 | `TEAM_KEY_NOT_PERMITTED` | 403 | Team-scoped key tried a user-only action |
 | `LAST_OWNER` | 403 | Tried to remove the last owner |
 | `INVITE_USED` | 410 | Invite token already consumed |

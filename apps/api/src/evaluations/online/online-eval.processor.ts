@@ -10,6 +10,7 @@ import { notify } from '../../notifications/notify';
 import { MembersRepository } from '../../teams/members/members.repository';
 import { EvalRuleRepository } from './online-eval-rule.repository';
 import { matchesFilter } from './eval-rule-matcher';
+import { judgeableOutput } from './span-output';
 import { onlineEvalRuleService, JUDGE_MARKER } from './online-eval-rule.service';
 import type { OnlineEvalJobData } from './online-eval.queue';
 import type { EvalRuleFilter } from './online-eval-rule.types';
@@ -149,14 +150,16 @@ async function processOneRule(
     return;
   }
 
-  // Judge, then persist.
+  // Judge, then persist. `judgeableOutput` narrows the stored provider
+  // envelope to the assistant's actual answer first — see its docstring, and
+  // `cell.processor.ts`, which has always stored only the answer.
   try {
     const verdict = await onlineEvalRuleService.judge(
       data.teamId,
       rule.name,
       rule.criteria,
       rule.judgeModel,
-      output,
+      judgeableOutput(output),
       rule.judgePromptId,
     );
     await repo.upsertScore({

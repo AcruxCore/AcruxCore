@@ -23,6 +23,14 @@ any other rule's judge call. Scores land in their own table
 judged; a matching span with no captured output is still recorded, as a score
 row with `score: null` and a `reason` explaining why.
 
+**What the judge reads.** The assistant's answer — `choices[0].message.content`
+from the captured response — not the whole response object around it. A turn
+that replied with tool calls and no text is judged on the assistant message, so
+the calls it made are what the criterion applies to. Write `criteria` about the
+answer; nothing in the provider's `id`, `usage` or `model` fields reaches the
+judge. `POST /:id/preview` reads the same way, so a preview verdict predicts
+what live scoring will do.
+
 Auth: `requireAnyAuth` (session cookie or personal/team API key) on every
 route. **Mutations are owner/admin-gated**: `POST /`, `PATCH /:id`,
 `DELETE /:id`, `POST /:id/preview`, and `POST /:id/to-dataset` all require
@@ -437,7 +445,12 @@ Dry-runs the rule against its last matching spans (scan window: the team's
 200 most recent `llm` spans) without persisting any score row — for checking a
 rule's `criteria`/`filter` before turning it loose on live traffic. Shares the
 same `matchesFilter` the worker uses, so a preview can never disagree with
-what the live rule would actually score. `limit` is capped at 10.
+what the live rule would actually score.
+
+`limit` is an integer from 1 to 10 and defaults to 10. It is validated, not
+clamped: each span past the first is a paid judge call, so a request asking for
+more than 10 — or sending something that is not a number — is refused rather
+than quietly adjusted.
 
 ```bash
 curl -X POST "$ACRUXCORE_BASE_URL/eval-rules/ba6a6b76-0848-4a5b-871b-b260cde2716b/preview" \
@@ -462,6 +475,33 @@ none written to `eval_rule_scores`:
 Each preview call still runs a real judge completion, so it still spends
 money and still produces a real (marked) judge trace — the only thing it
 skips is writing a row to `eval_rule_scores`.
+
+A `limit` outside 1..10, or one that is not a number, is a 400 and costs
+nothing:
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/eval-rules/8cd75bc2-e496-4851-8a12-762238b73206/preview" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"limit": 200}'
+```
+
+```json
+# Response (status 400)
+{"error":{"code":"VALIDATION_ERROR","message":"Number must be less than or equal to 10"}}
+```
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/eval-rules/8cd75bc2-e496-4851-8a12-762238b73206/preview" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"limit": "abc"}'
+```
+
+```json
+# Response (status 400)
+{"error":{"code":"VALIDATION_ERROR","message":"Expected number, received string"}}
+```
 
 ---
 

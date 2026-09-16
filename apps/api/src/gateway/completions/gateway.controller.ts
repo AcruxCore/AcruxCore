@@ -1,28 +1,60 @@
 import { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import { GatewayService } from './gateway.service';
-import { ChatCompletionRequestSchema } from './completions.types';
-import type { GatewayCallContext, GatewayCompletionRequest } from './completions.types';
+import { ChatCompletionRequestSchema, SpanContextBodySchema, TraceContextBodySchema } from './completions.types';
+import type {
+  GatewayCallContext,
+  GatewayCompletionRequest,
+  SpanContextBody,
+  TraceContextBody,
+} from './completions.types';
 import { ProviderError } from '../providers/adapter';
 import { ValidationError, RateLimitedError, ProviderRateLimitedError } from '../../shared/errors';
 
-/** Shape of the optional body `trace` object (conventions §2, widened by T8). */
-interface TraceContextBody {
-  traceId?: string;
-  parentSpanId?: string;
-  sessionId?: string;
-  capturePayloads?: boolean;
-  name?: string;
-  /** A name to use only if the trace has no real one yet — see `traceNameIfUnset` (FAQ Q33). */
-  nameIfUnset?: string;
-  tags?: string[];
-  metadata?: Record<string, unknown>;
-}
+/**
+ * Validates one optional context object from the request body, field by field.
+ *
+ * Whole-object `safeParse` is wrong here. This is decoration on a call the
+ * caller is paying for, so one mistyped field must not discard the other five,
+ * and a malformed object must never fail the completion — refusing a paid
+ * completion over a tracing detail is worse than the problem. But ignoring it
+ * in silence is what made #511 invisible: the bad value reached Prisma inside a
+ * best-effort trace write, threw there, and the call came back 200 with no
+ * trace and nothing said.
+ *
+ * So each key is parsed on its own. What parses is kept; what does not is
+ * dropped and its name collected, and the caller is told in a response header
+ * which fields were ignored.
+ *
+ * @param schema - The partial object schema for this context object.
+ * @param raw - The value read off `req.body`, of unknown shape.
+ * @param prefix - `'trace'` or `'span'`, used to name a dropped field.
+ * @param dropped - Collects the dotted names of fields that did not parse.
+ * @returns The fields that parsed, with no key for any that did not.
+ */
+function readContextObject<T extends z.ZodRawShape>(
+  schema: z.ZodObject<T, 'strip', z.ZodTypeAny, Record<string, unknown>>,
+  raw: unknown,
+  prefix: string,
+  dropped: string[],
+): Record<string, unknown> {
+  if (raw === undefined || raw === null) return {};
+  // An array is an object to `typeof`, and neither it nor a scalar can carry
+  // named fields — so the whole thing goes, under its own name.
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    dropped.push(prefix);
+    return {};
+  }
 
-/** Shape of the optional body `span` object (T9) — mirrors `TraceContextBody`'s name/tags/metadata. */
-interface SpanContextBody {
-  name?: string;
-  tags?: string[];
-  metadata?: Record<string, unknown>;
+  const source = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [key, fieldSchema] of Object.entries(schema.shape)) {
+    if (!(key in source) || source[key] === undefined) continue;
+    const parsed = (fieldSchema as z.ZodTypeAny).safeParse(source[key]);
+    if (parsed.success) out[key] = parsed.data;
+    else dropped.push(`${prefix}.${key}`);
+  }
+  return out;
 }
 
 /**
@@ -40,21 +72,40 @@ function readTagsHeader(req: Request, header: string, bodyTags: string[] | undef
 
 /**
  * Reads a `x-<prefix>-metadata` JSON-object-string header, falling back to the
- * body's `metadata` object when the header is absent. A malformed header is
- * treated as absent (best-effort — never a 400 on this money-spending endpoint).
+ * body's `metadata` object when the header is absent or unusable. Never a 400 —
+ * this endpoint spends money and a tracing detail must not fail the call.
+ *
+ * "Unusable" now covers valid JSON of the wrong shape, not only a parse error.
+ * `JSON.parse('"hi"')` and `JSON.parse('[1]')` both succeed and both used to be
+ * cast to `Record<string, unknown>` and written to the trace, so the header
+ * could put a string or an array in a column every reader treats as an object.
+ *
+ * @param req - The Express request.
+ * @param header - The header name to read.
+ * @param bodyMetadata - The already-validated body fallback.
+ * @param dropped - Collects the header's name when it was present and unusable.
  */
 function readMetadataHeader(
   req: Request,
   header: string,
   bodyMetadata: Record<string, unknown> | undefined,
+  dropped: string[],
 ): Record<string, unknown> | undefined {
   const raw = req.header(header);
   if (!raw) return bodyMetadata;
+  let parsed: unknown;
   try {
-    return JSON.parse(raw) as Record<string, unknown>;
+    parsed = JSON.parse(raw);
   } catch {
+    dropped.push(header);
     return bodyMetadata;
   }
+  const checked = z.record(z.unknown()).safeParse(parsed);
+  if (!checked.success) {
+    dropped.push(header);
+    return bodyMetadata;
+  }
+  return checked.data;
 }
 
 /**
@@ -65,14 +116,16 @@ function readMetadataHeader(
  * anything else is ignored (falls back to body).
  *
  * @param req - The Express request (headers + body).
- * @param bodyTrace - The `trace` object read off `req.body` (schema strips it).
- * @param bodySpan - The `span` object read off `req.body` (schema strips it).
+ * @param bodyTrace - The validated `trace` object from `req.body`.
+ * @param bodySpan - The validated `span` object from `req.body`.
+ * @param dropped - Collects the name of any header that was present and unusable.
  * @returns The trace/span context fields to merge into GatewayCallContext.
  */
 function readTracingContext(
   req: Request,
   bodyTrace: TraceContextBody | undefined,
   bodySpan: SpanContextBody | undefined,
+  dropped: string[],
 ): {
   traceId?: string;
   parentSpanRef?: string;
@@ -118,10 +171,10 @@ function readTracingContext(
     traceName: decodedHeader('x-trace-name') ?? bodyTrace?.name,
     traceNameIfUnset: decodedHeader('x-trace-name-if-unset') ?? bodyTrace?.nameIfUnset,
     traceTags: readTagsHeader(req, 'x-trace-tags', bodyTrace?.tags),
-    traceMetadata: readMetadataHeader(req, 'x-trace-metadata', bodyTrace?.metadata),
+    traceMetadata: readMetadataHeader(req, 'x-trace-metadata', bodyTrace?.metadata, dropped),
     spanName: h('x-span-name') ?? bodySpan?.name,
     spanTags: readTagsHeader(req, 'x-span-tags', bodySpan?.tags),
-    spanMetadata: readMetadataHeader(req, 'x-span-metadata', bodySpan?.metadata),
+    spanMetadata: readMetadataHeader(req, 'x-span-metadata', bodySpan?.metadata, dropped),
   };
 }
 
@@ -150,10 +203,30 @@ export class GatewayController {
       const noStore = req.header('x-gateway-cache') === 'no-store';
 
       // T1/T9: merge trace + span context (headers win over body `trace`/`span`)
-      // into the ctx. The schema strips unknown keys, so read them off the raw body.
-      const bodyTrace = (req.body?.trace ?? undefined) as TraceContextBody | undefined;
-      const bodySpan = (req.body?.span ?? undefined) as SpanContextBody | undefined;
-      const ctx: GatewayCallContext = { ...req.gateway!, ...readTracingContext(req, bodyTrace, bodySpan) };
+      // into the ctx. `ChatCompletionRequestSchema` strips unknown keys, so these are
+      // read off the raw body and validated here rather than in `parsed.data`.
+      const dropped: string[] = [];
+      const bodyTrace = readContextObject(
+        TraceContextBodySchema,
+        req.body?.trace,
+        'trace',
+        dropped,
+      ) as TraceContextBody;
+      const bodySpan = readContextObject(
+        SpanContextBodySchema,
+        req.body?.span,
+        'span',
+        dropped,
+      ) as SpanContextBody;
+      const ctx: GatewayCallContext = {
+        ...req.gateway!,
+        ...readTracingContext(req, bodyTrace, bodySpan, dropped),
+      };
+      // Say what was ignored rather than only dropping it. A wrong type here used to
+      // throw inside the best-effort trace write, so the call came back 200, billed,
+      // with no trace and nothing to explain where it went (#511). Failing the call
+      // instead would be worse, so the answer is a header the caller can read.
+      if (dropped.length > 0) res.setHeader('x-gateway-context-ignored', dropped.join(','));
 
       // Streaming branch: serve Server-Sent Events. completeStream throws BEFORE
       // headers are sent for any pre-first-chunk failure, so those surface as JSON

@@ -143,6 +143,9 @@ export class OpenAiAdapter implements ProviderAdapter {
         },
         usesCustomBaseUrl,
         'OpenAI',
+        GATEWAY_TIMEOUT_MS,
+        // Buffered: `res.json()` below reads the whole body into memory.
+        true,
       ));
     } catch (err) {
       if (err instanceof ProviderError) throw err;

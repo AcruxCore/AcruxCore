@@ -319,8 +319,7 @@ export async function safeFetch(
       await res.body.dump();
       throw new SsrfError('Redirects are not followed.');
     }
-    const text = await res.body.text();
-    if (text.length > MAX_BYTES) throw new SsrfError('Response exceeds size cap.');
+    const { text, bytes } = await readCapped(res.body);
     const headers: Record<string, string> = {};
     for (const [key, value] of Object.entries(res.headers)) {
       if (value === undefined) continue;
@@ -332,7 +331,7 @@ export async function safeFetch(
     } catch {
       /* keep raw text */
     }
-    return { status: res.statusCode, headers, body, bytes: text.length };
+    return { status: res.statusCode, headers, body, bytes };
   } catch (err) {
     if (err instanceof SsrfError) throw err;
     // The abort fired because our own timer tripped (not because a caller-supplied signal
@@ -346,6 +345,55 @@ export async function safeFetch(
     clearTimeout(timer);
     await dispatcher.close();
   }
+}
+
+/**
+ * Reads a response body chunk by chunk, stopping the moment the accumulated
+ * BYTE count passes {@link MAX_BYTES}.
+ *
+ * Both halves of that sentence are the point, and both replace a one-line
+ * `await body.text()` that got each of them wrong:
+ *
+ * - **Stopping.** `body.text()` drains the response to its end and only then
+ *   hands back a string, so a cap checked on its result is checked after the
+ *   process has already allocated everything the upstream chose to send. A tool
+ *   pointed at a hostile endpoint could therefore make the API buffer gigabytes
+ *   before the guard said no. Destroying the stream here closes the socket
+ *   instead, so the upstream stops being read a chunk or so past the cap.
+ * - **Bytes.** `String.prototype.length` counts UTF-16 code units, not bytes.
+ *   900,000 three-byte characters are 2.7 MB on the wire and 900,000 "length",
+ *   so a character-counted cap admits roughly three times what it advertises —
+ *   and the `bytes` figure recorded on the tool span understated the same way.
+ *
+ * @param body - The undici response body stream.
+ * @returns The decoded text and the exact number of bytes read.
+ * @throws {SsrfError} Once more than {@link MAX_BYTES} bytes have arrived.
+ */
+async function readCapped(body: Dispatcher.ResponseData['body']): Promise<{ text: string; bytes: number }> {
+  const chunks: Buffer[] = [];
+  let bytes = 0;
+  for await (const chunk of body) {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array);
+    bytes += buf.length;
+    if (bytes > MAX_BYTES) {
+      // Destroy rather than break: an abandoned-but-open body would leave the
+      // connection reading in the background, which is the cost this avoids.
+      body.destroy();
+      throw new SsrfError('Response exceeds size cap.');
+    }
+    chunks.push(buf);
+  }
+  const buf = Buffer.concat(chunks);
+  // Strip a UTF-8 BOM. `res.body.text()`, which this replaced in order to count bytes,
+  // does this per the WHATWG fetch spec; `Buffer.toString('utf8')` does not, and keeps
+  // U+FEFF as the first character. `JSON.parse` then throws on it, the caller swallows
+  // that and keeps the raw text, and a BOM-prefixed JSON response — routine from IIS and
+  // .NET upstreams — silently degrades to a string with a 200 status: a `responseTransform`
+  // reading `input.body.field` gets `undefined`, and a declared object `resultSchema`
+  // reports a schema_mismatch on every single call.
+  const start = buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf ? 3 : 0;
+  // `bytes` deliberately stays the wire count — it is what the size cap measured.
+  return { text: buf.toString('utf8', start), bytes };
 }
 
 /** Normalizes the DOM-style `HeadersInit` shapes callers may pass into a plain record. */

@@ -121,6 +121,51 @@ export const ResponseFormatSchema = z.union([
 ]);
 
 /**
+ * The optional `trace` object a caller may send alongside the completion.
+ *
+ * Every field is optional and each is validated on its own, because the object is
+ * decoration on a paid call: one mistyped field must not cost the caller the
+ * other five, and it must never fail the completion itself. `readContextObject`
+ * in the controller keeps what parses and names what does not.
+ *
+ * This object used to be read off the raw body with a bare cast. A `tags` that
+ * was a string rather than an array reached Prisma as a string and threw inside
+ * the trace write, which is best-effort — so the call was answered and billed
+ * with its trace silently missing (issue #511).
+ */
+export const TraceContextBodySchema = z
+  .object({
+    traceId: z.string().uuid(),
+    parentSpanId: z.string().min(1),
+    sessionId: z.string().min(1),
+    capturePayloads: z.boolean(),
+    name: z.string(),
+    /** A name used only if the trace has no real one yet — see FAQ Q33. */
+    nameIfUnset: z.string(),
+    tags: z.array(z.string()),
+    metadata: z.record(z.unknown()),
+  })
+  .partial();
+
+/** The validated `trace` object. */
+export type TraceContextBody = z.infer<typeof TraceContextBodySchema>;
+
+/**
+ * The optional `span` object (T9) — the same name/tags/metadata fields as
+ * {@link TraceContextBodySchema}, applied to this call's own span.
+ */
+export const SpanContextBodySchema = z
+  .object({
+    name: z.string(),
+    tags: z.array(z.string()),
+    metadata: z.record(z.unknown()),
+  })
+  .partial();
+
+/** The validated `span` object. */
+export type SpanContextBody = z.infer<typeof SpanContextBodySchema>;
+
+/**
  * Validated body for POST /gateway/chat/completions (OpenAI-compatible).
  *
  * A caller supplies EITHER raw `messages` OR a `prompt` reference (G8) — exactly

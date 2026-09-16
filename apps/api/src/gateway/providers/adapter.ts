@@ -3,8 +3,9 @@ import { openaiAdapter, openaiCompatibleAdapter } from './openai.adapter';
 import { anthropicAdapter } from './anthropic.adapter';
 import { geminiAdapter } from './gemini.adapter';
 
-/** Default per-request upstream timeout (ms). Adapters abort the fetch after this. */
-export const GATEWAY_TIMEOUT_MS = 60_000;
+// Re-exported so the many existing `from './adapter'` imports keep working; the value
+// itself lives in timeout.ts to keep it out of this module's import cycle.
+export { GATEWAY_TIMEOUT_MS } from './timeout';
 
 /**
  * A provider adapter maps the canonical request to a specific provider's wire format,

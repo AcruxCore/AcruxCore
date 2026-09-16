@@ -10,6 +10,22 @@ interface CreateParams {
 }
 
 /** All DB access for team Secrets. The only file in the domain that touches Prisma. */
+/**
+ * Escapes the characters `LIKE` treats as wildcards so a name matches literally.
+ *
+ * Secret names are `^[A-Z0-9_]{1,64}$`, and `_` is `LIKE`'s single-character
+ * wildcard — so an unescaped `WEATHER_KEY` also matched `WEATHERXKEY` and the
+ * delete was refused naming a tool that did not reference it. The backslash
+ * itself is escaped first, or escaping the others would corrupt it.
+ *
+ * @param value - The literal text to place inside a `LIKE` pattern.
+ * @returns The text with `\`, `%` and `_` backslash-escaped, for use with `ESCAPE '\'`.
+ */
+function escapeLikeLiteral(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/[%_]/g, (c) => `\\${c}`);
+}
+
+/** All DB access for team Secrets. The only file in the domain that touches Prisma. */
 export class SecretsRepository {
   /**
    * Inserts a new secret.
@@ -107,12 +123,13 @@ export class SecretsRepository {
    * @returns Whether at least one tool version's executor references the secret.
    */
   async isReferenced(name: string, teamId: string): Promise<boolean> {
-    const ref = `%{{secret.${name}}}%`;
+    const ref = `%{{secret.${escapeLikeLiteral(name)}}}%`;
     const rows = await prisma.$queryRaw<{ count: bigint }[]>`
       SELECT COUNT(*)::bigint AS count
       FROM tool_versions tv
       JOIN tools t ON t.id = tv.tool_id
-      WHERE t.team_id = ${teamId}::uuid AND t.deleted_at IS NULL AND tv.executor::text LIKE ${ref}`;
+      WHERE t.team_id = ${teamId}::uuid AND t.deleted_at IS NULL
+        AND tv.executor::text LIKE ${ref} ESCAPE '\\'`;
     return (rows[0]?.count ?? 0n) > 0n;
   }
 }

@@ -12,6 +12,18 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+### Added
+
+- `RunCellExampleDto.errorMessage` — the reason a cell produced no output, matching
+  what `GET /runs/:id/cells/:cellKey` has returned since the failed-cell fix. A
+  TypeScript consumer reading it no longer gets a compile error.
+
+### Fixed
+
+- A streamed completion that fails after its first byte now raises `acruxcoreError`
+  with code `API_ERROR` and the gateway's own message, instead of a bare `TypeError`
+  from reading `choices[0]` on an error frame.
+
 ## 0.15.0 — 2026-09-14
 
 ### Added

@@ -447,3 +447,61 @@ describe('rate-limit enforcement (pipeline stage 4a)', () => {
     expect(Number(limited.headers['retry-after'])).toBeGreaterThan(0);
   });
 });
+
+describe('a period reset cannot erase a committed reservation (issue #488)', () => {
+  it('ignores a second reset driven by an already-stale row', async () => {
+    const ctx = await signupTestUser(app);
+    const { BudgetsRepository } = await import('./budgets.repository');
+    const repo = new BudgetsRepository();
+
+    // A day budget whose period ended an hour ago, with spend still on it.
+    const created = await request(app)
+      .post('/api/v1/gateway/budgets')
+      .set(authHeaders(ctx))
+      .send({ period: 'day', limitUsd: 10 })
+      .expect(201);
+    await prisma.budget.update({
+      where: { id: created.body.id },
+      data: { spendUsd: 5, resetsAt: new Date(Date.now() - 60 * 60 * 1000) },
+    });
+
+    // Two concurrent calls both read the row before either resets it.
+    const staleA = await prisma.budget.findUniqueOrThrow({ where: { id: created.body.id } });
+    const staleB = await prisma.budget.findUniqueOrThrow({ where: { id: created.body.id } });
+
+    // A resets the period, then reserves against the fresh period.
+    await repo.resetIfElapsed(staleA);
+    await prisma.budget.update({ where: { id: created.body.id }, data: { spendUsd: 0.05 } });
+
+    // B is still holding the stale row. An unconditional reset here wiped A's
+    // committed reservation, and the later reconciliation then drove spend
+    // negative — handing the team headroom above its cap.
+    await repo.resetIfElapsed(staleB);
+
+    const after = await prisma.budget.findUniqueOrThrow({ where: { id: created.body.id } });
+    expect(Number(after.spendUsd)).toBe(0.05);
+  }, 60000);
+
+  it('still resets a genuinely elapsed period exactly once', async () => {
+    const ctx = await signupTestUser(app);
+    const { BudgetsRepository } = await import('./budgets.repository');
+    const repo = new BudgetsRepository();
+    const created = await request(app)
+      .post('/api/v1/gateway/budgets')
+      .set(authHeaders(ctx))
+      .send({ period: 'day', limitUsd: 10 })
+      .expect(201);
+    await prisma.budget.update({
+      where: { id: created.body.id },
+      data: { spendUsd: 7, resetsAt: new Date(Date.now() - 60 * 60 * 1000) },
+    });
+    const stale = await prisma.budget.findUniqueOrThrow({ where: { id: created.body.id } });
+
+    const rolled = await repo.resetIfElapsed(stale);
+    expect(Number(rolled.spendUsd)).toBe(0);
+    expect(rolled.resetsAt!.getTime()).toBeGreaterThan(Date.now());
+
+    const persisted = await prisma.budget.findUniqueOrThrow({ where: { id: created.body.id } });
+    expect(Number(persisted.spendUsd)).toBe(0);
+  }, 60000);
+});

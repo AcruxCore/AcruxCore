@@ -61,3 +61,50 @@ describe('secrets', () => {
     await request(app).delete(`/api/v1/secrets/${secret.id}`).set(auth).expect(204);
   });
 });
+
+describe('secret names are matched literally (issue #490)', () => {
+  it('deletes a secret whose name differs from another only at an underscore', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const auth = (r: request.Test) => r.set('Authorization', `Bearer ${apiKey}`);
+
+    const victim = await auth(request(app).post('/api/v1/secrets'))
+      .send({ name: 'WEATHER_KEY', value: 'aaaa1111' }).expect(201);
+    await auth(request(app).post('/api/v1/secrets'))
+      .send({ name: 'WEATHERXKEY', value: 'bbbb2222' }).expect(201);
+
+    const tool = await auth(request(app).post('/api/v1/tools'))
+      .send({ name: `underscore_probe_${Date.now()}` }).expect(201);
+    await auth(request(app).post(`/api/v1/tools/${tool.body.id}/versions`)).send({
+      description: 'references WEATHERXKEY only',
+      parametersSchema: { type: 'object', properties: {}, required: [] },
+      executor: {
+        type: 'http', method: 'GET', url: 'https://example.com/weather',
+        headers: [{ name: 'Authorization', value: 'Bearer {{secret.WEATHERXKEY}}' }],
+      },
+    }).expect(201);
+
+    // `_` is LIKE's single-character wildcard, so WEATHER_KEY used to match the
+    // WEATHERXKEY reference and the delete was refused naming a tool that does
+    // not use it — leaving the secret impossible to remove.
+    await auth(request(app).delete(`/api/v1/secrets/${victim.body.id}`)).expect(204);
+  }, 60000);
+
+  it('still refuses to delete a secret a tool really does reference', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const auth = (r: request.Test) => r.set('Authorization', `Bearer ${apiKey}`);
+    const used = await auth(request(app).post('/api/v1/secrets'))
+      .send({ name: 'REALLY_USED', value: 'cccc3333' }).expect(201);
+    const tool = await auth(request(app).post('/api/v1/tools'))
+      .send({ name: `real_ref_${Date.now()}` }).expect(201);
+    await auth(request(app).post(`/api/v1/tools/${tool.body.id}/versions`)).send({
+      description: 'genuinely uses it',
+      parametersSchema: { type: 'object', properties: {}, required: [] },
+      executor: {
+        type: 'http', method: 'GET', url: 'https://example.com/x',
+        headers: [{ name: 'Authorization', value: 'Bearer {{secret.REALLY_USED}}' }],
+      },
+    }).expect(201);
+
+    await auth(request(app).delete(`/api/v1/secrets/${used.body.id}`)).expect(409);
+  }, 60000);
+});

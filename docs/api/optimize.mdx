@@ -31,11 +31,13 @@ candidate is a genuine improvement, promotes it with `POST
 `PromptCandidate` into a real, immutable `PromptVersion` — nothing is ever
 auto-promoted.
 
-Auth: `requireAnyAuth` (session cookie or personal/team API key) on `POST
-/prompts/:promptId/optimize`. `POST /runs/:id/promote` additionally requires
-`requireRole('owner', 'admin', 'editor')` — the same guard used by the
-prompt-alias promote route and the version-commit route — since it commits a
-real version and moves an alias.
+Auth: `requireAnyAuth` (session cookie or personal/team API key) plus
+`requireRole('owner', 'admin', 'editor')` on both `POST
+/prompts/:promptId/optimize` and `POST /runs/:id/promote` — the same guard used
+by the prompt-alias promote route and the version-commit route. Optimize pays
+for an optimizer completion and then a whole grid on top of it; promote commits
+a real version and moves an alias. A **team-scoped** API key holds no role and
+is refused on both; use a personal key from an editor account.
 
 Verified with `apps/api` running via `npm run dev` and a real, separately
 booted `apps/worker` process (`node dist/index.js`), both pointed at the

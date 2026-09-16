@@ -27,7 +27,14 @@ export class UsageRepository {
   private groupExpr(groupBy: GroupBy): Prisma.Sql {
     switch (groupBy) {
       case 'day':
-        return Prisma.sql`to_char(date_trunc('day', created_at), 'YYYY-MM-DD')`;
+        // `AT TIME ZONE 'UTC'` before truncating is load-bearing: `created_at` is a
+        // `timestamptz`, so a bare `date_trunc('day', …)` truncates in the Postgres
+        // *session* timezone. On any deployment whose session timezone is not UTC that
+        // buckets a request into the local calendar day while the service echoes
+        // `from`/`to` as UTC, so the chart and its own date labels disagree for the
+        // hours where the two dates differ. Same defect and same fix as issue #238 on
+        // the trace analytics query.
+        return Prisma.sql`to_char(date_trunc('day', created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD')`;
       case 'model':
         return Prisma.sql`COALESCE(resolved_model, requested_model)`;
       case 'virtual_key':

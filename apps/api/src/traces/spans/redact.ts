@@ -3,16 +3,37 @@ const REDACTED = '[REDACTED]';
 
 /**
  * Common secret shapes worth scrubbing from captured span payload content.
- * Order matters: `Bearer <token>` is matched (and replaced) whole so the
- * placeholder reads "Authorization: [REDACTED]" rather than leaving a bare
- * "Bearer " prefix behind once the token itself is later stripped.
+ *
+ * Order matters, and it runs widest-match-first: `Bearer <token>` is replaced whole so
+ * the placeholder reads `Authorization: [REDACTED]` rather than leaving a bare `Bearer `
+ * behind, and an address is replaced whole so a key-shaped local part cannot redact
+ * itself and leave `[REDACTED]@example.com` — which publishes the domain. A narrower
+ * pattern placed first wins the substring and breaks both.
+ *
+ * The key patterns carry no leading anchor. `\b` sits between a word and a non-word
+ * character, so it does not match *before* a key whose preceding character is itself a
+ * word character: `ACRUXCORE_API_KEY_acx_sk_…` or an f-string's `token{key}` left the key
+ * entirely in clear text. A negative lookbehind for the same character set is not a fix —
+ * it restates the same restriction. `acx_sk_`/`agh_sk_` are distinctive enough literals
+ * that dropping the anchor costs nothing; the prefix before the key is simply left alone,
+ * so the result reads `ACRUXCORE_API_KEY_[REDACTED]`. The trailing side needs no anchor
+ * either — the character class is already bounded.
+ *
+ * `sk-` is too short to go unanchored (`multitask-oriented-approach` contains it), so it
+ * keeps `(?<![A-Za-z0-9])`: that still rejects a match inside a word while allowing the
+ * `OPENAI_API_KEY_sk-…` shape, which `\b` rejected.
  */
 const SECRET_PATTERNS: RegExp[] = [
-  /\bsk-[A-Za-z0-9_-]{16,}\b/g, // OpenAI-style secret keys
-  /\bacx_sk_[A-Za-z0-9]{16,}\b/g, // this project's own API keys (acx_sk_ + hash)
-  /\bAKIA[0-9A-Z]{16}\b/g, // AWS access key ids
-  /\bBearer\s+[A-Za-z0-9._-]+\b/gi, // Authorization: Bearer <token>
+  /\bBearer\s+[A-Za-z0-9._-]+/gi, // Authorization: Bearer <token>
   /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, // email addresses
+  /(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{16,}/g, // OpenAI-style secret keys
+  // Both of this project's own key formats. The body is `randomBytes(30)` encoded
+  // as base64url (`api-keys.crypto.ts`, `keys.crypto.ts`), so it contains `-` and
+  // `_` — a `[A-Za-z0-9]` class stopped at the first of those and left most of a
+  // real key in clear text, and `agh_sk_` had no pattern at all.
+  /acx_sk_[A-Za-z0-9_-]{16,}/g, // platform API keys
+  /agh_sk_[A-Za-z0-9_-]{16,}/g, // gateway virtual keys
+  /(?<![A-Za-z0-9])AKIA[0-9A-Z]{16}\b/g, // AWS access key ids
 ];
 
 /** Applies every {@link SECRET_PATTERNS} entry to a single string, in order. */

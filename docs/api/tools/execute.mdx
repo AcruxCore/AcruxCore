@@ -19,16 +19,42 @@ endpoint returns 422 for it. The target version is resolved as: explicit
 `versionNumber` in the body → named `alias` in the body → the `production`
 alias by default.
 
-Arguments are validated against the version's `parametersSchema.required` list
-(a missing required key is a 400). They reach the outgoing request in two ways.
-`{{arg.NAME}}` inside a `query` value, a `headers` value or the `url` is replaced
-with the argument `NAME` at call time. A `requestTransform` shapes the request
-body from the whole arguments object. A value carrying no placeholder stays fixed.
+Arguments are validated against the version's `parametersSchema` before anything
+is sent. A wrong `type`, a value outside an `enum`, a number outside
+`minimum`/`maximum`, a string outside `minLength`/`maxLength`, and an undeclared
+property when the schema sets `additionalProperties: false` each stop the call and
+come back as **200 with an `error`** naming the first thing that did not match —
+a recorded tool failure, not an exception, so a model can read the reason and try
+again instead of ending the run. A missing `required` key is the one case that
+returns 400. Keywords outside that list (`pattern`, `anyOf`, `$ref`, …) are
+ignored rather than rejected, so an unsupported keyword never turns into a false
+rejection.
+
+Arguments reach the outgoing request in two ways. `{{arg.NAME}}` inside a `query`
+value, a `headers` value or the `url` is replaced with the argument `NAME` at call
+time. A `requestTransform` shapes the request body from the whole arguments object.
+A value carrying no placeholder stays fixed.
+
+A placeholder in the **`url`** is percent-encoded when it is filled in, so the
+value stays inside the one path segment or query value you wrote it into. A tool
+whose argument legitimately spans two path segments needs one `{{arg.NAME}}` per
+segment. Header and query values are not encoded here — query values are encoded
+by the URL builder, and a header value is not a URL.
+
+On top of that encoding, a value substituted into the **`url`** may not contain
+`..` or be a lone `.`, because a relative path reference changes which resource is
+addressed no matter how it is encoded. Such a call is refused before any request
+goes out, with the same 200-and-`error` shape as a schema violation. Ordinary
+dotted values are unaffected: `report.pdf`, `1.2.3` and `user@example.com` all
+reach the upstream as written.
 
 The outgoing HTTP call goes through an SSRF guard (`safeFetch`): only public
 http(s) URLs are reachable, so testing this endpoint against a real target
 requires a real public URL (this doc uses `https://httpbin.org`) — pointing it
-at `localhost`/`127.0.0.1` is rejected by design, even in dev.
+at `localhost`/`127.0.0.1` is rejected by design, even in dev. A response body over
+1 MB fails the call rather than being truncated — a half-read body is not a
+result worth handing to a model. The count is bytes on the wire, so a non-ASCII
+body is measured the same way as an ASCII one.
 
 ---
 
@@ -153,6 +179,59 @@ Response (status 400) — missing required argument (per `parametersSchema.requi
 ```json
 {"error":{"code":"VALIDATION_ERROR","message":"Missing required argument: city"}}
 ```
+
+#### Arguments that do not match the schema
+
+Every response below came from one tool whose `parametersSchema` is:
+
+```json
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "q":     {"type": "string", "maxLength": 20},
+    "limit": {"type": "integer", "minimum": 1, "maximum": 10},
+    "sort":  {"type": "string", "enum": ["asc", "desc"]}
+  },
+  "required": ["q"]
+}
+```
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/tools/$TOOL_ID/execute \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"arguments":{"q":"ok","limit":"lots"}}'
+```
+
+Each request and the exact body it returned:
+
+| `arguments` | Status | `error.message` |
+|---|---|---|
+| `{"q":"ok","limit":3,"sort":"asc"}` | 200 | — |
+| `{"q":"ok","limit":"lots"}` | 200 | `arguments.limit should be integer, got string` |
+| `{"q":"ok","sort":"DROP TABLE"}` | 200 | `arguments.sort should be one of "asc", "desc"` |
+| `{"q":"ok","limit":100000}` | 200 | `arguments.limit should be <= 10, got 100000` |
+| `{"q":"<100 characters>"}` | 200 | `arguments.q should be at most 20 characters, got 100` |
+| `{"q":"ok","evil":"x"}` | 200 | `arguments does not allow the property 'evil'` |
+| `{}` | 400 | `Missing required argument: q` |
+
+A refused call returns a null `result` beside the `error`, and nothing reaches the
+upstream:
+
+```json
+{"result":null,"status":0,"latencyMs":0,"toolVersionId":"…","error":{"type":"transport","message":"arguments.limit should be <= 10, got 100000"}}
+```
+
+The one 400, for a missing `required` argument:
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"Missing required argument: q"}}
+```
+
+A schema that declares no constraints stays permissive: with
+`{"type":"object","properties":{}}` and no `additionalProperties`, any argument
+is accepted.
 
 Response (status 404) — tool, version, or alias not found:
 

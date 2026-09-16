@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import express from 'express';
 import helmet from 'helmet';
 import { toNodeHandler } from 'better-auth/node';
@@ -41,6 +42,63 @@ import evaluationsRouter from './src/evaluations/evaluations.router';
 import { notificationsRouter } from './src/notifications';
 import { unsubscribeRouter } from './src/email/unsubscribe';
 import { errorMiddleware } from './src/shared/middleware';
+
+/**
+ * Maximum accepted JSON request body on an ordinary route.
+ *
+ * body-parser's 100KB default is genuinely too small here — a gateway completion
+ * carrying retrieved context, or a dataset import, passes it easily — but the parser
+ * is mounted app-wide, ahead of every router and therefore ahead of every
+ * authentication check. Whatever this says, an unauthenticated caller can make the
+ * process buffer and `JSON.parse` that much on any path. It is sized to fit real
+ * requests and no more; the one shape that needs headroom gets it explicitly below.
+ */
+const JSON_BODY_LIMIT = '1mb';
+
+/**
+ * Body limit for the two trace-ingestion routes, which genuinely carry large payloads.
+ *
+ * `MAX_SPANS_PER_BATCH` is 200 spans, and 200 llm spans carrying real prompt and
+ * completion text with payload capture on run into megabytes; an OTel exporter's JSON
+ * batch is the same shape. Being 413'd there is invisible to the reporter — both SDKs
+ * drop the batch — so the limit has to fit the batch the API itself advertises.
+ * Scoped by path rather than applied globally, so the larger ceiling exists only on
+ * the two endpoints that need it.
+ */
+const INGEST_BODY_LIMIT = '10mb';
+
+/**
+ * Decides whether an error reaching Express is worth a Sentry event.
+ *
+ * Sentry's own default reads a status off the error and assumes 500 when it finds
+ * none. A Prisma `P2023` — the code Postgres raises for a value it cannot coerce,
+ * which for us means a malformed uuid in a URL — carries no status field, so every
+ * one of them was filed as a server error. That Sentry noise is what issue #476 was
+ * actually about; answering 400 in `errorMiddleware` does not address it, because
+ * this handler is registered ahead of that one and has already decided by then.
+ *
+ * The 500-and-up rule is re-implemented here rather than imported: Sentry's
+ * `defaultShouldHandleError` lives in an internal build path and is not a public
+ * export, and reaching into one would break on any patch release.
+ *
+ * @param err - The error Express is about to pass along.
+ * @returns `true` when the error should be captured.
+ */
+function isReportableError(err: unknown): boolean {
+  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2023') return false;
+
+  const candidate = err as
+    | { status?: unknown; statusCode?: unknown; status_code?: unknown; output?: { statusCode?: unknown } }
+    | null
+    | undefined;
+  const status =
+    candidate?.status ?? candidate?.statusCode ?? candidate?.status_code ?? candidate?.output?.statusCode;
+  const numeric = typeof status === 'string' ? Number(status) : status;
+
+  // Unchanged from Sentry's default: no status at all means "we do not know", which
+  // it treats as a server error, and so do we.
+  return typeof numeric !== 'number' || Number.isNaN(numeric) || numeric >= 500;
+}
 
 /**
  * Creates and configures the Express application.
@@ -87,8 +145,14 @@ export function createApp(): express.Application {
   //    100KB default below, and being 413'd there is invisible to the endpoint.
   app.use('/api/v1', otlpRouter);
 
-  // 4. Body parsing for every other route.
-  app.use(express.json());
+  // 4. Trace ingestion parses first, with its own larger ceiling. Registering it
+  //    before the general parser is what scopes the ceiling: the first parser to
+  //    run consumes the stream, and the general one below then sees a body that
+  //    is already parsed and passes it through untouched.
+  app.use('/api/v1/traces', express.json({ limit: INGEST_BODY_LIMIT }));
+
+  // 5. Body parsing for every other route.
+  app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
   // ── Routers ───────────────────────────────────────────────────────────────
   // Health: GET /api/v1/health — unauthenticated on purpose, for load
@@ -186,7 +250,7 @@ export function createApp(): express.Application {
   // Reports unhandled 5xx errors to Sentry, then forwards to our own handler
   // below (via `next(err)`) unchanged — the response shape doesn't change.
   // A no-op if `SENTRY_API_DSN` was unset when the process booted.
-  Sentry.setupExpressErrorHandler(app);
+  Sentry.setupExpressErrorHandler(app, { shouldHandleError: isReportableError });
 
   // ── Global error handler (must be last) ───────────────────────────────────
   app.use(errorMiddleware);

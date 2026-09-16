@@ -67,45 +67,87 @@ function addSymbolNames(node: unknown, bound: Set<string>): void {
   }
 }
 
-// Walks the whole AST collecting every name bound by a {% for %} loop target
-// or a {% set %} target. These shadow any outer variable of the same name
-// within their scope and must not be treated as caller-supplied inputs.
-function collectBoundNames(node: unknown, bound: Set<string>): void {
-  if (!node || typeof node !== 'object') return;
+/**
+ * Frames of names that an enclosing construct binds, innermost last. A name is an
+ * input only when no frame in the stack holds it.
+ */
+type ScopeStack = Array<Set<string>>;
 
-  if (njNodes['For'] && node instanceof njNodes['For']) {
-    addSymbolNames((node as Record<string, unknown>)['name'], bound);
-  } else if (njNodes['Set'] && node instanceof njNodes['Set']) {
-    const targets = (node as Record<string, unknown>)['targets'];
-    if (Array.isArray(targets)) {
-      targets.forEach((t) => addSymbolNames(t, bound));
-    }
+// True when any enclosing frame binds `name`, so it is not a caller-supplied input.
+function isBound(name: string, scopes: ScopeStack): boolean {
+  for (let i = scopes.length - 1; i >= 0; i--) {
+    if (scopes[i]!.has(name)) return true;
   }
-
-  for (const key of Object.keys(node as object)) {
-    if (key === 'parent') continue; // avoid circular refs
-    const child = (node as Record<string, unknown>)[key];
-    if (Array.isArray(child)) {
-      child.forEach((c) => collectBoundNames(c, bound));
-    } else if (child && typeof child === 'object') {
-      collectBoundNames(child, bound);
-    }
-  }
+  return false;
 }
 
-// Walks a nunjucks AST node and collects all referenced top-level variable names.
-// Handles simple {{ name }} and attribute access {{ user.name }} (captures root 'user').
-// `bound` holds loop/set target names (see collectBoundNames) that shadow an
-// outer variable of the same name and so are never captured as inputs.
-function walkAst(node: unknown, vars: Set<string>, bound: Set<string>): void {
+/**
+ * Walks a nunjucks AST collecting the variable names a caller must supply, tracking
+ * scope AS IT GOES rather than pre-collecting bound names into one flat set.
+ *
+ * The flat set was the bug. `{% for %}` binds its target for the body of the loop and
+ * nowhere else, so `Hello {{ item }}. {% for item in items %}…{% endfor %}` needs
+ * `item` as a real input — the greeting above the loop has nothing to do with the loop
+ * variable. Pre-collecting made that `item` look bound everywhere in the message, so it
+ * was dropped from the required list, the render endpoint's MISSING_VARIABLES guard
+ * stayed silent, and nunjucks filled the reference with an empty string: "Hello . i1"
+ * (issue #503). A name used AFTER `{% endfor %}` failed the same way.
+ *
+ * Three constructs open or extend a scope, and each reads its own source expression in
+ * the scope OUTSIDE what it binds:
+ *
+ * - `{% for x, y in src %}` — `src` is an input; `x`/`y` bind over the body only,
+ *   not over `{% else %}`, which runs precisely when there was nothing to bind.
+ * - `{% macro m(p) %}` — `p` binds over the body; `m` is a definition, not an input.
+ * - `{% set t = v %}` — `v` is an input; `t` binds in the CURRENT frame from here on,
+ *   so a reference above the `set` is still an input, which is what nunjucks renders.
+ *
+ * Handles simple `{{ name }}` and attribute access `{{ user.name }}` (captures root
+ * `user` only).
+ */
+function walkAst(node: unknown, vars: Set<string>, scopes: ScopeStack): void {
   if (!node || typeof node !== 'object') return;
+  const rec = node as Record<string, unknown>;
+
+  if (njNodes['For'] && node instanceof njNodes['For']) {
+    // The thing being iterated is read outside the loop's own scope.
+    walkAst(rec['arr'], vars, scopes);
+    const frame = new Set<string>();
+    addSymbolNames(rec['name'], frame);
+    scopes.push(frame);
+    walkAst(rec['body'], vars, scopes);
+    scopes.pop();
+    // `{% else %}` runs when the sequence was empty, so the loop target is NOT bound
+    // there — a reference to it in that branch is a genuine input.
+    walkAst(rec['else_'], vars, scopes);
+    return;
+  }
+
+  if (njNodes['Macro'] && node instanceof njNodes['Macro']) {
+    const frame = new Set<string>();
+    addSymbolNames(rec['args'], frame);
+    scopes.push(frame);
+    walkAst(rec['body'], vars, scopes);
+    scopes.pop();
+    return;
+  }
+
+  if (njNodes['Set'] && node instanceof njNodes['Set']) {
+    // Value before targets, and in source order relative to its siblings, so
+    // `{% set total = price %}` still reports `price`.
+    walkAst(rec['value'], vars, scopes);
+    walkAst(rec['body'], vars, scopes); // the {% set x %}…{% endset %} block form
+    const targets = rec['targets'];
+    if (Array.isArray(targets)) targets.forEach((t) => addSymbolNames(t, scopes[scopes.length - 1]!));
+    return;
+  }
 
   // Attribute access: {{ user.name }} — capture root 'user' only
   if (njNodes['LookupVal'] && node instanceof njNodes['LookupVal']) {
-    const target = (node as Record<string, unknown>)['target'];
+    const target = rec['target'];
     if (target && njNodes['Symbol'] && target instanceof njNodes['Symbol']) {
       const name = (target as Record<string, unknown>)['value'] as string;
-      if (!bound.has(name)) vars.add(name);
+      if (!isBound(name, scopes)) vars.add(name);
     }
     // Don't descend into LookupVal — we already captured the root
     return;
@@ -113,18 +155,18 @@ function walkAst(node: unknown, vars: Set<string>, bound: Set<string>): void {
 
   // Simple variable reference: {{ name }}
   if (njNodes['Symbol'] && node instanceof njNodes['Symbol']) {
-    const name = (node as Record<string, unknown>)['value'] as string;
-    if (!bound.has(name)) vars.add(name);
+    const name = rec['value'] as string;
+    if (!isBound(name, scopes)) vars.add(name);
     return;
   }
 
   for (const key of Object.keys(node as object)) {
     if (key === 'parent') continue; // avoid circular refs
-    const child = (node as Record<string, unknown>)[key];
+    const child = rec[key];
     if (Array.isArray(child)) {
-      child.forEach((c) => walkAst(c, vars, bound));
+      child.forEach((c) => walkAst(c, vars, scopes));
     } else if (child && typeof child === 'object') {
-      walkAst(child, vars, bound);
+      walkAst(child, vars, scopes);
     }
   }
 }
@@ -240,7 +282,10 @@ async function renderInSandbox(templates: string[], variables: Record<string, un
 
 /**
  * Parses each message's content as a nunjucks template and extracts all
- * referenced variable names from the AST. Deduplicated and sorted.
+ * referenced variable names from the AST. Deduplicated and sorted across
+ * messages, but *scoped* per message: a name bound by `{% for %}` or
+ * `{% set %}` is excluded only from the message that binds it, because that is
+ * the only template it exists in.
  *
  * @param messages - Array of messages whose `content` fields are nunjucks templates.
  * @returns Sorted array of unique variable name strings, e.g. ["company", "name"].
@@ -248,30 +293,28 @@ async function renderInSandbox(templates: string[], variables: Record<string, un
  */
 export function extractVariables(messages: Array<{ content: string }>): string[] {
   const vars = new Set<string>();
-  const bound = new Set<string>();
 
   // nunjucks.parser is exported but not typed — cast to access parse()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const parser = (nunjucks as unknown as { parser: { parse(src: string, extensions: unknown[], opts: object): unknown } }).parser;
 
-  const asts: unknown[] = [];
   for (const msg of messages) {
+    let ast: unknown;
     try {
-      const ast = parser.parse(msg.content, [], {});
-      asts.push(ast);
-      collectBoundNames(ast, bound);
+      ast = parser.parse(msg.content, [], {});
     } catch (err) {
       throw new NunjucksParseError(
         `Template parse error: ${err instanceof Error ? err.message : String(err)}`,
         err,
       );
     }
-  }
 
-  // Bound names must be known across all messages before the capturing walk,
-  // since a loop/set target in one message shadows the same name anywhere else.
-  for (const ast of asts) {
-    walkAst(ast, vars, bound);
+    // A fresh scope stack PER MESSAGE, never shared, with one root frame for a
+    // top-level `{% set %}` to bind into. `renderMessages` renders each message as its
+    // own independent template (see `renderInSandbox`), so a binding in one message has
+    // no scope in any other — and inside a message, `{% for %}` binds only over its own
+    // body. Both halves of that were wrong before (issue #503).
+    walkAst(ast, vars, [new Set<string>()]);
   }
 
   return Array.from(vars).sort();

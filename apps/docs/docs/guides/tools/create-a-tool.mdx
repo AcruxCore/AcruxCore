@@ -258,7 +258,13 @@ when the tool is already an endpoint. Arguments reach the request through
 
 The platform substitutes each `{{arg.NAME}}` with the argument the model sent, and
 each `{{secret.NAME}}` with a team secret, so no credential is stored on the
-version. Full field list: [Tool versions](/api-reference/tools/versions).
+version.
+
+A placeholder in the URL is filled in as a single path segment: the value is
+percent-encoded, and a value that is a relative path reference is refused rather
+than sent, so the model's argument cannot change which resource the call
+addresses. If a value legitimately spans two segments, give it two placeholders.
+Full field list: [Tool versions](/api-reference/tools/versions).
 
 ### Run a `client` tool from your code
 

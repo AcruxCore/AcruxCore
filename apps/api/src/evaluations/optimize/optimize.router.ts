@@ -8,7 +8,7 @@ import { VersionsService } from '../../prompts/versions/versions.service';
 import { AliasesService } from '../../prompts/aliases/aliases.service';
 import { OptimizeService } from './optimize.service';
 import { OptimizeController } from './optimize.controller';
-import { requireAnyAuth } from '../../shared/middleware';
+import { requireAnyAuth, requireRole } from '../../shared/middleware';
 
 const service = new OptimizeService(
   new ExperimentsRepository(),
@@ -27,9 +27,18 @@ const controller = new OptimizeController(service);
  * `aliasesRouter`/`renderRouter`, which are mounted at the same
  * `/api/v1/prompts` prefix but as separate router instances — no collision,
  * since each router only matches its own route patterns). Mounted under
- * `/prompts` by `evaluations.router.ts`. Requires any authenticated member or
- * API key — `requireAnyAuth`, no role restriction.
+ * `/prompts` by `evaluations.router.ts`.
+ *
+ * `editor` and above: an optimize run pays for an optimizer completion and then
+ * a whole grid on top of it, which is the most expensive single thing a team
+ * member can start. Same gate as `POST /runs/:id/promote`, the other half of
+ * this loop.
  */
 export const optimizeRouter: IRouter = Router();
 
-optimizeRouter.post('/:promptId/optimize', requireAnyAuth, controller.start);
+optimizeRouter.post(
+  '/:promptId/optimize',
+  requireAnyAuth,
+  requireRole('owner', 'admin', 'editor'),
+  controller.start,
+);

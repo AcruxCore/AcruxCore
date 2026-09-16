@@ -12,6 +12,12 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+### Fixed
+
+- A streamed completion that fails after its first byte now raises `AcruxCoreError`
+  with code `API_ERROR`, instead of yielding one empty chunk and finishing cleanly —
+  which reported a truncated answer to the caller as a complete one.
+
 ## 0.15.0 — 2026-09-14
 
 ### Added

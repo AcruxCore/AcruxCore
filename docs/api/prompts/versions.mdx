@@ -29,6 +29,16 @@ call that omits `model` falls back to it (an explicit request `model` always
 wins). Omitted = unbound. Every version response now carries `model`
 (the bound model's current `publicName`, or `null`).
 
+`variables` is derived from the messages, never taken from the request. It lists
+every name the templates read and that the caller must supply, and it is what
+the render endpoint checks before rendering. A name the template binds itself —
+a `{% for %}` target or a `{% set %}` target — is not an input and is left out,
+but **only in the message that binds it**: each message is rendered as its own
+template, so a `{% set company = … %}` in one message does not make `company` any
+less required in another. Committing the same messages again re-derives the list,
+which is how a version committed before this rule took effect gets a corrected
+one.
+
 <Tabs groupId="lang">
 <TabItem value="curl" label="curl">
 

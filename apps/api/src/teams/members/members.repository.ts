@@ -1,3 +1,4 @@
+import { GoneError } from '../../shared/errors';
 import prisma from '../../shared/db/client';
 import { Prisma, team_role } from '@prisma/client';
 import type { MemberListItem } from './members.types';
@@ -58,10 +59,20 @@ export class MembersRepository {
       });
 
       if (inviteId) {
-        await tx.teamInvite.update({
-          where: { id: inviteId },
+        // Conditional on the invite still being unused, so the UPDATE itself is
+        // what claims it. `acceptInvite` reads `usedAt` before this transaction
+        // opens, so several people clicking one link at the same moment all passed
+        // that read and all got in — an unconditional stamp just overwrote the
+        // previous winner. A zero count means someone else claimed it first, which
+        // rolls this transaction back and leaves exactly one member added. Same
+        // conditional-write shape `reserveSpend` uses for budgets.
+        const { count } = await tx.teamInvite.updateMany({
+          where: { id: inviteId, usedAt: null },
           data: { usedAt: new Date() },
         });
+        if (count === 0) {
+          throw new GoneError('INVITE_USED', 'This invite has already been used.');
+        }
       }
 
       const team = await tx.team.findUniqueOrThrow({

@@ -6,7 +6,8 @@ import type { NormalizedRequest } from '../providers/types';
  *
  * The key is the SHA-256 hex digest of a canonical JSON object built from the
  * request fields that affect the model output: model, messages (in order), the
- * four sampling params, and `response_format`. Optional params that are absent
+ * four sampling params, `response_format`, and the declared `tools` /
+ * `tool_choice`. Optional params that are absent
  * are normalized to `null` so an omitted field and an explicit-null field
  * collide (they mean the same thing to the provider). `response_format` is
  * included so a `json_schema`/`json_object` request and an otherwise-identical
@@ -33,6 +34,16 @@ export function computeCacheKey(teamId: string, req: NormalizedRequest): string 
     top_p: req.top_p ?? null,
     stop: req.stop ?? null,
     response_format: req.response_format ?? null,
+    // Part of the key because they change what the model may answer with. Without
+    // them a plain question and the same question carrying a tool list hashed
+    // identically, so a cached prose answer was replayed to a caller that asked
+    // for a tool call — the model never got to call it and the agent loop simply
+    // stopped, with no error anywhere. `response_format` cannot stand in for this:
+    // `assertResponseFormatToolsCompatible` guarantees the two are never both set.
+    // Hashed in the order given, not sorted: the order a caller declares tools in
+    // is part of the request the provider sees.
+    tools: req.tools ?? null,
+    tool_choice: req.tool_choice ?? null,
   });
   return createHash('sha256').update(canonical).digest('hex');
 }

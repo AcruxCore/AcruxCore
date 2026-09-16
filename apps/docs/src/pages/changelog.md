@@ -106,8 +106,165 @@ called out in the week it ships and in the SDK release notes.
 - Set `EMAIL_ALLOW_REAL_DELIVERY=true` to send for real from a non-production worker.
 - Mail to reserved domains such as `example.com` or `.invalid` is refused instead of bouncing.
 
+#### API keys are now checked against the team they belong to, on every request
+
+- Every request re-checks the key's team and, for a personal key, its owner's membership.
+- A key scoped to one team acts only on routes that name that team, answering 403 otherwise.
+- A key used inside its own team behaves exactly as before.
+  [Reference →](/api-reference/api-keys)
+
+#### A virtual key's allow-lists now cover fallback models as well
+
+- The primary model and every fallback are checked against the key's provider and model lists.
+- A fallback the key may not use is skipped; the request is served by the next one it may.
+- A key with no restriction set is unaffected.
+  [Reference →](/docs/guides/scope-access-with-virtual-keys)
+
+#### The gateway cache no longer reuses an answer from a different tool set
+
+- `tools` and `tool_choice` were not part of the cache key, so two different calls matched.
+- Both are part of the key now; the first call after this deploy fills the cache again.
+- Cached answers already stored under the old key are never served.
+
+#### Trace redaction now covers AcruxCore key formats
+
+- AcruxCore key formats are redacted from stored span payloads, in full and wherever they sit.
+- Provider keys, `Bearer` tokens and email addresses are each replaced whole.
+- Redaction applies as spans are captured, so re-capture to refresh anything stored earlier.
+  [Reference →](/docs/guides/configure-trace-payload-capture)
+
+#### Budget warning emails are sent again
+
+- Crossing 80% of a cap raises the warning email again; it was raised nowhere before.
+- A call refused for lack of budget now sends the "budget exhausted" email that explains it.
+- A call that failed sends nothing — its reserved spend is credited straight back.
+  [Reference →](/docs/guides/set-spend-limits-with-gateway-budgets-and-rate-limits)
+
+#### A streamed reply ends properly when the recording after it fails
+
+- The stream closes with an error frame followed by `[DONE]`, rather than simply stopping.
+- Both SDKs raise on that frame, so a truncated answer is never reported as a complete one.
+- The spend reserved for the call is credited back rather than staying held.
+
+#### Gateway rate limits count one request per call
+
+- Each completed call recorded two requests, so a `maxRpm` of 10 started refusing at 5.
+- `x-gateway-ratelimit-remaining` counted down twice as fast as calls were made.
+- Token-per-minute limits are unchanged.
+  [Reference →](/api-reference/gateway/)
+
+#### A provider call that never answers now times out
+
+- A provider that accepts the connection and sends nothing back is given up on, and falls back.
+- A stream that stops part-way is given up on too, measured as the gap between chunks.
+- A long answer that keeps streaming is never cut off, however long it runs.
+
+#### A full trace batch is no longer rejected for its size
+
+- A 200-span batch with payload capture on exceeded the old body limit and was dropped.
+- Trace ingestion now accepts up to 10 MB, and the bundled nginx config allows the same.
+- Other routes accept 1 MB, so an oversized body is refused before it is parsed.
+  [Reference →](/docs/guides/configure-trace-payload-capture)
+
+#### Usage grouped by day is cut in UTC
+
+- Days were cut on the database server's timezone, so calls landed in the wrong day.
+- `GET /gateway/usage?group_by=day` now agrees with the analytics endpoints.
+- Only the per-day split moved; the totals were always right.
+  [Reference →](/api-reference/gateway/usage)
+
+#### Starting an evaluation run now needs the editor role
+
+- `viewer` could start experiment and optimize runs, which bill your gateway per cell.
+- Creating experiments and writing datasets now needs the same role as committing a version.
+- Reading datasets, experiments and runs is unchanged for every member.
+  [Reference →](/api-reference/datasets)
+
+#### Team-scoped API keys can no longer write evaluation data
+
+- Datasets, experiments, runs and optimize match prompts: a team key reads, it does not write.
+- Use a personal API key, from an account with the editor role or above, for those calls.
+- Both SDKs are unchanged; only which key you hand them matters.
+  [Reference →](/docs/sdk-reference/python)
+
+#### A tool argument stays inside the URL slot its author wrote it into
+
+- An argument substituted into an executor URL is encoded, and kept to that one path segment.
+- A value that is a relative path reference is refused before the request, as a tool failure.
+- A tool needing a multi-segment value should use one `{{arg.…}}` per segment.
+  [Reference →](/api-reference/tools/execute)
+
+#### A tool's response size cap now stops the download instead of measuring it afterwards
+
+- A slow, endless upstream could make the API hold the whole body before the 1 MB cap applied.
+- The cap is also counted in bytes now, so non-English responses are measured correctly.
+- An oversized response fails the call rather than arriving silently truncated.
+
+#### Unsubscribe links are no longer acted on by mail scanners
+
+- Opening the link now shows a confirm button; only pressing it turns the category off.
+- Security scanners and prefetching clients fetch links without a person clicking them.
+- One-click unsubscribe from a mail client is unchanged.
+
+#### The eval-rule preview stays inside its ten-reply ceiling
+
+- A non-numeric `limit` made it grade every reply in its scan window, each a paid judge call.
+- `limit` is now validated: an integer from 1 to 10, or a 400.
+- The dashboard's Preview button was always within the ceiling and is unchanged.
+
+#### A prompt no longer renders a blank where a variable should be
+
+- A name vanished from the required list if a loop or another message rebound it elsewhere.
+- The render call asks for it now, and returns `MISSING_VARIABLES` when it is absent.
+- Versions committed before this are covered too — there is nothing to re-commit.
+  [Reference →](/api-reference/prompts/)
+
+#### Online evaluation rules score the model's answer, not the response envelope
+
+- Every score was graded against the whole JSON reply, including its id, usage and metadata.
+- Criteria about the answer work now, on gateway calls and on spans either SDK reports.
+- A turn that called tools is judged on the calls it made, not on the text around them.
+  [Reference →](/api-reference/eval-rules)
+
+#### A failed evaluation run now says why
+
+- A failed cell showed a blank output while the reason sat unread in the database.
+- The run page states the cause, and each failed example in the cell drawer names its own.
+- The banner still says the results below are partial, whatever reason is shown beside it.
+  [Reference →](/api-reference/experiments)
+
+#### Tool arguments are checked against the schema the tool declares
+
+- Only `required` was enforced, so a wrong type or an out-of-range value reached your API.
+- `type`, `enum`, numeric bounds, string length and `additionalProperties` now stop the call.
+- The call comes back as a failed tool result the model can read, so its loop keeps going.
+  [Reference →](/api-reference/tools/execute)
+
+#### The audit trail now covers datasets and evaluation rules
+
+- Deleting a dataset and creating, changing or deleting an evaluation rule left no record.
+- Five events now appear under a new Evaluations area on the Audit trail page.
+- Starting an experiment or optimize run is still not recorded.
+  [Reference →](/api-reference/audit)
+
+#### An editor can preview an evaluation rule and build a dataset from it
+
+- Both were owner or admin, while the same editor could already start a 500-cell run.
+- Creating and deleting a rule stays owner or admin — those start a standing spend.
+- The Rules screen hides the controls a role cannot use instead of failing on click.
+  [Reference →](/api-reference/eval-rules)
+
+#### A mistyped `trace` field no longer costs you the whole trace
+
+- A `tags` sent as a string instead of an array lost the trace entirely, on a billed call.
+- Good fields are kept, bad ones dropped, and `x-gateway-context-ignored` names them.
+- A completion is never refused over a tracing field.
+  [Reference →](/api-reference/gateway/)
+
 ### Minor
 
+- A non-streaming provider reply is read under a 25 MB ceiling; streams are unaffected.
+- The Audit trail's Area filter gained an Evaluations option beside Prompts and Gateway.
 - The [Retries and Fallbacks guide](/docs/guides/automatic-model-fallbacks) now shows a retried trace and a fallback trace side by side.
 - The same guide covers registering a model with its first fallback, not only editing one.
 - The same guide now shows Python and Node SDK code beside every curl example.
@@ -127,6 +284,12 @@ called out in the week it ships and in the SDK release notes.
 - **Fixed** — the weekly digest could dispatch at worker startup instead of at its scheduled time.
 - **Fixed** — `DIGEST_ENABLED=false` now also cancels a digest left pending from a worker outage.
 - The worker's first log line now says whether it will send mail for real or only print it.
+- **Fixed** — the weekly digest's printed date range now matches the week it actually measured.
+- **Fixed** — the prompt Preview tab left out the input for a variable a loop or message rebound.
+- **Fixed** — a tool response that began with a byte-order mark came back as text, not parsed JSON.
+- **Fixed** — an emoji counted twice against a tool argument's length limit, so valid values 400'd.
+- **Fixed** — a schema written as `additionalProperties: false` with no properties accepted anything.
+- A viewer no longer sees dataset, experiment and run buttons their role cannot use.
 - **Fixed** — `chat()` now names the call that runs a tool when handed a declared one, not a 400.
 - **Fixed** — seven Node snippets in the tool tutorials were missing `new` and failed on paste.
 - The prompt-tools guide now shows `run_prompt_with_tools` as a wrapper over `run_tool_loop`.
@@ -141,6 +304,11 @@ called out in the week it ships and in the SDK release notes.
 - [Evaluate a prompt](/docs/guides/evaluate-a-prompt) now shows SDK code for reporting feedback, not only curl.
 - **Fixed** — the SDK chat guide left `trace_id` out of the gateway metadata it documents.
 - **Fixed** — three guide scripts crashed on their first SDK call; they now use the current API.
+- **Fixed** — a malformed id in a URL returned a 500; it now returns 400 and says what is wrong.
+- **Fixed** — a team invite used twice at the same moment could add the member twice.
+- **Fixed** — two budget resets landing together could clear the same spend twice.
+- **Fixed** — editing one field of a gateway connection no longer clears the rest of its config.
+- **Fixed** — a secret whose name contains `_` or `%` was reported as in use when it was not.
 
 ---
 

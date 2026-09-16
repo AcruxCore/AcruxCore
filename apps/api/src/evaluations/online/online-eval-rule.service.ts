@@ -10,8 +10,10 @@ import { compileEvaluatePrompt, compileCustomJudgePrompt } from '../judge/judge.
 import { parseVerdict } from '../judge/judge.parse';
 import { DatasetsRepository } from '../datasets/datasets.repository';
 import prisma from '../../shared/db/client';
+import { audit } from '../../shared/audit';
 import { EvalRuleRepository } from './online-eval-rule.repository';
 import { matchesFilter } from './eval-rule-matcher';
+import { judgeableOutput } from './span-output';
 import type {
   CreateEvalRuleDto,
   UpdateEvalRuleDto,
@@ -72,6 +74,12 @@ export class OnlineEvalRuleService {
     await this.assertJudgeModelExists(teamId, input.judgeModel);
     await this.assertJudgePromptExists(teamId, input.judgePromptId);
     const rule = await this.repo.create(teamId, userId, input);
+    await audit(prisma, {
+      teamId,
+      actorId: userId,
+      event: 'eval_rule_created',
+      metadata: { ruleId: rule.id, name: rule.name, judgeModel: rule.judgeModel, enabled: rule.enabled },
+    });
     return toResponse(rule);
   }
 
@@ -128,18 +136,46 @@ export class OnlineEvalRuleService {
    * @throws {ValidationError} same as `createRule`, when the patch touches
    *   `judgeModel`/`judgePromptId`.
    */
-  async updateRule(id: string, teamId: string, patch: UpdateEvalRuleDto): Promise<EvalRuleResponse> {
+  async updateRule(
+    id: string,
+    teamId: string,
+    actorId: string,
+    patch: UpdateEvalRuleDto,
+  ): Promise<EvalRuleResponse> {
     if (patch.judgeModel !== undefined) await this.assertJudgeModelExists(teamId, patch.judgeModel);
     if (patch.judgePromptId !== undefined) await this.assertJudgePromptExists(teamId, patch.judgePromptId);
     const rule = await this.repo.update(id, teamId, patch);
     if (!rule) throw new NotFoundError('Rule not found.');
+    // Field names, not values: `criteria` and a custom judge prompt are free text
+    // that can run to thousands of characters, and the trail is a record of who
+    // acted, not a second copy of the rule. `enabled` is the exception, because
+    // it is the field that starts and stops the spend.
+    await audit(prisma, {
+      teamId,
+      actorId,
+      event: 'eval_rule_updated',
+      metadata: {
+        ruleId: rule.id,
+        name: rule.name,
+        changed: Object.keys(patch),
+        ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+      },
+    });
     return toResponse(rule);
   }
 
   /** @throws {NotFoundError} same as `getRule`. */
-  async deleteRule(id: string, teamId: string): Promise<void> {
+  async deleteRule(id: string, teamId: string, actorId: string): Promise<void> {
     const removed = await this.repo.remove(id, teamId);
     if (!removed) throw new NotFoundError('Rule not found.');
+    // Deleting a rule cascades its scores away, so this row is the only thing left
+    // that says the rule existed and who removed it.
+    await audit(prisma, {
+      teamId,
+      actorId,
+      event: 'eval_rule_deleted',
+      metadata: { ruleId: id, name: removed.name },
+    });
   }
 
   /** @throws {NotFoundError} same as `getRule`. */
@@ -178,7 +214,12 @@ export class OnlineEvalRuleService {
         sessionId: span.trace?.sessionId ?? null,
       });
       if (!isMatch) continue;
-      if (!span.payload?.output) {
+      // Explicitly absent, not merely falsy — the same test `online-eval.processor.ts`
+      // applies. A truthiness check reported a present-but-empty output as "capture is
+      // off" here while the worker went ahead and judged it, which is exactly the
+      // disagreement the note below promises there isn't.
+      const previewOutput = span.payload?.output;
+      if (previewOutput === undefined || previewOutput === null) {
         verdicts.push({ spanId: span.id, traceId: span.traceId, score: null, passed: null, reason: 'not scored: payload capture is off for this team' });
         continue;
       }
@@ -187,7 +228,9 @@ export class OnlineEvalRuleService {
         rule.name,
         rule.criteria,
         rule.judgeModel,
-        span.payload.output,
+        // Same narrowing the worker applies, so a preview predicts what live
+        // scoring will actually do (issue #505).
+        judgeableOutput(previewOutput),
         rule.judgePromptId,
       );
       verdicts.push({ spanId: span.id, traceId: span.traceId, ...verdict });
@@ -203,12 +246,25 @@ export class OnlineEvalRuleService {
    *
    * @throws {NotFoundError} same as `getRule`.
    */
-  async buildDataset(id: string, teamId: string, input: ToDatasetDto): Promise<{ id: string; exampleCount: number }> {
+  async buildDataset(
+    id: string,
+    teamId: string,
+    actorId: string,
+    input: ToDatasetDto,
+  ): Promise<{ id: string; exampleCount: number }> {
     const rule = await this.repo.findById(id, teamId);
     if (!rule) throw new NotFoundError('Rule not found.');
 
     const lowScores = await this.repo.scoresBelow(id, teamId, input.threshold, input.limit);
-    const dataset = await datasetsRepo.createDataset(teamId, null, { name: input.datasetName });
+    // `createdBy` was null here and the trail had no row, so this was the one
+    // dataset in the product that appeared from nowhere and belonged to no one.
+    const dataset = await datasetsRepo.createDataset(teamId, actorId, { name: input.datasetName });
+    await audit(prisma, {
+      teamId,
+      actorId,
+      event: 'dataset_created',
+      metadata: { datasetId: dataset.id, name: dataset.name, fromRuleId: id },
+    });
 
     let exampleCount = 0;
     for (const scoreRow of lowScores) {

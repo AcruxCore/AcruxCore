@@ -9,6 +9,12 @@ export interface RulesTableProps {
   onSelectRule: (rule: EvalRule) => void;
   /** Called with the rule's id when its Delete action is clicked. */
   onDeleteRule: (id: string) => void;
+  /**
+   * Whether the viewer may change a rule — owner or admin. False hides Delete
+   * and freezes the enabled switch, because both of those requests come back
+   * 403 for an editor. Reading, previewing and building a dataset stay open.
+   */
+  canManage: boolean;
 }
 
 /**
@@ -18,8 +24,9 @@ export interface RulesTableProps {
  * table.
  *
  * @param rule - The rule this switch controls.
+ * @param canManage - False renders the current state without letting it change.
  */
-function EnabledToggle({ rule }: { rule: EvalRule }) {
+function EnabledToggle({ rule, canManage }: { rule: EvalRule; canManage: boolean }) {
   const toast = useToast();
   const update = useUpdateEvalRule(rule.id);
 
@@ -28,8 +35,13 @@ function EnabledToggle({ rule }: { rule: EvalRule }) {
       type="button"
       role="switch"
       aria-checked={rule.enabled}
-      aria-label={`${rule.enabled ? 'Disable' : 'Enable'} ${rule.name}`}
-      disabled={update.isPending}
+      aria-label={
+        canManage
+          ? `${rule.enabled ? 'Disable' : 'Enable'} ${rule.name}`
+          : `${rule.name} is ${rule.enabled ? 'enabled' : 'disabled'}`
+      }
+      disabled={update.isPending || !canManage}
+      title={canManage ? undefined : 'An owner or admin turns a rule on or off.'}
       onClick={(e) => {
         e.stopPropagation();
         update.mutate(
@@ -60,8 +72,9 @@ function EnabledToggle({ rule }: { rule: EvalRule }) {
  * @param rules - The team's rules (already ordered by the API).
  * @param onSelectRule - Called with the clicked rule so a caller can open its editor.
  * @param onDeleteRule - Called with a rule's id when its Delete action is clicked.
+ * @param canManage - Owner or admin. False hides Delete and freezes the switch.
  */
-export function RulesTable({ rules, onSelectRule, onDeleteRule }: RulesTableProps) {
+export function RulesTable({ rules, onSelectRule, onDeleteRule, canManage }: RulesTableProps) {
   return (
     <div className="overflow-x-auto rounded-xl border border-line">
       <table className="w-full min-w-[760px] border-collapse text-left text-[13px]">
@@ -93,7 +106,7 @@ export function RulesTable({ rules, onSelectRule, onDeleteRule }: RulesTableProp
                 </p>
               </td>
               <td className="px-4 py-2.5">
-                <EnabledToggle rule={rule} />
+                <EnabledToggle rule={rule} canManage={canManage} />
               </td>
               <td className="px-4 py-2.5 text-right font-mono text-muted">{formatSampleRate(rule.sampleRate)}</td>
               <td className="px-4 py-2.5 text-right font-mono text-muted">{formatDailyLimit(rule.dailyLimit)}</td>
@@ -110,19 +123,21 @@ export function RulesTable({ rules, onSelectRule, onDeleteRule }: RulesTableProp
                     }}
                     data-testid="rule-edit-button"
                   >
-                    Edit
+                    {canManage ? 'Edit' : 'Open'}
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteRule(rule.id);
-                    }}
-                    data-testid="rule-delete-button"
-                  >
-                    Delete
-                  </Button>
+                  {canManage && (
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteRule(rule.id);
+                      }}
+                      data-testid="rule-delete-button"
+                    >
+                      Delete
+                    </Button>
+                  )}
                 </div>
               </td>
             </tr>

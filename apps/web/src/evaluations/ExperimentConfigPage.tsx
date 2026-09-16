@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useAuth } from '@/auth/AuthContext';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ApiError,
@@ -35,6 +36,7 @@ export function ExperimentConfigPage() {
   const { id: datasetId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const dataset = useDataset(datasetId ?? null);
+  const { canWrite } = useAuth();
 
   const [promptSearch, setPromptSearch] = useState('');
   const [promptId, setPromptId] = useState('');
@@ -240,13 +242,22 @@ export function ExperimentConfigPage() {
         {error && <p className="text-[13px] text-danger">{error}</p>}
 
         <div>
-          <Button
-            variant="primary"
-            disabled={submitting}
-            onClick={mismatchWarning ? () => navigate(`/evaluations/runs/${mismatchWarning.runId}`) : handleSubmit}
-          >
-            {submitting ? 'Starting…' : mismatchWarning ? 'Open run' : 'Start run'}
-          </Button>
+          {/* Starting a run bills one provider call per cell and the API gates it at
+              owner/admin/editor. A viewer who arrived here by URL is told why rather
+              than handed a button that 403s. */}
+          {canWrite ? (
+            <Button
+              variant="primary"
+              disabled={submitting}
+              onClick={mismatchWarning ? () => navigate(`/evaluations/runs/${mismatchWarning.runId}`) : handleSubmit}
+            >
+              {submitting ? 'Starting…' : mismatchWarning ? 'Open run' : 'Start run'}
+            </Button>
+          ) : (
+            <p className="text-[13px] text-muted" data-testid="run-not-permitted">
+              Starting a run needs an editor role or higher. Ask an admin on your team.
+            </p>
+          )}
         </div>
       </div>
     </div>

@@ -121,6 +121,19 @@ export interface GatewayStream {
 type FreshBudget = Awaited<ReturnType<BudgetsRepository['applicableBudgets']>>[number];
 
 /**
+ * One budget alert a single spend transition crossed.
+ *
+ * Three things produce these: the reservation, the reconciliation, and a *rejected*
+ * reservation. All of them feed the same `notifyBudgetCrossings` after their
+ * transaction has settled.
+ */
+interface BudgetCrossingRecord {
+  budget: FreshBudget;
+  crossing: BudgetCrossing;
+  spendUsd: number;
+}
+
+/**
  * Conservative fallback for a request's completion-token reservation estimate
  * when the caller didn't supply `max_tokens` — bounds the worst case without
  * requiring per-model context-window knowledge. Tunable later; the point is
@@ -304,6 +317,51 @@ export class GatewayService {
   }
 
   /**
+   * Applies **both** of the virtual key's allow-lists — provider and model — to an
+   * entire fallback chain.
+   *
+   * Each allow-list used to be checked against the caller's request only: the provider
+   * against `deployments[0]`, the model against the requested name. But
+   * `callWithFallback` walks every deployment, and each fallback carries its own
+   * credential *and* its own registered public name — so as soon as the primary failed,
+   * the request could be served by a provider or a model the key forbids. That turned
+   * two governance controls ("never send my prompts to provider X", "this key may only
+   * use the cheap model") into controls that held only while the primary was healthy. A
+   * key scoped to `fast`, whose fallback is `fast-backup`, silently billed the expensive
+   * model on every primary 429.
+   *
+   * The primary still throws, so a caller asking for something it may not use gets the
+   * same 403 as before. Fallbacks are filtered out instead: the chain is the team's
+   * configuration rather than anything this caller asked for, so a forbidden link is
+   * skipped, not an error.
+   *
+   * @param ctx - The call context carrying the key's `allowedProviders`/`allowedModels`.
+   * @param deployments - The resolved chain, primary first.
+   * @returns The chain with forbidden fallbacks removed. The primary is always still
+   *   first, because a forbidden primary throws rather than being filtered out.
+   * @throws {ForbiddenError} PROVIDER_NOT_ALLOWED / MODEL_NOT_ALLOWED when the
+   *   *primary* is forbidden.
+   */
+  private scopeDeploymentsToKey<
+    T extends { model: { publicName: string }; credential: { provider: string } },
+  >(ctx: GatewayCallContext, deployments: T[]): T[] {
+    this.assertProviderAllowed(ctx, deployments[0].credential.provider);
+    this.assertModelAllowed(ctx, deployments[0].model.publicName);
+
+    const providers =
+      ctx.allowedProviders && ctx.allowedProviders.length > 0 ? new Set(ctx.allowedProviders) : undefined;
+    const models =
+      ctx.allowedModels && ctx.allowedModels.length > 0 ? new Set(ctx.allowedModels) : undefined;
+    if (!providers && !models) return deployments;
+
+    return deployments.filter(
+      (d) =>
+        (!providers || providers.has(d.credential.provider)) &&
+        (!models || models.has(d.model.publicName)),
+    );
+  }
+
+  /**
    * Enforce the virtual key's provider allow-list (G3) using the provider of the
    * resolved deployment's credential (no more name inference). null/empty = unrestricted.
    * @throws {ForbiddenError} PROVIDER_NOT_ALLOWED when scoped out.
@@ -451,35 +509,74 @@ export class GatewayService {
    * actually fit under the cap can ever succeed, no matter how many race in at
    * once.
    *
+   * A rejected reservation is also the only place a `budget_exhausted` alert can come
+   * from. `detectBudgetCrossings` needs `after >= limit`, and a reservation only ever
+   * commits when `spend + delta <= limit`, so a *successful* reservation could satisfy
+   * both only by landing exactly on the cap — which against `Decimal(18,9)` dollars
+   * does not happen. The transition that actually cuts a team off is the one where the
+   * conditional `UPDATE` matches no row, so the alert is raised from here, after the
+   * transaction has rolled back.
+   *
    * @param ctx - Team/virtual-key scope.
    * @param estimatedCostUsd - Conservative USD estimate to reserve (see `estimateRequestCostUsd`).
    * @returns Each applicable (freshly-reset) budget that was successfully reserved
-   *   against. `reconcileBudgets` derives its own accurate before/after pair from
-   *   `incrementSpend` at reconciliation time rather than from any spend value
-   *   read here, since a snapshot taken before the reservation transaction runs
-   *   goes stale the moment a concurrent request commits (see `reconcileBudgets`).
+   *   against, plus any alert the reservation itself crossed. `reconcileBudgets`
+   *   derives its own before/after pair from `incrementSpend` at reconciliation time
+   *   rather than from any spend value read here, since a snapshot taken before the
+   *   reservation transaction runs goes stale the moment a concurrent request commits.
    * @throws {PaymentRequiredError} 402 BUDGET_EXCEEDED when a reservation would
    *   exceed a budget's cap.
    */
-  private async reserveBudgets(ctx: GatewayCallContext, estimatedCostUsd: number): Promise<FreshBudget[]> {
+  private async reserveBudgets(
+    ctx: GatewayCallContext,
+    estimatedCostUsd: number,
+  ): Promise<{ reserved: FreshBudget[]; crossed: BudgetCrossingRecord[] }> {
     const applicable = await this.budgetsRepo.applicableBudgets(ctx.teamId, ctx.virtualKeyId);
     const rolled: FreshBudget[] = [];
     for (const b of applicable) {
       rolled.push(await this.budgetsRepo.resetIfElapsed(b));
     }
 
-    return runInTransaction(async (tx) => {
-      const reserved: FreshBudget[] = [];
-      for (const b of rolled) {
-        const result = await this.budgetsRepo.reserveSpend(tx, b.id, estimatedCostUsd);
-        if (!result) {
-          const scope = b.virtualKeyId ? 'Virtual key' : 'Team-wide';
-          throw new PaymentRequiredError('BUDGET_EXCEEDED', `${scope} budget exceeded.`);
+    let exhausted: FreshBudget | undefined;
+    try {
+      return await runInTransaction(async (tx) => {
+        const reserved: FreshBudget[] = [];
+        const crossed: BudgetCrossingRecord[] = [];
+        for (const b of rolled) {
+          const result = await this.budgetsRepo.reserveSpend(tx, b.id, estimatedCostUsd);
+          if (!result) {
+            exhausted = b;
+            const scope = b.virtualKeyId ? 'Virtual key' : 'Team-wide';
+            throw new PaymentRequiredError('BUDGET_EXCEEDED', `${scope} budget exceeded.`);
+          }
+          // The reservation is the only step that reliably raises spend —
+          // reconciliation normally credits an overestimate back, so its delta is
+          // negative and `detectBudgetCrossings` (which needs before < line <= after)
+          // could never fire on it. Detecting here is what makes the warning
+          // reachable at all; reconciliation still detects too, for the case where
+          // the real cost overshot the estimate.
+          crossed.push(
+            ...detectBudgetCrossings({ before: result.before, after: result.after, limit: result.limit })
+              .map((crossing) => ({ budget: b, crossing, spendUsd: Number(result.after) })),
+          );
+          reserved.push(b);
         }
-        reserved.push(b);
+        return { reserved, crossed };
+      });
+    } catch (err) {
+      // Raised out here, where the transaction has already rolled back, so the alert
+      // describes a 402 the caller is genuinely about to receive. Every later blocked
+      // request in the same period derives the same dedupe key and folds into this
+      // one job, so a team gets one "cut off" email per period, not one per request.
+      if (exhausted) {
+        await this.notifyBudgetCrossings(
+          [{ budget: exhausted, crossing: 'exhausted', spendUsd: Number(exhausted.spendUsd) }],
+          ctx.teamId,
+          ctx.contributingSource,
+        );
       }
-      return reserved;
-    });
+      throw err;
+    }
   }
 
   /**
@@ -489,22 +586,24 @@ export class GatewayService {
    * detects any alert crossing using the before/after pair `incrementSpend`
    * itself returns for THIS reconciliation.
    *
-   * This must NOT use `reserveBudgets`' `preSpendUsd` snapshot (Finding —
-   * duplicate-alert bug): that value is read once, before the reservation
-   * transaction even runs, and is shared by whichever concurrent requests
-   * happened to reserve around the same moment. Under concurrency, two
-   * requests crossing the same threshold would then both compare against the
-   * same stale baseline and both detect a "crossing", sending two alert
-   * emails for one real event. `incrementSpend`'s `before` (`after` minus
-   * this call's own delta) is instead computed atomically inside the same
-   * UPDATE that applies the correction, so it is always consistent with
-   * whatever every other concurrent request has already committed — see the
-   * doc comment on `BudgetsRepository.incrementSpend` for why a separately
-   * read `before` is unsafe here.
+   * Detection runs on the before/after pair `incrementSpend` returns for THIS
+   * correction, and on nothing else. Every write to the row — each reservation, each
+   * reconciliation — returns a transition computed atomically inside its own UPDATE,
+   * so consecutive transitions tile the row's trajectory without gaps or overlap and
+   * any given line is crossed by exactly one of them. That tiling is what makes
+   * "exactly one alert" hold under concurrency, and it is why no baseline read
+   * earlier may be substituted here.
+   *
+   * Two such baselines have been tried and both break it. `preSpendUsd` was read
+   * once outside any transaction and shared by whichever requests reserved around the
+   * same moment, so two of them compared against one stale value and both "crossed".
+   * Carrying each request's own reservation `before` forward fails differently but
+   * just as surely: by the time it reconciles, other requests have committed in
+   * between, so its pair overlaps theirs and a line gets crossed twice. Only the
+   * atomic pair is disjoint.
    *
    * @param tx - Transaction client; call from inside the same tx as the request-row insert.
-   * @param reserved - The budgets `reserveBudgets` returned (pre-reservation spend is no
-   *   longer needed here — see above).
+   * @param reserved - The budgets `reserveBudgets` returned.
    * @param estimatedCostUsd - The estimate that was reserved per budget.
    * @param realCostUsd - The actual cost now known (0 on a fully failed call — credits back the whole reservation).
    * @returns Crossings this reconciliation caused, for post-commit alerting.
@@ -514,9 +613,9 @@ export class GatewayService {
     reserved: FreshBudget[],
     estimatedCostUsd: number,
     realCostUsd: number,
-  ): Promise<{ budget: FreshBudget; crossing: BudgetCrossing; spendUsd: number }[]> {
+  ): Promise<BudgetCrossingRecord[]> {
     const delta = realCostUsd - estimatedCostUsd;
-    const crossed: { budget: FreshBudget; crossing: BudgetCrossing; spendUsd: number }[] = [];
+    const crossed: BudgetCrossingRecord[] = [];
     for (const budget of reserved) {
       const t = await this.budgetsRepo.incrementSpend(tx, budget.id, delta);
       for (const crossing of detectBudgetCrossings({ before: t.before, after: t.after, limit: t.limit })) {
@@ -531,8 +630,15 @@ export class GatewayService {
    *
    * Called **after** the money transaction commits, never inside it: a
    * rolled-back request must not have sent an alert, and an email enqueue has no
-   * business holding a database transaction open. `notify()` swallows its own
-   * failures, so nothing here can turn a recorded request into a failed one.
+   * business holding a database transaction open.
+   *
+   * It must therefore not reject, and every iteration is guarded to guarantee that.
+   * `notify()` swallows its own failures, but the two name lookups around it do not,
+   * and the streaming caller reads *any* rejection from this point on as "the ledger
+   * row was never written" and credits the reservation back — a second time, after
+   * reconciliation has already done it. A pool blip while fetching a team name would
+   * then leave the team's recorded spend below the truth for the rest of the period,
+   * which is the defect issue #488 was filed for, reached through a new door.
    *
    * @param crossings - One entry per (budget, alert) the increment produced.
    * @param teamId - Team the budgets belong to.
@@ -550,6 +656,7 @@ export class GatewayService {
     contributingSource?: string,
   ): Promise<void> {
     for (const { budget, crossing, spendUsd } of crossings) {
+      try {
       const keyName = budget.virtualKeyId
         ? await this.budgetsRepo.findVirtualKeyName(budget.virtualKeyId)
         : null;
@@ -585,6 +692,11 @@ export class GatewayService {
             ? { type: 'budget_threshold', props }
             : { type: 'budget_exhausted', props },
       });
+      } catch (err) {
+        // Log and move to the next crossing. The spend itself is recorded correctly
+        // either way; a missing alert email is much the smaller failure.
+        console.error('[budget alert] failed to enqueue', { budgetId: budget.id, crossing }, err);
+      }
     }
   }
 
@@ -755,7 +867,7 @@ export class GatewayService {
     }
 
     // Provider allow-list (G3): now that we know the primary deployment's provider.
-    this.assertProviderAllowed(ctx, deployments[0].credential.provider);
+    const scopedDeployments = this.scopeDeploymentsToKey(ctx, deployments);
 
     // 4b. Budget reserve — durable spend caps in Postgres (G4/G5 fix). Lazy-reset
     // each applicable budget, then atomically reserve a conservative cost estimate
@@ -763,8 +875,9 @@ export class GatewayService {
     // if any can't fit. Reserving here — after resolving deployments/pricing but
     // before the paid call — closes the concurrent-request race the old read-then-
     // increment-later check-then-act had. Reconciled to the real cost at step 9.
-    const estimatedCostUsd = estimateRequestCostUsd(normalized, deployments[0].model);
-    const reservedBudgets = await this.reserveBudgets(ctx, estimatedCostUsd);
+    const estimatedCostUsd = estimateRequestCostUsd(normalized, scopedDeployments[0].model);
+    const { reserved: reservedBudgets, crossed: reservationCrossings } =
+      await this.reserveBudgets(ctx, estimatedCostUsd);
 
     // Bind adapter + decrypted credentials + upstream-model rewrite per deployment.
     const invoke = this.buildInvoker();
@@ -773,7 +886,7 @@ export class GatewayService {
     const startedAt = Date.now();
     let served;
     try {
-      served = await callWithFallback(deployments, normalized, invoke, {
+      served = await callWithFallback(scopedDeployments, normalized, invoke, {
         maxRetriesPerConn: gateway?.maxRetries ?? DEFAULT_MAX_RETRIES,
         allowFallback: gateway?.fallback ?? true,
       });
@@ -837,7 +950,7 @@ export class GatewayService {
     // provider_connection_id = the connection that SERVED the request; meta = the trail.
     const cacheHit = false; // ← G6 cache sets this true on a cache hit
     const spendDelta = cacheHit ? 0 : costUsd ?? 0;
-    const crossed: { budget: FreshBudget; crossing: BudgetCrossing; spendUsd: number }[] = [];
+    const crossed: BudgetCrossingRecord[] = [];
     const row = await runInTransaction(async (tx) => {
       const created = await this.gatewayRepo.recordRequest(
         {
@@ -870,7 +983,12 @@ export class GatewayService {
       return created;
     });
 
-    if (crossed.length > 0) await this.notifyBudgetCrossings(crossed, ctx.teamId, ctx.contributingSource);
+    // The reservation's crossings are sent with the reconciliation's: the
+    // reservation already committed its own transaction, and this point is after
+    // the recording transaction committed too, so neither can be rolled back now.
+    const allCrossings = [...reservationCrossings, ...crossed];
+    if (allCrossings.length > 0)
+      await this.notifyBudgetCrossings(allCrossings, ctx.teamId, ctx.contributingSource);
 
     // Fold real token usage into the RPM/TPM window post-call (TPM accounting).
     recordTokens(rlKey, response.usage.total_tokens ?? 0);
@@ -1015,13 +1133,14 @@ export class GatewayService {
         'MODEL_NOT_REGISTERED',
       );
     }
-    this.assertProviderAllowed(ctx, deployments[0].credential.provider);
+    const scopedDeployments = this.scopeDeploymentsToKey(ctx, deployments);
 
     // 4b. Budget reserve (G4/G5 fix, mirrors complete() — see its comment).
     // Reserving before the deployment-fallback loop below means a budget that
     // can't fit the reservation throws here, before any provider stream opens.
-    const estimatedCostUsd = estimateRequestCostUsd(normalized, deployments[0].model);
-    const reservedBudgets = await this.reserveBudgets(ctx, estimatedCostUsd);
+    const estimatedCostUsd = estimateRequestCostUsd(normalized, scopedDeployments[0].model);
+    const { reserved: reservedBudgets, crossed: reservationCrossings } =
+      await this.reserveBudgets(ctx, estimatedCostUsd);
 
     // 7 (selection). Try deployments in order until one yields a first chunk.
     // Fallback ends the moment a byte is committed — after the first chunk the
@@ -1037,7 +1156,7 @@ export class GatewayService {
     // non-streaming one did — same request, same upstream, strictly worse answer.
     let lastProviderError: ProviderError | null = null;
 
-    for (const deployment of deployments) {
+    for (const deployment of scopedDeployments) {
       try {
         const creds: ProviderCredentials = {
           apiKey: decryptStoredSecret(
@@ -1100,6 +1219,7 @@ export class GatewayService {
         latencyMs: Date.now() - startedAt,
         meta: {},
         reservedBudgets,
+        reservationCrossings,
         estimatedCostUsd,
         promptVersionId,
       });
@@ -1123,6 +1243,9 @@ export class GatewayService {
     let providerUsage: Usage | undefined;
     let finishReason: string | null = null;
     let finalized = false;
+    // Guards re-entry while the first finalize is still awaiting, so a retry is
+    // possible after a failure without two finalizes overlapping.
+    let inFlight = false;
     // Tool-call fragments, keyed by the wire `index` that correlates them across
     // frames. A streamed turn never yields a whole message, so without this the
     // trace payload for a tool-calling turn would record an empty output.
@@ -1167,7 +1290,17 @@ export class GatewayService {
     const recordStreamRow = this.recordStreamRow.bind(this);
     const finalize = async (opts: FinalizeStreamOpts): Promise<void> => {
       if (finalized) return;
-      finalized = true;
+      // Two flags, because they answer different questions. `finalized` means the
+      // ledger row is committed, and is claimed only once the awaited work below has
+      // actually succeeded — setting it up front meant a failed `recordStreamRow` (a
+      // budget deleted mid-stream, a transaction timeout, a pool blip) left it set,
+      // so the reservation could never be credited back and the team's spend stayed
+      // inflated by an estimate for a call that was never recorded. `inFlight` means
+      // the work is running right now, and stops a second entry from starting while
+      // the first is still awaiting: the controller calls this once per stream today,
+      // but both a normal end and a client abort route here, and the two can race.
+      if (inFlight) return;
+      inFlight = true;
 
       let promptTokens: number;
       let completionTokens: number;
@@ -1216,9 +1349,34 @@ export class GatewayService {
         latencyMs: Date.now() - startedAt,
         meta,
         reservedBudgets,
+        reservationCrossings,
         estimatedCostUsd,
         promptVersionId,
+      }).catch(async (err: unknown) => {
+        // The provider has already been paid for this call, so a failure to record
+        // it must not also strand the reservation: credit the estimate back before
+        // rethrowing, exactly as the pre-stream error path does. Best-effort — if
+        // the database is the thing that is failing, this will fail too, and the
+        // original error is the one worth surfacing.
+        //
+        // This is only correct because `recordStreamRow` cannot reject once its
+        // transaction has committed — the alerting that follows the commit swallows
+        // its own failures. A rejection raised after the commit would credit the
+        // estimate back a second time on top of the reconciliation that already ran,
+        // pushing the team's recorded spend below the truth for the rest of the
+        // period. Anything added after that commit must keep that guarantee.
+        inFlight = false;
+        if (reservedBudgets.length > 0) {
+          await runInTransaction((tx) =>
+            this.reconcileBudgets(tx, reservedBudgets, estimatedCostUsd, 0),
+          ).catch(() => undefined);
+        }
+        throw err;
       });
+
+      // Only now is this stream settled: the ledger row is committed and the
+      // reservation reconciled, so a later call is a genuine duplicate.
+      finalized = true;
 
       // T1: mirror the committed ledger row into a span, exactly as `complete()`
       // does — AFTER the money row commits, best-effort, never rethrowing. The
@@ -1296,11 +1454,24 @@ export class GatewayService {
     latencyMs: number;
     meta: Record<string, unknown>;
     reservedBudgets: FreshBudget[];
+    /**
+     * Alerts the reservation itself crossed, carried through so the streaming path
+     * sends them together with the reconciliation's, in one place.
+     */
+    reservationCrossings: BudgetCrossingRecord[];
     estimatedCostUsd: number;
     promptVersionId: string | null;
   }): Promise<void> {
     const realCostUsd = p.status === 'error' ? 0 : p.costUsd ?? 0;
-    const crossed: { budget: FreshBudget; crossing: BudgetCrossing; spendUsd: number }[] = [];
+    // A failed call alerts about nothing. Its reservation did raise spend and may well
+    // have crossed a line on the way up, but the reconciliation below credits every
+    // cent of it back in the same transaction — so emailing "you have passed 80%" for
+    // a request that returned a 502 and cost nothing is both wrong and expensive: the
+    // dedupe key is per (budget, period, crossing), so that one false alert consumes
+    // the period's only real one. `complete()` reaches the same outcome by a different
+    // route — its failure path credits back and rethrows before any alert is built.
+    const crossed: BudgetCrossingRecord[] =
+      p.status === 'error' ? [] : [...p.reservationCrossings];
     await runInTransaction(async (tx) => {
       await this.gatewayRepo.recordRequest(
         {

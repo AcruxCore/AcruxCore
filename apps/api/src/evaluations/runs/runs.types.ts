@@ -205,6 +205,18 @@ export interface RunCellExampleDto {
   /** Prior-turn history frozen at run-start (FAQ Q19), or null. */
   history: import('../../gateway/providers/types').ChatMessage[] | null;
   output: unknown;
+  /**
+   * Why this cell produced nothing, or null when it ran. Written by
+   * `cellWorker`'s `'failed'` handler (via `RunsRepository.writeResultError`)
+   * once a cell has exhausted its retries — an unregistered model, an
+   * exhausted budget, a revoked credential, a provider outage.
+   *
+   * Carried on the DTO because it is the only account of what went wrong that
+   * exists anywhere: `reason` below is the *judge's* reason and stays null
+   * when there was no output to judge, so a failed cell used to arrive as an
+   * entirely blank row (issue #504).
+   */
+  errorMessage: string | null;
   score: number | null;
   passed: boolean | null;
   reason: string | null;

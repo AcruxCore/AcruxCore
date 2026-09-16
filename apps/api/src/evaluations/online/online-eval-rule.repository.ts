@@ -102,12 +102,21 @@ export class EvalRuleRepository {
     await prisma.evalRule.updateMany({ where: { id, teamId }, data: { enabled: false } });
   }
 
-  /** @returns `true` if a row existed and was deleted (scores cascade via FK). */
-  async remove(id: string, teamId: string): Promise<boolean> {
+  /**
+   * Deletes one rule, with its scores cascading away via FK.
+   *
+   * Returns the deleted row rather than a boolean so the caller can name it in
+   * the audit trail: once the delete lands there is nowhere else left to read
+   * the rule's name from.
+   *
+   * @returns The row as it was before deletion, or null if no such rule existed
+   *   in this team.
+   */
+  async remove(id: string, teamId: string) {
     const existing = await this.findById(id, teamId);
-    if (!existing) return false;
+    if (!existing) return null;
     await prisma.evalRule.delete({ where: { id } });
-    return true;
+    return existing;
   }
 
   /** Paginated scores for one rule, optionally bounded by score range. */

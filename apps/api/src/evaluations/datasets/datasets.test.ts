@@ -99,6 +99,11 @@ describe('POST /api/v1/datasets/from-feedback', () => {
     expect(example!.input).toEqual({ name: 'Al' });
     expect(example!.criteria).toBe('Use third person, do not say I');
     expect(example!.sourcePromptVersionId).not.toBeNull();
+
+    // Building from feedback creates a dataset too, so it leaves the same trail
+    // row the plain create does (#508).
+    const audited = await prisma.auditLog.findFirst({ where: { teamId, event: 'dataset_created' } });
+    expect((audited!.metadata as Record<string, unknown>)['datasetId']).toBe(res.body.id);
   });
 
   it('builds a dataset from a client-rendered run whose stored prompt has no placeholders', async () => {

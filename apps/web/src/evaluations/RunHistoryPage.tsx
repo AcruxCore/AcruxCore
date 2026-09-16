@@ -5,6 +5,7 @@ import { ApiError, useDeleteRun, useRuns } from '@/api';
 import type { RunListFilters, RunStatus } from '@/api/types';
 import { EvaluationsTabs } from './EvaluationsTabs';
 import { RunHistoryTable } from './RunHistoryTable';
+import { useAuth } from '@/auth/AuthContext';
 
 /** Rows per page. Fixed rather than user-selectable — the list is scanned, not browsed. */
 const PAGE_SIZE = 20;
@@ -33,6 +34,7 @@ function parseFilters(sp: URLSearchParams): RunListFilters {
  * started elsewhere fills in on its own.
  */
 export function RunHistoryPage() {
+  const { canWrite } = useAuth();
   const [sp, setSp] = useSearchParams();
   const filters = parseFilters(sp);
   const { data, isLoading, isError } = useRuns(filters);
@@ -116,7 +118,9 @@ export function RunHistoryPage() {
         />
       ) : (
         <>
-          <RunHistoryTable runs={data!.data} onDeleteRun={setDeleteId} />
+          {/* Omitting the callback hides the Actions column outright — deleting a run
+              is an owner/admin/editor write. */}
+          <RunHistoryTable runs={data!.data} onDeleteRun={canWrite ? setDeleteId : undefined} />
           {totalPages > 1 && (
             <div className="flex items-center gap-3 text-[13px] text-muted">
               <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setParam('page', String(page - 1))}>

@@ -210,6 +210,38 @@ describe('safeFetch redirect refusal', () => {
   });
 });
 
+describe('safeFetch BOM handling', () => {
+  let server: http.Server;
+  let baseUrl: string;
+
+  beforeAll(async () => {
+    server = http.createServer((req, res) => {
+      res.setHeader('content-type', 'application/json');
+      // A UTF-8 BOM in front of ordinary JSON — routine from IIS and .NET upstreams.
+      res.end(Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(JSON.stringify({ tempC: 18 }))]));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const port = (server.address() as AddressInfo).port;
+    baseUrl = `http://127.0.0.1:${port}`;
+    allowLoopbackForTests();
+  });
+
+  afterAll(async () => {
+    resetSsrfAllowlist();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  it('parses BOM-prefixed JSON instead of degrading it to a raw string', async () => {
+    // `res.body.text()` strips the BOM per the fetch spec; the byte-counting read that
+    // replaced it did not, so `JSON.parse` threw, the caller kept the raw text, and the
+    // tool returned a string with a 200 — a transform reading `input.body.tempC` then
+    // got `undefined` and a declared object `resultSchema` mismatched on every call.
+    const result = await safeFetch(`${baseUrl}/`, { method: 'GET' });
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ tempC: 18 });
+  });
+});
+
 describe('safeFetch response size cap', () => {
   let server: http.Server;
   let baseUrl: string;
@@ -232,6 +264,96 @@ describe('safeFetch response size cap', () => {
 
   it('rejects a response body larger than the size cap with SsrfError', async () => {
     await expect(safeFetch(`${baseUrl}/`, { method: 'GET' })).rejects.toBeInstanceOf(SsrfError);
+  });
+});
+
+describe('safeFetch stops reading at the size cap', () => {
+  let server: http.Server;
+  let baseUrl: string;
+  let bytesWritten = 0;
+
+  // Streams up to 64 MB in 64 KB chunks, counting what it actually managed to
+  // write. A guard that only checks the size AFTER buffering lets every byte
+  // through; one that stops at the cap closes the socket long before the end.
+  beforeAll(async () => {
+    server = http.createServer(async (_req, res) => {
+      res.setHeader('content-type', 'text/plain');
+      bytesWritten = 0;
+      const chunk = 'x'.repeat(64 * 1024);
+      for (let i = 0; i < 1024; i++) {
+        if (res.writableEnded || res.destroyed) break;
+        const ok = res.write(chunk);
+        bytesWritten += chunk.length;
+        if (!ok) await new Promise<void>((r) => res.once('drain', () => r()));
+      }
+      res.end();
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    allowLoopbackForTests();
+  });
+
+  afterAll(async () => {
+    resetSsrfAllowlist();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  it('does not buffer the whole body before rejecting an oversize response', async () => {
+    await expect(safeFetch(`${baseUrl}/`, { method: 'GET' })).rejects.toBeInstanceOf(SsrfError);
+    // Generous ceiling: the socket and undici both hold some already-in-flight
+    // data when the read stops, so the server always gets a little past the cap.
+    expect(bytesWritten).toBeLessThan(8 * 1024 * 1024);
+  });
+});
+
+describe('safeFetch size cap is measured in bytes', () => {
+  let server: http.Server;
+  let baseUrl: string;
+
+  // 900,000 U+4E2D characters: 900,000 UTF-16 code units, but 2.7 MB on the
+  // wire. A cap that compares `String.length` reads this as under 1 MB.
+  beforeAll(async () => {
+    server = http.createServer((_req, res) => {
+      res.setHeader('content-type', 'text/plain; charset=utf-8');
+      res.end(Buffer.from('\u4e2d'.repeat(900_000), 'utf8'));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    allowLoopbackForTests();
+  });
+
+  afterAll(async () => {
+    resetSsrfAllowlist();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  it('rejects a multi-byte body over the cap even though its character count is under it', async () => {
+    await expect(safeFetch(`${baseUrl}/`, { method: 'GET' })).rejects.toBeInstanceOf(SsrfError);
+  });
+});
+
+describe('safeFetch reports byte counts, not character counts', () => {
+  let server: http.Server;
+  let baseUrl: string;
+
+  beforeAll(async () => {
+    server = http.createServer((_req, res) => {
+      res.setHeader('content-type', 'text/plain; charset=utf-8');
+      res.end(Buffer.from('\u4e2d'.repeat(10), 'utf8')); // 10 chars, 30 bytes
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    allowLoopbackForTests();
+  });
+
+  afterAll(async () => {
+    resetSsrfAllowlist();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  it("`bytes` counts what came off the wire", async () => {
+    const res = await safeFetch(`${baseUrl}/`, { method: 'GET' });
+    expect(res.bytes).toBe(30);
   });
 });
 

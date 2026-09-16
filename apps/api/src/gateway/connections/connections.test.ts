@@ -296,3 +296,110 @@ describe('DELETE /api/v1/gateway/connections/:id', () => {
     expect(events).toHaveLength(1);
   });
 });
+
+describe('editing a connection keeps its other settings (issue #489)', () => {
+  it('merges config instead of replacing it', async () => {
+    const ctx = await signupTestUser(app);
+    const created = await request(app)
+      .post('/api/v1/gateway/connections')
+      .set(authHeaders(ctx))
+      .send({
+        provider: 'openai_compatible',
+        label: 'Self-hosted',
+        apiKey: 'sk-proof-abcdAB12',
+        config: { base_url: 'https://api.groq.com/openai/v1' },
+      })
+      .expect(201);
+
+    // A PATCH naming only an unrelated key used to replace the whole object, so
+    // the base_url an openai_compatible connection requires disappeared and every
+    // model on that credential started failing with a non-retriable error that
+    // pointed nowhere near this edit.
+    await request(app)
+      .patch(`/api/v1/gateway/connections/${created.body.id}`)
+      .set(authHeaders(ctx))
+      .send({ config: { organization: 'acme' } })
+      .expect(200);
+
+    const after = await request(app)
+      .get(`/api/v1/gateway/connections/${created.body.id}`)
+      .set(authHeaders(ctx))
+      .expect(200);
+    expect(after.body.config).toEqual({
+      base_url: 'https://api.groq.com/openai/v1',
+      organization: 'acme',
+    });
+  }, 60000);
+
+  it('lets an explicit new value overwrite the old one', async () => {
+    const ctx = await signupTestUser(app);
+    const created = await request(app)
+      .post('/api/v1/gateway/connections')
+      .set(authHeaders(ctx))
+      .send({
+        provider: 'openai_compatible', label: 'Self-hosted', apiKey: 'sk-proof-abcdAB12',
+        config: { base_url: 'https://api.groq.com/openai/v1' },
+      })
+      .expect(201);
+    await request(app)
+      .patch(`/api/v1/gateway/connections/${created.body.id}`)
+      .set(authHeaders(ctx))
+      .send({ config: { base_url: 'https://openrouter.ai/api/v1' } })
+      .expect(200);
+    const after = await request(app)
+      .get(`/api/v1/gateway/connections/${created.body.id}`)
+      .set(authHeaders(ctx))
+      .expect(200);
+    expect(after.body.config.base_url).toBe('https://openrouter.ai/api/v1');
+  }, 60000);
+
+  it('removes a config key sent as null, and leaves the rest', async () => {
+    // Merge semantics need a way to say "take this away". Without one, a connection
+    // pointing at a decommissioned host can never be corrected: `{}` changes nothing,
+    // an empty string fails validation, and delete-and-recreate is refused with 409
+    // while any model still binds the credential.
+    const ctx = await signupTestUser(app);
+    const created = await request(app)
+      .post('/api/v1/gateway/connections')
+      .set(authHeaders(ctx))
+      .send({
+        provider: 'openai_compatible',
+        label: 'Self-hosted',
+        apiKey: 'sk-proof-abcdAB12',
+        config: { base_url: 'https://api.groq.com/openai/v1', organization: 'acme' },
+      })
+      .expect(201);
+
+    await request(app)
+      .patch(`/api/v1/gateway/connections/${created.body.id}`)
+      .set(authHeaders(ctx))
+      .send({ config: { base_url: null } })
+      .expect(200);
+
+    const after = await request(app)
+      .get(`/api/v1/gateway/connections/${created.body.id}`)
+      .set(authHeaders(ctx))
+      .expect(200);
+    expect(after.body.config).toEqual({ organization: 'acme' });
+  }, 60000);
+
+  it('still rejects a base_url that is present but unusable', async () => {
+    // The null case must not become a hole in the SSRF check: anything that is not
+    // a removal is still validated exactly as before.
+    const ctx = await signupTestUser(app);
+    const created = await request(app)
+      .post('/api/v1/gateway/connections')
+      .set(authHeaders(ctx))
+      .send({
+        provider: 'openai_compatible', label: 'Self-hosted', apiKey: 'sk-proof-abcdAB12',
+        config: { base_url: 'https://api.groq.com/openai/v1' },
+      })
+      .expect(201);
+
+    await request(app)
+      .patch(`/api/v1/gateway/connections/${created.body.id}`)
+      .set(authHeaders(ctx))
+      .send({ config: { base_url: 'http://169.254.169.254/latest' } })
+      .expect(400);
+  }, 60000);
+});

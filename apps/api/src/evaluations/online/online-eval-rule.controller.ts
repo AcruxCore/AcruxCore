@@ -4,6 +4,7 @@ import {
   CreateEvalRuleSchema,
   UpdateEvalRuleSchema,
   RuleScoreListQuerySchema,
+  PreviewSchema,
   ToDatasetSchema,
 } from './online-eval-rule.types';
 import { ValidationError } from '../../shared/errors';
@@ -64,7 +65,9 @@ export class OnlineEvalRuleController {
     try {
       const parsed = UpdateEvalRuleSchema.safeParse(req.body);
       if (!parsed.success) throw new ValidationError(parsed.error.issues[0].message);
-      res.status(200).json(await this.service.updateRule(req.params.id, req.teamId!, parsed.data));
+      res.status(200).json(
+        await this.service.updateRule(req.params.id, req.teamId!, req.user!.id, parsed.data),
+      );
     } catch (err) {
       next(err);
     }
@@ -77,7 +80,7 @@ export class OnlineEvalRuleController {
    */
   remove = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      await this.service.deleteRule(req.params.id, req.teamId!);
+      await this.service.deleteRule(req.params.id, req.teamId!, req.user!.id);
       res.status(200).json({ success: true });
     } catch (err) {
       next(err);
@@ -105,12 +108,17 @@ export class OnlineEvalRuleController {
    * Dry-runs a rule's judge against recent matching spans without persisting
    * any score rows.
    *
+   * @throws {ValidationError} If the body fails {@link PreviewSchema} — in
+   *   particular a `limit` that is not an integer in 1..10. Each span this
+   *   endpoint walks is a paid judge call, so the bound is validated rather
+   *   than coerced.
    * @throws {NotFoundError} If the rule does not exist in this team.
    */
   preview = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const limit = Math.min(Number(req.body?.limit ?? 10), 10);
-      res.status(200).json(await this.service.previewRule(req.params.id, req.teamId!, limit));
+      const parsed = PreviewSchema.safeParse(req.body ?? {});
+      if (!parsed.success) throw new ValidationError(parsed.error.issues[0].message);
+      res.status(200).json(await this.service.previewRule(req.params.id, req.teamId!, parsed.data.limit));
     } catch (err) {
       next(err);
     }
@@ -126,7 +134,7 @@ export class OnlineEvalRuleController {
     try {
       const parsed = ToDatasetSchema.safeParse(req.body);
       if (!parsed.success) throw new ValidationError(parsed.error.issues[0].message);
-      res.status(201).json(await this.service.buildDataset(req.params.id, req.teamId!, parsed.data));
+      res.status(201).json(await this.service.buildDataset(req.params.id, req.teamId!, req.user!.id, parsed.data));
     } catch (err) {
       next(err);
     }

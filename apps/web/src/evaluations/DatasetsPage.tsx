@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Empty, IconButton, PageSpinner, TrashIcon, useToast } from '@/ui';
 import { ApiError, useDatasets, useDeleteDataset } from '@/api';
+import { useAuth } from '@/auth/AuthContext';
 import type { Dataset } from '@/api/types';
 import { timeAgo, dateTime } from '@/lib/format';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -18,6 +19,9 @@ import { NewDatasetDialog } from './NewDatasetDialog';
  */
 export function DatasetsPage() {
   const toast = useToast();
+  // Evaluation writes are owner/admin/editor server-side. Offering a viewer a button
+  // whose request comes back 403 is a worse answer than not offering it.
+  const { canWrite } = useAuth();
   const { data, isLoading, isError } = useDatasets();
   const datasets = data?.data ?? [];
   const [creating, setCreating] = useState(false);
@@ -46,9 +50,11 @@ export function DatasetsPage() {
             Datasets built from feedback or written by hand, and the experiments run against them.
           </p>
         </div>
-        <Button variant="primary" onClick={() => setCreating(true)} data-testid="new-dataset">
-          New dataset
-        </Button>
+        {canWrite && (
+          <Button variant="primary" onClick={() => setCreating(true)} data-testid="new-dataset">
+            New dataset
+          </Button>
+        )}
       </header>
 
       <EvaluationsTabs active="datasets" />
@@ -70,9 +76,11 @@ export function DatasetsPage() {
                 <th className="px-4 py-2.5 font-medium">Name</th>
                 <th className="px-4 py-2.5 text-right font-medium">Examples</th>
                 <th className="px-4 py-2.5 text-right font-medium">Created</th>
-                <th className="w-10 px-4 py-2.5 font-medium">
-                  <span className="sr-only">Actions</span>
-                </th>
+                {canWrite && (
+                  <th className="w-10 px-4 py-2.5 font-medium">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -86,16 +94,18 @@ export function DatasetsPage() {
                   </td>
                   <td className="px-4 py-2.5 text-right font-mono">{d.exampleCount}</td>
                   <td className="px-4 py-2.5 text-right text-muted" title={dateTime(d.createdAt)}>{timeAgo(d.createdAt)}</td>
-                  <td className="px-4 py-2.5 text-right">
-                    <IconButton
-                      tone="danger"
-                      aria-label={`Delete ${d.name}`}
-                      onClick={() => setPendingDelete(d)}
-                      data-testid="dataset-row-delete"
-                    >
-                      <TrashIcon />
-                    </IconButton>
-                  </td>
+                  {canWrite && (
+                    <td className="px-4 py-2.5 text-right">
+                      <IconButton
+                        tone="danger"
+                        aria-label={`Delete ${d.name}`}
+                        onClick={() => setPendingDelete(d)}
+                        data-testid="dataset-row-delete"
+                      >
+                        <TrashIcon />
+                      </IconButton>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

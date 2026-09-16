@@ -55,7 +55,20 @@ function ExampleRow({ example }: { example: RunCellExample }) {
       <HistoryDisclosure history={example.history} />
 
       <MonoBlock label="Input" value={formatPayload(example.input)} />
-      <MonoBlock label="Output" value={formatPayload(example.output)} />
+      {example.errorMessage != null ? (
+        /* A cell that never produced output has no Output worth showing — the
+           API returns null for it — and the reason is the only thing the reader
+           came for. Shown in place of the block rather than beside it.
+           Tested for null, not truthiness: an empty `errorMessage` still means the
+           cell failed, and falling through would show the blank Output block that
+           issue #504 was opened to remove. */
+        <div className="flex flex-col gap-0.5" data-testid="drilldown-error">
+          <span className="text-[11px] uppercase tracking-[0.06em] text-faint">Why this cell failed</span>
+          <p className="text-[13px] text-danger">{example.errorMessage || 'No reason was recorded.'}</p>
+        </div>
+      ) : (
+        <MonoBlock label="Output" value={formatPayload(example.output)} />
+      )}
 
       {example.reason && (
         <div className="flex flex-col gap-0.5">

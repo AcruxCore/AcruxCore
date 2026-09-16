@@ -4,6 +4,16 @@ const WINDOW_MS = 60_000;
 interface Entry {
   ts: number;     // Date.now() at record time
   tokens: number; // total_tokens attributed to this event (0 at pre-check)
+  /**
+   * Whether this entry is a request for RPM purposes.
+   *
+   * `recordTokens` appends a second entry after a call completes, to fold real
+   * usage into the TPM window. That entry used to be counted as another request
+   * too, so every completed call consumed two RPM slots and a `maxRpm` of 10
+   * throttled at 5 — while `x-gateway-ratelimit-remaining` counted down twice as
+   * fast. Only the pre-check entry is a request.
+   */
+  counts: boolean;
 }
 
 /**
@@ -13,12 +23,57 @@ interface Entry {
  */
 const windows = new Map<string, Entry[]>();
 
-/** Drops entries older than the trailing 60s window and returns the survivors. */
-function prune(key: string, now: number): Entry[] {
+/**
+ * How often {@link sweep} is allowed to walk the whole map. One window: any key
+ * untouched for that long holds nothing but expired entries.
+ */
+const SWEEP_INTERVAL_MS = WINDOW_MS;
+
+let lastSweepAt = 0;
+
+/**
+ * Drops every key whose newest entry has aged out.
+ *
+ * Pruning on access cannot do this job, because it only ever runs for the key being
+ * used: a team that mints a virtual key per CI job calls each key once, and that key
+ * then keeps its map entry for the life of the process. Entries are appended in time
+ * order, so the last one is the newest and one comparison per key decides it. Rate
+ * limited to once a window, and driven by traffic rather than a timer — a timer would
+ * hold the event loop open and have to be torn down in every test suite.
+ */
+function sweep(now: number): void {
+  if (now - lastSweepAt < SWEEP_INTERVAL_MS) return;
+  lastSweepAt = now;
   const cutoff = now - WINDOW_MS;
-  const kept = (windows.get(key) ?? []).filter((e) => e.ts > cutoff);
-  windows.set(key, kept);
-  return kept;
+  for (const [key, entries] of windows) {
+    const newest = entries[entries.length - 1];
+    if (!newest || newest.ts <= cutoff) windows.delete(key);
+  }
+}
+
+/**
+ * Returns the key's entries that are still inside the trailing 60s window.
+ *
+ * Deliberately pure: it neither stores nor deletes. An earlier version deleted the
+ * key when nothing survived, which made the return value sometimes-live and
+ * sometimes-orphaned, so every caller had to remember to store the array back — and
+ * a caller that forgot would have had its new entry silently dropped, with no type
+ * error to catch it. {@link record} is now the only writer.
+ */
+function surviving(key: string, now: number): Entry[] {
+  const cutoff = now - WINDOW_MS;
+  return (windows.get(key) ?? []).filter((e) => e.ts > cutoff);
+}
+
+/** The single place a window is written: appends one entry and stores the window. */
+function record(key: string, entries: Entry[], entry: Entry): void {
+  entries.push(entry);
+  windows.set(key, entries);
+}
+
+/** Requests (not token records) currently inside the window. */
+function requestCount(entries: Entry[]): number {
+  return entries.reduce((n, e) => n + (e.counts ? 1 : 0), 0);
 }
 
 /** Seconds until the oldest in-window entry ages out (≥ 1). */
@@ -45,9 +100,10 @@ export function checkAndRecord(
   tokens = 0,
 ): { ok: boolean; retryAfter?: number; remaining?: number } {
   const now = Date.now();
-  const entries = prune(key, now);
+  sweep(now);
+  const entries = surviving(key, now);
 
-  if (maxRpm != null && entries.length >= maxRpm) {
+  if (maxRpm != null && requestCount(entries) >= maxRpm) {
     return { ok: false, retryAfter: retryAfterSeconds(entries, now) };
   }
   if (maxTpm != null) {
@@ -57,8 +113,8 @@ export function checkAndRecord(
     }
   }
 
-  entries.push({ ts: now, tokens });
-  const remaining = maxRpm != null ? Math.max(0, maxRpm - entries.length) : undefined;
+  record(key, entries, { ts: now, tokens, counts: true });
+  const remaining = maxRpm != null ? Math.max(0, maxRpm - requestCount(entries)) : undefined;
   return { ok: true, remaining };
 }
 
@@ -71,11 +127,18 @@ export function checkAndRecord(
  */
 export function recordTokens(key: string, tokens: number): void {
   const now = Date.now();
-  const entries = prune(key, now);
-  entries.push({ ts: now, tokens });
+  sweep(now);
+  const entries = surviving(key, now);
+  record(key, entries, { ts: now, tokens, counts: false });
 }
 
 /** Test-only: clears every window so suites start from a clean counter. */
 export function __resetRateLimiter(): void {
   windows.clear();
+  lastSweepAt = 0;
+}
+
+/** Test-only: how many keys the window store is currently holding. */
+export function __rateLimiterKeyCount(): number {
+  return windows.size;
 }

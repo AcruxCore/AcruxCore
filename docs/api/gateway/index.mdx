@@ -292,6 +292,43 @@ Both are free text, so send them percent-encoded (`encodeURIComponent`) — a ra
 header value is rejected before the request leaves most HTTP clients. The server decodes,
 and falls back to the raw value if it was not encoded.
 
+#### A trace field the gateway could not use
+
+The same values can travel in the body instead, as a `trace` object (`traceId`,
+`parentSpanId`, `sessionId`, `capturePayloads`, `name`, `nameIfUnset`, `tags`,
+`metadata`) or a `span` object (`name`, `tags`, `metadata`). A header always wins over
+the matching body field.
+
+A field of the wrong type is **dropped, never fatal**. The completion is answered
+normally and `x-gateway-context-ignored` lists what was ignored, comma-separated, so a
+trace that arrives without your tags tells you why instead of leaving you to guess. The
+header is absent when everything was used.
+
+`tags` must be an array of strings — the mistake below is sending one string:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Say hi"}],"max_tokens":10,"trace":{"name":"refund-request","tags":"prod"}}' -i
+```
+
+Response (status 200) — the call runs, the trace is written, the name is kept and only
+`tags` is discarded:
+
+```
+x-gateway-context-ignored: trace.tags
+x-gateway-model: openai/gpt-4o-mini
+x-gateway-trace-id: 98b3ef57-aa27-4192-8fef-43742dbd34bf
+```
+
+```json
+{"id":"gen-1789540383-NI972N5mEVMmBs2PO3Jg","model":"openai/gpt-4o-mini","object":"chat.completion","created":1789540383,"choices":[{"index":0,"message":{"role":"assistant","content":"Hi there! How can I assist you today?"},"finish_reason":"length"}],"usage":{"prompt_tokens":9,"completion_tokens":10,"total_tokens":19}}
+```
+
+An `x-trace-metadata` or `x-span-metadata` header that is not a JSON object is listed
+under the header's own name rather than a `trace.` field.
+
 Call A names the trace:
 
 ```bash

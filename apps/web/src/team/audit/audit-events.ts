@@ -85,6 +85,17 @@ export const AUDIT_EVENT_GROUPS: AuditEventGroup[] = [
     events: ['secret_created', 'secret_rotated', 'secret_deleted'],
   },
   {
+    id: 'evaluations',
+    label: 'Evaluations',
+    events: [
+      'dataset_created',
+      'dataset_deleted',
+      'eval_rule_created',
+      'eval_rule_updated',
+      'eval_rule_deleted',
+    ],
+  },
+  {
     id: 'settings',
     label: 'Settings',
     events: ['trace_settings_updated'],
@@ -134,6 +145,12 @@ export const AUDIT_EVENT_LABELS: Record<string, string> = {
   secret_created: 'Secret created',
   secret_rotated: 'Secret rotated',
   secret_deleted: 'Secret deleted',
+
+  dataset_created: 'Dataset created',
+  dataset_deleted: 'Dataset deleted',
+  eval_rule_created: 'Evaluation rule created',
+  eval_rule_updated: 'Evaluation rule changed',
+  eval_rule_deleted: 'Evaluation rule deleted',
 
   trace_settings_updated: 'Trace settings updated',
 };

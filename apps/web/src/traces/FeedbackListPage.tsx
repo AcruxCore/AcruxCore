@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Button, Empty, PageSpinner, Select } from '@/ui';
 import { useFeedbackFeed, useFeedbackSummary } from '@/api';
 import { CreateDatasetDialog, ImproveFromFeedbackDialog } from '@/evaluations';
+import { useAuth } from '@/auth/AuthContext';
 import { feedbackByline } from './format';
 import { FilterBar, useUrlFilterState } from './filter-bar';
 import { timeAgo } from '@/lib/format';
@@ -84,6 +85,7 @@ export function FeedbackListPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [datasetDialogOpen, setDatasetDialogOpen] = useState(false);
   const [improveDialogOpen, setImproveDialogOpen] = useState(false);
+  const { canWrite } = useAuth();
   const [filters, setFiltersInUrl] = useUrlFilterState();
   const summary = useFeedbackSummary({ groupBy });
   const feed = useFeedbackFeed({ ...filters, page, limit: LIMIT });
@@ -244,17 +246,23 @@ export function FeedbackListPage() {
             <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
               Clear
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setImproveDialogOpen(true)}
-              title="Draft and run improved prompt candidates from this feedback."
-            >
-              Improve from feedback
-            </Button>
-            <Button variant="primary" size="sm" onClick={() => setDatasetDialogOpen(true)}>
-              Create dataset
-            </Button>
+            {/* Both build evaluation data, which the API gates at owner/admin/editor.
+                A viewer keeps the selection and the Clear button. */}
+            {canWrite && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setImproveDialogOpen(true)}
+                  title="Draft and run improved prompt candidates from this feedback."
+                >
+                  Improve from feedback
+                </Button>
+                <Button variant="primary" size="sm" onClick={() => setDatasetDialogOpen(true)}>
+                  Create dataset
+                </Button>
+              </>
+            )}
           </div>
         </div>
       )}

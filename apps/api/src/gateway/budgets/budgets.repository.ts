@@ -33,17 +33,32 @@ export class BudgetsRepository {
    * 'total' budgets (resets_at null) never reset.
    *
    * @param budget - The budget row to (possibly) reset.
-   * @returns The current row after any reset (freshly persisted values).
+   * @returns The row as the database now holds it — re-read after the write, so every
+   *   column is current rather than only the two this reset touches.
    */
   async resetIfElapsed(budget: Budget): Promise<Budget> {
     if (budget.resetsAt === null || budget.resetsAt.getTime() > Date.now()) {
       return budget;
     }
     const nextResetsAt = computeResetsAt(budget.period, new Date());
-    return prisma.budget.update({
-      where: { id: budget.id },
+    // Conditional on `resets_at` still holding the value this caller read.
+    // `applicableBudgets` reads outside any transaction, so just after a period
+    // boundary two calls can both hold the stale row; an unconditional write let
+    // the second one zero `spend_usd` again *after* the first had already
+    // reserved against the new period, erasing a committed reservation and
+    // letting the team spend past its cap. Zero rows means another request reset
+    // it first, so the freshly persisted row is re-read instead of overwritten.
+    await prisma.budget.updateMany({
+      where: { id: budget.id, resetsAt: budget.resetsAt },
       data: { spendUsd: new Prisma.Decimal(0), resetsAt: nextResetsAt },
     });
+    // Re-read either way, rather than returning `{ ...budget, spendUsd: 0 }` on the
+    // winning branch. `applicableBudgets` read this row outside any transaction, so
+    // spreading it carries every *other* column forward at whatever value that read
+    // saw — including `limit_usd`, which `notifyBudgetCrossings` quotes in the alert
+    // email. A cap raised from $10 to $100 between the two would be announced as $10.
+    // This path runs at most once per budget per period, so the extra SELECT is free.
+    return prisma.budget.findUniqueOrThrow({ where: { id: budget.id } });
   }
 
   /**
@@ -66,14 +81,17 @@ export class BudgetsRepository {
    * @param tx - The Prisma transaction client from the pipeline's $transaction.
    * @param budgetId - Budget to reserve against.
    * @param estimatedCostUsd - Conservative USD estimate to reserve (must be finite ≥ 0).
-   * @returns The budget's spend after reservation and its cap, or `null` if the
-   *   reservation would exceed `limit_usd` (nothing was written).
+   * @returns The budget's spend before and after the reservation plus its cap, or
+   *   `null` if the reservation would exceed `limit_usd` (nothing was written).
+   *   The before/after pair is what alert-threshold detection must run on: this is
+   *   the only transition that raises spend, so a caller that only inspected the
+   *   later reconciliation (normally a credit back) could never see a crossing.
    */
   async reserveSpend(
     tx: Prisma.TransactionClient,
     budgetId: string,
     estimatedCostUsd: number,
-  ): Promise<{ after: Prisma.Decimal; limit: Prisma.Decimal } | null> {
+  ): Promise<{ before: Prisma.Decimal; after: Prisma.Decimal; limit: Prisma.Decimal } | null> {
     const delta = new Prisma.Decimal(estimatedCostUsd);
     const rows = await tx.$queryRaw<{ spend_usd: Prisma.Decimal; limit_usd: Prisma.Decimal }[]>(
       Prisma.sql`
@@ -85,7 +103,11 @@ export class BudgetsRepository {
     );
     const row = rows[0];
     if (!row) return null;
-    return { after: row.spend_usd, limit: row.limit_usd };
+    // `before` is derived as `after - delta` for the same reason `incrementSpend`
+    // derives its own: the UPDATE is atomic, so subtracting this call's delta from
+    // the value it returned gives exactly the spend this transaction saw, with no
+    // second SELECT that could race a concurrent reservation.
+    return { before: row.spend_usd.minus(delta), after: row.spend_usd, limit: row.limit_usd };
   }
 
   /**

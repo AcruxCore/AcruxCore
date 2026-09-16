@@ -19,6 +19,8 @@ import {
 } from './datasets.types';
 import { buildTraceExchange, capHistoryBytes } from './history.builder';
 import { NotFoundError, UnprocessableError } from '../../shared/errors';
+import { audit } from '../../shared/audit';
+import prisma from '../../shared/db/client';
 import { FeedbackRepository, toFeedbackFilters } from '../../traces/feedback';
 import type { FeedbackFilterQuery } from '../../traces/feedback';
 import type { ChatMessage } from '../../gateway/providers/types';
@@ -274,12 +276,44 @@ export class DatasetsService {
       examples,
     );
 
+    await this.auditDataset(teamId, userId, 'dataset_created', dataset.id, dataset.name);
+
     return {
       dataset: this.toDto(dataset),
       exampleCount: examplesCreated,
       skipped,
       ...(matched !== undefined ? { matched } : {}),
     };
+  }
+
+  /**
+   * Writes one dataset row to the audit trail.
+   *
+   * Awaited rather than fired and forgotten, unlike `secrets`: the trail is the
+   * only record of who destroyed a dataset, and `audit()` never throws, so
+   * waiting for it costs one insert and cannot fail the caller's write.
+   *
+   * `userId` is nullable on every caller because `createdBy` accepts a
+   * team-scoped API key, but `actor_id` is a non-null column. Every route that
+   * reaches here is gated at `editor` or above, which a team-scoped key cannot
+   * satisfy, so the null branch is unreachable today — it is here so that
+   * opening a route later fails loudly in review rather than at the FK.
+   *
+   * @param teamId - Team the dataset belongs to.
+   * @param userId - Acting user, or null for a team-scoped key.
+   * @param event - `dataset_created` or `dataset_deleted`.
+   * @param datasetId - The dataset the row refers to.
+   * @param name - The dataset's name at the time of the action.
+   */
+  private async auditDataset(
+    teamId: string,
+    userId: string | null,
+    event: 'dataset_created' | 'dataset_deleted',
+    datasetId: string,
+    name: string,
+  ): Promise<void> {
+    if (userId === null) return;
+    await audit(prisma, { teamId, actorId: userId, event, metadata: { datasetId, name } });
   }
 
   /**
@@ -295,6 +329,7 @@ export class DatasetsService {
       name: dto.name,
       ...(dto.overall_feedback ? { overallFeedback: dto.overall_feedback } : {}),
     });
+    await this.auditDataset(teamId, userId, 'dataset_created', dataset.id, dataset.name);
     return this.toDto(dataset);
   }
 
@@ -352,12 +387,16 @@ export class DatasetsService {
    * @param id - Dataset UUID.
    * @throws {NotFoundError} If the dataset does not exist, already deleted, or belongs to another team.
    */
-  async deleteDataset(teamId: string, id: string): Promise<void> {
+  async deleteDataset(teamId: string, id: string, userId: string | null): Promise<void> {
     // Team-scoped existence check first — the repository's soft-delete alone
     // cannot distinguish "not found" from "already deleted" from "cross-team".
     const existing = await this.repo.getDatasetById(teamId, id);
     if (!existing) throw new NotFoundError('Dataset not found.');
     await this.repo.softDeleteDataset(teamId, id);
+    // The name is recorded here and not on read: after the soft-delete the row is
+    // filtered out of every list, so the trail is the only place left that says
+    // which dataset the id refers to.
+    await this.auditDataset(teamId, userId, 'dataset_deleted', id, existing.name);
   }
 
   /**

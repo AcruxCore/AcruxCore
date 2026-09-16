@@ -11,8 +11,16 @@
  * gets switched off.
  *
  * **Supported:** `type` (including a union array), `required`, `properties`, `items`,
- * `enum`, `nullable`. Composition keywords (`anyOf`, `allOf`, `$ref`), numeric and
- * string bounds, and `additionalProperties` are all ignored on purpose.
+ * `enum`, `nullable`, and — only when the caller opts in via `{ bounds: true }` —
+ * `minimum`, `maximum`, `minLength`, `maxLength` and `additionalProperties: false`.
+ * Composition keywords (`anyOf`, `allOf`, `$ref`) are ignored on purpose.
+ *
+ * **Why bounds are opt-in.** The two callers want different strictness. A tool
+ * *result* is checked to warn an operator, so a false alarm is worse than a
+ * missed one and the bounds stay off. A tool's *arguments* are filled by a
+ * model and forwarded to the author's own upstream service, so the author's
+ * `maximum: 10` is a real limit and silently exceeding it is the failure
+ * (issue #506).
  */
 
 /** The subset of JSON Schema keywords {@link validateAgainstSchema} reads. */
@@ -23,6 +31,21 @@ interface SubsetSchema {
   items?: SubsetSchema;
   enum?: unknown[];
   nullable?: boolean;
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  additionalProperties?: boolean | Record<string, unknown>;
+}
+
+/** How strict one {@link validateAgainstSchema} call is. See the file header. */
+export interface SchemaCheckOptions {
+  /**
+   * Also enforce `minimum`/`maximum`/`minLength`/`maxLength` and
+   * `additionalProperties: false`. Off by default, so the result-checking
+   * caller keeps the deliberately lenient behaviour it was written with.
+   */
+  bounds?: boolean;
 }
 
 /** JSON Schema's `type` names, as they map onto runtime values. */
@@ -48,12 +71,18 @@ function matchesType(value: unknown, declared: string): boolean {
  * where the first concrete mismatch ("missing required property 'temperature'") is more
  * use than an exhaustive report nobody scrolls.
  *
- * @param value - The tool result, after any `responseTransform`.
- * @param schema - The declared result schema (a plain JSON object).
- * @param path - Dotted path used to build the message; callers pass nothing.
+ * @param value - The value to check: a tool result, or a tool's arguments.
+ * @param schema - The declared schema (a plain JSON object).
+ * @param path - Dotted path used to build the message; callers pass a root label.
+ * @param options - Strictness; see {@link SchemaCheckOptions}.
  * @returns `null` when the value matches, otherwise a one-line human-readable reason.
  */
-export function validateAgainstSchema(value: unknown, schema: unknown, path = 'result'): string | null {
+export function validateAgainstSchema(
+  value: unknown,
+  schema: unknown,
+  path = 'result',
+  options: SchemaCheckOptions = {},
+): string | null {
   if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) return null;
   const s = schema as SubsetSchema;
 
@@ -70,9 +99,14 @@ export function validateAgainstSchema(value: unknown, schema: unknown, path = 'r
     return `${path} should be one of ${s.enum.map((v) => JSON.stringify(v)).join(', ')}`;
   }
 
+  if (options.bounds) {
+    const boundsFailure = checkBounds(value, s, path);
+    if (boundsFailure) return boundsFailure;
+  }
+
   if (Array.isArray(value) && s.items) {
     for (let i = 0; i < value.length; i++) {
-      const failure = validateAgainstSchema(value[i], s.items, `${path}[${i}]`);
+      const failure = validateAgainstSchema(value[i], s.items, `${path}[${i}]`, options);
       if (failure) return failure;
     }
     return null;
@@ -83,13 +117,54 @@ export function validateAgainstSchema(value: unknown, schema: unknown, path = 'r
     for (const key of s.required ?? []) {
       if (!(key in obj)) return `${path} is missing required property '${key}'`;
     }
+    // No `&& s.properties` guard: `{type:'object', additionalProperties:false}` with no
+    // `properties` key is the STRICTEST spelling there is — it declares nothing and
+    // allows nothing — so requiring the key made the strict form the one that accepted
+    // anything, while the identical intent written as `properties:{}` was enforced.
+    if (options.bounds && s.additionalProperties === false) {
+      const declared = new Set(Object.keys(s.properties ?? {}));
+      const extra = Object.keys(obj).find((key) => !declared.has(key));
+      if (extra !== undefined) {
+        return `${path} does not allow the property '${extra}'`;
+      }
+    }
     for (const [key, sub] of Object.entries(s.properties ?? {})) {
       if (key in obj) {
-        const failure = validateAgainstSchema(obj[key], sub, `${path}.${key}`);
+        const failure = validateAgainstSchema(obj[key], sub, `${path}.${key}`, options);
         if (failure) return failure;
       }
     }
   }
 
+  return null;
+}
+
+/**
+ * Checks the numeric and string bounds on one value. Split out so the
+ * lenient (result) path never pays for keywords it deliberately ignores.
+ *
+ * Each bound only applies to the kind of value it describes: a `maximum` on a
+ * string is meaningless, not a failure, and an author who wrote one meant
+ * `maxLength`.
+ */
+function checkBounds(value: unknown, s: SubsetSchema, path: string): string | null {
+  if (typeof value === 'number') {
+    if (s.minimum !== undefined && value < s.minimum) return `${path} should be >= ${s.minimum}, got ${value}`;
+    if (s.maximum !== undefined && value > s.maximum) return `${path} should be <= ${s.maximum}, got ${value}`;
+  }
+  if (typeof value === 'string') {
+    // Characters, not UTF-16 code units. JSON Schema counts `minLength`/`maxLength` in
+    // characters, and `String.prototype.length` counts code units — so an emoji or any
+    // other astral character counted double, and a three-character argument was refused
+    // as six in a message that said "characters". A false rejection here now ends the
+    // whole tool call, which makes the difference user-visible rather than pedantic.
+    const chars = [...value].length;
+    if (s.minLength !== undefined && chars < s.minLength) {
+      return `${path} should be at least ${s.minLength} characters, got ${chars}`;
+    }
+    if (s.maxLength !== undefined && chars > s.maxLength) {
+      return `${path} should be at most ${s.maxLength} characters, got ${chars}`;
+    }
+  }
   return null;
 }

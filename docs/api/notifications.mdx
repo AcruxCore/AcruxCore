@@ -129,14 +129,28 @@ unsubscribe link in a months-old email must still work.
 :::warning[Every response is identical]
 A valid token, a tampered token, and a token for a user who has since left the
 team all return the same status and body. Distinguishing them would let anyone
-enumerate which users belong to which teams. A `POST` also always returns `204`
-because mail clients show the recipient an error on any non-2xx — and a token we
-mis-signed is not something they can fix.
+enumerate which users belong to which teams. A mail client's `POST` also always
+returns `204` because those clients show the recipient an error on any non-2xx —
+and a token we mis-signed is not something they can fix.
+:::
+
+:::note[Only POST changes anything]
+The `GET` renders a confirmation page and writes nothing. A link in an email is
+fetched by things that are not the recipient — security scanners, mail gateways,
+clients that prefetch — and none of them clicked. The page's button POSTs the
+same token, and that is what applies the opt-out. This is the reason RFC 8058
+specifies POST for one-click in the first place.
 :::
 
 ### POST /api/v1/email/unsubscribe
 
-The one-click target. Idempotent — posting twice leaves one preference row.
+The one-click target, and the only endpoint here that writes. Idempotent —
+posting twice leaves one preference row.
+
+The response depends on who is asking, which the `Accept` header tells apart: a
+mail client (no `Accept`, or `*/*`) gets `204`; a browser submitting the
+confirmation form (`Accept: text/html`) gets the "Unsubscribed" page, because a
+204 would leave the page unchanged and look like the button did nothing.
 
 ```bash
 curl -X POST "http://localhost:3001/api/v1/email/unsubscribe?token=Yzc4ZWZhMzgtMjM4Ny00YWE4LWE3Y2ItMjljM2FmZGU0Yjc1OmY1NzY0ZmIxLWU5NDYtNGVhNC05MGRiLTljNmYyNzlkZWNmNjpidWRnZXRfYWxlcnRz.EXAMPLE_SIGNATURE"
@@ -161,9 +175,10 @@ A following `GET /api/v1/notifications/preferences` shows the effect:
 
 ### GET /api/v1/email/unsubscribe
 
-The same action, for the many clients that render `List-Unsubscribe` as a plain
-link. Returns a minimal, self-contained confirmation page — no assets, no
-tracking, `noindex`.
+For the many clients that render `List-Unsubscribe` as a plain link. Returns a
+minimal, self-contained page — no assets, no tracking, `noindex` — naming the
+category and offering one button. **It writes nothing**; the button POSTs the
+same token back.
 
 ```bash
 curl "http://localhost:3001/api/v1/email/unsubscribe?token=<same token>"
@@ -171,12 +186,17 @@ curl "http://localhost:3001/api/v1/email/unsubscribe?token=<same token>"
 
 ```html
 <!-- Response (status 200) -->
-<!doctype html><html><head><meta charset="utf-8" />…<title>Unsubscribed · acruxcore</title></head>
-<body …><div …><h1 …>Unsubscribed</h1>
-<p …>You will no longer receive budget alerts for this team.</p>
-<p …>You can change this any time from Account &amp; keys in the app. Other notification types are unaffected.</p>
+<!doctype html><html><head><meta charset="utf-8" />…<title>Unsubscribe · acruxcore</title></head>
+<body …><div …><h1 …>Unsubscribe</h1>
+<p …>Confirm that you no longer want to receive budget alerts for this team.</p>
+<form method="post" action="/api/v1/email/unsubscribe?token=<same token>">
+<button type="submit" …>Unsubscribe</button></form>
+<p …>Nothing has changed yet. Other notification types are unaffected.</p>
 </div></body></html>
 ```
+
+A `GET` with a token that is not ours renders the same page with the generic
+wording "these emails", so the endpoint is still not an oracle.
 
 The token is scoped to **one category in one team**, deliberately. Unsubscribing
 from digests does not silently stop your budget alerts, and there is no

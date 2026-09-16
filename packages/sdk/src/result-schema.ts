@@ -9,9 +9,16 @@
  * unsupported keyword can never manufacture a false failure — which matters because a
  * mismatch is reported to the operator and a feature that cries wolf gets switched off.
  *
- * Kept byte-identical in behaviour to `apps/api/src/tools/execute/result-schema.ts`. The
- * platform applies it to an `http` tool and this copy applies it to a client-side one; if
- * the two disagreed, the same tool would pass or fail depending on who ran it.
+ * Kept behaviourally identical to the RESULT path of
+ * `apps/api/src/tools/execute/result-schema.ts`. The platform applies it to an `http`
+ * tool and this copy applies it to a client-side one; if the two disagreed, the same
+ * tool result would pass or fail depending on who ran it.
+ *
+ * The API copy takes a `bounds` option that additionally enforces `enum`, numeric and
+ * string bounds and `additionalProperties`. That is its ARGUMENT path only — checking
+ * what a model sent before a request goes out — and it is deliberately not mirrored
+ * here: a result is checked leniently on both sides, and a client-side tool's arguments
+ * are the host program's own to validate.
  *
  * **Supported:** `type` (including a union array), `required`, `properties`, `items`,
  * `enum`, `nullable`. Composition keywords (`anyOf`, `allOf`, `$ref`), numeric and

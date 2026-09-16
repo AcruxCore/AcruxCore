@@ -706,3 +706,34 @@ describe('POST /api/v1/traces — ingestion', () => {
     expect(detail.body.spans[0].payload.variables).toEqual({ name: 'Al' });
   });
 });
+
+describe('a full-size span batch is accepted (issue #485)', () => {
+  it('accepts the 200-span batch both SDKs are built to send', async () => {
+    const { agent } = await authedAgent(app);
+    // MAX_SPANS_PER_BATCH is 200, and both SDKs batch to exactly that. With
+    // payload capture on, 200 llm spans carrying real prompt and completion text
+    // run well past body-parser's 100KB default, so the whole batch used to be
+    // rejected with a 413 the SDK could only drop — traces vanished silently.
+    const body = {
+      traces: [
+        {
+          name: 'full batch',
+          spans: Array.from({ length: 200 }, (_, i) => ({
+            spanId: `s${i}`,
+            name: `llm call ${i}`,
+            kind: 'llm' as const,
+            startTime: new Date(Date.now() - 1000).toISOString(),
+            endTime: new Date().toISOString(),
+            input: { messages: [{ role: 'user', content: 'x'.repeat(400) }] },
+            output: { content: 'y'.repeat(400) },
+          })),
+        },
+      ],
+    };
+    expect(Buffer.byteLength(JSON.stringify(body))).toBeGreaterThan(100 * 1024);
+
+    const res = await agent.post('/api/v1/traces').send(body);
+    expect(res.status).not.toBe(413);
+    expect(res.body.accepted).toBe(200);
+  }, 60000);
+});

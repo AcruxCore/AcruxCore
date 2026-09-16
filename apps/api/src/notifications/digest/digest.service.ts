@@ -28,11 +28,25 @@ export class DigestService {
    * The window a dispatch at `now` covers, plus the preceding window it is
    * compared against.
    *
+   * Both are floored to UTC midnight, so a digest always covers seven whole
+   * UTC days no matter what time the worker happened to run. Anchoring on
+   * `now` itself made the window end mid-afternoon while {@link build}
+   * labelled it as ending the previous day — the digest counted hours it said
+   * it had excluded and excluded hours it said it had counted (issue #507) —
+   * and left the week-over-week delta comparing two partial days whose
+   * boundaries drifted with the worker's start time.
+   *
+   * The trade is deliberate: a team that only became active between midnight
+   * and dispatch appears in the following week's digest instead. That is the
+   * right reading of "last week", and it is the same boundary the printed
+   * range now promises.
+   *
    * @param now - Dispatch time.
-   * @returns Current and prior `[from, to)` windows.
+   * @returns Current and prior `[from, to)` windows, both on UTC day boundaries.
    */
   static windows(now: Date): { current: DigestWindow; prior: DigestWindow } {
-    const to = now;
+    const to = new Date(now);
+    to.setUTCHours(0, 0, 0, 0);
     const from = new Date(to.getTime() - WINDOW_MS);
     return {
       current: { from, to },

@@ -24,8 +24,13 @@ latter only works for feedback whose source trace had **captured payloads**
 `span_payloads.variables`.
 
 Auth: `requireAnyAuth` (session cookie or personal/team API key) on every
-route, no role restriction. Team-scoped throughout — a dataset outside the
-caller's team behaves as if it doesn't exist (404). `DELETE /:id` is a
+route. Reads (`GET /`, `GET /:id`) are open to any member; every write —
+create, update, delete, and the example routes — additionally requires
+`requireRole('owner', 'admin', 'editor')`, the same bar as committing a prompt
+version. A **team-scoped** API key holds no role, so it can read datasets but
+cannot write them; use a personal key from an editor account. Team-scoped
+throughout — a dataset outside the caller's team behaves as if it doesn't
+exist (404). `DELETE /:id` is a
 soft-delete: the row is excluded from `GET /` (list) and `GET /:id` returns
 404 for it afterwards, same as a truly missing id.
 

@@ -14,6 +14,7 @@ import {
 import type { CreateEvalRuleInput, EvalRule } from '@/api/types';
 import { Button, Drawer, Field, Input, MultiSelect, Select, Textarea, useToast } from '@/ui';
 import { ModelDialog } from '@/gateway/ModelDialog';
+import { useAuth } from '@/auth/AuthContext';
 import { PromptPicker } from './PromptPicker';
 
 export interface RuleDrawerProps {
@@ -35,11 +36,18 @@ export interface RuleDrawerProps {
  * button stays disabled until `rule` is passed in (i.e. after the first
  * save, when the caller re-opens the drawer in edit mode).
  *
+ * An editor opens this drawer read-only. Saving a rule is owner or admin,
+ * because a rule scores live traffic continuously, while Preview and Build
+ * dataset are bounded one-off actions an editor may run (issue #510) — so the
+ * fields are disabled and the save button is gone, and the two panels at the
+ * bottom keep working.
+ *
  * @param open - Whether the drawer is visible.
  * @param onOpenChange - Called to open/close the drawer.
  * @param rule - The rule to edit, or undefined to create a new one.
  */
 export function RuleDrawer({ open, onOpenChange, rule }: RuleDrawerProps) {
+  const { canManageTeam } = useAuth();
   const toast = useToast();
   const create = useCreateEvalRule();
   const update = useUpdateEvalRule(rule?.id ?? '');
@@ -191,10 +199,17 @@ export function RuleDrawer({ open, onOpenChange, rule }: RuleDrawerProps) {
     <Drawer
       open={open}
       onOpenChange={onOpenChange}
-      title={rule ? 'Edit rule' : 'New rule'}
+      title={!canManageTeam ? 'Rule' : rule ? 'Edit rule' : 'New rule'}
       description="Scores matching live traffic automatically, without waiting for someone to run an experiment."
     >
       <div className="flex flex-col gap-3">
+        {/*
+          One `fieldset` rather than `disabled` on a dozen controls: the HTML
+          attribute already cascades to every form element inside it, so a field
+          added later is covered without anyone remembering to. It closes before
+          the Preview and Build-dataset panels, which an editor may still use.
+        */}
+        <fieldset disabled={!canManageTeam} className="flex min-w-0 flex-col gap-3 border-0 p-0">
         <Field label="Name" htmlFor="rule-name">
           <Input
             id="rule-name"
@@ -395,6 +410,7 @@ export function RuleDrawer({ open, onOpenChange, rule }: RuleDrawerProps) {
           />
           Session spans only
         </label>
+        </fieldset>
 
         <div className="mt-2 border-t border-line-soft pt-3">
           <div className="flex items-center gap-2">
@@ -476,13 +492,20 @@ export function RuleDrawer({ open, onOpenChange, rule }: RuleDrawerProps) {
         )}
       </div>
 
-      <div className="mt-4 flex justify-end gap-2 border-t border-line-soft pt-4">
+      <div className="mt-4 flex items-center justify-end gap-2 border-t border-line-soft pt-4">
+        {!canManageTeam && (
+          <p className="mr-auto text-[12px] text-faint" data-testid="rule-read-only-note">
+            An owner or admin changes a rule. You can still preview it and build a dataset from it.
+          </p>
+        )}
         <Button variant="ghost" onClick={() => onOpenChange(false)}>
-          Cancel
+          {canManageTeam ? 'Cancel' : 'Close'}
         </Button>
-        <Button variant="primary" disabled={pending || !canSubmit} onClick={handleSubmit} data-testid="rule-save-button">
-          {pending ? 'Saving…' : rule ? 'Save changes' : 'Create rule'}
-        </Button>
+        {canManageTeam && (
+          <Button variant="primary" disabled={pending || !canSubmit} onClick={handleSubmit} data-testid="rule-save-button">
+            {pending ? 'Saving…' : rule ? 'Save changes' : 'Create rule'}
+          </Button>
+        )}
       </div>
       <ModelDialog open={showCreateModel} onOpenChange={setShowCreateModel} />
     </Drawer>

@@ -92,7 +92,7 @@ export class DatasetsController {
   /** DELETE /api/v1/datasets/:id — soft-delete a dataset. */
   remove = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      await this.service.deleteDataset(req.teamId!, req.params.id);
+      await this.service.deleteDataset(req.teamId!, req.params.id, req.user?.id ?? null);
       res.status(200).json({ success: true });
     } catch (err) {
       next(err);

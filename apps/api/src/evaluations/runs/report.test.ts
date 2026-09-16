@@ -367,6 +367,58 @@ describe('GET /runs/:id/report', () => {
     expect(baseline.exampleCount).toBe(0);
   });
 
+  it('returns the failure reason of a cell that errored, instead of a blank row (issue #504)', async () => {
+    const { agent, teamId, runId, grid, exampleIds } = await arrangeRun();
+    const v1Cell = grid.find((cell) => cell.variantLabel === 'v1')!;
+
+    // Exactly what cellWorker's 'failed' handler writes once a cell has
+    // exhausted its retries. The reason lived only in the database before
+    // this: the drill-down showed `output: null` and nothing else.
+    for (const exampleId of exampleIds) {
+      await runsRepo.writeResultError({
+        teamId,
+        experimentRunId: runId,
+        datasetExampleId: exampleId,
+        variantKind: v1Cell.variantKind,
+        promptVersionId: v1Cell.promptVersionId,
+        variantLabel: v1Cell.variantLabel,
+        model: v1Cell.model,
+        errorMessage: "Model 'gpt-4o-mini' is not registered. Add it under Gateway → Models.",
+      });
+    }
+
+    const cell = (await agent.get(`/api/v1/runs/${runId}/cells/${encodeURIComponent(v1Cell.cellKey)}`).expect(200)).body;
+
+    expect(cell.examples.length).toBe(2);
+    for (const example of cell.examples) {
+      expect(example.errorMessage).toBe(
+        "Model 'gpt-4o-mini' is not registered. Add it under Gateway → Models.",
+      );
+      expect(example.output).toBeNull();
+    }
+  });
+
+  it('reports errorMessage as null on a cell that produced output (issue #504)', async () => {
+    const { agent, teamId, runId, grid, exampleIds } = await arrangeRun();
+    const v1Cell = grid.find((cell) => cell.variantLabel === 'v1')!;
+
+    mockFetchOnce(CANNED_OPENAI);
+    await processCell({
+      teamId,
+      runId,
+      cellKey: v1Cell.cellKey,
+      variantKind: v1Cell.variantKind,
+      promptVersionId: v1Cell.promptVersionId,
+      variantLabel: v1Cell.variantLabel,
+      model: v1Cell.model,
+      exampleId: exampleIds[0]!,
+    });
+
+    const cell = (await agent.get(`/api/v1/runs/${runId}/cells/${encodeURIComponent(v1Cell.cellKey)}`).expect(200)).body;
+    expect(cell.examples[0].errorMessage).toBeNull();
+    expect(cell.examples[0].output).toBeTruthy();
+  });
+
   it('returns 404 for a run belonging to another team', async () => {
     const { runId } = await arrangeRun();
     const { agent: agentB } = await authedAgent(app);

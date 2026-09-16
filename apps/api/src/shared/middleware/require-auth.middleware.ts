@@ -39,6 +39,7 @@ export async function requireAuth(
     const { user, teamId } = await authService.resolveActiveTeam(identity);
     req.user = user;
     req.teamId = teamId;
+    req.authMethod = 'session';
     next();
   } catch (err) {
     next(err);

@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import prisma from '../shared/db/client';
 import { ApiKey } from '../shared/db/schema';
 
@@ -73,15 +74,27 @@ export class ApiKeysRepository {
   }
 
   /**
-   * Resolves a presented API key to its owning user and team by hash.
+   * Resolves a presented API key to its owning user, its team, **and** that user's
+   * current role in that team, in one round trip.
    *
-   * Revoked keys are excluded here rather than by the caller, so an unknown key
-   * and a revoked key are indistinguishable to callers — that is deliberate, to
-   * avoid leaking whether a key ever existed.
+   * Revoked keys are excluded here rather than by the caller, so an unknown key and a
+   * revoked key are indistinguishable to callers — that is deliberate, to avoid
+   * leaking whether a key ever existed.
+   *
+   * The membership is joined rather than looked up separately because it is needed on
+   * every single authenticated request: `requireApiKey` must confirm a personal key's
+   * owner is still in the key's team (`api_keys.team_id` is denormalized, and nothing
+   * revoked a key when its owner was removed), and `requireRole` then needs that same
+   * member's role microseconds later. Three serial queries became one; both sides of
+   * the join are index-only (`api_keys.key_hash` is unique,
+   * `team_members(user_id, team_id)` is unique). It also keeps this the only file in
+   * the domain that touches Prisma, which the middleware doing its own lookup did not.
    *
    * @param keyHash - sha256 hex of the token the caller presented.
-   * @returns The active row with the owner's email and display name, or
-   *   undefined if the hash is unknown or the key is revoked.
+   * @returns The active row with the owner's email, display name and team role, or
+   *   undefined if the hash is unknown or the key is revoked. `membershipRole` is
+   *   null for a team-scoped key (no owner) and for a personal key whose owner has
+   *   since been removed from the team — the caller must reject the latter.
    */
   async findActiveByHash(keyHash: string): Promise<
     | {
@@ -90,20 +103,44 @@ export class ApiKeysRepository {
         teamId: string;
         scope: string;
         user: { email: string; displayName: string | null } | null;
+        membershipRole: string | null;
       }
     | undefined
   > {
-    const row = await prisma.apiKey.findFirst({
-      where: { keyHash, revokedAt: null },
-      select: {
-        id: true,
-        userId: true,
-        teamId: true,
-        scope: true,
-        user: { select: { email: true, displayName: true } },
-      },
-    });
-    return row ?? undefined;
+    const rows = await prisma.$queryRaw<
+      {
+        id: string;
+        user_id: string | null;
+        team_id: string;
+        scope: string;
+        email: string | null;
+        display_name: string | null;
+        role: string | null;
+      }[]
+    >(Prisma.sql`
+      SELECT k.id,
+             k.user_id,
+             k.team_id,
+             k.scope,
+             u.email,
+             u.display_name,
+             m.role::text AS role
+      FROM api_keys k
+      LEFT JOIN users u ON u.id = k.user_id
+      LEFT JOIN team_members m ON m.user_id = k.user_id AND m.team_id = k.team_id
+      WHERE k.key_hash = ${keyHash} AND k.revoked_at IS NULL
+      LIMIT 1
+    `);
+    const row = rows[0];
+    if (!row) return undefined;
+    return {
+      id: row.id,
+      userId: row.user_id,
+      teamId: row.team_id,
+      scope: row.scope,
+      user: row.email !== null ? { email: row.email, displayName: row.display_name } : null,
+      membershipRole: row.role,
+    };
   }
 
   /**

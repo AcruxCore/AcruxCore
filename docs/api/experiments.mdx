@@ -32,7 +32,13 @@ job (a BullMQ Flow parent) only runs once every child cell has settled, and
 marks the run `succeeded` or `failed`.
 
 Auth: `requireAnyAuth` (session cookie or personal/team API key) on every
-route, no role restriction. Team-scoped throughout.
+route. `GET` routes are open to any member. `POST /experiments`,
+`DELETE /experiments/:id`, `POST /experiments/:id/runs` and `DELETE /runs/:id`
+additionally require `requireRole('owner', 'admin', 'editor')` — starting a run
+enqueues one paid provider call per (version × model × example) cell, so it is
+not a read-only action. A **team-scoped** API key holds no role and is refused
+on those four; use a personal key from an editor account. Team-scoped
+throughout.
 
 Verified with `apps/api` running via `npm run dev` and a real, separately
 booted `apps/worker` process (`node dist/index.js`), both pointed at the same
@@ -690,6 +696,7 @@ partial-credit (score 70, missing the concrete next step) — both `passed`:
       "input": { "complaint": "My package arrived three days late and the box was crushed." },
       "criteria": "Response must be EXACTLY two sentences: first sentence apologizes and names the specific issue (late delivery / crushed box), second sentence states one concrete next step (e.g. replacement or refund). No exclamation marks. No greeting or sign-off.",
       "output": "I apologize for the delay and the condition of your package. Please provide your order number so we can initiate a replacement or refund for you.",
+      "errorMessage": null,
       "score": 100,
       "passed": true,
       "reason": "The output consists of exactly two sentences: the first sentence apologizes for the delay and mentions the condition of the package, while the second sentence clearly states the next step of providing the order number for a replacement or refund.",
@@ -701,6 +708,7 @@ partial-credit (score 70, missing the concrete next step) — both `passed`:
       "input": { "complaint": "I was charged twice for the same order and nobody has responded to my emails." },
       "criteria": "Response must be EXACTLY two sentences: first sentence apologizes and names the specific issue (double charge / no response to emails), second sentence states one concrete next step (e.g. refund of duplicate charge). No exclamation marks. No greeting or sign-off.",
       "output": "I apologize for the inconvenience caused by the double charge and the lack of response to your emails. Please provide your order number so that I can investigate this issue further.",
+      "errorMessage": null,
       "score": 70,
       "passed": true,
       "reason": "The output contains an apology for the double charge and the lack of response to emails, fulfilling the first sentence requirement. However, it does not provide a concrete next step, which is necessary to fully meet the criteria.",
@@ -732,6 +740,7 @@ Response (status 200) — excerpted to one example (the other is the same shape)
       "input": { "complaint": "I was charged twice for the same order and nobody has responded to my emails." },
       "criteria": "Response must be EXACTLY two sentences: first sentence apologizes and names the specific issue (double charge / no response to emails), second sentence states one concrete next step (e.g. refund of duplicate charge). No exclamation marks. No greeting or sign-off.",
       "output": "I'm really sorry to hear about the double charge and the delay in getting a response. We certainly want to resolve this issue for you as quickly as possible. \n\nTo assist you better, could you please provide me with the following details? \n\n1. The order number.\n2. The date of the order.\n3. Any reference numbers or transaction details for both charges.\n\nOnce I have that information, I'll be able to look into it right away and help you sort this out. Thank you for your patience, and I appreciate your understanding!",
+      "errorMessage": null,
       "score": 20,
       "passed": false,
       "reason": "The output does not meet the requirement of being exactly two sentences; it contains multiple sentences and includes a greeting and sign-off, which are not allowed.",
@@ -739,6 +748,66 @@ Response (status 200) — excerpted to one example (the other is the same shape)
       "judgeTraceId": "3e396879-160e-4f3d-9f05-95dde37ece79"
     }
   ]
+}
+```
+
+#### A cell that failed
+
+`errorMessage` carries why a cell produced nothing, and is `null` on every cell
+that ran. It is not the same field as `reason`: `reason` is the judge's verdict,
+and stays `null` when there was no output to judge. A failed cell has `output:
+null`, `traceId: null` and no judge fields at all, so `errorMessage` is the only
+account of what happened.
+
+Curled against a run started against a model the team had not registered:
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" "$ACRUXCORE_BASE_URL/runs/e9a53392-bf87-47ee-90f9-361e65f19cbc/cells/v1%7Cgpt-4o-mini"
+```
+
+Response (status 200) — excerpted to one of its two examples (the other is the
+same shape):
+
+```json
+{
+  "cellKey": "v1|gpt-4o-mini",
+  "variantLabel": "v1",
+  "model": "gpt-4o-mini",
+  "examples": [
+    {
+      "exampleId": "3ef6fb9a-3cce-4809-a5f8-b0136f34b738",
+      "input": { "question": "What is the capital of France?" },
+      "criteria": "The answer must be correct.",
+      "history": null,
+      "output": null,
+      "errorMessage": "Model 'gpt-4o-mini' is not registered. Add it under Gateway → Models.",
+      "score": null,
+      "passed": null,
+      "reason": null,
+      "traceId": null,
+      "judgeTraceId": null
+    }
+  ]
+}
+```
+
+The same run's own row says it too — `error` on `GET /runs/:id` names the shared
+reason once when every cell failed the same way, and the first one when they
+differ:
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" "$ACRUXCORE_BASE_URL/runs/e9a53392-bf87-47ee-90f9-361e65f19cbc"
+```
+
+Response (status 200), excerpted to the three fields this section is about —
+`id`, `experimentId`, `grid`, `exampleCount` and the timestamps are unchanged
+and shown under `GET /api/v1/runs/:id` above:
+
+```json
+{
+  "status": "failed",
+  "error": "Every cell failed. Model 'gpt-4o-mini' is not registered. Add it under Gateway → Models.",
+  "results": { "total": 2, "succeeded": 0, "errored": 2 }
 }
 ```
 

@@ -159,6 +159,54 @@ describe('POST /api/v1/eval-rules/:id/preview', () => {
     expect(await prisma.evalRuleScore.count({ where: { ruleId: rule.id } })).toBe(0); // never persisted
   });
 
+  // Every span past the tenth is one more paid judge completion, so `limit` is a
+  // spend control, not a formatting hint. `Number("abc")` is NaN, `Math.min(NaN, 10)`
+  // is NaN, and `verdicts.length >= NaN` is false forever — which is how an
+  // unvalidated limit turned a ten-call dry run into a two-hundred-call one.
+  it('refuses a non-numeric limit instead of coercing it to NaN', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const judgeModel = await registerTestModel(agent);
+    const rule = (
+      await agent.post('/api/v1/eval-rules').send({ name: 'r', criteria: 'x', judgeModel }).expect(201)
+    ).body;
+
+    // Forty matching spans, none with a captured payload — those short-circuit to
+    // a "not scored" verdict with no gateway call, so this counts how far the loop
+    // walks without spending anything.
+    const trace = await prisma.trace.create({ data: { teamId, startedAt: new Date() } });
+    for (let i = 0; i < 40; i++) {
+      await prisma.span.create({
+        data: { teamId, traceId: trace.id, spanRef: randomUUID(), kind: 'llm', name: 'llm call', startedAt: new Date() },
+      });
+    }
+
+    const bad = await agent.post(`/api/v1/eval-rules/${rule.id}/preview`).send({ limit: 'abc' }).expect(400);
+    expect(bad.body.error.code).toBe('VALIDATION_ERROR');
+
+    // And a limit above the ceiling is refused rather than silently clamped, so a
+    // caller asking for 200 learns that 10 is the maximum.
+    await agent.post(`/api/v1/eval-rules/${rule.id}/preview`).send({ limit: 200 }).expect(400);
+    await agent.post(`/api/v1/eval-rules/${rule.id}/preview`).send({ limit: 0 }).expect(400);
+  });
+
+  it('defaults limit to 10 when the body omits it', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const judgeModel = await registerTestModel(agent);
+    const rule = (
+      await agent.post('/api/v1/eval-rules').send({ name: 'r', criteria: 'x', judgeModel }).expect(201)
+    ).body;
+
+    const trace = await prisma.trace.create({ data: { teamId, startedAt: new Date() } });
+    for (let i = 0; i < 40; i++) {
+      await prisma.span.create({
+        data: { teamId, traceId: trace.id, spanRef: randomUUID(), kind: 'llm', name: 'llm call', startedAt: new Date() },
+      });
+    }
+
+    const res = await agent.post(`/api/v1/eval-rules/${rule.id}/preview`).send({}).expect(200);
+    expect(res.body).toHaveLength(10);
+  });
+
   it('previews using a custom judge prompt when judgePromptId is set', async () => {
     const { agent, teamId } = await authedAgent(app);
     const judgeModel = await registerTestModel(agent);

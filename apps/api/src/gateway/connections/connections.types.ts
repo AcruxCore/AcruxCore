@@ -71,9 +71,16 @@ export type CreateConnectionDto = z.infer<typeof CreateConnectionSchema>;
 
 /**
  * Body for PATCH /gateway/connections/:id. All fields optional: update the label,
- * replace `config`, and/or rotate the key by supplying a new `apiKey`. Provider is
+ * amend `config`, and/or rotate the key by supplying a new `apiKey`. Provider is
  * immutable and cannot be changed here. If `config.base_url` is supplied, it must
  * be a valid, non-SSRF-blocked URL — same check as `CreateConnectionSchema`.
+ *
+ * `config` follows JSON Merge Patch (RFC 7396): a key you send is set, a key you omit
+ * is left alone, and a key sent as `null` is **removed**. Plain merge without the null
+ * rule reads well until something has to be taken away — a `base_url` pointing at a
+ * decommissioned host could then never be cleared, because `{}` changed nothing and
+ * `""` failed validation, leaving delete-and-recreate as the only route, which
+ * `delete()` refuses with 409 while any model still binds the credential.
  *
  * Unlike `CreateConnectionSchema`, this check cannot be scoped to
  * `BASE_URL_AWARE_PROVIDERS`: `provider` is immutable and therefore not part of this
@@ -97,7 +104,13 @@ export const UpdateConnectionSchema = z
     config: z.record(z.string(), z.unknown()).optional(),
   })
   .refine(
-    (data) => data.config?.['base_url'] === undefined || !isInvalidOrBlockedBaseUrl(data.config['base_url']),
+    // `null` is a removal, not a value, so it skips the URL check — without this the
+    // only way to express "remove base_url" is rejected by the validator meant to
+    // police its contents.
+    (data) =>
+      data.config?.['base_url'] === undefined ||
+      data.config['base_url'] === null ||
+      !isInvalidOrBlockedBaseUrl(data.config['base_url']),
     {
       message: 'config.base_url must be a valid URL that does not point at an internal or reserved address.',
       path: ['config', 'base_url'],

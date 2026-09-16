@@ -71,3 +71,45 @@ describe('computeCacheKey', () => {
     expect(a).toBe(b);
   });
 });
+
+describe('computeCacheKey — tool declarations (issue #480)', () => {
+  const tools = [
+    {
+      type: 'function' as const,
+      function: {
+        name: 'get_weather',
+        description: 'Look up the weather for a city',
+        parameters: { type: 'object', properties: { city: { type: 'string' } }, required: ['city'] },
+      },
+    },
+  ];
+
+  it('separates a plain request from the same request carrying tools', () => {
+    // Without this, a cached prose answer was replayed to a caller that asked for
+    // a tool call, so the model never got to call it and the agent loop stalled
+    // with no error to look at.
+    const withTools: NormalizedRequest = { ...base, tools };
+    expect(computeCacheKey('team-a', withTools)).not.toBe(computeCacheKey('team-a', base));
+  });
+
+  it('separates two requests that declare different tools', () => {
+    const a: NormalizedRequest = { ...base, tools };
+    const b: NormalizedRequest = {
+      ...base,
+      tools: [{ ...tools[0], function: { ...tools[0].function, name: 'delete_account' } }],
+    };
+    expect(computeCacheKey('team-a', a)).not.toBe(computeCacheKey('team-a', b));
+  });
+
+  it('separates requests differing only by tool_choice', () => {
+    const required: NormalizedRequest = { ...base, tools, tool_choice: 'required' };
+    const auto: NormalizedRequest = { ...base, tools, tool_choice: 'auto' };
+    expect(computeCacheKey('team-a', required)).not.toBe(computeCacheKey('team-a', auto));
+  });
+
+  it('still collides for two genuinely identical tool-carrying requests', () => {
+    const a: NormalizedRequest = { ...base, tools, tool_choice: 'required' };
+    const b: NormalizedRequest = { ...base, tools, tool_choice: 'required' };
+    expect(computeCacheKey('team-a', a)).toBe(computeCacheKey('team-a', b));
+  });
+});

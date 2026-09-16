@@ -1075,6 +1075,12 @@ export interface RunCellExample {
   /** Prior-turn history frozen at run-start (FAQ Q19), or null. */
   history: ChatMessage[] | null;
   output: unknown;
+  /**
+   * Why this cell produced nothing, or null when it ran. Distinct from
+   * `reason`, which is the judge's verdict and stays null when there was
+   * nothing to judge.
+   */
+  errorMessage: string | null;
   score: number | null;
   passed: boolean | null;
   reason: string | null;

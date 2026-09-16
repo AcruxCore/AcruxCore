@@ -62,7 +62,7 @@ function normalizeInput(input: unknown): ChatMessage[] | null {
  * @param output - The raw captured `span_payloads.output`.
  * @returns The assistant message, or null if this payload does not carry one.
  */
-function normalizeOutput(output: unknown): ChatMessage | null {
+export function normalizeOutput(output: unknown): ChatMessage | null {
   if (!isRecord(output)) return null;
   const choices = output['choices'];
   if (Array.isArray(choices)) {

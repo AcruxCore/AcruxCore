@@ -104,7 +104,27 @@ export class ConnectionsService {
       config?: Prisma.InputJsonValue;
     } = {};
     if (dto.label !== undefined) patch.label = dto.label;
-    if (dto.config !== undefined) patch.config = dto.config as Prisma.InputJsonValue;
+    // Merged into the stored config, never substituted for it. A PATCH that named
+    // only an unrelated key used to replace the whole object, so editing (say) an
+    // `organization` silently dropped the `base_url` an `openai_compatible`
+    // connection requires — and every model on that credential then failed with a
+    // non-retriable MISSING_BASE_URL that pointed nowhere near the edit.
+    //
+    // JSON Merge Patch (RFC 7396) rather than a plain spread: a key sent as `null`
+    // is removed. A plain merge has no way to express a removal at all, which would
+    // strand a connection pointing at a host that no longer exists.
+    if (dto.config !== undefined) {
+      const current =
+        existing.config && typeof existing.config === 'object' && !Array.isArray(existing.config)
+          ? (existing.config as Record<string, unknown>)
+          : {};
+      const merged: Record<string, unknown> = { ...current };
+      for (const [key, value] of Object.entries(dto.config)) {
+        if (value === null) delete merged[key];
+        else merged[key] = value;
+      }
+      patch.config = merged as Prisma.InputJsonValue;
+    }
     const rotatedKey = dto.apiKey !== undefined;
     if (rotatedKey) {
       patch.secretCiphertext = encryptSecret(dto.apiKey!);

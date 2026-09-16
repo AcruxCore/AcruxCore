@@ -386,6 +386,11 @@ enum AuditEvent {
   secret_deleted
   prompt_tool_route_set
   prompt_tool_route_removed
+  dataset_created
+  dataset_deleted
+  eval_rule_created
+  eval_rule_updated
+  eval_rule_deleted
 }
 
 // ---------------------------------------------------------------------------

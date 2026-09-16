@@ -1,4 +1,4 @@
-import { checkAndRecord, recordTokens, __resetRateLimiter } from './rate-limiter';
+import { checkAndRecord, recordTokens, __resetRateLimiter, __rateLimiterKeyCount } from './rate-limiter';
 
 describe('rate-limiter (in-memory sliding window)', () => {
   beforeEach(() => __resetRateLimiter());
@@ -53,5 +53,99 @@ describe('rate-limiter (in-memory sliding window)', () => {
     // Raising the limit to 2 immediately allows exactly one more.
     expect(checkAndRecord('k6', 2, null, 0).ok).toBe(true);
     expect(checkAndRecord('k6', 2, null, 0).ok).toBe(false);
+  });
+});
+
+describe('rate-limiter — recordTokens must not consume RPM (issue #486)', () => {
+  beforeEach(() => __resetRateLimiter());
+
+  it('allows the full configured RPM even when every call records tokens', () => {
+    // The post-call token record used to be pushed as another window entry, so a
+    // completed request consumed two RPM slots and maxRpm=10 throttled at 5.
+    for (let i = 1; i <= 10; i++) {
+      const res = checkAndRecord('rpm-key', 10, null, 0);
+      expect({ call: i, ok: res.ok }).toEqual({ call: i, ok: true });
+      recordTokens('rpm-key', 500);
+    }
+    expect(checkAndRecord('rpm-key', 10, null, 0).ok).toBe(false);
+  });
+
+  it('counts remaining headroom down by one per request, not two', () => {
+    const seen: (number | undefined)[] = [];
+    for (let i = 0; i < 4; i++) {
+      seen.push(checkAndRecord('rem-key', 10, null, 0).remaining);
+      recordTokens('rem-key', 100);
+    }
+    expect(seen).toEqual([9, 8, 7, 6]);
+  });
+
+  it('still folds recorded tokens into the TPM window', () => {
+    expect(checkAndRecord('tpm-key', null, 1000, 0).ok).toBe(true);
+    recordTokens('tpm-key', 1500);
+    expect(checkAndRecord('tpm-key', null, 1000, 0).ok).toBe(false);
+  });
+});
+
+describe('rate limiter — the window store does not grow without bound', () => {
+  beforeEach(() => __resetRateLimiter());
+
+  it('drops keys that were used once and never came back', () => {
+    // The shape that leaked: a key per CI job, each seen exactly once. Pruning on
+    // access could never reach them, because access is the only thing that prunes.
+    const realNow = Date.now;
+    try {
+      let clock = realNow();
+      Date.now = () => clock;
+
+      for (let i = 0; i < 50; i++) checkAndRecord(`one-shot-key-${i}`, 100, null, 0);
+      expect(__rateLimiterKeyCount()).toBe(50);
+
+      // Past the window, and past the sweep interval: one later call from any key
+      // is enough to clear every key that has gone quiet.
+      clock += 61_000;
+      checkAndRecord('a-live-key', 100, null, 0);
+
+      expect(__rateLimiterKeyCount()).toBe(1);
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
+  it('keeps a key that is still inside its window', () => {
+    const realNow = Date.now;
+    try {
+      let clock = realNow();
+      Date.now = () => clock;
+
+      checkAndRecord('busy-key', 100, null, 0);
+      clock += 61_000;
+      checkAndRecord('busy-key', 100, null, 0); // triggers the sweep, but is itself live
+      clock += 1_000;
+      checkAndRecord('other-key', 100, null, 0);
+
+      expect(__rateLimiterKeyCount()).toBe(2);
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
+  it('records the entry even when the window had just emptied', () => {
+    const realNow = Date.now;
+    try {
+      let clock = realNow();
+      Date.now = () => clock;
+
+      checkAndRecord('k', 2, null, 0);
+      clock += 61_000; // every entry for 'k' has now aged out, and the sweep drops it
+      const first = checkAndRecord('k', 2, null, 0);
+      const second = checkAndRecord('k', 2, null, 0);
+      const third = checkAndRecord('k', 2, null, 0);
+      // The first two refill the emptied window and the third is over the cap —
+      // which only holds if the entry written straight after the sweep was stored.
+      expect([first.ok, second.ok, third.ok]).toEqual([true, true, false]);
+      expect(first.remaining).toBe(1);
+    } finally {
+      Date.now = realNow;
+    }
   });
 });

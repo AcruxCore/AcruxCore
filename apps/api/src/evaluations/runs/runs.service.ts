@@ -337,6 +337,7 @@ export class RunsService {
         criteria: frozenCriteria.get(row.datasetExampleId) ?? row.example.criteria,
         history: frozenHistory.get(row.datasetExampleId) ?? null,
         output: row.output,
+        errorMessage: row.errorMessage,
         score: row.score,
         passed: row.passed,
         reason: row.reason,

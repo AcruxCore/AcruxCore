@@ -9,9 +9,18 @@ import { signupTestUserWithApiKey } from '../../test-utils';
 const app = createApp();
 let server: http.Server;
 let baseUrl: string;
+/**
+ * Every request line the upstream actually received, newest last.
+ *
+ * A guard that refuses a request and a guard that merely rewrites it look identical
+ * from the response alone, so "the call never left the building" has to be asserted
+ * against the server, not against the result body.
+ */
+const reached: string[] = [];
 
 beforeAll(async () => {
   server = http.createServer((req, res) => {
+    reached.push(req.url ?? '');
     let bodyRaw = '';
     req.on('data', (c) => (bodyRaw += c));
     req.on('end', () => {
@@ -42,6 +51,9 @@ beforeAll(async () => {
           // Reflect the parsed query string back so tests can assert what actually
           // reached the wire (used by the {{arg.NAME}} templating tests).
           query: Object.fromEntries(new URL(req.url ?? '/', 'http://localhost').searchParams),
+          // The raw request line, so a test can assert which path an argument
+          // actually steered the call to.
+          path: req.url ?? '',
           data: { tempC: 18 },
         }),
       );
@@ -225,6 +237,154 @@ describe('POST /tools/:id/execute', () => {
     expect(res.body.result).toEqual({ q: '{{secret.WKEY}}' });
   });
 
+  // ── Security: an argument is a VALUE, not a piece of URL syntax. A model that
+  // returns "../../admin" or "1?role=admin" must not be able to move the call off
+  // the path the tool's author pinned, because the author's credentials ride along. ──
+  it('an argument cannot escape its path segment in the executor URL', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const t = await request(app)
+      .post('/api/v1/tools')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ name: 'path_guard' })
+      .expect(201);
+    await request(app)
+      .post(`/api/v1/tools/${t.body.id}/versions`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        parametersSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+        executor: {
+          type: 'http',
+          url: `${baseUrl}/v1/public/{{arg.id}}`,
+          method: 'GET',
+          responseTransform: 'function transform(input) { return input.body.path; }',
+        },
+      })
+      .expect(201);
+
+    const beforeSlashes = reached.length;
+    const escaped = await request(app)
+      .post(`/api/v1/tools/${t.body.id}/execute`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ arguments: { id: '../../internal/admin' } })
+      .expect(200);
+    // Refused, not merely encoded. Encoding the slashes keeps OUR request line inside
+    // the author's prefix, but what a `%2F` means is the upstream's decision: against a
+    // real public echo, the server reported receiving `/v1/public/../../internal/admin`,
+    // having decoded the escapes itself before routing. A guarantee that depends on
+    // every upstream's normalisation settings is not a guarantee.
+    expect(reached.slice(beforeSlashes)).toEqual([]);
+    expect(escaped.body.error).toMatchObject({ type: 'transport' });
+
+    // A BARE `..` needs no slash of its own: `encodeURIComponent` leaves a dot untouched
+    // and `new URL()` resolves the dot-segment away before the request is even built.
+    const before = reached.length;
+    const dots = await request(app)
+      .post(`/api/v1/tools/${t.body.id}/execute`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ arguments: { id: '..' } })
+      .expect(200);
+    // Refused, not rewritten: the upstream never saw a request at all, so the tool's
+    // secret headers were never put on the wire.
+    expect(reached.slice(before)).toEqual([]);
+    expect(dots.body.result).toBeNull();
+    // `transport` is the closed-vocabulary type — no request was made. The span carries
+    // the precise `unsafe_url_argument` slug in its `errorCode` attribute.
+    expect(dots.body.error).toMatchObject({ type: 'transport' });
+    // The model is told which argument to fix, so its next attempt can succeed.
+    expect(dots.body.error.message).toContain("'id'");
+
+    // A lone `.` is a dot-segment too.
+    const dot = await request(app)
+      .post(`/api/v1/tools/${t.body.id}/execute`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ arguments: { id: '.' } })
+      .expect(200);
+    expect(dot.body.error).toMatchObject({ type: 'transport' });
+
+    // A single dot between other characters is neither a dot-segment nor a traversal,
+    // so ordinary values still reach the upstream byte-for-byte.
+    for (const ok of ['report.pdf', '1.2.3', 'user@example.com']) {
+      const dotted = await request(app)
+        .post(`/api/v1/tools/${t.body.id}/execute`)
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ arguments: { id: ok } })
+        .expect(200);
+      expect(dotted.body.result).toBe(`/v1/public/${encodeURIComponent(ok)}`);
+    }
+
+    const query = await request(app)
+      .post(`/api/v1/tools/${t.body.id}/execute`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ arguments: { id: '1?role=admin' } })
+      .expect(200);
+    // An argument may not smuggle in a query parameter the author never declared.
+    expect(query.body.result).not.toContain('role=admin');
+  });
+
+  it('an argument in the MIDDLE of a path cannot delete the segment above it', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const t = await request(app)
+      .post('/api/v1/tools')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ name: 'path_guard_mid' })
+      .expect(201);
+    await request(app)
+      .post(`/api/v1/tools/${t.body.id}/versions`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        parametersSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+        executor: {
+          type: 'http',
+          // The common shape: a resource id sitting between two segments the author owns.
+          url: `${baseUrl}/v1/orders/{{arg.id}}/items`,
+          method: 'GET',
+          responseTransform: 'function transform(input) { return input.body.path; }',
+        },
+      })
+      .expect(201);
+
+    const before = reached.length;
+    const escaped = await request(app)
+      .post(`/api/v1/tools/${t.body.id}/execute`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ arguments: { id: '..' } })
+      .expect(200);
+    // `/v1/orders/../items` normalises to `/v1/items` — a different collection, reached
+    // with the order API's credentials. Nothing may reach the upstream at all.
+    expect(reached.slice(before)).toEqual([]);
+    expect(escaped.body.error).toMatchObject({ type: 'transport' });
+    expect(escaped.body.error.message).toContain("'..'");
+  });
+
+  it('still substitutes an ordinary argument into the URL path unchanged', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const t = await request(app)
+      .post('/api/v1/tools')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ name: 'path_ok' })
+      .expect(201);
+    await request(app)
+      .post(`/api/v1/tools/${t.body.id}/versions`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        parametersSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+        executor: {
+          type: 'http',
+          url: `${baseUrl}/v1/movie/{{arg.id}}`,
+          method: 'GET',
+          responseTransform: 'function transform(input) { return input.body.path; }',
+        },
+      })
+      .expect(201);
+
+    const res = await request(app)
+      .post(`/api/v1/tools/${t.body.id}/execute`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ arguments: { id: '603692' } })
+      .expect(200);
+    expect(res.body.result).toBe('/v1/movie/603692');
+  });
+
   it('422s a client-type tool (nothing to execute)', async () => {
     const { apiKey } = await signupTestUserWithApiKey(app);
     const t = await request(app)
@@ -265,6 +425,111 @@ describe('POST /tools/:id/execute', () => {
       .set('Authorization', `Bearer ${apiKey}`)
       .send({ arguments: {} })
       .expect(400);
+  });
+
+  it('rejects arguments that violate the declared types, enum and bounds (issue #506)', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const t = await request(app)
+      .post('/api/v1/tools')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ name: 'search' })
+      .expect(201);
+    await request(app)
+      .post(`/api/v1/tools/${t.body.id}/versions`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        parametersSchema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            q: { type: 'string', maxLength: 20 },
+            limit: { type: 'integer', minimum: 1, maximum: 10 },
+            sort: { type: 'string', enum: ['asc', 'desc'] },
+          },
+          required: ['q'],
+        },
+        executor: {
+          type: 'http',
+          url: `${baseUrl}/search`,
+          method: 'GET',
+          query: [
+            { name: 'q', value: '{{arg.q}}' },
+            { name: 'limit', value: '{{arg.limit}}' },
+            { name: 'sort', value: '{{arg.sort}}' },
+          ],
+        },
+      })
+      .expect(201);
+
+    const execute = (args: Record<string, unknown>) =>
+      request(app)
+        .post(`/api/v1/tools/${t.body.id}/execute`)
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ arguments: args });
+
+    // Arguments the author's schema allows still go through untouched.
+    const ok = await execute({ q: 'ok', limit: 3, sort: 'asc' }).expect(200);
+    expect(ok.body.result.query).toEqual({ q: 'ok', limit: '3', sort: 'asc' });
+
+    // Each violation on its own, so a passing test cannot hide behind another. These
+    // are RECORDED tool failures, not 400s: they are the mistakes a model actually
+    // makes, and throwing would end the caller's whole agent loop (neither SDK wraps
+    // `tools.execute` in a try/catch) and write no tool span at all. A missing
+    // `required` argument is the one case that still throws — see the next test.
+    const before = reached.length;
+
+    const wrongType = await execute({ q: 'ok', limit: 'lots' }).expect(200);
+    expect(wrongType.body.error).toMatchObject({ type: 'transport' });
+    expect(wrongType.body.error.message).toMatch(/limit/);
+
+    const outOfEnum = await execute({ q: 'ok', sort: 'DROP TABLE' }).expect(200);
+    expect(outOfEnum.body.error.message).toMatch(/asc/);
+
+    const overMax = await execute({ q: 'ok', limit: 100000 }).expect(200);
+    expect(overMax.body.error.message).toMatch(/limit/);
+
+    const tooLong = await execute({ q: 'x'.repeat(100) }).expect(200);
+    expect(tooLong.body.error.message).toMatch(/q/);
+
+    const undeclared = await execute({ q: 'ok', undeclared: 'x' }).expect(200);
+    expect(undeclared.body.error.message).toMatch(/undeclared/);
+
+    // Refused, not forwarded: none of the five reached the upstream.
+    expect(reached.slice(before)).toEqual([]);
+
+    // Each one is on the trace as a failed tool span, so the run does not simply go
+    // quiet after the model asked for a tool.
+    const spans = await prisma.span.findMany({
+      where: { kind: 'tool', status: 'error' },
+      select: { attributes: true },
+    });
+    expect(spans.length).toBeGreaterThanOrEqual(5);
+    expect(spans.some((sp) => (sp.attributes as Record<string, unknown>)['errorCode'] === 'invalid_arguments')).toBe(true);
+  });
+
+  it('leaves a schema that declares no constraints permissive (issue #506)', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const t = await request(app)
+      .post('/api/v1/tools')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ name: 'loose' })
+      .expect(201);
+    await request(app)
+      .post(`/api/v1/tools/${t.body.id}/versions`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        parametersSchema: { type: 'object', properties: {} },
+        executor: { type: 'http', url: `${baseUrl}/loose`, method: 'GET', query: [{ name: 'anything', value: '{{arg.anything}}' }] },
+      })
+      .expect(201);
+
+    // No `additionalProperties: false`, no declared property — nothing to violate.
+    const res = await request(app)
+      .post(`/api/v1/tools/${t.body.id}/execute`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ arguments: { anything: 'goes' } })
+      .expect(200);
+    expect(res.body.result.query).toEqual({ anything: 'goes' });
   });
 
   // ── Required correction 1: String.replace footgun with `$` in a secret value ──

@@ -171,8 +171,8 @@ Returns a paginated, newest-first list of **every** audit event in the team — 
 the ones tied to a prompt or a tool. This is the endpoint behind the dashboard's
 **Audit trail** screen, and the one to call for a compliance question: API keys
 generated and revoked, members added and removed, roles changed, invites sent and
-accepted, provider credentials, virtual keys, budgets, gateway models, secrets and trace
-settings all appear here and nowhere else.
+accepted, provider credentials, virtual keys, budgets, gateway models, secrets, trace
+settings, datasets and evaluation rules all appear here and nowhere else.
 
 **Session authentication only, owner or admin.** A Bearer API key is rejected with a 401:
 the trail records what people did, and a key belongs to a service rather than a person.
@@ -230,6 +230,65 @@ event was performed *on* — filled in for `member_role_updated` and `member_rem
 where the stored metadata holds only a user id — and null everywhere else. It is resolved
 from the user record rather than from current membership, so a member who has since been
 removed still shows their address.
+
+### Evaluation events
+
+Deleting a dataset destroys the material every past run was measured against, and
+creating or enabling an evaluation rule commits the team to one judge call per sampled
+span from then on. Both leave a row here.
+
+A dataset created, a rule created, switched off and deleted, then the dataset deleted:
+
+```bash
+curl -X GET "$ACRUXCORE_BASE_URL/teams/1f4afe71-3b03-423f-8cca-bf1f2c51f062/audit?event=dataset_created,dataset_deleted,eval_rule_created,eval_rule_updated,eval_rule_deleted&limit=5" \
+  -H "Cookie: $ACRUXCORE_SESSION_COOKIE"
+```
+
+### Response (status 200)
+
+```json
+{
+  "data": [
+    {
+      "id": "4911b0a3-287e-4727-8822-dd71227c6ef3",
+      "event": "dataset_deleted",
+      "actor": { "id": "517a0e90-472f-49cd-898b-610804558c24", "email": "demo@acruxcore.com" },
+      "metadata": { "name": "regression set", "datasetId": "66bfa175-725d-4f72-82e5-2a0d06c54705" },
+      "createdAt": "2026-09-16T06:46:58.203Z",
+      "promptId": null,
+      "target": null
+    },
+    {
+      "id": "9fec9b1e-534a-4ddf-8e86-3bddffb0dd79",
+      "event": "eval_rule_updated",
+      "actor": { "id": "517a0e90-472f-49cd-898b-610804558c24", "email": "demo@acruxcore.com" },
+      "metadata": {
+        "name": "quality gate",
+        "ruleId": "6c29328e-97ba-49c3-9141-20015d102c73",
+        "changed": ["enabled"],
+        "enabled": false
+      },
+      "createdAt": "2026-09-16T06:46:58.172Z",
+      "promptId": null,
+      "target": null
+    }
+  ],
+  "total": 5,
+  "page": 1,
+  "limit": 5
+}
+```
+
+A rule's `metadata` names the rule and lists the fields the request changed. It carries
+`enabled` in full because that is the field that starts and stops the spend; it never
+carries `criteria` or a custom judge prompt, which are free text and can run to thousands
+of characters. A dataset's `metadata` records the name as it was at the time, because a
+deleted dataset is filtered out of every list afterwards and this row is the only place
+left that says what the id referred to.
+
+Starting an experiment run or an optimize run is **not** recorded. Both spend money, but a
+run is bounded — it ends, and its cost already shows in Gateway usage and in the run's own
+record — so recording every start would push the rest of the trail off the first page.
 
 ### Filtering by event
 

@@ -521,6 +521,53 @@ describe('processFinalize', () => {
     const updated = await prisma.experimentRun.findUnique({ where: { id: run.id } });
     expect(updated!.status).toBe('failed');
     expect(updated!.endedAt).not.toBeNull();
+    // The run row is what the run page reads first; leaving `error` null there
+    // made a failed run unexplainable without opening a cell (issue #504).
+    expect(updated!.error).toBe('Every cell failed. Provider error (502): boom');
+  });
+
+  it('names the shared reason once when every cell failed the same way, and the first when they differ (issue #504)', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const { promptVersionId, exampleId, experimentId } = await arrangeBasics(agent);
+
+    const second = (
+      await agent
+        .post(`/api/v1/datasets/${(await prisma.datasetExample.findUniqueOrThrow({ where: { id: exampleId } })).datasetId}/examples`)
+        .send({ input: { name: 'Bo' }, criteria: 'be polite' })
+        .expect(201)
+    ).body;
+
+    const run = await runsRepo.createRun(teamId, experimentId, {
+      grid: [
+        { cellKey: 'v1|gpt-4o-mini', variantKind: 'version', promptVersionId, variantLabel: 'v1', model: 'gpt-4o-mini', isProductionBaseline: true },
+      ],
+      exampleSnapshot: [
+        { exampleId, input: { name: 'Al' }, criteria: 'be nice', history: null },
+        { exampleId: second.id, input: { name: 'Bo' }, criteria: 'be polite', history: null },
+      ],
+    });
+
+    for (const [id, message] of [
+      [exampleId, 'Budget exhausted for this team.'],
+      [second.id, 'Provider error (502): boom'],
+    ] as const) {
+      await runsRepo.writeResultError({
+        teamId,
+        experimentRunId: run.id,
+        datasetExampleId: id,
+        variantKind: 'version',
+        promptVersionId,
+        variantLabel: 'v1',
+        model: 'gpt-4o-mini',
+        errorMessage: message,
+      });
+    }
+
+    await processFinalize({ teamId, runId: run.id });
+
+    const updated = await prisma.experimentRun.findUnique({ where: { id: run.id } });
+    expect(updated!.status).toBe('failed');
+    expect(updated!.error).toBe('Every cell failed. First error: Budget exhausted for this team.');
   });
 });
 

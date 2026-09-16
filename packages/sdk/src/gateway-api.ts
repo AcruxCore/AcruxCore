@@ -761,9 +761,23 @@ export class GatewayNamespace {
           const parsed = JSON.parse(data) as {
             id: string;
             model: string;
-            choices: { delta: ChatChunk['delta']; finish_reason: string | null }[];
+            choices?: { delta: ChatChunk['delta']; finish_reason: string | null }[];
+            error?: { code?: string; message?: string };
           };
-          const choice = parsed.choices[0];
+          // A mid-stream failure arrives as a frame with `error` and no `choices` —
+          // the shape every OpenAI-compatible provider uses when a generation dies
+          // after its first byte. Reading `choices[0]` off it threw a bare TypeError
+          // with no code and no message, which reads to a caller as an SDK bug rather
+          // than as the gateway reporting a problem.
+          if (parsed.error) {
+            throw new acruxcoreError(
+              `acruxcore: stream ended with an error: ${parsed.error.message ?? 'unknown error'}`,
+              'API_ERROR',
+              undefined,
+              parsed,
+            );
+          }
+          const choice = parsed.choices?.[0];
           yield {
             id: parsed.id,
             model: parsed.model,

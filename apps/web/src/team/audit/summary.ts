@@ -120,6 +120,25 @@ export function auditSummary(entry: AuditEntry): string | null {
     case 'secret_rotated':
       return null;
 
+    // ── Evaluations ─────────────────────────────────────────────────────────
+    case 'dataset_created':
+    case 'dataset_deleted':
+      // Recorded on the row rather than looked up: a deleted dataset is filtered
+      // out of every list, so this is the only place the name survives.
+      return str('name');
+    case 'eval_rule_created':
+      return join([str('name'), str('judgeModel') ? `judged by ${str('judgeModel')}` : null]);
+    case 'eval_rule_updated': {
+      const changed = Array.isArray(m.changed) ? (m.changed as unknown[]).filter((c) => typeof c === 'string') : [];
+      // `enabled` is called out by name because it is the field that starts and
+      // stops the spend; the rest are listed as the fields that were touched.
+      const state = typeof m.enabled === 'boolean' ? (m.enabled ? 'enabled' : 'disabled') : null;
+      const rest = (changed as string[]).filter((c) => c !== 'enabled');
+      return join([str('name'), state, rest.length > 0 ? `${rest.join(', ')} changed` : null]);
+    }
+    case 'eval_rule_deleted':
+      return str('name');
+
     // ── Settings ────────────────────────────────────────────────────────────
     case 'trace_settings_updated':
       if (typeof m.capturePayloads === 'boolean') {

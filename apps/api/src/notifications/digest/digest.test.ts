@@ -121,6 +121,40 @@ describe('digest eligibility', () => {
   });
 });
 
+describe('digest window (issue #507)', () => {
+  it('floors the window to UTC midnight so the printed range is the range measured', () => {
+    // A dispatch at any time of day must produce whole UTC days. Anchored on
+    // `now` instead, the window ran to mid-afternoon while `build` labelled it
+    // as ending the previous day — so a digest counted hours it said it had
+    // excluded, and excluded hours it said it had counted.
+    const { current, prior } = DigestService.windows(new Date('2026-09-15T20:17:42.779Z'));
+
+    expect(current.from.toISOString()).toBe('2026-09-08T00:00:00.000Z');
+    expect(current.to.toISOString()).toBe('2026-09-15T00:00:00.000Z');
+    expect(prior.from.toISOString()).toBe('2026-09-01T00:00:00.000Z');
+    expect(prior.to.toISOString()).toBe('2026-09-08T00:00:00.000Z');
+  });
+
+  it('is already whole days when dispatched exactly at a UTC midnight', () => {
+    const { current } = DigestService.windows(new Date('2026-09-14T00:00:00.000Z'));
+    expect(current.from.toISOString()).toBe('2026-09-07T00:00:00.000Z');
+    expect(current.to.toISOString()).toBe('2026-09-14T00:00:00.000Z');
+  });
+
+  it('prints a date range whose last day is the last day it actually counted', async () => {
+    const owner = await authedAgent(app);
+    const { current } = DigestService.windows(new Date('2026-09-15T20:17:42.779Z'));
+    await seedRequest(owner.teamId, new Date('2026-09-14T23:59:59.000Z'), 1);
+
+    const props = await service.build(owner.teamId, current);
+
+    expect(props!.fromDate).toBe('2026-09-08');
+    expect(props!.toDate).toBe('2026-09-14');
+    // The last instant the label claims really is inside the window.
+    expect(await new DigestRepository().findActiveTeamIds(current)).toEqual([owner.teamId]);
+  });
+});
+
 describe('digest content', () => {
   it('reports spend, request count, traces, and run counts for the window', async () => {
     const owner = await authedAgent(app);

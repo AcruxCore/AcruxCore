@@ -167,6 +167,44 @@ describe('budget alerts', () => {
     expect(await prisma.emailLog.count({ where: { type: 'budget_threshold' } })).toBe(1);
   });
 
+  it('emails the exhausted notice when a call is refused, even with the cap not yet reached', async () => {
+    // The gap the crossing check cannot see. `reserveSpend` commits only when
+    // `spend + estimate <= limit`, and a crossing needs `after >= limit`, so the
+    // request that is actually refused writes no row and produces no transition at
+    // all. A team parked just under its cap is then cut off with a 402 on every call
+    // and never told why — they find out from a failing integration.
+    const { owner, apiKey, model } = await setupTeam();
+    const budgetId = await createBudget(owner);
+    // Under the cap, but with less headroom than one call's reservation estimate.
+    await seedSpend(budgetId, LIMIT_USD * 0.995);
+
+    await callGateway(apiKey, model, 402);
+
+    const messages = await flush();
+    expect(messages).toHaveLength(1);
+    expect(messages[0].subject).toContain('exhausted');
+    expect(await prisma.emailLog.count({ where: { type: 'budget_exhausted' } })).toBe(1);
+
+    // Spend is untouched: the reservation rolled back, so nothing was charged for
+    // the refused call.
+    const after = await prisma.budget.findUniqueOrThrow({ where: { id: budgetId } });
+    expect(after.spendUsd.toNumber()).toBeCloseTo(LIMIT_USD * 0.995, 9);
+  });
+
+  it('sends one exhausted notice per period, not one per refused call', async () => {
+    const { owner, apiKey, model } = await setupTeam();
+    const budgetId = await createBudget(owner);
+    await seedSpend(budgetId, LIMIT_USD * 0.995);
+
+    await callGateway(apiKey, model, 402);
+    await callGateway(apiKey, model, 402);
+    await callGateway(apiKey, model, 402);
+
+    const messages = await flush();
+    expect(messages.filter((m) => m.subject.includes('exhausted'))).toHaveLength(1);
+    expect(await prisma.emailLog.count({ where: { type: 'budget_exhausted' } })).toBe(1);
+  });
+
   it('crossing 100% emails the exhausted notice, and the next call still gets its 402', async () => {
     const { owner, apiKey, model } = await setupTeam();
     const budgetId = await createBudget(owner);

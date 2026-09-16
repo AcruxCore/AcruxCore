@@ -1,7 +1,7 @@
 import { AliasesRepository } from './aliases.repository';
 import { VersionsRepository } from '../versions/versions.repository';
 import { PromptsRepository } from '../prompts.repository';
-import { renderMessages, NunjucksRenderError } from '../versions/nunjucks.utils';
+import { renderMessages, extractVariables, NunjucksRenderError } from '../versions/nunjucks.utils';
 import { PromptToolResolver } from '../versions/prompt-tool-resolver';
 import type { AliasDetail, RenderResponse, RenderedWithVersion, PromoteAliasDto } from './aliases.types';
 import { audit } from '../../shared/audit/audit.helper';
@@ -197,6 +197,26 @@ export class AliasesService {
   }
 
   /**
+   * The variable names a version's templates actually require.
+   *
+   * Derived from `messages` so that a correction to the extractor applies to every
+   * prompt already stored, rather than only to versions committed afterwards. Falls
+   * back to the list persisted at commit time when the templates no longer parse, so
+   * an unparseable version reports its real error from the render step instead of here.
+   *
+   * @param resolved - The resolved version row, carrying both `messages` and the
+   *   `variables` list persisted when it was committed.
+   * @returns The required variable names.
+   */
+  private requiredVariables(resolved: { messages: unknown; variables: string[] }): string[] {
+    try {
+      return extractVariables(resolved.messages as Array<{ content: string }>);
+    } catch {
+      return resolved.variables;
+    }
+  }
+
+  /**
    * Resolves an alias to a version and renders the nunjucks template.
    * Lookup is by prompt name (mutable) + alias, not by prompt ID.
    *
@@ -261,8 +281,22 @@ export class AliasesService {
       throw new NotFoundError('Prompt or alias not found');
     }
 
-    // Validate required variables are present
-    const missing = resolved.variables.filter((v) => !(v in variables));
+    // Validate required variables are present.
+    //
+    // Recomputed from the version's own messages, NOT read from the persisted
+    // `prompt_versions.variables` column. The column was written by whichever
+    // extractor was current when the version was committed, so a fix to the extractor
+    // otherwise reaches no prompt that already exists — and worse, committing the next
+    // version becomes the breaking step, because that is when the required list
+    // suddenly grows and a caller passing the old set starts getting a 400.
+    // Recomputing makes a fix apply everywhere at once, with no backfill to run and
+    // no version to re-commit. `variables` is a pure function of `messages`, and the
+    // parse is far cheaper than the render isolate that follows it.
+    //
+    // A version whose template no longer parses falls back to the stored list rather
+    // than failing here; the render below then reports the real problem.
+    const required = this.requiredVariables(resolved);
+    const missing = required.filter((v) => !(v in variables));
     if (missing.length > 0) {
       throw new AppError(
         `Required variables are missing: ${missing.join(', ')}`,
