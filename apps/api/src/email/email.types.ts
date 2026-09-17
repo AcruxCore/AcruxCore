@@ -14,6 +14,7 @@ export type EmailType =
   | 'team_invite'
   | 'budget_threshold'
   | 'budget_exhausted'
+  | 'connection_blocked'
   | 'eval_run_finished'
   | 'eval_rule_alert'
   | 'member_joined'
@@ -269,6 +270,37 @@ export interface WeeklyDigestEmailProps {
 }
 
 /**
+ * Props for the notice that a provider connection cannot be called at all.
+ *
+ * Names the connection and repeats what the gateway refused, rather than only
+ * saying a connection is unreachable: the reader's next action is to open that
+ * one connection and correct its base URL, and a message that does not say
+ * which one sends them hunting through a list.
+ */
+export interface ConnectionBlockedEmailProps {
+  /** Team the connection belongs to. User-supplied — must be escaped. */
+  teamName: string;
+  /** The connection's own name, e.g. `Self-hosted vLLM`. User-supplied. */
+  connectionName: string;
+  /** Provider slug, e.g. `openai_compatible`. */
+  provider: string;
+  /**
+   * What the gateway refused, in its own words. This comes from our own guard
+   * rather than from a provider, so it carries no upstream content.
+   */
+  reason: string;
+  /**
+   * Whether another model answered anyway. True is the case worth writing for:
+   * the call succeeded, so nothing else would ever have told them.
+   */
+  servedByFallback: boolean;
+  /** Absolute link to the connections screen. */
+  connectionsUrl: string;
+  /** Absolute one-click unsubscribe link for `connection_health` in this team. */
+  unsubscribeUrl: string;
+}
+
+/**
  * A template key paired with its own props. Discriminated on `type`, so
  * `renderEmail`'s switch is exhaustive and a new `EmailType` without a template
  * fails to compile.
@@ -282,6 +314,7 @@ export type EmailPayload =
   | { type: 'team_invite'; props: TeamInviteEmailProps }
   | { type: 'budget_threshold'; props: BudgetAlertEmailProps }
   | { type: 'budget_exhausted'; props: BudgetAlertEmailProps }
+  | { type: 'connection_blocked'; props: ConnectionBlockedEmailProps }
   | { type: 'eval_run_finished'; props: EvalRunFinishedEmailProps }
   | { type: 'eval_rule_alert'; props: EvalRuleAlertEmailProps }
   | { type: 'member_joined'; props: MembershipEmailProps }

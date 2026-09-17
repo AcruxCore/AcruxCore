@@ -173,6 +173,16 @@ unknown id, so the endpoint never confirms whether a foreign trace exists:
 { "error": { "code": "NOT_FOUND", "message": "Trace not found." } }
 ```
 
+A span's `promptVersionId` that is not a version of one of your own prompts (status 404)
+— again the same message whether the id belongs to another team or to nobody:
+
+```json
+{ "error": { "code": "NOT_FOUND", "message": "Prompt version not found." } }
+```
+
+This one is checked for the whole batch before any trace is written, so a rejected batch
+leaves nothing behind (unlike the `traceId` case — see the transaction note below).
+
 Batch exceeds the 200-span-per-request cap (status 413):
 
 ```json

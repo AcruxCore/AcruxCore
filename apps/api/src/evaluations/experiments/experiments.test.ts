@@ -29,6 +29,20 @@ function uuids(n: number): string[] {
   return Array.from({ length: n }, () => randomUUID());
 }
 
+/** Creates a prompt with `n` committed versions and returns their ids. */
+async function createVersions(agent: ReturnType<typeof request.agent>, n: number): Promise<string[]> {
+  const prompt = (await agent.post('/api/v1/prompts').send({ name: `grid-prompt-${randomUUID()}` }).expect(201)).body;
+  const ids: string[] = [];
+  for (let i = 0; i < n; i++) {
+    const version = await agent
+      .post(`/api/v1/prompts/${prompt.id}/versions`)
+      .send({ messages: [{ role: 'user', content: `v${i}` }] })
+      .expect(201);
+    ids.push(version.body.id);
+  }
+  return ids;
+}
+
 beforeEach(async () => {
   await truncateTables();
 });
@@ -43,9 +57,11 @@ describe('POST /api/v1/experiments — fan-out caps', () => {
     const { agent } = await authedAgent(app);
     const datasetId = await createDataset(agent, 3);
 
+    // Real version ids: an experiment may only name versions of the caller's own
+    // prompts, so an invented UUID here is a 404 before the cap is ever reached.
     const res = await agent
       .post('/api/v1/experiments')
-      .send({ dataset_id: datasetId, version_ids: uuids(2), models: ['gpt-4o-mini', 'gpt-4o'] })
+      .send({ dataset_id: datasetId, version_ids: await createVersions(agent, 2), models: ['gpt-4o-mini', 'gpt-4o'] })
       .expect(201);
 
     expect(res.body.config.versionIds).toHaveLength(2);

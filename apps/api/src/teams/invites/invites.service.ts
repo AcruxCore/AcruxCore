@@ -4,7 +4,7 @@ import { MembersRepository } from '../members/members.repository';
 import { AuthRepository } from '../../auth/auth.repository';
 import type { CreateInviteDto, InviteListItem } from './invites.types';
 import { audit } from '../../shared/audit';
-import { ConflictError, GoneError, NotFoundError } from '../../shared/errors';
+import { ConflictError, ForbiddenError, GoneError, NotFoundError } from '../../shared/errors';
 import prisma from '../../shared/db/client';
 import { EmailRepository, EmailService, appLink } from '../../email';
 import { notify } from '../../notifications';
@@ -135,10 +135,29 @@ export class InvitesService {
    * they land there instead of appearing to stay on their previous team.
    * Emits a `member_joined` audit event.
    *
+   * An invite that named an address may only be accepted by the account holding
+   * it. The token travels by email, and a forwarded message, a shared support
+   * inbox, a mail-scanning proxy or a browser-history leak all put it in hands it
+   * was never sent to — before this check, holding the token was the whole of the
+   * authorization, so any of those granted the invite's role. An invite created
+   * without an address is a share link by design (`generateInvite` makes `email`
+   * optional, and the send-cap message tells an admin to "share the link
+   * directly"); it names nobody, so there is nobody to bind it to.
+   *
+   * The binding is exactly as strong as the deployment's proof that an account
+   * owns its address. With `EMAIL_TRANSPORT=none` — a documented self-host setup —
+   * `requireEmailVerification` is off, so whoever holds a leaked token for an
+   * address that has no account yet can sign up as that address and pass this
+   * check. Read it as "only the account holding that address", not as an
+   * independent proof of identity. See cross-cutting FAQ Q85.
+   *
    * @param token  - The invite token from the URL.
    * @param userId - The user accepting the invite.
    * @returns The team the user just joined (id + name).
    * @throws {NotFoundError}  If the token is unknown, expired, or already used.
+   * @throws {ForbiddenError} INVITE_WRONG_ACCOUNT if the invite named a different
+   *   address than the caller's. The message does not repeat the invited address:
+   *   whoever holds a leaked token has not shown they were meant to know it.
    * @throws {ConflictError}  If the user is already a member of the team.
    * @throws {GoneError}      If the invite has already been used.
    */
@@ -150,6 +169,19 @@ export class InvitesService {
     if (!invite) throw new NotFoundError('Invite not found.');
     if (invite.usedAt) throw new GoneError('INVITE_USED', 'This invite has already been used.');
     if (invite.expiresAt < new Date()) throw new NotFoundError('Invite not found or has expired.');
+
+    if (invite.email) {
+      const caller = await this.authRepo.findEmailById(userId);
+      // Addresses are compared case-insensitively: an admin typing
+      // "Alice@Example.com" means the same mailbox the account calls
+      // "alice@example.com", and no mail provider treats those as two people.
+      if (caller?.email.toLowerCase() !== invite.email.toLowerCase()) {
+        throw new ForbiddenError(
+          'INVITE_WRONG_ACCOUNT',
+          'This invite was sent to a different email address. Sign in with the address it was sent to, or ask for a new invite.',
+        );
+      }
+    }
 
     const alreadyMember = await this.membersRepo.isMember(invite.teamId, userId);
     if (alreadyMember) {

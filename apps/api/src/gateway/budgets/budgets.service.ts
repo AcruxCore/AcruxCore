@@ -1,4 +1,5 @@
 import { BudgetsRepository } from './budgets.repository';
+import { VirtualKeysRepository } from '../keys/keys.repository';
 import { computeResetsAt } from './period';
 import { audit } from '../../shared/audit';
 import prisma from '../../shared/db/client';
@@ -29,6 +30,14 @@ export class BudgetsService {
   constructor(private readonly repo: BudgetsRepository) {}
 
   /**
+   * Read-only lookup for the one object reference this domain takes from a
+   * request body. Owned by the keys domain, so it is read through that domain's
+   * repository rather than re-queried here — same shape as `ExperimentsService`
+   * and `IngestService`, which check their own body-borne ids the same way.
+   */
+  private readonly keys = new VirtualKeysRepository();
+
+  /**
    * Creates a budget. Computes resets_at from the period, rejects a duplicate
    * (same team + scope + period) with 409 BUDGET_EXISTS, and emits budget_created.
    *
@@ -36,9 +45,18 @@ export class BudgetsService {
    * @param actorId - Creating user (createdBy + audit actor).
    * @param dto - Validated body (virtualKeyId, period, limitUsd).
    * @returns The created budget.
+   * @throws {NotFoundError} When `virtualKeyId` names a key this team does not own.
    * @throws {ConflictError} BUDGET_EXISTS when a budget for this scope+period exists.
    */
   async create(teamId: string, actorId: string, dto: CreateBudgetDto): Promise<BudgetResponse> {
+    // `virtualKeyId` is the one object reference in this domain that arrives in
+    // the body rather than the URL, so nothing upstream has checked who owns it.
+    // Answering 404 rather than 403 keeps the reply identical to the one for an
+    // id that was never issued, so it cannot be used to test whether a key exists.
+    if (dto.virtualKeyId && !(await this.keys.findByIdForTeam(dto.virtualKeyId, teamId))) {
+      throw new NotFoundError('Virtual key not found.');
+    }
+
     const existing = await this.repo.findDuplicate(teamId, dto.virtualKeyId, dto.period);
     if (existing) {
       throw new ConflictError('BUDGET_EXISTS', 'A budget for this scope and period already exists.');

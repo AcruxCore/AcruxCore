@@ -131,7 +131,11 @@ export class AnalyticsRepository {
       LEFT JOIN gateway_requests gr ON gr.id = s.gateway_request_id
       LEFT JOIN gateway_models gm ON gm.id = gr.gateway_model_id
       LEFT JOIN prompt_versions pv ON pv.id = s.prompt_version_id
-      LEFT JOIN prompts p ON p.id = pv.prompt_id
+      -- The team filter on the join, not just on the span: a span row carrying
+      -- another team's prompt_version_id must resolve to no name at all rather
+      -- than to that team's prompt. Ingest refuses to write such a row now, but
+      -- a database may already hold one.
+      LEFT JOIN prompts p ON p.id = pv.prompt_id AND p.team_id = ${teamId}::uuid
       WHERE s.team_id = ${teamId}::uuid
         AND s.started_at >= ${from}
         AND s.started_at < ${to}

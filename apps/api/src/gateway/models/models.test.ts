@@ -261,4 +261,35 @@ describe('POST /api/v1/gateway/models/:id/test', () => {
     expect(res.body.ok).toBe(false);
     expect(typeof res.body.error).toBe('string');
   });
+
+  it('says what to do when the base URL is an address the gateway will not call', async () => {
+    // This screen is where an operator goes to check a connection, so it is the
+    // one place a refused address most needs to say so. The completion path
+    // already answers PROVIDER_ADDRESS_BLOCKED with a sentence naming the cause;
+    // here the same refusal arrived as a bare adapter message with nothing to act
+    // on. No fetch mock: the guard rejects before a connection is opened.
+    const ctx = await signupTestUser(app);
+    const connection = await request(app)
+      .post('/api/v1/gateway/connections')
+      .set(authHeaders(ctx))
+      .send({
+        provider: 'openai_compatible',
+        label: 'internal',
+        apiKey: 'sk-abcdefghijklmnopqrstuvwxyzAB12',
+        config: { base_url: 'http://localhost:9/v1' },
+      })
+      .expect(201);
+    const model = await request(app)
+      .post('/api/v1/gateway/models')
+      .set(authHeaders(ctx))
+      .send({ publicName: 'internal', upstreamModel: 'gpt-4o-mini', credentialId: connection.body.id })
+      .expect(201);
+
+    const res = await request(app)
+      .post(`/api/v1/gateway/models/${model.body.id}/test`)
+      .set(authHeaders(ctx))
+      .expect(200);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.error).toContain('must be a public address');
+  });
 });

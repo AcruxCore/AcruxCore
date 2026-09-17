@@ -84,12 +84,23 @@ export class InvitesRepository {
     teamId: string;
     invitedBy: string;
     role: team_role;
+    /** Address the invite was addressed to, or null for a share-anyone link. */
+    email: string | null;
     expiresAt: Date;
     usedAt: Date | null;
   } | null> {
     return prisma.teamInvite.findFirst({
       where: { token },
-      select: { id: true, teamId: true, invitedBy: true, role: true, expiresAt: true, usedAt: true },
+      select: {
+        id: true,
+        teamId: true,
+        invitedBy: true,
+        role: true,
+        // Selected so `acceptInvite` can check the caller is who the invite named.
+        email: true,
+        expiresAt: true,
+        usedAt: true,
+      },
     });
   }
 

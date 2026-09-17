@@ -74,6 +74,25 @@ export class VersionsRepository {
   }
 
   /**
+   * Counts how many of the given version ids belong to this team.
+   *
+   * For a caller holding a list of ids from a request body: compare the result
+   * with the number of distinct ids supplied and reject the whole list when they
+   * differ. One query rather than one per id, which matters because an
+   * experiment may name up to 50 versions in a single create.
+   *
+   * @param ids - Version UUIDs to test. Duplicates are ignored by the IN clause,
+   *        so the caller compares against its own DISTINCT count.
+   * @param teamId - The calling team's UUID (isolation boundary).
+   * @returns How many distinct ids are versions of a prompt owned by this team.
+   */
+  async countByIdsForTeam(ids: string[], teamId: string): Promise<number> {
+    return prisma.promptVersion.count({
+      where: { id: { in: ids }, prompt: { teamId } },
+    });
+  }
+
+  /**
    * Fetches the most recently committed version for a prompt, team-scoped —
    * the fallback baseline when no alias is specified (design
    * "Alias-based baseline"). Independent of any alias.

@@ -176,6 +176,20 @@ Response (status 200):
 }
 ```
 
+Sent to a different address (status 403). An invite created with an `email` may
+only be accepted by the account holding that address; an invite created without
+one is a share link and stays open to whoever holds it. The message does not
+repeat the invited address.
+
+```json
+{
+  "error": {
+    "code": "INVITE_WRONG_ACCOUNT",
+    "message": "This invite was sent to a different email address. Sign in with the address it was sent to, or ask for a new invite."
+  }
+}
+```
+
 Invite already used (status 410):
 
 ```json

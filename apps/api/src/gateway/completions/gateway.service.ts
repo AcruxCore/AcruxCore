@@ -37,7 +37,7 @@ import { ToolResolver, ToolRefNotFoundError } from '../../tools/resolver';
 import type { ResolvedToolDefinition } from '../../tools/resolver';
 import { randomUUID } from 'node:crypto';
 import { resolveDeployments, callWithFallback, FallbackExhaustedError } from './router';
-import type { DeploymentInvoker, ResolvedDeployment } from './router';
+import type { DeploymentInvoker, FallbackTrailEntry, ResolvedDeployment } from './router';
 import type { GatewayCallContext, GatewayCompletionRequest, GatewayResult } from './completions.types';
 import { CacheRepository } from '../cache/cache.repository';
 import { computeCacheKey } from '../cache/cache-key';
@@ -658,7 +658,7 @@ export class GatewayService {
     for (const { budget, crossing, spendUsd } of crossings) {
       try {
       const keyName = budget.virtualKeyId
-        ? await this.budgetsRepo.findVirtualKeyName(budget.virtualKeyId)
+        ? await this.budgetsRepo.findVirtualKeyName(budget.virtualKeyId, teamId)
         : null;
       const scopeLabel = budget.virtualKeyId
         ? `Virtual key "${keyName ?? 'unknown'}"`
@@ -696,6 +696,98 @@ export class GatewayService {
         // Log and move to the next crossing. The spend itself is recorded correctly
         // either way; a missing alert email is much the smaller failure.
         console.error('[budget alert] failed to enqueue', { budgetId: budget.id, crossing }, err);
+      }
+    }
+  }
+
+  /**
+   * The connections in a fallback trail that the gateway refused to call,
+   * deduplicated — one chain can try the same connection under two registered
+   * models.
+   *
+   * @param trail - The attempt trail `callWithFallback` built.
+   * @returns One entry per distinct refused connection, with the guard's own
+   *   explanation. Empty for the overwhelming majority of calls.
+   */
+  private blockedConnectionsIn(
+    trail: FallbackTrailEntry[],
+  ): { credentialId: string; reason: string }[] {
+    const byId = new Map<string, string>();
+    for (const entry of trail) {
+      if (entry.blockedAddress && !byId.has(entry.credentialId)) {
+        byId.set(entry.credentialId, entry.errorMessage ?? 'The target address is not allowed.');
+      }
+    }
+    return [...byId].map(([credentialId, reason]) => ({ credentialId, reason }));
+  }
+
+  /**
+   * Tells a team that one of their provider connections cannot be called at
+   * all, because its base URL resolves to an address the gateway refuses.
+   *
+   * This exists for the case where the call **succeeded**. A blocked primary
+   * with a working fallback answers a normal 200, so every request quietly
+   * goes to the fallback at the fallback's prices and nothing in the product
+   * says otherwise. The span carries a `model_fallback` warning, but that is
+   * indistinguishable from an upstream having a bad minute, and nobody reads a
+   * trace of a call that worked.
+   *
+   * Refusing the request instead would trade availability for visibility,
+   * which is not this layer's decision to make — so the call still succeeds
+   * and the team is told once (see the dedupe key).
+   *
+   * **Never throws.** Same contract as `notifyBudgetCrossings`: a notification
+   * failure must not fail the completion that triggered it.
+   *
+   * @param teamId - Team that owns the connection.
+   * @param blocked - Refused connections, from {@link blockedConnectionsIn}.
+   * @param servedByFallback - Whether the request was answered anyway. Changes
+   *   what the email leads with, because the two cases need different things
+   *   from the reader.
+   */
+  private async notifyBlockedConnections(
+    teamId: string,
+    blocked: { credentialId: string; reason: string }[],
+    servedByFallback: boolean,
+  ): Promise<void> {
+    for (const { credentialId, reason } of blocked) {
+      try {
+        const connection = await this.connectionsRepo.findByIdForTeam(credentialId, teamId);
+        if (!connection) continue;
+        const teamName = await this.budgetsRepo.findTeamName(teamId);
+
+        await notify({
+          teamId,
+          // A base URL is connection configuration, which editors and viewers
+          // cannot change — the same audience as a budget alert, for the same
+          // reason.
+          category: 'connection_health',
+          audience: { roles: ['owner', 'admin'] },
+          // One line per connection per UTC day. A team running a thousand
+          // calls an hour against a dead primary gets one email, and a
+          // connection still broken tomorrow says so again rather than going
+          // quiet after the first notice. The guarantee is BullMQ's: the key
+          // holds while the completed job is still in the queue's history,
+          // which `removeOnComplete: 1000` caps at the last thousand emails —
+          // so an install sending more than that in a day could repeat the
+          // notice. Same mechanism, and same limit, as the budget alerts.
+          dedupeKey: `connection-blocked:${credentialId}:${new Date().toISOString().slice(0, 10)}`,
+          payload: {
+            type: 'connection_blocked',
+            props: {
+              teamName: teamName ?? 'your team',
+              connectionName: connection.label,
+              provider: connection.provider,
+              reason,
+              servedByFallback,
+              connectionsUrl: appLink('/gateway/connections'),
+            },
+          },
+        });
+      } catch (err) {
+        // Log and move on. The completion itself is already recorded correctly;
+        // a missing alert is much the smaller failure.
+        console.error('[connection health] failed to enqueue', { credentialId }, err);
       }
     }
   }
@@ -927,6 +1019,11 @@ export class GatewayService {
         // nothing at all for a failed round, so an agent loop's trace simply stopped mid-run
         // with every span green (issue #452).
         await recordGatewayErrorSpan({ ctx, request: req, gatewayRequestId: errorRow.id });
+        // The caller does get `PROVIDER_ADDRESS_BLOCKED` here, but an unattended
+        // agent loop reads a 502 and retries. Same notice, same dedupe key.
+        const blockedOnFailure = this.blockedConnectionsIn(err.meta.trail);
+        if (blockedOnFailure.length > 0)
+          await this.notifyBlockedConnections(ctx.teamId, blockedOnFailure, false);
         throw this.mapProviderError(err.lastError);
       }
       throw err;
@@ -989,6 +1086,12 @@ export class GatewayService {
     const allCrossings = [...reservationCrossings, ...crossed];
     if (allCrossings.length > 0)
       await this.notifyBudgetCrossings(allCrossings, ctx.teamId, ctx.contributingSource);
+
+    // A deployment in this chain was refused for its address, yet the call
+    // still returned 200 — so this is the only thing that will ever say so.
+    const blockedOnSuccess = this.blockedConnectionsIn(served.meta.trail);
+    if (blockedOnSuccess.length > 0)
+      await this.notifyBlockedConnections(ctx.teamId, blockedOnSuccess, true);
 
     // Fold real token usage into the RPM/TPM window post-call (TPM accounting).
     recordTokens(rlKey, response.usage.total_tokens ?? 0);
@@ -1155,6 +1258,14 @@ export class GatewayService {
     // streaming caller learnt less about a rate limit or a bad key than a
     // non-streaming one did — same request, same upstream, strictly worse answer.
     let lastProviderError: ProviderError | null = null;
+    // Kept apart from `lastProviderError`, which every later deployment
+    // overwrites — the same reason `callWithFallback` keeps its own copy. A
+    // refused target address is a fault in the team's own connection, and it
+    // must not be buried by whatever the last deployment in the chain said.
+    let streamBlockedError: ProviderError | null = null;
+    // Connections this chain was refused for, in order. Read after the loop
+    // whether or not anything answered.
+    const streamBlocked: { credentialId: string; reason: string }[] = [];
 
     for (const deployment of scopedDeployments) {
       try {
@@ -1193,10 +1304,27 @@ export class GatewayService {
         // Nothing sent yet → fall through to the next deployment, unless the
         // caller asked for this model or nothing (`gateway.fallback: false`).
         lastProviderError = err;
+        if (err.providerCode === 'SSRF_BLOCKED') {
+          if (!streamBlockedError) streamBlockedError = err;
+          if (!streamBlocked.some((b) => b.credentialId === deployment.credential.id)) {
+            streamBlocked.push({
+              credentialId: deployment.credential.id,
+              reason: (err.detail ?? err.message).trim(),
+            });
+          }
+        }
         if (!allowFallback) break;
         continue;
       }
     }
+
+    // A refused address is the one failure in the chain the team can fix
+    // themselves, so it is the one they are told about — not whatever the last
+    // deployment happened to say. Mirrors `callWithFallback`.
+    const terminalStreamError = streamBlockedError ?? lastProviderError;
+
+    if (streamBlocked.length > 0)
+      await this.notifyBlockedConnections(ctx.teamId, streamBlocked, Boolean(selected));
 
     if (!selected || !iterator || !firstChunk) {
       // Record a failure row (status 'error' credits the reservation back in
@@ -1210,8 +1338,8 @@ export class GatewayService {
         gatewayModelId: deployments[0]?.model.id ?? null,
         resolvedModel: null,
         status: 'error',
-        errorCode: lastProviderError
-          ? (lastProviderError.providerCode ?? String(lastProviderError.status))
+        errorCode: terminalStreamError
+          ? (terminalStreamError.providerCode ?? String(terminalStreamError.status))
           : 'PROVIDER_ERROR',
         promptTokens: 0,
         completionTokens: 0,
@@ -1227,8 +1355,8 @@ export class GatewayService {
       // to leave the trace with no llm span at all (issue #452). `requestId` is the
       // pre-minted id the row above was written under.
       await recordGatewayErrorSpan({ ctx, request: req, gatewayRequestId: requestId });
-      throw lastProviderError
-        ? this.mapProviderError(lastProviderError)
+      throw terminalStreamError
+        ? this.mapProviderError(terminalStreamError)
         : new BadGatewayError('All providers failed before streaming started.');
     }
 
@@ -1529,12 +1657,28 @@ export class GatewayService {
    * limit. So it forwards the provider's own reason and its `Retry-After`, under a code
    * distinct from our own limiter's `RATE_LIMITED`.
    *
+   * `SSRF_BLOCKED` is the one case here that never reached a provider at all: the
+   * team's own `base_url` resolved to an address the gateway will not call, and the
+   * request was refused before the socket opened. Flattening it to `PROVIDER_ERROR`
+   * told an operator their provider had a bad day, when what they have is a
+   * connection to fix — the same distinction the 400 and 429 branches above exist to
+   * preserve. The status stays 502, since the refusal is ours and the caller's own
+   * request was well formed; only the code becomes specific.
+   *
    * @param err - The last provider error carried by `FallbackExhaustedError`.
    * @returns 400 PROVIDER_BAD_REQUEST for a provider 400 (caller's fault); 429
    *   PROVIDER_RATE_LIMITED for a provider 429; 504 PROVIDER_TIMEOUT for a 504/408;
-   *   else 502 PROVIDER_ERROR.
+   *   502 PROVIDER_ADDRESS_BLOCKED when the target address was refused; else 502
+   *   PROVIDER_ERROR.
    */
   private mapProviderError(err: ProviderError): AppError {
+    if (err.providerCode === 'SSRF_BLOCKED') {
+      return new AppError(
+        `${err.message}. Check this connection's base URL — it must be a public address.`,
+        502,
+        'PROVIDER_ADDRESS_BLOCKED',
+      );
+    }
     if (err.status === 400) {
       return new AppError(
         `Provider rejected the request (400): ${err.detail ?? err.message}`,

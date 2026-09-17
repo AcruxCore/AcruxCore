@@ -1212,6 +1212,7 @@ export interface UpdateTraceSettingsInput {
 /** The coarse categories a user can turn off, per team. */
 export type NotificationCategory =
   | 'budget_alerts'
+  | 'connection_health'
   | 'eval_runs'
   | 'eval_rules'
   | 'membership'

@@ -22,7 +22,9 @@ your **active team**, the one the dashboard's team switcher currently shows.
 | Category | Covers |
 |---|---|
 | `budget_alerts` | The 80% warning and the exhausted notice. Owners/admins only. |
+| `connection_health` | A provider connection the gateway cannot call at all, even when a fallback answered. Owners/admins only. |
 | `eval_runs` | A run you started finishing or failing. |
+| `eval_rules` | A live-traffic rule flagging a low score, or being disabled. Owners/admins only. |
 | `membership` | Someone joining, being removed, or having their role changed. |
 | `weekly_digest` | The Monday usage summary. Owners/admins only. |
 
@@ -50,7 +52,9 @@ curl http://localhost:3001/api/v1/notifications/preferences \
 {
   "preferences": {
     "budget_alerts": true,
+    "connection_health": true,
     "eval_runs": true,
+    "eval_rules": true,
     "membership": true,
     "weekly_digest": true
   }
@@ -71,7 +75,7 @@ replace client state without a second `GET`.
 curl -X PATCH http://localhost:3001/api/v1/notifications/preferences \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"category":"weekly_digest","enabled":false}'
+  -d '{"category":"connection_health","enabled":false}'
 ```
 
 ```json
@@ -79,9 +83,11 @@ curl -X PATCH http://localhost:3001/api/v1/notifications/preferences \
 {
   "preferences": {
     "budget_alerts": true,
+    "connection_health": false,
     "eval_runs": true,
+    "eval_rules": true,
     "membership": true,
-    "weekly_digest": false
+    "weekly_digest": true
   }
 }
 ```
@@ -103,7 +109,7 @@ curl -X PATCH http://localhost:3001/api/v1/notifications/preferences \
 {
   "error": {
     "code": "VALIDATION_ERROR",
-    "message": "Invalid enum value. Expected 'budget_alerts' | 'eval_runs' | 'membership' | 'weekly_digest', received 'nope'"
+    "message": "Invalid enum value. Expected 'budget_alerts' | 'connection_health' | 'eval_runs' | 'eval_rules' | 'membership' | 'weekly_digest', received 'nope'"
   }
 }
 ```
@@ -166,7 +172,9 @@ A following `GET /api/v1/notifications/preferences` shows the effect:
 {
   "preferences": {
     "budget_alerts": false,
+    "connection_health": true,
     "eval_runs": true,
+    "eval_rules": true,
     "membership": true,
     "weekly_digest": false
   }

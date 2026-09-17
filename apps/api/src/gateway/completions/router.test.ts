@@ -393,4 +393,24 @@ describe('callWithFallback', () => {
       expect(e.lastDeployment?.model.id).toBe('b');
     }
   });
+  it('reports a refused target address even when a later deployment fails differently', async () => {
+    // A blocked address is a fault in the team's own connection, and the only
+    // error in a failed chain they can act on. `lastError` is overwritten by every
+    // later attempt, so with a fallback configured the team was told the provider
+    // returned 401 — pointing them at the upstream, which is the confusion the
+    // PROVIDER_ADDRESS_BLOCKED code exists to remove.
+    const invoke: DeploymentInvoker = async (d) => {
+      if (d.model.id === 'a') throw new ProviderError('blocked', 502, 'SSRF_BLOCKED', false);
+      throw provErr(401, false);
+    };
+    try {
+      await callWithFallback([dep('a'), dep('b')], REQ, invoke, { maxRetriesPerConn: 0 });
+      throw new Error('should have thrown');
+    } catch (err) {
+      const e = err as FallbackExhaustedError;
+      expect(e.lastError.providerCode).toBe('SSRF_BLOCKED');
+      // The chain itself is unchanged: both deployments were still tried, in order.
+      expect(e.meta.trail.map((t) => t.error)).toEqual(['502', '401']);
+    }
+  });
 });

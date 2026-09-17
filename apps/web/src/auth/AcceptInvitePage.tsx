@@ -12,10 +12,11 @@ import { AuthLayout } from './AuthLayout';
  */
 export function AcceptInvitePage() {
   const { token = '' } = useParams();
-  const { isAuthenticated, isLoading, refresh } = useAuth();
+  const { isAuthenticated, isLoading, refresh, signOut } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const attempted = useRef(false);
 
   useEffect(() => {
@@ -34,6 +35,7 @@ export function AcceptInvitePage() {
         await refresh();
         navigate('/team', { replace: true });
       } catch (e) {
+        setErrorCode(e instanceof ApiError ? e.code : null);
         setError(
           e instanceof ApiError
             ? e.message
@@ -77,6 +79,13 @@ export function AcceptInvitePage() {
     );
   }
 
+  // An invite addressed to someone is accepted only by that address, and the API
+  // deliberately does not say which one — so the only thing this page can offer is
+  // a way to come back as somebody else. Without it the page is a dead end for the
+  // commonest case of all: an invitee with no account, who signed up under a
+  // different address than the one they were invited at.
+  const wrongAccount = errorCode === 'INVITE_WRONG_ACCOUNT';
+
   return (
     <AuthLayout
       title={error ? 'Invite problem' : 'Joining team…'}
@@ -91,6 +100,17 @@ export function AcceptInvitePage() {
         <div className="flex justify-center py-2">
           <Spinner className="h-6 w-6" />
         </div>
+      ) : wrongAccount ? (
+        <Button
+          variant="primary"
+          className="w-full"
+          onClick={async () => {
+            await signOut();
+            navigate(`/login?next=${encodeURIComponent(`/invite/${token}`)}`, { replace: true });
+          }}
+        >
+          Sign in with a different account
+        </Button>
       ) : (
         <Button variant="primary" className="w-full" onClick={() => navigate('/prompts')}>
           Continue

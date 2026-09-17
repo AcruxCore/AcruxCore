@@ -1,4 +1,5 @@
 import { createApp } from '../../../app';
+import { mountedRoutes, routeKey } from '../../test-utils/routes';
 
 /**
  * Every write route in the evaluation and trace domains carries an explicit role gate.
@@ -12,49 +13,13 @@ import { createApp } from '../../../app';
  * the moment it exists. It asserts the ALLOW-LIST, not merely that some middleware is
  * present, which is what makes an inconsistency between two sibling domains visible
  * rather than silently fine.
+ *
+ * The walk itself lives in `test-utils/routes.ts`, shared with `cross-tenant.test.ts`.
+ * The copy that used to sit here could not see through a router mounted at a path
+ * parameter, so the whole `/teams/:id/...` surface came out under the wrong path — it
+ * changed nothing for the prefixes below, and would have hidden the next domain
+ * mounted that way.
  */
-
-/** One mounted route: its method, its full path, and the guards in front of it. */
-interface MountedRoute {
-  method: string;
-  path: string;
-  guards: string[];
-}
-
-/** Layer shapes Express 4 puts on `app._router.stack`, narrowed enough to walk. */
-interface Layer {
-  route?: { path: string; methods: Record<string, boolean>; stack: Array<{ name: string }> };
-  name?: string;
-  handle?: { stack?: Layer[] };
-  regexp?: RegExp;
-}
-
-/** Recovers the literal prefix a sub-router was mounted at from its path regexp. */
-function prefixOf(layer: Layer): string {
-  const source = layer.regexp?.source ?? '';
-  if (source === '^\\/?(?=\\/|$)') return '';
-  const match = /^\^\\\/((?:[\w\-]|\\\/)*)/.exec(source);
-  if (!match?.[1]) return '';
-  // Trim the trailing separator the mount regexp carries, or every nested path would
-  // come out with a doubled slash and match none of the prefixes below.
-  return ('/' + match[1].replace(/\\\//g, '/')).replace(/\/+$/, '');
-}
-
-/** Flattens the mounted router tree into one route per method/path. */
-function collectRoutes(stack: Layer[], prefix = ''): MountedRoute[] {
-  const out: MountedRoute[] = [];
-  for (const layer of stack) {
-    if (layer.route) {
-      const guards = layer.route.stack.map((h) => h.name).filter((n) => n && n !== '<anonymous>');
-      for (const method of Object.keys(layer.route.methods)) {
-        out.push({ method: method.toUpperCase(), path: prefix + layer.route.path, guards });
-      }
-    } else if (layer.handle?.stack) {
-      out.push(...collectRoutes(layer.handle.stack, prefix + prefixOf(layer)));
-    }
-  }
-  return out;
-}
 
 /**
  * Routes that are deliberately open to any authenticated member, each with the reason.
@@ -80,9 +45,7 @@ const COVERED = [
 ];
 
 describe('route policy', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const app = createApp() as any;
-  const routes = collectRoutes(app._router.stack as Layer[]);
+  const routes = mountedRoutes(createApp());
 
   it('finds the mounted routes at all — a silent empty walk would pass everything', () => {
     expect(routes.length).toBeGreaterThan(50);
@@ -93,7 +56,7 @@ describe('route policy', () => {
     const ungated = routes
       .filter((r) => r.method !== 'GET' && COVERED.some((p) => r.path.startsWith(p)))
       .filter((r) => !r.guards.some((g) => g.startsWith('requireRole') || g.startsWith('requireTeamRole')))
-      .map((r) => `${r.method} ${r.path}`)
+      .map(routeKey)
       .filter((key) => !INTENTIONALLY_UNGATED.has(key));
 
     expect(ungated).toEqual([]);
@@ -106,7 +69,7 @@ describe('route policy', () => {
     const actual = Object.fromEntries(
       routes
         .filter((r) => r.method !== 'GET' && COVERED.some((p) => r.path.startsWith(p)))
-        .map((r) => [`${r.method} ${r.path}`, r.guards.find((g) => g.startsWith('requireRole')) ?? 'ungated']),
+        .map((r) => [routeKey(r), r.guards.find((g) => g.startsWith('requireRole')) ?? 'ungated']),
     );
 
     // Writing evaluation data is editing work, so datasets/experiments/runs/optimize sit
@@ -122,7 +85,7 @@ describe('route policy', () => {
       'PATCH /api/v1/trace-views/:id': 'ungated',
       'DELETE /api/v1/trace-views/:id': 'ungated',
 
-      'POST /api/v1/datasets/': 'requireRole(owner|admin|editor)',
+      'POST /api/v1/datasets': 'requireRole(owner|admin|editor)',
       'POST /api/v1/datasets/from-feedback': 'requireRole(owner|admin|editor)',
       'PATCH /api/v1/datasets/:id': 'requireRole(owner|admin|editor)',
       'DELETE /api/v1/datasets/:id': 'requireRole(owner|admin|editor)',
@@ -131,14 +94,14 @@ describe('route policy', () => {
       'PATCH /api/v1/datasets/:id/examples/:exampleId': 'requireRole(owner|admin|editor)',
       'DELETE /api/v1/datasets/:id/examples/:exampleId': 'requireRole(owner|admin|editor)',
 
-      'POST /api/v1/experiments/': 'requireRole(owner|admin|editor)',
+      'POST /api/v1/experiments': 'requireRole(owner|admin|editor)',
       'DELETE /api/v1/experiments/:id': 'requireRole(owner|admin|editor)',
       'POST /api/v1/experiments/:id/runs': 'requireRole(owner|admin|editor)',
 
       'DELETE /api/v1/runs/:id': 'requireRole(owner|admin|editor)',
       'POST /api/v1/runs/:id/promote': 'requireRole(owner|admin|editor)',
 
-      'POST /api/v1/eval-rules/': 'requireRole(owner|admin)',
+      'POST /api/v1/eval-rules': 'requireRole(owner|admin)',
       'PATCH /api/v1/eval-rules/:id': 'requireRole(owner|admin)',
       'DELETE /api/v1/eval-rules/:id': 'requireRole(owner|admin)',
       'POST /api/v1/eval-rules/:id/preview': 'requireRole(owner|admin|editor)',

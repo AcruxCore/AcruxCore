@@ -52,8 +52,8 @@ export function InvitesPanel({ teamId }: { teamId: string }) {
         <div>
           <h2 className="text-[14px] font-semibold text-ink">Invites</h2>
           <p className="mt-0.5 text-[12.5px] text-muted">
-            Single-use links, valid 7 days. Add an address to email the invite, or copy the link
-            and share it yourself.
+            Single-use, valid 7 days. Add an address and only that address can accept it —
+            leave it blank and the link works for whoever opens it.
           </p>
         </div>
         <Button size="sm" onClick={() => setCreating(true)}>
@@ -103,7 +103,7 @@ export function InvitesPanel({ teamId }: { teamId: string }) {
         open={creating}
         onOpenChange={setCreating}
         title="New invite link"
-        description="Choose the role the invited teammate will receive. Add their email to send the invite for them."
+        description="Choose the role the invited teammate will receive. Add their email and the invite is bound to it — only that address can accept, however the link reaches them."
       >
         <Field label="Email (optional)" htmlFor="invite-email">
           <Input

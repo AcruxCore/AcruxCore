@@ -7,6 +7,7 @@ import { escapeHtml } from '../templates/layout';
 /** Human-readable label per category, for the confirmation page. */
 const LABELS: Record<string, string> = {
   budget_alerts: 'budget alerts',
+  connection_health: 'connection health alerts',
   eval_runs: 'evaluation run results',
   eval_rules: 'online evaluation alerts',
   membership: 'membership changes',

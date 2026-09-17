@@ -4,6 +4,7 @@ import type { CreateSpanInput } from '../spans';
 import { TraceSettingsRepository, shouldCapture } from '../settings';
 import { AppError, NotFoundError, PayloadTooLargeError } from '../../shared/errors';
 import { enqueueOnlineEval } from '../../evaluations/online/enqueue-online-eval';
+import { VersionsRepository } from '../../prompts/versions/versions.repository';
 import type { IngestSpan, IngestTrace, IngestResponse } from './ingest.types';
 
 /** Maximum spans accepted in one ingestion request (Phase-3 guard, FAQ / spec). */
@@ -26,6 +27,13 @@ export class IngestService {
   ) {}
 
   /**
+   * Read-only lookup used to check that a client-supplied `promptVersionId`
+   * belongs to the calling team. Held inline rather than injected, mirroring
+   * `GatewayService`, which resolves the same client-supplied field the same way.
+   */
+  private readonly promptVersions = new VersionsRepository();
+
+  /**
    * Validates and persists a batch of traces for a team.
    *
    * @param teamId - Team scope from the authenticated principal.
@@ -46,7 +54,8 @@ export class IngestService {
    * @returns `{ accepted, traceIds }` — accepted is the total span count;
    *          traceIds are the resolved trace ids, one per input trace, in order.
    * @throws {PayloadTooLargeError} 413 if the batch exceeds the span cap.
-   * @throws {NotFoundError} 404 if a supplied traceId belongs to another team.
+   * @throws {NotFoundError} 404 if a supplied traceId, or a span's
+   *         promptVersionId, belongs to another team.
    * @throws {AppError} 400 `INVALID_SPAN_PARENT` if a parentSpanId resolves to
    *         nothing and `opts.allowUnknownParents` is not set.
    */
@@ -65,6 +74,8 @@ export class IngestService {
       );
     }
 
+    await this.assertPromptVersionsAreOurs(teamId, traces);
+
     // Team-level capture default is resolved once; each trace may override it.
     const teamSetting = (await this.settings.get(teamId))?.capturePayloads ?? true;
 
@@ -79,6 +90,40 @@ export class IngestService {
       );
     }
     return { accepted: totalSpans, traceIds };
+  }
+
+  /**
+   * Refuses a batch carrying a `promptVersionId` the team does not own.
+   *
+   * A span's prompt version is the one id in the batch that arrives in the body
+   * and names an object outside the traces domain, so no route-level check ever
+   * sees it. Left unchecked it is stored as given, and both grouped reads
+   * (`/traces/analytics` and `/traces/feedback/summary`) resolve it to a prompt
+   * name — which is how a foreign id became a way to read another team's prompt
+   * name and id. The gateway has always refused the same field on its own path
+   * (`resolveClientPromptVersionId`); this brings the SDK path in line.
+   *
+   * One query for the whole batch, however many spans or distinct versions it
+   * names.
+   *
+   * @param teamId - Team scope from the authenticated principal.
+   * @param traces - The validated batch.
+   * @throws {NotFoundError} 404 if any id is not a prompt version of this team.
+   *         404 rather than 403 for the same reason as the trace check above: a
+   *         403 would confirm that the id names a real version somewhere.
+   */
+  private async assertPromptVersionsAreOurs(teamId: string, traces: IngestTrace[]): Promise<void> {
+    const ids = new Set<string>();
+    for (const trace of traces) {
+      for (const span of trace.spans) {
+        if (span.promptVersionId) ids.add(span.promptVersionId);
+      }
+    }
+    if (ids.size === 0) return;
+    const owned = await this.promptVersions.countByIdsForTeam([...ids], teamId);
+    if (owned !== ids.size) {
+      throw new NotFoundError('Prompt version not found.');
+    }
   }
 
   /**

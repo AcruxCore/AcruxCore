@@ -9,12 +9,15 @@ import type { EmailPayload } from '../email';
  * has asked for.
  *
  * `budget_alerts` covers the 80% warning and the exhausted notice;
+ * `connection_health` covers a provider connection the gateway cannot call at
+ * all, which a working fallback would otherwise hide behind a normal 200;
  * `membership` covers joined, removed, and roles-changed; `eval_rules` covers
  * both a low-score alert and an automatic disable for an online evaluation
  * rule.
  */
 export const NOTIFICATION_CATEGORIES = [
   'budget_alerts',
+  'connection_health',
   'eval_runs',
   'eval_rules',
   'membership',

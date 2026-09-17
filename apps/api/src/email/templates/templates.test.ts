@@ -2,6 +2,7 @@ import type { EvalRuleAlertEmailProps, TeamInviteEmailProps } from '../email.typ
 import { escapeHtml, formatExpiry, htmlLayout, oneLine } from './layout';
 import { teamInviteEmail } from './team-invite';
 import { evalRuleAlertEmail } from './eval-rule-alert';
+import { connectionBlockedEmail } from './connection-blocked';
 import { renderEmail } from './index';
 
 const BASE: TeamInviteEmailProps = {
@@ -144,9 +145,64 @@ describe('evalRuleAlertEmail', () => {
   });
 });
 
+describe('connectionBlockedEmail', () => {
+  const BLOCKED = {
+    teamName: 'Acme',
+    connectionName: 'Self-hosted vLLM',
+    provider: 'openai_compatible',
+    reason: 'openai_compatible request blocked: target address is not allowed',
+    servedByFallback: true,
+    connectionsUrl: 'http://localhost:5173/gateway/connections',
+    unsubscribeUrl: 'http://localhost:3001/api/v1/email/unsubscribe?token=t',
+  };
+
+  it('says the calls succeeded when a fallback answered, in both bodies', () => {
+    const rendered = connectionBlockedEmail(BLOCKED);
+    // The whole reason this mail exists: a reader who checks the dashboard,
+    // sees green and deletes it has been misled, so the text has to say that
+    // the requests worked *and* that they are going somewhere else.
+    expect(rendered.html).toContain('a fallback model answered instead');
+    expect(rendered.html).toContain("at the fallback's prices");
+    expect(rendered.text).toContain('a fallback model answered instead');
+    expect(rendered.subject).toContain('Self-hosted vLLM');
+  });
+
+  it('says the requests failed when nothing answered', () => {
+    const rendered = connectionBlockedEmail({ ...BLOCKED, servedByFallback: false });
+    expect(rendered.html).toContain('no fallback model was able to answer');
+    expect(rendered.html).not.toContain('a fallback model answered instead');
+    expect(rendered.text).toContain('no fallback model was able to answer');
+  });
+
+  it('escapes a connection name that carries markup', () => {
+    const rendered = connectionBlockedEmail({
+      ...BLOCKED,
+      connectionName: '<img src=x onerror=alert(1)>',
+    });
+    expect(rendered.html).not.toContain('<img src=x');
+    expect(rendered.html).toContain('&lt;img src=x');
+  });
+});
+
 describe('renderEmail', () => {
   it('dispatches team_invite to its template', () => {
     expect(renderEmail({ type: 'team_invite', props: BASE })).toEqual(teamInviteEmail(BASE));
+  });
+
+  it('dispatches connection_blocked to its template', () => {
+    const rendered = renderEmail({
+      type: 'connection_blocked',
+      props: {
+        teamName: 'Acme',
+        connectionName: 'Self-hosted vLLM',
+        provider: 'openai_compatible',
+        reason: 'blocked',
+        servedByFallback: false,
+        connectionsUrl: 'http://localhost:5173/gateway/connections',
+        unsubscribeUrl: 'http://localhost:3001/api/v1/email/unsubscribe?token=t',
+      },
+    });
+    expect(rendered.subject).toContain('Self-hosted vLLM');
   });
 
   it('dispatches eval_rule_alert to its template', () => {

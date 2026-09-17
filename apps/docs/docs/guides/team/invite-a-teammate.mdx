@@ -58,10 +58,16 @@ If you change your mind before it's used, **Revoke** removes it immediately.
 
 :::tip[Don't want to send an email?]
 Leave the email address blank and click **Create link** instead. AcruxCore
-still generates the same single-use, 7-day link, but sends nothing — you copy
-it yourself with **Copy link** and share it however you'd normally reach that
-person. Both paths produce the identical kind of invite; emailing it is just a
-convenience so you don't have to be the courier.
+still generates a single-use, 7-day link, but sends nothing — you copy it
+yourself with **Copy link** and share it however you'd normally reach that
+person.
+
+The two paths differ in one way that matters. An invite created **with** an
+address is bound to that address: only the account holding it can accept,
+however the link reaches them. An invite created **without** one works for
+whoever opens it. So if you want to hand the link over yourself, leave the
+address blank — filling it in and then sending the link to a personal address
+means the person is turned away.
 :::
 
 A team can send at most 20 invite emails an hour — comfortably above normal
@@ -80,9 +86,15 @@ or create an account:
 ![Invite landing page prompting the signed-out visitor to sign in or create an account](/img/tutorials/invite-a-teammate/04-invite-landing-signed-out.png)
 
 If they already have an AcruxCore account, **Sign in to accept** logs them in
-and joins them to the team immediately. If they're new, **Create an account**
-takes them through signup first — the invite token travels along with them,
-so finishing signup accepts it automatically with no extra step.
+and joins them to the team. If they're new, **Create an account** takes them
+through signup first — the invite token travels along with them, so finishing
+signup accepts it with no extra step.
+
+Both of those assume they arrive as the address you invited. If you filled in
+an address and they sign in — or sign up — as a different one, they see
+**Invite problem** with a **Sign in with a different account** button rather
+than joining. AcruxCore doesn't tell them which address the invite was for, so
+tell them yourself, or revoke it and send a link invite instead.
 
 :::note[No account yet? You'll come right back]
 Signing up sends a confirmation email — a separate one from the invite,
@@ -153,7 +165,9 @@ accepted before 29 July 2026, returns:
 ```
 
 `email` is optional — drop it from the body for the copy-link path, and the
-response comes back with `"email": null` instead. Sending more than 20 invite
+response comes back with `"email": null` instead. Supplying one binds the
+invite to that address: an account with any other address gets
+`403 INVITE_WRONG_ACCOUNT` from the accept call. Sending more than 20 invite
 emails from one team within an hour returns `429 EMAIL_RATE_LIMITED`; the
 copy-link path has no such cap.
 

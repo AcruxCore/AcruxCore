@@ -8,6 +8,8 @@ import {
   MAX_EXPERIMENT_GRID_SIZE,
 } from './experiments.types';
 import { DatasetsRepository } from '../datasets/datasets.repository';
+import { PromptsRepository } from '../../prompts/prompts.repository';
+import { VersionsRepository } from '../../prompts/versions/versions.repository';
 import { DatasetsService } from '../datasets/datasets.service';
 import { ConflictError, NotFoundError, ValidationError } from '../../shared/errors';
 
@@ -25,6 +27,14 @@ export class ExperimentsService {
   ) {}
 
   /**
+   * Read-only lookups for the two ids a create request supplies from its body.
+   * Held inline rather than injected, mirroring `GatewayService`, which resolves
+   * a client-supplied prompt version the same way.
+   */
+  private readonly prompts = new PromptsRepository();
+  private readonly promptVersions = new VersionsRepository();
+
+  /**
    * Creates an experiment after validating that the referenced dataset
    * belongs to the caller's team.
    *
@@ -34,7 +44,9 @@ export class ExperimentsService {
    * @returns The created experiment, plus a non-blocking `promptMismatchWarning`
    *   when `prompt_id` is given and some of the dataset's examples were sourced
    *   from a different prompt (design "Prompt-mismatch warning").
-   * @throws {NotFoundError} If the dataset does not exist or belongs to another team.
+   * @throws {NotFoundError} If the dataset, the prompt, or any version does not
+   *   exist or belongs to another team. 404 rather than 403 throughout: a 403
+   *   would confirm that the id names a real object somewhere.
    * @throws {ValidationError} If `version_ids.length * models.length * datasetExampleCount`
    *   exceeds `MAX_EXPERIMENT_GRID_SIZE` — each cell is a real, paid provider call.
    */
@@ -47,6 +59,21 @@ export class ExperimentsService {
       throw new ValidationError(
         `This experiment's grid would enqueue ${gridSize} runs, which exceeds the ${MAX_EXPERIMENT_GRID_SIZE}-run ceiling. Reduce the number of versions, models, or dataset examples.`,
       );
+    }
+
+    // `prompt_id` and `version_ids` arrive in the body, so no route-level check
+    // ever sees them. Unverified, a foreign prompt id was written to the row
+    // (and an invented one reached Postgres as a raw foreign-key violation, so
+    // the caller saw a 500), while a foreign version id sat in `config` until
+    // the run resolved the grid and failed with nothing to point at. After the
+    // grid ceiling, so an oversized request is turned away before it costs a
+    // lookup per version.
+    if (dto.prompt_id && !(await this.prompts.findById(dto.prompt_id, teamId))) {
+      throw new NotFoundError('Prompt not found.');
+    }
+    const versionIds = [...new Set(dto.version_ids)];
+    if ((await this.promptVersions.countByIdsForTeam(versionIds, teamId)) !== versionIds.length) {
+      throw new NotFoundError('Prompt version not found.');
     }
 
     const promptMismatchWarning = dto.prompt_id

@@ -104,6 +104,16 @@ export interface FallbackTrailEntry {
    * was going wrong during those calls, which is the one thing worth knowing about it.
    */
   retriedAfter?: { error: string; errorMessage: string };
+  /**
+   * Set when this deployment's turn ended because its connection's base URL
+   * resolved to an address the gateway refuses to call. Its own flag rather
+   * than something to be read back out of `errorMessage`, because it is the
+   * one entry in a trail that describes a fault in the team's own
+   * configuration rather than an upstream having a bad day — and something has
+   * to say so, since a working fallback turns the whole call into a normal
+   * 200. `GatewayService` scans for it and notifies once per connection.
+   */
+  blockedAddress?: true;
 }
 
 /** How much of a provider's own error message the trail keeps. */
@@ -204,6 +214,12 @@ export async function callWithFallback(
   let attempts = 0;
   let lastError: ProviderError | undefined;
   let lastDeployment: ResolvedDeployment | undefined;
+  // Kept apart from `lastError`, which every later attempt overwrites. A refused
+  // target address is a fault in the team's own connection rather than an
+  // upstream having a bad day, and once the whole chain has failed it is the one
+  // error the team can act on — so it must not be buried by whatever the last
+  // deployment in the chain happened to say.
+  let blockedAddressError: ProviderError | undefined;
 
   for (const deployment of deployments) {
     lastDeployment = deployment;
@@ -238,6 +254,7 @@ export async function callWithFallback(
         if (!(err instanceof ProviderError)) throw err; // real bug — never swallow
         lastError = err;
         connError = err;
+        if (!blockedAddressError && err.providerCode === 'SSRF_BLOCKED') blockedAddressError = err;
 
         // Caller's fault (malformed request): surface immediately, no fan-out.
         if (err.status === 400) {
@@ -267,6 +284,7 @@ export async function callWithFallback(
       attempts: tries,
       error: connError ? String(connError.status) : 'unknown',
       ...(connError ? { errorMessage: providerMessage(connError) } : {}),
+      ...(connError?.providerCode === 'SSRF_BLOCKED' ? { blockedAddress: true as const } : {}),
     });
 
     // "This model or nothing": the caller opted out of being answered by a
@@ -276,5 +294,9 @@ export async function callWithFallback(
 
   // deployments is guaranteed non-empty by the caller (MODEL_NOT_REGISTERED handled
   // upstream), so lastError is always set here.
-  throw new FallbackExhaustedError(lastError!, { attempts, trail }, lastDeployment ?? null);
+  throw new FallbackExhaustedError(
+    blockedAddressError ?? lastError!,
+    { attempts, trail },
+    lastDeployment ?? null,
+  );
 }

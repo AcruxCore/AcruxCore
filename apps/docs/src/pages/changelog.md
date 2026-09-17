@@ -261,9 +261,27 @@ called out in the week it ships and in the SDK release notes.
 - A completion is never refused over a tracing field.
   [Reference →](/api-reference/gateway/)
 
+#### A team invite now admits only the person it was addressed to
+
+- An invite sent to an address is accepted only by the account holding that address.
+- A link invite created without an address is unchanged — it stays open to whoever has it.
+- Signing in with the wrong account says so, instead of joining you to the team.
+
+#### A request can only name objects your own team owns
+
+- A spend budget can no longer be pointed at a virtual key from outside your team.
+- A trace span can no longer be recorded against another team's prompt version.
+- An experiment can no longer be built on another team's prompt or its versions.
+
 ### Minor
 
 - A non-streaming provider reply is read under a 25 MB ceiling; streams are unaffected.
+- A connection pointed at a private address now says so, instead of blaming the provider.
+- The API image ships 95 fewer packages after dropping dependencies nothing loads.
+- The API and worker images drop the build toolchain: 736 fewer packages, 0.8 GB smaller.
+- **Fixed** — a spend cap that could never apply to any of your keys is no longer listed as active.
+- A provider connection the gateway cannot call emails owners and admins, fallback or not.
+- **Fixed** — a streamed call now names the unreachable connection, not the fallback's error.
 - The Audit trail's Area filter gained an Evaluations option beside Prompts and Gateway.
 - The [Retries and Fallbacks guide](/docs/guides/automatic-model-fallbacks) now shows a retried trace and a fallback trace side by side.
 - The same guide covers registering a model with its first fallback, not only editing one.

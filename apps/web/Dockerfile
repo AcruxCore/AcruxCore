@@ -22,8 +22,8 @@ FROM node:22-bookworm AS builder
 
 WORKDIR /app
 
-# `npm ci` installs every workspace, including the api's native addons
-# (isolated-vm, bcrypt), so the compile toolchain must be present here too.
+# `npm ci` installs every workspace, including the api's native addon
+# (isolated-vm), so the compile toolchain must be present here too.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 make g++ \
   && rm -rf /var/lib/apt/lists/*

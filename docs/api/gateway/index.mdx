@@ -644,6 +644,36 @@ That one answers **502 `PROVIDER_ERROR`**, and a provider timeout answers **504
 `PROVIDER_TIMEOUT`**. If you see a 401 here, the gateway connection's stored key is
 the thing to check, not the request.
 
+### A base URL the gateway will not call
+
+A connection's `config.base_url` is checked again at the moment of the request, not
+only when you save it. A hostname cannot be resolved while the connection is being
+validated, so one that points at a private, loopback or cloud-metadata address is
+saved and then refused on every call:
+
+```bash
+curl -i -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"internal-model","messages":[{"role":"user","content":"hello"}]}'
+```
+
+Response (status 502):
+
+```json
+{"error":{"code":"PROVIDER_ADDRESS_BLOCKED","message":"OpenAI request blocked: target address is not allowed. Check this connection's base URL — it must be a public address."}}
+```
+
+Nothing is sent upstream — the request is refused before the connection opens, so this
+is never a sign the provider is down. Point the connection at a public address.
+
+If the model has fallbacks, the chain still runs and a working fallback answers the call
+normally — the response is an ordinary 200. The rescue is recorded on the call's trace
+rather than in the response: the `llm` span carries a `warning` of type `model_fallback`
+saying which model answered instead and why. You get the error above once every deployment
+has failed, and you get it even when a later one failed for some other reason, because a
+blocked address is the one fault in that list you can fix yourself.
+
 ### Upstream rate limits
 
 When the provider rate-limits or refuses on quota, the gateway answers **429

@@ -437,10 +437,14 @@ describe('invite email', () => {
 describe('one invite admits exactly one person (issue #482)', () => {
   it('rejects the losers when several accept the same token at once', async () => {
     const owner = await signupTestUser(app);
+    // A LINK invite (no address), because that is now the only kind several
+    // different people can race for: an invite that names an address is refused
+    // for every account but that one, so the losers would be rejected by the
+    // address check and this race would never reach the single-use stamp.
     const invite = await request(app)
       .post(`/api/v1/teams/${owner.teamId}/invites`)
       .set(authHeaders(owner))
-      .send({ email: uniqueTestEmail(), role: 'admin' })
+      .send({ role: 'admin' })
       .expect(201);
 
     const guests = await Promise.all([signupTestUser(app), signupTestUser(app), signupTestUser(app)]);
@@ -460,5 +464,81 @@ describe('one invite admits exactly one person (issue #482)', () => {
 
     const members = await prisma.teamMember.count({ where: { teamId: owner.teamId } });
     expect(members).toBe(2); // the owner, plus exactly one guest
+  }, 60000);
+});
+
+describe('an invite addressed to one person is not a bearer token for anyone', () => {
+  it('refuses an invite sent to a different address, and lets the named invitee in', async () => {
+    const owner = await authedAgent(app, { email: 'owner@invite-binding.test' });
+    const invitee = await signupTestUser(app, { email: 'named-invitee@invite-binding.test' });
+    const stranger = await signupTestUser(app, { email: uniqueTestEmail() });
+
+    const invite = await owner.agent
+      .post(`/api/v1/teams/${owner.teamId}/invites`)
+      .send({ email: 'named-invitee@invite-binding.test', role: 'admin' })
+      .expect(201);
+
+    // The token travels by email. A forwarded message, a shared support inbox, a
+    // mail-scanning proxy or a browser-history leak all put it in someone else's
+    // hands — and before this it made them an admin of the team, because accept
+    // checked only that the token was live.
+    const wrongHands = await request(app)
+      .post(`/api/v1/teams/invites/${invite.body.token}/accept`)
+      .set(authHeaders(stranger));
+
+    expect(wrongHands.status).toBe(403);
+    expect(wrongHands.body.error.code).toBe('INVITE_WRONG_ACCOUNT');
+    // The message must not name the invited address: whoever is holding a leaked
+    // token has not proved they were ever meant to know who it was sent to.
+    expect(wrongHands.body.error.message).not.toContain('named-invitee');
+    expect(
+      await prisma.teamMember.count({ where: { teamId: owner.teamId, userId: stranger.userId } }),
+    ).toBe(0);
+
+    // The invite is untouched, so the person it was sent to can still use it.
+    const rightHands = await request(app)
+      .post(`/api/v1/teams/invites/${invite.body.token}/accept`)
+      .set(authHeaders(invitee))
+      .expect(200);
+    expect(rightHands.body.team.id).toBe(owner.teamId);
+    expect(
+      await prisma.teamMember.findFirst({
+        where: { teamId: owner.teamId, userId: invitee.userId },
+        select: { role: true },
+      }),
+    ).toEqual({ role: 'admin' });
+  }, 60000);
+
+  it('matches the address case-insensitively, since an address is not case-sensitive in practice', async () => {
+    const owner = await authedAgent(app, { email: 'owner@invite-case.test' });
+    const invitee = await signupTestUser(app, { email: 'mixed.case@invite-case.test' });
+
+    const invite = await owner.agent
+      .post(`/api/v1/teams/${owner.teamId}/invites`)
+      .send({ email: 'Mixed.Case@Invite-Case.TEST', role: 'editor' })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/v1/teams/invites/${invite.body.token}/accept`)
+      .set(authHeaders(invitee))
+      .expect(200);
+  }, 60000);
+
+  it('leaves a link invite open to whoever holds it, which is what a link invite is for', async () => {
+    // `generateInvite` makes `email` optional, and the rate-limit message tells an
+    // admin to "share the link directly" when they hit the cap. That invite names
+    // nobody, so there is no address to bind it to and anyone signed in may take it.
+    const owner = await authedAgent(app, { email: 'owner@invite-link.test' });
+    const anyone = await signupTestUser(app);
+
+    const invite = await owner.agent
+      .post(`/api/v1/teams/${owner.teamId}/invites`)
+      .send({ role: 'viewer' })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/v1/teams/invites/${invite.body.token}/accept`)
+      .set(authHeaders(anyone))
+      .expect(200);
   }, 60000);
 });

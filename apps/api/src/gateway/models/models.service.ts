@@ -199,6 +199,16 @@ export class ModelsService {
       return { ok: true, latencyMs: Date.now() - startedAt };
     } catch (err) {
       const message = err instanceof ProviderError || err instanceof Error ? err.message : 'Unknown error';
+      // This screen is where an operator comes to check a connection, so a refused
+      // target address has to say what to do about it — the same sentence the
+      // completion path adds for PROVIDER_ADDRESS_BLOCKED. Without it the answer
+      // is a bare adapter message with nothing actionable in it.
+      if (err instanceof ProviderError && err.providerCode === 'SSRF_BLOCKED') {
+        return {
+          ok: false,
+          error: `${message}. Check this connection's base URL — it must be a public address.`,
+        };
+      }
       return { ok: false, error: message };
     }
   }

@@ -15,6 +15,12 @@ const CATEGORIES: {
       'When a spend cap reaches 80%, and again when it is exhausted. Owners and admins only.',
   },
   {
+    key: 'connection_health',
+    label: 'Connection health',
+    description:
+      'When a provider connection cannot be called at all, even if a fallback answered. Owners and admins only.',
+  },
+  {
     key: 'eval_runs',
     label: 'Evaluation run results',
     description: 'When a run you started finishes or fails. Counts only — no outputs.',

@@ -7,6 +7,7 @@ import { newSignInEmail } from './new-sign-in';
 import { teamInviteEmail } from './team-invite';
 import { budgetThresholdEmail } from './budget-threshold';
 import { budgetExhaustedEmail } from './budget-exhausted';
+import { connectionBlockedEmail } from './connection-blocked';
 import { evalRunFinishedEmail } from './eval-run-finished';
 import { evalRuleAlertEmail } from './eval-rule-alert';
 import { memberJoinedEmail } from './member-joined';
@@ -23,6 +24,7 @@ export * from './new-sign-in';
 export * from './team-invite';
 export * from './budget-threshold';
 export * from './budget-exhausted';
+export * from './connection-blocked';
 export * from './eval-run-finished';
 export * from './eval-rule-alert';
 export * from './member-joined';
@@ -58,6 +60,8 @@ export function renderEmail(payload: EmailPayload): RenderedEmail {
       return budgetThresholdEmail(payload.props);
     case 'budget_exhausted':
       return budgetExhaustedEmail(payload.props);
+    case 'connection_blocked':
+      return connectionBlockedEmail(payload.props);
     case 'eval_run_finished':
       return evalRunFinishedEmail(payload.props);
     case 'eval_rule_alert':

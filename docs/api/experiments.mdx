@@ -136,6 +136,28 @@ curl -X POST $ACRUXCORE_BASE_URL/experiments \
 { "error": { "code": "VALIDATION_ERROR", "message": "Required" } }
 ```
 
+A `prompt_id` that is not one of your team's prompts (status 404) — the same answer
+whether it belongs to another team or to nobody, so the endpoint never confirms that
+an id names a real prompt somewhere:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/experiments \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"dataset_id": "<your dataset>", "prompt_id": "<another team's prompt>", "version_ids": ["<a version>"], "models": ["gpt-4o-mini"]}'
+```
+
+```json
+{ "error": { "code": "NOT_FOUND", "message": "Prompt not found." } }
+```
+
+A `version_ids` entry outside your team is the same, and every entry is checked — a
+version of your own prompt in the same array does not carry a foreign one through:
+
+```json
+{ "error": { "code": "NOT_FOUND", "message": "Prompt version not found." } }
+```
+
 #### Alias-based baseline (`alias` field)
 
 By default (no `alias` given), the automatic baseline cell (when `prompt_id`

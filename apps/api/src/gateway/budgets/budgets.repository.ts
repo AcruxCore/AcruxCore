@@ -161,12 +161,17 @@ export class BudgetsRepository {
   /**
    * Reads a virtual key's display name, for a budget alert's scope label.
    *
+   * Scoped to the team rather than looked up by id alone: this name is rendered
+   * into an email, so an id that did not belong to the team would put another
+   * team's key name in front of this one's owners.
+   *
    * @param virtualKeyId - The key a budget is scoped to.
-   * @returns The name, or null when the key is gone.
+   * @param teamId - The team the alert is being sent to.
+   * @returns The name, or null when the key is gone or belongs elsewhere.
    */
-  async findVirtualKeyName(virtualKeyId: string): Promise<string | null> {
-    const row = await prisma.virtualKey.findUnique({
-      where: { id: virtualKeyId },
+  async findVirtualKeyName(virtualKeyId: string, teamId: string): Promise<string | null> {
+    const row = await prisma.virtualKey.findFirst({
+      where: { id: virtualKeyId, teamId },
       select: { name: true },
     });
     return row?.name ?? null;

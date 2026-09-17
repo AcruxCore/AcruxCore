@@ -855,6 +855,17 @@ model Budget {
   // distinct — two team-wide budgets (virtual_key_id = NULL) for the same period
   // would NOT collide. It is created as raw SQL in a --create-only migration.
   // The service layer also pre-checks to return a clean 409 BUDGET_EXISTS.
+  //
+  // NOTE: `budgets_virtual_key_team_fk` is a second, composite foreign key —
+  // (virtual_key_id, team_id) -> virtual_keys (id, team_id) — so a budget can
+  // only ever point at a key its own team owns. Prisma cannot express it: the
+  // `team` relation already claims `teamId`, and a scalar field may belong to
+  // only one relation. It lives in the same migration as the unique index it
+  // references, virtual_keys (id, team_id).
+  //
+  // Both objects are invisible to `prisma migrate dev`, which diffs this file
+  // against a shadow database and will therefore offer to DROP them. Delete
+  // that part of any generated migration.
   @@index([teamId], map: "idx_budgets_team")
   @@map("budgets")
 }

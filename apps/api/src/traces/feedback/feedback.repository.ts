@@ -299,7 +299,7 @@ export class FeedbackRepository {
     const labelJoin: Prisma.Sql = byModel
       ? Prisma.empty
       : Prisma.sql`LEFT JOIN prompt_versions pv ON pv.id = sp.dim
-                   LEFT JOIN prompts p ON p.id = pv.prompt_id`;
+                   LEFT JOIN prompts p ON p.id = pv.prompt_id AND p.team_id = ${teamId}::uuid`;
     const labelGroup: Prisma.Sql = byModel
       ? Prisma.empty
       : Prisma.sql`, p.id, p.name, pv.version_number`;
