@@ -54,7 +54,7 @@ function patchHead(html, route) {
 /**
  * Append a route's own JSON-LD block to the end of its <head>.
  *
- * The two blocks already in index.html (Organization, WebSite) describe the
+ * The blocks already in index.html (SoftwareApplication, Organization, WebSite) describe the
  * site and are correct on every page, so they stay in the shared template. A
  * page-specific type — FAQPage on /faq — has to be added per route instead, or
  * it would claim every marketing page is that type.

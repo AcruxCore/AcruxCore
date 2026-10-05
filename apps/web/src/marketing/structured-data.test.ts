@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { LANDING_TITLE } from './marketing-chrome';
 
 /**
- * The two JSON-LD blocks live in `apps/web/index.html`, which the prerender
+ * The three JSON-LD blocks live in `apps/web/index.html`, which the prerender
  * copies verbatim into every marketing page. They are hand-written JSON inside
  * an HTML file, so nothing type-checks them and nothing renders them — a
  * trailing comma or an unclosed bracket produces a page that looks perfect and
@@ -27,7 +27,7 @@ describe('index.html structured data', () => {
   it('parses every ld+json block as JSON', () => {
     const blocks = structuredData();
 
-    expect(blocks).toHaveLength(2);
+    expect(blocks).toHaveLength(3);
     for (const block of blocks) {
       expect(block['@context']).toBe('https://schema.org');
     }
@@ -47,6 +47,18 @@ describe('index.html structured data', () => {
       expect(url).toMatch(/^https:\/\//);
     }
     expect(new Set(sameAs).size).toBe(sameAs?.length);
+  });
+
+  // People search for the brand as two words, "acrux core", and the site
+  // ranked below position 1 for it. WebSite.alternateName is the field Google
+  // reads for a site's alternative names; Organization carries the same name so
+  // the two blocks do not disagree.
+  it('names "Acrux Core" as an alternate name on the WebSite and Organization', () => {
+    for (const type of ['WebSite', 'Organization']) {
+      const block = structuredData().find((entry) => entry['@type'] === type);
+      expect(block?.name).toBe('AcruxCore');
+      expect([block?.alternateName].flat()).toContain('Acrux Core');
+    }
   });
 
   // The featureList is what a model reads to answer "what does it do". The

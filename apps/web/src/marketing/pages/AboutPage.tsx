@@ -75,6 +75,9 @@ export function AboutPage(): ReactNode {
           to see how it fits your stack.
         </p>
 
+        <h2>The name</h2>
+        <p>The product name is one word, AcruxCore. People also write the name as two words, Acrux Core.</p>
+
         <div style={cssToStyle('display:flex;flex-wrap:wrap;gap:12px;margin:36px 0 8px;')}>
           <Link
             to="/signup"

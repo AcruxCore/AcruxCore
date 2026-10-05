@@ -72,8 +72,8 @@ export interface PrerenderRoute {
    * An extra `application/ld+json` payload for this page only, already
    * stringified.
    *
-   * The two JSON-LD blocks in `index.html` are copied verbatim into every
-   * marketing page, which is right for Organization and WebSite and wrong for
+   * The three JSON-LD blocks in `index.html` are copied verbatim into every
+   * marketing page, which is right for SoftwareApplication, Organization and WebSite and wrong for
    * anything page-specific: a `FAQPage` block written there would tell crawlers
    * that all fifteen pages are FAQs. `scripts/prerender.mjs` appends this one
    * into the head of just this route's HTML.
