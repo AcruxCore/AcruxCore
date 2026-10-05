@@ -153,8 +153,8 @@ console.log(result.toolId, result.versionNumber, result.alias, result.committed)
 </TabItem>
 </Tabs>
 
-Sync is reconcile-or-nothing. Run it a second time and nothing is committed,
-because the definition is unchanged. Change the description or add a parameter and
+A sync commits a version only when the definition changed. Run it a second time and
+nothing is committed, because the definition is unchanged. Change the description or add a parameter and
 the next run commits version 2 and moves `production` to it.
 
 You can also let the first run do it. Passing the decorated function to the tool

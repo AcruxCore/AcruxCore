@@ -262,8 +262,8 @@ runs the call:
 | The catalog, `client` executor | Your process | `clientTools: { get_weather: getWeather }` |
 | Nowhere — inline for this one call | Your process | `toolDefs: [...]` and `dispatch` |
 
-`dispatch` is the escape hatch under all of them, for when tool names are not known
-until runtime.
+`dispatch` is the most general option. Use `dispatch` when the tool names are not
+known until runtime.
 
 [Call a prompt's tools from the SDK](/docs/guides/call-a-prompts-tools-from-the-sdk)
 works through each shape end to end, streaming included.

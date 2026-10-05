@@ -14,7 +14,7 @@ export type AuditQuery = z.infer<typeof AuditQuerySchema>;
 
 /**
  * Upper bound on how many event names one request may filter by. The enum has
- * 34 members, so a list longer than this is a malformed or hostile query rather
+ * 39 members, so a list longer than this is a malformed or hostile query rather
  * than a real filter.
  */
 const MAX_EVENT_FILTER = 40;
@@ -24,7 +24,7 @@ const MAX_EVENT_FILTER = 40;
  * filters the dashboard needs to make a 1,000-row trail readable.
  *
  * `event` arrives as a comma-separated list (`?event=api_key_revoked,member_removed`)
- * rather than a repeated param, because the UI groups the 34 enum values into
+ * rather than a repeated param, because the UI groups the 39 enum values into
  * categories and a category expands to several names — one short param carries a
  * whole group. Unknown names are rejected with a 400 instead of silently ignored,
  * so a typo in a saved link is visible rather than returning the unfiltered list.

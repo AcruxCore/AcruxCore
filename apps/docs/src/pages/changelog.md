@@ -23,6 +23,19 @@ called out in the week it ships and in the SDK release notes.
 
 ---
 
+## Week of 5 October 2026
+
+### Major
+
+- No major changes this week.
+
+### Minor
+
+- The four Getting started pages are rewritten in shorter, plainer sentences. [Read →](/docs/getting-started/introduction)
+- **Fixed** — pages said the audit trail has 34 event types in seven areas; it has 39 in eight.
+
+---
+
 ## Week of 14 September 2026
 
 ### Major

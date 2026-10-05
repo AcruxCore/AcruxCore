@@ -998,7 +998,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
     capabilities: [
       {
         title: 'One list for the whole team',
-        body: 'Thirty-four kinds of event across seven areas — keys, members and invites, gateway, secrets, settings, prompts and tools — newest first, in one place instead of one tab per resource.',
+        body: 'Thirty-nine kinds of event across eight areas — keys, members and invites, gateway, secrets, settings, prompts, tools and evaluations — newest first, in one place instead of one tab per resource.',
       },
       {
         title: 'A readable line, not a row of ids',
@@ -1018,7 +1018,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
       {
         eyebrow: 'Coverage',
         title: 'What the trail records.',
-        lead: 'Every write worth answering a question about, grouped the way you would ask about it. The filter offers these seven areas rather than one flat list of thirty-four event names.',
+        lead: 'Every write worth answering a question about, grouped the way you would ask about it. The filter offers these eight areas rather than one flat list of thirty-nine event names.',
         table: {
           head: ['Area', 'What it records'],
           rows: [
@@ -1043,6 +1043,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
               'Secrets',
               'Created, rotated and deleted. The name is recorded and the value never is, so the trail cannot leak what it protects.',
             ],
+            ['Evaluations', 'Datasets created and deleted, and evaluation rules created, updated and deleted.'],
             ['Settings', 'Trace payload capture switched on or off for the team.'],
           ],
         },

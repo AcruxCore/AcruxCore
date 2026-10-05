@@ -17,9 +17,9 @@ one model (or prompt, alias, or tag), judges a sample of them the moment they
 happen, and shows the score right on the trace — no dataset built, no
 experiment started, nobody clicking "run."
 
-Without a rule watching, the only way you find out a prompt started giving
-worse answers is a person noticing one and rating it — a check that scales to
-a trickle of traffic, not to a prompt handling thousands of calls a day. An
+Without a rule, you only find out that a prompt gives worse answers when a person
+notices a bad answer and rates it. That check works when traffic is low. A person
+cannot read every call when a prompt handles thousands of calls a day. An
 **evaluation rule** replaces that person: it's a standing instruction ("does
 this reply follow up correctly?") that a background worker checks against a
 sample of every matching `llm` span as it happens, using the same

@@ -1,6 +1,6 @@
 ---
 title: Product tour
-description: Attach a tool, stream a response, inspect the trace, leave feedback, and turn it into an evaluation — the rest of the loop after your first call.
+description: Attach a tool, stream a response, inspect the trace, leave feedback, and turn that feedback into an evaluation. This page covers the steps that come after your first call.
 sidebar_position: 3
 keywords: [llm tool calling, streaming llm response, llm tracing, llm feedback, prompt evaluation]
 ---
@@ -10,21 +10,20 @@ import TabItem from '@theme/TabItem';
 
 # Product tour
 
-This picks up right after [Quickstart](./quickstart) — you should already have an
-account, an API key, and a registered model (`support-model`). By the end of this
-page you'll have authored a prompt, attached a tool to it, called it both streaming
-and non-streaming, read the trace back, left feedback, and turned that feedback
-into an evaluation run — then read back the record of every change you made
-along the way. The whole loop, start to finish.
-
-Every screenshot below is from a real run against a real team — nothing staged.
+This page continues from [Quickstart](./quickstart). You should already have an
+account, an API key, and a registered model named `support-model`. On this page you
+author a prompt, attach a tool to the prompt, and make streaming and non-streaming
+calls. You then read the trace, leave feedback, and turn that feedback into an
+evaluation run. Last, you read the record of every change you made.
 
 ## 1. Author the prompt
 
-A **prompt** is a versioned, templated set of messages — write it once, reuse it
-from every caller, and change it without redeploying anything. **Prompts → New
-prompt**, name it `support-reply`, and add a **system** message and a **user**
-message, using `{{ variables }}` where the input goes:
+A **prompt** is a set of message templates that AcruxCore stores in versions. You
+write a prompt once, reuse it from every caller, and change it without redeploying
+anything. Open **Prompts → New prompt** and name the prompt `support-reply`. If you
+already created `support-reply` in the Quickstart, open that prompt instead. Add a
+**system** message and a **user** message, and put `{{ variables }}` where the input
+goes:
 
 ```jinja
 system: You are a friendly, concise customer-support agent for {{ company }}.
@@ -32,29 +31,29 @@ system: You are a friendly, concise customer-support agent for {{ company }}.
 user:   {{ customer_message }}
 ```
 
-Set **Default model** to `support-model` — the model the Playground and any
-caller that omits its own `model` will use — then click **Commit new version**.
-The first commit auto-creates the `production` and `staging` aliases, both
-pointing at v1:
+Set **Default model** to `support-model`, then click **Commit new version**. The
+Playground uses the default model, and so does any caller that omits its own
+`model`. The first commit creates the `production` and `staging` aliases
+automatically, and both aliases point at v1:
 
 ![Prompt editor for support-reply, with system and user messages, the default model, and the staging/production aliases](/img/tutorials/product-tour/01-prompt-editor.png)
 
-The screenshot above is this same demo team a few commits later — it already
-shows `STAGING → v2` and `PRODUCTION → v2`, from committing the tool attach in
-the next section. Yours will start at v1 on both aliases.
+The screenshot above comes from a demo team a few commits after this step, so it
+shows `STAGING → v2` and `PRODUCTION → v2`. Your prompt starts at v1 on both aliases.
 
 :::tip[Authoring a prompt outside the dashboard]
-See [Manage prompts via the SDK](../guides/manage-prompts-via-the-sdk) or
-[Store prompts and tools via the API](../guides/store-prompts-and-tools-via-api)
-for the SDK/curl equivalent of everything above, and
-[Version a prompt](../guides/version-a-prompt) for the full commit/alias lifecycle.
+For the SDK or curl version of every step above, see
+[Manage prompts via the SDK](../guides/manage-prompts-via-the-sdk) or
+[Store prompts and tools via the API](../guides/store-prompts-and-tools-via-api).
+For the full lifecycle of commits and aliases, see
+[Version a prompt](../guides/version-a-prompt).
 :::
 
 ## 2. Attach a tool with `acrux.tool`
 
-A **tool** is a function you let the model call. The fastest way to give it one is
-to declare it in code — the decorator carries the name, description, and argument
-schema the model reads, all in one place:
+A **tool** is a function you let the model call. In this tour you declare the
+`get_weather` tool in code. The `acrux.tool` decorator holds the name, description, and argument schema
+that the model reads, next to the function itself:
 
 <Tabs groupId="lang">
 <TabItem value="node" label="Node">
@@ -111,8 +110,8 @@ async def get_weather(city: str) -> dict:
 </TabItem>
 </Tabs>
 
-Run it once through the tool-calling loop and the catalog fills itself in — no
-dashboard step needed to create the entry:
+Run the tool once through the tool-calling loop, and AcruxCore adds `get_weather` to
+the tool catalog. You do not need a dashboard step to create the catalog entry:
 
 ```python
 async with AcruxCore() as hub:
@@ -125,26 +124,26 @@ async with AcruxCore() as hub:
     print(result.trace_id)
 ```
 
-Open **Tools → get_weather** and it's there, with a **Defined in code**
+Open **Tools → get_weather** to see the tool with a **Defined in code**
 badge:
 
 ![The get_weather tool after a sync, showing the Defined in code badge](/img/tutorials/product-tour/02-tool-catalog.png)
 
-Now connect it to `support-reply`: open the prompt's **Tools** tab and choose
-**+ Connect a tool from the catalog**. It saves straight away — every alias of the
-prompt starts calling `get_weather`, and `hub.prompts.render` returns it alongside
-the messages:
+Now connect `get_weather` to `support-reply`. Open the prompt's **Tools** tab and
+choose **+ Connect a tool from the catalog**. The connection saves immediately. From
+then on, the prompt offers `get_weather` to the model at every alias, and
+`hub.prompts.render` returns the tool alongside the messages:
 
 ![Connecting get_weather to support-reply](/img/tutorials/product-tour/03-attach-tool.png)
 
-:::tip[No SDK? Connect a tool from the dashboard or curl]
-`acrux.tool` is the code-first path. Prefer clicking, or calling curl directly? See
-[Create a tool](../guides/create-a-tool) for the dashboard walkthrough,
-or [Store prompts and tools via the API](../guides/store-prompts-and-tools-via-api)
-for creating an HTTP-executor tool with `POST /tools` — no local code at all.
+:::tip[Connect a tool without the SDK]
+`acrux.tool` is the code-first path. To use the dashboard instead, see
+[Create a tool](../guides/create-a-tool). To use curl, see
+[Store prompts and tools via the API](../guides/store-prompts-and-tools-via-api),
+which creates an HTTP-executor tool with `POST /tools` and needs no local code.
 :::
 
-## 3. Call it — streaming and non-streaming
+## 3. Make a streaming and a non-streaming call
 
 A plain, non-streaming call gets the whole answer back in one response:
 
@@ -190,8 +189,8 @@ print(result.content)  # "Hello!"
 </TabItem>
 </Tabs>
 
-Streaming sends the same request but iterates the answer token by token —
-useful for piping to a UI as it arrives:
+A streaming call sends the same request and returns the answer token by token. Use
+streaming to show the answer in a UI as the tokens arrive:
 
 <Tabs groupId="lang">
 <TabItem value="curl" label="curl">
@@ -242,41 +241,41 @@ async for chunk in await hub.gateway.stream("support-model", [{"role": "user", "
 </TabItem>
 </Tabs>
 
-The dashboard has a streaming toggle too, if you'd rather watch a call live without
-writing code — **Gateway → Playground**, flip **Stream** on, and send:
+To watch a call live without writing code, use the streaming toggle in the
+dashboard. Open **Gateway → Playground**, turn **Stream** on, and send the request:
 
 ![Playground after a streamed completion, showing the Stream completion button and live gateway telemetry](/img/tutorials/product-tour/04-playground-streaming.png)
 
-:::note[Streaming and tools don't mix in the Playground]
-The Playground's streaming toggle disables itself once a tool is attached to the
-call — the tool-calling loop always sends non-streamed, since it needs the full
-response to see whether the model asked for a tool. The screenshot above is the
-plain `support-reply` call; the tool-calling case is what section 2's code
-demonstrates instead.
+:::note[The Playground cannot stream a call that has a tool]
+The Playground turns off the streaming toggle when a tool is attached to the call.
+The tool-calling loop always sends non-streamed requests, because the loop needs the
+full response to see whether the model asked for a tool. The screenshot above shows
+the plain `support-reply` call. Section 2's code shows the tool-calling case.
 :::
 
 ## 4. See the trace
 
 Every gateway call is traced automatically, and the tool-calling loop adds its own
 tool span to the same trace. Open **Observability → Traces**, find the call from
-section 2, and click in:
+section 2, and click it to open the trace:
 
 ![Trace detail showing an LLM span, a nested Tool span for get_weather, and a second LLM span](/img/tutorials/product-tour/05-trace-detail.png)
 
-One trace, three spans: the model asks for `get_weather`, your code runs it, and
-the model turns the result into an answer — all under one trace id, with real
-token counts and per-span latency.
+The trace has three spans. The model asks for `get_weather`, your code runs the
+tool, and the model turns the result into an answer. All three spans share one trace
+id and show token counts and per-span latency.
 
 :::tip[Read a trace from your own code]
-See [Chat, stream, and collect feedback with the SDK](../guides/use-the-sdk-for-chat-and-feedback#4-read-the-trace-back-and-leave-feedback)
-or [Trace and inspect an LLM call](../guides/trace-an-llm-call) for the SDK/curl path
-— `hub.traces.get(traceId)` returns the same status, cost, and token counts shown here.
+For the SDK or curl version, see
+[Chat, stream, and collect feedback with the SDK](../guides/use-the-sdk-for-chat-and-feedback#4-read-the-trace-back-and-leave-feedback)
+or [Trace and inspect an LLM call](../guides/trace-an-llm-call).
+`hub.traces.get(traceId)` returns the same status, cost, and token counts shown here.
 :::
 
 ## 5. Leave feedback
 
-On any trace, leave a thumbs up/down and an optional comment — this is the signal
-evaluation builds on next:
+On any trace, leave a thumbs up or thumbs down and an optional comment. The next
+section builds an evaluation from this feedback:
 
 ![The Feedback panel on the get_weather trace, showing a thumbs-up entry with a comment](/img/tutorials/product-tour/06-feedback.png)
 
@@ -292,43 +291,45 @@ or [Using sessions and traces](../guides/using-sessions-and-traces) for the full
 
 ## 6. Turn feedback into an evaluation
 
-Feedback on its own is a signal; a **dataset** freezes it into something you can
-test against repeatedly. **Evaluations → Datasets** lets you select feedback rows
-and build one:
+A **dataset** stores feedback as a fixed set of examples that you can test against
+many times. In **Evaluations → Datasets**, select feedback rows and build a dataset
+from them.
 
-Then create an **experiment** — a prompt version (or two) × a model, run against
-that dataset — and start a run. AcruxCore always adds the prompt's `production`
-alias as an automatic baseline, so every run is a comparison, not just a score:
+Then create an **experiment** and start a run. An experiment pairs one or two prompt
+versions with a model and runs them against that dataset. AcruxCore always adds the
+prompt's `production` alias as a baseline, so every run compares your chosen versions
+against `production`:
 
 ![Run report leaderboard: v1 scores 80.0 and ranks #1, production scores 70.0 as the baseline](/img/tutorials/product-tour/07-eval-report.png)
 
-This run compared `support-reply` v1 against the current `production` version on
-two real weather-lookup examples — v1 scored 80.0 against production's 70.0, a
-real, data-backed answer to "did this version actually help?"
+The run in the screenshot comes from the demo team, where `production` already points
+at a later version than v1. The run compared `support-reply` v1 with that `production`
+version on two weather-lookup examples. Version 1 scored 80.0, and `production`
+scored 70.0.
 
 :::tip[Build the dataset and run the experiment from code]
-See [Evaluate a prompt against a dataset](../guides/evaluate-a-prompt) for the full
-SDK/curl walkthrough of everything in this section — `datasets.build_from_feedback()` /
+[Evaluate a prompt against a dataset](../guides/evaluate-a-prompt) shows every step
+of this section with the SDK or curl. The guide uses `datasets.build_from_feedback()` /
 `buildFromFeedback()`, `experiments.create()`, and `runs.get_report()` / `getReport()`.
 :::
 
 ## 7. See who changed what
 
-Everything in this tour was a change to the workspace: a prompt committed, a
-tool attached, a key created, an alias promoted. **Team → Audit trail** is the
-record of all of them, newest first, with the person behind each one:
+In this tour you committed a prompt and attached a tool, and both were changes to
+the workspace. The API key you created in the Quickstart was a change too. **Team → Audit
+trail** lists every change, newest first, with the person who made each one:
 
-![The Audit trail page reading 1,005 events recorded, with area, event and actor filters above a table of API key and prompt events, each naming the actor](/img/tutorials/product-tour/08-audit-trail.png)
+![The Audit trail page shows 1,005 events recorded. Area, event and actor filters sit above a table of API key and prompt events, and each row names the actor](/img/tutorials/product-tour/08-audit-trail.png)
 
-Filter it by area (prompts, tools, members, keys, gateway, secrets, settings),
-by one event type, or by the person who did it — the filters live in the URL, so
-the view you are reading is the view you can send to someone else. The
+You can filter the trail by area (prompts, tools, members, keys, gateway, secrets,
+evaluations, settings), by one event type, or by the person who made the change. The filters are
+stored in the URL, so you can send the exact view you are reading to someone else. The
 team-wide trail is readable by the `owner` and `admin` roles.
 
 :::note[Traces and audit events are different records]
 A trace is traffic your application produced. An audit event is a change a
-person made. Ask "why was this answer wrong?" of a trace, and "who moved
-`production` on Tuesday?" of the audit trail. See
+person made. A trace answers a question such as "why was this answer wrong?" The audit trail
+answers a question such as "who moved `production` on Tuesday?" See
 [Read the team audit trail](../guides/read-the-team-audit-trail).
 :::
 
@@ -337,4 +338,4 @@ person made. Ask "why was this answer wrong?" of a trace, and "who moved
 - [Core concepts](./core-concepts) for the full mental model
 - [Version and track a tool](../guides/version-and-track-a-tool)
 - [Improve a prompt from feedback](../guides/improve-a-prompt-from-feedback)
-- [Tutorials](../tutorials/) — eight agent builds from no-code to multi-agent
+- [Tutorials](../tutorials/): twelve agent builds, from no-code to multi-agent

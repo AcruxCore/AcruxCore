@@ -1,40 +1,40 @@
 ---
 title: Introduction
-description: AcruxCore is one platform to version prompts, route LLM calls through a gateway, trace every request, catalog tools, and evaluate quality.
+description: AcruxCore is one platform where you version prompts, route LLM calls through a gateway, trace every request, keep a catalog of tools, and evaluate quality.
 sidebar_position: 1
 keywords: [llm ops, prompt management, ai gateway, llm tracing, prompt versioning, llm evaluation]
 ---
 
 # What is AcruxCore?
 
-AcruxCore is an **LLM-ops platform**: one place to manage the prompts your app
-sends to language models, route those calls through a smart gateway, see exactly
-what happened on every request, and measure whether changes made things better.
+AcruxCore is an **LLM-ops platform**. You keep the prompts your app sends to
+language models in AcruxCore, and your app calls the models through the AcruxCore
+gateway. Every request is recorded, so you can see what happened. You can also
+measure whether a change made the answers better.
 
-Everything in AcruxCore is **team-scoped** — you sign up, get a workspace, and
-invite teammates. You talk to it two ways: the **web app** (for authoring and
-inspection) and, from your running application, the **REST API** or one of the two
-SDKs — [`@acruxcoreai/sdk`](https://www.npmjs.com/package/@acruxcoreai/sdk) for Node
-and [`acruxcore`](https://pypi.org/project/acruxcore/) for Python. The two SDKs have
-the same feature set, so nothing here is Node-only.
+Everything in AcruxCore belongs to a **team**. When you sign up you get a team
+workspace, and you can invite teammates to it. You write prompts and inspect
+results in the **web app**. Your running application talks to AcruxCore through the
+**REST API** or one of two SDKs:
+[`@acruxcoreai/sdk`](https://www.npmjs.com/package/@acruxcoreai/sdk) for Node and
+[`acruxcore`](https://pypi.org/project/acruxcore/) for Python. The two SDKs have
+the same feature set, so every feature in these docs works in Node and in Python.
 
 ## The six building blocks
 
-AcruxCore is built from six pieces that each stand on their own but are
-designed to snap together.
+AcruxCore has six pieces. You can use each piece on its own or together with
+the others.
 
 | Block | What it does |
 |-------|--------------|
-| [**Prompt management**](https://acruxcore.com/features/prompts) | Versioned, templated message sets. Move a `production` alias between versions without redeploying your app. |
-| [**LLM gateway**](https://acruxcore.com/features/gateway) | One OpenAI-compatible endpoint in front of the providers you connect — OpenAI, Anthropic, Gemini, and any OpenAI-compatible endpoint you register. Bring your own keys; get routing, fallbacks, cost, and caching. |
-| [**LLM observability**](https://acruxcore.com/features/tracing) | Every gateway call is recorded as a trace with spans — model, tokens, latency, cost. Or keep your own provider calls and export the same spans over OpenTelemetry. |
-| [**LLM tool calling**](https://acruxcore.com/features/tools) | Functions the model can call, versioned exactly like prompts. Declare one in your own code and the catalog fills itself in, or declare an HTTP one that the platform calls for you. |
-| [**LLM evaluation**](https://acruxcore.com/features/evaluation) | Build datasets from real feedback or by hand, run experiments to compare prompt and model versions, score live traffic with standing rules, and let the optimizer draft the next version. |
-| [**Audit log**](https://acruxcore.com/features/audit) | Every recorded change in the team — keys, members, gateway, secrets, prompts, tools — newest first, filtered by area, event, or the person who did it. |
+| [**Prompt management**](https://acruxcore.com/features/prompts) | A prompt is a set of message templates, with a new version for each change. A `production` alias points at one version. Move the alias to another version without redeploying your app. |
+| [**LLM gateway**](https://acruxcore.com/features/gateway) | One OpenAI-compatible endpoint for every provider you connect: OpenAI, Anthropic, Gemini, or any other OpenAI-compatible endpoint you register. You bring your own provider keys. The gateway adds routing, fallbacks, cost tracking, and caching. |
+| [**LLM observability**](https://acruxcore.com/features/tracing) | Every gateway call is recorded as a trace. The trace's spans hold the model, tokens, latency, and cost. If you call providers from your own code, you can send the same spans over OpenTelemetry instead. |
+| [**LLM tool calling**](https://acruxcore.com/features/tools) | Functions the model can call, versioned the same way as prompts. Declare a tool in your own code, and AcruxCore adds the tool to the tool catalog. Or define an HTTP tool in the catalog, and AcruxCore calls the tool's URL for you. |
+| [**LLM evaluation**](https://acruxcore.com/features/evaluation) | Build datasets from real feedback or by hand. Run experiments that compare prompt and model versions. Score live traffic with rules that keep running on new traces. The optimizer can draft the next prompt version for you. |
+| [**Audit log**](https://acruxcore.com/features/audit) | A list of every recorded change in the team, newest first. The list covers keys, members, gateway, secrets, prompts, tools, and evaluations. You can filter it by area, event, or the person who made the change. |
 
-## How they connect
-
-The blocks form one continuous line from authoring to measurement:
+## How the pieces connect
 
 ```
 Author a prompt  →  call it through the gateway  →  the call is traced
@@ -53,21 +53,23 @@ A concrete run looks like this:
    renders the template, picks the model, and calls the provider.
 3. The call shows up in **Tracing** with its model, token counts, and latency.
 4. You declare a `get_weather` **Tool** in code. The SDK's tool-calling loop
-   registers it, hands the model its schema, runs your function when the model asks
-   for it, and adds a span for the call to the same trace.
-5. Users thumbs-up/down the answers; you turn that feedback into a dataset and
-   **evaluate** a new prompt version against it.
-6. Each of those changes — the promotion in step 1, the tool you declared, the
-   key your app authenticates with — is recorded in the team's **audit** trail,
-   with the person who made it.
+   registers `get_weather` and gives the model the tool's schema. When the model
+   asks for the tool, the loop runs your function and adds a span to the same trace.
+5. Users rate the answers with a thumbs up or a thumbs down. You turn those ratings
+   into a dataset and **evaluate** a new prompt version against the dataset.
+6. The team's **audit** trail records the promotion in step 1, the tool you
+   declared, and the creation of the API key your app uses. Each entry names the person who
+   made the change.
 
 ## Who it's for
 
 - **App developers** who call LLMs from Node or Python and want prompts they can
   change without shipping code.
-- **Teams** who need one audited, cost-visible path to every model provider.
-- **Anyone** who has outgrown hard-coded prompt strings and print-statement
-  debugging for LLM features.
+- **Teams** who want one path to every model provider, with the cost of each
+  call shown and every change recorded.
+- **Anyone** who keeps prompts as strings in code and debugs LLM features with
+  print statements.
 
-Ready? Head to the [Quickstart](./quickstart) to make your first call in a few
-minutes, or read [Core concepts](./core-concepts) for the mental model first.
+In the [Quickstart](./quickstart) you make your first call in a few minutes.
+[Core concepts](./core-concepts) explains how the pieces fit together, if you
+want that first.

@@ -231,7 +231,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
             ' in the dashboard. That trail covers the whole team, including the changes that belong to no single prompt or tool.',
           ],
           [
-            'The team-wide trail holds 34 event types across multiple areas. The areas are API keys, members and roles, invites, provider connections, virtual keys, budgets, gateway models, secrets, trace settings, and prompt and tool changes. You can filter the trail by area, by one event type, or by person. Entries stay in the trail after the person who made them leaves the team.',
+            'The team-wide trail holds 39 event types across multiple areas. The areas are API keys, members and roles, invites, provider connections, virtual keys, budgets, gateway models, secrets, trace settings, datasets and evaluation rules, and prompt and tool changes. You can filter the trail by area, by one event type, or by person. Entries stay in the trail after the person who made them leaves the team.',
           ],
           [
             'Langfuse has an audit log, but it needs the Enterprise plan at $2,499 a month, even if you self-host. In Phoenix, Opik, Helicone, MLflow, and Laminar we found no audit log in the settings pages we opened.',
