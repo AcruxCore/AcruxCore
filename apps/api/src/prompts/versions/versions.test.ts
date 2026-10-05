@@ -109,6 +109,39 @@ describe('POST /api/v1/prompts/:id/versions', () => {
     expect(res.body.variables).toEqual(['topic']);
   });
 
+  it('does not declare a filter name as a variable, and renders with only the real inputs', async () => {
+    // A filter (`join`, `upper`) is part of the template language, not a value the caller
+    // supplies. Declaring it made every render fail with "missing required template
+    // variables: join" — the SDKs check the declared list before they call the API.
+    const { apiKey, promptId, promptName } = await signupAndGetKey();
+
+    const res = await request(app)
+      .post(`/api/v1/prompts/${promptId}/versions`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        messages: [
+          { role: 'system', content: 'Avoid: {{ sensitive_groups | join(", ") }}. Tone: {{ tone | upper }}.' },
+          { role: 'user', content: '{{ question | default("none") | trim }} {{ name | replace("x", sep) }}' },
+        ],
+      })
+      .expect(201);
+
+    expect(res.body.variables).toEqual(['name', 'question', 'sensitive_groups', 'sep', 'tone']);
+    const stored = await prisma.promptVersion.findUnique({ where: { id: res.body.id } });
+    expect(stored?.variables).toEqual(['name', 'question', 'sensitive_groups', 'sep', 'tone']);
+
+    const rendered = await request(app)
+      .post(`/api/v1/prompts/${promptName}/production/render`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        variables: { sensitive_groups: ['age', 'religion'], tone: 'calm', question: ' hi ', name: 'xavi', sep: 'X' },
+      })
+      .expect(200);
+
+    expect(rendered.body.messages[0].content).toBe('Avoid: age, religion. Tone: CALM.');
+    expect(rendered.body.messages[1].content).toBe('hi Xavi');
+  });
+
   it('returns 400 TEMPLATE_PARSE_ERROR for invalid nunjucks syntax', async () => {
     const { apiKey, promptId } = await signupAndGetKey();
 

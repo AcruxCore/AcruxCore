@@ -69,6 +69,17 @@ describe('extractVariables', () => {
     expect(vars).toEqual(['items', 'prefix']);
   });
 
+  // A filter is part of the template language, not an input. `join` and `upper` must not
+  // get a Variables field of their own, but a variable passed as a filter argument must.
+  it('does not offer a field for a filter name', () => {
+    const vars = extractVariables([
+      { role: 'system', content: 'Avoid {{ groups | join(", ") }}. {{ tone | upper }}' },
+      { role: 'user', content: '{{ name | replace("x", sep) }}{% filter upper %}{{ body }}{% endfilter %}' },
+    ]);
+
+    expect(vars).toEqual(['body', 'groups', 'name', 'sep', 'tone']);
+  });
+
   it('leaves the other messages their fields while one is half-typed', () => {
     const vars = extractVariables([
       { role: 'system', content: 'Greet {{ name }}.' },

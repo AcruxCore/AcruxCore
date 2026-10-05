@@ -91,6 +91,16 @@ function walkAst(node: unknown, vars: Set<string>, scopes: ScopeStack): void {
     return;
   }
 
+  // Filter: `{{ xs | join(", ") }}` is a FunCall subclass whose `name` is the filter
+  // (`join`), not an input — only its args are. Same rule as the server's walker.
+  if (
+    (njNodes['Filter'] && node instanceof njNodes['Filter']) ||
+    (njNodes['FilterAsync'] && node instanceof njNodes['FilterAsync'])
+  ) {
+    walkAst(rec['args'], vars, scopes);
+    return;
+  }
+
   // Attribute access: {{ user.name }} — capture root `user` only.
   if (njNodes['LookupVal'] && node instanceof njNodes['LookupVal']) {
     const target = rec['target'];

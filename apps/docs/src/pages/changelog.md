@@ -34,6 +34,7 @@ called out in the week it ships and in the SDK release notes.
 - The four Getting started pages are rewritten in shorter, plainer sentences. [Read →](/docs/getting-started/introduction)
 - **Fixed** — pages said the audit trail has 34 event types in seven areas; it has 39 in eight.
 - Links to removed blog tags now open the comparison post or tag that covers the same topic.
+- **Fixed** — a filter in a prompt template, such as `join`, was reported as a missing variable.
 
 ---
 

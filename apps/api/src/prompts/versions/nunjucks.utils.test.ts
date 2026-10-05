@@ -130,6 +130,31 @@ describe('extractVariables', () => {
     expect(result).toEqual(['outer', 'p']);
   });
 
+  it('does not report a filter name as a variable, with or without arguments', () => {
+    expect(extractVariables([{ content: '{{ groups | join(", ") }}' }])).toEqual(['groups']);
+    expect(extractVariables([{ content: '{{ x | upper }}' }])).toEqual(['x']);
+    expect(extractVariables([{ content: '{{ x | default("a") | trim | upper }}' }])).toEqual(['x']);
+  });
+
+  it('still reports a variable passed as a filter argument', () => {
+    expect(extractVariables([{ content: '{{ x | replace("a", sep) }}' }])).toEqual(['sep', 'x']);
+  });
+
+  it('does not report the name of a {% filter %} block, but does report its body', () => {
+    expect(extractVariables([{ content: '{% filter upper %}{{ body }}{% endfilter %}' }])).toEqual(['body']);
+  });
+
+  it('does not report a filter used inside an if condition or a for source', () => {
+    const result = extractVariables([
+      { content: '{% if items | length > 0 %}{% for i in items | sort %}{{ i }}{% endfor %}{% endif %}' },
+    ]);
+    expect(result).toEqual(['items']);
+  });
+
+  it('still reports a called function as an input', () => {
+    expect(extractVariables([{ content: '{{ fmt(x) }}' }])).toEqual(['fmt', 'x']);
+  });
+
   it('still requires the value a {% set %} reads, and a name referenced above it', () => {
     const result = extractVariables([{ content: '{{ total }}{% set total = price %}{{ total }}' }]);
     expect(result).toEqual(['price', 'total']);

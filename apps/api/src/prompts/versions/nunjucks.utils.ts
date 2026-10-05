@@ -142,6 +142,20 @@ function walkAst(node: unknown, vars: Set<string>, scopes: ScopeStack): void {
     return;
   }
 
+  // Filter: {{ xs | join(", ") }} parses as Filter(name=Symbol('join'), args=[xs, ", "]).
+  // Filter is a FunCall subclass, so the generic walk below would report the filter's
+  // own name (`join`, `upper`) as a variable the caller must supply. A filter is part of
+  // the template language, so only its args are inputs. The {% filter %} block form
+  // parses to the same node. Plain FunCall is left alone: `{{ fmt(x) }}` really does
+  // read `fmt` from the caller's variables.
+  if (
+    (njNodes['Filter'] && node instanceof njNodes['Filter']) ||
+    (njNodes['FilterAsync'] && node instanceof njNodes['FilterAsync'])
+  ) {
+    walkAst(rec['args'], vars, scopes);
+    return;
+  }
+
   // Attribute access: {{ user.name }} — capture root 'user' only
   if (njNodes['LookupVal'] && node instanceof njNodes['LookupVal']) {
     const target = rec['target'];
