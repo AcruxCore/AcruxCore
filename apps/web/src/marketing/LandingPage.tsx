@@ -223,12 +223,12 @@ export function LandingPage(): ReactNode {
                 'font-size:clamp(26px,3.4vw,40px);line-height:1.1;letter-spacing:-.02em;font-weight:700;margin:0 0 14px;text-wrap:balance;',
               )}
             >
-              The whole platform in two and a half minutes.
+              The whole platform in about a minute.
             </h2>
             <p style={cssToStyle('font-size:16.5px;line-height:1.6;color:var(--muted);margin:0;text-wrap:pretty;')}>
-              One thread, end to end: a versioned prompt, the gateway call that renders it, the trace that call
-              produced, an agent traced over OpenTelemetry without the gateway, and a thumbs-down that becomes a scored
-              fix — shipped by moving an alias. Recorded against a live instance, not a mockup.
+              Versioned prompts shipped by moving an alias, tools with their own versions and error rates, one gateway
+              in front of every provider, a trace for every call, evals that turn failures into scored fixes, and an
+              audit trail on every plan.
             </p>
           </div>
           <DemoVideo />
@@ -647,11 +647,11 @@ export function LandingPage(): ReactNode {
  * leaves stale copies at the edge for up to four hours. Either purge the cache or
  * upload under a new dated key and update this line.
  */
-const DEMO_VIDEO_URL = 'https://media.acruxcore.com/platform-overview-2026-09-720p.mp4';
+const DEMO_VIDEO_URL = 'https://media.acruxcore.com/acruxcore-intro-720p.mp4';
 
 /** Poster and captions are same-origin: both are small and needed before playback. */
-const DEMO_POSTER = '/media/demo-poster.jpg';
-const DEMO_CAPTIONS = '/media/platform-overview.vtt';
+const DEMO_POSTER = '/media/intro-poster.jpg';
+const DEMO_CAPTIONS = '/media/acruxcore-intro.vtt';
 
 /**
  * Click-to-play product demo.
@@ -690,7 +690,7 @@ const DemoVideo = (): ReactNode => {
         </video>
       </div>
       <figcaption style={cssToStyle('margin-top:12px;font-size:13.5px;color:var(--muted);')}>
-        2 min 32 s · captions on · recorded against a live instance
+        1 min 05 s · captions on
       </figcaption>
     </figure>
   );

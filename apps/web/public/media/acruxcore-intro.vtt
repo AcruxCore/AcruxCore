@@ -1,0 +1,97 @@
+WEBVTT
+
+1
+00:00:00.750 --> 00:00:02.442
+Your prompts live in the code.
+
+2
+00:00:02.442 --> 00:00:04.245
+Your traces live somewhere else.
+
+3
+00:00:04.245 --> 00:00:05.075
+And the bill?
+
+4
+00:00:05.075 --> 00:00:06.974
+That shows up from a third place.
+
+5
+00:00:08.336 --> 00:00:09.716
+Meet AcruxCore.
+
+6
+00:00:10.808 --> 00:00:14.039
+One open-source platform for your whole LLM stack.
+
+7
+00:00:14.744 --> 00:00:16.376
+Version every prompt.
+
+8
+00:00:16.376 --> 00:00:18.083
+Diff any two versions.
+
+9
+00:00:18.083 --> 00:00:20.463
+Then ship the change by moving an alias.
+
+10
+00:00:20.463 --> 00:00:21.520
+No redeploy.
+
+11
+00:00:22.232 --> 00:00:23.792
+Your tools get versions too.
+
+12
+00:00:23.792 --> 00:00:27.206
+They run inside the gateway, and every failure is counted.
+
+13
+00:00:27.920 --> 00:00:32.533
+One endpoint in front of OpenAI, Anthropic, Gemini, and more.
+
+14
+00:00:32.533 --> 00:00:36.055
+With routing, caching, retries, and budgets.
+
+15
+00:00:36.752 --> 00:00:38.528
+Every call becomes a trace.
+
+16
+00:00:38.528 --> 00:00:39.574
+Automatically.
+
+17
+00:00:40.280 --> 00:00:44.821
+Run evals on real datasets, and turn failures into scored fixes.
+
+18
+00:00:45.536 --> 00:00:47.529
+And every change is on the record.
+
+19
+00:00:47.529 --> 00:00:48.671
+On every plan.
+
+20
+00:00:49.376 --> 00:00:51.020
+Apache 2.0.
+
+21
+00:00:51.020 --> 00:00:55.179
+Self-host it with one command, or start free on the hosted platform.
+
+22
+00:00:55.880 --> 00:00:56.923
+AcruxCore.
+
+23
+00:00:56.923 --> 00:01:01.767
+Prompts, tools, gateway, tracing, evals, and audit.
+
+24
+00:01:01.767 --> 00:01:02.813
+One platform.
