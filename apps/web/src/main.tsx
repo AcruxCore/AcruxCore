@@ -8,22 +8,22 @@ import { AuthProvider } from '@/auth/AuthContext';
 import { ToastProvider, CookieConsentBanner } from '@/ui';
 import { initTheme } from '@/lib/theme';
 import { initAnalytics } from '@/lib/analytics';
+import { readRuntimeConfig } from '@/lib/runtime-config';
 import { App } from '@/app/App';
 import '@/styles/tokens.css';
 
-// `VITE_SENTRY_DSN` is not set directly — vite.config.ts maps the repo's
-// canonical `SENTRY_WEB_DSN` env var onto it at build time, so one variable
-// name is used everywhere (local .env, docker-compose, this bundle). A no-op
-// when unset, so local dev needs no Sentry project.
+// The DSN comes from /runtime-config.js, which the web container writes at
+// start-up (see src/lib/runtime-config.ts), so one published image serves
+// every install. A no-op when unset, so local dev needs no Sentry project.
 //
 // `import.meta.env.PROD` is the browser-side counterpart of the API's
 // `NODE_ENV === 'production'` check: it is false under the Vite dev server.
-// Without it, a developer running `npm run dev` with the real DSN in the
-// shared `.env` files every hot-reload error as a production issue, mixed in
-// with real user errors and impossible to tell apart.
-if (import.meta.env.VITE_SENTRY_DSN && import.meta.env.PROD) {
+// Without it, a developer running `npm run dev` against a configured
+// runtime-config.js would file every hot-reload error as a production issue.
+const { sentryWebDsn } = readRuntimeConfig();
+if (sentryWebDsn && import.meta.env.PROD) {
   Sentry.init({
-    dsn: import.meta.env.VITE_SENTRY_DSN,
+    dsn: sentryWebDsn,
     environment: 'production',
     integrations: [Sentry.browserTracingIntegration()],
     tracesSampleRate: 0.1,

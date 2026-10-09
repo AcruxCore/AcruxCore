@@ -8,12 +8,12 @@
 # Build context MUST be the repo root (see docker-compose.yml) because the web
 # app is an npm workspace and shares the root lockfile.
 #
-# This build takes no auth build args. The session is an httpOnly cookie issued
-# by our own API on this same origin, so the bundle embeds no key and the image
-# is identical for every deployment. It DOES take SENTRY_WEB_DSN and
-# GA4_MEASUREMENT_ID: Vite bakes env vars into the static bundle at build time,
-# not at container start, so there is no other point at which a static SPA
-# image could pick these up.
+# This build takes no build args, so the image is identical for every
+# deployment — production runs the same image Docker Hub publishes. The session
+# is an httpOnly cookie issued by our own API on this same origin, so the bundle
+# embeds no key. SENTRY_WEB_DSN and GA4_MEASUREMENT_ID are read when the
+# container starts: docker/40-runtime-config.sh writes them into
+# /runtime-config.js, which index.html loads before the app.
 
 # ---------------------------------------------------------------------------
 # Stage 1 — build the SPA.
@@ -39,17 +39,6 @@ RUN npm ci
 
 COPY . .
 
-# Declared right before the build step (not earlier) so changing the DSN
-# invalidates only this layer onward, not the `npm ci` layer above it.
-# Re-exposed as SENTRY_WEB_DSN/GA4_MEASUREMENT_ID (not VITE_-prefixed names) so
-# this Dockerfile uses the same env var names as docker-compose.yml/.env
-# everywhere else; vite.config.ts's `define` is what maps each onto the
-# VITE_-prefixed name the client bundle actually reads.
-ARG SENTRY_WEB_DSN
-ARG GA4_MEASUREMENT_ID
-ENV SENTRY_WEB_DSN=$SENTRY_WEB_DSN
-ENV GA4_MEASUREMENT_ID=$GA4_MEASUREMENT_ID
-
 RUN npx turbo run build --filter=@acruxcore/web
 
 # ---------------------------------------------------------------------------
@@ -58,6 +47,7 @@ RUN npx turbo run build --filter=@acruxcore/web
 FROM nginx:1.27-alpine AS web
 
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --chmod=755 apps/web/docker/40-runtime-config.sh /docker-entrypoint.d/40-runtime-config.sh
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
 
 EXPOSE 80

@@ -15,6 +15,12 @@
 #   3. docker compose up --build
 #   4. Web:  http://localhost:8080     API: http://localhost:3001/api/v1
 #
+# `api`, `worker` and `web` each name a published image (acruxcore/* on Docker
+# Hub) AND a build section. `--build` above builds this checkout. Production
+# does the opposite: .github/workflows/deploy.yml sets ACRUXCORE_IMAGE_TAG to
+# the release's `sha-<commit>` tag, pulls, and starts with `--no-build`, so the
+# host never compiles anything. Unset, the tag is `latest`.
+#
 # The API applies pending Prisma migrations against that database on boot.
 #
 # Interpolation convention below: a variable Compose *requires* is written bare
@@ -60,6 +66,7 @@ services:
       - mynetwork
 
   api:
+    image: acruxcore/api:${ACRUXCORE_IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -142,6 +149,7 @@ services:
       - mynetwork
 
   worker:
+    image: acruxcore/worker:${ACRUXCORE_IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -196,20 +204,20 @@ services:
       - mynetwork
 
   web:
+    image: acruxcore/web:${ACRUXCORE_IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: apps/web/Dockerfile
       target: web
-      # Auth needs no build arg: the session is an httpOnly cookie set by our
-      # own API on our own origin, so the bundle carries no key for that.
-      # SENTRY_WEB_DSN and GA4_MEASUREMENT_ID are the values the client bundle
-      # does need baked in at build time (see apps/web/Dockerfile and
-      # vite.config.ts's `define`).
-      args:
-        SENTRY_WEB_DSN: ${SENTRY_WEB_DSN:-}
-        GA4_MEASUREMENT_ID: ${GA4_MEASUREMENT_ID:-}
     container_name: acruxcore-web
     restart: unless-stopped
+    # Read when the container starts, not baked into the bundle: the image is
+    # the same one everyone pulls (see apps/web/docker/40-runtime-config.sh).
+    # Changing either needs a restart of `web`, not a rebuild. Auth needs
+    # nothing here — the session is an httpOnly cookie from our own API.
+    environment:
+      SENTRY_WEB_DSN: ${SENTRY_WEB_DSN:-}
+      GA4_MEASUREMENT_ID: ${GA4_MEASUREMENT_ID:-}
     depends_on:
       - api
     # ports:

@@ -40,6 +40,8 @@ called out in the week it ships and in the SDK release notes.
 - Links to removed blog tags now open the comparison post or tag that covers the same topic.
 - **Fixed** — a filter in a prompt template, such as `join`, was reported as a missing variable.
 - New [Press page](https://acruxcore.com/press) shows the directories that list AcruxCore.
+- **Fixed** — a release could make acruxcore.com return 502 for a few minutes while it deployed.
+- The `web` image reads `SENTRY_WEB_DSN` and `GA4_MEASUREMENT_ID` at start; a restart applies them.
 
 ---
 

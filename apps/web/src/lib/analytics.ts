@@ -1,3 +1,5 @@
+import { readRuntimeConfig } from './runtime-config';
+
 export type ConsentValue = 'granted' | 'denied';
 
 /**
@@ -9,8 +11,6 @@ export type ConsentValue = 'granted' | 'denied';
 export const ANALYTICS_CONSENT_COOKIE = 'acx_analytics_consent';
 
 const CONSENT_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
-
-const GA4_MEASUREMENT_ID = import.meta.env.VITE_GA4_MEASUREMENT_ID as string | undefined;
 
 declare global {
   interface Window {
@@ -119,10 +119,12 @@ export function setAnalyticsConsent(value: ConsentValue): void {
  * as early as possible during app bootstrap.
  *
  * No-ops in local dev (`import.meta.env.PROD` false) and whenever
- * `VITE_GA4_MEASUREMENT_ID` is unset, so a dev build never reports traffic.
+ * the container set no `GA4_MEASUREMENT_ID` (read from `/runtime-config.js`,
+ * see `runtime-config.ts`), so a dev build never reports traffic.
  */
 export function initAnalytics(): void {
-  if (!import.meta.env.PROD || !GA4_MEASUREMENT_ID) return;
+  const { ga4MeasurementId } = readRuntimeConfig();
+  if (!import.meta.env.PROD || !ga4MeasurementId) return;
 
   window.gtag = gtag;
   gtag('consent', 'default', {
@@ -139,9 +141,9 @@ export function initAnalytics(): void {
 
   const script = document.createElement('script');
   script.async = true;
-  script.src = `https://www.googletagmanager.com/gtag/js?id=${GA4_MEASUREMENT_ID}`;
+  script.src = `https://www.googletagmanager.com/gtag/js?id=${ga4MeasurementId}`;
   document.head.appendChild(script);
 
   gtag('js', new Date());
-  gtag('config', GA4_MEASUREMENT_ID);
+  gtag('config', ga4MeasurementId);
 }

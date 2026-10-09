@@ -47,17 +47,6 @@ export default defineConfig({
       },
     },
   },
-  define: {
-    // Maps the repo's canonical `SENTRY_WEB_DSN` onto the `VITE_`-prefixed
-    // name the client bundle reads, so the same variable name works in local
-    // dev (ambient shell env, see .envrc) and in the Docker build (passed as
-    // a build ARG — see apps/web/Dockerfile). A statically-replaced literal,
-    // not a runtime read, so it must stay a `define`, not a `.env` file.
-    'import.meta.env.VITE_SENTRY_DSN': JSON.stringify(process.env.SENTRY_WEB_DSN ?? ''),
-    // Same pattern for the GA4 measurement ID (see src/lib/analytics.ts) —
-    // unset locally so `npm run dev` never reports traffic.
-    'import.meta.env.VITE_GA4_MEASUREMENT_ID': JSON.stringify(process.env.GA4_MEASUREMENT_ID ?? ''),
-  },
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],

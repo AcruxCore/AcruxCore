@@ -115,6 +115,9 @@
   </head>
   <body>
     <div id="root"><!--app-html--></div>
+    <!-- Written by the container at start-up (Sentry DSN, GA4 ID). A classic
+         script, so it runs before the module below reads window.__ACRUXCORE_CONFIG__. -->
+    <script src="/runtime-config.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
