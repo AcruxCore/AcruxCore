@@ -2,6 +2,7 @@ export { LandingPage } from './LandingPage';
 export { RootRoute } from './RootRoute';
 export { AboutPage } from './pages/AboutPage';
 export { ContactPage } from './pages/ContactPage';
+export { PressPage } from './pages/PressPage';
 export { SecurityPage } from './pages/SecurityPage';
 export { PrivacyPage } from './pages/PrivacyPage';
 export { TermsPage } from './pages/TermsPage';

@@ -45,6 +45,7 @@ import {
   RootRoute,
   AboutPage,
   ContactPage,
+  PressPage,
   SecurityPage,
   PrivacyPage,
   TermsPage,
@@ -76,6 +77,7 @@ export function App() {
       <Route path="/" element={<RootRoute />} />
       <Route path="/about" element={<AboutPage />} />
       <Route path="/contact" element={<ContactPage />} />
+      <Route path="/press" element={<PressPage />} />
       <Route path="/security" element={<SecurityPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/terms" element={<TermsPage />} />

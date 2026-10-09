@@ -70,6 +70,7 @@ const SUMMARIES: Record<string, string> = {
   '/security':
     'How provider keys, prompts and trace data are handled: team isolation, encryption, payload-capture controls, self-hosting, and responsible disclosure.',
   '/contact': 'How to reach a person about the platform, self-hosting, pricing or a security report.',
+  '/press': 'Directories and catalogs where AcruxCore is listed.',
   '/privacy': 'What the hosted platform and website collect, how it is used, and the choices you have.',
   '/terms': 'The terms governing use of the platform, SDKs, APIs and website.',
 };
@@ -103,7 +104,7 @@ const SECTIONS: Section[] = [
   },
   {
     heading: 'Company',
-    paths: ['/about', '/security', '/contact'],
+    paths: ['/about', '/security', '/contact', '/press'],
   },
   {
     heading: 'Optional',

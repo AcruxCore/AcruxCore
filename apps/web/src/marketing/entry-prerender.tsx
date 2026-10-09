@@ -4,6 +4,7 @@ import { StaticRouter } from 'react-router-dom/server';
 import { LandingPage } from './LandingPage';
 import { AboutPage } from './pages/AboutPage';
 import { ContactPage } from './pages/ContactPage';
+import { PressPage } from './pages/PressPage';
 import { SecurityPage } from './pages/SecurityPage';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { TermsPage } from './pages/TermsPage';
@@ -123,6 +124,17 @@ export const ROUTES: PrerenderRoute[] = [
     component: ContactPage,
     sourceFiles: ['src/marketing/pages/ContactPage.tsx'],
     priority: 0.5,
+    changefreq: 'monthly',
+  },
+  {
+    path: '/press',
+    out: 'press/index.html',
+    title: 'Press — AcruxCore',
+    description:
+      'Directories and catalogs that list AcruxCore, the open-source LLMOps platform, with the badge each one issued.',
+    component: PressPage,
+    sourceFiles: ['src/marketing/pages/PressPage.tsx'],
+    priority: 0.3,
     changefreq: 'monthly',
   },
   {
