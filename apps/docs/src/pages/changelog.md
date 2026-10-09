@@ -27,7 +27,11 @@ called out in the week it ships and in the SDK release notes.
 
 ### Major
 
-- No major changes this week.
+#### Prebuilt images on Docker Hub
+
+- `acruxcore/api`, `acruxcore/worker` and `acruxcore/web` are published with every release.
+- The local quickstart pulls them, so `docker compose up` no longer compiles from source.
+- Tags: `latest` for the current release, `sha-<commit>` to pin one. [Docker Hub →](https://hub.docker.com/r/acruxcore/api)
 
 ### Minor
 

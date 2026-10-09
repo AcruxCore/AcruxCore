@@ -62,3 +62,9 @@ Dockerfile
 **/Dockerfile
 .dockerignore
 docker-compose.yml
+
+# Repo content no image reads at build or run time: article drafts for other
+# sites and the README's demo media. Leaving them in shipped ~22 MB of dead
+# weight in every published image.
+syndication
+product-demo.*

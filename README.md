@@ -20,6 +20,7 @@
   <a href="./LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-blue"></a>
   <a href="https://www.npmjs.com/package/@acruxcoreai/sdk"><img alt="npm" src="https://img.shields.io/npm/v/@acruxcoreai/sdk?label=npm%20sdk"></a>
   <a href="https://pypi.org/project/acruxcore/"><img alt="PyPI" src="https://img.shields.io/pypi/v/acruxcore?label=pypi%20sdk"></a>
+  <a href="https://hub.docker.com/r/acruxcore/api"><img alt="Docker Hub" src="https://img.shields.io/docker/pulls/acruxcore/api?label=docker%20pulls"></a>
 </p>
 
 ---
@@ -69,10 +70,12 @@ Postgres, Redis, the API, the worker and the web app all come up from one file:
 ```bash
 git clone https://github.com/AcruxCore/AcruxCore.git && cd AcruxCore
 cp .env.local.example .env
-docker compose -f docker-compose.local.yml up --build
+docker compose -f docker-compose.local.yml up
 ```
 
 Open **http://localhost:8080**, sign up, and you're in.
+
+Compose pulls the prebuilt [`acruxcore/api`](https://hub.docker.com/r/acruxcore/api), [`acruxcore/worker`](https://hub.docker.com/r/acruxcore/worker) and [`acruxcore/web`](https://hub.docker.com/r/acruxcore/web) images from Docker Hub. Add `--build` to build from your checkout instead, for example after you change the code.
 
 ## 📊 How it compares
 

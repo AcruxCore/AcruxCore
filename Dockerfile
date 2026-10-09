@@ -74,18 +74,33 @@ RUN rm -rf node_modules apps/*/node_modules packages/*/node_modules \
   && npx prisma generate --schema=apps/api/prisma/schema.prisma
 
 # ---------------------------------------------------------------------------
-# Stage 2 — api runtime.
+# Stage 2 — shared runtime base for api and worker.
 # ---------------------------------------------------------------------------
-# Same Debian base as the builder so the compiled native addon (isolated-vm)
-# and the Prisma engines stay ABI-compatible. The whole /app tree is
-# copied so the workspace symlinks (node_modules/@acruxcore/* → apps/*) and the
-# Prisma CLI needed by `migrate deploy` come along intact.
-FROM node:22-bookworm AS api
+# Same Debian release and Node major as the builder, so the compiled native
+# addon (isolated-vm) and the Prisma engines stay ABI-compatible. The whole
+# /app tree is copied so the workspace symlinks (node_modules/@acruxcore/* →
+# apps/*) and the Prisma CLI needed by `migrate deploy` come along intact.
+#
+# `-slim`, not the full image: the full one ships compilers and headers this
+# stage never runs, and was 1.7 GB of a 2.55 GB image. Slim drops OpenSSL,
+# which the Prisma engines load at runtime, so it goes back in here.
+# ca-certificates comes with it for any non-Node process making TLS calls;
+# Node itself uses its bundled CA store.
+FROM node:22-bookworm-slim AS runtime
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 ENV NODE_ENV=production
 
 COPY --from=builder /app /app
+
+# ---------------------------------------------------------------------------
+# Stage 3 — api runtime.
+# ---------------------------------------------------------------------------
+FROM runtime AS api
 
 EXPOSE 3001
 
@@ -93,13 +108,8 @@ EXPOSE 3001
 CMD ["sh", "/app/apps/api/docker-entrypoint.sh"]
 
 # ---------------------------------------------------------------------------
-# Stage 3 — worker runtime.
+# Stage 4 — worker runtime.
 # ---------------------------------------------------------------------------
-FROM node:22-bookworm AS worker
-
-WORKDIR /app
-ENV NODE_ENV=production
-
-COPY --from=builder /app /app
+FROM runtime AS worker
 
 CMD ["node", "apps/worker/dist/index.js"]

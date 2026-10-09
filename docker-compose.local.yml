@@ -4,7 +4,15 @@
 # worker, and the web app. The whole setup:
 #
 #   1. cp .env.local.example .env
-#   2. docker compose -f docker-compose.local.yml up --build
+#   2. docker compose -f docker-compose.local.yml up
+#
+# `api`, `worker` and `web` each name a published image (acruxcore/* on Docker
+# Hub, pushed by .github/workflows/docker-publish.yml on every release) AND a
+# build section. Compose uses the image when it can get it and builds from
+# this checkout only when it cannot, so step 2 downloads about 290 MB and
+# compiles nothing. To run your own edits instead, add `--build`. To move
+# to a newer release, run `docker compose -f docker-compose.local.yml pull`
+# first — `up` alone keeps whatever `latest` you pulled last time.
 #
 #   Web: http://localhost:8080     API: http://localhost:3001/api/v1
 #
@@ -65,6 +73,7 @@ services:
       - acruxcore-local
 
   api:
+    image: acruxcore/api:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -107,6 +116,7 @@ services:
       - acruxcore-local
 
   worker:
+    image: acruxcore/worker:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -133,6 +143,7 @@ services:
       - acruxcore-local
 
   web:
+    image: acruxcore/web:latest
     build:
       context: .
       dockerfile: apps/web/Dockerfile
