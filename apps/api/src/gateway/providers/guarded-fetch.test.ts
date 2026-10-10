@@ -30,6 +30,9 @@ function serve(handler: http.RequestListener): Promise<{ url: string; close: () 
 function sseTicker(count: number, gapMs: number): http.RequestListener {
   return (_req, res) => {
     res.writeHead(200, { 'content-type': 'text/event-stream' });
+    // writeHead only buffers the headers; without a flush they ride out with the first
+    // frame, and the headers deadline under test races the ticker instead of the socket.
+    res.flushHeaders();
     let sent = 0;
     const timer = setInterval(() => {
       if (sent >= count) {
@@ -64,14 +67,16 @@ describe('guardedFetch — the deadline covers the headers, not the body (issue 
     // aborting after the headers errors the body a streaming caller has not read yet: a
     // long generation died mid-answer and the tokens already billed upstream were
     // recorded as a failure worth $0.
-    const { url, close } = await serve(sseTicker(8, 60));
+    // The margins are wide on purpose: a busy CI runner can take a few hundred ms just to
+    // open the first fetch, and a 150ms deadline failed there with headers still on the way.
+    const { url, close } = await serve(sseTicker(8, 250));
     try {
       const { res } = await guardedFetch(
         url,
         { method: 'POST', headers: {}, body: '{}' },
         false,
         'OpenAI',
-        150, // far shorter than the 480ms the body takes to finish
+        1_000, // half the 2s the body takes to finish
       );
       const frames: string[] = [];
       for await (const data of parseSseStream(res.body!, undefined, 5_000)) frames.push(data);
