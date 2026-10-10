@@ -12,7 +12,7 @@ export interface ExportFile {
   };
   version: {
     versionNumber: number;
-    messages:      Array<{ role: string; content: string }>;
+    messages:      Array<{ role: string; content: string; cache_control?: { type: 'ephemeral' } }>;
     variables:     string[];
     createdAt:     string;
   };

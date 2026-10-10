@@ -14,6 +14,10 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ### Added
 
+- `cache_control?: CacheControl` on `Message` and `PromptMessage`, and the exported
+  `CacheControl` type. Set `{ type: 'ephemeral' }` to cache the prompt up to that message
+  on an Anthropic model; the gateway drops it for other models.
+
 - `RunCellExampleDto.errorMessage` — the reason a cell produced no output, matching
   what `GET /runs/:id/cells/:cellKey` has returned since the failed-cell fix. A
   TypeScript consumer reading it no longer gets a compile error.

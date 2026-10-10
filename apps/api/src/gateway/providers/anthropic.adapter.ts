@@ -8,6 +8,7 @@ import type {
   ToolDefinition,
   ToolChoice,
   ResponseFormat,
+  Usage,
 } from './types';
 import { parseSseStream } from './sse-parse';
 import { guardedFetch } from './guarded-fetch';
@@ -31,7 +32,36 @@ interface AnthropicResponseBody {
   model: string;
   content: { type: string; text?: string; id?: string; name?: string; input?: unknown }[];
   stop_reason: string | null;
-  usage: { input_tokens: number; output_tokens: number };
+  usage: AnthropicUsage;
+}
+
+/**
+ * Anthropic's token counts. Unlike OpenAI, `input_tokens` counts only the uncached part of the
+ * prompt: tokens read from or written to the cache are reported beside it, not inside it.
+ */
+interface AnthropicUsage {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_read_input_tokens?: number | null;
+  cache_creation_input_tokens?: number | null;
+}
+
+/**
+ * Converts Anthropic's usage into the canonical shape, where `prompt_tokens` is the whole prompt
+ * and the cache counts are subsets of it. Adds the cache fields only when they are above zero, so
+ * an uncached call keeps the exact `usage` shape it always had.
+ */
+function toUsage(u: AnthropicUsage, outputTokens = u.output_tokens ?? 0): Usage {
+  const read = u.cache_read_input_tokens ?? 0;
+  const written = u.cache_creation_input_tokens ?? 0;
+  const prompt = (u.input_tokens ?? 0) + read + written;
+  return {
+    prompt_tokens: prompt,
+    completion_tokens: outputTokens,
+    total_tokens: prompt + outputTokens,
+    ...(read > 0 ? { cached_tokens: read } : {}),
+    ...(written > 0 ? { cache_write_tokens: written } : {}),
+  };
 }
 
 /** Map Anthropic stop_reason to an OpenAI finish_reason. */
@@ -52,15 +82,33 @@ function mapStopReason(stop: string | null | undefined): string | null {
 }
 
 /**
- * Extract and join `system`-role message content into Anthropic's single
- * top-level `system` string (shared by the streaming and non-streaming paths).
- * Non-system messages are translated separately by `toAnthropicMessages`.
+ * Build Anthropic's top-level `system` from the `system`-role messages (shared by the streaming
+ * and non-streaming paths). Non-system messages are translated separately by `toAnthropicMessages`.
+ *
+ * Without a `cache_control` marker this is the joined string it always was. With one, it becomes
+ * one text block per system message, the marked ones carrying `cache_control`, because Anthropic
+ * reads the marker only from a block (issue #552).
+ *
+ * @returns The `system` value, or `undefined` when there is no system text.
  */
-function extractSystemText(messages: NormalizedRequest['messages']): string {
-  return messages
-    .filter((m) => m.role === 'system')
-    .map((m) => m.content)
-    .join('\n');
+function toAnthropicSystem(messages: NormalizedRequest['messages']): string | unknown[] | undefined {
+  const system = messages.filter((m) => m.role === 'system');
+  if (system.some((m) => m.cache_control)) {
+    return system.map((m) => ({
+      type: 'text',
+      text: m.content ?? '',
+      ...(m.cache_control ? { cache_control: m.cache_control } : {}),
+    }));
+  }
+  const text = system.map((m) => m.content).join('\n');
+  return text || undefined;
+}
+
+/** Adds a message's `cache_control` marker to the last block of its Anthropic content. */
+function withCacheMarker(m: ChatMessage, blocks: Record<string, unknown>[]): Record<string, unknown>[] {
+  const last = blocks[blocks.length - 1];
+  if (m.cache_control && last) last['cache_control'] = m.cache_control;
+  return blocks;
 }
 
 /** Maps OpenAI tool definitions to Anthropic's `{ name, description, input_schema }` shape. */
@@ -134,11 +182,14 @@ function toAnthropicMessages(messages: ChatMessage[]): { role: 'user' | 'assista
   for (const m of messages) {
     if (m.role === 'system') continue; // handled by extractSystemText
     if (m.role === 'tool') {
-      out.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: m.tool_call_id, content: m.content ?? '' }] });
+      out.push({
+        role: 'user',
+        content: withCacheMarker(m, [{ type: 'tool_result', tool_use_id: m.tool_call_id, content: m.content ?? '' }]),
+      });
       continue;
     }
     if (m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0) {
-      const blocks: unknown[] = [];
+      const blocks: Record<string, unknown>[] = [];
       if (m.content) blocks.push({ type: 'text', text: m.content });
       for (const tc of m.tool_calls) {
         let input: unknown = {};
@@ -149,10 +200,14 @@ function toAnthropicMessages(messages: ChatMessage[]): { role: 'user' | 'assista
         }
         blocks.push({ type: 'tool_use', id: tc.id, name: tc.function.name, input });
       }
-      out.push({ role: 'assistant', content: blocks });
+      out.push({ role: 'assistant', content: withCacheMarker(m, blocks) });
       continue;
     }
-    out.push({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content ?? '' });
+    const role = m.role === 'assistant' ? 'assistant' : 'user';
+    out.push({
+      role,
+      content: m.cache_control ? withCacheMarker(m, [{ type: 'text', text: m.content ?? '' }]) : m.content ?? '',
+    });
   }
   return out;
 }
@@ -160,7 +215,7 @@ function toAnthropicMessages(messages: ChatMessage[]): { role: 'user' | 'assista
 /** One SSE event from the Anthropic Messages streaming API. */
 interface AnthropicStreamEvent {
   type?: string;
-  message?: { usage?: { input_tokens?: number; output_tokens?: number } };
+  message?: { usage?: AnthropicUsage };
   delta?: { type?: string; text?: string; stop_reason?: string | null; partial_json?: string };
   usage?: { output_tokens?: number };
   content_block?: { type?: string; id?: string; name?: string };
@@ -185,7 +240,7 @@ export class AnthropicAdapter implements ProviderAdapter {
    * @throws {ProviderError} On a non-2xx response, timeout (504), or network error (502).
    */
   async chatCompletion(req: NormalizedRequest, creds: ProviderCredentials): Promise<NormalizedResponse> {
-    const systemText = extractSystemText(req.messages);
+    const systemText = toAnthropicSystem(req.messages);
     const messages = toAnthropicMessages(req.messages);
 
     const payload: Record<string, unknown> = {
@@ -301,11 +356,7 @@ export class AnthropicAdapter implements ProviderAdapter {
               finish_reason: 'stop',
             },
           ],
-          usage: {
-            prompt_tokens: data.usage.input_tokens,
-            completion_tokens: data.usage.output_tokens,
-            total_tokens: data.usage.input_tokens + data.usage.output_tokens,
-          },
+          usage: toUsage(data.usage),
         };
       }
     }
@@ -338,11 +389,7 @@ export class AnthropicAdapter implements ProviderAdapter {
           finish_reason: mapStopReason(data.stop_reason),
         },
       ],
-      usage: {
-        prompt_tokens: data.usage.input_tokens,
-        completion_tokens: data.usage.output_tokens,
-        total_tokens: data.usage.input_tokens + data.usage.output_tokens,
-      },
+      usage: toUsage(data.usage),
     };
   }
 
@@ -358,7 +405,7 @@ export class AnthropicAdapter implements ProviderAdapter {
     creds: ProviderCredentials,
     signal?: AbortSignal,
   ): AsyncIterable<StreamChunk> {
-    const system = extractSystemText(req.messages);
+    const system = toAnthropicSystem(req.messages);
     const messages = toAnthropicMessages(req.messages);
 
     const payload: Record<string, unknown> = {
@@ -442,7 +489,7 @@ export class AnthropicAdapter implements ProviderAdapter {
       );
     }
 
-    let promptTokens = 0;
+    let promptUsage: AnthropicUsage = {};
     let completionTokens = 0;
     // Anthropic's `index` on content_block_* events is the content block's position
     // (text and tool_use blocks share one sequence), NOT a 0-based ordinal among tool
@@ -479,7 +526,8 @@ export class AnthropicAdapter implements ProviderAdapter {
 
       switch (evt.type) {
         case 'message_start':
-          promptTokens = evt.message?.usage?.input_tokens ?? 0;
+          // Cache counts arrive only here; the final message_delta carries output tokens.
+          promptUsage = evt.message?.usage ?? {};
           break;
         case 'content_block_start':
           // A new tool_use block starting carries the call's id/name; arguments
@@ -555,11 +603,7 @@ export class AnthropicAdapter implements ProviderAdapter {
           yield {
             delta: '',
             finish_reason: finishReason,
-            usage: {
-              prompt_tokens: promptTokens,
-              completion_tokens: completionTokens,
-              total_tokens: promptTokens + completionTokens,
-            },
+            usage: toUsage(promptUsage, completionTokens),
           };
           break;
         }

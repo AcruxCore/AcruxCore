@@ -10,8 +10,8 @@ export interface ModelInfo {
   outputPricePerM: number;
   /**
    * Fraction of `inputPricePerM` charged for a prompt token the provider served from its
-   * own prefix cache. Omit to use `CACHED_INPUT_DISCOUNT`; set it only for a model whose
-   * published cached rate is not half the input rate.
+   * own prefix cache. Omit to use its provider's read rate (`cacheRatesFor`); set it only
+   * for a model whose published cached rate differs from that default.
    */
   cachedInputDiscount?: number;
   contextWindow: number;
@@ -77,23 +77,70 @@ export const MODELS: Record<string, ModelInfo> = {
  */
 export const CACHED_INPUT_DISCOUNT = 0.5;
 
+/** How a provider bills the two kinds of cached prompt token, as fractions of the input rate. */
+export interface CacheRates {
+  /** Charged per token served from the cache (`usage.cached_tokens`). */
+  read: number;
+  /** Charged per token written into the cache (`usage.cache_write_tokens`). */
+  write: number;
+}
+
+/** OpenAI-style automatic caching: reads at half price, nothing is ever billed as a write. */
+export const DEFAULT_CACHE_RATES: CacheRates = { read: CACHED_INPUT_DISCOUNT, write: 1 };
+
 /**
- * Splits prompt tokens into the part billed at the full input rate and the part billed at the
- * cached rate, and returns the blended input cost.
+ * Anthropic's published cache pricing for the default five-minute cache: a read costs 0.1x the
+ * input rate and a write costs 1.25x. Using OpenAI's 0.5x here would bill a cache hit at five
+ * times its real price (issue #552).
+ */
+export const ANTHROPIC_CACHE_RATES: CacheRates = { read: 0.1, write: 1.25 };
+
+/**
+ * Whether an upstream model id names an Anthropic model, whatever connection serves it.
  *
- * `usage.cached_tokens` is a subset of `usage.prompt_tokens`, so it is subtracted rather than
- * added. It is clamped to `[0, prompt_tokens]` because the figure comes from a provider we do
- * not control — a bogus count must not produce a negative cost.
+ * An `openai_compatible` connection such as OpenRouter reaches Claude as `anthropic/claude-…`,
+ * so the connection's provider alone cannot say whether `cache_control` applies.
+ *
+ * @param upstreamModel - The id the provider knows, e.g. `anthropic/claude-haiku-5.5`.
+ * @returns True for any id containing `claude` or starting with `anthropic/`.
+ */
+export function isAnthropicModel(upstreamModel: string): boolean {
+  return /claude/i.test(upstreamModel) || /^anthropic\//i.test(upstreamModel);
+}
+
+/**
+ * Picks the cache rates a served call is billed at.
+ *
+ * @param provider - The provider of the connection that served the call.
+ * @param upstreamModel - The upstream model id that connection was asked for.
+ * @returns `ANTHROPIC_CACHE_RATES` for a native Anthropic connection or an Anthropic model behind
+ *          any other connection, `DEFAULT_CACHE_RATES` otherwise.
+ */
+export function cacheRatesFor(provider: string, upstreamModel: string): CacheRates {
+  return provider === 'anthropic' || isAnthropicModel(upstreamModel)
+    ? ANTHROPIC_CACHE_RATES
+    : DEFAULT_CACHE_RATES;
+}
+
+/**
+ * Splits prompt tokens into the parts billed at the full, cache-read and cache-write rates, and
+ * returns the blended input cost.
+ *
+ * `usage.cached_tokens` and `usage.cache_write_tokens` are both subsets of `usage.prompt_tokens`,
+ * so they are subtracted rather than added. Each is clamped so the parts never exceed
+ * `prompt_tokens`, because the figures come from a provider we do not control — a bogus count
+ * must not produce a negative cost.
  *
  * @param usage - Provider-reported token counts.
  * @param inputPricePerM - USD per 1M prompt tokens at the full rate.
- * @param discount - Fraction of `inputPricePerM` charged for a cached token.
+ * @param rates - Fractions of `inputPricePerM` charged for a cache read and a cache write.
  * @returns USD cost of the prompt side of the call.
  */
-function inputCost(usage: Usage, inputPricePerM: number, discount: number): number {
+function inputCost(usage: Usage, inputPricePerM: number, rates: CacheRates): number {
   const cached = Math.min(Math.max(usage.cached_tokens ?? 0, 0), usage.prompt_tokens);
-  const full = usage.prompt_tokens - cached;
-  return (full / 1e6) * inputPricePerM + (cached / 1e6) * inputPricePerM * discount;
+  const written = Math.min(Math.max(usage.cache_write_tokens ?? 0, 0), usage.prompt_tokens - cached);
+  const full = usage.prompt_tokens - cached - written;
+  return ((full + cached * rates.read + written * rates.write) / 1e6) * inputPricePerM;
 }
 
 /**
@@ -117,15 +164,17 @@ function stripDateSuffix(model: string): string {
  * @param model - The requested model name (registry key), or a provider-dated
  *          variant of one (e.g. `gpt-4o-mini-2024-07-18`).
  * @param usage - Token counts reported by the provider. Any `cached_tokens` subset is billed
- *          at the model's `cachedInputDiscount`, defaulting to `CACHED_INPUT_DISCOUNT`.
+ *          at the model's `cachedInputDiscount`, defaulting to its provider's cache read rate;
+ *          any `cache_write_tokens` subset at its provider's write rate (`cacheRatesFor`).
  * @returns Cost in USD, or `null` if the model (dated or not) is not in the
  *          registry (the call is still served; the caller logs the null cost).
  */
 export function computeCost(model: string, usage: Usage): number | null {
   const m = MODELS[model] ?? MODELS[stripDateSuffix(model)];
   if (!m) return null;
+  const rates = cacheRatesFor(m.provider, m.model);
   return (
-    inputCost(usage, m.inputPricePerM, m.cachedInputDiscount ?? CACHED_INPUT_DISCOUNT) +
+    inputCost(usage, m.inputPricePerM, { ...rates, read: m.cachedInputDiscount ?? rates.read }) +
     (usage.completion_tokens / 1e6) * m.outputPricePerM
   );
 }
@@ -171,18 +220,21 @@ export function lookupDefaultPricing(
  *
  * @param inputPricePerM - USD per 1M prompt tokens, or null when unpriced.
  * @param outputPricePerM - USD per 1M completion tokens, or null when unpriced.
- * @param usage - Token counts reported by the provider. A `cached_tokens` count is billed at
- *          `CACHED_INPUT_DISCOUNT` of `inputPricePerM`; a registered model stores one input
- *          price, so there is no per-model cached rate to read here.
+ * @param usage - Token counts reported by the provider. Its `cached_tokens` and
+ *          `cache_write_tokens` subsets are billed at `rates`.
+ * @param rates - Cache read/write fractions of `inputPricePerM`. A registered model stores one
+ *          input price, so the caller derives these from the served provider and upstream model
+ *          with `cacheRatesFor`. Defaults to OpenAI's rates.
  * @returns Cost in USD, or `null` when either price is null (cost logged null).
  */
 export function computeCostFromPrices(
   inputPricePerM: { toNumber(): number } | number | null,
   outputPricePerM: { toNumber(): number } | number | null,
   usage: Usage,
+  rates: CacheRates = DEFAULT_CACHE_RATES,
 ): number | null {
   if (inputPricePerM == null || outputPricePerM == null) return null;
   const inP = typeof inputPricePerM === 'number' ? inputPricePerM : inputPricePerM.toNumber();
   const outP = typeof outputPricePerM === 'number' ? outputPricePerM : outputPricePerM.toNumber();
-  return inputCost(usage, inP, CACHED_INPUT_DISCOUNT) + (usage.completion_tokens / 1e6) * outP;
+  return inputCost(usage, inP, rates) + (usage.completion_tokens / 1e6) * outP;
 }

@@ -12,6 +12,12 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+### Added
+
+- `cache_control` key on the `Message` TypedDict, and the exported `CacheControl` type.
+  Set `{"type": "ephemeral"}` to cache the prompt up to that message on an Anthropic
+  model; the gateway drops it for other models.
+
 ### Fixed
 
 - A streamed completion that fails after its first byte now raises `AcruxCoreError`

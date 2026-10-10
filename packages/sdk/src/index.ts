@@ -77,6 +77,7 @@ export type {
   SessionListResult,
   SessionDetailResult,
   PromptMessage,
+  CacheControl,
   ToolBindingInput,
   AliasToolBindingInput,
   ToolBindingDetail,

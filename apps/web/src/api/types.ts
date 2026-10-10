@@ -43,6 +43,8 @@ export type MessageRole = 'system' | 'user' | 'assistant';
 export interface Message {
   role: MessageRole;
   content: string;
+  /** Anthropic prompt-cache marker: cache the prompt up to and including this message. */
+  cache_control?: { type: 'ephemeral' };
 }
 
 // ── Gateway: tool-calling chat messages (TC5) ───────────────────────────────

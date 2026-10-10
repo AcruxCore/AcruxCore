@@ -45,18 +45,27 @@ class ToolCall(TypedDict):
     function: ToolCallFunction
 
 
+class CacheControl(TypedDict):
+    """Anthropic's prompt-cache marker. ``type`` is always ``"ephemeral"``."""
+
+    type: Literal["ephemeral"]
+
+
 class Message(TypedDict, total=False):
     """A single chat message.
 
     ``role`` and ``content`` are always present (``content`` may be ``None`` for
     an assistant turn that only calls tools). ``tool_calls`` appears on assistant
     turns that call tools; ``tool_call_id`` on ``tool`` result messages.
+    ``cache_control`` asks an Anthropic model to cache the prompt up to and
+    including this message; the gateway drops it for every other model.
     """
 
     role: Role
     content: Optional[str]
     tool_calls: List[ToolCall]
     tool_call_id: str
+    cache_control: CacheControl
 
 
 class ToolFunctionDef(TypedDict, total=False):

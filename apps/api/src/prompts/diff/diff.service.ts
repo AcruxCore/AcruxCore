@@ -5,15 +5,16 @@ import type { DiffResponse } from './diff.types';
 
 /**
  * Serialises a messages array to a human-readable text block suitable for diffing.
- * Each message is formatted as `[role]\ncontent`, separated by `\n\n---\n\n`.
+ * Each message is formatted as `[role]\ncontent`, separated by `\n\n---\n\n`. A message
+ * marked for prompt caching reads `[role · cached]`, so toggling the marker shows in the diff.
  * Only raw nunjucks template strings are diffed — never rendered output.
  *
- * @param messages - Array of role/content pairs.
+ * @param messages - Array of role/content pairs, each optionally carrying `cache_control`.
  * @returns A single string representing all messages.
  */
-function messagesToDiffText(messages: Array<{ role: string; content: string }>): string {
+function messagesToDiffText(messages: Array<{ role: string; content: string; cache_control?: unknown }>): string {
   return messages
-    .map(m => `[${m.role}]\n${m.content}`)
+    .map(m => `[${m.role}${m.cache_control ? ' · cached' : ''}]\n${m.content}`)
     .join('\n\n---\n\n');
 }
 

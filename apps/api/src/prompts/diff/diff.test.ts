@@ -62,6 +62,26 @@ describe('GET /api/v1/prompts/:id/versions/diff', () => {
     expect(res.body.toVersion).toBe(2);
   });
 
+  it('shows a prompt-cache marker toggled between versions (issue #552)', async () => {
+    const { agent, apiKey } = await signupAndGetKey();
+    const p = await agent.post('/api/v1/prompts').send({ name: `diff-cache-${Date.now()}` }).expect(201);
+    for (const cache_control of [undefined, { type: 'ephemeral' }]) {
+      await request(app)
+        .post(`/api/v1/prompts/${p.body.id}/versions`)
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ messages: [{ role: 'system', content: 'Same docs', cache_control }] })
+        .expect(201);
+    }
+
+    const res = await request(app)
+      .get(`/api/v1/prompts/${p.body.id}/versions/diff?from=1&to=2`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .expect(200);
+
+    expect(res.body.diff).toContain('-[system]');
+    expect(res.body.diff).toContain('+[system · cached]');
+  });
+
   it('returns an empty-hunk diff when comparing a version to itself', async () => {
     const { agent, apiKey } = await signupAndGetKey();
     const { promptId } = await setupTwoVersions(agent, apiKey);

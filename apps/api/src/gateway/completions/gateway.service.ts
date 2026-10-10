@@ -16,7 +16,7 @@ import {
 import { notify } from '../../notifications/notify';
 import { appLink } from '../../email';
 import { getAdapter, ProviderError } from '../providers/adapter';
-import { computeCostFromPrices } from '../providers/models';
+import { cacheRatesFor, computeCostFromPrices } from '../providers/models';
 import { estimateTokens } from '../providers/token-estimate';
 import type { ChatMessage, NormalizedRequest, ProviderCredentials, StreamChunk, ToolCall, Usage } from '../providers/types';
 // Imported from the concrete file, not the `../../prompts/aliases` barrel:
@@ -1032,11 +1032,13 @@ export class GatewayService {
     const response = served.response;
     const servedDeployment = served.deployment;
 
-    // 8. Compute cost from the served deployment's stored prices + provider usage.
+    // 8. Compute cost from the served deployment's stored prices + provider usage. Cache
+    // reads and writes are billed at the served provider's own rates (issue #552).
     const costUsd = computeCostFromPrices(
       servedDeployment.model.inputPricePerM,
       servedDeployment.model.outputPricePerM,
       response.usage,
+      cacheRatesFor(servedDeployment.credential.provider, servedDeployment.model.upstreamModel),
     );
     if (costUsd === null) {
       console.warn(`[gateway] no pricing for model '${normalized.model}'; cost recorded as null`);
@@ -1446,11 +1448,15 @@ export class GatewayService {
         prompt_tokens: promptTokens,
         completion_tokens: completionTokens,
         total_tokens: promptTokens + completionTokens,
+        // Keep the provider's cache counts, or a streamed cache hit is billed at full price.
+        ...(providerUsage?.cached_tokens ? { cached_tokens: providerUsage.cached_tokens } : {}),
+        ...(providerUsage?.cache_write_tokens ? { cache_write_tokens: providerUsage.cache_write_tokens } : {}),
       };
       const costUsd = computeCostFromPrices(
         selectedModel.inputPricePerM,
         selectedModel.outputPricePerM,
         usage,
+        cacheRatesFor(provider, resolvedModel),
       ); // null if the served model is unpriced
 
       const meta: Record<string, unknown> = {};

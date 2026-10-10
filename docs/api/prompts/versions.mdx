@@ -129,6 +129,55 @@ curl -X POST $ACRUXCORE_BASE_URL/prompts/91f7b670-3305-47d0-af89-f46263cfabb7/ve
 }
 ```
 
+#### Mark a message for prompt caching
+
+Anthropic models cache a prompt only when the request marks where the cached part ends. Add
+`"cache_control": {"type": "ephemeral"}` to a message, and the gateway caches the prompt up to
+and including that message on any Anthropic model, whether the connection is Anthropic itself
+or OpenRouter. `content` stays a plain string. Every other model ignores the field, so one
+version still runs against any model in an experiment. OpenAI and Gemini cache long prompts
+without a marker. See [prompt caching on the gateway](/api-reference/gateway#prompt-caching-on-anthropic-models)
+for what a cached call returns and costs.
+
+`version.json` holds a 22,795-character product catalogue as the system message (shortened
+below), marked for caching, and a short user template:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/prompts/3c449918-002f-4079-b359-e3294a66fab1/versions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d @version.json
+```
+```json
+{
+  "id": "d6db91b2-8ed3-4226-a637-4b30ac1dce65",
+  "promptId": "3c449918-002f-4079-b359-e3294a66fab1",
+  "versionNumber": 1,
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are the support agent for Acme Lamps. Answer only from this catalogue.\n\n- SKU 1000: …",
+      "cache_control": {"type": "ephemeral"}
+    },
+    {"role": "user", "content": "{{ question }}"}
+  ],
+  "variables": ["question"],
+  "createdBy": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+  "createdAt": "2026-10-10T09:16:09.531Z",
+  "model": "claude-haiku",
+  "aliases": [
+    {"id":"792d43f6-f828-444f-a839-6927557750aa","alias":"production","versionId":"d6db91b2-8ed3-4226-a637-4b30ac1dce65","versionNumber":1,"updatedAt":"2026-10-10T09:16:09.535Z"},
+    {"id":"174339cf-9e53-4a0d-9641-fb1815a0957c","alias":"staging","versionId":"d6db91b2-8ed3-4226-a637-4b30ac1dce65","versionNumber":1,"updatedAt":"2026-10-10T09:16:09.535Z"}
+  ]
+}
+```
+
+400 — `cache_control.type` is anything other than `ephemeral`:
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"cache_control.type must be 'ephemeral'"}}
+```
+
 400 — `model` is not a registered gateway model for the team (issue #12):
 
 ```json

@@ -393,6 +393,74 @@ describe('processCell', () => {
     ]);
   });
 
+  it('sends a cache-marked system message to Anthropic as a cached block and bills the cache rates (issue #552)', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const conn = await agent
+      .post('/api/v1/gateway/connections')
+      .send({ provider: 'anthropic', label: 'anthropic test', apiKey: 'sk-ant-test-abcdAB12', config: {} })
+      .expect(201);
+    await agent
+      .post('/api/v1/gateway/models')
+      .send({ publicName: 'haiku', upstreamModel: 'claude-haiku-5-5', credentialId: conn.body.id, inputPricePerM: 1, outputPricePerM: 1 })
+      .expect(201);
+
+    const prompt = (await agent.post('/api/v1/prompts').send({ name: 'docs-qa' }).expect(201)).body;
+    const version = (
+      await agent
+        .post(`/api/v1/prompts/${prompt.id}/versions`)
+        .send({
+          messages: [
+            { role: 'system', content: 'Long fixed docs.', cache_control: { type: 'ephemeral' } },
+            { role: 'user', content: 'Question from {{ name }}' },
+          ],
+        })
+        .expect(201)
+    ).body;
+    const dataset = (await agent.post('/api/v1/datasets').send({ name: 'd-cache' }).expect(201)).body;
+    const example = (
+      await agent.post(`/api/v1/datasets/${dataset.id}/examples`).send({ input: { name: 'Al' } }).expect(201)
+    ).body;
+    const experiment = (
+      await agent
+        .post('/api/v1/experiments')
+        .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [version.id], models: ['haiku'] })
+        .expect(201)
+    ).body;
+
+    // Anthropic's own usage shape: `input_tokens` excludes the cached part.
+    mockFetchOnce({
+      id: 'msg_1',
+      model: 'claude-haiku-5-5',
+      content: [{ type: 'text', text: 'ok' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 100_000, output_tokens: 0, cache_read_input_tokens: 900_000, cache_creation_input_tokens: 0 },
+    });
+    const startRes = await agent.post(`/api/v1/experiments/${experiment.id}/runs`).expect(202);
+    const runRow = await prisma.experimentRun.findUnique({ where: { id: startRes.body.run_id } });
+    const cell = (runRow!.grid as unknown as Array<{ cellKey: string; promptVersionId?: string; variantLabel: string; variantKind: string }>)[0]!;
+
+    await processCell({
+      teamId,
+      runId: runRow!.id,
+      cellKey: cell.cellKey,
+      variantKind: cell.variantKind,
+      promptVersionId: cell.promptVersionId,
+      variantLabel: cell.variantLabel,
+      model: 'haiku',
+      exampleId: example.id,
+    });
+
+    const fetchMock = global.fetch as unknown as jest.Mock;
+    const sentBody = JSON.parse(fetchMock.mock.calls[fetchMock.mock.calls.length - 1]![1].body as string);
+    expect(sentBody.system).toEqual([{ type: 'text', text: 'Long fixed docs.', cache_control: { type: 'ephemeral' } }]);
+    expect(sentBody.messages).toEqual([{ role: 'user', content: 'Question from Al' }]);
+
+    // 100K full-price + 900K cache reads at 0.1x, at $1/M: $0.10 + $0.09 = $0.19.
+    const row = await prisma.gatewayRequest.findFirstOrThrow({ where: { teamId }, orderBy: { createdAt: 'desc' } });
+    expect(row.promptTokens).toBe(1_000_000);
+    expect(Number(row.costUsd)).toBeCloseTo(0.19, 6);
+  });
+
   it('rethrows on a provider failure; writeResultError separately records the terminal row', async () => {
     const { agent, teamId } = await authedAgent(app);
     const { promptVersionId, exampleId, experimentId } = await arrangeBasics(agent);

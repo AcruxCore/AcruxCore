@@ -38,11 +38,25 @@ export interface ToolCall {
   index?: number;
 }
 
+/**
+ * Anthropic's prompt-cache breakpoint. Marks the end of a prefix the provider should cache.
+ * `ephemeral` is the only type Anthropic defines; the default lifetime is five minutes.
+ */
+export interface CacheControl {
+  type: 'ephemeral';
+}
+
 /** A single chat message in the canonical (OpenAI) shape. */
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   /** Null for an assistant message that only carries tool_calls, or a tool result's raw string. */
   content: string | null;
+  /**
+   * Asks the provider to cache the prompt up to and including this message (issue #552).
+   * Only Anthropic models need it — OpenAI caches long prefixes on its own — so adapters turn it
+   * into a `cache_control` content block for an Anthropic model and drop it for every other.
+   */
+  cache_control?: CacheControl;
   /** Present on assistant messages that call tools. */
   tool_calls?: ToolCall[];
   /** Present on `tool` role messages — links the result to the assistant's call. */
@@ -91,11 +105,17 @@ export interface Usage {
    * Cost therefore charges `prompt_tokens - cached_tokens` at the full input rate and
    * `cached_tokens` at the discounted one (see `CACHED_INPUT_DISCOUNT` in `models.ts`).
    *
-   * Absent when the provider does not report a cached count. Only OpenAI-shaped responses
-   * carry it today; Anthropic's `cache_read_input_tokens` needs explicit `cache_control`
-   * on the request and is not wired up yet.
+   * Absent when the provider does not report a cached count. OpenAI reports it on its own;
+   * Anthropic (native `cache_read_input_tokens`, or OpenRouter's `cached_tokens`) only when the
+   * request carried a `cache_control` marker.
    */
   cached_tokens?: number;
+  /**
+   * Prompt tokens written into the provider's cache on this call — also a **subset of
+   * `prompt_tokens`**. Anthropic bills a cache write above the normal input rate (1.25x), so a
+   * write is not free; see `cacheRatesFor` in `models.ts`. Absent when nothing was written.
+   */
+  cache_write_tokens?: number;
 }
 
 /**

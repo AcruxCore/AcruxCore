@@ -812,6 +812,60 @@ See also
 
 ---
 
+### Prompt caching on Anthropic models
+
+Anthropic models cache a prompt only when the request marks the end of the part to cache. A
+message carries the marker as `"cache_control": {"type": "ephemeral"}` beside its string
+`content`, either in raw `messages` or in a stored prompt version (see
+[marking a message for caching](/api-reference/prompts/versions#mark-a-message-for-prompt-caching)).
+The gateway sends it on to Anthropic models only, on an Anthropic connection or OpenRouter, and
+drops it for every other model.
+
+`usage` then reports the cache. `cache_write_tokens` counts tokens written to the cache and
+`cached_tokens` counts tokens read from it. Both are part of `prompt_tokens`, not added to it.
+The recorded cost bills a write at 1.25x and a read at 0.1x the model's input price, the rates
+Anthropic charges. Anthropic caches nothing below a minimum prompt length that depends on the
+model ([Anthropic's limits](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching)).
+A shorter marked prompt runs uncached, and `usage` then has neither cache field.
+
+The two calls below render the version from the link above. That version's marked system
+message is about 9,000 tokens long. They differ only in the question:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":{"name":"lamp-support","alias":"production","variables":{"question":"How long does SKU 1004 take to ship?"}},"max_tokens":60}'
+```
+```json
+{
+  "id": "gen-1791623777-oHICdErEf6Srb6f0uExK",
+  "model": "anthropic/claude-haiku-4.5",
+  "object": "chat.completion",
+  "created": 1791623777,
+  "choices": [{"index":0,"message":{"role":"assistant","content":"SKU 1004 ships in **8 days**."},"finish_reason":"stop"}],
+  "usage": {"prompt_tokens": 8999, "completion_tokens": 16, "total_tokens": 9015, "cache_write_tokens": 8980}
+}
+```
+
+The second call, within five minutes, with `"question":"What is the warranty on SKU 1200?"`:
+
+```json
+{
+  "id": "gen-1791623785-Q1rTR7GoqTg7S2vdlPtV",
+  "model": "anthropic/claude-haiku-4.5",
+  "object": "chat.completion",
+  "created": 1791623785,
+  "choices": [{"index":0,"message":{"role":"assistant","content":"SKU 1200 has a **2 years warranty**."},"finish_reason":"stop"}],
+  "usage": {"prompt_tokens": 8997, "completion_tokens": 17, "total_tokens": 9014, "cached_tokens": 8980}
+}
+```
+
+At $1 per million input tokens and $5 per million output tokens, the gateway recorded $0.011324
+for the first call and $0.001000 for the second. Without the marker, each call costs $0.009084.
+
+---
+
 ## Response Cache (G6)
 
 Per-team exact-match response cache. Opt-in per virtual key via `cacheTtlSeconds`;

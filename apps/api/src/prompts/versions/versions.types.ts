@@ -9,13 +9,27 @@ export type PromptVersionRow = PromptVersion;
 
 // ── Request body schemas ──────────────────────────────────────────────────────
 
+/**
+ * Anthropic's prompt-cache marker on a message (issue #552). `ephemeral` is the only type
+ * Anthropic defines. The gateway sends it on to Anthropic models and drops it for the rest.
+ */
+export const CacheControlSchema = z.object(
+  { type: z.literal('ephemeral', { errorMap: () => ({ message: "cache_control.type must be 'ephemeral'" }) }) },
+  { invalid_type_error: "cache_control must be an object like { type: 'ephemeral' }" },
+);
+
 /** A single chat message with a nunjucks template string as content. */
 export const MessageSchema = z.object({
   role: z.enum(['system', 'user', 'assistant'], {
     errorMap: () => ({ message: "role must be 'system', 'user', or 'assistant'" }),
   }),
   content: z.string().min(1, 'content must not be empty'),
+  /** Cache the prompt up to and including this message, on Anthropic models. */
+  cache_control: CacheControlSchema.optional(),
 });
+
+/** A stored prompt message: a template string, optionally marked for prompt caching. */
+export type StoredMessage = z.infer<typeof MessageSchema>;
 
 /** Validated request body for POST /prompts/:id/versions */
 export const CreateVersionBodySchema = z.object({
@@ -45,7 +59,7 @@ export type ListVersionsQueryDto = z.infer<typeof ListVersionsQuerySchema>;
 export interface CreateVersionInput {
   promptId: string;
   versionNumber: number;
-  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
+  messages: StoredMessage[];
   variables: string[];
   createdBy: string;
   /** Resolved GatewayModel id for the default model, or null if unbound (#12). */
@@ -70,7 +84,7 @@ export interface VersionDetail {
   id: string;
   promptId: string;
   versionNumber: number;
-  messages: Array<{ role: string; content: string }>;
+  messages: Array<{ role: string; content: string; cache_control?: { type: 'ephemeral' } }>;
   variables: string[];
   /** Bound default model's current publicName, or null if unbound/deleted (#12). */
   model: string | null;

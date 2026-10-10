@@ -108,11 +108,26 @@ export function EditorTab({
                   </option>
                 ))}
               </select>
+              <label
+                className="ml-auto flex cursor-pointer items-center gap-1.5 text-[12px] text-muted has-[:disabled]:cursor-default"
+                title="Anthropic models cache the prompt up to and including this message, so repeat calls read it at a tenth of the input price. Other models ignore it."
+              >
+                <input
+                  type="checkbox"
+                  checked={m.cache_control !== undefined}
+                  disabled={!canWrite}
+                  onChange={(e) =>
+                    update(i, { cache_control: e.target.checked ? { type: 'ephemeral' } : undefined })
+                  }
+                  className="accent-accent"
+                />
+                Cache up to here
+              </label>
               {canWrite && draft.length > 1 && (
                 <button
                   type="button"
                   onClick={() => remove(i)}
-                  className="ml-auto text-[12px] text-faint hover:text-danger"
+                  className="text-[12px] text-faint hover:text-danger"
                 >
                   Remove
                 </button>

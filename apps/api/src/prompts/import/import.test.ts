@@ -47,6 +47,26 @@ describe('POST /api/v1/prompts/import', () => {
     expect(row!.versionNumber).toBe(1);
   });
 
+  it('keeps a prompt-cache marker from an exported version (issue #552)', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const payload = {
+      ...validPayload,
+      version: {
+        ...validPayload.version,
+        messages: [{ role: 'system', content: 'Docs', cache_control: { type: 'ephemeral' } }],
+      },
+    };
+
+    const res = await request(app)
+      .post('/api/v1/prompts/import')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send(payload)
+      .expect(201);
+
+    const row = await prisma.promptVersion.findFirstOrThrow({ where: { promptId: res.body.prompt.id } });
+    expect(row.messages).toEqual([{ role: 'system', content: 'Docs', cache_control: { type: 'ephemeral' } }]);
+  });
+
   it('re-derives variables from message content, ignoring imported variables field', async () => {
     const { apiKey } = await signupTestUserWithApiKey(app);
 

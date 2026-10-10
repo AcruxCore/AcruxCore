@@ -33,6 +33,13 @@ called out in the week it ships and in the SDK release notes.
 - The local quickstart pulls them, so `docker compose up` no longer compiles from source.
 - Tags: `latest` for the current release, `sha-<commit>` to pin one. [Docker Hub →](https://hub.docker.com/r/acruxcore/api)
 
+#### Prompt caching on Anthropic models
+
+- Mark a message with `cache_control` and Claude caches the prompt up to it, on Anthropic or OpenRouter.
+- The prompt editor has a "Cache up to here" checkbox on each message; other models ignore it.
+- Cost bills cache reads at 0.1x and writes at 1.25x input, and `usage` reports both counts.
+  [Reference →](/api-reference/gateway#prompt-caching-on-anthropic-models)
+
 ### Minor
 
 - The four Getting started pages are rewritten in shorter, plainer sentences. [Read →](/docs/getting-started/introduction)
@@ -42,6 +49,7 @@ called out in the week it ships and in the SDK release notes.
 - New [Press page](https://acruxcore.com/press) shows the directories that list AcruxCore.
 - **Fixed** — a release could make acruxcore.com return 502 for a few minutes while it deployed.
 - The `web` image reads `SENTRY_WEB_DSN` and `GA4_MEASUREMENT_ID` at start; a restart applies them.
+- **Fixed** — a streamed call billed tokens the provider served from its cache at the full price.
 
 ---
 

@@ -2,10 +2,20 @@
 // with tools.ts (which imports acruxcoreError, whose only import from here is a type).
 import type { AcruxTool, ZodLikeSchema } from './tools';
 
+/**
+ * Anthropic's prompt-cache marker. On a message, it asks an Anthropic model to cache the prompt up
+ * to and including that message; the gateway drops it for every other model.
+ */
+export interface CacheControl {
+  type: 'ephemeral';
+}
+
 /** A single chat message. Content is null for an assistant turn that only calls tools. */
 export interface Message {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string | null;
+  /** Cache the prompt up to and including this message, on Anthropic models. */
+  cache_control?: CacheControl;
   /** Present on assistant turns that call tools. */
   tool_calls?: ToolCall[];
   /** Present on `tool` messages — links a result to the assistant's call. */
@@ -210,6 +220,8 @@ export interface ToolExecuteResult {
 export interface PromptMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
+  /** Cache the prompt up to and including this message, on Anthropic models. */
+  cache_control?: CacheControl;
 }
 
 /**
@@ -409,7 +421,7 @@ export interface VersionDetail {
    * `'system'|'user'|'assistant'`, so an imported version's messages can legitimately
    * carry a role outside that set — matching the server's own `VersionDetail` DTO.
    */
-  messages: Array<{ role: string; content: string }>;
+  messages: Array<{ role: string; content: string; cache_control?: CacheControl }>;
   variables: string[];
   /** The bound default model's current `publicName`, or `null` if unbound. */
   model: string | null;
@@ -442,7 +454,7 @@ export interface ExportedPromptVersion {
   };
   version: {
     versionNumber: number;
-    messages: Array<{ role: string; content: string }>;
+    messages: Array<{ role: string; content: string; cache_control?: CacheControl }>;
     variables: string[];
     createdAt: string;
   };
@@ -462,7 +474,7 @@ export interface ImportPromptInput {
   };
   version: {
     versionNumber?: number;
-    messages: Array<{ role: string; content: string }>;
+    messages: Array<{ role: string; content: string; cache_control?: CacheControl }>;
     variables?: string[];
     createdAt?: string;
   };

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { ChatMessage, NormalizedRequest, NormalizedResponse } from '../providers/types';
+import { CacheControlSchema } from '../../prompts/versions/versions.types';
 
 /** OpenAI tool (function) definition. `parameters` is an arbitrary JSON Schema object. */
 export const ToolDefinitionSchema = z.object({
@@ -54,6 +55,8 @@ export const ChatMessageSchema = z
     content: z.string().nullable().default(null),
     tool_calls: z.array(ToolCallSchema).optional(),
     tool_call_id: z.string().optional(),
+    /** Anthropic prompt-cache marker; see `ChatMessage.cache_control`. */
+    cache_control: CacheControlSchema.optional(),
   })
   .superRefine((m, ctx) => {
     if (m.role === 'tool' && (m.tool_call_id === undefined || m.tool_call_id.length === 0)) {

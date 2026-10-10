@@ -1,4 +1,12 @@
-import { CACHED_INPUT_DISCOUNT, MODELS, computeCost, computeCostFromPrices, ModelInfo } from './models';
+import {
+  ANTHROPIC_CACHE_RATES,
+  CACHED_INPUT_DISCOUNT,
+  MODELS,
+  cacheRatesFor,
+  computeCost,
+  computeCostFromPrices,
+  ModelInfo,
+} from './models';
 
 describe('model registry + computeCost', () => {
   it('contains the seed models with a provider + prices', () => {
@@ -113,5 +121,46 @@ describe('model registry + computeCost', () => {
       total_tokens: 2_000_000,
     });
     expect(cost).toBeCloseTo(0.15 + 0.6, 6);
+  });
+});
+
+describe('Anthropic cache rates (issue #552)', () => {
+  it('picks Anthropic rates for a native connection and for a Claude model behind OpenRouter', () => {
+    expect(cacheRatesFor('anthropic', 'claude-haiku-5-5')).toBe(ANTHROPIC_CACHE_RATES);
+    expect(cacheRatesFor('openai_compatible', 'anthropic/claude-haiku-5.5')).toBe(ANTHROPIC_CACHE_RATES);
+    expect(cacheRatesFor('openai_compatible', 'meta-llama/llama-3.3-70b-instruct').read).toBe(CACHED_INPUT_DISCOUNT);
+    expect(cacheRatesFor('openai', 'gpt-4o-mini').write).toBe(1);
+  });
+
+  it('bills reads at 0.1x and writes at 1.25x of the input price', () => {
+    const cost = computeCostFromPrices(
+      2,
+      0,
+      { prompt_tokens: 1_000_000, completion_tokens: 0, total_tokens: 1_000_000, cached_tokens: 500_000, cache_write_tokens: 500_000 },
+      ANTHROPIC_CACHE_RATES,
+    );
+    // 500K * $0.20/M + 500K * $2.50/M = $0.10 + $1.25
+    expect(cost).toBeCloseTo(1.35, 9);
+  });
+
+  it('never bills more cache tokens than prompt tokens', () => {
+    const cost = computeCostFromPrices(
+      1,
+      0,
+      { prompt_tokens: 100, completion_tokens: 0, total_tokens: 100, cached_tokens: 80, cache_write_tokens: 80 },
+      ANTHROPIC_CACHE_RATES,
+    );
+    // 80 reads + only the 20 tokens left as writes; nothing at full price.
+    expect(cost).toBeCloseTo((80 * 0.1 + 20 * 1.25) / 1e6, 12);
+  });
+
+  it('bills the registry Claude model at the Anthropic read rate', () => {
+    const cost = computeCost('claude-3-5-sonnet-latest', {
+      prompt_tokens: 1_000_000,
+      completion_tokens: 0,
+      total_tokens: 1_000_000,
+      cached_tokens: 1_000_000,
+    });
+    expect(cost).toBeCloseTo(3 * 0.1, 9);
   });
 });

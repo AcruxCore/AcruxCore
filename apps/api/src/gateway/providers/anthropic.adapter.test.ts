@@ -260,3 +260,76 @@ describe('AnthropicAdapter.streamChatCompletion', () => {
     expect((err as ProviderError).message).not.toContain('super-secret-stream-detail-should-not-leak');
   });
 });
+
+describe('AnthropicAdapter prompt caching (issue #552)', () => {
+  const cachedReq: NormalizedRequest = {
+    model: 'claude-haiku-5-5',
+    messages: [
+      { role: 'system', content: 'Fixed docs.', cache_control: { type: 'ephemeral' } },
+      { role: 'system', content: 'Today is Monday.' },
+      { role: 'user', content: 'Q', cache_control: { type: 'ephemeral' } },
+    ],
+  };
+
+  it('sends marked messages as cache_control blocks and folds cache counts into prompt_tokens', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ...CANNED_ANTHROPIC,
+        usage: { input_tokens: 10, output_tokens: 2, cache_read_input_tokens: 700, cache_creation_input_tokens: 300 },
+      }),
+    } as unknown as Response);
+
+    const res = await anthropicAdapter.chatCompletion(cachedReq, { apiKey: 'a-key' });
+
+    const body = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string);
+    expect(body.system).toEqual([
+      { type: 'text', text: 'Fixed docs.', cache_control: { type: 'ephemeral' } },
+      { type: 'text', text: 'Today is Monday.' },
+    ]);
+    expect(body.messages).toEqual([
+      { role: 'user', content: [{ type: 'text', text: 'Q', cache_control: { type: 'ephemeral' } }] },
+    ]);
+    expect(res.usage).toEqual({
+      prompt_tokens: 1010,
+      completion_tokens: 2,
+      total_tokens: 1012,
+      cached_tokens: 700,
+      cache_write_tokens: 300,
+    });
+  });
+
+  it('keeps the plain system string when nothing is marked', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => CANNED_ANTHROPIC,
+    } as unknown as Response);
+
+    await anthropicAdapter.chatCompletion(
+      { model: 'claude-haiku-5-5', messages: [{ role: 'system', content: 'A' }, { role: 'system', content: 'B' }, { role: 'user', content: 'Q' }] },
+      { apiKey: 'a-key' },
+    );
+
+    const body = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string);
+    expect(body.system).toBe('A\nB');
+    expect(body.messages).toEqual([{ role: 'user', content: 'Q' }]);
+  });
+
+  it('reports cache counts from message_start on a stream', async () => {
+    const events = [
+      { type: 'message_start', message: { usage: { input_tokens: 10, output_tokens: 1, cache_read_input_tokens: 990 } } },
+      { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'ok' } },
+      { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 3 } },
+    ];
+    const sse = events.map((e) => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join('');
+    jest.spyOn(global, 'fetch').mockResolvedValue(new Response(sse, { status: 200 }));
+
+    let usage;
+    for await (const chunk of anthropicAdapter.streamChatCompletion(cachedReq, { apiKey: 'a-key' })) {
+      if (chunk.usage) usage = chunk.usage;
+    }
+    expect(usage).toEqual({ prompt_tokens: 1000, completion_tokens: 3, total_tokens: 1003, cached_tokens: 990 });
+  });
+});

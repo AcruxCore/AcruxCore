@@ -38,12 +38,16 @@ export class NunjucksRenderError extends Error {
 export interface MessageInput {
   role: 'system' | 'user' | 'assistant';
   content: string;
+  /** Prompt-cache marker; rendering carries it through untouched (issue #552). */
+  cache_control?: { type: 'ephemeral' };
 }
 
 /** A rendered message with all template variables replaced. */
 export interface RenderedMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
+  /** Prompt-cache marker copied from the template message, when it had one. */
+  cache_control?: { type: 'ephemeral' };
 }
 
 // ── AST walker ────────────────────────────────────────────────────────────────
@@ -368,5 +372,9 @@ export async function renderMessages(
     );
   }
 
-  return messages.map((msg, i) => ({ role: msg.role, content: rendered[i]! }));
+  return messages.map((msg, i) => ({
+    role: msg.role,
+    content: rendered[i]!,
+    ...(msg.cache_control ? { cache_control: msg.cache_control } : {}),
+  }));
 }

@@ -255,3 +255,23 @@ describe('OpenAiAdapter.streamChatCompletion', () => {
     });
   });
 });
+
+describe('cache_control on the OpenAI wire (issue #552)', () => {
+  const marked: NormalizedRequest = {
+    model: 'anthropic/claude-haiku-5.5',
+    messages: [{ role: 'system', content: 'Docs', cache_control: { type: 'ephemeral' } }],
+  };
+
+  it('never sends the marker to OpenAI itself, even for a model id that names Claude', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => CANNED_OPENAI,
+    } as unknown as Response);
+
+    await openaiAdapter.chatCompletion(marked, { apiKey: 'sk-test' });
+
+    const body = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string);
+    expect(body.messages).toEqual([{ role: 'system', content: 'Docs' }]);
+  });
+});

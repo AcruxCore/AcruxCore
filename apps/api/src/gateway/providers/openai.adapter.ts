@@ -1,6 +1,7 @@
 import type { Agent } from 'undici';
 import { ProviderAdapter, ProviderError, GATEWAY_TIMEOUT_MS, summarizeProviderDetail, parseRetryAfter } from './adapter';
-import type { NormalizedRequest, NormalizedResponse, ProviderCredentials, StreamChunk } from './types';
+import type { ChatMessage, NormalizedRequest, NormalizedResponse, ProviderCredentials, StreamChunk } from './types';
+import { isAnthropicModel } from './models';
 import { parseSseStream } from './sse-parse';
 import { guardedFetch } from './guarded-fetch';
 
@@ -19,7 +20,7 @@ interface OpenAiStreamFrame {
     completion_tokens: number;
     total_tokens: number;
     /** Prefix-cache detail; `cached_tokens` is a subset of `prompt_tokens`, billed at a discount. */
-    prompt_tokens_details?: { cached_tokens?: number } | null;
+    prompt_tokens_details?: PromptTokensDetails | null;
   } | null;
 }
 
@@ -42,22 +43,49 @@ interface OpenAiResponseBody {
     completion_tokens: number;
     total_tokens: number;
     /** Prefix-cache detail; `cached_tokens` is a subset of `prompt_tokens`, billed at a discount. */
-    prompt_tokens_details?: { cached_tokens?: number } | null;
+    prompt_tokens_details?: PromptTokensDetails | null;
   };
 }
 
 /**
- * Narrows OpenAI's `prompt_tokens_details` to the one field we bill on.
+ * Prefix-cache detail on `usage`. Both counts are subsets of `prompt_tokens`. OpenAI sends only
+ * `cached_tokens`; OpenRouter adds `cache_write_tokens` for an Anthropic model.
+ */
+interface PromptTokensDetails {
+  cached_tokens?: number;
+  cache_write_tokens?: number;
+}
+
+/**
+ * Narrows `prompt_tokens_details` to the two fields we bill on.
  *
- * Returns an empty object rather than `{ cached_tokens: 0 }` when there is nothing to report, so
- * `usage` keeps the exact shape it had before prefix caching existed for every provider that does
- * not send the detail block.
+ * Returns only the counts above zero rather than `{ cached_tokens: 0 }`, so `usage` keeps the
+ * exact shape it had before prefix caching existed for every provider that does not send the
+ * detail block.
  */
 function cachedTokens(
-  details: { cached_tokens?: number } | null | undefined,
-): { cached_tokens?: number } {
+  details: PromptTokensDetails | null | undefined,
+): { cached_tokens?: number; cache_write_tokens?: number } {
+  const out: { cached_tokens?: number; cache_write_tokens?: number } = {};
   const cached = details?.cached_tokens;
-  return typeof cached === 'number' && cached > 0 ? { cached_tokens: cached } : {};
+  const written = details?.cache_write_tokens;
+  if (typeof cached === 'number' && cached > 0) out.cached_tokens = cached;
+  if (typeof written === 'number' && written > 0) out.cache_write_tokens = written;
+  return out;
+}
+
+/**
+ * Puts a message's `cache_control` marker where the upstream expects it, or removes it.
+ *
+ * Anthropic models behind an OpenAI-shaped API (OpenRouter) read the marker only from inside a
+ * content block, so a marked string becomes `[{ type: 'text', text, cache_control }]`. Every other
+ * model gets the marker stripped: OpenAI rejects unknown message fields, and a server such as vLLM
+ * may reject a content-block array — the same prompt version must still run there (issue #552).
+ */
+function toWireMessage(m: ChatMessage, anthropicModel: boolean): Record<string, unknown> {
+  const { cache_control, ...rest } = m;
+  if (!cache_control || !anthropicModel || typeof m.content !== 'string') return rest;
+  return { ...rest, content: [{ type: 'text', text: m.content, cache_control }] };
 }
 
 const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
@@ -92,9 +120,11 @@ export class OpenAiAdapter implements ProviderAdapter {
 
   /** Build the shared OpenAI request body (model + messages + sampling params). */
   private buildPayload(req: NormalizedRequest): Record<string, unknown> {
+    // Native OpenAI never takes the marker, whatever the model is called.
+    const anthropicModel = this.provider === 'openai_compatible' && isAnthropicModel(req.model);
     const payload: Record<string, unknown> = {
       model: req.model,
-      messages: req.messages,
+      messages: req.messages.map((m) => toWireMessage(m, anthropicModel)),
     };
     if (req.temperature !== undefined) payload['temperature'] = req.temperature;
     if (req.max_tokens !== undefined) {
