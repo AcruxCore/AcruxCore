@@ -47,7 +47,7 @@ export function DatasetsPage() {
         <div>
           <h1 className="text-[22px] font-semibold tracking-tight">Datasets</h1>
           <p className="mt-1 text-[13px] text-muted">
-            Datasets built from feedback or written by hand, and the experiments run against them.
+            Datasets built from feedback, written by hand, or imported from a file, and the experiments run against them.
           </p>
         </div>
         {canWrite && (

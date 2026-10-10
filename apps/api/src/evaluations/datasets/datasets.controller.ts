@@ -4,11 +4,24 @@ import {
   AddExampleSchema,
   AddExamplesFromFeedbackSchema,
   BuildFromFeedbackSchema,
+  BulkAddExamplesSchema,
   CreateDatasetSchema,
   UpdateDatasetSchema,
   UpdateExampleSchema,
 } from './datasets.types';
 import { ValidationError } from '../../shared/errors';
+
+/**
+ * Renders a Zod issue path as the caller would write it — `examples[17].input`
+ * rather than `examples.17.input` — so the row that failed is named in a form
+ * that maps straight back to a line in their file.
+ */
+function formatIssuePath(path: Array<string | number>): string {
+  return path.reduce<string>(
+    (out, part) => (typeof part === 'number' ? `${out}[${part}]` : out ? `${out}.${part}` : part),
+    '',
+  );
+}
 
 /**
  * HTTP handlers for the datasets domain. Assumes `req.teamId` is set by
@@ -107,6 +120,29 @@ export class DatasetsController {
 
       const result = await this.service.addExample(req.teamId!, req.params.id, parsed.data);
       res.status(201).json(result);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /**
+   * POST /api/v1/datasets/:id/examples/bulk — import many examples at once.
+   *
+   * All-or-nothing: one invalid row rejects the request, and the error names
+   * the row (`examples[17].input: …`) so the caller can fix their file and
+   * resend it whole.
+   */
+  addExamplesBulk = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const parsed = BulkAddExamplesSchema.safeParse(req.body);
+      if (!parsed.success) {
+        const issue = parsed.error.issues[0];
+        const where = formatIssuePath(issue.path);
+        throw new ValidationError(where ? `${where}: ${issue.message}` : issue.message);
+      }
+
+      const result = await this.service.addExamplesBulk(req.teamId!, req.params.id, parsed.data);
+      res.status(201).json({ added: result.added, example_count: result.exampleCount });
     } catch (err) {
       next(err);
     }

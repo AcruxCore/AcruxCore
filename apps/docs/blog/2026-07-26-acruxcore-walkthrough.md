@@ -100,10 +100,10 @@ page — this matters for the next step.
 
 ## 5. Build a dataset from real feedback
 
-AcruxCore's evaluation page is explicit about where datasets come from: they
-aren't hand-typed, they're **built by selecting real feedback rows** — traces
-your team has already thumbs-up/thumbs-down'd in production. Unlike the other
-three platforms, there's no "add example" form here.
+AcruxCore can build a dataset by **selecting real feedback rows** — traces
+your team has already thumbs-up/thumbs-down'd in production. A dataset can also
+take rows typed by hand or imported from a CSV or JSON file. This walkthrough
+uses the feedback path.
 
 To see this end to end, we gave our trace above a real thumbs-up ("Correct
 classification and priority for this ticket") and went to the **Feedback**
@@ -117,10 +117,8 @@ soon":
 
 ![Evaluations page listing a real dataset named support-triage-regression with 1 example, created just now](/img/tutorials/acruxcore-walkthrough/09-dataset-created.png)
 
-This is the notable design choice here, not a limitation we're glossing over:
-your evaluation set grows directly out of what real users flagged as good or
-bad in production, instead of living as a separate hand-maintained fixture you
-have to remember to update.
+Built this way, the evaluation set grows directly out of what real users
+flagged as good or bad in production.
 
 ## 6. Check the run history
 

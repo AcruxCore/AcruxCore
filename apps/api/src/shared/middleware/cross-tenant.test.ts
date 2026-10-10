@@ -270,6 +270,10 @@ function probesFor(a: Fixture, b: Fixture): Record<string, Probe> {
     'PATCH /api/v1/datasets/:id': { url: `/api/v1/datasets/${a.datasetId}`, body: { name: 'taken' } },
     'DELETE /api/v1/datasets/:id': { url: `/api/v1/datasets/${a.datasetId}` },
     'POST /api/v1/datasets/:id/examples': { url: `/api/v1/datasets/${a.datasetId}/examples`, body: { input: { name: 'x' } } },
+    'POST /api/v1/datasets/:id/examples/bulk': {
+      url: `/api/v1/datasets/${a.datasetId}/examples/bulk`,
+      body: { examples: [{ input: { name: 'x' } }] },
+    },
     'POST /api/v1/datasets/:id/examples/from-feedback': {
       url: `/api/v1/datasets/${a.datasetId}/examples/from-feedback`,
       body: { feedback_ids: [a.feedbackId] },

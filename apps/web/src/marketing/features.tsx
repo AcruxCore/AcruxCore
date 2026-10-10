@@ -843,7 +843,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
     // characters a line at desktop, and the 70-character version ran to four
     // lines, which pushed both CTAs under the fold on an 800px-tall laptop.
     title: 'An LLM evaluation platform with prompt optimization.',
-    lead: 'Prove the new prompt is actually better. Build a dataset from real feedback or by hand, sweep it across prompt versions and models, read the result cell by cell — and let the optimizer draft the candidate rewrites before you move the production alias.',
+    lead: 'Prove the new prompt is actually better. Build a dataset from real feedback, by hand, or from a CSV or JSON file, sweep it across prompt versions and models, read the result cell by cell — and let the optimizer draft the candidate rewrites before you move the production alias.',
     metaTitle: 'LLM evaluation platform with prompt optimization — AcruxCore',
     metaDescription:
       'An open-source LLM evaluation platform: score prompt versions and models on a dataset, judge live traffic with standing rules, and optimize prompts.',
@@ -858,7 +858,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
     capabilities: [
       {
         title: 'Datasets, however you start',
-        body: 'Examples can come from the feedback your team left on real traces, from rows you write by hand, or from live calls a standing rule already scored badly. Existing traffic helps; it is not a prerequisite.',
+        body: 'Examples can come from the feedback your team left on real traces, from rows you write by hand or import from a CSV or JSON file, or from live calls a standing rule already scored badly. Existing traffic helps; it is not a prerequisite.',
       },
       {
         title: 'Experiments as sweeps',
@@ -881,7 +881,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
     sections: [
       {
         eyebrow: 'Datasets',
-        title: 'Three ways to fill a dataset.',
+        title: 'Four ways to fill a dataset.',
         lead: 'An example is two things: the prompt variables to render, and the criteria a judge should check. Where those rows come from is up to you — a brand-new prompt with no traffic can still be evaluated today.',
         cards: [
           {
@@ -891,6 +891,10 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
           {
             title: 'By hand',
             body: 'New dataset creates an empty one, and Add example writes a row: the variable fields, and what a good answer has to do. This is the path for a prompt that has no traffic yet.',
+          },
+          {
+            title: 'From a file',
+            body: 'Import file reads a CSV or JSON test set of up to 500 rows and shows a preview first. Rows with a problem are listed by their row number and left out of the import.',
           },
           {
             title: 'From live scores',
@@ -954,7 +958,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
       height: 800,
     },
     dashboard: [
-      'Build a dataset from feedback, or write the first examples by hand.',
+      'Build a dataset from feedback, write the first examples by hand, or import a CSV or JSON file.',
       'Configure a run across prompt versions and models in one form.',
       'Watch the run progress as the worker processes each cell.',
       'Compare outputs side by side, then drill into a single cell.',
@@ -971,7 +975,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
     ],
     cta: {
       title: 'Build your first evaluation dataset.',
-      body: 'Write two examples by hand or pull them from feedback, then run one prompt across two versions and compare. No credit card required.',
+      body: 'Write two examples by hand, import a CSV, or pull them from feedback, then run one prompt across two versions and compare. No credit card required.',
     },
   },
 

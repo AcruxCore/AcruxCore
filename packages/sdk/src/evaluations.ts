@@ -5,6 +5,7 @@ import type {
   BuildFromFeedbackResult,
   UpdateDatasetParams,
   AddExampleParams,
+  AddExamplesResult,
   DatasetDto,
   DatasetWithExamples,
   DatasetExampleDto,
@@ -37,7 +38,12 @@ export class DatasetsNamespace {
   }
 
   async create(params: CreateDatasetParams): Promise<DatasetDto> {
-    const response = await this.client._request('POST', '/datasets', params as unknown as Record<string, unknown>, 'creating dataset');
+    // The API reads snake_case; passing `params` through as is dropped `overallFeedback`.
+    const body = {
+      name: params.name,
+      ...(params.overallFeedback !== undefined ? { overall_feedback: params.overallFeedback } : {}),
+    };
+    const response = await this.client._request('POST', '/datasets', body, 'creating dataset');
     return this.client._parseJsonOrThrow(response, 'creating dataset') as Promise<DatasetDto>;
   }
 
@@ -78,6 +84,18 @@ export class DatasetsNamespace {
   async addExample(datasetId: string, params: AddExampleParams): Promise<DatasetExampleDto> {
     const response = await this.client._request('POST', `/datasets/${encodeURIComponent(datasetId)}/examples`, params as unknown as Record<string, unknown>, 'adding example');
     return this.client._parseJsonOrThrow(response, 'adding example') as Promise<DatasetExampleDto>;
+  }
+
+  /**
+   * Imports many examples in one request — a prepared test set from a file.
+   * All-or-nothing: one invalid row rejects the whole call with a 400 that names
+   * the row (`examples[17].input: …`), and nothing is written. At most 500 rows
+   * per call; split a larger set across several calls.
+   */
+  async addExamples(datasetId: string, examples: AddExampleParams[]): Promise<AddExamplesResult> {
+    const response = await this.client._request('POST', `/datasets/${encodeURIComponent(datasetId)}/examples/bulk`, { examples }, 'adding examples');
+    const data = await this.client._parseJsonOrThrow(response, 'adding examples') as { added: number; example_count: number };
+    return { added: data.added, exampleCount: data.example_count };
   }
 
   async removeExample(datasetId: string, exampleId: string): Promise<{ success: boolean }> {

@@ -90,6 +90,7 @@ describe('route policy', () => {
       'PATCH /api/v1/datasets/:id': 'requireRole(owner|admin|editor)',
       'DELETE /api/v1/datasets/:id': 'requireRole(owner|admin|editor)',
       'POST /api/v1/datasets/:id/examples': 'requireRole(owner|admin|editor)',
+      'POST /api/v1/datasets/:id/examples/bulk': 'requireRole(owner|admin|editor)',
       'POST /api/v1/datasets/:id/examples/from-feedback': 'requireRole(owner|admin|editor)',
       'PATCH /api/v1/datasets/:id/examples/:exampleId': 'requireRole(owner|admin|editor)',
       'DELETE /api/v1/datasets/:id/examples/:exampleId': 'requireRole(owner|admin|editor)',

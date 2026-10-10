@@ -790,6 +790,19 @@ export interface CreateDatasetInput {
 export interface AddDatasetExampleInput {
   input: Record<string, unknown>;
   criteria?: string;
+  /** Optional prior-turn conversation, OpenAI chat-message shape. */
+  history?: unknown[];
+}
+
+/** POST /datasets/:id/examples/bulk — at most 500 rows, all-or-nothing. */
+export interface BulkAddExamplesInput {
+  examples: AddDatasetExampleInput[];
+}
+
+/** Response of the bulk import: rows written and the dataset's total afterwards. */
+export interface BulkAddExamplesResult {
+  added: number;
+  example_count: number;
 }
 
 /** PATCH /datasets/:id — all fields optional; `overall_feedback: null` explicitly clears it. */

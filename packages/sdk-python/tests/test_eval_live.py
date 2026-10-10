@@ -70,6 +70,17 @@ async def test_dataset_lifecycle_create_example_get_list_update_remove_delete(
     )
     assert example.id
 
+    # add_examples — a prepared set lands in one call, with the new total
+    imported = await hub.datasets.add_examples(
+        ds.id,
+        [
+            {"input": {"question": "What is 3+3?"}, "criteria": "Must answer 6"},
+            {"input": {"question": "What is 5+5?"}},
+        ],
+    )
+    assert imported.added == 2
+    assert imported.example_count == 3
+
     # get — the example is attached
     fetched = await hub.datasets.get(ds.id)
     assert fetched.id == ds.id

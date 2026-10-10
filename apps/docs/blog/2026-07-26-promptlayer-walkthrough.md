@@ -197,7 +197,7 @@ template via `pl_client.templates.get(...)` first and feed its rendered messages
 | Variables | Auto-detects `{{variable}}` syntax in the editor, no separate declaration step | Validates required variables at render time, errors clearly if one's missing |
 | Gateway | No request-routing layer — call providers yourself through their SDK wrapper, it logs the call | Gateway routes every provider call itself — one audited, cost-visible path |
 | Tracing | Multi-step tracing is a separate, opt-in SDK feature; default is a flat per-call log | Automatic the moment a call goes through the gateway |
-| Evaluation | Live, ad-hoc model-comparison tables and release-label A/B tests on live traffic | Datasets and experiments persist and build up over time, tied to real production feedback |
+| Evaluation | Live, ad-hoc model-comparison tables and release-label A/B tests on live traffic | Datasets and experiments persist and build up over time, built from production feedback, by hand, or from a CSV/JSON file |
 | Hosting & pricing | Seat-based trial plan | Open source and self-hostable, free in beta |
 
 Want to see the same loop on AcruxCore? The

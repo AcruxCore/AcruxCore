@@ -68,6 +68,12 @@ export interface AddExampleParams {
   history?: EvalChatMessage[];
 }
 
+/** Result of `datasets.addExamples`: rows written and the dataset's total afterwards. */
+export interface AddExamplesResult {
+  added: number;
+  exampleCount: number;
+}
+
 // ── Experiment types ──
 
 export interface ExperimentDto {

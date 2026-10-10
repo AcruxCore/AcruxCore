@@ -31,7 +31,7 @@ hands-on treatment.
   **in** the request path, where it is also the cheapest, at +4 to +51 ms against MLflow's
   gateway at +135 to +225 ms.
 - **Behind** on three things: no guardrails or spend controls (Opik, MLflow, and Helicone all
-  have real ones), no way to build a first eval dataset without real production feedback, and
+  have real ones), no pairwise experiments or arbitrary-code scorers, and
   no way to ask an arbitrary question of your own trace data (Laminar has a real SQL editor
   and a composable dashboard builder).
 - Full reasoning: [Where AcruxCore stands](#where-acruxcore-stands).
@@ -95,7 +95,7 @@ each platform compare to AcruxCore," not as one single eight-way race:
 | Tracing | Span-based (SDK-wrapped) | Span-based (SDK-wrapped) | Flat Request Log by default; Traces are separate and opt-in | Single rich span, OTel semantic conventions; Playground relays via GraphQL, not a real call | Span tree via `track_openai()`; confirmed the Playground alone produces no trace | Single span, automatic; prompt-version link needs a separate explicit SDK call | Not reached this run — manual-log endpoint 500'd on a missing self-host env var | OTel-native nested span tree; tree, transcript and cost-heatmap views; 15+ framework integrations | Span-based (gateway auto-traces every call) |
 | Where the platform sits | Beside the request path | Beside the request path | Beside the request path | Beside — Playground proxies via GraphQL, SDK calls go direct | Beside — ingests a trace after your own call | **In** the request path — a real AI Gateway | **In** the request path — its gateway served 300/300 rounds on a native OpenAI key, but forwards without logging until an org key is set | Beside — deliberately; we read its server routes and it has no inbound proxy at all | **In** the request path — every call routes through it |
 | Guardrails / spend controls | None found | None found | None found | None found | Topic + PII guardrails, per project | Safety + PII + custom guardrails, and spend Budgets, per gateway endpoint | Rate Limit Rules (not content-inspecting); no PII/safety guardrail found | PII redaction on ingested spans; no spend control is possible from beside the path | Spend caps and RPM/TPM limits enforced pre-call; no content guardrail |
-| Evaluation | Datasets + Experiments, hand-authored examples | Datasets + Experiments, hand-authored examples | A/B test on live traffic + ad-hoc model-comparison grid | Dataset from a trace span + LLM/Code evaluator split; a templated-prompt experiment failed on a variable-shape mismatch | Dataset from any trace + inline creation; UI experiments defer to the SDK; plus dedicated Test suites | Built-in LLM-as-judge + custom code judges; hit a real dataset-list-page bug | Datasets curated from Request rows; none existed since no call was ever logged this run | Code-first: your data, your executor, your scorer functions, run locally or in CI; datasets one click from a span; plus labeling queues | Feedback-driven datasets, no hand-authored examples; plus rule-based online evaluation — a judge scoring every matching live trace |
+| Evaluation | Datasets + Experiments, hand-authored examples | Datasets + Experiments, hand-authored examples | A/B test on live traffic + ad-hoc model-comparison grid | Dataset from a trace span + LLM/Code evaluator split; a templated-prompt experiment failed on a variable-shape mismatch | Dataset from any trace + inline creation; UI experiments defer to the SDK; plus dedicated Test suites | Built-in LLM-as-judge + custom code judges; hit a real dataset-list-page bug | Datasets curated from Request rows; none existed since no call was ever logged this run | Code-first: your data, your executor, your scorer functions, run locally or in CI; datasets one click from a span; plus labeling queues | Datasets from feedback, typed by hand, or imported from a CSV/JSON file; plus rule-based online evaluation — a judge scoring every matching live trace |
 | Feedback → Playground → save loop | Feedback + Dataset + Annotation Queue exist, but no trace → Playground jump | Full loop: trace → Playground (pre-loaded) → Save as prompt | Full loop: Request → Playground (pre-loaded) → Save Template | Not run as this exact loop — see [Phoenix vs AcruxCore](/blog/acruxcore-vs-phoenix) | Not run as this exact loop — see [Opik vs AcruxCore](/blog/acruxcore-vs-opik) | Not run as this exact loop — see [MLflow vs AcruxCore](/blog/acruxcore-vs-mlflow) | Not run as this exact loop — see [Helicone vs AcruxCore](/blog/acruxcore-vs-helicone) | Trace → playground exists ("Experiment in playground"), but there is no prompt version to save back into | Full loop, plus an automated version: feedback → drafted candidates → judged run → Promote to production |
 | Automatic prompt optimizer † | Polly's **Optimize prompt** rewrites the prompt conversationally in the Playground — no dataset, no scored candidates | None in the product — an Agent Skill for Claude Code edits prompts through the API from your editor | None found — A/B tests and eval pipelines score versions you wrote yourself | Arize's Prompt Learning does rewrite from eval results, but it is a separate clone-and-run repo, not part of the Phoenix app | **Opik Agent Optimizer** — MetaPrompt, GEPA, evolutionary and few-shot Bayesian search, SDK-driven, runs logged back to the UI | **`optimize_prompts()`** (experimental) — DSPy MIPROv2 or GEPA against a dataset, winner registered as a new prompt version; SDK-only | "Auto-Improve" was a single-pass rewrite in the prompt editor deprecated on 20 August 2025; nothing replaced it | No prompt registry, so there is nothing for an optimizer to rewrite | **Improve from feedback** — failing cases draft candidates, each judged against production across a model grid, promote from the report; started in the dashboard |
 | Tool calling | Shows up as spans only; no catalog | Playground-scoped tool schema; no catalog | Per-request tool-call count; no catalog | Ad-hoc JSON Schema per Playground prompt; nothing executes or gets measured | No tool-catalog concept at all; its "Agent playground" needs a live process wired in by code | MCP Registry — catalogs external MCP *servers* by manifest, doesn't execute an individual tool | No tool-catalog concept found in any nav section checked | Tool schema is a JSONB field on a playground row; tool calls show as spans; nothing executes | Dedicated versioned Tool Catalog + a Tool analytics page |
@@ -429,7 +429,7 @@ Phoenix in one interleaved run against AcruxCore's gateway and gateway-free BYOK
 :::info[Quick take]
 LangSmith, Langfuse, Phoenix, Opik, and Laminar all let a fresh account build a dataset in
 minutes (hand-authored or one-click from a trace). AcruxCore builds datasets from real
-feedback only — deeper signal, but nothing to work with on day one.
+feedback, from rows typed by hand, or from an imported CSV or JSON file.
 :::
 
 LangSmith, Langfuse, Phoenix, and Opik are the most mature here, and we have real numbers
@@ -482,18 +482,12 @@ place from the opposite direction — code first, nothing defined in the UI at a
 - **Helicone**'s dataset path never got evidence on this run: its Datasets page curates rows
   from the Requests table, and since no call of ours ever successfully logged (see
   **Tracing and observability** above), there was nothing to curate.
-- **AcruxCore**: the one platform with no "hand-author an example" form at all. Datasets
-  are built by **selecting real production feedback rows** (thumbs up/down on traces) — the
-  eval set grows out of what real users actually flagged, not a separate fixture you
-  maintain by hand. We tested this end to end: thumbs-upped a real trace, went to the
-  Feedback page, selected that row, and clicked **Create dataset** — it built a real,
-  named dataset with 1 example immediately, no synthetic fixture involved. The honest gap is
-  volume, not mechanism: a brand-new account with only one or two traces will only ever be
-  able to build a tiny dataset until real feedback accumulates, whereas LangSmith, Langfuse,
-  Phoenix, and Opik all let you build a dataset in a couple of minutes regardless of
-  production traffic. The underlying design — evaluate from real signal, not synthetic
-  examples — is arguably the more useful long-term model once a team has real usage to draw
-  on. Separately, AcruxCore also has rule-based **online evaluation**: a rule with a judge
+- **AcruxCore**: datasets are built by **selecting real production feedback rows** (thumbs
+  up/down on traces), by typing rows by hand, or by importing a CSV or JSON file. We tested
+  the feedback path end to end: thumbs-upped a real trace, went to the Feedback page,
+  selected that row, and clicked **Create dataset** — it built a real, named dataset with
+  1 example immediately. A brand-new account with no traffic can start from a typed or
+  imported test set instead. Separately, AcruxCore also has rule-based **online evaluation**: a rule with a judge
   (built-in or a custom prompt) scores every matching live trace as it lands, the same idea
   as Opik's Online evaluation above.
 
@@ -1071,8 +1065,8 @@ platform does, not just a different button for the same idea.
 **AcruxCore**
 - **Stored-prompt gateway calls** — send a prompt name + alias, and the gateway renders
   and routes it in one request, with no client-side templating step at all.
-- **Feedback-driven datasets** — eval data comes from real thumbs-up/down on production
-  traces, not hand-authored fixtures.
+- **Feedback-driven datasets** — eval data can come from real thumbs-up/down on production
+  traces, alongside typed or imported test sets.
 - **Gateway-as-tracing-source** — every call is traced automatically because it physically
   routes through the gateway, not because an SDK wrapper is watching it.
 - **Improve from feedback** — an automated loop that turns selected feedback rows into
@@ -1138,23 +1132,16 @@ in this series, so read that row as six platforms, not eight. What ours does not
 expire: there is no CSV or JSON download, and no retention window to configure. See
 [Read the team audit trail](/docs/guides/read-the-team-audit-trail).
 
-**Behind:** three real gaps stand out now — one new to this expanded pass, one already known
-and sharper with more evidence, and one that Laminar exposed as a whole missing category:
+**Behind:** three real gaps stand out now — the third is one that Laminar exposed as a whole
+missing category:
 
 1. **Guardrails and spend controls** — Opik's Topic/PII guardrails, MLflow's Safety/PII
    guardrails plus enforced spend Budgets, and Helicone's Rate Limit Rules are all real,
    working features that AcruxCore has no answer for today; see
    **Guardrails and spend controls** above.
-2. **Evaluation ergonomics** — LangSmith, Langfuse, Phoenix, and Opik all let a fresh
-   account build a dataset in one sitting (some from hand-authored examples, some from any
-   trace with one click), while AcruxCore's datasets are feedback-only: a brand-new account
-   has *nothing* to build a first dataset from until real traffic and real thumbs-up/down
-   accumulate. We still think feedback-driven evaluation is the more trustworthy long-term
-   model, not a weaker one — the bootstrapping gap is the thing worth fixing, not the design
-   choice behind it. LangSmith's Pairwise Experiments, PromptLayer's ad-hoc
+2. **Evaluation tooling** — LangSmith's Pairwise Experiments, PromptLayer's ad-hoc
    model-comparison grid, Opik's dedicated Test suites, and Laminar's arbitrary-code scorers
-   are all things AcruxCore doesn't have an equivalent for today, independent of where the
-   dataset comes from.
+   are all things AcruxCore doesn't have an equivalent for today.
 3. **Asking your own trace data a question** — this is the gap Laminar made obvious, and it
    is a category rather than a feature. Laminar ships SQL over its span store, with saved
    queries, CSV export, and AI-written queries, plus a drag-and-drop dashboard builder where

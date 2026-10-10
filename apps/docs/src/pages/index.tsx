@@ -85,7 +85,7 @@ const GUIDES: Guide[] = [
   {
     title: 'Evaluation',
     href: '/docs/guides/evaluate-a-prompt',
-    body: 'Build datasets from real feedback and run experiments to compare prompt or model versions on quality.',
+    body: 'Build datasets from real feedback or a CSV/JSON file, and run experiments to compare prompt or model versions on quality.',
     icon: (
       <Ic>
         <rect x={4} y={12} width={4} height={8} rx={1} />

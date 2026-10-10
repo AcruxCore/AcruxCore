@@ -260,7 +260,7 @@ for the screenshot.
 | Feature | MLflow | AcruxCore |
 |---|---|---|
 | LLM-as-judge | Built-in judges, plus custom code judges | Not built in |
-| Dataset creation | UI form, or "Add to dataset" from any trace | From trace feedback, span-level only |
+| Dataset creation | UI form, or "Add to dataset" from any trace | Span-level trace feedback, manual entry, API, or a CSV/JSON file |
 | Datasets list page | Confirmed bug: didn't show a dataset that existed server-side | Not applicable |
 
 ## SDK & developer experience

@@ -146,9 +146,15 @@ describe('a viewer cannot change evaluation data', () => {
       .set(authHeaders(viewer))
       .send({ input: { q: 'hi' } })
       .expect(403);
+    await request(app)
+      .post(`/api/v1/datasets/${datasetId}/examples/bulk`)
+      .set(authHeaders(viewer))
+      .send({ examples: [{ input: { q: 'hi' } }] })
+      .expect(403);
     await request(app).delete(`/api/v1/datasets/${datasetId}`).set(authHeaders(viewer)).expect(403);
 
     expect(await prisma.dataset.count()).toBe(1); // still there
+    expect(await prisma.datasetExample.count()).toBe(0);
   });
 
   it('still lets a viewer read', async () => {

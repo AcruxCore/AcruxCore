@@ -12,8 +12,13 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+## 0.16.0 — 2026-10-10
+
 ### Added
 
+- `datasets.add_examples(dataset_id, examples)` imports up to 500 examples in one call
+  (`POST /datasets/:id/examples/bulk`) and returns `AddExamplesResult(added, example_count)`.
+  One invalid row rejects the whole call with a 400 that names the row; nothing is written.
 - `cache_control` key on the `Message` TypedDict, and the exported `CacheControl` type.
   Set `{"type": "ephemeral"}` to cache the prompt up to that message on an Anthropic
   model; the gateway drops it for other models.

@@ -33,6 +33,7 @@ datasetsRouter.patch('/:id', requireAnyAuth, canWrite, controller.update);
 datasetsRouter.delete('/:id', requireAnyAuth, canWrite, controller.remove);
 // Before the generic `/:id/examples` POST for readability only — the paths have
 // a different segment count, so Express never confuses the two.
+datasetsRouter.post('/:id/examples/bulk', requireAnyAuth, canWrite, controller.addExamplesBulk);
 datasetsRouter.post('/:id/examples/from-feedback', requireAnyAuth, canWrite, controller.addExamplesFromFeedback);
 datasetsRouter.post('/:id/examples', requireAnyAuth, canWrite, controller.addExample);
 datasetsRouter.patch('/:id/examples/:exampleId', requireAnyAuth, canWrite, controller.updateExample);

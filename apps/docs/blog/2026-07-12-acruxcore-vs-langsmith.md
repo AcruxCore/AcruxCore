@@ -90,8 +90,9 @@ ecosystem of ready-made integrations.
 
 Both support datasets and experiments.
 
-- **AcruxCore** builds datasets **from real production feedback** (thumbs
-  up/down + comments on traces), then runs experiments that sweep
+- **AcruxCore** builds datasets from real production feedback (thumbs
+  up/down + comments on traces), from rows typed by hand, or from a CSV or
+  JSON file. It then runs experiments that sweep
   version × model grids with an automatic production baseline.
 - **LangSmith** has a rich, well-established evaluation suite with many built-in
   and custom evaluators.

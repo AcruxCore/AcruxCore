@@ -6,6 +6,8 @@ import type {
   AddExamplesFromFeedbackInput,
   AddExamplesFromFeedbackResult,
   AddDatasetExampleInput,
+  BulkAddExamplesInput,
+  BulkAddExamplesResult,
   CandidateDetail,
   CreateDatasetFromFeedbackInput,
   CreateDatasetFromFeedbackResult,
@@ -130,6 +132,25 @@ export function useAddDatasetExample(id: string) {
   return useMutation({
     mutationFn: (body: AddDatasetExampleInput) =>
       api<DatasetExample>(`/datasets/${id}/examples`, { method: 'POST', body }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.datasets });
+      qc.invalidateQueries({ queryKey: keys.dataset(id) });
+    },
+  });
+}
+
+/**
+ * Imports a prepared test set (parsed from a CSV or JSON file) in one request.
+ * The API rejects the whole batch if any row is invalid, so on error nothing
+ * was written and the caller can fix the file and retry.
+ *
+ * @param id - Dataset UUID the examples are added to.
+ */
+export function useBulkAddDatasetExamples(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: BulkAddExamplesInput) =>
+      api<BulkAddExamplesResult>(`/datasets/${id}/examples/bulk`, { method: 'POST', body }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.datasets });
       qc.invalidateQueries({ queryKey: keys.dataset(id) });

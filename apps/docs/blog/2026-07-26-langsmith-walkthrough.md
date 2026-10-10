@@ -199,7 +199,7 @@ dataset Experiments — works as expected.
 | Prompt management | Git-like prompt commits with named Environments (Production/Staging) | Immutable versions with alias promotion (`production`/`staging`), no redeploy |
 | Gateway | No request-routing layer — bring your own provider key, call providers directly | Gateway sits in front of every provider call — one audited, cost-visible path |
 | Tool calling | Traces tool calls made through LangChain | First-class, versioned tool catalog, callable via a client-side tool loop in either SDK |
-| Evaluation | Rich, mature evaluation suite with many built-in evaluators and a Pairwise Experiments UI | Datasets built from real production feedback, not hand-authored examples |
+| Evaluation | Rich, mature evaluation suite with many built-in evaluators and a Pairwise Experiments UI | Datasets built from real production feedback, typed by hand, or imported from a CSV/JSON file |
 | Hosting & pricing | Self-hosting is an enterprise add-on | Open source and self-hostable by default |
 
 Want to see the same loop on AcruxCore? The

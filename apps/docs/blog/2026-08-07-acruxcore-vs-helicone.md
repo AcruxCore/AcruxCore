@@ -207,7 +207,7 @@ for the screenshot.
 
 | Feature | Helicone | AcruxCore |
 |---|---|---|
-| Dataset creation | From real Request rows only — none existed on this run | From trace feedback only — and only **span-level** feedback |
+| Dataset creation | From real Request rows only — none existed on this run | Span-level trace feedback, manual entry, API, or a CSV/JSON file |
 | Experiments | Not reached | Version × model sweep with an automatic baseline |
 
 ## SDK & developer experience

@@ -155,6 +155,32 @@ export const AddExampleSchema = z.object({
 export type AddExampleDto = z.infer<typeof AddExampleSchema>;
 
 /**
+ * Cap on how many examples one bulk request may carry. The request inserts in a
+ * single transaction and the whole body is held in memory, so it needs a
+ * ceiling like every other list input. 500 covers an ordinary prepared test
+ * set; a larger one is imported in several requests. The API-wide 1 MB body
+ * limit still applies, so 500 rows of the maximum 8 KB input will not fit —
+ * typical rows are a few hundred bytes.
+ */
+export const MAX_EXAMPLES_PER_BULK = 500;
+
+/**
+ * Payload for importing a prepared test set in one call. Every row is checked
+ * with {@link AddExampleSchema} — the same rules as the single-example route —
+ * and one bad row rejects the whole request, so a caller never has to work out
+ * which half of a file landed.
+ */
+export const BulkAddExamplesSchema = z.object({
+  examples: z
+    .array(AddExampleSchema)
+    .min(1, 'must hold at least one row.')
+    .max(MAX_EXAMPLES_PER_BULK, `may hold at most ${MAX_EXAMPLES_PER_BULK} rows per request.`),
+});
+
+/** Validated bulk add-examples payload. */
+export type BulkAddExamplesDto = z.infer<typeof BulkAddExamplesSchema>;
+
+/**
  * Response DTO for a dataset. Includes the example count but not the full list
  * (callers fetch examples separately via getDatasetById or a list-examples endpoint).
  */

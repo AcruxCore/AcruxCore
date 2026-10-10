@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from .client import AcruxCore
 
 from .eval_types import (
+    AddExamplesResult,
     BuildFromFeedbackResult,
     CandidateDetail,
     DatasetDto,
@@ -136,6 +137,26 @@ class DatasetsNamespace:
         )
         return DatasetExampleDto.from_dict(
             self._client._parse_json_or_throw(response, "adding example")
+        )
+
+    async def add_examples(
+        self, dataset_id: str, examples: List[Dict[str, Any]]
+    ) -> AddExamplesResult:
+        """Import many examples in one request — a prepared test set from a file.
+
+        Each item has the same keys as :meth:`add_example`: ``input`` (required),
+        ``criteria`` and ``history`` (optional). All-or-nothing: one invalid row
+        rejects the call with a 400 naming the row (``examples[17].input: ...``)
+        and nothing is written. At most 500 rows per call.
+        """
+        response = await self._client._request(
+            "POST",
+            f"/datasets/{quote(dataset_id, safe='')}/examples/bulk",
+            {"examples": examples},
+            "adding examples",
+        )
+        return AddExamplesResult.from_dict(
+            self._client._parse_json_or_throw(response, "adding examples")
         )
 
     async def remove_example(

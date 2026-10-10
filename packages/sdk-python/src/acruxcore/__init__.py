@@ -33,6 +33,7 @@ from .errors import (
     ToolSchemaError,
 )
 from .eval_types import (
+    AddExamplesResult,
     BuildFromFeedbackResult,
     CandidateDetail,
     DatasetDto,
@@ -133,7 +134,7 @@ from .types import (
     VersionListResult,
 )
 
-__version__ = "0.15.0"
+__version__ = "0.16.0"
 
 __all__ = [
     "AcruxCore",
@@ -214,6 +215,7 @@ __all__ = [
     "TraceSettings",
     "TraceSpan",
     "TraceSummary",
+    "AddExamplesResult",
     "BuildFromFeedbackResult",
     "CandidateDetail",
     "DatasetDto",

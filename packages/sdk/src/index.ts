@@ -126,6 +126,7 @@ export type {
   BuildFromFeedbackResult,
   UpdateDatasetParams,
   AddExampleParams,
+  AddExamplesResult,
   ExperimentDto,
   ExperimentRunDto,
   CreateExperimentParams,

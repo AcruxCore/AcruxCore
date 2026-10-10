@@ -38,7 +38,7 @@ price change there is one edit instead of three.
 | Tracing depth | Span tree via client-side OTel instrumentation | Single automatic span | Langfuse |
 | Request-path gateway | None — ingests a trace after your own call | Built in — routing, caching, budgets | AcruxCore |
 | Tool catalog | A schema saved from the Playground, never executed | Versioned catalog, real executed calls, analytics | AcruxCore |
-| Dataset creation | Manual entry, API, or from a trace | From real span-level trace feedback | AcruxCore |
+| Dataset creation | Manual entry, API, or from a trace | Span-level trace feedback, manual entry, API, or a CSV/JSON file | AcruxCore |
 | SDK trace capture | Wrap a client + open an observation context | Automatic side effect of the gateway call | AcruxCore |
 | Measured overhead | −22 ms, CI crosses zero | +63 ms, CI crosses zero | Tie |
 | Time-to-first-trace | Only via the SDK path, after setup | Zero code, first call | AcruxCore |
@@ -165,9 +165,9 @@ screenshot.
 
 ## Evaluation & datasets
 
-Both build datasets and run experiments against them, but the on-ramp differs.
-Langfuse lets you type a dataset item by hand or pull one from a trace; AcruxCore
-builds datasets **only** from real feedback on a trace — and specifically, only from
+Both build datasets and run experiments against them. Langfuse lets you type a dataset
+item by hand or pull one from a trace. AcruxCore builds datasets from real feedback on a
+trace, from rows typed by hand, or from a CSV or JSON file. The feedback path takes only
 **span-level** feedback, so a single-span trace's own thumbs-up can't be turned into a
 dataset (we hit this directly and had to reuse a trace with more than one span).
 
@@ -187,7 +187,7 @@ for the screenshots.
 
 | Feature | Langfuse | AcruxCore |
 |---|---|---|
-| Dataset creation | Manual entry, API, or from a trace | From trace feedback only — and only **span-level** feedback |
+| Dataset creation | Manual entry, API, or from a trace | Span-level trace feedback, manual entry, API, or a CSV/JSON file |
 | Experiments | Prompt × model matrix, evaluator step in the wizard | Version × model sweep with an automatic baseline |
 | Cost accounting we actually saw | $0.00 for an unregistered custom model | Real per-call cost, computed inline |
 
@@ -321,7 +321,7 @@ it being a paid-plan feature rather than something to demo locally.
 For the prompt-and-call half of the job, yes. Langfuse has no request-path gateway, so
 routing, caching, budgets and rate limits have no call to act on; its "tool" is a JSON schema
 saved from a Playground dropdown that never executes; and its datasets are hand-authored or
-pulled from a trace rather than built from feedback your users already gave.
+pulled from a trace, while AcruxCore can also build one from feedback your users already gave.
 
 For observability on its own, Langfuse is more mature than we are, with a much larger
 framework-integration surface and threshold alerting we do not have. RBAC and audit sit

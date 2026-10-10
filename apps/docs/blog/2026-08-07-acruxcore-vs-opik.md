@@ -34,7 +34,7 @@ always tables, and a price change there is one edit instead of three.
 
 | Aspect | Opik | AcruxCore | Winner |
 |---|---|---|---|
-| Dataset creation | Add-to-dataset from any trace, inline dataset creation | From real span-level trace feedback | Depends |
+| Dataset creation | Add-to-dataset from any trace, inline dataset creation | Span-level trace feedback, manual entry, API, or a CSV/JSON file | Depends |
 | Prompt templating | Flat `{{variable}}` only, but real Diff view + environment labels | Real nunjucks `{% if %}` / `{% for %}` logic, real Diff tab | AcruxCore |
 | Playground | Latency + tokens shown inline, no cost, no cache | Cost, cache, latency shown inline | AcruxCore |
 | Tracing depth | Span tree via client-side SDK instrumentation | Single automatic span | Depends |
@@ -88,7 +88,7 @@ screenshot.
 
 | Feature | Opik | AcruxCore |
 |---|---|---|
-| Dataset creation | From any trace directly, inline "create new dataset" in the same dialog | From trace feedback only — and only **span-level** feedback |
+| Dataset creation | From any trace directly, inline "create new dataset" in the same dialog | Span-level trace feedback, manual entry, API, or a CSV/JSON file |
 | Experiments | Interactive via Playground, or scripted via the Python SDK (UI explicitly defers to it) | Version × model sweep with an automatic baseline, run from the UI |
 | Feedback scores | Thumbs-up/down "Human review," visible in the dataset row copied over | Span-level feedback, gates dataset eligibility |
 

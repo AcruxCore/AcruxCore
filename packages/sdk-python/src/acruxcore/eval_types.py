@@ -114,6 +114,22 @@ class BuildFromFeedbackResult:
         )
 
 
+@dataclass
+class AddExamplesResult:
+    """Result of ``datasets.add_examples``: rows written and the dataset's total afterwards."""
+
+    added: int
+    example_count: int
+    raw: Dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AddExamplesResult":
+        return cls(
+            added=d.get("added", 0),
+            example_count=d.get("example_count", 0),
+            raw=d,
+        )
+
 # ── Experiment types ──
 
 

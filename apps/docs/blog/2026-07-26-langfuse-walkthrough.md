@@ -217,7 +217,7 @@ Both are open source, so this comes down to shape, not access.
 | Gateway | No request-routing layer — call providers yourself, send the trace after the fact | Built-in OpenAI-compatible gateway sits in the request path — one audited, cost-visible route to every provider |
 | Prompt management | `production`/`latest` labels attached to versions; flat `{{variable}}` substitution only, no `{% if %}`/`{% for %}` support | `production`/`staging` aliases your app fetches at runtime, a standing Diff tab between any two versions, plus real `{% if %}`/`{% for %}` conditionals via its own nunjucks renderer |
 | Team structure | Organization → project hierarchy for teams running many separate workspaces | Prompts, gateway, tracing, tools, and evaluation on one team-scoped model |
-| Evaluation | Session/user badges on the trace header; datasets built manually or via API | Datasets built from real production feedback (thumbs up/down on traces) |
+| Evaluation | Session/user badges on the trace header; datasets built manually or via API | Datasets built from real production feedback (thumbs up/down on traces), typed by hand, or imported from a CSV/JSON file |
 | Hosting | Larger, more established self-hosting community | Single Postgres + Node stack — no separate OTel collector or ingestion service |
 
 Want the deep dive — the same prompt run for real on both platforms, screenshotted

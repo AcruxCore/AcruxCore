@@ -40,7 +40,8 @@ soft-delete: the row is excluded from `GET /` (list) and `GET /:id` returns
 
 Creates an empty dataset — no examples yet. `overall_feedback` is optional
 (a dataset-level rubric applied on top of each example's own criteria).
-Examples are added afterwards via `POST /:id/examples` or `POST /from-feedback`.
+Examples are added afterwards via `POST /:id/examples`, `POST /:id/examples/bulk`, or
+`POST /:id/examples/from-feedback`.
 
 <Tabs groupId="lang">
 <TabItem value="curl" label="curl">
@@ -58,7 +59,7 @@ curl -X POST $ACRUXCORE_BASE_URL/datasets \
 ```typescript
 const dataset = await hub.datasets.create({
   name: 'manual-review-set',
-  description: 'Keep responses concise and polite',
+  overallFeedback: 'Keep responses concise and polite',
 });
 ```
 
@@ -528,7 +529,7 @@ curl -X PATCH $ACRUXCORE_BASE_URL/datasets/4c979706-3e84-4e8f-a089-6ce4dd9f6e4a 
 ```typescript
 const updated = await hub.datasets.update('4c979706-3e84-4e8f-a089-6ce4dd9f6e4a', {
   name: 'unhappy-greetings-v2',
-  description: 'Always use third person, never first person',
+  overallFeedback: 'Always use third person, never first person',
 });
 ```
 
@@ -663,6 +664,83 @@ curl -X POST $ACRUXCORE_BASE_URL/datasets/54fd9af3-c470-4d1a-a0eb-ea192b5b43ab/e
 
 ```json
 { "error": { "code": "VALIDATION_ERROR", "message": "Array must contain at most 20 element(s)" } }
+```
+
+---
+
+### POST /api/v1/datasets/:id/examples/bulk
+
+Adds many examples in one call. Use it to load a test set you already keep in a
+spreadsheet or a JSON file. `examples` holds 1 to 500 rows. Each row takes the same
+fields as `POST /datasets/:id/examples`: `input` (required), `criteria` and `history`
+(optional), with the same size limits.
+
+The call is all-or-nothing. If one row is invalid, the API rejects the whole request
+and writes no rows. The error message names the row by its position in the array.
+The request body must also stay under 1 MB.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/datasets/7792f4f8-01ad-443f-b5ed-322f107e6370/examples/bulk \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"examples": [{"input": {"question": "How long do I have to return an item?"}, "criteria": "Says 30 days from delivery, and that items must be unused."}, {"input": {"question": "Can I get a refund on an annual plan?"}, "criteria": "Quotes the 14-day refund window for annual plans."}, {"input": {"question": "And for annual plans?"}, "history": [{"role": "user", "content": "Can I get a refund?"}, {"role": "assistant", "content": "Yes, within 30 days."}]}]}'
+```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+const result = await hub.datasets.addExamples('7792f4f8-01ad-443f-b5ed-322f107e6370', [
+  { input: { question: 'How long do I have to return an item?' }, criteria: 'Says 30 days from delivery, and that items must be unused.' },
+  { input: { question: 'Can I get a refund on an annual plan?' }, criteria: 'Quotes the 14-day refund window for annual plans.' },
+]);
+// result: { added: 2, exampleCount: 2 }
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+result = await hub.datasets.add_examples(
+    '7792f4f8-01ad-443f-b5ed-322f107e6370',
+    [
+        {'input': {'question': 'How long do I have to return an item?'}, 'criteria': 'Says 30 days from delivery, and that items must be unused.'},
+        {'input': {'question': 'Can I get a refund on an annual plan?'}, 'criteria': 'Quotes the 14-day refund window for annual plans.'},
+    ],
+)
+# result.added == 2, result.example_count == 2
+```
+
+</TabItem>
+</Tabs>
+
+Response (status 201). `added` is how many rows this call wrote, and `example_count`
+is the dataset's total afterwards:
+
+```json
+{ "added": 3, "example_count": 3 }
+```
+
+One invalid row rejects the request, and no row is written (status 400):
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/datasets/7792f4f8-01ad-443f-b5ed-322f107e6370/examples/bulk \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"examples": [{"input": {"question": "Where is my order?"}}, {"input": "Where is my order?"}]}'
+```
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "examples[1].input: Expected object, received string" } }
+```
+
+More than 500 rows is rejected the same way (status 400):
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "examples: may hold at most 500 rows per request." } }
 ```
 
 ---

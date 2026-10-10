@@ -1,6 +1,6 @@
 ---
 title: Evaluate a prompt against a dataset
-description: Turn real user feedback into a dataset, run an experiment that sweeps prompt versions and models, and read the run report.
+description: Build a dataset from real user feedback or a CSV/JSON test set, run an experiment that sweeps prompt versions and models, and read the run report.
 sidebar_position: 1
 keywords: [llm evaluation, dataset, experiment, prompt testing, regression testing llm]
 slug: /guides/evaluate-a-prompt
@@ -11,7 +11,8 @@ import TabItem from '@theme/TabItem';
 
 # Evaluate a prompt against a dataset
 
-**What you'll build:** a dataset made from real feedback, an experiment that runs
+**What you'll build:** a dataset made from real feedback or from a test set you already
+keep, an experiment that runs
 one or more (version × model) combinations across it, and a report comparing them
 — so "did this prompt change actually help?" has a data-backed answer.
 
@@ -23,7 +24,8 @@ the actual gateway calls and scoring in the background.
 
 ## 1. Collect feedback
 
-Evaluation starts from signal on real traffic. On any trace (or span), leave a
+If you already have a test set in a CSV or JSON file, skip to
+[step 2, from a file](#from-a-file). Otherwise, start from signal on real traffic. On any trace (or span), leave a
 thumbs up/down and an optional comment — that comment becomes the example's grading
 criteria later. Feedback is only eligible for a dataset if its source trace
 **captured payloads** (so the prompt variables were stored). If your app renders the
@@ -120,20 +122,24 @@ print(feedback["id"])
 </TabItem>
 </Tabs>
 
-## 2. Build a dataset from feedback
+## 2. Build a dataset
 
-Select feedback rows and turn them into a **dataset** — a frozen set of example
-inputs, each with its own `criteria`. **Evaluations → Datasets** lists them; a new
-workspace starts empty.
+A **dataset** is a frozen set of example inputs, each with its own `criteria`: the
+prompt variables to render, plus what a judge should check in the reply.
+**Evaluations → Datasets** lists them, and a new workspace starts empty.
 
 ![Empty Evaluations / Datasets page](/img/tutorials/evaluate-a-prompt/01-empty.png)
 
-:::tip[No feedback yet?]
-A brand-new workspace has no traffic to collect feedback on, so start from the other
-end: **New dataset** on that page creates an empty one, and **Add example** on the
-dataset writes a row by hand — the prompt variables to render, plus the criteria a
-judge should check. The rest of this guide works the same either way.
-:::
+A dataset can be filled in three ways. Steps 3 to 5 work the same for all three.
+
+- **From feedback** — select the feedback rows from step 1.
+- **From a file** — import a test set you already keep in a CSV or JSON file.
+- **By hand** — type each row in the dashboard.
+
+### From feedback
+
+Select feedback rows and turn them into a dataset. Each row brings the variables the
+call was made with, and its comment becomes the example's criteria.
 
 <Tabs groupId="lang">
 <TabItem value="node" label="Node (SDK)">
@@ -204,6 +210,95 @@ print(dataset["id"], dataset["example_count"])
 
 </TabItem>
 </Tabs>
+
+### From a file
+
+In the dashboard, **New dataset** creates an empty dataset. On that dataset, open
+**Add example** and choose the **Import file** tab. In a CSV, each column becomes a
+prompt variable, and a column named `criteria` holds the judge criteria:
+
+```csv
+question,customer_tier,criteria
+How long do I have to return an item?,free,"Says 30 days from delivery, and that items must be unused."
+Can I get a refund on an annual plan?,pro,Quotes the 14-day refund window for annual plans.
+```
+
+A JSON file is an array of objects in the same shape, and it may also carry a
+`history` of earlier chat turns. The tab shows a preview and lists any row with a
+problem by its row number. It imports up to 500 rows at a time.
+
+From code, create the dataset and send the rows in one call. The call is
+all-or-nothing: if one row is invalid, nothing is written and the error names the row.
+
+<Tabs groupId="lang">
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const dataset = await hub.datasets.create({ name: 'support-test-set' });
+
+const result = await hub.datasets.addExamples(dataset.id, [
+  { input: { question: 'How long do I have to return an item?' }, criteria: 'Says 30 days from delivery, and that items must be unused.' },
+  { input: { question: 'Can I get a refund on an annual plan?' }, criteria: 'Quotes the 14-day refund window for annual plans.' },
+]);
+console.log(result); // { added: 2, exampleCount: 2 }
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+dataset = await hub.datasets.create("support-test-set")
+
+result = await hub.datasets.add_examples(dataset.id, [
+    {"input": {"question": "How long do I have to return an item?"}, "criteria": "Says 30 days from delivery, and that items must be unused."},
+    {"input": {"question": "Can I get a refund on an annual plan?"}, "criteria": "Quotes the 14-day refund window for annual plans."},
+])
+print(result.added, result.example_count)  # 2 2
+```
+
+</TabItem>
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/datasets/<dataset-id>/examples/bulk" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"examples": [
+    {"input": {"question": "How long do I have to return an item?"}, "criteria": "Says 30 days from delivery, and that items must be unused."},
+    {"input": {"question": "Can I get a refund on an annual plan?"}, "criteria": "Quotes the 14-day refund window for annual plans."}
+  ]}'
+```
+
+```json
+{ "added": 2, "example_count": 2 }
+```
+
+</TabItem>
+<TabItem value="python-requests" label="Python (requests)">
+
+```python
+dataset = requests.post(f"{base}/datasets", headers=h, json={"name": "support-test-set"}).json()
+
+result = requests.post(f"{base}/datasets/{dataset['id']}/examples/bulk", headers=h, json={
+    "examples": [
+        {"input": {"question": "How long do I have to return an item?"}, "criteria": "Says 30 days from delivery, and that items must be unused."},
+        {"input": {"question": "Can I get a refund on an annual plan?"}, "criteria": "Quotes the 14-day refund window for annual plans."},
+    ],
+}).json()
+print(result["added"], result["example_count"])  # 2 2
+```
+
+</TabItem>
+</Tabs>
+
+The full request and error shapes are in the
+[API reference](/api-reference/datasets/).
+
+### By hand
+
+**New dataset** creates an empty dataset, and **Add example** on it writes one row:
+the prompt variables, plus the criteria a judge should check. Use this path for a
+prompt that has no traffic yet and no test file.
 
 ## 3. Create and run an experiment
 
@@ -387,7 +482,7 @@ promoting a version, not after:
   version or revisit the dataset's `criteria` if the loss looks like a
   scoring artifact rather than a real quality drop.
 
-Because the dataset is frozen (built once from real feedback in step 2), the
+Because the dataset is frozen (built once in step 2), the
 comparison is stable — re-running the same experiment against a later
 candidate version still checks it against the same examples and the same
 criteria, so results are comparable across runs over time.

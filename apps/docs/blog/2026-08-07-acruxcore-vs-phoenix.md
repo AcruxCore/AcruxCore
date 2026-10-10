@@ -36,7 +36,7 @@ here — they were always tables, and a price change there is one edit instead o
 | Playground | Cost, tokens, latency shown inline | Cost, cache, latency shown inline | Tie |
 | Request-path gateway | None — Playground calls proxy through a GraphQL mutation, SDK calls go direct | Built in — routing, caching, budgets | AcruxCore |
 | Tool catalog | Ad-hoc per-prompt tool JSON, no catalog page | Versioned catalog, real executed calls, analytics | AcruxCore |
-| Dataset creation | From a trace span, or manually | From real span-level trace feedback | Tie |
+| Dataset creation | From a trace span, or manually | Span-level trace feedback, manual entry, API, or a CSV/JSON file | Tie |
 | SDK trace capture | Instrument a client + call the provider yourself | Automatic side effect of the gateway call | AcruxCore |
 | Measured overhead | −14 to +21 ms across three 100-round runs | +11 to +51 ms across the same three runs | Phoenix, barely |
 | Time-to-first-trace | SDK setup (register + instrument) before anything lands | Zero code, first gateway call | AcruxCore |

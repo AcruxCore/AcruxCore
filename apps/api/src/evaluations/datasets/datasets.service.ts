@@ -4,6 +4,7 @@ import {
   AddExampleDto,
   AddExamplesFromFeedbackDto,
   BuildFromFeedbackDto,
+  BulkAddExamplesDto,
   CreateDatasetDto,
   DatasetDto,
   DatasetExampleDto,
@@ -421,6 +422,41 @@ export class DatasetsService {
       ...(dto.history ? { history: dto.history as unknown as Prisma.InputJsonValue } : {}),
     });
     return this.exampleToDto(example);
+  }
+
+  /**
+   * Adds many hand-authored examples in one transaction — the import path for
+   * a test set someone already wrote in a spreadsheet or JSON file.
+   *
+   * Validation happened at the controller, row by row, so by the time this runs
+   * every row is valid; the insert is all-or-nothing through
+   * `appendExamples`, which also returns the new total in the same transaction.
+   *
+   * @param teamId - Isolation boundary.
+   * @param datasetId - Dataset UUID.
+   * @param dto - Validated payload: 1 to `MAX_EXAMPLES_PER_BULK` rows.
+   * @returns How many rows were added and the dataset's example count afterwards.
+   * @throws {NotFoundError} If the dataset does not exist or belongs to another team.
+   */
+  async addExamplesBulk(
+    teamId: string,
+    datasetId: string,
+    dto: BulkAddExamplesDto,
+  ): Promise<{ added: number; exampleCount: number }> {
+    const dataset = await this.repo.getDatasetById(teamId, datasetId);
+    if (!dataset) throw new NotFoundError('Dataset not found.');
+
+    const { added, exampleCount } = await this.repo.appendExamples(
+      teamId,
+      datasetId,
+      dto.examples.map((row) => ({
+        input: row.input as Prisma.InputJsonValue,
+        // Same rule as `addExample`: an empty string is "no criteria", not a rubric.
+        ...(row.criteria ? { criteria: row.criteria } : {}),
+        ...(row.history ? { history: row.history as unknown as Prisma.InputJsonValue } : {}),
+      })),
+    );
+    return { added, exampleCount };
   }
 
   /**

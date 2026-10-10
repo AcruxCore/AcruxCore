@@ -3,6 +3,7 @@ import { ApiError, useAddDatasetExample, useAddExamplesFromFeedback, useFeedback
 import { Button, Dialog, DialogFooter, Field, IconButton, Input, Spinner, Tabs, Textarea, TrashIcon, useToast } from '@/ui';
 import { feedbackByline, FilterBar, filterStateToBody, type FilterState } from '@/traces';
 import { timeAgo } from '@/lib/format';
+import { ImportFilePanel } from './ImportFilePanel';
 
 export interface AddExampleDialogProps {
   open: boolean;
@@ -41,6 +42,8 @@ function rowsToInput(rows: VariableRow[]): Record<string, unknown> {
   }
   return out;
 }
+
+type DialogTab = 'feedback' | 'import' | 'manual';
 
 /** How many feedback rows the picker shows at once. */
 const FEEDBACK_PAGE_SIZE = 25;
@@ -249,13 +252,15 @@ function FromFeedbackPanel({
 }
 
 /**
- * Adds examples to a dataset, either by hand or by pulling in real feedback.
+ * Adds examples to a dataset: from real feedback, from a prepared file, or by
+ * hand.
  *
- * Two tabs, because the two routes in are genuinely different work. **From
+ * Three tabs, because the three routes in are genuinely different work. **From
  * feedback** is the one that carries signal — it brings the captured variables,
  * the reviewer's comment as criteria, and the session history along with the
- * row. **Manual** exists for the team that has no traffic yet, and for the
- * hand-written edge case a real trace never produced.
+ * row. **Import file** loads a test set someone already keeps in a spreadsheet
+ * or JSON file, which is how most evaluations start. **Manual** exists for the
+ * team that has no traffic yet, and for the one-off edge case.
  *
  * Within the manual tab there are two input modes, because `input` is a
  * free-form variable bag: named fields cover the ordinary case where every
@@ -271,7 +276,7 @@ export function AddExampleDialog({ open, onOpenChange, datasetId, knownVariables
   const [json, setJson] = useState('{}');
   const [criteria, setCriteria] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<'feedback' | 'manual'>('feedback');
+  const [tab, setTab] = useState<DialogTab>('feedback');
 
   // Reset to a fresh form every time the dialog is (re)opened, seeded with the
   // dataset's existing variable names so examples stay consistent with each other.
@@ -332,19 +337,28 @@ export function AddExampleDialog({ open, onOpenChange, datasetId, knownVariables
       open={open}
       onOpenChange={onOpenChange}
       title="Add example"
-      description="Pull rows in from real feedback, or write one by hand."
+      description="Pull rows in from real feedback, import a CSV or JSON file, or write one by hand."
+      // The import preview is a table; it needs more width than the other tabs.
+      className={tab === 'import' ? 'max-w-2xl' : undefined}
     >
       <Tabs
         items={[
           { value: 'feedback', label: 'From feedback' },
+          { value: 'import', label: 'Import file' },
           { value: 'manual', label: 'Manual' },
         ]}
         value={tab}
-        onChange={(value) => setTab(value as 'feedback' | 'manual')}
+        onChange={(value) => setTab(value as DialogTab)}
       />
 
       {tab === 'feedback' ? (
         <FromFeedbackPanel datasetId={datasetId} onDone={() => onOpenChange(false)} />
+      ) : tab === 'import' ? (
+        <ImportFilePanel
+          datasetId={datasetId}
+          knownVariables={knownVariables}
+          onDone={() => onOpenChange(false)}
+        />
       ) : (
         <>
       <div className="flex flex-col gap-4">

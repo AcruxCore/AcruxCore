@@ -367,7 +367,7 @@ export function DatasetDetailPage() {
       {data.examples.length === 0 ? (
         <Empty
           title="No examples yet"
-          description="Add one by hand, pull rows in from feedback, or select feedback rows on the Feedback page to build a dataset from real traffic."
+          description="Use Add example to import a CSV or JSON test set, pull rows in from feedback, or write one by hand."
         />
       ) : (
         <div className="flex flex-col gap-2">

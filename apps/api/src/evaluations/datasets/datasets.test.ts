@@ -874,6 +874,108 @@ describe('POST /api/v1/datasets/:id/examples/from-feedback', () => {
   });
 });
 
+describe('POST /api/v1/datasets/:id/examples/bulk', () => {
+  it('imports a prepared test set in one call, and the rows are what a run reads back', async () => {
+    const { agent } = await authedAgent(app);
+    const dataset = (await agent.post('/api/v1/datasets').send({ name: 'imported' }).expect(201)).body;
+    // One row already there, so the returned total is checked against more than the batch.
+    await agent.post(`/api/v1/datasets/${dataset.id}/examples`).send({ input: { question: 'first' } }).expect(201);
+
+    const res = await agent
+      .post(`/api/v1/datasets/${dataset.id}/examples/bulk`)
+      .send({
+        examples: [
+          { input: { question: 'How do I reset my password?' }, criteria: 'Points to Settings > Security.' },
+          { input: { question: 'Can I get a refund?', plan: 'pro' }, criteria: 'Quotes the 30-day window.' },
+          {
+            input: { question: 'And for annual plans?' },
+            history: [
+              { role: 'user', content: 'Can I get a refund?' },
+              { role: 'assistant', content: 'Yes, within 30 days.' },
+            ],
+          },
+          // Empty criteria is "no criteria", the same rule the single route follows.
+          { input: { question: 'Hi' }, criteria: '' },
+        ],
+      })
+      .expect(201);
+    expect(res.body).toEqual({ added: 4, example_count: 5 });
+
+    const detail = (await agent.get(`/api/v1/datasets/${dataset.id}`).expect(200)).body;
+    expect(detail.exampleCount).toBe(5);
+    const byQuestion = new Map(
+      (detail.examples as Array<{ input: { question: string }; criteria: string | null; history: unknown }>).map(
+        (e) => [e.input.question, e],
+      ),
+    );
+    expect(byQuestion.get('Can I get a refund?')).toMatchObject({
+      input: { question: 'Can I get a refund?', plan: 'pro' },
+      criteria: 'Quotes the 30-day window.',
+      history: null,
+    });
+    expect(byQuestion.get('And for annual plans?')?.history).toHaveLength(2);
+    expect(byQuestion.get('Hi')?.criteria).toBeNull();
+  });
+
+  it('rejects the whole request when one row is invalid, names the row, and writes nothing', async () => {
+    const { agent } = await authedAgent(app);
+    const dataset = (await agent.post('/api/v1/datasets').send({ name: 'atomic' }).expect(201)).body;
+
+    const res = await agent
+      .post(`/api/v1/datasets/${dataset.id}/examples/bulk`)
+      .send({
+        examples: [
+          { input: { question: 'ok 0' } },
+          { input: { question: 'ok 1' } },
+          { input: 'not an object' },
+          { input: { question: 'ok 3' } },
+        ],
+      })
+      .expect(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.message).toMatch(/^examples\[2\]\.input: /);
+
+    expect(await prisma.datasetExample.count({ where: { datasetId: dataset.id } })).toBe(0);
+  });
+
+  it('applies the single-example size cap to every row', async () => {
+    const { agent } = await authedAgent(app);
+    const dataset = (await agent.post('/api/v1/datasets').send({ name: 'oversized' }).expect(201)).body;
+
+    const res = await agent
+      .post(`/api/v1/datasets/${dataset.id}/examples/bulk`)
+      .send({ examples: [{ input: { q: 'fine' } }, { input: { q: 'x'.repeat(9000) } }] })
+      .expect(400);
+    expect(res.body.error.message).toMatch(/^examples\[1\]\.input: input must serialize to at most 8192 bytes/);
+    expect(await prisma.datasetExample.count({ where: { datasetId: dataset.id } })).toBe(0);
+  });
+
+  it('rejects an empty list and a list over the row cap', async () => {
+    const { agent } = await authedAgent(app);
+    const dataset = (await agent.post('/api/v1/datasets').send({ name: 'capped' }).expect(201)).body;
+
+    await agent.post(`/api/v1/datasets/${dataset.id}/examples/bulk`).send({ examples: [] }).expect(400);
+    const tooMany = Array.from({ length: 501 }, (_, i) => ({ input: { i } }));
+    const res = await agent
+      .post(`/api/v1/datasets/${dataset.id}/examples/bulk`)
+      .send({ examples: tooMany })
+      .expect(400);
+    expect(res.body.error.message).toMatch(/at most 500 rows/);
+    expect(await prisma.datasetExample.count({ where: { datasetId: dataset.id } })).toBe(0);
+  });
+
+  it('team isolation: team B cannot import into team A dataset', async () => {
+    const { agent: a } = await authedAgent(app);
+    const { agent: b } = await authedAgent(app);
+    const dataset = (await a.post('/api/v1/datasets').send({ name: 'a-only' }).expect(201)).body;
+    await b
+      .post(`/api/v1/datasets/${dataset.id}/examples/bulk`)
+      .send({ examples: [{ input: { q: 'x' } }] })
+      .expect(404);
+    expect(await prisma.datasetExample.count()).toBe(0);
+  });
+});
+
 describe('PATCH /api/v1/datasets/:id/examples/:exampleId', () => {
   it('edits criteria in place, and clears it with null', async () => {
     const { agent } = await authedAgent(app);

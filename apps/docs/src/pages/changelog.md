@@ -27,6 +27,13 @@ called out in the week it ships and in the SDK release notes.
 
 ### Major
 
+#### Import a test set into a dataset from a CSV or JSON file
+
+- The dataset page's **Add example** dialog has an **Import file** tab with a preview.
+- `POST /datasets/:id/examples/bulk` adds up to 500 rows; one bad row rejects them all.
+- New SDK calls: `datasets.addExamples()` (TypeScript) and `add_examples()` (Python).
+  [Reference →](/api-reference/datasets/)
+
 #### Prebuilt images on Docker Hub
 
 - `acruxcore/api`, `acruxcore/worker` and `acruxcore/web` are published with every release.
@@ -42,6 +49,8 @@ called out in the week it ships and in the SDK release notes.
 
 ### Minor
 
+- **Fixed** — `datasets.create()` in the TypeScript SDK dropped `overallFeedback`.
+- **Fixed** — comparison posts said datasets come only from feedback; rows can be typed or imported.
 - The four Getting started pages are rewritten in shorter, plainer sentences. [Read →](/docs/getting-started/introduction)
 - **Fixed** — pages said the audit trail has 34 event types in seven areas; it has 39 in eight.
 - Links to removed blog tags now open the comparison post or tag that covers the same topic.
