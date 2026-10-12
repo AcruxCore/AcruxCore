@@ -1,0 +1,20 @@
+{
+  "linkset": [
+    {
+      "anchor": "https://acruxcore.com/api/v1",
+      "service-doc": [
+        {
+          "href": "https://docs.acruxcore.com/api-reference",
+          "type": "text/html",
+          "title": "AcruxCore API reference"
+        }
+      ],
+      "status": [
+        {
+          "href": "https://acruxcore.com/api/v1/health",
+          "type": "application/json"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+# Cloudflare Pages response headers for docs.acruxcore.com (this file is copied
+# into the build root and read by Pages at deploy time, never served).
+#
+# The Link header (RFC 8288) points an agent at the machine-readable resources
+# without parsing HTML. The API catalog lives on the API's own host,
+# acruxcore.com. Scoped to the home page only: a Link header set here replaces
+# the preload hints Pages generates from each page's HTML, and the home page is
+# where discovery tools look.
+/
+  Link: <https://acruxcore.com/.well-known/api-catalog>; rel="api-catalog", </api-reference>; rel="service-doc", </llms.txt>; rel="describedby"; type="text/markdown"

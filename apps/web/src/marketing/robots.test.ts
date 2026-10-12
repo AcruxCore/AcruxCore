@@ -53,6 +53,12 @@ describe.each([
     );
   });
 
+  // The machine-readable form of the decision the named groups spell out. A
+  // "no" here would contradict every Allow below it.
+  it('declares the same content signals as the crawler list', () => {
+    expect(directives(robots)).toContain('Content-Signal: search=yes, ai-input=yes, ai-train=yes');
+  });
+
   it('points at its own host’s sitemap', () => {
     expect(directives(robots)).toContain(`Sitemap: ${sitemap}`);
   });

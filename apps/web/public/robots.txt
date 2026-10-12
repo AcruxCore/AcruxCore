@@ -10,6 +10,11 @@
 
 User-agent: *
 Allow: /
+# Content Signals (contentsignals.org): how the pages may be used once fetched.
+# All three are "yes" for the same reason every crawler below is allowed: the
+# product is open source, and we want search results, AI answers and models to
+# know it. Change this line only together with the named groups below.
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
 
 # --- Answer engines --------------------------------------------------------
 # These fetch a page to cite it in an answer. Blocking one removes us from that

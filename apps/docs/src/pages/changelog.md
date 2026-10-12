@@ -23,6 +23,22 @@ called out in the week it ships and in the SDK release notes.
 
 ---
 
+## Week of 12 October 2026
+
+### Major
+
+#### Discovery files for AI agents
+
+- `acruxcore.com/.well-known/api-catalog` lists the API, its reference and its health check.
+- The home pages send a `Link` header pointing to that catalog, the API reference and `llms.txt`.
+- `robots.txt` on both hosts says `Content-Signal: search=yes, ai-input=yes, ai-train=yes`.
+
+### Minor
+
+- Unknown `/.well-known/` addresses on acruxcore.com return 404 instead of the home page.
+
+---
+
 ## Week of 5 October 2026
 
 ### Major
