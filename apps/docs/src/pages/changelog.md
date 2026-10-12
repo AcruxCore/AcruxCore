@@ -36,6 +36,7 @@ called out in the week it ships and in the SDK release notes.
 ### Minor
 
 - Unknown `/.well-known/` addresses on acruxcore.com return 404 instead of the home page.
+- **Fixed** — acruxcore.com/features failed with "too many redirects"; it now opens the feature list.
 
 ---
 
