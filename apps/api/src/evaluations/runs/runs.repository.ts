@@ -375,6 +375,56 @@ export class RunsRepository {
     return count;
   }
 
+  /**
+   * The filter that defines a stale run, shared by the read and the write so
+   * the two can never disagree: still `queued`/`running`, created and started
+   * before `cutoff`, and with no result row written at or after `cutoff`.
+   */
+  private staleRunWhere(cutoff: Date): Prisma.ExperimentRunWhereInput {
+    return {
+      status: { in: ['queued', 'running'] },
+      createdAt: { lt: cutoff },
+      OR: [{ startedAt: null }, { startedAt: { lt: cutoff } }],
+      results: { none: { createdAt: { gte: cutoff } } },
+    };
+  }
+
+  /**
+   * Lists runs that are still `queued`/`running` but have made no progress
+   * since `cutoff`. Not team-scoped on purpose: the caller is a system sweep
+   * that handles every team's runs the same way.
+   *
+   * @param cutoff - Runs created, started and last written to before this instant are stale.
+   * @returns The ids of the stale runs, oldest first.
+   */
+  async findStaleRunIds(cutoff: Date): Promise<string[]> {
+    const rows = await prisma.experimentRun.findMany({
+      where: this.staleRunWhere(cutoff),
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    return rows.map((r) => r.id);
+  }
+
+  /**
+   * Marks one stale run `failed`, but only if it is still stale at the moment
+   * of the write. The staleness filter is part of the `UPDATE` itself, so a
+   * cell result or a finalize that lands between `findStaleRunIds` and this
+   * call wins, and the run is left alone.
+   *
+   * @param runId - Run UUID.
+   * @param cutoff - The same cutoff the run was found with.
+   * @param patch - The terminal timestamp and the operator-visible reason.
+   * @returns `1` when the run was failed, `0` when it was no longer stale.
+   */
+  async failRunIfStale(runId: string, cutoff: Date, patch: { endedAt: Date; error: string }): Promise<number> {
+    const { count } = await prisma.experimentRun.updateMany({
+      where: { id: runId, ...this.staleRunWhere(cutoff) },
+      data: { status: 'failed', endedAt: patch.endedAt, error: patch.error },
+    });
+    return count;
+  }
+
   async setRunStatus(
     runId: string,
     status: 'queued' | 'running' | 'succeeded' | 'failed',

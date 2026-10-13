@@ -29,7 +29,7 @@ const runsRepo = new RunsRepository();
  * @param runId - The run that just settled.
  * @param outcome - The terminal status it settled to.
  */
-async function notifyRunFinished(
+export async function notifyRunFinished(
   runId: string,
   outcome: 'succeeded' | 'failed',
 ): Promise<void> {

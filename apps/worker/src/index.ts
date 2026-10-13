@@ -22,6 +22,11 @@ import {
   processOptimize,
   markFinalizeExhausted,
   RunsRepository,
+  STALE_RUNS_QUEUE,
+  loadStaleRunConfig,
+  processStaleRunsJob,
+  registerStaleRunSchedule,
+  type StaleRunsJobData,
 } from '@acruxcore/api/evaluations/runs/processors';
 import { checkDistFreshness, formatStaleBuildWarning } from '@acruxcore/api/shared/build-freshness';
 import { ONLINE_EVAL_QUEUE, type OnlineEvalJobData } from '@acruxcore/api/evaluations/online/queue';
@@ -49,7 +54,7 @@ import {
   type RetentionJobData,
 } from '@acruxcore/api/traces/retention';
 
-/** The eight live BullMQ Workers booted by {@link startWorkers}. */
+/** The nine live BullMQ Workers booted by {@link startWorkers}. */
 export interface EvalWorkers {
   /** Consumes `EVAL_CELLS_QUEUE`, running one gateway call per grid x example cell. */
   cellWorker: Worker<CellJobData>;
@@ -67,6 +72,8 @@ export interface EvalWorkers {
   digestWorker: Worker<DigestJobData>;
   /** Consumes `RETENTION_QUEUE`: the daily `span_payloads` purge job (Finding #7). */
   retentionWorker: Worker<RetentionJobData>;
+  /** Consumes `STALE_RUNS_QUEUE`: the periodic sweep that fails runs whose jobs were lost. */
+  staleRunsWorker: Worker<StaleRunsJobData>;
 }
 
 const runsRepo = new RunsRepository();
@@ -376,7 +383,34 @@ export async function startWorkers(): Promise<EvalWorkers> {
   retentionWorker.on('error', (err) => console.error(`[${retentionWorker.name}] worker error`, err));
   await waitForWorkerReady(retentionWorker);
 
-  return { cellWorker, runWorker, judgeWorker, onlineEvalWorker, optimizeWorker, emailWorker, digestWorker, retentionWorker };
+  // A run's final status is written only by queue jobs, so a run whose jobs were
+  // lost (a worker killed mid-optimize, a Redis restart) would stay `running`
+  // forever. This sweep fails such runs after `staleMinutes` without progress.
+  // Concurrency 1: it is one short database pass. No `'failed'` handler — a failed
+  // sweep records nothing, and the next scheduled run simply tries again.
+  const staleRunConfig = loadStaleRunConfig();
+  const staleRunsWorker = new Worker<StaleRunsJobData>(
+    STALE_RUNS_QUEUE,
+    (job) => processStaleRunsJob(job.name, job.data, { staleMinutes: staleRunConfig.staleMinutes }),
+    { connection, concurrency: 1 },
+  );
+  staleRunsWorker.on('error', (err) => {
+    console.error(`[${staleRunsWorker.name}] worker error`, err);
+    Sentry.captureException(err);
+  });
+  await waitForWorkerReady(staleRunsWorker);
+
+  return {
+    cellWorker,
+    runWorker,
+    judgeWorker,
+    onlineEvalWorker,
+    optimizeWorker,
+    emailWorker,
+    digestWorker,
+    retentionWorker,
+    staleRunsWorker,
+  };
 }
 
 /**
@@ -395,6 +429,7 @@ export async function startWorkers(): Promise<EvalWorkers> {
 export async function registerSchedules(): Promise<void> {
   const digestConfig = loadDigestConfig();
   const retentionScheduleConfig = loadRetentionConfig();
+  const staleRunConfig = loadStaleRunConfig();
 
   await Promise.all([
     registerDigestSchedule(digestConfig)
@@ -418,6 +453,17 @@ export async function registerSchedules(): Promise<void> {
       })
       .catch((err) => {
         console.error('[worker] failed to register the trace payload purge schedule', err);
+      }),
+    registerStaleRunSchedule(staleRunConfig)
+      .then((registered) => {
+        console.log(
+          registered
+            ? `[worker] stale run sweep scheduled (${staleRunConfig.cron} UTC, ${staleRunConfig.staleMinutes} min without progress)`
+            : '[worker] stale run sweep disabled (EVAL_STALE_RUN_REAPER_ENABLED)',
+        );
+      })
+      .catch((err) => {
+        console.error('[worker] failed to register the stale run sweep schedule', err);
       }),
   ]);
 }
@@ -534,6 +580,7 @@ if (require.main === module) {
           workers.emailWorker,
           workers.digestWorker,
           workers.retentionWorker,
+          workers.staleRunsWorker,
         ].map((w) => w.close()),
       );
       process.exit(0);

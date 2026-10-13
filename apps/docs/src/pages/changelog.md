@@ -33,6 +33,12 @@ called out in the week it ships and in the SDK release notes.
 - The home pages send a `Link` header pointing to that catalog, the API reference and `llms.txt`.
 - `robots.txt` on both hosts says `Content-Signal: search=yes, ai-input=yes, ai-train=yes`.
 
+#### Evaluation runs no longer stay "Running" forever
+
+- A run whose background jobs were lost is now marked **Failed** after 2 hours without progress.
+- The run's owner gets the usual "run failed" email, and the run can be started again.
+- A run that is still producing results is never touched, however long it takes.
+
 ### Minor
 
 - Unknown `/.well-known/` addresses on acruxcore.com return 404 instead of the home page.

@@ -26,3 +26,10 @@ export { processCell } from './cell.processor';
 export { processFinalize, markFinalizeExhausted } from './finalize.processor';
 export { processJudge } from './judge.processor';
 export { processOptimize } from './optimize.processor';
+export { processStaleRunsJob, reapStaleRuns } from './stale-runs.processor';
+export { loadStaleRunConfig } from './stale-runs.config';
+export {
+  STALE_RUNS_QUEUE,
+  registerStaleRunSchedule,
+  type StaleRunsJobData,
+} from './stale-runs.queue';
