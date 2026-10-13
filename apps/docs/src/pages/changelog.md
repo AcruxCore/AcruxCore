@@ -66,6 +66,7 @@ called out in the week it ships and in the SDK release notes.
 
 ### Minor
 
+- **Fixed** — evaluation judges on reasoning models left some results unscored ("judge parse error"); the judge reply is no longer capped.
 - **Fixed** — `datasets.create()` in the TypeScript SDK dropped `overallFeedback`.
 - **Fixed** — comparison posts said datasets come only from feedback; rows can be typed or imported.
 - The four Getting started pages are rewritten in shorter, plainer sentences. [Read →](/docs/getting-started/introduction)

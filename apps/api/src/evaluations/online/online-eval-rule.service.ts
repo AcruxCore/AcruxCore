@@ -336,7 +336,7 @@ export class OnlineEvalRuleService {
         spanMetadata: { [JUDGE_MARKER]: true },
         contributingSource: `online evaluation rule "${ruleName}"`,
       },
-      { model: judgeModel, messages, temperature: 0, max_tokens: 300 },
+      { model: judgeModel, messages, temperature: 0 },
     );
     const content = result.body.choices[0]?.message.content ?? '';
     const verdict = parseVerdict(content);

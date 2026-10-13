@@ -108,7 +108,7 @@ export class JudgeService {
       // trace id without a lookup.
       const traceId = randomUUID();
       const ctx: GatewayCallContext = { teamId, traceId };
-      const gatewayResult = await gateway.complete(ctx, { model: JUDGE_MODEL, messages, temperature: 0, max_tokens: 300 });
+      const gatewayResult = await gateway.complete(ctx, { model: JUDGE_MODEL, messages, temperature: 0 });
       const assistantContent = gatewayResult.body.choices[0]?.message.content ?? '';
       return { verdict: parseVerdict(assistantContent), traceId };
     };

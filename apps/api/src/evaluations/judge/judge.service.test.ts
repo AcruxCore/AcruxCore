@@ -216,6 +216,27 @@ describe('JudgeService.scoreResult', () => {
     expect(sentBody).toContain('turn 1');
   });
 
+  it('sends no max_tokens cap, so reasoning judge models are not cut off mid-verdict', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const { resultId } = await arrangeResult(agent, teamId, { criteria: 'be nice' });
+
+    let sentBody = '';
+    jest.spyOn(global, 'fetch').mockImplementationOnce((async (_url: unknown, init: unknown) => {
+      sentBody = String((init as { body?: unknown } | undefined)?.body ?? '');
+      return {
+        ok: true,
+        status: 200,
+        json: async () => cannedJudge({ score: 90, passed: true, reason: 'ok' }),
+        text: async () => '',
+      } as unknown as Response;
+    }) as unknown as typeof fetch);
+
+    await judgeService.scoreResult(teamId, resultId, { criteria: 'be nice', overallFeedback: null, history: null });
+
+    expect(sentBody).not.toContain('max_tokens');
+    expect(sentBody).not.toContain('max_completion_tokens');
+  });
+
   it('malformed judge output -> unscored after one retry, run still usable', async () => {
     const { agent, teamId } = await authedAgent(app);
     const { resultId } = await arrangeResult(agent, teamId, { criteria: 'reply in third person' });
