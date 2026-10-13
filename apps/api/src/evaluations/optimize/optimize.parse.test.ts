@@ -162,3 +162,89 @@ describe('Finding #17: variable-preservation enforcement', () => {
     });
   });
 });
+
+describe('a prompt that reads an image (issue #573)', () => {
+  const rewrite = [
+    { role: 'system', content: 'Read the receipt and answer in one line.' },
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Read this {{ kind }}.' },
+        { type: 'image_url', image_url: { url: '{{ receipt_url }}' } },
+      ],
+    },
+  ];
+
+  it('keeps a candidate that rewrites the text and leaves the image part in place', () => {
+    const raw = JSON.stringify({ candidates: [{ messages: rewrite, rationale: 'shorter' }] });
+
+    const out = parseCandidates(raw, 3, ['kind', 'receipt_url']);
+
+    expect(out).toHaveLength(1);
+    expect(out[0]!.messages[1]!.content).toEqual(rewrite[1]!.content);
+  });
+
+  it('drops a candidate that loses the image variable', () => {
+    const raw = JSON.stringify({
+      candidates: [
+        { messages: [rewrite[0], { role: 'user', content: 'Read this {{ kind }}.' }], rationale: 'drops the image' },
+      ],
+    });
+
+    const { candidates, rejections } = parseCandidatesDetailed(raw, 3, ['kind', 'receipt_url']);
+
+    expect(candidates).toHaveLength(0);
+    expect(rejections[0]).toContain('dropped {{ receipt_url }}');
+  });
+});
+
+describe('a rewrite must keep the image part where the model can see it', () => {
+  const system = { role: 'system', content: 'Read the receipt and answer in one line.' };
+  const imageUser = {
+    role: 'user',
+    content: [
+      { type: 'text', text: 'Read this {{ kind }}.' },
+      { type: 'image_url', image_url: { url: '{{ receipt_url }}' } },
+    ],
+  };
+
+  it('drops a candidate that moves the image URL into a text part', () => {
+    const raw = JSON.stringify({
+      candidates: [
+        { messages: [system, { role: 'user', content: 'Read this {{ kind }}: {{ receipt_url }}' }], rationale: 'inlined' },
+      ],
+    });
+
+    const { candidates, rejections } = parseCandidatesDetailed(raw, 3, ['kind', 'receipt_url'], ['{{ receipt_url }}']);
+
+    expect(candidates).toHaveLength(0);
+    expect(rejections[0]).toContain('image');
+  });
+
+  it('drops a candidate that moves the image part into a system message', () => {
+    const raw = JSON.stringify({
+      candidates: [
+        {
+          messages: [
+            { role: 'system', content: [{ type: 'text', text: 'Read it.' }, { type: 'image_url', image_url: { url: '{{ receipt_url }}' } }] },
+            { role: 'user', content: 'This is a {{ kind }}.' },
+          ],
+          rationale: 'moved',
+        },
+      ],
+    });
+
+    const { candidates, rejections } = parseCandidatesDetailed(raw, 3, ['kind', 'receipt_url'], ['{{ receipt_url }}']);
+
+    expect(candidates).toHaveLength(0);
+    expect(rejections[0]).toContain('user message');
+  });
+
+  it('keeps a candidate whose user message still holds the same image part', () => {
+    const raw = JSON.stringify({ candidates: [{ messages: [system, imageUser], rationale: 'same image' }] });
+
+    const { candidates } = parseCandidatesDetailed(raw, 3, ['kind', 'receipt_url'], ['{{ receipt_url }}']);
+
+    expect(candidates).toHaveLength(1);
+  });
+});

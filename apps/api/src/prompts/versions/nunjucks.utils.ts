@@ -1,6 +1,8 @@
 import * as nunjucks from 'nunjucks';
 import ivm from 'isolated-vm';
 import { readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import type { StoredPart } from './versions.types';
 
 // ── Error classes ─────────────────────────────────────────────────────────────
 
@@ -34,10 +36,16 @@ export class NunjucksRenderError extends Error {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-/** A single message in the OpenAI chat format with a raw nunjucks content string. */
+/**
+ * A stored message's content: one nunjucks template, or a list of text and image parts whose
+ * text and image URL are each a template (issue #573).
+ */
+export type TemplateContent = string | StoredPart[];
+
+/** A single message in the OpenAI chat format with raw nunjucks content. */
 export interface MessageInput {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  content: TemplateContent;
   /** Prompt-cache marker; rendering carries it through untouched (issue #552). */
   cache_control?: { type: 'ephemeral' };
 }
@@ -45,9 +53,88 @@ export interface MessageInput {
 /** A rendered message with all template variables replaced. */
 export interface RenderedMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  /** A string, or the same list of parts as the template with every template filled in. */
+  content: TemplateContent;
   /** Prompt-cache marker copied from the template message, when it had one. */
   cache_control?: { type: 'ephemeral' };
+}
+
+// ── Template strings ──────────────────────────────────────────────────────────
+
+/**
+ * Lists every nunjucks template inside a message's content, in order: the string itself, or
+ * for a list of parts the text of each text part and the URL of each image part.
+ */
+function templatesOf(content: TemplateContent): string[] {
+  if (typeof content === 'string') return [content];
+  return content.map((part) => (part.type === 'text' ? part.text : part.image_url.url));
+}
+
+/**
+ * Rebuilds a message's content from the rendered strings that {@link templatesOf} listed for it.
+ * An image part keeps its `detail`; only its URL changes.
+ */
+function withRendered(content: TemplateContent, rendered: string[]): TemplateContent {
+  if (typeof content === 'string') return rendered[0]!;
+  const parts = content.map((part, i): StoredPart =>
+    part.type === 'text'
+      ? { type: 'text', text: rendered[i]! }
+      : { type: 'image_url', image_url: { ...part.image_url, url: rendered[i]! } },
+  );
+  // A text part such as `{% if note %}{{ note }}{% endif %}` can render to nothing. Anthropic
+  // refuses an empty text block, so the part is dropped rather than sent. A list that would be
+  // left empty is kept as it is, so the message never silently disappears.
+  const kept = parts.filter((part) => part.type !== 'text' || part.text.trim() !== '');
+  return kept.length > 0 ? kept : parts;
+}
+
+/** True when `template` holds a nunjucks tag, so it needs rendering at all. */
+function hasTemplateSyntax(template: string): boolean {
+  return /\{\{|\{%|\{#/.test(template);
+}
+
+/** A `data:image/...` value: a whole inline image, which is never parsed as template text. */
+const INLINE_IMAGE_VALUE = /^data:image\//i;
+
+/**
+ * Replaces every inline-image string inside `variables` with a short stand-in, and returns the
+ * stand-ins with the values they replace.
+ *
+ * The render sandbox has a 16 MB heap, and a variable is copied into it in full. A photo of a
+ * few megabytes, sent as a `data:` URL in a variable, filled that heap and the render failed
+ * with "Isolate is already disposed". The sandbox only needs to place the value, never to read
+ * it, so it gets the stand-in, and {@link restoreInlineImages} puts the real value back into
+ * the rendered text. The one difference is a filter on such a value: `{{ url | length }}`
+ * measures the stand-in. Nothing reads an image that way.
+ */
+function withoutInlineImages(
+  variables: Record<string, unknown>,
+): { variables: Record<string, unknown>; images: Map<string, string> } {
+  const images = new Map<string, string>();
+  const nonce = randomUUID();
+  const swap = (value: unknown): unknown => {
+    if (typeof value === 'string') {
+      if (!INLINE_IMAGE_VALUE.test(value)) return value;
+      const standIn = `@@acx-inline-image-${nonce}-${images.size}@@`;
+      images.set(standIn, value);
+      return standIn;
+    }
+    if (Array.isArray(value)) return value.map(swap);
+    if (value !== null && typeof value === 'object') {
+      return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, swap(v)]));
+    }
+    return value;
+  };
+  return { variables: swap(variables) as Record<string, unknown>, images };
+}
+
+/** Puts back the inline images that {@link withoutInlineImages} took out of `text`. */
+function restoreInlineImages(text: string, images: Map<string, string>): string {
+  let out = text;
+  for (const [standIn, value] of images) {
+    if (out.includes(standIn)) out = out.split(standIn).join(value);
+  }
+  return out;
 }
 
 // ── AST walker ────────────────────────────────────────────────────────────────
@@ -309,7 +396,7 @@ async function renderInSandbox(templates: string[], variables: Record<string, un
  * @returns Sorted array of unique variable name strings, e.g. ["company", "name"].
  * @throws {NunjucksParseError} If any content string has invalid nunjucks syntax.
  */
-export function extractVariables(messages: Array<{ content: string }>): string[] {
+export function extractVariables(messages: Array<{ content: TemplateContent }>): string[] {
   const vars = new Set<string>();
 
   // nunjucks.parser is exported but not typed — cast to access parse()
@@ -317,22 +404,26 @@ export function extractVariables(messages: Array<{ content: string }>): string[]
   const parser = (nunjucks as unknown as { parser: { parse(src: string, extensions: unknown[], opts: object): unknown } }).parser;
 
   for (const msg of messages) {
-    let ast: unknown;
-    try {
-      ast = parser.parse(msg.content, [], {});
-    } catch (err) {
-      throw new NunjucksParseError(
-        `Template parse error: ${err instanceof Error ? err.message : String(err)}`,
-        err,
-      );
-    }
+    // A message of parts is several templates: each text part and each image URL is parsed and
+    // scoped on its own, because `renderMessages` renders each one as its own template.
+    for (const template of templatesOf(msg.content)) {
+      let ast: unknown;
+      try {
+        ast = parser.parse(template, [], {});
+      } catch (err) {
+        throw new NunjucksParseError(
+          `Template parse error: ${err instanceof Error ? err.message : String(err)}`,
+          err,
+        );
+      }
 
-    // A fresh scope stack PER MESSAGE, never shared, with one root frame for a
-    // top-level `{% set %}` to bind into. `renderMessages` renders each message as its
-    // own independent template (see `renderInSandbox`), so a binding in one message has
-    // no scope in any other — and inside a message, `{% for %}` binds only over its own
-    // body. Both halves of that were wrong before (issue #503).
-    walkAst(ast, vars, [new Set<string>()]);
+      // A fresh scope stack PER TEMPLATE, never shared, with one root frame for a
+      // top-level `{% set %}` to bind into. `renderMessages` renders each template as its
+      // own independent one (see `renderInSandbox`), so a binding in one message has
+      // no scope in any other — and inside a message, `{% for %}` binds only over its own
+      // body. Both halves of that were wrong before (issue #503).
+      walkAst(ast, vars, [new Set<string>()]);
+    }
   }
 
   return Array.from(vars).sort();
@@ -351,7 +442,8 @@ export function extractVariables(messages: Array<{ content: string }>): string[]
  *
  * @param messages - Messages with raw nunjucks template content.
  * @param variables - Key-value map of variable values to inject.
- * @returns Array of messages with fully rendered content strings.
+ * @returns Array of messages with fully rendered content: a string, or the list of parts with
+ *   each text and image URL rendered.
  * @throws {NunjucksRenderError} If nunjucks encounters a runtime error during
  *   rendering, or the sandbox's timeout/memory limit is hit.
  */
@@ -359,22 +451,35 @@ export async function renderMessages(
   messages: MessageInput[],
   variables: Record<string, unknown>,
 ): Promise<RenderedMessage[]> {
-  let rendered: string[];
+  const templates = messages.map((msg) => templatesOf(msg.content));
+  const flat = templates.flat();
+  // Only a template with a tag goes into the sandbox. Plain text renders to itself, and a data URL
+  // written straight into a message is megabytes the sandbox's 16 MB heap cannot hold.
+  const toRender = flat.filter(hasTemplateSyntax);
+  const { variables: sandboxVariables, images } = withoutInlineImages(variables);
+  let renderedTags: string[];
   try {
-    rendered = await renderInSandbox(
-      messages.map((msg) => msg.content),
-      variables,
-    );
+    renderedTags = toRender.length > 0 ? await renderInSandbox(toRender, sandboxVariables) : [];
   } catch (err) {
     throw new NunjucksRenderError(
       `Template render error: ${err instanceof Error ? err.message : String(err)}`,
       err,
     );
   }
+  let tagCursor = 0;
+  const rendered = flat.map((template) =>
+    hasTemplateSyntax(template) ? restoreInlineImages(renderedTags[tagCursor++]!, images) : template,
+  );
 
-  return messages.map((msg, i) => ({
-    role: msg.role,
-    content: rendered[i]!,
-    ...(msg.cache_control ? { cache_control: msg.cache_control } : {}),
-  }));
+  let cursor = 0;
+  return messages.map((msg, i) => {
+    const count = templates[i]!.length;
+    const content = withRendered(msg.content, rendered.slice(cursor, cursor + count));
+    cursor += count;
+    return {
+      role: msg.role,
+      content,
+      ...(msg.cache_control ? { cache_control: msg.cache_control } : {}),
+    };
+  });
 }

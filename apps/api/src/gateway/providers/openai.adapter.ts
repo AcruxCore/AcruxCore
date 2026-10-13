@@ -7,6 +7,8 @@ import { guardedFetch } from './guarded-fetch';
 
 /** One SSE frame from the OpenAI streaming API (`chat.completion.chunk`). */
 interface OpenAiStreamFrame {
+  /** A router's in-band failure (OpenRouter): a frame with empty `choices` and this set. */
+  error?: OpenAiResponseBody['error'];
   choices?: {
     delta?: {
       content?: string;
@@ -25,6 +27,11 @@ interface OpenAiStreamFrame {
 }
 
 interface OpenAiResponseBody {
+  /**
+   * Some OpenAI-compatible routers (OpenRouter) answer a failed call with HTTP 200 and
+   * `{ error }` in place of `choices`, for example when they cannot download an image URL.
+   */
+  error?: { message?: unknown; code?: unknown } | string;
   id: string;
   object?: string;
   created?: number;
@@ -84,8 +91,34 @@ function cachedTokens(
  */
 function toWireMessage(m: ChatMessage, anthropicModel: boolean): Record<string, unknown> {
   const { cache_control, ...rest } = m;
-  if (!cache_control || !anthropicModel || typeof m.content !== 'string') return rest;
+  if (!cache_control || !anthropicModel || m.content === null) return rest;
+  if (typeof m.content !== 'string') {
+    const parts = m.content.map((p) => ({ ...p }));
+    Object.assign(parts[parts.length - 1]!, { cache_control });
+    return { ...rest, content: parts };
+  }
   return { ...rest, content: [{ type: 'text', text: m.content, cache_control }] };
+}
+
+/**
+ * Builds the error for a 2xx reply that carries no `choices`.
+ *
+ * The body's own `error.code`, when it is a 4xx number, is the status the caller should see: it
+ * is the router saying the request was wrong (an image link it could not fetch), so retrying or
+ * falling back would not help. Anything else is a bad gateway.
+ */
+function errorFromSuccessBody(data: { error?: OpenAiResponseBody['error'] }): ProviderError {
+  const code = typeof data.error === 'object' ? data.error?.code : undefined;
+  const status = typeof code === 'number' && code >= 400 && code < 500 ? code : 502;
+  const detail = summarizeProviderDetail(JSON.stringify({ error: data.error }));
+  console.error('OpenAI upstream returned no choices:', JSON.stringify(data.error ?? null).slice(0, 500));
+  return new ProviderError(
+    `OpenAI request failed: the upstream answered 200 with no completion`,
+    status,
+    undefined,
+    status === 429 || status >= 500,
+    detail,
+  );
 }
 
 const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
@@ -203,6 +236,7 @@ export class OpenAiAdapter implements ProviderAdapter {
       }
 
       const data = (await res.json()) as OpenAiResponseBody;
+      if (!Array.isArray(data.choices)) throw errorFromSuccessBody(data);
       return {
         id: data.id,
         model: data.model,
@@ -299,6 +333,7 @@ export class OpenAiAdapter implements ProviderAdapter {
         } catch {
           continue; // ignore malformed keep-alive lines
         }
+        if (frame.error !== undefined && !frame.choices?.length) throw errorFromSuccessBody({ error: frame.error });
         const choice = frame.choices?.[0];
         const delta = choice?.delta?.content ?? '';
         const rawToolCalls = choice?.delta?.tool_calls;

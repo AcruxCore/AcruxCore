@@ -19,6 +19,10 @@ export type { EvaluationsHost } from './evaluations';
 export type { SpanQueueOptions } from './span-queue';
 export type {
   Message,
+  AssistantMessage,
+  ContentPart,
+  TextPart,
+  ImagePart,
   acruxcoreConfig,
   acruxcoreErrorCode,
   SpanKind,

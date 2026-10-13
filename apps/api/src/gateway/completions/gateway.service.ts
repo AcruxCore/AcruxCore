@@ -29,7 +29,8 @@ import type { ChatMessage, NormalizedRequest, ProviderCredentials, StreamChunk, 
 // end to end.
 import { AliasesService } from '../../prompts/aliases/aliases.service';
 import { VersionsRepository as PromptVersionsRepository } from '../../prompts/versions/versions.repository';
-import { renderMessages, NunjucksRenderError } from '../../prompts/versions/nunjucks.utils';
+import { checkedImages } from './rendered-images';
+import { renderMessages, NunjucksRenderError, type MessageInput, type TemplateContent } from '../../prompts/versions/nunjucks.utils';
 // Imported from the concrete sub-barrel, not the top-level `../../tools` barrel:
 // that barrel also re-exports `toolsRouter`, which pulls in Express as a load-time
 // side effect (same Express-free-graph concern as the `AliasesService` import above).
@@ -180,21 +181,26 @@ function connectionBaseUrl(config: unknown): string | undefined {
  * B1 ad-hoc templating, made tool-aware (TC2): renders `{{ variables }}` into each
  * message's `content` using the same nunjucks engine as prompt versions. A message
  * with `content: null` (an assistant message that only carries `tool_calls`) has
- * nothing to render and is passed through unchanged — `renderMessages` itself only
- * accepts string content, so templating tool-call arguments is out of scope here.
+ * nothing to render and is passed through unchanged; templating tool-call arguments is out
+ * of scope here.
  *
  * @param messages - Ad-hoc messages, possibly including tool-role/tool_calls entries.
  * @param variables - Key-value map of variable values to inject.
- * @returns The same messages with non-null `content` rendered.
+ * @returns The same messages with non-null `content` rendered: text, and the URL of an image part.
  * @throws {NunjucksRenderError} If nunjucks encounters a runtime error during rendering,
  *   or the render sandbox's timeout/memory limit is hit.
  */
 async function renderAdhocMessages(messages: ChatMessage[], variables: Record<string, unknown>): Promise<ChatMessage[]> {
+  // The same renderer as a stored prompt, so text parts, image URL templates such as
+  // `{{ receipt_url }}`, and large inline images are handled one way. The rendered image URLs
+  // are checked by `checkedImages` before any provider call.
+  const renderable = messages.filter((m) => m.content !== null);
   const rendered = await renderMessages(
-    messages.map((m) => ({ role: m.role as 'system' | 'user' | 'assistant', content: m.content ?? '' })),
+    renderable.map((m) => ({ role: m.role as MessageInput['role'], content: m.content as TemplateContent })),
     variables,
   );
-  return messages.map((m, i) => ({ ...m, content: m.content === null ? null : rendered[i]!.content }));
+  let cursor = 0;
+  return messages.map((m) => (m.content === null ? m : { ...m, content: rendered[cursor++]!.content as ChatMessage['content'] }));
 }
 
 /**
@@ -860,6 +866,10 @@ export class GatewayService {
       }
     }
 
+    // An image URL that came from a template (a stored prompt, or `variables` in the body) is only
+    // known now. Refuse a bad one here, before any provider call, with a message naming the problem.
+    checkedImages(req.messages ?? []);
+
     // ── TC2 Task 5: resolve catalog tool_refs and merge with inline tools ────────
     // Duplicate names (inline vs. resolved) are a 400. Always strips `tool_refs`
     // from `req` so it never leaks to the provider adapter.
@@ -1199,6 +1209,10 @@ export class GatewayService {
         throw err;
       }
     }
+
+    // An image URL that came from a template (a stored prompt, or `variables` in the body) is only
+    // known now. Refuse a bad one here, before any provider call, with a message naming the problem.
+    checkedImages(req.messages ?? []);
 
     // TC2 Task 5: resolve catalog tool_refs and merge with inline tools (mirrors
     // the non-streaming path above — same 400 on a name collision).

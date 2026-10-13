@@ -113,3 +113,19 @@ describe('computeCacheKey — tool declarations (issue #480)', () => {
     expect(computeCacheKey('team-a', a)).toBe(computeCacheKey('team-a', b));
   });
 });
+
+describe('computeCacheKey with image parts (issue #567)', () => {
+  const withImage = (url: string) => ({
+    model: 'm',
+    messages: [{ role: 'user' as const, content: [{ type: 'image_url' as const, image_url: { url } }] }],
+  });
+
+  it('gives two different images two different keys, and the same image the same key', () => {
+    expect(computeCacheKey('t', withImage('https://x.test/a.png'))).not.toBe(
+      computeCacheKey('t', withImage('https://x.test/b.png')),
+    );
+    expect(computeCacheKey('t', withImage('https://x.test/a.png'))).toBe(
+      computeCacheKey('t', withImage('https://x.test/a.png')),
+    );
+  });
+});

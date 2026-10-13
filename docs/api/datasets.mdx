@@ -625,6 +625,47 @@ didn't supply one:
 }
 ```
 
+#### An example with an image
+
+An example holds an image as a link in a variable, and the prompt's image part is filled from it
+(`{{ receipt_url }}` in [Add an image to a message](./prompts/versions#add-an-image-to-a-message)).
+Use a public `http(s)` link. An example's `input` can be at most 8,192 bytes, so an inline
+`data:` image does not fit and returns `400`.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/datasets/7dc1165c-5582-4c2f-a60d-0a1e9cfee823/examples \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"input":{"kind":"card","receipt_url":"https://raw.githubusercontent.com/AcruxCore/AcruxCore/main/apps/docs/static/img/social-card.png"},"criteria":"The reply must name the product ACRUX CORE."}'
+
+# Response (status 201)
+{"id":"6cde2f2d-4197-4a86-8e52-83b0db76a450","datasetId":"7dc1165c-5582-4c2f-a60d-0a1e9cfee823","input":{"kind":"card","receipt_url":"https://raw.githubusercontent.com/AcruxCore/AcruxCore/main/apps/docs/static/img/social-card.png"},"criteria":"The reply must name the product ACRUX CORE.","history":null,"sourceTraceId":null,"sourceFeedbackId":null,"sourcePromptVersionId":null,"sourcePrompt":null,"createdAt":"2026-10-13T13:26:04.838Z"}
+```
+
+```bash
+# Response (status 400), with an inline data: image in `input`
+{"error":{"code":"VALIDATION_ERROR","message":"input must serialize to at most 8192 bytes"}}
+```
+
+The run sends the image to every model in the grid. The judge receives the same image, so
+`EVAL_JUDGE_MODEL` must name a model that reads images when a dataset has one.
+
+A trace keeps an inline image only as a placeholder, `[image omitted: <type>, <bytes> bytes]`.
+Adding feedback to a dataset therefore skips a call whose image variable held an inline image:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/datasets/cf4634d1-1514-489b-b23b-687e951e2339/examples/from-feedback \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"feedback_ids":["b50c67e9-c296-43d6-b116-228bc1452b13"]}'
+
+# Response (status 200)
+{"added":0,"example_count":0,"skipped":[{"feedbackId":"b50c67e9-c296-43d6-b116-228bc1452b13","reason":"variable \"receipt_url\" held an inline image, and a trace keeps only a placeholder for it; add this example by hand with a public image link"}]}
+```
+
+An example whose image variable holds such a placeholder fails each of its cells on the first
+attempt, with a message that says to put a public image link in its place.
+
 Supplying `history` explicitly:
 
 ```bash

@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import type { MessageRole } from '@/api';
+import type { Message, MessageRole } from '@/api';
 import { ApiError, useCommitVersion, useCreatePrompt } from '@/api';
 import { Button, Dialog, DialogFooter, Field, Input, useToast } from '@/ui';
 
 export interface SavePromptDialogProps {
-  messages: { role: MessageRole; content: string }[];
+  messages: { role: MessageRole; content: Message['content'] }[];
   open: boolean;
   onClose: () => void;
   onSaved: (promptId: string, name: string) => void;

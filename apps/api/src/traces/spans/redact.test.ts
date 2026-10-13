@@ -118,3 +118,17 @@ describe('redactPayloadValue — real key formats (issue #481)', () => {
     expect(redactPayloadValue(`${acxWithSeparators}@example.com`)).toBe('[REDACTED]');
   });
 });
+
+describe('redactPayloadValue with inline images (issue #567)', () => {
+  it('replaces a base64 image with a placeholder that keeps its type and size, and leaves a remote URL alone', () => {
+    const png = `data:image/png;base64,${'A'.repeat(400)}`;
+    const out = redactPayloadValue([
+      { type: 'text', text: 'read this' },
+      { type: 'image_url', image_url: { url: png } },
+      { type: 'image_url', image_url: { url: 'https://example.com/a.png' } },
+    ]);
+    expect(out[1]).toEqual({ type: 'image_url', image_url: { url: '[image omitted: image/png, 300 bytes]' } });
+    expect(out[2]).toEqual({ type: 'image_url', image_url: { url: 'https://example.com/a.png' } });
+    expect(out[0]).toEqual({ type: 'text', text: 'read this' });
+  });
+});

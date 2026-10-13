@@ -170,6 +170,31 @@ Response (status 200) — v1 content rendered:
 pass either through as `promptVersionId` on the SDK's `chat()`/`runToolLoop()` so a trace can
 be linked back to it.
 
+A version with an image part renders the image `url` the same way as text. Rendering the
+version from [Add an image to a message](./versions#add-an-image-to-a-message):
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/prompts/receipt-reader-573/production/render \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"variables":{"kind":"receipt","receipt_url":"https://example.com/receipts/blue-heron.png"}}'
+
+# Response (status 200)
+{"messages":[{"role":"system","content":"You read receipts. Reply with the merchant name and the total only."},{"role":"user","content":[{"type":"text","text":"Read this receipt."},{"type":"image_url","image_url":{"url":"https://example.com/receipts/blue-heron.png"}}]}],"tools":[],"toolResolutions":[],"model":null,"versionId":"b660dbf5-ae38-4b22-8d4e-386def5a8c76","versionNumber":1}
+```
+
+The variable that fills the image is required like any other:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/prompts/receipt-reader-573/production/render \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"variables":{"kind":"receipt"}}'
+
+# Response (status 400)
+{"error":{"code":"MISSING_VARIABLES","message":"Required variables are missing: receipt_url","missing":["receipt_url"]}}
+```
+
 `tools` (TC3) is always present — an array of OpenAI-shaped function definitions for
 the Tool Catalog tools [bound to the alias being rendered](./tool-bindings), or `[]`
 when it has none. `toolResolutions` is a parallel array — one entry per `tools` entry,

@@ -1,13 +1,13 @@
 import { z } from 'zod';
-import { CacheControlSchema } from '../versions/versions.types';
+import { CacheControlSchema, StoredPartSchema, refineImageInUserMessage } from '../versions/versions.types';
 
 /** Zod schema for a single message inside the import body. */
 const MessageSchema = z.object({
   role:    z.string().min(1),
-  content: z.string(),
+  content: z.union([z.string(), z.array(StoredPartSchema).min(1)]),
   /** Prompt-cache marker; kept so an export → import round trip does not lose it. */
   cache_control: CacheControlSchema.optional(),
-});
+}).superRefine(refineImageInUserMessage);
 
 /**
  * Zod schema for the import request body.

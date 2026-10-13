@@ -4,7 +4,7 @@ import { GatewayService } from '../../gateway/completions/gateway.service';
 import { GatewayRepository } from '../../gateway/completions/gateway.repository';
 import { ConnectionsRepository } from '../../gateway/connections/connections.repository';
 import type { GatewayCallContext } from '../../gateway/completions/completions.types';
-import type { ChatMessage } from '../../gateway/providers/types';
+import type { ChatMessage, ImageContentPart } from '../../gateway/providers/types';
 import { compileEvaluatePrompt } from './judge.prompt';
 import { parseVerdict } from './judge.parse';
 
@@ -56,7 +56,8 @@ export class JudgeService {
    *   after (or during) a run cannot change what a result was scored against
    *   (FAQ Q5 reproducibility). Omitted only by legacy callers / pre-existing
    *   jobs, which fall back to reading the result's live
-   *   `criteria`/`overallFeedback`/`history`.
+   *   `criteria`/`overallFeedback`/`history`. `images` carries the image(s) the model saw, so the
+   *   judge model must be able to read images when an example has one (`EVAL_JUDGE_MODEL`).
    * @returns Nothing. The verdict (or the unscored placeholder) is persisted
    *   as a side effect via `RunsRepository.writeVerdict`.
    * @throws {NotFoundError} Never thrown directly — a missing/cross-team
@@ -72,7 +73,13 @@ export class JudgeService {
   async scoreResult(
     teamId: string,
     resultId: string,
-    frozen?: { criteria: string | null; overallFeedback: string | null; history?: ChatMessage[] | null },
+    frozen?: {
+      criteria: string | null;
+      overallFeedback: string | null;
+      history?: ChatMessage[] | null;
+      /** The image(s) the model under test was shown, for a vision judge (issue #573). */
+      images?: ImageContentPart[] | null;
+    },
   ): Promise<void> {
     const result = await runsRepo.getResultById(teamId, resultId);
     if (!result) {
@@ -98,7 +105,13 @@ export class JudgeService {
       return;
     }
 
-    const messages = compileEvaluatePrompt({ output: result.output, criteria, overallFeedback, history });
+    const messages = compileEvaluatePrompt({
+      output: result.output,
+      criteria,
+      overallFeedback,
+      history,
+      images: frozen?.images ?? null,
+    });
 
     const attempt = async (): Promise<{ verdict: ReturnType<typeof parseVerdict>; traceId: string }> => {
       // Minted up front, same reasoning as cell.processor.ts: GatewayResult

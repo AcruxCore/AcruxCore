@@ -149,3 +149,22 @@ describe('compileOptimizePrompt', () => {
     expect(userMessage.content).toContain('earlier turn');
   });
 });
+
+describe('compileOptimizePrompt with an image in the production template (issue #573)', () => {
+  const withImage = [
+    { role: 'user', content: [{ type: 'text', text: 'Read {{ kind }}.' }, { type: 'image_url', image_url: { url: '{{ receipt_url }}' } }] },
+  ];
+
+  it('tells the optimizer to keep the image part, and says nothing about images for a text-only template', () => {
+    const imagePrompt = compileOptimizePrompt({ productionMessages: withImage, cases: [], overallFeedback: null, draftCount: 1 });
+    const textPrompt = compileOptimizePrompt({
+      productionMessages: [{ role: 'user', content: 'Hello {{ name }}' }],
+      cases: [],
+      overallFeedback: null,
+      draftCount: 1,
+    });
+
+    expect(imagePrompt[0]!.content).toContain('Keep every image part exactly as it is');
+    expect(textPrompt[0]!.content).not.toContain('image part');
+  });
+});

@@ -51,18 +51,56 @@ class CacheControl(TypedDict):
     type: Literal["ephemeral"]
 
 
+class TextPart(TypedDict):
+    """A text part of a message's ``content`` list."""
+
+    type: Literal["text"]
+    text: str
+
+
+class _ImageUrlRequired(TypedDict):
+    # The required half of ImageUrl. ``typing.Required`` needs Python 3.11, and the
+    # SDK supports 3.9, so the required and optional keys sit in two classes.
+    url: str
+
+
+class ImageUrl(_ImageUrlRequired, total=False):
+    """The ``image_url`` of an :class:`ImagePart`.
+
+    ``url`` is required: an http(s) link the model's provider downloads, or a
+    ``data:image/<type>;base64,...`` URL that carries the bytes. ``detail`` is an
+    OpenAI-only hint. In a stored prompt, ``url`` can be a template such as
+    ``{{ receipt_url }}``.
+    """
+
+    detail: Literal["auto", "low", "high"]
+
+
+class ImagePart(TypedDict):
+    """An image part of a message's ``content`` list."""
+
+    type: Literal["image_url"]
+    image_url: ImageUrl
+
+
+#: One part of a message's ``content`` list: text or an image.
+ContentPart = Union[TextPart, ImagePart]
+
+
 class Message(TypedDict, total=False):
     """A single chat message.
 
     ``role`` and ``content`` are always present (``content`` may be ``None`` for
-    an assistant turn that only calls tools). ``tool_calls`` appears on assistant
+    an assistant turn that only calls tools). A ``user`` message can instead hold
+    a list of text and image parts, to send an image to a vision model. A reply
+    from the model is always text or ``None``. ``tool_calls`` appears on assistant
     turns that call tools; ``tool_call_id`` on ``tool`` result messages.
     ``cache_control`` asks an Anthropic model to cache the prompt up to and
     including this message; the gateway drops it for every other model.
     """
 
     role: Role
-    content: Optional[str]
+    content: Union[str, List[ContentPart], None]
     tool_calls: List[ToolCall]
     tool_call_id: str
     cache_control: CacheControl
@@ -225,15 +263,17 @@ class PromptMessage(TypedDict):
     :meth:`~acruxcore.prompts_api.PromptsNamespace.commit_version`.
 
     Purpose-built and narrower than the gateway's :class:`Message`: a prompt
-    version's messages are always a nunjucks template string with one of the
-    three template-eligible roles — never ``"tool"``, never ``None`` content,
-    never ``tool_calls`` — matching the API's ``MessageSchema`` enum. Reusing
-    the gateway ``Message`` TypedDict here would type-check a shape the server
+    version's messages are a nunjucks template string, or a list of text and
+    image parts whose text and image ``url`` are each a template (only a
+    ``user`` message may hold an image). The role is one of the three
+    template-eligible roles — never ``"tool"``, never ``None`` content, never
+    ``tool_calls`` — matching the API's ``MessageSchema`` enum. Reusing the
+    gateway ``Message`` TypedDict here would type-check a shape the server
     rejects with a 400 at runtime.
     """
 
     role: Literal["system", "user", "assistant"]
-    content: str
+    content: Union[str, List[ContentPart]]
 
 
 # --- Returned dataclasses --------------------------------------------------

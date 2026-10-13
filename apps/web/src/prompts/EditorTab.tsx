@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import type { Message, MessageRole } from '@/api';
 import { Button } from '@/ui';
-import { TemplateInput } from './TemplateInput';
+import { isBlank } from '@/lib/message-content';
+import { ContentEditor } from './ContentEditor';
 
 const ROLES: MessageRole[] = ['system', 'user', 'assistant'];
 
@@ -45,7 +46,7 @@ export function EditorTab({
     onChange([...draft, { role: 'user', content: '' }]);
   }
 
-  const hasContent = draft.some((m) => m.content.trim() !== '');
+  const hasContent = draft.some((m) => !isBlank(m.content));
 
   return (
     <div className="flex flex-col gap-4">
@@ -134,10 +135,11 @@ export function EditorTab({
               )}
             </div>
             <div className="p-3">
-              <TemplateInput
-                value={m.content}
-                onChange={(v) => update(i, { content: v })}
-                placeholder="Write the message. Use {{ variables }} and {% logic %}."
+              <ContentEditor
+                role={m.role}
+                content={m.content}
+                onChange={(content) => update(i, { content })}
+                canWrite={canWrite}
               />
             </div>
           </div>

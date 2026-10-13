@@ -18,6 +18,7 @@ import { audit } from '../../shared/audit/audit.helper';
 import prisma from '../../shared/db/client';
 import { NotFoundError, ValidationError } from '../../shared/errors/http-errors';
 import { AppError } from '../../shared/errors/app-error';
+import type { TemplateContent } from './nunjucks.utils';
 
 /**
  * Business logic for prompt versioning.
@@ -131,7 +132,7 @@ export class VersionsService {
       id: row.id,
       promptId: row.promptId,
       versionNumber: row.versionNumber,
-      messages: row.messages as Array<{ role: string; content: string }>,
+      messages: row.messages as Array<{ role: string; content: TemplateContent }>,
       variables: row.variables as string[],
       createdBy: row.createdBy,
       createdAt: row.createdAt.toISOString(),
@@ -216,7 +217,7 @@ export class VersionsService {
       id: row.id,
       promptId: row.promptId,
       versionNumber: row.versionNumber,
-      messages: row.messages as Array<{ role: string; content: string }>,
+      messages: row.messages as Array<{ role: string; content: TemplateContent }>,
       variables: row.variables as string[],
       createdBy: row.createdBy,
       createdAt: row.createdAt.toISOString(),
@@ -243,7 +244,7 @@ export class VersionsService {
       promptId: row.prompt.id,
       promptName: row.prompt.name,
       versionNumber: row.versionNumber,
-      messages: row.messages as Array<{ role: string; content: string }>,
+      messages: row.messages as Array<{ role: string; content: TemplateContent }>,
       variables: row.variables as string[],
       tools,
       model: row.model?.publicName ?? null,

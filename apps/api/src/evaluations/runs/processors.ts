@@ -22,7 +22,7 @@
  */
 export { RunsRepository } from './runs.repository';
 export type { ExperimentRunWithResults } from './runs.repository';
-export { processCell } from './cell.processor';
+export { processCell, isTerminalCellFailure } from './cell.processor';
 export { processFinalize, markFinalizeExhausted } from './finalize.processor';
 export { processJudge } from './judge.processor';
 export { processOptimize } from './optimize.processor';

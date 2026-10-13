@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTools } from '@/api';
+import { isBlank } from '@/lib/message-content';
 import { useAuth } from '@/auth/AuthContext';
 import { Button, Field, Input, Select, Textarea } from '@/ui';
 import { SavePromptDialog } from './SavePromptDialog';
@@ -56,7 +57,7 @@ export function PlaygroundPage() {
   // Messages currently on screen, from whichever editor is active — the
   // source of truth for the Save ▾ menu, regardless of mode.
   const messagesToSave = (prompt.mode === 'messages' ? prompt.messages : prompt.promptMessages).filter(
-    (m) => m.content.trim() !== '',
+    (m) => !isBlank(m.content),
   );
   const canSave = canWrite && messagesToSave.length > 0;
 

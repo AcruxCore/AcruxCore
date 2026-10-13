@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { PromptAlias } from '@prisma/client';
 import type { ResolvedToolDefinition, ToolResolutionDetail } from '../versions';
+import type { TemplateContent } from '../versions/nunjucks.utils';
 
 // ── DB row type ───────────────────────────────────────────────────────────────
 
@@ -45,7 +46,7 @@ export interface AliasWithVersion {
   alias: string;
   versionId: string;
   versionNumber: number;
-  messages: Array<{ role: string; content: string }>;
+  messages: Array<{ role: string; content: TemplateContent }>;
   variables: string[];
   /** The resolved version's bound default model publicName, or null (#12). */
   model: string | null;
@@ -53,7 +54,7 @@ export interface AliasWithVersion {
 
 /** Render response shape. */
 export interface RenderResponse {
-  messages: Array<{ role: string; content: string }>;
+  messages: Array<{ role: string; content: TemplateContent }>;
   /** OpenAI-shaped tool definitions attached to the resolved version (FAQ Q4). */
   tools: ResolvedToolDefinition[];
   /**
@@ -79,7 +80,7 @@ export interface RenderResponse {
  * number. Consumed by the gateway (G8) to stamp `gateway_requests.prompt_version_id`.
  */
 export interface RenderedWithVersion {
-  messages: Array<{ role: string; content: string }>;
+  messages: Array<{ role: string; content: TemplateContent }>;
   versionId: string;
   versionNumber: number;
   /** OpenAI-shaped tool definitions attached to the resolved version (FAQ Q4). */

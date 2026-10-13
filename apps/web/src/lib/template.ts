@@ -1,5 +1,6 @@
 import nunjucks from 'nunjucks';
 import type { Message } from '@/api/types';
+import { templatesOf, withTemplates } from './message-content';
 
 /**
  * A nunjucks environment for client-side Preview rendering.
@@ -143,14 +144,17 @@ export function extractVariables(messages: Message[]): string[] {
   const vars = new Set<string>();
 
   for (const message of messages) {
-    let ast: unknown;
-    try {
-      ast = parser.parse(message.content, [], {});
-    } catch {
-      continue; // half-typed template; the next keystroke will parse
+    // A message of parts is several templates: each text part and each image URL is its own.
+    for (const template of templatesOf(message.content)) {
+      let ast: unknown;
+      try {
+        ast = parser.parse(template, [], {});
+      } catch {
+        continue; // half-typed template; the next keystroke will parse
+      }
+      // A fresh stack per template, with one root frame for a top-level `{% set %}`.
+      walkAst(ast, vars, [new Set<string>()]);
     }
-    // A fresh stack per message, with one root frame for a top-level `{% set %}`.
-    walkAst(ast, vars, [new Set<string>()]);
   }
 
   return [...vars].sort();
@@ -170,6 +174,6 @@ export function renderMessages(
 ): Message[] {
   return messages.map((m) => ({
     role: m.role,
-    content: env.renderString(m.content, values),
+    content: withTemplates(m.content, templatesOf(m.content).map((t) => env.renderString(t, values))),
   }));
 }

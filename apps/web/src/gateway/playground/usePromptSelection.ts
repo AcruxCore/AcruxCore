@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { CompletionBody, MessageRole } from '@/api';
+import { isBlank } from '@/lib/message-content';
 import { useAliases, useAllPrompts, useModels, useVersion, useVersionById } from '@/api';
 import type { PlaygroundPrefill } from '../playground-prefill';
 import { resolveModelPublicName } from '../playground-prefill';
@@ -282,7 +283,7 @@ export function usePromptSelection() {
     if (maxTokens.trim() !== '') body.max_tokens = Number(maxTokens);
 
     if (mode === 'messages') {
-      const cleaned = messages.filter((m) => m.content.trim() !== '');
+      const cleaned = messages.filter((m) => !isBlank(m.content));
       if (cleaned.length === 0) throw new Error('Add at least one message with content.');
       body.messages = cleaned;
     } else {
@@ -297,7 +298,7 @@ export function usePromptSelection() {
       }
       if (promptMessagesDirty) {
         // Edited experiment: send the raw templates + variables; gateway renders (B1).
-        const cleaned = promptMessages.filter((m) => m.content.trim() !== '');
+        const cleaned = promptMessages.filter((m) => !isBlank(m.content));
         if (cleaned.length === 0) throw new Error('Add at least one message with content.');
         body.messages = cleaned;
         body.variables = variables;

@@ -35,7 +35,12 @@ export async function processJudge(data: JudgeJobData): Promise<void> {
   // `scoreResult` falls back to a live read for them.
   const frozen =
     'criteria' in data || 'overallFeedback' in data || 'history' in data
-      ? { criteria: data.criteria ?? null, overallFeedback: data.overallFeedback ?? null, history: data.history ?? null }
+      ? {
+          criteria: data.criteria ?? null,
+          overallFeedback: data.overallFeedback ?? null,
+          history: data.history ?? null,
+          images: data.images ?? null,
+        }
       : undefined;
   await judgeService.scoreResult(data.teamId, data.resultId, frozen);
 }

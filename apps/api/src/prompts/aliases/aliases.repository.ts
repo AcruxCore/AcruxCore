@@ -1,5 +1,6 @@
 import prisma from '../../shared/db/client';
 import type { AliasDetail, AliasWithVersion } from './aliases.types';
+import type { TemplateContent } from '../versions/nunjucks.utils';
 
 /**
  * Data-access class for the prompt_aliases table.
@@ -107,7 +108,7 @@ export class AliasesRepository {
       alias: row.alias,
       versionId: row.versionId,
       versionNumber: row.version.versionNumber,
-      messages: row.version.messages as Array<{ role: string; content: string }>,
+      messages: row.version.messages as Array<{ role: string; content: TemplateContent }>,
       variables: row.version.variables as string[],
       model: row.version.model?.publicName ?? null,
     };

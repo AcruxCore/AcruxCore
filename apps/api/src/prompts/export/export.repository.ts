@@ -1,4 +1,5 @@
 import prisma from '../../shared/db/client';
+import type { TemplateContent } from '../versions/nunjucks.utils';
 
 /**
  * Repository for fetching prompt and version data needed for export.
@@ -34,7 +35,7 @@ export class ExportRepository {
     versionNumber: number,
   ): Promise<{
     versionNumber: number;
-    messages:      Array<{ role: string; content: string }>;
+    messages:      Array<{ role: string; content: TemplateContent }>;
     variables:     string[];
     createdAt:     Date;
   } | undefined> {
@@ -46,7 +47,7 @@ export class ExportRepository {
     if (!row) return undefined;
     return {
       versionNumber: row.versionNumber,
-      messages:      row.messages as Array<{ role: string; content: string }>,
+      messages:      row.messages as Array<{ role: string; content: TemplateContent }>,
       variables:     row.variables as string[],
       createdAt:     row.createdAt,
     };

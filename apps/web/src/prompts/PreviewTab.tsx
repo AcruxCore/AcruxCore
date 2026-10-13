@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Message } from '@/api';
 import { extractVariables, renderMessages } from '@/lib/template';
+import { isBlank } from '@/lib/message-content';
 import { Empty, Field, Input } from '@/ui';
 
 /** Live, client-side preview of the current draft rendered with sample values. */
@@ -20,7 +21,7 @@ export function PreviewTab({ draft }: { draft: Message[] }) {
     }
   }, [draft, values]);
 
-  const nonEmptyDraft = draft.some((m) => m.content.trim() !== '');
+  const nonEmptyDraft = draft.some((m) => !isBlank(m.content));
   if (!nonEmptyDraft) {
     return (
       <Empty
@@ -69,9 +70,35 @@ export function PreviewTab({ draft }: { draft: Message[] }) {
                     {m.role}
                   </span>
                 </div>
-                <pre className="whitespace-pre-wrap break-words px-3.5 py-3 font-mono text-[13px] leading-relaxed text-ink">
-                  {m.content || <span className="text-faint">(empty)</span>}
-                </pre>
+                {typeof m.content === 'string' ? (
+                  <pre className="whitespace-pre-wrap break-words px-3.5 py-3 font-mono text-[13px] leading-relaxed text-ink">
+                    {m.content || <span className="text-faint">(empty)</span>}
+                  </pre>
+                ) : (
+                  <div className="flex flex-col gap-3 px-3.5 py-3">
+                    {m.content.map((part, j) =>
+                      part.type === 'text' ? (
+                        <pre
+                          key={j}
+                          className="whitespace-pre-wrap break-words font-mono text-[13px] leading-relaxed text-ink"
+                        >
+                          {part.text || <span className="text-faint">(empty)</span>}
+                        </pre>
+                      ) : /^(https?:\/\/|data:image\/)/i.test(part.image_url.url) ? (
+                        <img
+                          key={j}
+                          src={part.image_url.url}
+                          alt="Rendered image part"
+                          className="max-h-64 max-w-full self-start rounded border border-line"
+                        />
+                      ) : (
+                        <p key={j} className="font-mono text-[12.5px] text-faint">
+                          Image link: {part.image_url.url || '(empty — fill the variable above)'}
+                        </p>
+                      ),
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

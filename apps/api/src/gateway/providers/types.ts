@@ -46,11 +46,32 @@ export interface CacheControl {
   type: 'ephemeral';
 }
 
+/** A text part of an array-form message `content` (OpenAI shape). */
+export interface TextContentPart {
+  type: 'text';
+  text: string;
+}
+
+/**
+ * An image part of an array-form message `content` (OpenAI shape). `url` is either a remote
+ * http(s) URL or a `data:image/<type>;base64,…` URL; `detail` is an OpenAI-only hint.
+ */
+export interface ImageContentPart {
+  type: 'image_url';
+  image_url: { url: string; detail?: 'auto' | 'low' | 'high' };
+}
+
+/** One part of an array-form message `content`. */
+export type ContentPart = TextContentPart | ImageContentPart;
+
 /** A single chat message in the canonical (OpenAI) shape. */
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  /** Null for an assistant message that only carries tool_calls, or a tool result's raw string. */
-  content: string | null;
+  /**
+   * Null for an assistant message that only carries tool_calls, or a tool result's raw string.
+   * An array of parts carries text and images (issue #567); only `user` messages may hold an image.
+   */
+  content: string | ContentPart[] | null;
   /**
    * Asks the provider to cache the prompt up to and including this message (issue #552).
    * Only Anthropic models need it — OpenAI caches long prefixes on its own — so adapters turn it
@@ -62,6 +83,9 @@ export interface ChatMessage {
   /** Present on `tool` role messages — links the result to the assistant's call. */
   tool_call_id?: string;
 }
+
+/** A model's reply: a {@link ChatMessage} whose `content` is plain text, since no provider answers with images. */
+export type AssistantMessage = Omit<ChatMessage, 'content'> & { content: string | null };
 
 /** Canonical chat-completion request. Identical to the OpenAI Chat Completions body we accept. */
 export interface NormalizedRequest {
@@ -129,7 +153,7 @@ export interface NormalizedResponse {
   model: string;
   object?: string;
   created?: number;
-  choices: { index: number; message: ChatMessage; finish_reason: string | null }[];
+  choices: { index: number; message: AssistantMessage; finish_reason: string | null }[];
   usage: Usage;
 }
 

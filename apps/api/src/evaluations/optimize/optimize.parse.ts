@@ -114,8 +114,40 @@ export function parseCandidates(
   raw: string,
   draftCount: number,
   originalVariables?: string[],
+  originalImages?: string[],
 ): Array<{ messages: ChatMessage[]; rationale: string }> {
-  return parseCandidatesDetailed(raw, draftCount, originalVariables).candidates;
+  return parseCandidatesDetailed(raw, draftCount, originalVariables, originalImages).candidates;
+}
+
+/**
+ * Lists the URL template of every image part in `messages`, in order.
+ *
+ * @param messages - A prompt's messages, as stored or as an optimizer candidate.
+ * @returns One URL template per image part, e.g. `['{{ receipt_url }}']`; empty when there are none.
+ */
+export function imageUrlTemplates(messages: ReadonlyArray<{ content: unknown }>): string[] {
+  return messages.flatMap((m) =>
+    Array.isArray(m.content)
+      ? (m.content as Array<{ type: string; image_url?: { url: string } }>)
+          .filter((p) => p.type === 'image_url')
+          .map((p) => p.image_url!.url)
+      : [],
+  );
+}
+
+/**
+ * Says why a candidate's image parts differ from the production template's, or returns null.
+ *
+ * The variable-set check alone passed a rewrite that moved `{{ receipt_url }}` into a text part
+ * or into a system message. The variables still matched, but the model then received the URL as
+ * words, or an image a provider drops, and the candidate was scored on a task without the image.
+ */
+function imagePlacementProblem(messages: ReadonlyArray<{ role: string; content: unknown }>, originalImages: string[]): string | null {
+  const misplaced = messages.find((m) => m.role !== 'user' && imageUrlTemplates([m]).length > 0);
+  if (misplaced) return `moved an image into a ${misplaced.role} message (an image can only be in a user message)`;
+  const images = imageUrlTemplates(messages);
+  if (JSON.stringify(images) === JSON.stringify(originalImages)) return null;
+  return `changed the image parts from [${originalImages.join(', ')}] to [${images.join(', ')}] (a rewrite must keep each image part as it is)`;
 }
 
 /**
@@ -132,6 +164,9 @@ export function parseCandidates(
  * @param raw - Raw text from the optimizer LLM.
  * @param draftCount - Maximum number of candidates to return.
  * @param originalVariables - The variable set the rewrite must match exactly.
+ * @param originalImages - The production template's image URL templates, in order
+ *   ({@link imageUrlTemplates}). A candidate must hold the same ones, each in a user message.
+ *   Omit to skip this check.
  * @returns `{ candidates, rejections }` — `rejections` holds one human-readable
  *   reason per dropped candidate, in the order they appeared, and is empty when
  *   nothing was dropped.
@@ -140,6 +175,7 @@ export function parseCandidatesDetailed(
   raw: string,
   draftCount: number,
   originalVariables?: string[],
+  originalImages?: string[],
 ): { candidates: Array<{ messages: ChatMessage[]; rationale: string }>; rejections: string[] } {
   const rejections: string[] = [];
   // Find the first '{' character.
@@ -243,6 +279,13 @@ export function parseCandidatesDetailed(
         rejections.push(
           `candidate ${idx + 1}: ${parts.join('; ')} (a rewrite must keep exactly the original variables)`,
         );
+        continue;
+      }
+    }
+    if (originalImages) {
+      const problem = imagePlacementProblem(candidate.messages, originalImages);
+      if (problem) {
+        rejections.push(`candidate ${idx + 1}: ${problem}`);
         continue;
       }
     }

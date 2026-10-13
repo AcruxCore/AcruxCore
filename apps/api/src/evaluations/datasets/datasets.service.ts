@@ -19,6 +19,7 @@ import {
   UpdateExampleDto,
 } from './datasets.types';
 import { buildTraceExchange, capHistoryBytes } from './history.builder';
+import { isOmittedImage } from '../../traces/spans/redact';
 import { NotFoundError, UnprocessableError } from '../../shared/errors';
 import { audit } from '../../shared/audit';
 import prisma from '../../shared/db/client';
@@ -151,6 +152,22 @@ type DatasetWithCount = Prisma.DatasetGetPayload<{ include: { _count: { select: 
  * team-scoped — the service (not the thin repository) is what guarantees a
  * caller can never read or mutate another team's data.
  */
+/**
+ * Names the first variable whose value is a trace's `[image omitted: …]` placeholder.
+ *
+ * @param variables - A span's captured, redacted variables.
+ * @returns The variable's name (dotted for a nested value), or null when none holds a placeholder.
+ */
+function omittedImageVariable(variables: unknown, path = ''): string | null {
+  if (typeof variables === 'string') return isOmittedImage(variables) ? path : null;
+  if (variables === null || typeof variables !== 'object') return null;
+  for (const [key, value] of Object.entries(variables as Record<string, unknown>)) {
+    const found = omittedImageVariable(value, path ? `${path}.${key}` : key);
+    if (found !== null) return found;
+  }
+  return null;
+}
+
 export class DatasetsService {
   /**
    * Selecting feedback by criteria is the feedback domain's own filter language,
@@ -560,6 +577,17 @@ export class DatasetsService {
       const inputBytes = Buffer.byteLength(JSON.stringify(sourcePayload.variables), 'utf8');
       if (inputBytes > MAX_EXAMPLE_INPUT_BYTES) {
         skipped.push({ feedbackId, reason: `input exceeds ${MAX_EXAMPLE_INPUT_BYTES} bytes (${inputBytes} bytes)` });
+        continue;
+      }
+
+      // A variable that held an inline image reached the trace as an `[image omitted: …]`
+      // placeholder. The image is gone, so an example built from it could never run.
+      const omittedImage = omittedImageVariable(sourcePayload.variables);
+      if (omittedImage) {
+        skipped.push({
+          feedbackId,
+          reason: `variable "${omittedImage}" held an inline image, and a trace keeps only a placeholder for it; add this example by hand with a public image link`,
+        });
         continue;
       }
 

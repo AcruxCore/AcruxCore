@@ -297,3 +297,43 @@ describe('loadNunjucksBrowserBundle', () => {
     );
   });
 });
+
+describe('renderMessages with large inline images', () => {
+  const dataUrl = (bytes: number): string => `data:image/png;base64,${'A'.repeat(bytes)}`;
+
+  it('returns a 2 MB data URL written into the template unchanged', async () => {
+    const url = dataUrl(2 * 1024 * 1024);
+
+    const [msg] = await renderMessages([{ role: 'user', content: [{ type: 'image_url', image_url: { url } }] }], {});
+
+    expect(msg!.content).toEqual([{ type: 'image_url', image_url: { url } }]);
+  });
+
+  it('fills an image URL template from a 20 MB variable', async () => {
+    const url = dataUrl(20 * 1024 * 1024);
+
+    const [msg] = await renderMessages(
+      [{ role: 'user', content: [{ type: 'image_url', image_url: { url: '{{ receipt_url }}' } }] }],
+      { receipt_url: url },
+    );
+
+    expect((msg!.content as Array<{ image_url: { url: string } }>)[0]!.image_url.url).toBe(url);
+  });
+
+  it('drops a text part that renders to blank, because Anthropic refuses an empty text block', async () => {
+    const [msg] = await renderMessages(
+      [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: '{% if note %}{{ note }}{% endif %}' },
+            { type: 'image_url', image_url: { url: '{{ receipt_url }}' } },
+          ],
+        },
+      ],
+      { note: '', receipt_url: 'https://example.com/r.png' },
+    );
+
+    expect(msg!.content).toEqual([{ type: 'image_url', image_url: { url: 'https://example.com/r.png' } }]);
+  });
+});

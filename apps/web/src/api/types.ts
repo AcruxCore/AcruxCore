@@ -40,9 +40,16 @@ export interface AuthResponse {
 }
 
 export type MessageRole = 'system' | 'user' | 'assistant';
+
+/** One part of a message that holds an image (issue #573): a text template or an image link template. */
+export type MessagePart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string; detail?: 'auto' | 'low' | 'high' } };
+
 export interface Message {
   role: MessageRole;
-  content: string;
+  /** A template string, or a list of text and image parts (only a `user` message may hold an image). */
+  content: string | MessagePart[];
   /** Anthropic prompt-cache marker: cache the prompt up to and including this message. */
   cache_control?: { type: 'ephemeral' };
 }
@@ -72,7 +79,8 @@ export interface ToolDefinition {
  */
 export interface ChatMessage {
   role: ChatRole;
-  content: string | null;
+  /** Text, or text and image parts (a `user` message only), or null for a tool-call-only assistant turn. */
+  content: string | MessagePart[] | null;
   tool_calls?: ToolCall[];
   tool_call_id?: string;
 }

@@ -129,6 +129,40 @@ curl -X POST $ACRUXCORE_BASE_URL/prompts/91f7b670-3305-47d0-af89-f46263cfabb7/ve
 }
 ```
 
+#### Add an image to a message
+
+A `user` message's `content` can be a list of parts instead of a string. A part is
+`{"type": "text", "text": "..."}` or `{"type": "image_url", "image_url": {"url": "...", "detail": "low"}}`.
+The text and the image `url` are each a template, so `{{ receipt_url }}` is filled with a variable when the
+prompt is rendered. The URL is checked when the prompt is used, not when the version is committed.
+`variables` lists the variables of every text part and every image URL.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/prompts/b46acee0-4685-4b64-a249-17967b1f2d41/versions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"system","content":"You read receipts. Reply with the merchant name and the total only."},{"role":"user","content":[{"type":"text","text":"Read this {{ kind }}."},{"type":"image_url","image_url":{"url":"{{ receipt_url }}"}}]}]}'
+
+# Response (status 201)
+{"id":"b660dbf5-ae38-4b22-8d4e-386def5a8c76","promptId":"b46acee0-4685-4b64-a249-17967b1f2d41","versionNumber":1,"messages":[{"role":"system","content":"You read receipts. Reply with the merchant name and the total only."},{"role":"user","content":[{"text":"Read this {{ kind }}.","type":"text"},{"type":"image_url","image_url":{"url":"{{ receipt_url }}"}}]}],"variables":["kind","receipt_url"],"createdBy":"18c76b52-ee0d-4001-be8e-c29976488fbb","createdAt":"2026-10-13T13:25:43.467Z","model":null,"aliases":[{"id":"759c0354-e51c-4f08-a8f7-c016215fbba7","alias":"production","versionId":"b660dbf5-ae38-4b22-8d4e-386def5a8c76","versionNumber":1,"updatedAt":"2026-10-13T13:25:43.470Z"},{"id":"bc1fafcf-98da-452a-9221-9ae03b49e6d6","alias":"staging","versionId":"b660dbf5-ae38-4b22-8d4e-386def5a8c76","versionNumber":1,"updatedAt":"2026-10-13T13:25:43.470Z"}]}
+```
+
+An image in a `system` or `assistant` message is refused:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/prompts/b46acee0-4685-4b64-a249-17967b1f2d41/versions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"system","content":[{"type":"image_url","image_url":{"url":"{{ photo_url }}"}}]}]}'
+
+# Response (status 400)
+{"error":{"code":"VALIDATION_ERROR","message":"An image can only be in a user message, not in a system message."}}
+```
+
+An unknown part type, an empty list of parts and an image part without a `url` also return `400`.
+[Evaluate a prompt that reads an image](https://docs.acruxcore.com/docs/guides/evaluate-a-prompt-that-reads-an-image)
+runs such a version against a dataset.
+
 #### Mark a message for prompt caching
 
 Anthropic models cache a prompt only when the request marks where the cached part ends. Add

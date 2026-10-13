@@ -83,3 +83,20 @@ describe('estimateTokens', () => {
     expect(estimateTokens(text, 'gpt-4o-mini')).toBeGreaterThanOrEqual(encoder.encode(text).length);
   });
 });
+
+describe('image parts', () => {
+  const withImage = (detail?: 'low' | 'high' | 'auto'): ChatMessage[] => [
+    {
+      role: 'user',
+      content: [{ type: 'image_url', image_url: { url: 'https://example.com/a.png', ...(detail ? { detail } : {}) } }],
+    },
+  ];
+
+  it('counts a low-detail image at the 85 tokens OpenAI charges for it', () => {
+    expect(estimateTokens(withImage('low'), 'gpt-4o-mini') - estimateTokens([{ role: 'user', content: [] }], 'gpt-4o-mini')).toBe(85);
+  });
+
+  it('counts an image with no detail on the high side', () => {
+    expect(estimateTokens(withImage(), 'gpt-4o-mini')).toBeGreaterThanOrEqual(1100);
+  });
+});

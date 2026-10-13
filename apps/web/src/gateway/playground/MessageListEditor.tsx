@@ -1,11 +1,13 @@
-import type { MessageRole } from '@/api';
+import type { Message, MessageRole } from '@/api';
+import { describeContent } from '@/lib/message-content';
 import { Button, Select, Textarea } from '@/ui';
 
 const ROLES: MessageRole[] = ['system', 'user', 'assistant'];
 
 export interface DraftMessage {
   role: MessageRole;
-  content: string;
+  /** Text, or text and image parts; a message with parts is shown read-only here. */
+  content: Message['content'];
 }
 
 interface MessageListEditorProps {
@@ -35,13 +37,24 @@ export function MessageListEditor({ messages, onChange, onAdd, onRemove }: Messa
               </option>
             ))}
           </Select>
-          <Textarea
-            value={m.content}
-            onChange={(e) => onChange(i, { content: e.target.value })}
-            rows={2}
-            placeholder="Message content…"
-            className="flex-1"
-          />
+          {typeof m.content === 'string' ? (
+            <Textarea
+              value={m.content}
+              onChange={(e) => onChange(i, { content: e.target.value })}
+              rows={2}
+              placeholder="Message content…"
+              className="flex-1"
+            />
+          ) : (
+            <div className="flex-1 rounded-md border border-line bg-elevated px-3 py-2">
+              <pre className="whitespace-pre-wrap break-words font-mono text-[12.5px] text-ink">
+                {describeContent(m.content)}
+              </pre>
+              <p className="mt-1.5 text-[11.5px] text-faint">
+                This message has an image. Edit it in the prompt's Editor tab; it is sent as it is stored.
+              </p>
+            </div>
+          )}
           {messages.length > 1 && (
             <Button
               size="sm"

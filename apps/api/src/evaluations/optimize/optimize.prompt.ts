@@ -26,6 +26,21 @@ Return ONLY strict JSON with this shape (no markdown, no prose, no extra fields)
 Return AT MOST ${draftCount} candidates.`;
 }
 
+/** Added to the built-in system message when the production template has an image part (issue #573). */
+const IMAGE_PART_NOTE = `
+
+A message's "content" can be a list of parts, where an {"type": "image_url", ...} part holds an image. Keep every image part exactly as it is, in its message, and rewrite only the text. A rewritten message that holds an image keeps "content" as a list of parts.`;
+
+/** Whether a production template (a messages array) has a message with an image part. */
+function hasImagePart(productionMessages: unknown): boolean {
+  return (
+    Array.isArray(productionMessages) &&
+    productionMessages.some(
+      (m) => Array.isArray(m?.content) && m.content.some((p: { type?: string }) => p?.type === 'image_url'),
+    )
+  );
+}
+
 /**
  * Compile an optimizer prompt asking an LLM to rewrite a failing prompt
  * template into `draftCount` candidate rewrites.
@@ -121,7 +136,7 @@ ${priorOutputStr}
     role: 'system',
     content: `You are an expert prompt engineer. You will be given a production prompt template, a set of failing test cases (with their inputs, per-case criteria, and the output the template previously produced), and optional overall feedback describing how the template's outputs should change.
 
-Rewrite the template to better satisfy the failing cases' criteria and the overall feedback. The rewrite MUST preserve the exact same \`{{ variable }}\` placeholders as the original template — do not invent new variables and do not drop any existing ones. The rewrite must remain a valid, renderable template.
+Rewrite the template to better satisfy the failing cases' criteria and the overall feedback. The rewrite MUST preserve the exact same \`{{ variable }}\` placeholders as the original template — do not invent new variables and do not drop any existing ones. The rewrite must remain a valid, renderable template.${hasImagePart(input.productionMessages) ? IMAGE_PART_NOTE : ''}
 
 ${optimizerOutputContract(input.draftCount)}`,
   };

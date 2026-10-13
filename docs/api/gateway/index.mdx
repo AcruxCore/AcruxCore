@@ -812,6 +812,70 @@ See also
 
 ---
 
+### Image input
+
+A `user` message's `content` is either a string or a list of parts. A part is
+`{"type": "text", "text": "..."}` or `{"type": "image_url", "image_url": {"url": "...", "detail": "low"}}`.
+`url` is a public `http(s)` link or a `data:image/<type>;base64,...` URL, and `detail` is optional
+(`auto`, `low` or `high`; only OpenAI models use it). The request body can be up to 25 MB on this
+endpoint. [Send an image to a model](https://docs.acruxcore.com/docs/guides/send-an-image-to-a-model) walks through it.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"vision-gemma","max_tokens":40,"messages":[{"role":"user","content":[{"type":"text","text":"What color is this image? One word."},{"type":"image_url","image_url":{"url":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="}}]}]}'
+
+# Response (status 200)
+{"id":"gen-1791896374-8yTvjqsuyFxswucuBeMX","model":"google/gemma-4-31b-it","object":"chat.completion","created":1791896374,"choices":[{"index":0,"message":{"role":"assistant","content":"Green"},"finish_reason":"stop"}],"usage":{"prompt_tokens":280,"completion_tokens":2,"total_tokens":282}}
+```
+
+An image in a `system`, `assistant` or `tool` message is refused:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"vision-gemma","messages":[{"role":"system","content":[{"type":"image_url","image_url":{"url":"https://example.com/a.png"}}]},{"role":"user","content":"hi"}]}'
+
+# Response (status 400)
+{"error":{"code":"VALIDATION_ERROR","message":"An image can only be sent in a user message, not in a system message."}}
+```
+
+A Gemini model accepts only a `data:` URL, and a link sent to it returns `400`. A link the
+provider cannot download also returns `400`, with the provider's reason in `message`. A trace
+stores an inline image as `[image omitted: image/png, 6162 bytes]` and keeps a link as sent.
+
+#### An image that a prompt or a variable fills
+
+A stored prompt can hold an image part whose `url` is a template, such as `{{ receipt_url }}`
+([Add an image to a message](/api-reference/prompts/versions#add-an-image-to-a-message)). Name the prompt
+and pass the link as a variable:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"vision-gemma","max_tokens":40,"prompt":{"name":"receipt-reader-573","alias":"production","variables":{"kind":"image","receipt_url":"https://raw.githubusercontent.com/AcruxCore/AcruxCore/main/apps/docs/static/img/social-card.png"}}}'
+
+# Response (status 200)
+{"id":"gen-1791898052-GUNEX3H0skCNqx0dcq8m","model":"google/gemma-4-31b-it","object":"chat.completion","created":1791898052,"choices":[{"index":0,"message":{"role":"assistant","content":"This image is not a receipt."},"finish_reason":"stop"}],"usage":{"prompt_tokens":315,"completion_tokens":8,"total_tokens":323}}
+```
+
+The same works for an ad-hoc message: set the part's `url` to `{{ url }}` and send `variables`.
+The rendered URL is checked before any provider call. A value that is not an `http(s)` or
+`data:image/...;base64,` URL, or a template that no variable fills, returns `400`:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"vision-gemma","prompt":{"name":"receipt-reader-573","alias":"production","variables":{"kind":"image","receipt_url":"receipt.png"}}}'
+
+# Response (status 400)
+{"error":{"code":"VALIDATION_ERROR","message":"Image URL \"receipt.png\" is not an http(s) URL or a data:image/...;base64 URL. Check the variable that fills it."}}
+```
+
 ### Prompt caching on Anthropic models
 
 Anthropic models cache a prompt only when the request marks the end of the part to cache. A

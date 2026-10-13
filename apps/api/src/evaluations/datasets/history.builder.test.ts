@@ -228,7 +228,7 @@ describe('capHistoryBytes', () => {
     ];
     const capped = capHistoryBytes(messages, 100);
     expect(capped[capped.length - 1]).toEqual(messages[2]);
-    expect(capped.some((m) => m.content?.startsWith('oldest'))).toBe(false);
+    expect(capped.some((m) => typeof m.content === 'string' && m.content.startsWith('oldest'))).toBe(false);
     expect(Buffer.byteLength(JSON.stringify(capped), 'utf8')).toBeLessThanOrEqual(100);
   });
 
@@ -259,5 +259,25 @@ describe('capHistoryBytes', () => {
       { role: 'assistant', content: 'final' },
     ] as unknown as ChatMessage[];
     expect(capHistoryBytes(messages, 40)).toEqual([]);
+  });
+});
+
+describe('an image that a trace kept only as a placeholder', () => {
+  it('replays the placeholder as text, because the image itself was never stored', () => {
+    const history: ChatMessage[] = [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'What does this receipt say?' },
+          { type: 'image_url', image_url: { url: '[image omitted: image/jpeg, 812345 bytes]' } },
+        ],
+      },
+      { role: 'assistant', content: 'BLUE HERON CAFE, 12.50' },
+    ];
+
+    expect(sanitizeForReplay(history)[0]!.content).toEqual([
+      { type: 'text', text: 'What does this receipt say?' },
+      { type: 'text', text: '[image omitted: image/jpeg, 812345 bytes]' },
+    ]);
   });
 });

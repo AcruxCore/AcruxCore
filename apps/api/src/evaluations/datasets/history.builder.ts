@@ -1,4 +1,5 @@
-import type { ChatMessage } from '../../gateway/providers/types';
+import type { ChatMessage, ContentPart } from '../../gateway/providers/types';
+import { isOmittedImage } from '../../traces/spans/redact';
 
 /**
  * One `llm`-kind span's CAPTURED payload, exactly as it comes off
@@ -153,13 +154,19 @@ export function buildTraceExchange(llmSpans: LlmSpanForHistory[]): ChatMessage[]
  *   keeps the array valid for Anthropic, which requires the conversation to
  *   open with a user message.
  *
+ * It also turns an image part that a trace kept only as an `[image omitted: …]`
+ * placeholder into a text part holding that placeholder. The image was never
+ * stored, and the gateway refuses the placeholder as an image URL, which failed
+ * every cell of the example. As text, the model still learns an image was sent.
+ *
  * Idempotent, so it is safe to apply both at build time and again before a
  * replay (`cell.processor`) for rows written before it existed.
  *
  * @param messages - The history, oldest first.
  * @returns A replayable subrange, or `[]` if nothing replayable remains.
  */
-export function sanitizeForReplay(messages: ChatMessage[]): ChatMessage[] {
+export function sanitizeForReplay(input: ChatMessage[]): ChatMessage[] {
+  const messages = input.some(holdsOmittedImage) ? input.map(withOmittedImagesAsText) : input;
   let end = messages.length;
   while (end > 0) {
     const last = messages[end - 1]!;
@@ -171,6 +178,20 @@ export function sanitizeForReplay(messages: ChatMessage[]): ChatMessage[] {
   while (start < end && messages[start]!.role !== 'user') start += 1;
 
   return start === 0 && end === messages.length ? messages : messages.slice(start, end);
+}
+
+/** True when a message has an image part whose URL is a trace's `[image omitted: …]` placeholder. */
+function holdsOmittedImage(message: ChatMessage): boolean {
+  return Array.isArray(message.content) && message.content.some((p) => p.type === 'image_url' && isOmittedImage(p.image_url.url));
+}
+
+/** Replaces each placeholder image part of `message` with a text part that holds the placeholder. */
+function withOmittedImagesAsText(message: ChatMessage): ChatMessage {
+  if (!holdsOmittedImage(message)) return message;
+  const content = (message.content as ContentPart[]).map((p): ContentPart =>
+    p.type === 'image_url' && isOmittedImage(p.image_url.url) ? { type: 'text', text: p.image_url.url } : p,
+  );
+  return { ...message, content };
 }
 
 /**

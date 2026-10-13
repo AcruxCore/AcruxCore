@@ -1,4 +1,5 @@
 import prisma from '../../shared/db/client';
+import type { TemplateContent } from '../versions/nunjucks.utils';
 
 /**
  * Repository for fetching the data needed to compute a version diff.
@@ -34,12 +35,12 @@ export class DiffRepository {
   async findVersionsByNumbers(
     promptId: string,
     versionNumbers: number[],
-  ): Promise<Array<{ versionNumber: number; messages: Array<{ role: string; content: string }> }>> {
+  ): Promise<Array<{ versionNumber: number; messages: Array<{ role: string; content: TemplateContent }> }>> {
     const rows = await prisma.promptVersion.findMany({
       where: { promptId, versionNumber: { in: versionNumbers } },
       select: { versionNumber: true, messages: true },
     });
 
-    return rows as Array<{ versionNumber: number; messages: Array<{ role: string; content: string }> }>;
+    return rows as Array<{ versionNumber: number; messages: Array<{ role: string; content: TemplateContent }> }>;
   }
 }

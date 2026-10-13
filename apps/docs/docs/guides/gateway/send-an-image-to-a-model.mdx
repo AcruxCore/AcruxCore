@@ -1,0 +1,265 @@
+---
+title: "Send an image to a model"
+description: Pass an image to a vision model through the gateway, either as a link or as a file, and check what the trace stores.
+sidebar_position: 6
+keywords: [vision model, image input, image_url, multimodal, base64 image, gateway]
+slug: /guides/send-an-image-to-a-model
+sidebar_label: Send an image to a model
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Send an image to a model
+
+**What you'll build:** two calls to a vision model through the gateway. The first sends an image by link. The second sends a local file. Then you read the trace to see what AcruxCore kept of the image.
+
+The gateway takes the OpenAI message format. To send an image, set a user message's `content` to a list of parts instead of a string. A part is either `{"type": "text", ...}` or `{"type": "image_url", ...}`.
+
+## Before you start
+
+You need a registered model that can read images, and a key for the gateway. [Route calls through the gateway](./route-calls-through-the-gateway) covers both. This guide uses a model registered as `vision-gemma`, which points at `google/gemma-4-31b-it` on an OpenRouter connection. Any other vision model works the same way.
+
+Set two variables:
+
+```bash
+export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
+export ACRUXCORE_API_KEY=agh_sk_...
+```
+
+The SDK tabs use `@acruxcoreai/sdk` from npm and `acruxcore` from PyPI, and both read these two variables. Use version 0.17.0 or later of either SDK, because that release types the image parts.
+
+## 1. Send an image by link
+
+Put the image URL in an `image_url` part. The model's provider downloads the image, so the link must be public.
+
+<Tabs groupId="lang">
+<TabItem value="node" label="Node (SDK)">
+
+```ts
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore();
+
+const { content } = await hub.gateway.chat({
+  model: 'vision-gemma',
+  maxTokens: 60,
+  messages: [{
+    role: 'user',
+    content: [
+      { type: 'text', text: 'What text is in this image?' },
+      { type: 'image_url', image_url: { url: 'https://raw.githubusercontent.com/AcruxCore/AcruxCore/main/apps/docs/static/img/social-card.png' } },
+    ],
+  }],
+});
+console.log(content);
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+result = await hub.gateway.chat(
+    "vision-gemma",
+    [{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "What text is in this image?"},
+            {"type": "image_url", "image_url": {"url": "https://raw.githubusercontent.com/AcruxCore/AcruxCore/main/apps/docs/static/img/social-card.png"}},
+        ],
+    }],
+    max_tokens=60,
+)
+print(result.content)
+```
+
+</TabItem>
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "vision-gemma",
+    "max_tokens": 60,
+    "messages": [{
+      "role": "user",
+      "content": [
+        {"type": "text", "text": "What text is in this image?"},
+        {"type": "image_url", "image_url": {"url": "https://raw.githubusercontent.com/AcruxCore/AcruxCore/main/apps/docs/static/img/social-card.png"}}
+      ]
+    }]
+  }'
+```
+
+The reply is an ordinary chat completion. The image is part of the question, so the answer reads it:
+
+```json
+{
+  "model": "google/gemma-4-31b-it",
+  "choices": [{
+    "index": 0,
+    "message": {
+      "role": "assistant",
+      "content": "The text in the image is:\n\n**ACRUX CORE**\n**The LLM-ops platform**\nVersion prompts, route LLM calls through a gateway, ..."
+    },
+    "finish_reason": "length"
+  }]
+}
+```
+
+</TabItem>
+</Tabs>
+
+`finish_reason` is `length` here only because the call set `max_tokens` to 60.
+
+If the provider cannot download the link, the gateway answers `400` and repeats the provider's reason, for example `Received 404 status code when fetching image from URL`.
+
+## 2. Send a file from your machine
+
+A file has no public link, so send its bytes inside the request. Encode the file as base64 and put it in a `data:` URL. Each example reads [this sample receipt](/img/guides/send-an-image-to-a-model/receipt.png), but any image type your model accepts works.
+
+<Tabs groupId="lang">
+<TabItem value="node" label="Node (SDK)">
+
+```ts
+import { readFileSync } from 'node:fs';
+import AcruxCore from '@acruxcoreai/sdk';
+
+const hub = new AcruxCore();
+const image = readFileSync('receipt.png').toString('base64');
+
+const { content } = await hub.gateway.chat({
+  model: 'vision-gemma',
+  messages: [{
+    role: 'user',
+    content: [
+      { type: 'text', text: 'Read this receipt. Reply with the merchant name and the total only.' },
+      { type: 'image_url', image_url: { url: `data:image/png;base64,${image}` } },
+    ],
+  }],
+});
+console.log(content);
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+import base64
+from acruxcore import AcruxCore
+
+hub = AcruxCore()
+
+with open("receipt.png", "rb") as f:
+    image = base64.b64encode(f.read()).decode()
+
+result = await hub.gateway.chat(
+    "vision-gemma",
+    [{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "Read this receipt. Reply with the merchant name and the total only."},
+            {"type": "image_url", "image_url": {"url": "data:image/png;base64," + image}},
+        ],
+    }],
+)
+print(result.content)
+```
+
+</TabItem>
+<TabItem value="curl" label="curl">
+
+```bash
+IMAGE=$(base64 -w0 receipt.png)   # on macOS: base64 -i receipt.png
+
+curl -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d @- <<EOF
+{
+  "model": "vision-gemma",
+  "messages": [{
+    "role": "user",
+    "content": [
+      {"type": "text", "text": "Read this receipt. Reply with the merchant name and the total only."},
+      {"type": "image_url", "image_url": {"url": "data:image/png;base64,$IMAGE"}}
+    ]
+  }]
+}
+EOF
+```
+
+</TabItem>
+<TabItem value="python-requests" label="Python (requests)">
+
+```python
+import base64, os
+import requests
+
+with open("receipt.png", "rb") as f:
+    image = base64.b64encode(f.read()).decode()
+
+response = requests.post(
+    os.environ["ACRUXCORE_BASE_URL"] + "/gateway/chat/completions",
+    headers={"Authorization": "Bearer " + os.environ["ACRUXCORE_API_KEY"]},
+    json={
+        "model": "vision-gemma",
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Read this receipt. Reply with the merchant name and the total only."},
+                {"type": "image_url", "image_url": {"url": "data:image/png;base64," + image}},
+            ],
+        }],
+    },
+    timeout=60,
+)
+print(response.json()["choices"][0]["message"]["content"])
+```
+
+</TabItem>
+</Tabs>
+
+Each one prints:
+
+```text
+Merchant: BLUE HERON CAFE
+Total: 12.50
+```
+
+The `data:` URL must start with `data:image/` followed by the file's real type, such as `image/jpeg`. A request can be up to 25 MB, which holds a few phone photos, because base64 makes a file about a third larger.
+
+## 3. Read the trace
+
+Open **Observability → Traces** and click the newest trace. Its name is the text part of your message. Open the span and read the **Input**:
+
+![The Input panel of a trace span. The user message holds two parts: the text "Read this receipt. Reply with the merchant name and the total only." and an image_url part whose url reads [image omitted: image/png, 6162 bytes]](/img/guides/send-an-image-to-a-model/01-trace-input.png)
+
+A trace keeps the text and replaces an inline image with a placeholder that names its type and size. The photo itself, which is often a receipt or a screenshot, does not sit in the trace for the length of your retention window. A link is kept as you sent it.
+
+## What each provider receives
+
+| Connection type | An image link | A `data:` URL |
+|---|---|---|
+| OpenAI-compatible (OpenAI, OpenRouter, Ollama and others) | Sent unchanged | Sent unchanged |
+| Anthropic | Anthropic downloads it | Sent as a base64 image block |
+| Gemini | Refused with a `400` | Sent as inline data |
+
+Gemini reads an image only from inline bytes. The gateway does not download a link on a caller's behalf, so a Gemini model needs the `data:` form.
+
+Four rules apply on every connection:
+
+- Only `user` messages can hold an image. A `system` or `assistant` message with an image part gets a `400`.
+- An empty `content` list, an unknown part type, and a URL that is neither `http(s)` nor `data:image/` also get a `400`.
+- Streaming works the same way: set `"stream": true` and the answer arrives in chunks.
+- The budget check counts 1,600 tokens for each image before the call, or 85 for an image with `"detail": "low"`. The cost on your usage page comes from the token count the provider reports. A stream that ends without one is billed at the estimate.
+
+## Next
+
+[Set spend limits](./set-spend-limits-with-gateway-budgets-and-rate-limits) before you point a batch of images at a paid model. [The gateway reference](/api-reference/gateway) lists every request field. To keep the image prompt in a stored version and score it across models, see [Evaluate a prompt that reads an image](/docs/guides/evaluate-a-prompt-that-reads-an-image).

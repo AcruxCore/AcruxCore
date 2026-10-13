@@ -12,6 +12,7 @@ import type {
 } from './types';
 import { parseSseStream } from './sse-parse';
 import { guardedFetch } from './guarded-fetch';
+import { contentText, parseDataImageUrl } from './message-content';
 
 const ANTHROPIC_BASE_URL = 'https://api.anthropic.com/v1';
 const ANTHROPIC_VERSION = '2023-06-01';
@@ -96,12 +97,29 @@ function toAnthropicSystem(messages: NormalizedRequest['messages']): string | un
   if (system.some((m) => m.cache_control)) {
     return system.map((m) => ({
       type: 'text',
-      text: m.content ?? '',
+      text: contentText(m.content),
       ...(m.cache_control ? { cache_control: m.cache_control } : {}),
     }));
   }
-  const text = system.map((m) => m.content).join('\n');
+  const text = system.map((m) => contentText(m.content)).join('\n');
   return text || undefined;
+}
+
+/**
+ * Maps a message's content to Anthropic content blocks. A data URL becomes a base64 `source`; a
+ * remote URL becomes a `url` source, which Anthropic fetches itself.
+ */
+function toAnthropicContentBlocks(content: Exclude<ChatMessage['content'], null | string>): Record<string, unknown>[] {
+  return content.map((part) => {
+    if (part.type === 'text') return { type: 'text', text: part.text };
+    const data = parseDataImageUrl(part.image_url.url);
+    return {
+      type: 'image',
+      source: data
+        ? { type: 'base64', media_type: data.mediaType, data: data.data }
+        : { type: 'url', url: part.image_url.url },
+    };
+  });
 }
 
 /** Adds a message's `cache_control` marker to the last block of its Anthropic content. */
@@ -184,13 +202,14 @@ function toAnthropicMessages(messages: ChatMessage[]): { role: 'user' | 'assista
     if (m.role === 'tool') {
       out.push({
         role: 'user',
-        content: withCacheMarker(m, [{ type: 'tool_result', tool_use_id: m.tool_call_id, content: m.content ?? '' }]),
+        content: withCacheMarker(m, [{ type: 'tool_result', tool_use_id: m.tool_call_id, content: contentText(m.content) }]),
       });
       continue;
     }
     if (m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0) {
       const blocks: Record<string, unknown>[] = [];
-      if (m.content) blocks.push({ type: 'text', text: m.content });
+      const text = contentText(m.content);
+      if (text) blocks.push({ type: 'text', text });
       for (const tc of m.tool_calls) {
         let input: unknown = {};
         try {
@@ -204,6 +223,10 @@ function toAnthropicMessages(messages: ChatMessage[]): { role: 'user' | 'assista
       continue;
     }
     const role = m.role === 'assistant' ? 'assistant' : 'user';
+    if (Array.isArray(m.content)) {
+      out.push({ role, content: withCacheMarker(m, toAnthropicContentBlocks(m.content)) });
+      continue;
+    }
     out.push({
       role,
       content: m.cache_control ? withCacheMarker(m, [{ type: 'text', text: m.content ?? '' }]) : m.content ?? '',

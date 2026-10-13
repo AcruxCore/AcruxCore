@@ -1,6 +1,6 @@
 {
   "name": "@acruxcoreai/sdk",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "description": "TypeScript SDK for AcruxCore — runtime prompt render, gateway chat, tool loops, traces, and feedback",
   "license": "MIT",
   "keywords": [
@@ -29,14 +29,24 @@
   },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js"
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
     },
     "./otel": {
-      "types": "./dist/otel.d.ts",
-      "import": "./dist/otel.mjs",
-      "require": "./dist/otel.js"
+      "import": {
+        "types": "./dist/otel.d.mts",
+        "default": "./dist/otel.mjs"
+      },
+      "require": {
+        "types": "./dist/otel.d.ts",
+        "default": "./dist/otel.js"
+      }
     }
   },
   "main": "./dist/index.js",

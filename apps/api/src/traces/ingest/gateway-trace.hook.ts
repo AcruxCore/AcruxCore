@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { contentText } from '../../gateway/providers/message-content';
 import { runInTransaction } from '../../shared/db/unit-of-work';
 import { SpansRepository } from '../spans/spans.repository';
 import { TraceSettingsRepository } from '../settings/settings.repository';
@@ -34,7 +35,7 @@ function deriveTraceInputName(messages: ChatMessage[] | undefined): string | nul
   if (!messages) return null;
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
-    const text = m.role === 'user' ? m.content?.trim() : undefined;
+    const text = m.role === 'user' ? contentText(m.content).trim() : undefined;
     if (text) {
       return text.length > TRACE_INPUT_PREVIEW_MAX ? `${text.slice(0, TRACE_INPUT_PREVIEW_MAX)}…` : text;
     }

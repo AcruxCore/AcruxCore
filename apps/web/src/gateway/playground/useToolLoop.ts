@@ -5,6 +5,7 @@ import type { ToolCallStatus } from '../ToolCallCard';
 import { appendToolResults, MAX_TOOL_ITERATIONS, nextLoopStep } from '../tool-loop';
 import type { PendingToolCall, ToolResultInput } from '../tool-loop';
 import type { PlaygroundTelemetry } from './usePlaygroundTelemetry';
+import { describeContent } from '@/lib/message-content';
 
 /**
  * One model-requested tool call as tracked by the Playground's tool-calling
@@ -179,7 +180,8 @@ export function useToolLoop(telemetry: PlaygroundTelemetry) {
     // execution — into a single trace, so it reads as one input → tool →
     // output flow instead of scattering across separate top-level traces.
     const traceId = crypto.randomUUID();
-    const firstUser = messages.find((m) => m.role === 'user')?.content?.trim();
+    const firstContent = messages.find((m) => m.role === 'user')?.content;
+    const firstUser = (firstContent ? describeContent(firstContent) : '').trim();
     const traceName = firstUser ? firstUser.slice(0, 80) : 'Playground run';
 
     try {

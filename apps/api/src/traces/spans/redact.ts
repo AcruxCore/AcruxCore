@@ -1,3 +1,5 @@
+import { parseDataImageUrl } from '../../gateway/providers/message-content';
+
 /** Placeholder substituted for any matched secret-shaped substring. */
 const REDACTED = '[REDACTED]';
 
@@ -36,8 +38,30 @@ const SECRET_PATTERNS: RegExp[] = [
   /(?<![A-Za-z0-9])AKIA[0-9A-Z]{16}\b/g, // AWS access key ids
 ];
 
+/** Start of the text that replaces an inline image in a span payload: `[image omitted: <type>, <n> bytes]`. */
+export const OMITTED_IMAGE_PREFIX = '[image omitted:';
+
+/**
+ * Whether `value` is the placeholder a span payload holds in place of an inline image.
+ *
+ * The image itself is gone, so anything rebuilt from a trace (a dataset example, a replayed
+ * history turn) must not send the placeholder to a provider as if it were an image URL.
+ *
+ * @param value - Any string read back from a span payload.
+ * @returns True for `[image omitted: image/png, 812345 bytes]` and the like.
+ */
+export function isOmittedImage(value: string): boolean {
+  return value.startsWith(OMITTED_IMAGE_PREFIX);
+}
+
 /** Applies every {@link SECRET_PATTERNS} entry to a single string, in order. */
 function redactString(value: string): string {
+  // An inline image is kept out of span payloads: one photo is megabytes of base64 that nobody
+  // can read in a trace, and it is the caller's private data (a receipt, a screenshot) held for as
+  // long as the payload retention window. The placeholder keeps the media type and size, so the
+  // trace still shows that an image was sent and how large it was.
+  const image = parseDataImageUrl(value);
+  if (image) return `${OMITTED_IMAGE_PREFIX} ${image.mediaType}, ${Math.floor((image.data.length * 3) / 4)} bytes]`;
   let result = value;
   for (const pattern of SECRET_PATTERNS) {
     result = result.replace(pattern, REDACTED);

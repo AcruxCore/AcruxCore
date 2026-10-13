@@ -86,6 +86,10 @@ from .types import (
     LatencyPercentiles,
     ListTracesResult,
     Message,
+    ContentPart,
+    TextPart,
+    ImagePart,
+    ImageUrl,
     CacheControl,
     PromptDetail,
     PromptListItem,
@@ -134,7 +138,7 @@ from .types import (
     VersionListResult,
 )
 
-__version__ = "0.16.0"
+__version__ = "0.17.0"
 
 __all__ = [
     "AcruxCore",
@@ -175,6 +179,10 @@ __all__ = [
     "LatencyPercentiles",
     "ListTracesResult",
     "Message",
+    "ContentPart",
+    "TextPart",
+    "ImagePart",
+    "ImageUrl",
     "CacheControl",
     "ProviderConfig",
     "RenderResult",

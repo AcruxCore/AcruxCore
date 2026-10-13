@@ -2,6 +2,7 @@ import { AliasesRepository } from './aliases.repository';
 import { VersionsRepository } from '../versions/versions.repository';
 import { PromptsRepository } from '../prompts.repository';
 import { renderMessages, extractVariables, NunjucksRenderError } from '../versions/nunjucks.utils';
+import type { TemplateContent } from '../versions/nunjucks.utils';
 import { PromptToolResolver } from '../versions/prompt-tool-resolver';
 import type { AliasDetail, RenderResponse, RenderedWithVersion, PromoteAliasDto } from './aliases.types';
 import { audit } from '../../shared/audit/audit.helper';
@@ -210,7 +211,7 @@ export class AliasesService {
    */
   private requiredVariables(resolved: { messages: unknown; variables: string[] }): string[] {
     try {
-      return extractVariables(resolved.messages as Array<{ content: string }>);
+      return extractVariables(resolved.messages as Array<{ content: TemplateContent }>);
     } catch {
       return resolved.variables;
     }
@@ -309,7 +310,7 @@ export class AliasesService {
     // Render messages via nunjucks
     try {
       const messages = await renderMessages(
-        resolved.messages as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+        resolved.messages as Array<{ role: 'system' | 'user' | 'assistant'; content: TemplateContent }>,
         variables,
       );
       const { tools, resolutions } = await this.toolResolver.resolveForAlias(resolved.promptId, alias);

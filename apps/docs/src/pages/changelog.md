@@ -39,8 +39,30 @@ called out in the week it ships and in the SDK release notes.
 - The run's owner gets the usual "run failed" email, and the run can be started again.
 - A run that is still producing results is never touched, however long it takes.
 
+#### Send an image to a chat completion
+
+- `POST /gateway/chat/completions` accepts `content` as a list of `text` and `image_url` parts.
+- OpenAI-compatible, Anthropic and Gemini models work; traces keep a placeholder, not the image.
+- The request limit for this one endpoint is now 25 MB, so a phone photo fits.
+
+#### Prompts and evaluations can read images
+
+- A prompt version can hold an image part whose link is a variable, such as `{{ receipt_url }}`.
+- A dataset example fills it with a public link, and a run sends that image to every model.
+- The judge sees the same image; the dashboard editor adds images, and the optimizer keeps them.
+
+#### SDKs 0.17.0: typed image parts
+
+- Both SDKs export `ContentPart`, `TextPart` and `ImagePart` for a message's `content` list.
+- Code that reads `content` as a string must narrow it first; the type checker reports each place.
+- Release notes: [TypeScript](https://github.com/AcruxCore/AcruxCore/blob/main/packages/sdk/CHANGELOG.md) · [Python](https://github.com/AcruxCore/AcruxCore/blob/main/packages/sdk-python/CHANGELOG.md)
+
 ### Minor
 
+- **Fixed** — an image link the provider could not fetch gave a 500; it is now a 400.
+- **New guide** — [Evaluate a prompt that reads an image](/docs/guides/evaluate-a-prompt-that-reads-an-image).
+- Adding feedback to a dataset skips a call whose image was sent inline, and names the variable.
+- **Fixed** — with `"moduleResolution": "nodenext"`, TypeScript rejected `new AcruxCore()`.
 - Unknown `/.well-known/` addresses on acruxcore.com return 404 instead of the home page.
 - **Fixed** — acruxcore.com/features failed with "too many redirects"; it now opens the feature list.
 

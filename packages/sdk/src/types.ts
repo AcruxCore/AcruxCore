@@ -10,10 +10,32 @@ export interface CacheControl {
   type: 'ephemeral';
 }
 
-/** A single chat message. Content is null for an assistant turn that only calls tools. */
+/** A text part of a message's `content` list. */
+export interface TextPart {
+  type: 'text';
+  text: string;
+}
+
+/**
+ * An image part of a message's `content` list. `url` is an http(s) link the model's provider
+ * downloads, or a `data:image/<type>;base64,…` URL that carries the bytes. `detail` is an OpenAI-only hint.
+ * In a stored prompt, `url` can be a template such as `{{ receipt_url }}`.
+ */
+export interface ImagePart {
+  type: 'image_url';
+  image_url: { url: string; detail?: 'auto' | 'low' | 'high' };
+}
+
+/** One part of a message's `content` list: text or an image. */
+export type ContentPart = TextPart | ImagePart;
+
+/**
+ * A single chat message. Content is null for an assistant turn that only calls tools. A `user`
+ * message can instead hold a list of text and image parts, to send an image to a vision model.
+ */
 export interface Message {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string | null;
+  content: string | ContentPart[] | null;
   /** Cache the prompt up to and including this message, on Anthropic models. */
   cache_control?: CacheControl;
   /** Present on assistant turns that call tools. */
@@ -21,6 +43,9 @@ export interface Message {
   /** Present on `tool` messages — links a result to the assistant's call. */
   tool_call_id?: string;
 }
+
+/** A message the model returned: its `content` is text, or null when it only calls tools. */
+export type AssistantMessage = Message & { content: string | null };
 
 /** A tool call emitted by the model. `arguments` is a JSON string. */
 export interface ToolCall {
@@ -216,10 +241,14 @@ export interface ToolExecuteResult {
 
 // ── Prompts (PromptsNamespace, `hub.prompts`) ─────────────────────────────────
 
-/** A single chat message in a prompt version's template. Content is a nunjucks template string. */
+/**
+ * A single chat message in a prompt version's template. Content is a nunjucks template string,
+ * or a list of text and image parts whose text and image `url` are each a template (only a
+ * `user` message may hold an image).
+ */
 export interface PromptMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  content: string | ContentPart[];
   /** Cache the prompt up to and including this message, on Anthropic models. */
   cache_control?: CacheControl;
 }
@@ -421,7 +450,7 @@ export interface VersionDetail {
    * `'system'|'user'|'assistant'`, so an imported version's messages can legitimately
    * carry a role outside that set — matching the server's own `VersionDetail` DTO.
    */
-  messages: Array<{ role: string; content: string; cache_control?: CacheControl }>;
+  messages: Array<{ role: string; content: string | ContentPart[]; cache_control?: CacheControl }>;
   variables: string[];
   /** The bound default model's current `publicName`, or `null` if unbound. */
   model: string | null;
@@ -454,7 +483,7 @@ export interface ExportedPromptVersion {
   };
   version: {
     versionNumber: number;
-    messages: Array<{ role: string; content: string; cache_control?: CacheControl }>;
+    messages: Array<{ role: string; content: string | ContentPart[]; cache_control?: CacheControl }>;
     variables: string[];
     createdAt: string;
   };
@@ -474,7 +503,7 @@ export interface ImportPromptInput {
   };
   version: {
     versionNumber?: number;
-    messages: Array<{ role: string; content: string; cache_control?: CacheControl }>;
+    messages: Array<{ role: string; content: string | ContentPart[]; cache_control?: CacheControl }>;
     variables?: string[];
     createdAt?: string;
   };
@@ -989,7 +1018,7 @@ export interface ChatResult {
   /** The assistant's text content; null when the turn only calls tools. */
   content: string | null;
   /** The full assistant message, including any `tool_calls` (never auto-dispatched). */
-  message: Message;
+  message: AssistantMessage;
   finishReason: string | null;
   usage?: ChatUsage;
   /** Metadata from the gateway's `x-gateway-*` response headers. */

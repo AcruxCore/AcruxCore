@@ -17,6 +17,7 @@ import {
 } from '@acruxcore/api/evaluations/queue';
 import {
   processCell,
+  isTerminalCellFailure,
   processFinalize,
   processJudge,
   processOptimize,
@@ -215,8 +216,9 @@ export async function startWorkers(): Promise<EvalWorkers> {
   cellWorker.on('failed', async (job: Job<CellJobData> | undefined, error: Error) => {
     if (!job) return;
 
-    const attempts = job.opts.attempts ?? 1;
-    if (job.attemptsMade < attempts) return; // more retries scheduled — not terminal yet
+    // More retries scheduled — not terminal yet. An UnrecoverableError (a request the gateway
+    // refused as invalid) is terminal on its first attempt.
+    if (!isTerminalCellFailure(job.attemptsMade, job.opts.attempts ?? 1, error)) return;
 
     Sentry.captureException(error);
     try {

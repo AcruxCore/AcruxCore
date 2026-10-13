@@ -7,7 +7,7 @@ import { AliasesService } from '../../prompts/aliases/aliases.service';
 import { VersionsRepository } from '../../prompts/versions/versions.repository';
 import { OptimizeRepository } from '../optimize/optimize.repository';
 import { compileCustomOptimizePrompt, compileOptimizePrompt } from '../optimize/optimize.prompt';
-import { parseCandidatesDetailed } from '../optimize/optimize.parse';
+import { imageUrlTemplates, parseCandidatesDetailed } from '../optimize/optimize.parse';
 import { extractVariables } from '../../prompts/versions/nunjucks.utils';
 import { GatewayService } from '../../gateway/completions/gateway.service';
 import { GatewayRepository } from '../../gateway/completions/gateway.repository';
@@ -195,10 +195,13 @@ export async function processOptimize(data: OptimizeJobData): Promise<void> {
   // the production template's own variable set so parseCandidates can drop
   // any candidate whose set doesn't match it exactly.
   const originalVariables = extractVariables(baselineVersion.messages as unknown as Array<{ content: string }>);
+  // A rewrite must also keep each image part, in a user message, so its scores come from the
+  // same task: the model sees the image, not its URL as text.
   const { candidates, rejections } = parseCandidatesDetailed(
     assistantContent,
     data.draftCount,
     originalVariables,
+    imageUrlTemplates(baselineVersion.messages as unknown as Array<{ content: unknown }>),
   );
 
   if (candidates.length === 0) {

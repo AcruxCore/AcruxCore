@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { StoredPartSchema } from '../../prompts/versions/versions.types';
 
 /**
  * Zod schema for a single optimizer-proposed candidate rewrite.
@@ -13,7 +14,8 @@ export const CandidateSchema = z.object({
     .array(
       z.object({
         role: z.string(),
-        content: z.string(),
+        // A string, or text and image parts: a prompt that reads an image is rewritten with its image part kept (issue #573).
+        content: z.union([z.string(), z.array(StoredPartSchema).min(1)]),
       }),
     )
     .min(1),

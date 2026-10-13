@@ -1,6 +1,7 @@
 import prisma from '../../shared/db/client';
 import type { PrismaClient } from '@prisma/client';
 import { audit } from '../../shared/audit';
+import type { TemplateContent } from '../versions/nunjucks.utils';
 
 /**
  * Repository for the import feature.
@@ -40,7 +41,7 @@ export class ImportRepository {
     actorId:     string;
     name:        string;
     description: string | null;
-    messages:    Array<{ role: string; content: string }>;
+    messages:    Array<{ role: string; content: TemplateContent }>;
     variables:   string[];
   }): Promise<{ promptId: string; versionId: string; versionNumber: number }> {
     return prisma.$transaction(async (tx) => {

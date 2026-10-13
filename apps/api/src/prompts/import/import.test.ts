@@ -47,6 +47,26 @@ describe('POST /api/v1/prompts/import', () => {
     expect(row!.versionNumber).toBe(1);
   });
 
+  it('refuses an image part in a system message with 400, as committing a version does', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const payload = {
+      ...validPayload,
+      version: {
+        ...validPayload.version,
+        messages: [{ role: 'system', content: [{ type: 'image_url', image_url: { url: 'https://example.com/a.png' } }] }],
+      },
+    };
+
+    const res = await request(app)
+      .post('/api/v1/prompts/import')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send(payload)
+      .expect(400);
+
+    expect(JSON.stringify(res.body)).toContain('An image can only be in a user message');
+    expect(await prisma.prompt.count()).toBe(0);
+  });
+
   it('keeps a prompt-cache marker from an exported version (issue #552)', async () => {
     const { apiKey } = await signupTestUserWithApiKey(app);
     const payload = {

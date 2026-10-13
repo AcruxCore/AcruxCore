@@ -1,4 +1,4 @@
-import type { MessageRole, Span } from '@/api/types';
+import type { Message, MessageRole, Span } from '@/api/types';
 
 /** How the Playground should open when navigated to from a trace/feedback. */
 export interface PlaygroundPrefill {
@@ -6,7 +6,7 @@ export interface PlaygroundPrefill {
   /** Present when the span referenced a stored prompt — open stored-prompt mode. */
   promptVersionId?: string;
   /** Rendered messages actually sent (used when there is no prompt lineage). */
-  messages?: { role: MessageRole; content: string }[];
+  messages?: { role: MessageRole; content: Message['content'] }[];
   /** Variables captured on the span payload, if any. */
   variables?: Record<string, unknown>;
 }
@@ -27,7 +27,7 @@ export function buildPrefillFromSpan(span: Span): PlaygroundPrefill {
   }
   const input = span.payload?.input;
   if (Array.isArray(input)) {
-    return { model, messages: input as { role: MessageRole; content: string }[] };
+    return { model, messages: input as { role: MessageRole; content: Message['content'] }[] };
   }
   return { model };
 }

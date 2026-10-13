@@ -12,6 +12,24 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+## 0.17.0 — 2026-10-13
+
+### Added
+
+- `ContentPart`, `TextPart`, `ImagePart` and `ImageUrl` types. `Message["content"]` and
+  `PromptMessage["content"]` accept a list of text and image parts, so a call can send an
+  image or commit a prompt that has one. A reply's `content` is still text or `None`.
+
+### Changed
+
+- `Message["content"]` is now `Union[str, List[ContentPart], None]` and `PromptMessage["content"]`
+  is `Union[str, List[ContentPart]]`. This is a type-only change; nothing changes at runtime.
+
+### Migrating from 0.16
+
+1. A type checker (mypy, pyright) reports each place that uses `content` as a `str` on a message you
+   built or a prompt version you read. Narrow it first, for example `isinstance(m["content"], str)`.
+
 ## 0.16.0 — 2026-10-10
 
 ### Added

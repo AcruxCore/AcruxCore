@@ -1,4 +1,5 @@
 import type { ChatMessage } from '@/api/types';
+import { describeContent } from '@/lib/message-content';
 
 /** One message's role + content, rendered as a compact labeled line. */
 function MessageLine({ message }: { message: ChatMessage }) {
@@ -6,7 +7,7 @@ function MessageLine({ message }: { message: ChatMessage }) {
     <div className="flex flex-col gap-0.5 rounded border border-line-soft bg-canvas px-2 py-1.5">
       <span className="text-[10px] uppercase tracking-[0.06em] text-faint">{message.role}</span>
       <p className="whitespace-pre-wrap text-[12px] text-ink">
-        {message.content ?? (message.tool_calls ? `→ calls ${message.tool_calls.map((t) => t.function.name).join(', ')}` : '')}
+        {message.content !== null ? describeContent(message.content) : (message.tool_calls ? `→ calls ${message.tool_calls.map((t) => t.function.name).join(', ')}` : '')}
       </p>
     </div>
   );

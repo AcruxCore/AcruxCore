@@ -15,6 +15,7 @@ import type {
   ChatOptions,
   ChatResult,
   ChatChunk,
+  AssistantMessage,
   ChatUsage,
   GatewayCallMeta,
   ResolvedTool,
@@ -222,7 +223,7 @@ interface ToolRoute {
 /** One streamed tool-loop round, as `_streamOneRound` hands it back to the loop. */
 interface StreamedRound {
   /** The assembled assistant turn — text plus any tool calls the model asked for. */
-  message?: Message;
+  message?: AssistantMessage;
   finishReason?: string | null;
   /** The round's `llm` span, which its tool spans parent onto. */
   spanRef?: string;
@@ -608,7 +609,7 @@ export class GatewayNamespace {
     const data = (await this.host._parseJsonOrThrow(response, 'calling chat completions')) as {
       id: string;
       model: string;
-      choices: { message: Message; finish_reason: string | null }[];
+      choices: { message: AssistantMessage; finish_reason: string | null }[];
       usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
     };
     const choice = data.choices[0];
@@ -687,7 +688,7 @@ export class GatewayNamespace {
     const data = (await response.json()) as {
       id: string;
       model: string;
-      choices: { message: Message; finish_reason: string | null }[];
+      choices: { message: AssistantMessage; finish_reason: string | null }[];
       usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
     };
     const choice = data.choices[0];
@@ -1372,7 +1373,7 @@ export class GatewayNamespace {
           out: round,
         });
 
-        const message = round.message as Message;
+        const message = round.message as AssistantMessage;
         const calls = message.tool_calls ?? [];
 
         if (round.finishReason !== 'tool_calls' || calls.length === 0) {
@@ -1499,7 +1500,7 @@ export class GatewayNamespace {
       out: shapeRound,
     });
 
-    const shaped = shapeRound.message as Message;
+    const shaped = shapeRound.message as AssistantMessage;
     yield {
       type: 'done',
       result: {

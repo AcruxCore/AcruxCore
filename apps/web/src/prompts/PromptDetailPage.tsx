@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { Message } from '@/api';
+import { withoutBlanks } from '@/lib/message-content';
 import {
   ApiError,
   downloadJson,
@@ -86,7 +87,7 @@ export function PromptDetailPage() {
 
   async function commitDraft() {
     if (!draft) return;
-    const messages = draft.filter((m) => m.content.trim() !== '');
+    const messages = withoutBlanks(draft);
     if (messages.length === 0) {
       toast.error('Add some content before committing.');
       return;

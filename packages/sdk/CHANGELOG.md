@@ -12,6 +12,30 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+## 0.17.0 — 2026-10-13
+
+### Added
+
+- `ContentPart`, `TextPart` and `ImagePart` types. A `user` `Message` and a `PromptMessage` can hold a
+  list of text and image parts, so a typed call can send an image or commit a prompt with one.
+- `AssistantMessage`, the type of a reply: its `content` is `string | null`, as before.
+
+### Changed
+
+- `Message.content` is now `string | ContentPart[] | null`, and `PromptMessage.content` and a prompt
+  version's `messages[].content` are `string | ContentPart[]`. This is a type-only change.
+
+### Fixed
+
+- Under `moduleResolution: "nodenext"`, an ES module read the CommonJS declarations, so
+  `new AcruxCore()` failed with TS2351. `import` and `require` now each get their own declarations.
+
+### Migrating from 0.16
+
+1. Code that reads `content` from a prompt version, a rendered prompt or a message you sent must narrow
+   it first, for example `typeof m.content === 'string'`. The compiler reports each place.
+2. A reply (`ChatResult.message`) is an `AssistantMessage`, so its `content` is still `string | null`.
+
 ## 0.16.0 — 2026-10-10
 
 ### Added

@@ -68,6 +68,13 @@ const JSON_BODY_LIMIT = '1mb';
 const INGEST_BODY_LIMIT = '10mb';
 
 /**
+ * Ceiling for a chat completion that carries images. A photo is sent inline as base64, which is
+ * about a third larger than the file, so a 10 MB phone photo is a ~13 MB body. 25 MB takes a
+ * couple of those in one request. Scoped to the one route, like {@link INGEST_BODY_LIMIT}.
+ */
+const COMPLETIONS_BODY_LIMIT = '25mb';
+
+/**
  * Decides whether an error reaching Express is worth a Sentry event.
  *
  * Sentry's own default reads a status off the error and assumes 500 when it finds
@@ -150,6 +157,8 @@ export function createApp(): express.Application {
   //    run consumes the stream, and the general one below then sees a body that
   //    is already parsed and passes it through untouched.
   app.use('/api/v1/traces', express.json({ limit: INGEST_BODY_LIMIT }));
+
+  app.use('/api/v1/gateway/chat/completions', express.json({ limit: COMPLETIONS_BODY_LIMIT }));
 
   // 5. Body parsing for every other route.
   app.use(express.json({ limit: JSON_BODY_LIMIT }));

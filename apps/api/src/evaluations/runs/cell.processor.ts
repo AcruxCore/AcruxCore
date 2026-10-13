@@ -11,7 +11,9 @@ import { GatewayRepository } from '../../gateway/completions/gateway.repository'
 import { ConnectionsRepository } from '../../gateway/connections/connections.repository';
 import type { GatewayCallContext } from '../../gateway/completions/completions.types';
 import type { ChatMessage } from '../../gateway/providers/types';
-import { NotFoundError } from '../../shared/errors';
+import { UnrecoverableError } from 'bullmq';
+import { imagePartsOf } from '../../gateway/completions/rendered-images';
+import { NotFoundError, ValidationError } from '../../shared/errors';
 
 const runsRepo = new RunsRepository();
 const versionsRepo = new VersionsRepository();
@@ -135,7 +137,9 @@ async function resolveCellMessages(data: CellJobData): Promise<MessageInput[]> {
  *   or the prompt version/candidate cannot be found — including when it
  *   exists but belongs to a different team than `data.teamId` (treated
  *   identically to "doesn't exist" to prevent cross-tenant reads).
- * @throws Rethrows any error from `renderMessages` or `GatewayService.complete`
+ * @throws {UnrecoverableError} When the gateway refuses the request as invalid
+ *   (`ValidationError`), which no retry can change; see {@link isTerminalCellFailure}.
+ * @throws Rethrows any other error from `renderMessages` or `GatewayService.complete`
  *   unchanged so BullMQ retries the job. Terminal-failure recording
  *   (`writeResultError`) is the worker's failed-job handler's job (Task 6),
  *   not this function's — it must never swallow an error itself.
@@ -160,12 +164,22 @@ export async function processCell(data: CellJobData): Promise<void> {
 
   const messages = await resolveCellMessages(data);
   const rendered = await renderMessages(messages, example.input);
+  // `gateway.complete` checks these URLs; the judge job only needs the parts it was shown.
+  const images = imagePartsOf(rendered);
   const finalMessages = spliceHistory(rendered, example.history);
 
   const traceId = randomUUID();
   const ctx: GatewayCallContext = { teamId: data.teamId, traceId };
 
-  const gatewayResult = await gateway.complete(ctx, { model: data.model, messages: finalMessages });
+  let gatewayResult: Awaited<ReturnType<GatewayService['complete']>>;
+  try {
+    gatewayResult = await gateway.complete(ctx, { model: data.model, messages: finalMessages });
+  } catch (err) {
+    // A request the gateway refuses (a bad image URL in the example, say) is refused the same way
+    // on every retry, so the cell fails now instead of after EVAL_CELL_JOB_ATTEMPTS tries.
+    if (err instanceof ValidationError) throw new UnrecoverableError(err.message);
+    throw err;
+  }
   const output = gatewayResult.body.choices[0]?.message.content ?? '';
 
   const result = await runsRepo.writeResult({
@@ -196,6 +210,8 @@ export async function processCell(data: CellJobData): Promise<void> {
       criteria: example.criteria,
       history: example.history,
       overallFeedback: data.overallFeedback ?? null,
+      // The same image(s) the model saw, so a vision judge can check its answer against them.
+      ...(images.length > 0 ? { images } : {}),
     },
     {
       // Retries-with-backoff for the judge's own (flaky) gateway call — the same
@@ -208,4 +224,20 @@ export async function processCell(data: CellJobData): Promise<void> {
       backoff: { type: 'exponential', delay: 1000 },
     },
   );
+}
+
+/**
+ * Decides whether a failed cell job is final, so the worker writes its error row now.
+ *
+ * BullMQ does not retry an `UnrecoverableError`, but the job still reports fewer attempts made
+ * than allowed. A handler that only compared the two counts waited for retries that never came,
+ * and the cell, and with it the run, never finished.
+ *
+ * @param attemptsMade - `job.attemptsMade` when the `'failed'` event fires.
+ * @param attempts - `job.opts.attempts`, the most tries the job is allowed.
+ * @param error - The error the job failed with.
+ * @returns True when no further attempt will run.
+ */
+export function isTerminalCellFailure(attemptsMade: number, attempts: number, error: Error): boolean {
+  return error instanceof UnrecoverableError || error.name === 'UnrecoverableError' || attemptsMade >= attempts;
 }

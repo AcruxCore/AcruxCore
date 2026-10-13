@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { ChatMessage, NormalizedRequest, NormalizedResponse } from '../providers/types';
 import { CacheControlSchema } from '../../prompts/versions/versions.types';
+import { parseDataImageUrl } from '../providers/message-content';
 
 /** OpenAI tool (function) definition. `parameters` is an arbitrary JSON Schema object. */
 export const ToolDefinitionSchema = z.object({
@@ -41,6 +42,39 @@ export const ToolRefSchema = z
     message: 'a tool_ref takes either alias or version, not both.',
   });
 
+/** Longest remote image URL accepted; a `data:` URL is bounded by the request body limit instead. */
+const MAX_REMOTE_IMAGE_URL_LENGTH = 2048;
+
+/**
+ * An image URL: a `data:image/...;base64,` URL or a remote http(s) URL. Anything else
+ * (`file:`, `ftp:`, `data:text/html`) is refused here so it never reaches a provider.
+ */
+export const ImageUrlSchema = z.string().refine(
+  (u) =>
+    parseDataImageUrl(u) !== null ||
+    (u.length <= MAX_REMOTE_IMAGE_URL_LENGTH && /^https?:\/\//i.test(u)),
+  { message: 'image_url.url must be an http(s) URL or a data:image/...;base64 URL' },
+);
+
+/**
+ * An image URL in a request body: a valid image URL, or a template such as `{{ receipt_url }}`
+ * that `variables` fills in. A template is checked as an image URL after it is rendered, before
+ * any provider call, so a bad rendered value is still refused.
+ */
+const RequestImageUrlSchema = z.union([
+  ImageUrlSchema,
+  z.string().refine((u) => /\{\{|\{%/.test(u), { message: 'image_url.url must be an http(s) URL or a data:image/...;base64 URL' }),
+]);
+
+/** One part of an array-form `content`: text or an image (OpenAI shape). */
+export const ContentPartSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('text'), text: z.string() }),
+  z.object({
+    type: z.literal('image_url'),
+    image_url: z.object({ url: RequestImageUrlSchema, detail: z.enum(['auto', 'low', 'high']).optional() }),
+  }),
+]);
+
 /** A single chat message (canonical OpenAI shape), including tool calls and tool results. */
 export const ChatMessageSchema = z
   .object({
@@ -52,7 +86,7 @@ export const ChatMessageSchema = z
     // `tool_calls` — while the inferred DTO type collapses to `string | null` (no
     // `undefined`), matching `ChatMessage.content` exactly. superRefine below still
     // rejects a missing/null content where the role requires a real string.
-    content: z.string().nullable().default(null),
+    content: z.union([z.string(), z.array(ContentPartSchema).min(1, 'content parts must not be empty')]).nullable().default(null),
     tool_calls: z.array(ToolCallSchema).optional(),
     tool_call_id: z.string().optional(),
     /** Anthropic prompt-cache marker; see `ChatMessage.cache_control`. */
@@ -62,8 +96,11 @@ export const ChatMessageSchema = z
     if (m.role === 'tool' && (m.tool_call_id === undefined || m.tool_call_id.length === 0)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A tool message requires tool_call_id.' });
     }
-    if (m.role === 'tool' && (m.content === undefined || m.content === null)) {
+    if (m.role === 'tool' && typeof m.content !== 'string') {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A tool message requires string content.' });
+    }
+    if (m.role !== 'user' && Array.isArray(m.content) && m.content.some((p) => p.type === 'image_url')) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `An image can only be sent in a user message, not in a ${m.role} message.` });
     }
     // system/user must have non-empty content; assistant may have null content when tool_calls present.
     if ((m.role === 'system' || m.role === 'user') && (m.content === undefined || m.content === null || m.content.length === 0)) {

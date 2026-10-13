@@ -2,19 +2,26 @@ import { createPatch } from 'diff';
 import { NotFoundError } from '../../shared/errors/http-errors';
 import { DiffRepository } from './diff.repository';
 import type { DiffResponse } from './diff.types';
+import type { TemplateContent } from '../versions/nunjucks.utils';
 
 /**
  * Serialises a messages array to a human-readable text block suitable for diffing.
  * Each message is formatted as `[role]\ncontent`, separated by `\n\n---\n\n`. A message
  * marked for prompt caching reads `[role · cached]`, so toggling the marker shows in the diff.
- * Only raw nunjucks template strings are diffed — never rendered output.
+ * Only raw nunjucks template strings are diffed — never rendered output. An image part reads
+ * `[image: <url template>]`, so a changed image shows in the diff.
  *
  * @param messages - Array of role/content pairs, each optionally carrying `cache_control`.
  * @returns A single string representing all messages.
  */
-function messagesToDiffText(messages: Array<{ role: string; content: string; cache_control?: unknown }>): string {
+function contentToDiffText(content: TemplateContent): string {
+  if (typeof content === 'string') return content;
+  return content.map((p) => (p.type === 'text' ? p.text : `[image: ${p.image_url.url}]`)).join('\n');
+}
+
+function messagesToDiffText(messages: Array<{ role: string; content: TemplateContent; cache_control?: unknown }>): string {
   return messages
-    .map(m => `[${m.role}${m.cache_control ? ' · cached' : ''}]\n${m.content}`)
+    .map(m => `[${m.role}${m.cache_control ? ' · cached' : ''}]\n${contentToDiffText(m.content)}`)
     .join('\n\n---\n\n');
 }
 

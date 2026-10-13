@@ -1,3 +1,4 @@
+import type { TemplateContent } from '../versions/nunjucks.utils';
 /**
  * The portable export format for a single prompt version.
  * `schemaVersion` is always `1` in Phase 1.
@@ -12,7 +13,7 @@ export interface ExportFile {
   };
   version: {
     versionNumber: number;
-    messages:      Array<{ role: string; content: string; cache_control?: { type: 'ephemeral' } }>;
+    messages:      Array<{ role: string; content: TemplateContent; cache_control?: { type: 'ephemeral' } }>;
     variables:     string[];
     createdAt:     string;
   };

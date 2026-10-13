@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import type { MessageRole } from '@/api';
+import type { Message, MessageRole } from '@/api';
 import { ApiError, useAllPrompts, useCommitVersion } from '@/api';
 import { Button, Dialog, DialogFooter, Field, Select, useToast } from '@/ui';
 
 export interface SaveVersionDialogProps {
-  messages: { role: MessageRole; content: string }[];
+  messages: { role: MessageRole; content: Message['content'] }[];
   open: boolean;
   onClose: () => void;
   /** Pre-selects this prompt when opened (e.g. the one loaded in stored-prompt mode). */

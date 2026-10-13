@@ -7,11 +7,13 @@ import type {
   ProviderCredentials,
   StreamChunk,
   ChatMessage,
+  ContentPart,
   ToolDefinition,
   ToolChoice,
 } from './types';
 import { parseSseStream } from './sse-parse';
 import { guardedFetch } from './guarded-fetch';
+import { contentText, parseDataImageUrl } from './message-content';
 
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
@@ -69,6 +71,26 @@ function toGeminiToolChoice(choice: ToolChoice | undefined): Record<string, unkn
 }
 
 /**
+ * Maps a content part to a Gemini part. Gemini takes an image only as inline base64 (or as a file
+ * uploaded to its own File API), so a remote URL is refused rather than fetched: the gateway
+ * fetching an arbitrary caller-supplied URL would be a server-side request the caller steers.
+ *
+ * @throws {ProviderError} 400 when an image part holds a remote URL.
+ */
+function toGeminiPart(part: ContentPart): Record<string, unknown> {
+  if (part.type === 'text') return { text: part.text };
+  const data = parseDataImageUrl(part.image_url.url);
+  if (!data) {
+    throw new ProviderError(
+      'This model reads an image only as a data:image/...;base64 URL; send the image bytes inline instead of a link.',
+      400,
+      'unsupported_image_url',
+    );
+  }
+  return { inlineData: { mimeType: data.mediaType, data: data.data } };
+}
+
+/**
  * Maps a canonical message to a Gemini `contents` entry, translating assistant
  * `tool_calls` into `functionCall` parts and `tool`-role results into
  * `functionResponse` parts. Returns null for `system` messages, which are hoisted
@@ -84,15 +106,16 @@ function toGeminiContent(m: ChatMessage): { role: 'user' | 'model'; parts: Recor
   if (m.role === 'tool') {
     let response: unknown;
     try {
-      response = JSON.parse(m.content ?? '{}');
+      response = JSON.parse(contentText(m.content) || '{}');
     } catch {
-      response = { result: m.content ?? '' };
+      response = { result: contentText(m.content) };
     }
     return { role: 'user', parts: [{ functionResponse: { name: m.tool_call_id ?? '', response } }] };
   }
   if (m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0) {
     const parts: Record<string, unknown>[] = [];
-    if (m.content) parts.push({ text: m.content });
+    const text = contentText(m.content);
+    if (text) parts.push({ text });
     for (const tc of m.tool_calls) {
       let args: unknown = {};
       try {
@@ -104,7 +127,9 @@ function toGeminiContent(m: ChatMessage): { role: 'user' | 'model'; parts: Recor
     }
     return { role: 'model', parts };
   }
-  return { role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content ?? '' }] };
+  const role = m.role === 'assistant' ? 'model' : 'user';
+  if (Array.isArray(m.content)) return { role, parts: m.content.map(toGeminiPart) };
+  return { role, parts: [{ text: m.content ?? '' }] };
 }
 
 /**
@@ -116,7 +141,7 @@ function toGeminiContent(m: ChatMessage): { role: 'user' | 'model'; parts: Recor
 function buildGeminiPayload(req: NormalizedRequest): Record<string, unknown> {
   const systemText = req.messages
     .filter((m) => m.role === 'system')
-    .map((m) => m.content)
+    .map((m) => contentText(m.content))
     .join('\n');
   const contents = req.messages
     .map(toGeminiContent)

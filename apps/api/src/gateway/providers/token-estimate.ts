@@ -1,6 +1,7 @@
 import { getEncoding, type Tiktoken } from 'js-tiktoken';
 import type { ChatMessage } from './types';
 import { MODELS } from './models';
+import { contentText } from './message-content';
 
 /** Lazily-built cl100k_base encoder — shared across calls (BPE ranks are bundled by js-tiktoken). */
 let cl100k: Tiktoken | null = null;
@@ -37,6 +38,18 @@ const MAX_BPE_PIECE_CHARS = 256;
  */
 const MAX_BPE_SAMPLE_CHARS = 20_000;
 
+/**
+ * Charge for an image part with `detail: 'high'`, `'auto'` or none. Providers price such an image
+ * by its pixel size (OpenAI's high-detail ceiling is about 1,100 tokens, Anthropic's is about
+ * 1,600), and the gateway does not decode the image to learn its size, so this is the high side.
+ * The figure is the budget pre-check's estimate, and also the billed count when a stream ends
+ * without the provider's usage numbers.
+ */
+const TOKENS_PER_IMAGE = 1600;
+
+/** OpenAI's fixed charge for a `detail: 'low'` image, whatever its size. */
+const TOKENS_PER_LOW_DETAIL_IMAGE = 85;
+
 /** Fallback ratio for text not measured by the encoder. */
 const CHARS_PER_TOKEN = 4;
 
@@ -51,7 +64,7 @@ function heuristic(chars: number): number {
  */
 function flatten(input: string | ChatMessage[]): string {
   if (typeof input === 'string') return input;
-  return input.map((m) => `${m.role}: ${m.content}`).join('\n');
+  return input.map((m) => `${m.role}: ${contentText(m.content)}`).join('\n');
 }
 
 /**
@@ -105,6 +118,25 @@ function boundedEncode(text: string): number {
  */
 export function estimateTokens(input: string | ChatMessage[], model: string): number {
   const text = flatten(input);
+  const imageTokens = typeof input === 'string' ? 0 : messageImageTokens(input);
+  return estimateTextTokens(text, model) + imageTokens;
+}
+
+/** Sums the estimated tokens of every image part across a message list. */
+function messageImageTokens(messages: ChatMessage[]): number {
+  let tokens = 0;
+  for (const m of messages) {
+    if (!Array.isArray(m.content)) continue;
+    for (const part of m.content) {
+      if (part.type !== 'image_url') continue;
+      tokens += part.image_url.detail === 'low' ? TOKENS_PER_LOW_DETAIL_IMAGE : TOKENS_PER_IMAGE;
+    }
+  }
+  return tokens;
+}
+
+/** Text-only half of {@link estimateTokens}. */
+function estimateTextTokens(text: string, model: string): number {
   if (text.length === 0) return 0;
 
   const info = MODELS[model];

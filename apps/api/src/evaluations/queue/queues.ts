@@ -1,5 +1,6 @@
 import { Queue, FlowProducer } from 'bullmq';
 import { getRedisConnection } from './connection';
+import type { ImageContentPart } from '../../gateway/providers/types';
 
 /**
  * Queue name for evaluating individual experiment cells.
@@ -104,6 +105,12 @@ export interface JudgeJobData {
    * Undefined on pre-existing jobs → judge falls back to a live read.
    */
   overallFeedback?: string | null;
+  /**
+   * The image parts the model under test was shown (issue #573), forwarded by `cell.processor`
+   * so a vision judge can look at the same image. Absent or empty for a text-only example, and
+   * on jobs enqueued before this field shipped.
+   */
+  images?: ImageContentPart[];
 }
 
 /**
