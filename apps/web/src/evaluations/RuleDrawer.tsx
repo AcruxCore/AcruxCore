@@ -3,8 +3,6 @@ import {
   ApiError,
   useAliases,
   useCreateEvalRule,
-  useCreatePrompt,
-  useModels,
   usePrompt,
   usePreviewEvalRule,
   useTraceFacets,
@@ -13,9 +11,10 @@ import {
 } from '@/api';
 import type { CreateEvalRuleInput, EvalRule } from '@/api/types';
 import { Button, Drawer, Field, Input, MultiSelect, Select, Textarea, useToast } from '@/ui';
-import { ModelDialog } from '@/gateway/ModelDialog';
 import { useAuth } from '@/auth/AuthContext';
 import { PromptPicker } from './PromptPicker';
+import { JudgeModelField } from './JudgeModelField';
+import { JudgePromptField } from './JudgePromptField';
 
 export interface RuleDrawerProps {
   open: boolean;
@@ -53,14 +52,11 @@ export function RuleDrawer({ open, onOpenChange, rule }: RuleDrawerProps) {
   const update = useUpdateEvalRule(rule?.id ?? '');
   const preview = usePreviewEvalRule(rule?.id ?? '');
   const toDataset = useToDataset(rule?.id ?? '');
-  const { data: models } = useModels();
   const { data: facets } = useTraceFacets();
-  const createPrompt = useCreatePrompt();
 
   const [name, setName] = useState('');
   const [criteria, setCriteria] = useState('');
   const [judgeModel, setJudgeModel] = useState('');
-  const [showCreateModel, setShowCreateModel] = useState(false);
   const [judgePrompt, setJudgePrompt] = useState<{ id: string; name: string } | null>(null);
   const [samplePercent, setSamplePercent] = useState('10');
   const [dailyLimit, setDailyLimit] = useState('');
@@ -233,67 +229,21 @@ export function RuleDrawer({ open, onOpenChange, rule }: RuleDrawerProps) {
           />
         </Field>
 
-        <Field label="Judge model" htmlFor="rule-judge-model" hint="The model that grades every matched reply.">
-          {models && models.length > 0 ? (
-            <Select
-              id="rule-judge-model"
-              value={judgeModel}
-              onChange={(e) => setJudgeModel(e.target.value)}
-              data-testid="rule-judge-model"
-            >
-              <option value="" disabled>
-                Select a model…
-              </option>
-              {models.map((m) => (
-                <option key={m.id} value={m.publicName}>
-                  {m.publicName}
-                </option>
-              ))}
-            </Select>
-          ) : (
-            <div className="flex items-center gap-2 rounded-md border border-line-soft bg-bg p-2.5">
-              <p className="flex-1 text-[12px] text-faint">No models registered yet.</p>
-              <Button
-                type="button"
-                variant="default"
-                onClick={() => setShowCreateModel(true)}
-                data-testid="rule-create-model-button"
-              >
-                Create model
-              </Button>
-            </div>
-          )}
-        </Field>
+        <JudgeModelField
+          id="rule-judge-model"
+          value={judgeModel}
+          onChange={setJudgeModel}
+          grades="every matched reply"
+          against="the rule's criteria"
+        />
 
-        <Field
-          label="Judge prompt"
-          htmlFor="rule-judge-prompt"
-          hint="Optional — grade against your own prompt instead of the built-in judge."
-        >
-          <PromptPicker
-            id="rule-judge-prompt"
-            value={judgePrompt}
-            onChange={setJudgePrompt}
-            placeholder="Built-in judge"
-          />
-          {!judgePrompt && (
-            <button
-              type="button"
-              className="mt-1.5 self-start text-[12px] text-accent hover:underline"
-              onClick={async () => {
-                try {
-                  const created = await createPrompt.mutateAsync({ name: `Judge: ${trimmedName || 'untitled rule'}` });
-                  setJudgePrompt({ id: created.id, name: created.name });
-                  toast.success('Prompt created — write its judge template, then commit a version.');
-                } catch (e) {
-                  toast.error(e instanceof ApiError ? e.message : 'Could not create the prompt');
-                }
-              }}
-            >
-              + Create a new judge prompt
-            </button>
-          )}
-        </Field>
+        <JudgePromptField
+          id="rule-judge-prompt"
+          value={judgePrompt}
+          onChange={setJudgePrompt}
+          newPromptName={`${trimmedName || 'Rule'} judge`}
+          grades="every matched reply"
+        />
 
         <Field
           label="Sample rate"
@@ -507,7 +457,6 @@ export function RuleDrawer({ open, onOpenChange, rule }: RuleDrawerProps) {
           </Button>
         )}
       </div>
-      <ModelDialog open={showCreateModel} onOpenChange={setShowCreateModel} />
     </Drawer>
   );
 }

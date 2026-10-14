@@ -959,7 +959,7 @@ session = await hub.sessions.get(session_id)
 
 | Method | Description |
 |--------|-------------|
-| `experiments.create(dataset_id, version_ids, models, *, prompt_id=None, name=None, alias=None)` | Create an experiment. Returns `ExperimentDto`. |
+| `experiments.create(dataset_id, version_ids, models, *, judge_model, prompt_id=None, name=None, alias=None, judge_prompt_id=None)` | Create an experiment. `judge_model` is required: the model that grades every result. `judge_prompt_id` is an optional prompt that grades instead of the built-in judge. Returns `ExperimentDto`. |
 | `experiments.list()` | List all experiments. Returns `list[ExperimentDto]`. |
 | `experiments.get(experiment_id)` | Get an experiment. Returns `ExperimentDto`. |
 | `experiments.start_run(experiment_id)` | Start a run. Returns `StartRunResult` (`run_id`, `status`). |
@@ -979,7 +979,7 @@ session = await hub.sessions.get(session_id)
 
 | Method | Description |
 |--------|-------------|
-| `optimize.start(prompt_id, dataset_id, models, *, draft_count=None, alias=None)` | Start prompt optimization. Returns `StartOptimizeResult` (`run_id`, `status`, `prompt_mismatch_warning`). |
+| `optimize.start(prompt_id, dataset_id, models, *, judge_model, draft_count=None, alias=None)` | Start prompt optimization. `judge_model` is required. Returns `StartOptimizeResult` (`run_id`, `status`, `prompt_mismatch_warning`). |
 
 ## Where to next
 

@@ -54,6 +54,13 @@ Creates an experiment: a dataset to evaluate, an optional prompt under test
 grid to sweep. `version_ids` and `models` must each have at least one
 entry.
 
+`judge_model` is required: the model that grades every result in every run of
+this experiment. It must be a model your team has registered under
+**Gateway → Models** (the same `publicName` you would send to the gateway), and it
+does not have to be one of the models in `models`. The server has no default judge,
+so a request without it is a 400. It is stored on `config.judgeModel`, so every run
+of the experiment is graded by the same judge.
+
 Two more fields exist alongside those, both optional:
 
 - `alias` (request) — which alias's version the automatic baseline cell
@@ -73,7 +80,7 @@ Two more fields exist alongside those, both optional:
 curl -X POST $ACRUXCORE_BASE_URL/experiments \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"dataset_id": "4595c340-d7fa-4d76-977e-76b60ebefb62", "prompt_id": "173ad5cd-969c-4a04-8896-fbf625bbc2e5", "name": "E3 Task7 greeting sweep", "version_ids": ["b5327b3e-3c45-4858-ac62-1e5852279624"], "models": ["gpt-4o-mini-e3t7"]}'
+  -d '{"dataset_id": "20e0308d-ec9c-40ac-8cd9-c20b4bb95df1", "prompt_id": "07494047-7380-4324-acf9-069a40265323", "name": "greeting sweep", "version_ids": ["35ed29ec-412d-45bb-8420-66dfe02eb0d2"], "models": ["gpt-4o-mini"], "judge_model": "gpt-4o-mini"}'
 ```
 
 </TabItem>
@@ -81,11 +88,12 @@ curl -X POST $ACRUXCORE_BASE_URL/experiments \
 
 ```typescript
 const experiment = await hub.experiments.create({
-  datasetId: '4595c340-d7fa-4d76-977e-76b60ebefb62',
-  promptId: '173ad5cd-969c-4a04-8896-fbf625bbc2e5',
-  name: 'E3 Task7 greeting sweep',
-  versionIds: ['b5327b3e-3c45-4858-ac62-1e5852279624'],
-  models: ['gpt-4o-mini-e3t7'],
+  datasetId: '20e0308d-ec9c-40ac-8cd9-c20b4bb95df1',
+  promptId: '07494047-7380-4324-acf9-069a40265323',
+  name: 'greeting sweep',
+  versionIds: ['35ed29ec-412d-45bb-8420-66dfe02eb0d2'],
+  models: ['gpt-4o-mini'],
+  judgeModel: 'gpt-4o-mini',
 });
 ```
 
@@ -94,11 +102,12 @@ const experiment = await hub.experiments.create({
 
 ```python
 experiment = await hub.experiments.create(
-    dataset_id='4595c340-d7fa-4d76-977e-76b60ebefb62',
-    version_ids=['b5327b3e-3c45-4858-ac62-1e5852279624'],
-    models=['gpt-4o-mini-e3t7'],
-    prompt_id='173ad5cd-969c-4a04-8896-fbf625bbc2e5',
-    name='E3 Task7 greeting sweep',
+    dataset_id='20e0308d-ec9c-40ac-8cd9-c20b4bb95df1',
+    version_ids=['35ed29ec-412d-45bb-8420-66dfe02eb0d2'],
+    models=['gpt-4o-mini'],
+    judge_model='gpt-4o-mini',
+    prompt_id='07494047-7380-4324-acf9-069a40265323',
+    name='greeting sweep',
 )
 ```
 
@@ -109,19 +118,46 @@ Response (status 201) — `runs` is empty right after creation:
 
 ```json
 {
-  "id": "9462c9b7-62a7-4f01-80fe-71f142cdd02b",
-  "teamId": "c2e28d00-c7ed-4c27-85d9-434927282f67",
-  "datasetId": "4595c340-d7fa-4d76-977e-76b60ebefb62",
-  "promptId": "173ad5cd-969c-4a04-8896-fbf625bbc2e5",
-  "name": "E3 Task7 greeting sweep",
-  "config": { "models": ["gpt-4o-mini-e3t7"], "versionIds": ["b5327b3e-3c45-4858-ac62-1e5852279624"] },
-  "createdBy": "6937e9cb-6754-4f45-aac8-a780d2e3ef57",
-  "createdAt": "2026-07-07T14:26:50.940Z",
+  "id": "320a1e06-26cd-4e92-ab2d-d5eaf05db1b1",
+  "teamId": "6b319ddb-bae8-469e-9af1-ffac0d4df846",
+  "datasetId": "20e0308d-ec9c-40ac-8cd9-c20b4bb95df1",
+  "promptId": "07494047-7380-4324-acf9-069a40265323",
+  "name": "greeting sweep",
+  "config": { "models": ["gpt-4o-mini"], "judgeModel": "gpt-4o-mini", "versionIds": ["35ed29ec-412d-45bb-8420-66dfe02eb0d2"] },
+  "createdBy": "9bf448bd-5c2f-43d0-be81-08b117195b8d",
+  "createdAt": "2026-10-13T13:06:22.237Z",
   "runs": []
 }
 ```
 
 #### Error responses
+
+Missing `judge_model` (status 400) — there is no server-side default:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/experiments \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"dataset_id": "20e0308d-ec9c-40ac-8cd9-c20b4bb95df1", "prompt_id": "07494047-7380-4324-acf9-069a40265323", "version_ids": ["35ed29ec-412d-45bb-8420-66dfe02eb0d2"], "models": ["gpt-4o-mini"]}'
+```
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "judge_model is required: name a model registered under Gateway → Models." } }
+```
+
+A `judge_model` your team has not registered (status 400) — checked before anything is
+written, and a model registered by another team does not count:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/experiments \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"dataset_id": "20e0308d-ec9c-40ac-8cd9-c20b4bb95df1", "prompt_id": "07494047-7380-4324-acf9-069a40265323", "version_ids": ["35ed29ec-412d-45bb-8420-66dfe02eb0d2"], "models": ["gpt-4o-mini"], "judge_model": "claude-judge"}'
+```
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "Model 'claude-judge' is not registered. Add it under Gateway → Models." } }
+```
 
 Missing `version_ids` (status 400):
 
@@ -129,7 +165,7 @@ Missing `version_ids` (status 400):
 curl -X POST $ACRUXCORE_BASE_URL/experiments \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"dataset_id": "4595c340-d7fa-4d76-977e-76b60ebefb62", "models": ["gpt-4o-mini-e3t7"]}'
+  -d '{"dataset_id": "20e0308d-ec9c-40ac-8cd9-c20b4bb95df1", "models": ["gpt-4o-mini"], "judge_model": "gpt-4o-mini"}'
 ```
 
 ```json
@@ -144,7 +180,7 @@ an id names a real prompt somewhere:
 curl -X POST $ACRUXCORE_BASE_URL/experiments \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"dataset_id": "<your dataset>", "prompt_id": "<another team's prompt>", "version_ids": ["<a version>"], "models": ["gpt-4o-mini"]}'
+  -d '{"dataset_id": "<your dataset>", "prompt_id": "<another team's prompt>", "version_ids": ["<a version>"], "models": ["gpt-4o-mini"], "judge_model": "gpt-4o-mini"}'
 ```
 
 ```json
@@ -156,6 +192,61 @@ version of your own prompt in the same array does not carry a foreign one throug
 
 ```json
 { "error": { "code": "NOT_FOUND", "message": "Prompt version not found." } }
+```
+
+#### Custom judge prompt (`judge_prompt_id` field)
+
+`judge_prompt_id` is optional: one of your team's prompts, used instead of the built-in judge
+prompt to grade every result. It must have at least one committed version. It is stored on
+`config.judgePromptId`. Each run resolves it when it starts, to the prompt's `production`
+alias or else its latest version, and grades the whole run with that version.
+
+The prompt's messages are templates with four variables: `{{ output }}`, `{{ criteria }}`,
+`{{ overallFeedback }}`, and `{{ history }}` (earlier turns as JSON). A missing value is an
+empty string. The platform's JSON output instruction is always appended after them. When an
+example has an image, the image parts are added after the text of the template's last user
+message.
+
+A custom judge grades every example, including one with no criteria and no overall
+feedback; the built-in judge leaves such an example unscored with the reason `not judged`.
+If the template fails to render, the result is unscored with the reason
+`judge prompt error: …` and no judge call is made. See
+[Write a custom judge prompt](/docs/guides/write-a-custom-judge-prompt).
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/experiments \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"dataset_id": "5c5cdfac-690c-4514-8c60-5a4b196917f5", "prompt_id": "de3f1cb7-9536-4a15-9f84-03eed3a85b34", "name": "receipts with custom judge", "version_ids": ["c39d2551-0a41-48c7-9bcd-1ff2d08153c5"], "models": ["gpt-4o-mini-or"], "judge_model": "gpt-4o-mini-or", "judge_prompt_id": "409e4e4e-755e-466f-b01a-4522a6deca28"}'
+```
+
+Response (status 201):
+
+```json
+{
+  "id": "aa67a319-3424-4b16-9562-c3001b45ae13",
+  "teamId": "8d3ceb9b-39d0-463b-8b91-aa2ef20ac9ba",
+  "datasetId": "5c5cdfac-690c-4514-8c60-5a4b196917f5",
+  "promptId": "de3f1cb7-9536-4a15-9f84-03eed3a85b34",
+  "name": "receipts with custom judge",
+  "config": { "models": ["gpt-4o-mini-or"], "judgeModel": "gpt-4o-mini-or", "versionIds": ["c39d2551-0a41-48c7-9bcd-1ff2d08153c5"], "judgePromptId": "409e4e4e-755e-466f-b01a-4522a6deca28" },
+  "createdBy": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+  "createdAt": "2026-10-13T18:30:05.078Z",
+  "runs": []
+}
+```
+
+A `judge_prompt_id` that is not one of your team's live prompts (status 400) — the same
+answer for another team's prompt, a deleted one, or an id that names nothing:
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "judge_prompt_id does not refer to a prompt in this team." } }
+```
+
+A judge prompt with no committed version (status 400), since every judge call would fail:
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "Judge prompt 'empty judge 1791916204' has no committed version yet. Commit its judge template first." } }
 ```
 
 #### Alias-based baseline (`alias` field)
@@ -171,22 +262,22 @@ requesting v2 explicitly plus `alias: "staging"`:
 curl -X POST $ACRUXCORE_BASE_URL/experiments \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"dataset_id": "c4629544-565c-4e34-9d76-6074f525c596", "prompt_id": "e7ec9bcd-e5c1-4d28-bd48-1da7ad3c5027", "name": "Task7 alias baseline demo", "version_ids": ["06c027e3-7f6e-4b1d-8696-6868bae24f7d"], "models": ["gpt-4o-mini"], "alias": "staging"}'
+  -d '{"dataset_id": "20e0308d-ec9c-40ac-8cd9-c20b4bb95df1", "prompt_id": "07494047-7380-4324-acf9-069a40265323", "name": "alias baseline demo", "version_ids": ["fd5da811-2fc8-4df0-a6b8-8198dff7a678"], "models": ["gpt-4o-mini"], "judge_model": "gpt-4o-mini", "alias": "staging"}'
 ```
 
 Response (status 201) — `alias` is stored verbatim on `config`, alongside
-`models`/`versionIds`:
+`models`/`judgeModel`/`versionIds`:
 
 ```json
 {
-  "id": "b819389b-6422-4bce-87a4-e7901d2052e2",
-  "teamId": "13a4f9a6-cd2a-47bf-b937-4e18675d6b48",
-  "datasetId": "c4629544-565c-4e34-9d76-6074f525c596",
-  "promptId": "e7ec9bcd-e5c1-4d28-bd48-1da7ad3c5027",
-  "name": "Task7 alias baseline demo",
-  "config": { "alias": "staging", "models": ["gpt-4o-mini"], "versionIds": ["06c027e3-7f6e-4b1d-8696-6868bae24f7d"] },
-  "createdBy": "39fcb676-6296-4960-9388-a02cab78d9f9",
-  "createdAt": "2026-08-04T09:28:05.299Z",
+  "id": "084f43d1-21f5-4235-b55e-7ebfc0946b76",
+  "teamId": "6b319ddb-bae8-469e-9af1-ffac0d4df846",
+  "datasetId": "20e0308d-ec9c-40ac-8cd9-c20b4bb95df1",
+  "promptId": "07494047-7380-4324-acf9-069a40265323",
+  "name": "alias baseline demo",
+  "config": { "alias": "staging", "models": ["gpt-4o-mini"], "judgeModel": "gpt-4o-mini", "versionIds": ["fd5da811-2fc8-4df0-a6b8-8198dff7a678"] },
+  "createdBy": "9bf448bd-5c2f-43d0-be81-08b117195b8d",
+  "createdAt": "2026-10-13T13:06:44.769Z",
   "runs": []
 }
 ```
@@ -222,7 +313,7 @@ dataset's examples were sourced from a prompt other than `prompt_id`, the
   "datasetId": "4595c340-d7fa-4d76-977e-76b60ebefb62",
   "promptId": "173ad5cd-969c-4a04-8896-fbf625bbc2e5",
   "name": "E3 Task7 greeting sweep",
-  "config": { "models": ["gpt-4o-mini-e3t7"], "versionIds": ["b5327b3e-3c45-4858-ac62-1e5852279624"] },
+  "config": { "models": ["gpt-4o-mini-e3t7"], "judgeModel": "gpt-4o-mini-e3t7", "versionIds": ["b5327b3e-3c45-4858-ac62-1e5852279624"] },
   "createdBy": "6937e9cb-6754-4f45-aac8-a780d2e3ef57",
   "createdAt": "2026-07-07T14:26:50.940Z",
   "runs": [],
@@ -299,6 +390,34 @@ curl -X POST $ACRUXCORE_BASE_URL/experiments/00000000-0000-0000-0000-00000000000
 
 ```json
 { "error": { "code": "NOT_FOUND", "message": "Experiment not found." } }
+```
+
+An experiment saved before judges were chosen per experiment has no `config.judgeModel`
+(status 400). The API does not guess one, and no run row is created. Create a new experiment
+with a `judge_model`. The same check re-runs the registry lookup, so an experiment whose judge
+model has since been removed from Gateway → Models fails here too:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/experiments/0a9c535d-0ae1-482a-93c2-14fe906b7029/runs \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "This experiment has no judge model — it was created before judges were chosen per experiment. Create a new experiment with a judge_model." } }
+```
+
+An experiment whose `judge_prompt_id` was deleted after it was created (status 400). The
+prompt is checked again here, before a run row or any model call exists:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/experiments/<experiment-id>/runs \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "judge_prompt_id does not refer to a prompt in this team." } }
 ```
 
 ---
@@ -593,13 +712,10 @@ the same strict two-sentence format — arranged specifically so v2 and
 production diverge sharply on the judge's score, rather than landing on a
 `flat`/`unknown` delta that wouldn't demonstrate the feature.
 
-Note: the judge model itself is a fixed `gpt-4o-mini` public name
-(`JUDGE_MODEL` in `judge.service.ts`, overridable via `EVAL_JUDGE_MODEL`) —
-distinct from whatever public model name(s) the experiment's grid sweeps.
-It must be registered separately via `POST /gateway/models` (same as any
-other model) or every judge call fails with `Model 'gpt-4o-mini' is not
-registered.` (observed firsthand on a first attempt before registering it;
-see the cell drill-down section below for that raw error text).
+Note: the judge model is the experiment's own `judge_model`, chosen when the
+experiment is created — distinct from whatever public model name(s) the
+experiment's grid sweeps. It must be registered via `POST /gateway/models`
+like any other model; `POST /experiments` rejects a name that is not.
 
 <Tabs groupId="lang">
 <TabItem value="curl" label="curl">
@@ -666,6 +782,64 @@ points), and the winner is v2:
   ],
   "leaderboard": ["v2|gpt-4o-mini-e5t3", "production|gpt-4o-mini-e5t3"],
   "winner": { "cellKey": "v2|gpt-4o-mini-e5t3", "variantLabel": "v2", "model": "gpt-4o-mini-e5t3", "avgScore": 85 }
+}
+```
+
+#### Which judge graded the run
+
+`judge` names the judge model and, when the experiment used a custom judge prompt, the
+prompt version fixed at run start. Both are `null` for runs created before this field
+existed; `promptVersionId` is `null` when the built-in judge graded the run. Verified with a
+run graded by a custom judge prompt:
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" $ACRUXCORE_BASE_URL/runs/406968cd-9492-4967-b6f0-f7522d3fcbb9/report
+```
+
+Response (status 200):
+
+```json
+{
+  "runId": "406968cd-9492-4967-b6f0-f7522d3fcbb9",
+  "status": "succeeded",
+  "models": [
+    "gpt-4o-mini-or"
+  ],
+  "variants": [
+    {
+      "variantKind": "version",
+      "promptVersionId": "6059a265-eaff-4107-b98a-bf4808e630e5",
+      "variantLabel": "v2",
+      "isProductionBaseline": true
+    }
+  ],
+  "cells": [
+    {
+      "cellKey": "v2|gpt-4o-mini-or",
+      "variantLabel": "v2",
+      "model": "gpt-4o-mini-or",
+      "isProductionBaseline": true,
+      "avgScore": 16.666666666666668,
+      "passRate": 0,
+      "exampleCount": 3,
+      "scoredCount": 3,
+      "unscoredCount": 0,
+      "deltaVsBaseline": null
+    }
+  ],
+  "leaderboard": [
+    "v2|gpt-4o-mini-or"
+  ],
+  "winner": {
+    "cellKey": "v2|gpt-4o-mini-or",
+    "variantLabel": "v2",
+    "model": "gpt-4o-mini-or",
+    "avgScore": 16.666666666666668
+  },
+  "judge": {
+    "model": "gpt-4o-mini-or",
+    "promptVersionId": "66ae6460-f8f8-4140-aa2b-5baef81c8fd3"
+  }
 }
 ```
 
@@ -890,23 +1064,40 @@ experiments = await hub.experiments.list()
 </TabItem>
 </Tabs>
 
-Response (status 200) — abbreviated to one experiment with its 2 runs:
+Response (status 200) — abbreviated to one experiment with its run. An experiment saved
+before judges were chosen per experiment shows no `judgeModel` in its `config`. Each run
+names the judge model it recorded at start and, when the experiment uses a custom judge
+prompt, the version it froze; both are `null` on a run created before judges were recorded:
 
 ```json
 {
   "data": [
     {
-      "id": "9462c9b7-62a7-4f01-80fe-71f142cdd02b",
-      "teamId": "c2e28d00-c7ed-4c27-85d9-434927282f67",
-      "datasetId": "4595c340-d7fa-4d76-977e-76b60ebefb62",
-      "promptId": "173ad5cd-969c-4a04-8896-fbf625bbc2e5",
-      "name": "E3 Task7 greeting sweep",
-      "config": { "models": ["gpt-4o-mini-e3t7"], "versionIds": ["b5327b3e-3c45-4858-ac62-1e5852279624"] },
-      "createdBy": "6937e9cb-6754-4f45-aac8-a780d2e3ef57",
-      "createdAt": "2026-07-07T14:26:50.940Z",
+      "id": "8ee82248-e808-4730-8565-620204616307",
+      "teamId": "8d3ceb9b-39d0-463b-8b91-aa2ef20ac9ba",
+      "datasetId": "7792f4f8-01ad-443f-b5ed-322f107e6370",
+      "promptId": "a290cf2f-a724-4389-8bea-da8b53229e00",
+      "name": null,
+      "config": {
+        "models": ["gpt-4o-mini-or"],
+        "judgeModel": "gpt-4o-mini-or",
+        "versionIds": ["6059a265-eaff-4107-b98a-bf4808e630e5"],
+        "judgePromptId": "7cbffcaf-d627-4b20-9945-4244badc1600"
+      },
+      "createdBy": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+      "createdAt": "2026-10-13T20:17:40.775Z",
       "runs": [
-        { "id": "891710e4-1ac4-4bb7-b618-0f81e31aa291", "experimentId": "9462c9b7-62a7-4f01-80fe-71f142cdd02b", "status": "succeeded", "startedAt": null, "endedAt": "2026-07-07T14:27:18.799Z", "error": null, "createdAt": "2026-07-07T14:27:16.920Z" },
-        { "id": "0cb95fe0-5459-4287-a7b3-f8929ce3d0e1", "experimentId": "9462c9b7-62a7-4f01-80fe-71f142cdd02b", "status": "succeeded", "startedAt": null, "endedAt": "2026-07-07T14:26:59.929Z", "error": null, "createdAt": "2026-07-07T14:26:56.763Z" }
+        {
+          "id": "406968cd-9492-4967-b6f0-f7522d3fcbb9",
+          "experimentId": "8ee82248-e808-4730-8565-620204616307",
+          "status": "succeeded",
+          "startedAt": "2026-10-13T20:17:40.802Z",
+          "endedAt": "2026-10-13T20:17:47.193Z",
+          "error": null,
+          "createdAt": "2026-10-13T20:17:40.795Z",
+          "judgeModel": "gpt-4o-mini-or",
+          "judgePromptVersionId": "66ae6460-f8f8-4140-aa2b-5baef81c8fd3"
+        }
       ]
     }
   ]

@@ -44,7 +44,7 @@ async function arrange(agent: ReturnType<typeof request.agent>): Promise<Arrange
   const experiment = (
     await agent
       .post('/api/v1/experiments')
-      .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [version.id], models: ['gpt-4o-mini'] })
+      .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [version.id], models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini' })
       .expect(201)
   ).body;
 

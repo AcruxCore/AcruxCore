@@ -27,6 +27,25 @@ called out in the week it ships and in the SDK release notes.
 
 ### Major
 
+#### Offline evaluation runs now need a judge model
+
+- `POST /experiments` and `POST /prompts/:id/optimize` now require `judge_model`.
+- The server no longer judges with a built-in `gpt-4o-mini`; pick any model you registered.
+- Experiments saved before this change must be created again, with a judge, before they run.
+
+#### Experiment runs can grade with your own judge prompt
+
+- `POST /experiments` takes an optional `judge_prompt_id`, a prompt that replaces the built-in judge.
+- Each run uses that prompt's `production` version, fixed at run start; images reach it too.
+- The Run experiment screen has a **Judge prompt** picker; both SDKs take the same argument.
+
+#### A custom judge prompt grades every example
+
+- A custom judge prompt now grades examples that have no criteria; it holds its own rubric.
+- **Create judge prompt** starts from a template with a rubric section and a link to the guide.
+- The Run experiment screen warns when the judge uses `{{ criteria }}` that some examples lack.
+  [Guide →](/docs/guides/write-a-custom-judge-prompt)
+
 #### Discovery files for AI agents
 
 - `acruxcore.com/.well-known/api-catalog` lists the API, its reference and its health check.
@@ -65,6 +84,10 @@ called out in the week it ships and in the SDK release notes.
 - **Fixed** — with `"moduleResolution": "nodenext"`, TypeScript rejected `new AcruxCore()`.
 - Unknown `/.well-known/` addresses on acruxcore.com return 404 instead of the home page.
 - **Fixed** — acruxcore.com/features failed with "too many redirects"; it now opens the feature list.
+- Custom judge prompts on experiment runs get an empty string, not `none`, for a missing value.
+- The run report names the judge model that graded it; the report API returns it as `judge`.
+- **New guide** — [Write a custom judge prompt](/docs/guides/write-a-custom-judge-prompt).
+- **Fixed** — the Evaluation code sample on acruxcore.com left out the required `judge_model`.
 
 ---
 

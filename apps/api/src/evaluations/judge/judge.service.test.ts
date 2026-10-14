@@ -8,6 +8,8 @@ import { authedAgent } from '../../test-utils';
 const app = createApp();
 const runsRepo = new RunsRepository();
 const judgeService = new JudgeService();
+/** The judge is always the caller's choice; this suite registers one team model and names it. */
+const JUDGE_MODEL = 'gpt-4o-mini';
 
 function mockFetchOnce(body: unknown, ok = true, status = 200): void {
   jest.spyOn(global, 'fetch').mockResolvedValueOnce({
@@ -95,6 +97,7 @@ async function arrangeResult(
         prompt_id: prompt.id,
         version_ids: [version.id],
         models: ['gpt-4o-mini'],
+        judge_model: JUDGE_MODEL,
       })
       .expect(201)
   ).body;
@@ -146,7 +149,7 @@ describe('JudgeService.scoreResult', () => {
     const { resultId } = await arrangeResult(agent, teamId, { criteria: 'reply in third person' });
 
     mockFetchOnce(cannedJudge({ score: 80, passed: true, reason: 'third person' }));
-    await judgeService.scoreResult(teamId, resultId);
+    await judgeService.scoreResult(teamId, resultId, JUDGE_MODEL);
 
     const row = await prisma.evalResult.findUnique({ where: { id: resultId } });
     expect(row!.score).toBe(80);
@@ -178,7 +181,7 @@ describe('JudgeService.scoreResult', () => {
 
     // The judge job carries the values frozen at run-start (here: the original
     // criteria, and no overall feedback), NOT the edited live ones.
-    await judgeService.scoreResult(teamId, resultId, {
+    await judgeService.scoreResult(teamId, resultId, JUDGE_MODEL, {
       criteria: 'FROZEN reply in third person',
       overallFeedback: null,
     });
@@ -206,7 +209,7 @@ describe('JudgeService.scoreResult', () => {
       } as unknown as Response;
     }) as unknown as typeof fetch);
 
-    await judgeService.scoreResult(teamId, resultId, {
+    await judgeService.scoreResult(teamId, resultId, JUDGE_MODEL, {
       criteria: 'be nice',
       overallFeedback: null,
       history: [{ role: 'user', content: 'turn 1' }],
@@ -231,7 +234,7 @@ describe('JudgeService.scoreResult', () => {
       } as unknown as Response;
     }) as unknown as typeof fetch);
 
-    await judgeService.scoreResult(teamId, resultId, { criteria: 'be nice', overallFeedback: null, history: null });
+    await judgeService.scoreResult(teamId, resultId, JUDGE_MODEL, { criteria: 'be nice', overallFeedback: null, history: null });
 
     expect(sentBody).not.toContain('max_tokens');
     expect(sentBody).not.toContain('max_completion_tokens');
@@ -243,7 +246,7 @@ describe('JudgeService.scoreResult', () => {
 
     mockFetchOnce(cannedRaw('garbage')); // attempt 1
     mockFetchOnce(cannedRaw('still garbage')); // retry
-    await judgeService.scoreResult(teamId, resultId);
+    await judgeService.scoreResult(teamId, resultId, JUDGE_MODEL);
 
     const row = await prisma.evalResult.findUnique({ where: { id: resultId } });
     expect(row!.score).toBeNull();
@@ -255,7 +258,7 @@ describe('JudgeService.scoreResult', () => {
     const { resultId } = await arrangeResult(agent, teamId, { overallFeedback: 'be concise' });
 
     mockFetchOnce(cannedJudge({ score: 90, passed: true, reason: 'concise enough' }));
-    await judgeService.scoreResult(teamId, resultId);
+    await judgeService.scoreResult(teamId, resultId, JUDGE_MODEL);
 
     const row = await prisma.evalResult.findUnique({ where: { id: resultId } });
     expect(row!.score).toBe(90);
@@ -268,7 +271,7 @@ describe('JudgeService.scoreResult', () => {
     const { resultId } = await arrangeResult(agent, teamId);
 
     const fetchSpy = jest.spyOn(global, 'fetch');
-    await judgeService.scoreResult(teamId, resultId);
+    await judgeService.scoreResult(teamId, resultId, JUDGE_MODEL);
 
     expect(fetchSpy).not.toHaveBeenCalled();
     const row = await prisma.evalResult.findUnique({ where: { id: resultId } });
@@ -289,7 +292,7 @@ describe('JudgeService.scoreResult', () => {
     await prisma.budget.updateMany({ where: { teamId, virtualKeyId: null }, data: { spendUsd: '0.01' } });
 
     const fetchSpy = jest.spyOn(global, 'fetch');
-    await expect(judgeService.scoreResult(teamId, resultId)).rejects.toThrow(/budget/i);
+    await expect(judgeService.scoreResult(teamId, resultId, JUDGE_MODEL)).rejects.toThrow(/budget/i);
     expect(fetchSpy).not.toHaveBeenCalled();
 
     const row = await prisma.evalResult.findUnique({ where: { id: resultId } });

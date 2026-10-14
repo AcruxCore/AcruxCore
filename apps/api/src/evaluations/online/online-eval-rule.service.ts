@@ -4,9 +4,8 @@ import { NotFoundError, ValidationError } from '../../shared/errors';
 import { GatewayService } from '../../gateway/completions/gateway.service';
 import { GatewayRepository } from '../../gateway/completions/gateway.repository';
 import { ConnectionsRepository } from '../../gateway/connections/connections.repository';
-import { ModelsRepository } from '../../gateway/models/models.repository';
 import { PromptsRepository } from '../../prompts/prompts.repository';
-import { compileEvaluatePrompt, compileCustomJudgePrompt } from '../judge/judge.prompt';
+import { compileEvaluatePrompt, compileCustomJudgePrompt, assertModelRegistered } from '../judge';
 import { parseVerdict } from '../judge/judge.parse';
 import { DatasetsRepository } from '../datasets/datasets.repository';
 import prisma from '../../shared/db/client';
@@ -26,7 +25,6 @@ import type {
 
 const gateway = new GatewayService(new GatewayRepository(), new ConnectionsRepository());
 const datasetsRepo = new DatasetsRepository();
-const modelsRepo = new ModelsRepository();
 const promptsRepo = new PromptsRepository();
 /** Marks a judge's own gateway call so no rule ever scores it. Exported so the worker processor (Task 9) can check for the exact same marker rather than keeping a second, driftable copy. */
 export const JUDGE_MARKER = 'acx.online_eval.judge';
@@ -71,7 +69,7 @@ export class OnlineEvalRuleService {
    *   for this team, or `judgePromptId` doesn't resolve to a prompt in this team.
    */
   async createRule(teamId: string, userId: string, input: CreateEvalRuleDto): Promise<EvalRuleResponse> {
-    await this.assertJudgeModelExists(teamId, input.judgeModel);
+    await assertModelRegistered(teamId, input.judgeModel);
     await this.assertJudgePromptExists(teamId, input.judgePromptId);
     const rule = await this.repo.create(teamId, userId, input);
     await audit(prisma, {
@@ -81,20 +79,6 @@ export class OnlineEvalRuleService {
       metadata: { ruleId: rule.id, name: rule.name, judgeModel: rule.judgeModel, enabled: rule.enabled },
     });
     return toResponse(rule);
-  }
-
-  /**
-   * Validates that `publicName` is a model registered for this team — the
-   * online-eval-rule redesign (phase-5-faq) removed the hardcoded
-   * `EVAL_JUDGE_MODEL` fallback, so every rule's judge model must be real.
-   *
-   * @throws {ValidationError} If no such model exists for the team.
-   */
-  private async assertJudgeModelExists(teamId: string, publicName: string): Promise<void> {
-    const model = await modelsRepo.findByPublicName(teamId, publicName);
-    if (!model) {
-      throw new ValidationError(`Model '${publicName}' is not registered. Add it under Gateway → Models.`);
-    }
   }
 
   /**
@@ -142,7 +126,7 @@ export class OnlineEvalRuleService {
     actorId: string,
     patch: UpdateEvalRuleDto,
   ): Promise<EvalRuleResponse> {
-    if (patch.judgeModel !== undefined) await this.assertJudgeModelExists(teamId, patch.judgeModel);
+    if (patch.judgeModel !== undefined) await assertModelRegistered(teamId, patch.judgeModel);
     if (patch.judgePromptId !== undefined) await this.assertJudgePromptExists(teamId, patch.judgePromptId);
     const rule = await this.repo.update(id, teamId, patch);
     if (!rule) throw new NotFoundError('Rule not found.');
@@ -318,7 +302,7 @@ export class OnlineEvalRuleService {
     let messages;
     try {
       messages = judgePromptId
-        ? await compileCustomJudgePrompt(judgePromptId, { output, criteria, overallFeedback: null })
+        ? await compileCustomJudgePrompt(teamId, judgePromptId, { output, criteria, overallFeedback: null })
         : compileEvaluatePrompt({ output, criteria, overallFeedback: null });
     } catch (err) {
       return {

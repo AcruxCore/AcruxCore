@@ -61,6 +61,19 @@ export interface CellJobData {
    * before this field shipped — the judge falls back to a live read in that case.
    */
   overallFeedback?: string | null;
+  /**
+   * The judge model the run's caller chose (`experiments.config.judgeModel`),
+   * forwarded by `cell.processor` into the judge job. Optional in the type only
+   * so a job already queued before judges were chosen per run still parses; the
+   * judge refuses such a job rather than pick a model for the caller.
+   */
+  judgeModel?: string;
+  /**
+   * The custom judge prompt version the run froze at start (issue #578),
+   * forwarded by `cell.processor` into the judge job. Absent for the
+   * built-in judge.
+   */
+  judgePromptVersionId?: string;
 }
 
 /**
@@ -106,6 +119,17 @@ export interface JudgeJobData {
    */
   overallFeedback?: string | null;
   /**
+   * The judge model the run's caller chose, forwarded from the cell job. There
+   * is no server-side default: a job without one is refused, not guessed.
+   * Optional in the type only for jobs queued before this field existed.
+   */
+  judgeModel?: string;
+  /**
+   * The custom judge prompt version to grade with, frozen at run start.
+   * Absent means the built-in judge prompt.
+   */
+  judgePromptVersionId?: string;
+  /**
    * The image parts the model under test was shown (issue #573), forwarded by `cell.processor`
    * so a vision judge can look at the same image. Absent or empty for a text-only example, and
    * on jobs enqueued before this field shipped.
@@ -145,6 +169,12 @@ export interface OptimizeJobData {
    * `processOptimize` falls back to the legacy env default for those.
    */
   optimizerModel?: string;
+  /**
+   * The model that grades the candidate/baseline cells, as the caller named it
+   * (`judge_model`) and as `startOptimize` validated it. Forwarded onto every
+   * cell job. Optional in the type only for jobs queued before it existed.
+   */
+  judgeModel?: string;
   /**
    * Team Prompt supplying the optimizer's instructions, or undefined for the
    * built-in ones. Validated as team-owned in `startOptimize`.

@@ -76,7 +76,7 @@ async function arrange(agent: AuthedAgent['agent']): Promise<{
         dataset_id: dataset.id,
         prompt_id: prompt.id,
         version_ids: [version.id],
-        models: ['gpt-4o-mini'],
+        models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini',
       })
       .expect(201)
   ).body;
@@ -112,7 +112,7 @@ describe('a viewer cannot spend the team money', () => {
     await request(app)
       .post(`/api/v1/prompts/${arranged.promptId}/optimize`)
       .set(authHeaders(viewer))
-      .send({ dataset_id: arranged.datasetId, models: ['gpt-4o-mini'], optimizer_model: 'gpt-4o-mini' })
+      .send({ dataset_id: arranged.datasetId, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini', optimizer_model: 'gpt-4o-mini' })
       .expect(403);
 
     expect(await prisma.experimentRun.count()).toBe(0);
@@ -122,7 +122,7 @@ describe('a viewer cannot spend the team money', () => {
     await request(app)
       .post('/api/v1/experiments')
       .set(authHeaders(viewer))
-      .send({ dataset_id: arranged.datasetId, version_ids: [], models: [] })
+      .send({ dataset_id: arranged.datasetId, version_ids: [], models: [], judge_model: 'gpt-4o-mini' })
       .expect(403);
   });
 });

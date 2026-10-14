@@ -1142,6 +1142,13 @@ model ExperimentRun {
   /// The run-finished notification falls back to `experiment.createdBy`, then to
   /// the team's owners/admins, so a null here never means "email nobody".
   createdBy       String?               @map("created_by") @db.Uuid
+  /// The judge model that graded this run, copied from the experiment at run
+  /// start. Null for runs created before judges were recorded on the run.
+  judgeModel      String?               @map("judge_model")
+  /// The custom judge prompt version frozen at run start (FAQ Q5). Null for the
+  /// built-in judge and for runs created before this column. Not a foreign key:
+  /// it is a historical record and must outlive the version row.
+  judgePromptVersionId String?          @map("judge_prompt_version_id") @db.Uuid
   startedAt       DateTime?             @map("started_at") @db.Timestamptz(6)
   endedAt         DateTime?             @map("ended_at") @db.Timestamptz(6)
   createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)

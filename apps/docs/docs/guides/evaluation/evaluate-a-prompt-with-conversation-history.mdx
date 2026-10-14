@@ -233,6 +233,7 @@ const experiment = await hub.experiments.create({
   name: 'history replay check',
   versionIds: ['<version-id>'],
   models: ['gpt-4o-mini'],
+  judgeModel: 'gpt-4o-mini',
 });
 
 const run = await hub.experiments.startRun(experiment.id);
@@ -268,6 +269,7 @@ experiment = await hub.experiments.create(
     name="history replay check",
     version_ids=["<version-id>"],
     models=["gpt-4o-mini"],
+    judge_model="gpt-4o-mini",
 )
 
 run = await hub.experiments.start_run(experiment.id)
@@ -324,7 +326,7 @@ curl "$ACRUXCORE_BASE_URL/datasets/<dataset-id>" \
 curl -X POST "$ACRUXCORE_BASE_URL/experiments" \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"dataset_id": "<dataset-id>", "prompt_id": "<prompt-id>", "name": "history replay check", "version_ids": ["<version-id>"], "models": ["gpt-4o-mini"]}'
+  -d '{"dataset_id": "<dataset-id>", "prompt_id": "<prompt-id>", "name": "history replay check", "version_ids": ["<version-id>"], "models": ["gpt-4o-mini"], "judge_model": "gpt-4o-mini"}'
 # → { "id": "<experiment-id>", ... }
 
 curl -X POST "$ACRUXCORE_BASE_URL/experiments/<experiment-id>/runs" \
@@ -388,6 +390,7 @@ experiment = requests.post(f"{base}/experiments", headers=h, json={
     "name": "history replay check",
     "version_ids": ["<version-id>"],
     "models": ["gpt-4o-mini"],
+    "judge_model": "gpt-4o-mini",
 }).json()
 
 run = requests.post(f"{base}/experiments/{experiment['id']}/runs", headers=h).json()
@@ -428,6 +431,7 @@ const experiment = await fetch(`${base}/experiments`, {
     name: 'history replay check',
     version_ids: ['<version-id>'],
     models: ['gpt-4o-mini'],
+    judge_model: 'gpt-4o-mini',
   }),
 }).then((r) => r.json());
 

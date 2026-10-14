@@ -158,6 +158,7 @@ async function buildFixture(a: AuthedAgent, tag: string, upstreamUrl: string): P
       prompt_id: prompt.body.id,
       version_ids: [version.body.id],
       models: [modelName],
+      judge_model: modelName,
     })
     .expect(201);
   // 202: the grid is persisted synchronously, the cells run on the worker. The
@@ -356,7 +357,7 @@ function probesFor(a: Fixture, b: Fixture): Record<string, Probe> {
     },
     'POST /api/v1/prompts/:promptId/optimize': {
       url: `/api/v1/prompts/${a.promptId}/optimize`,
-      body: { dataset_id: b.datasetId, models: [b.modelName] },
+      body: { dataset_id: b.datasetId, models: [b.modelName], judge_model: b.modelName },
     },
 
     'GET /api/v1/runs/:id': { url: `/api/v1/runs/${a.runId}` },
@@ -713,7 +714,7 @@ describe('cross-tenant object access', () => {
     // reaching: `POST /api/v1/experiments` carries no path parameter at all, so it
     // never enters the route walk above. Only `dataset_id` was checked; `prompt_id`
     // and every entry of `version_ids` were written to the row as given.
-    const base = { dataset_id: B.datasetId, models: ['gpt-4o-mini'] };
+    const base = { dataset_id: B.datasetId, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini' };
 
     const foreignPrompt = await bAgent.agent
       .post('/api/v1/experiments/')

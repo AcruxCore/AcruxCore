@@ -126,7 +126,7 @@ async function arrangeRun(): Promise<{
   const experiment = (
     await agent
       .post('/api/v1/experiments')
-      .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [v1.id], models: ['gpt-4o-mini'] })
+      .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [v1.id], models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini' })
       .expect(201)
   ).body;
 
@@ -209,7 +209,7 @@ describe('GET /runs/:id/report', () => {
     queueFetchResponseOnce(cannedJudge({ score: 40, passed: false, reason: 'production e1: mediocre' }));
     queueFetchResponseOnce(cannedJudge({ score: 38, passed: false, reason: 'production e2: mediocre' }));
     for (const result of results) {
-      await processJudge({ teamId, resultId: result.id });
+      await processJudge({ teamId, resultId: result.id, judgeModel: 'gpt-4o-mini' });
     }
 
     await processFinalize({ teamId, runId });
@@ -275,7 +275,7 @@ describe('GET /runs/:id/report', () => {
           dataset_id: dataset.id,
           prompt_id: prompt.id,
           version_ids: [v1.id, v2.id],
-          models: ['gpt-4o-mini'],
+          models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini',
           alias: 'production',
         })
         .expect(201)
@@ -319,7 +319,7 @@ describe('GET /runs/:id/report', () => {
     queueFetchResponseOnce(cannedJudge({ score: 90, passed: true, reason: 'v2 e1' }));
     queueFetchResponseOnce(cannedJudge({ score: 88, passed: true, reason: 'v2 e2' }));
     for (const result of results) {
-      await processJudge({ teamId, resultId: result.id });
+      await processJudge({ teamId, resultId: result.id, judgeModel: 'gpt-4o-mini' });
     }
     await processFinalize({ teamId, runId });
 
@@ -455,7 +455,7 @@ describe('GET /runs/:id/cells/:cellKey', () => {
     queueFetchResponseOnce(cannedJudge({ score: 90, passed: true, reason: 'third person, good' }));
     queueFetchResponseOnce(cannedJudge({ score: 88, passed: true, reason: 'polite enough' }));
     for (const result of results) {
-      await processJudge({ teamId, resultId: result.id });
+      await processJudge({ teamId, resultId: result.id, judgeModel: 'gpt-4o-mini' });
     }
 
     const cell = (await agent.get(`/api/v1/runs/${runId}/cells/${encodeURIComponent(v1Cell.cellKey)}`).expect(200)).body;

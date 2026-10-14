@@ -20,7 +20,7 @@ This guide extends [Evaluate a prompt against a dataset](./evaluate-a-prompt). I
 
 You need three registered models that read images, a gateway key, and a running worker. [Send an image to a model](/docs/guides/send-an-image-to-a-model) shows how to register one. This guide uses `vision-gemma`, `vision-gemini-or` and `vision-claude`.
 
-The judge is a model too. A deployment sets it with `EVAL_JUDGE_MODEL` (default `gpt-4o-mini`), and it must read images when a dataset has one. A judge that cannot read images fails every scoring call with the provider's error.
+The judge is a model too. Each experiment names it with `judge_model`, one of your registered models, and it must read images when a dataset has one. This guide uses `vision-claude`. A judge that cannot read images fails every scoring call with the provider's error. If the experiment uses [your own judge prompt](./evaluate-a-prompt.mdx#grade-with-your-own-judge-prompt), the image is added after the text of its last user message, so say there what the judge should check in it.
 
 ```bash
 export ACRUXCORE_BASE_URL=https://api.acruxcore.com/api/v1
@@ -184,6 +184,7 @@ const experiment = await hub.experiments.create({
   promptId: prompt.id,
   versionIds: [version.id],
   models: ['vision-gemma', 'vision-gemini-or', 'vision-claude'],
+  judgeModel: 'vision-claude',
 });
 const run = await hub.experiments.startRun(experiment.id);
 console.log(run.runId, run.status); // -> queued
@@ -198,6 +199,7 @@ experiment = await hub.experiments.create(
     [version.id],
     ["vision-gemma", "vision-gemini-or", "vision-claude"],
     prompt_id=prompt.id,
+    judge_model="vision-claude",
 )
 run = await hub.experiments.start_run(experiment.id)
 print(run.run_id, run.status)  # -> queued
@@ -214,7 +216,8 @@ curl -X POST $ACRUXCORE_BASE_URL/experiments \
     "dataset_id": "<dataset-id>",
     "prompt_id": "<prompt-id>",
     "version_ids": ["<version-id>"],
-    "models": ["vision-gemma", "vision-gemini-or", "vision-claude"]
+    "models": ["vision-gemma", "vision-gemini-or", "vision-claude"],
+    "judge_model": "vision-claude"
   }'
 ```
 

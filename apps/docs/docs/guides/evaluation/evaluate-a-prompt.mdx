@@ -306,6 +306,11 @@ An **experiment** pairs a dataset with a prompt under test and an explicit grid 
 sweep: one or more `version_ids` × one or more `models`. Creating it is one call;
 starting a **run** is another (it returns `202 queued` and hands off to the worker).
 
+Every experiment also names a **judge model**: the model that grades each reply against
+the example criteria. AcruxCore has no default judge, so you pick one of the models
+registered under **Gateway → Models**. It can be a model you are testing, as below, or a
+stronger one. In the dashboard it is the required **Judge model** field on the run page.
+
 <Tabs groupId="lang">
 <TabItem value="node" label="Node (SDK)">
 
@@ -316,6 +321,7 @@ const experiment = await hub.experiments.create({
   name: 'support-reply v2 vs v1',
   versionIds: ['<v2-version-id>'],
   models: ['support-model'],
+  judgeModel: 'support-model',
 });
 
 const run = await hub.experiments.startRun(experiment.id);
@@ -332,6 +338,7 @@ experiment = await hub.experiments.create(
     name="support-reply v2 vs v1",
     version_ids=["<v2-version-id>"],
     models=["support-model"],
+    judge_model="support-model",
 )
 
 run = await hub.experiments.start_run(experiment.id)
@@ -351,7 +358,8 @@ curl -X POST "$ACRUXCORE_BASE_URL/experiments" \
     "prompt_id": "<prompt-id>",
     "name": "support-reply v2 vs v1",
     "version_ids": ["<v2-version-id>"],
-    "models": ["support-model"]
+    "models": ["support-model"],
+    "judge_model": "support-model"
   }'
 # → { "id": "<experiment-id>", ... }
 # Add "alias": "staging" to compare against an alias other than the default
@@ -373,6 +381,7 @@ experiment = requests.post(f"{base}/experiments", headers=h, json={
     "name": "support-reply v2 vs v1",
     "version_ids": ["<v2-version-id>"],
     "models": ["support-model"],
+    "judge_model": "support-model",
 }).json()
 
 run = requests.post(f"{base}/experiments/{experiment['id']}/runs", headers=h).json()
@@ -392,6 +401,90 @@ pass `"alias": "staging"` over the API) if you want the comparison to be against
 If the dataset's examples were captured against a different prompt than the one under test
 here, the run still starts — AcruxCore just adds a warning to the response and the run page
 so you know the comparison might not be apples-to-apples. It never blocks the run.
+
+### Grade with your own judge prompt
+
+The built-in judge reads the criteria as a correction to an earlier, wrong reply. If your
+criteria are plain expected values, or you want the judge to follow your own rules, write a
+judge prompt and pass its id as `judge_prompt_id`. A judge prompt is an ordinary prompt with
+a committed version. Its templates can use four variables:
+
+- `{{ output }}` is the reply being graded.
+- `{{ criteria }}` is the example's criteria.
+- `{{ overallFeedback }}` is the dataset's overall feedback.
+- `{{ history }}` is the earlier conversation as JSON.
+
+A missing value is an empty string. A custom judge grades every example, even one with no
+criteria, so keep a rubric in the prompt itself.
+
+For example, a version with this system message:
+
+```text
+You grade support replies. The criteria list the facts a correct reply contains.
+Ignore tone and formatting. Score 100 only if every fact is present.
+Criteria: {{ criteria }}
+```
+
+and this user message: `Reply to grade: {{ output }}`.
+
+AcruxCore always adds its own output-format message after your template, so your prompt does
+not need to describe the JSON score format. For a full example with a rubric, see
+[Write a custom judge prompt](./write-a-custom-judge-prompt).
+
+<Tabs groupId="lang">
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const experiment = await hub.experiments.create({
+  datasetId: '<dataset-id>',
+  promptId: '<prompt-id>',
+  versionIds: ['<v2-version-id>'],
+  models: ['support-model'],
+  judgeModel: 'support-model',
+  judgePromptId: '<judge-prompt-id>',
+});
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+experiment = await hub.experiments.create(
+    dataset_id="<dataset-id>",
+    prompt_id="<prompt-id>",
+    version_ids=["<v2-version-id>"],
+    models=["support-model"],
+    judge_model="support-model",
+    judge_prompt_id="<judge-prompt-id>",
+)
+```
+
+</TabItem>
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/experiments" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dataset_id": "<dataset-id>",
+    "prompt_id": "<prompt-id>",
+    "version_ids": ["<v2-version-id>"],
+    "models": ["support-model"],
+    "judge_model": "support-model",
+    "judge_prompt_id": "<judge-prompt-id>"
+  }'
+```
+
+</TabItem>
+</Tabs>
+
+In the dashboard, pick the prompt in the **Judge prompt** field under **Judge model**. Leave it
+empty to use the built-in judge.
+
+Each run grades with the judge prompt's `production` version, or its latest version if it has
+no `production` alias. The version is fixed when the run starts, so promoting a new judge
+version changes the next run, not the one in progress.
 
 ## 4. Read the report
 

@@ -8,17 +8,16 @@ import { OptimizeRepository } from './optimize.repository';
 import { VersionsService } from '../../prompts/versions/versions.service';
 import { AliasesService } from '../../prompts/aliases/aliases.service';
 import { getOptimizeQueue, type OptimizeJobData } from '../queue';
-import { ModelsRepository } from '../../gateway/models/models.repository';
-import { NotFoundError, UnprocessableError, ValidationError } from '../../shared/errors';
+import { NotFoundError, UnprocessableError } from '../../shared/errors';
 import type { ExperimentConfig } from '../experiments/experiments.types';
 import type { RunSnapshotExample } from '../runs/runs.types';
 import type { StartOptimizeDto, PromoteCandidateDto, CandidateDetail } from './optimize.types';
 import type { VersionDetail } from '../../prompts/versions/versions.types';
 import type { AliasDetail } from '../../prompts/aliases/aliases.types';
 import type { PromptMismatchWarning } from '../datasets/datasets.types';
+import { assertModelRegistered } from '../judge';
 
 /** Shared, stateless — mirrors how `OnlineEvalRuleService` reaches the model registry. */
-const modelsRepo = new ModelsRepository();
 
 /** Default number of candidate rewrites requested when `draft_count` is omitted. */
 const DEFAULT_DRAFT_COUNT = 3;
@@ -123,12 +122,11 @@ export class OptimizeService {
     // another team's prompt id must get the same 404 they always did, not a
     // 400 about their own model registry.
     const optimizerModel = dto.optimizer_model ?? dto.models[0];
-    const registered = await modelsRepo.findByPublicName(teamId, optimizerModel);
-    if (!registered) {
-      throw new ValidationError(
-        `Model '${optimizerModel}' is not registered. Add it under Gateway → Models.`,
-      );
-    }
+    await assertModelRegistered(teamId, optimizerModel);
+
+    // The judge is the caller's choice, like the optimizer model above — and
+    // checked at the same point, so a bad name is a 400 before any run exists.
+    await assertModelRegistered(teamId, dto.judge_model);
 
     const promptMismatchWarning = await new DatasetsService(this.datasetsRepo).checkPromptMismatch(
       dataset.examples,
@@ -145,7 +143,7 @@ export class OptimizeService {
     // plain `POST /experiments` endpoint), and nothing reads
     // `Experiment.config` for an optimize run — the real, authoritative grid
     // lives on `ExperimentRun.grid` instead, resolved by `processOptimize`.
-    const config: ExperimentConfig = { versionIds: [], models: dto.models };
+    const config: ExperimentConfig = { versionIds: [], models: dto.models, judgeModel: dto.judge_model };
     const experiment = await this.experimentsRepo.create(teamId, userId, {
       datasetId: dto.dataset_id,
       promptId,
@@ -167,6 +165,9 @@ export class OptimizeService {
       grid: [] as unknown as Prisma.InputJsonValue,
       // Recorded so the run-finished email reaches whoever started the optimize.
       createdBy: userId,
+      // The run report names the judge that graded it. Optimize has no custom
+      // judge prompt, so there is no version to record.
+      judgeModel: dto.judge_model,
     });
 
     const jobData: OptimizeJobData = {
@@ -178,6 +179,7 @@ export class OptimizeService {
       datasetId: dto.dataset_id,
       models: dto.models,
       optimizerModel,
+      judgeModel: dto.judge_model,
       ...(dto.optimizer_prompt_id ? { optimizerPromptId: dto.optimizer_prompt_id } : {}),
       alias: dto.alias,
       draftCount,

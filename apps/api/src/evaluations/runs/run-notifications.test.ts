@@ -50,7 +50,7 @@ async function arrange(
         dataset_id: dataset.id,
         prompt_id: prompt.id,
         version_ids: [version.id],
-        models: ['gpt-4o-mini'],
+        models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini',
       })
       .expect(201)
   ).body;

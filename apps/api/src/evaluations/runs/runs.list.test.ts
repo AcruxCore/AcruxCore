@@ -132,7 +132,7 @@ async function arrangeRun(opts: { experimentName?: string } = {}): Promise<Arran
         dataset_id: dataset.id,
         prompt_id: prompt.id,
         version_ids: [v1.id],
-        models: ['gpt-4o-mini'],
+        models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini',
         ...(opts.experimentName ? { name: opts.experimentName } : {}),
       })
       .expect(201)
@@ -193,7 +193,7 @@ async function produceAndJudge(run: ArrangedRun): Promise<void> {
   queueFetchResponseOnce(cannedJudge({ score: 40, passed: false, reason: 'production e1' }));
   queueFetchResponseOnce(cannedJudge({ score: 38, passed: false, reason: 'production e2' }));
   for (const result of results) {
-    await processJudge({ teamId: run.teamId, resultId: result.id });
+    await processJudge({ teamId: run.teamId, resultId: result.id, judgeModel: 'gpt-4o-mini' });
   }
 
   await processFinalize({ teamId: run.teamId, runId: run.runId });
@@ -322,7 +322,7 @@ describe('GET /runs', () => {
         .send({
           dataset_id: otherDataset.id,
           prompt_id: otherPrompt.id,
-          models: ['gpt-4o-mini'],
+          models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini',
           version_ids: [otherVersion.id],
         })
         .expect(201)

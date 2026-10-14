@@ -142,6 +142,10 @@ class ExperimentRunDto:
     ended_at: Optional[str]
     error: Optional[str]
     created_at: Optional[str]
+    #: Judge model recorded at run start; None on runs created before it was recorded.
+    judge_model: Optional[str] = None
+    #: Custom judge prompt version frozen at run start; None for the built-in judge.
+    judge_prompt_version_id: Optional[str] = None
     raw: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -154,6 +158,8 @@ class ExperimentRunDto:
             ended_at=d.get("endedAt"),
             error=d.get("error"),
             created_at=d.get("createdAt"),
+            judge_model=d.get("judgeModel"),
+            judge_prompt_version_id=d.get("judgePromptVersionId"),
             raw=d,
         )
 
@@ -311,6 +317,19 @@ class RunDetailDto:
 
 
 @dataclass
+class RunJudge:
+    """The judge that graded a run, recorded when the run started."""
+
+    model: Optional[str]
+    #: Custom judge prompt version the run froze; None for the built-in judge.
+    prompt_version_id: Optional[str]
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "RunJudge":
+        return cls(model=d.get("model"), prompt_version_id=d.get("promptVersionId"))
+
+
+@dataclass
 class RunReport:
     run_id: str
     status: str
@@ -319,6 +338,8 @@ class RunReport:
     cells: List[Dict[str, Any]]
     leaderboard: List[str]
     winner: Optional[Dict[str, Any]]
+    #: None when the API sent no ``judge`` (an older server).
+    judge: Optional[RunJudge] = None
     raw: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -331,6 +352,7 @@ class RunReport:
             cells=d.get("cells") or [],
             leaderboard=d.get("leaderboard") or [],
             winner=d.get("winner"),
+            judge=RunJudge.from_dict(d["judge"]) if d.get("judge") else None,
             raw=d,
         )
 

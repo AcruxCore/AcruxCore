@@ -1,7 +1,10 @@
 import type { ChatMessage, ImageContentPart } from '../../gateway/providers/types';
 import { neutralizeDelimiterMarkers } from '../../shared/security';
-import prisma from '../../shared/db/client';
-import { renderMessages } from '../../prompts/versions/nunjucks.utils';
+import { ValidationError } from '../../shared/errors';
+import { PromptsRepository } from '../../prompts/prompts.repository';
+import { renderMessages, type MessageInput } from '../../prompts/versions/nunjucks.utils';
+
+const promptsRepo = new PromptsRepository();
 
 /**
  * The judge's output-shape contract, platform-owned and never user-editable
@@ -131,53 +134,132 @@ Please provide your evaluation in the specified JSON format.`;
 
 /**
  * Renders a team's custom judge Prompt (phase-5-faq) in place of the built-in
- * {@link compileEvaluatePrompt} template. Resolves the prompt's `production`
- * alias, falling back to its latest version if `production` was never set —
- * the same fallback `AliasesService` uses elsewhere — then renders its
- * nunjucks messages with `output`/`criteria`/`overallFeedback` as template
- * variables, `output` pre-neutralized so the untrusted candidate text can't
- * forge a marker regardless of how the custom template wraps it.
+ * {@link compileEvaluatePrompt} template, for an online rule. Uses the prompt's
+ * `production` version, else its latest — the same rule an experiment run
+ * freezes at start — then renders it with {@link renderJudgeTemplate}.
+ *
+ * Two things differ from the offline path on purpose, so existing rules keep
+ * grading exactly as before. A soft-deleted judge prompt still resolves (the
+ * rule keeps its id after a delete). And a missing `criteria` or
+ * `overallFeedback` renders as `none`, the value rule templates were written
+ * against; online rules always pass `overallFeedback: null`.
  *
  * {@link JUDGE_OUTPUT_CONTRACT} is always appended as a final system message:
  * a custom judge prompt can change the grading philosophy but never the
  * strict JSON shape `parseVerdict` depends on.
  *
+ * @param teamId - Isolation boundary. Another team's prompt does not resolve.
  * @param promptId - The team Prompt to use as the judge template.
  * @param input - Same variable set `compileEvaluatePrompt` takes, minus `history`
- *   (online-eval rules never carry session history).
+ *   and `images` (online-eval rules carry neither).
  * @returns The rendered judge conversation, contract message included.
- * @throws {Error} If the prompt has no committed version to render — the
- *   caller (`OnlineEvalRuleService.judge`) turns this into a graceful
- *   failed-verdict reason rather than letting it crash the worker.
+ * @throws {ValidationError} If the prompt is not a prompt of this team, or has
+ *   no committed version — the caller (`OnlineEvalRuleService.judge`) turns
+ *   this into a graceful failed-verdict reason rather than crashing the worker.
  * @throws {NunjucksRenderError} If the custom template fails to render.
  */
 export async function compileCustomJudgePrompt(
+  teamId: string,
   promptId: string,
   input: { output: unknown; criteria: string | null; overallFeedback: string | null },
 ): Promise<ChatMessage[]> {
-  const production = await prisma.promptAlias.findFirst({
-    where: { promptId, alias: 'production' },
-    include: { version: { select: { messages: true } } },
-  });
-  const version =
-    production?.version ??
-    (await prisma.promptVersion.findFirst({
-      where: { promptId },
-      orderBy: { versionNumber: 'desc' },
-      select: { messages: true },
-    }));
-  if (!version) {
-    throw new Error('This judge prompt has no committed version yet.');
+  const template = await promptsRepo.findJudgeTemplateForTeam(promptId, teamId);
+  if (!template) {
+    throw new ValidationError('judge_prompt_id does not refer to a prompt in this team.');
   }
+  const messages = template.productionMessages ?? template.latestMessages;
+  if (!messages) {
+    throw new ValidationError(
+      `Judge prompt '${template.name}' has no committed version yet. Commit its judge template first.`,
+    );
+  }
+  return renderJudgeTemplate(messages as MessageInput[], {
+    output: input.output,
+    criteria: input.criteria ?? 'none',
+    overallFeedback: input.overallFeedback ?? 'none',
+  });
+}
 
+// Swaps each inline `data:` image part in the earlier turns for a short text stand-in.
+function withImagePlaceholders(history: ChatMessage[]): ChatMessage[] {
+  return history.map((message) =>
+    Array.isArray(message.content)
+      ? {
+          ...message,
+          content: message.content.map((part) =>
+            part.type === 'image_url' && /^data:/i.test(part.image_url.url)
+              ? { ...part, image_url: { ...part.image_url, url: '[inline image]' } }
+              : part,
+          ),
+        }
+      : message,
+  );
+}
+
+/**
+ * Renders one committed judge prompt version — a team's own grading template —
+ * into the judge conversation. Shared by online rules (through
+ * {@link compileCustomJudgePrompt}) and offline experiment runs, which freeze
+ * the version at run start and pass its messages here (issue #578).
+ *
+ * The template sees four variables: `output`, `criteria`, `overallFeedback`,
+ * and `history` (the earlier turns as JSON). An absent one is an empty string,
+ * so `{% if criteria %}` works the normal Jinja way. Inline `data:` images in
+ * `history` become `[inline image]`: the judge reads the earlier turns as
+ * text, and a multi-MB base64 string would fill the render sandbox's heap.
+ * Each is neutralized so
+ * the untrusted text cannot forge a delimiter marker however the template
+ * wraps it. {@link JUDGE_OUTPUT_CONTRACT} is always appended as the final
+ * message, so a custom prompt can change how the judge grades but never the
+ * JSON shape `parseVerdict` reads.
+ *
+ * @param messages - The version's stored messages (nunjucks templates).
+ * @param input - The grading inputs. `history` and `images` are optional.
+ *   `images` are the image parts the model under test was shown; they are
+ *   appended to the template's last user message, after its text, or sent as a
+ *   user message of their own when the template has no user message. The
+ *   template's own wording decides how the judge should use them.
+ * @returns The rendered judge conversation, contract message included.
+ * @throws {NunjucksRenderError} If the template fails to render.
+ */
+export async function renderJudgeTemplate(
+  messages: MessageInput[],
+  input: {
+    output: unknown;
+    criteria: string | null;
+    overallFeedback: string | null;
+    history?: ChatMessage[] | null;
+    images?: ImageContentPart[] | null;
+  },
+): Promise<ChatMessage[]> {
   const variables = {
     output: neutralizeJudgeOutput(input.output),
-    criteria: neutralizeDelimiterMarkers(input.criteria ?? 'none'),
-    overallFeedback: neutralizeDelimiterMarkers(input.overallFeedback ?? 'none'),
+    criteria: neutralizeDelimiterMarkers(input.criteria ?? ''),
+    overallFeedback: neutralizeDelimiterMarkers(input.overallFeedback ?? ''),
+    history:
+      input.history && input.history.length > 0
+        ? neutralizeDelimiterMarkers(JSON.stringify(withImagePlaceholders(input.history)))
+        : '',
   };
-  const rendered = await renderMessages(
-    version.messages as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-    variables,
-  );
+  const rendered: ChatMessage[] = await renderMessages(messages, variables);
+
+  const images = input.images ?? [];
+  if (images.length > 0) {
+    const lastUser = rendered.map((m) => m.role).lastIndexOf('user');
+    if (lastUser === -1) {
+      rendered.push({ role: 'user', content: [...images] });
+    } else {
+      const target = rendered[lastUser]!;
+      // An empty string becomes no text part at all: providers such as
+      // Anthropic reject an empty text block with a 400.
+      const parts =
+        typeof target.content === 'string'
+          ? target.content === ''
+            ? []
+            : [{ type: 'text' as const, text: target.content }]
+          : target.content ?? [];
+      rendered[lastUser] = { ...target, content: [...parts, ...images] };
+    }
+  }
   return [...rendered, { role: 'system', content: JUDGE_OUTPUT_CONTRACT }];
 }

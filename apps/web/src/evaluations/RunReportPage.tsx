@@ -79,6 +79,12 @@ export function RunReportPage() {
         <p className="mt-1 text-[13px] text-muted">
           {data.variants.length} variant{data.variants.length === 1 ? '' : 's'} × {data.models.length} model
           {data.models.length === 1 ? '' : 's'}
+          {data.judge?.model && (
+            <span data-testid="run-judge">
+              {' '}· judged by {data.judge.model}
+              {data.judge.promptVersionId ? ' with a custom judge prompt' : ''}
+            </span>
+          )}
         </p>
       </header>
 

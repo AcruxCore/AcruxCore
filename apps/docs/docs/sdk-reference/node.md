@@ -949,7 +949,7 @@ const session = await hub.sessions.get(sessionId);
 
 | Method | Description |
 |--------|-------------|
-| `experiments.create({ datasetId, versionIds, models, promptId?, name?, alias? })` | Create an experiment. Returns `ExperimentDto`. |
+| `experiments.create({ datasetId, versionIds, models, judgeModel, promptId?, name?, alias?, judgePromptId? })` | Create an experiment. `judgeModel` is required: the model that grades every result. `judgePromptId` is an optional prompt that grades instead of the built-in judge. Returns `ExperimentDto`. |
 | `experiments.list()` | List all experiments. Returns `ExperimentDto[]`. |
 | `experiments.get(id)` | Get an experiment. Returns `ExperimentDto`. |
 | `experiments.startRun(experimentId)` | Start a run for an experiment. Returns `StartRunResult` (`{ runId, status }`). |
@@ -969,7 +969,7 @@ const session = await hub.sessions.get(sessionId);
 
 | Method | Description |
 |--------|-------------|
-| `optimize.start(promptId, { datasetId, models, draftCount?, alias? })` | Start prompt optimization. Returns `StartOptimizeResult` (`{ runId, status, promptMismatchWarning? }`). |
+| `optimize.start(promptId, { datasetId, models, judgeModel, draftCount?, alias? })` | Start prompt optimization. `judgeModel` is required. Returns `StartOptimizeResult` (`{ runId, status, promptMismatchWarning? }`). |
 
 ## Where to next
 

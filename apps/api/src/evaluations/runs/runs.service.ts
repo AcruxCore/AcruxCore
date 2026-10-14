@@ -7,7 +7,7 @@ import { AliasesService } from '../../prompts/aliases/aliases.service';
 import { VersionsRepository } from '../../prompts/versions/versions.repository';
 import { MembersRepository } from '../../teams/members/members.repository';
 import { getFlowProducer, EVAL_CELLS_QUEUE, EVAL_RUNS_QUEUE, finalizeJobOpts } from '../queue';
-import { ConflictError, NotFoundError } from '../../shared/errors';
+import { ConflictError, NotFoundError, ValidationError } from '../../shared/errors';
 import { buildRunReport } from './report.aggregate';
 import { deriveGridShape, deriveRunKind, foldRunScores } from './run-list.aggregate';
 import type { ExperimentConfig } from '../experiments/experiments.types';
@@ -22,6 +22,7 @@ import type {
   RunCellDetailDto,
 } from './runs.types';
 import type { RunReport } from './report.types';
+import { assertModelRegistered, resolveJudgePromptVersion } from '../judge';
 
 /**
  * Business logic for starting and reading experiment runs: freezes the
@@ -60,6 +61,9 @@ export class RunsService {
    * @returns The created run's id and its initial `queued` status.
    * @throws {NotFoundError} If the experiment, its dataset, or any explicit
    *   `config.versionIds` entry does not resolve for this team.
+   * @throws {ValidationError} If the experiment has no judge model (it predates
+   *   per-experiment judges), or its judge model is no longer registered, or
+   *   its custom judge prompt was deleted or has no committed version.
    */
   async startRun(teamId: string, userId: string | null, experimentId: string): Promise<StartRunResult> {
     // How many times each cell (one gateway call) is attempted before it is
@@ -80,6 +84,25 @@ export class RunsService {
     }));
 
     const config = experiment.config as unknown as ExperimentConfig;
+    // No default judge exists, so an experiment saved before judges were chosen
+    // per request cannot be run: say so now, before a run row or any paid cell
+    // call exists, instead of letting every judge job fail in the worker. Also
+    // re-checked against the registry, since the model may have been removed
+    // since the experiment was created.
+    if (!config.judgeModel) {
+      throw new ValidationError(
+        'This experiment has no judge model — it was created before judges were chosen per experiment. Create a new experiment with a judge_model.',
+      );
+    }
+    await assertModelRegistered(teamId, config.judgeModel);
+    const judgeModel = config.judgeModel;
+    // A custom judge prompt is resolved to one version now and frozen onto
+    // every job, so promoting a new judge version mid-run cannot change how
+    // this run grades (FAQ Q5). A prompt deleted since the experiment was
+    // created fails here, before a run row or any paid call exists.
+    const judgePromptVersionId = config.judgePromptId
+      ? await resolveJudgePromptVersion(teamId, config.judgePromptId)
+      : undefined;
     const grid = await this.resolveGrid(teamId, experiment.promptId, config);
 
     const run = await this.runsRepo.createRun(teamId, experimentId, {
@@ -88,6 +111,10 @@ export class RunsService {
       // Recorded so the run-finished email can reach whoever is waiting on it.
       // Null for a team-scoped API key caller, which has no acting user.
       createdBy: userId,
+      // Recorded on the run as well as on its jobs, so a finished run still
+      // says which judge graded it after the experiment or alias moves on.
+      judgeModel,
+      judgePromptVersionId: judgePromptVersionId ?? null,
     });
 
     await getFlowProducer().add({
@@ -113,6 +140,11 @@ export class RunsService {
             // grades against this frozen value, not the live mutable dataset
             // (FAQ Q5 reproducibility).
             overallFeedback: dataset.overallFeedback,
+            // The experiment's judge, forwarded cell → judge job. The worker
+            // has no fallback of its own.
+            judgeModel,
+            // The frozen custom judge prompt version; absent for the built-in judge.
+            ...(judgePromptVersionId ? { judgePromptVersionId } : {}),
           },
           opts: {
             // Retries-with-backoff for flaky provider calls (FAQ Q13): a cell
@@ -287,10 +319,13 @@ export class RunsService {
     const data = await this.runsRepo.getRunWithResults(teamId, runId);
     if (!data) throw new NotFoundError('Run not found.');
 
-    return buildRunReport({
-      run: { id: data.id, status: data.status, grid: data.grid },
-      results: data.results,
-    });
+    return {
+      ...buildRunReport({
+        run: { id: data.id, status: data.status, grid: data.grid },
+        results: data.results,
+      }),
+      judge: { model: data.judgeModel, promptVersionId: data.judgePromptVersionId },
+    };
   }
 
   /**

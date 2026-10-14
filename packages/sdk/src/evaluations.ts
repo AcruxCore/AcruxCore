@@ -120,6 +120,8 @@ export class ExperimentsNamespace {
       ...(params.name !== undefined ? { name: params.name } : {}),
       version_ids: params.versionIds,
       models: params.models,
+      judge_model: params.judgeModel,
+      ...(params.judgePromptId !== undefined ? { judge_prompt_id: params.judgePromptId } : {}),
       ...(params.alias !== undefined ? { alias: params.alias } : {}),
     };
     const response = await this.client._request('POST', '/experiments', body, 'creating experiment');
@@ -226,6 +228,7 @@ export class OptimizeNamespace {
     const body: Record<string, unknown> = {
       dataset_id: params.datasetId,
       models: params.models,
+      judge_model: params.judgeModel,
     };
     if (params.draftCount !== undefined) body['draft_count'] = params.draftCount;
     if (params.alias !== undefined) body['alias'] = params.alias;

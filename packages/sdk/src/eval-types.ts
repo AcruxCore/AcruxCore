@@ -86,6 +86,10 @@ export interface ExperimentDto {
     versionIds: string[];
     models: string[];
     alias?: string;
+    /** The model that grades this experiment's runs. Absent on experiments created before judges were chosen per experiment; those cannot be run. */
+    judgeModel?: string;
+    /** The custom judge prompt, when one was chosen. Absent for the built-in judge. */
+    judgePromptId?: string;
   };
   createdBy: string | null;
   createdAt: string;
@@ -103,6 +107,10 @@ export interface ExperimentRunDto {
   endedAt: string | null;
   error: string | null;
   createdAt: string;
+  /** The judge model that graded this run. Null for runs created before it was recorded on the run. */
+  judgeModel: string | null;
+  /** The custom judge prompt version frozen at run start. Null for the built-in judge. */
+  judgePromptVersionId: string | null;
 }
 
 export interface CreateExperimentParams {
@@ -112,6 +120,13 @@ export interface CreateExperimentParams {
   versionIds: string[];
   models: string[];
   alias?: string;
+  /** The model that grades every result: a model registered under Gateway → Models. Required; there is no server-side default. */
+  judgeModel: string;
+  /**
+   * A prompt of yours that grades instead of the built-in judge. Each run uses its
+   * `production` version (else its latest). Omit for the built-in judge.
+   */
+  judgePromptId?: string;
 }
 
 // ── Run types ──
@@ -218,6 +233,8 @@ export interface RunReport {
     model: string;
     avgScore: number;
   } | null;
+  /** The judge that graded this run. Absent from servers older than this field. */
+  judge?: { model: string | null; promptVersionId: string | null };
 }
 
 export interface RunCellExampleDto {
@@ -286,6 +303,8 @@ export interface StartOptimizeParams {
   models: string[];
   draftCount?: number;
   alias?: string;
+  /** The model that grades every candidate and baseline result: a model registered under Gateway → Models. Required; there is no server-side default. */
+  judgeModel: string;
 }
 
 export interface StartOptimizeResult {

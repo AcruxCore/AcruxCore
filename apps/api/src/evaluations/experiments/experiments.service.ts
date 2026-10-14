@@ -12,6 +12,7 @@ import { PromptsRepository } from '../../prompts/prompts.repository';
 import { VersionsRepository } from '../../prompts/versions/versions.repository';
 import { DatasetsService } from '../datasets/datasets.service';
 import { ConflictError, NotFoundError, ValidationError } from '../../shared/errors';
+import { assertModelRegistered, resolveJudgePromptVersion } from '../judge';
 
 /**
  * Business logic for the experiments domain: creating an experiment (a
@@ -49,6 +50,8 @@ export class ExperimentsService {
    *   would confirm that the id names a real object somewhere.
    * @throws {ValidationError} If `version_ids.length * models.length * datasetExampleCount`
    *   exceeds `MAX_EXPERIMENT_GRID_SIZE` — each cell is a real, paid provider call.
+   * @throws {ValidationError} If `judge_model` is not a model this team has registered.
+   * @throws {ValidationError} If `judge_prompt_id` is not this team's prompt, or has no committed version.
    */
   async create(teamId: string, createdBy: string | null, dto: CreateExperimentDto): Promise<CreateExperimentResult> {
     const dataset = await this.datasetsRepo.getDatasetById(teamId, dto.dataset_id);
@@ -80,9 +83,14 @@ export class ExperimentsService {
       ? await new DatasetsService(this.datasetsRepo).checkPromptMismatch(dataset.examples, dto.prompt_id, teamId)
       : null;
 
+    await assertModelRegistered(teamId, dto.judge_model);
+    if (dto.judge_prompt_id) await resolveJudgePromptVersion(teamId, dto.judge_prompt_id);
+
     const config: ExperimentConfig = {
       versionIds: dto.version_ids,
       models: dto.models,
+      judgeModel: dto.judge_model,
+      ...(dto.judge_prompt_id ? { judgePromptId: dto.judge_prompt_id } : {}),
       ...(dto.alias ? { alias: dto.alias } : {}),
     };
     const created = await this.repo.create(teamId, createdBy, {
@@ -168,6 +176,8 @@ export class ExperimentsService {
         endedAt: run.endedAt ? run.endedAt.toISOString() : null,
         error: run.error,
         createdAt: run.createdAt.toISOString(),
+        judgeModel: run.judgeModel,
+        judgePromptVersionId: run.judgePromptVersionId,
       })),
     };
   }

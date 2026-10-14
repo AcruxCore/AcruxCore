@@ -5,17 +5,13 @@ import { GatewayRepository } from '../../gateway/completions/gateway.repository'
 import { ConnectionsRepository } from '../../gateway/connections/connections.repository';
 import type { GatewayCallContext } from '../../gateway/completions/completions.types';
 import type { ChatMessage, ImageContentPart } from '../../gateway/providers/types';
-import { compileEvaluatePrompt } from './judge.prompt';
+import { compileEvaluatePrompt, renderJudgeTemplate } from './judge.prompt';
+import { VersionsRepository } from '../../prompts/versions/versions.repository';
+import { NunjucksRenderError, type MessageInput } from '../../prompts/versions/nunjucks.utils';
 import { parseVerdict } from './judge.parse';
 
-/**
- * The LLM-as-judge model, overridable per deployment. `gpt-4o-mini` mirrors
- * the model used throughout this repo's eval-engine tests/fixtures (E3) —
- * capable enough to grade semantically, cheap enough to run on every result.
- */
-const JUDGE_MODEL = process.env.EVAL_JUDGE_MODEL ?? 'gpt-4o-mini';
-
 const runsRepo = new RunsRepository();
+const versionsRepo = new VersionsRepository();
 // Same construction as cell.processor.ts's module-level instance — the judge
 // call goes through the identical DI wiring (budgets/cache/cost ledger) as
 // any other in-process gateway caller, so it is never a bypass of team spend
@@ -32,10 +28,11 @@ export class JudgeService {
   /**
    * Scores one `eval_result` row, in place.
    *
-   * Skips scoring (writes no numeric score, but still writes a `reason`
-   * marker — see below) when the result has neither per-example `criteria`
-   * nor a dataset-level `overallFeedback` — there is nothing to grade
-   * against. Otherwise compiles the evaluate prompt, calls the judge model
+   * With the built-in judge, skips scoring (writes no numeric score, but
+   * still writes a `reason` marker — see below) when the result has neither
+   * per-example `criteria` nor a dataset-level `overallFeedback` — there is
+   * nothing to grade against. A custom judge prompt always runs, since its
+   * template can hold its own rubric. Otherwise compiles the judge prompt, calls the judge model
    * once, and retries exactly once on a parse failure before giving up and
    * recording an unscored placeholder with a `judge parse error` reason.
    *
@@ -49,6 +46,10 @@ export class JudgeService {
    *
    * @param teamId - Isolation boundary; the result must belong to this team.
    * @param resultId - The `eval_result` row to score.
+   * @param judgeModel - The team-registered `GatewayModel.publicName` that
+   *   grades this result. Always the caller's choice (`judge_model` on the
+   *   experiment or optimize request): the server has no default, in code or
+   *   in the environment.
    * @param frozen - The grading inputs FROZEN at run-start (per-example
    *   `criteria` + dataset-level `overallFeedback`, plus the example's
    *   `history` — FAQ Q19), threaded from the run snapshot via the judge job.
@@ -57,7 +58,12 @@ export class JudgeService {
    *   (FAQ Q5 reproducibility). Omitted only by legacy callers / pre-existing
    *   jobs, which fall back to reading the result's live
    *   `criteria`/`overallFeedback`/`history`. `images` carries the image(s) the model saw, so the
-   *   judge model must be able to read images when an example has one (`EVAL_JUDGE_MODEL`).
+   *   judge model must be able to read images when an example has one (`judgeModel`).
+   * @param judgePromptVersionId - The custom judge prompt version the run froze
+   *   at start (issue #578), or absent for the built-in judge. Looked up within
+   *   `teamId`. If it is not found or its template fails to render, the result
+   *   is written unscored with a `judge prompt error: …` reason and no model is
+   *   called. Any other error loading it is rethrown, so BullMQ retries.
    * @returns Nothing. The verdict (or the unscored placeholder) is persisted
    *   as a side effect via `RunsRepository.writeVerdict`.
    * @throws {NotFoundError} Never thrown directly — a missing/cross-team
@@ -73,6 +79,7 @@ export class JudgeService {
   async scoreResult(
     teamId: string,
     resultId: string,
+    judgeModel: string,
     frozen?: {
       criteria: string | null;
       overallFeedback: string | null;
@@ -80,6 +87,7 @@ export class JudgeService {
       /** The image(s) the model under test was shown, for a vision judge (issue #573). */
       images?: ImageContentPart[] | null;
     },
+    judgePromptVersionId?: string | null,
   ): Promise<void> {
     const result = await runsRepo.getResultById(teamId, resultId);
     if (!result) {
@@ -91,27 +99,50 @@ export class JudgeService {
     const criteria = frozen ? frozen.criteria : result.example.criteria;
     const overallFeedback = frozen ? frozen.overallFeedback : result.example.dataset.overallFeedback;
     const history = frozen ? frozen.history ?? null : (result.example.history as unknown as ChatMessage[] | null);
-    if (criteria === null && overallFeedback === null) {
-      // Nothing to grade against. Still write a marker (score/passed stay
-      // null; only `reason` is set) so finalize.processor's readiness check
-      // can distinguish "judged, intentionally not scored" from "judge job
-      // hasn't run yet" — see this method's own docstring.
-      await runsRepo.writeVerdict(resultId, {
-        score: null,
-        passed: null,
-        reason: 'not judged: no criteria or overall feedback to grade against',
-        judgeTraceId: null,
-      });
-      return;
-    }
+    const gradingInput = { output: result.output, criteria, overallFeedback, history, images: frozen?.images ?? null };
 
-    const messages = compileEvaluatePrompt({
-      output: result.output,
-      criteria,
-      overallFeedback,
-      history,
-      images: frozen?.images ?? null,
-    });
+    let messages: ChatMessage[];
+    if (judgePromptVersionId) {
+      // A team's own judge template (issue #578). It always runs, even with no
+      // criteria: the template can hold its own rubric (phase-5 FAQ Q43).
+      const version = await versionsRepo.findByIdForTeam(judgePromptVersionId, teamId);
+      // A missing version or a template that fails to render fails every
+      // retry the same way, so record why the result is unscored and stop,
+      // without calling a model. Any other error (a database error, say) is
+      // rethrown so BullMQ retries it.
+      const rendered = version
+        ? await renderJudgeTemplate(version.messages as unknown as MessageInput[], gradingInput).catch((err: unknown) => {
+            if (err instanceof NunjucksRenderError) return err.message;
+            throw err;
+          })
+        : 'the judge prompt version was not found.';
+      if (typeof rendered === 'string') {
+        await runsRepo.writeVerdict(resultId, {
+          score: null,
+          passed: null,
+          reason: `judge prompt error: ${rendered}`,
+          judgeTraceId: null,
+        });
+        return;
+      }
+      messages = rendered;
+    } else {
+      if (criteria === null && overallFeedback === null) {
+        // The built-in judge has no rubric of its own, so there is nothing to
+        // grade against. Still write a marker (score/passed stay null; only
+        // `reason` is set) so finalize.processor's readiness check can
+        // distinguish "judged, intentionally not scored" from "judge job
+        // hasn't run yet" — see this method's own docstring.
+        await runsRepo.writeVerdict(resultId, {
+          score: null,
+          passed: null,
+          reason: 'not judged: no criteria or overall feedback to grade against',
+          judgeTraceId: null,
+        });
+        return;
+      }
+      messages = compileEvaluatePrompt(gradingInput);
+    }
 
     const attempt = async (): Promise<{ verdict: ReturnType<typeof parseVerdict>; traceId: string }> => {
       // Minted up front, same reasoning as cell.processor.ts: GatewayResult
@@ -121,7 +152,7 @@ export class JudgeService {
       // trace id without a lookup.
       const traceId = randomUUID();
       const ctx: GatewayCallContext = { teamId, traceId };
-      const gatewayResult = await gateway.complete(ctx, { model: JUDGE_MODEL, messages, temperature: 0 });
+      const gatewayResult = await gateway.complete(ctx, { model: judgeModel, messages, temperature: 0 });
       const assistantContent = gatewayResult.body.choices[0]?.message.content ?? '';
       return { verdict: parseVerdict(assistantContent), traceId };
     };

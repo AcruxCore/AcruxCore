@@ -244,7 +244,7 @@ describe('an eval over a prompt with an image (issue #573)', () => {
     const experiment = (
       await agent
         .post('/api/v1/experiments')
-        .send({ dataset_id: dataset.id, prompt_id: promptId, version_ids: [versionId], models: ['gpt-4o-mini'] })
+        .send({ dataset_id: dataset.id, prompt_id: promptId, version_ids: [versionId], models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini' })
         .expect(201)
     ).body;
     const run = await runsRepo.createRun(teamId, experiment.id, {
@@ -260,6 +260,7 @@ describe('an eval over a prompt with an image (issue #573)', () => {
       variantLabel: 'v1',
       model: 'gpt-4o-mini',
       exampleId: example.id as string,
+      judgeModel: 'gpt-4o-mini',
     };
     return { run, cell };
   }
@@ -293,6 +294,43 @@ describe('an eval over a prompt with an image (issue #573)', () => {
     expect(judged.score).toBe(100);
   });
 
+  it("shows the image to a custom judge prompt too, after the template's last user message (issue #578)", async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const { run, cell } = await arrangeRun(teamId, agent, RECEIPT_URL, 'Expected company BLUE HERON CAFE, total 12.50.');
+    const judgePrompt = (await agent.post('/api/v1/prompts').send({ name: 'receipt judge' }).expect(201)).body;
+    const judgeVersion = (
+      await agent
+        .post(`/api/v1/prompts/${judgePrompt.id}/versions`)
+        .send({
+          messages: [
+            { role: 'system', content: 'Ignore formatting differences. Expected: {{ criteria }}' },
+            { role: 'user', content: 'Extracted: {{ output }}' },
+          ],
+        })
+        .expect(201)
+    ).body;
+    const sent = fakeProvider(
+      completion('BLUE HERON CAFE 12.50'),
+      completion(JSON.stringify({ score: 100, passed: true, reason: 'Matches the receipt.' })),
+    );
+
+    await processCell({ ...cell, judgePromptVersionId: judgeVersion.id });
+    const [job] = await getJudgeQueue().getJobs(['waiting', 'delayed']);
+    expect(job!.data.judgePromptVersionId).toBe(judgeVersion.id);
+    await processJudge(job!.data);
+
+    const judgeMessages = sent[1]!['messages'];
+    expect(judgeMessages[0]).toEqual({
+      role: 'system',
+      content: 'Ignore formatting differences. Expected: Expected company BLUE HERON CAFE, total 12.50.',
+    });
+    expect(judgeMessages[1].role).toBe('user');
+    expect(judgeMessages[1].content[0].text).toBe('Extracted: BLUE HERON CAFE 12.50');
+    expect(judgeMessages[1].content[1]).toEqual({ type: 'image_url', image_url: { url: RECEIPT_URL, detail: 'high' } });
+    const judged = await prisma.evalResult.findFirstOrThrow({ where: { experimentRunId: run.id } });
+    expect(judged.score).toBe(100);
+  });
+
   it('sends a text-only judge prompt, with no image note, when the prompt has no image', async () => {
     const { agent, teamId } = await authedAgent(app);
     const conn = await agent
@@ -314,7 +352,7 @@ describe('an eval over a prompt with an image (issue #573)', () => {
     const experiment = (
       await agent
         .post('/api/v1/experiments')
-        .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [version.id], models: ['gpt-4o-mini'] })
+        .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [version.id], models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini' })
         .expect(201)
     ).body;
     const run = await runsRepo.createRun(teamId, experiment.id, {
@@ -335,6 +373,7 @@ describe('an eval over a prompt with an image (issue #573)', () => {
       variantLabel: 'v1',
       model: 'gpt-4o-mini',
       exampleId: example.id,
+      judgeModel: 'gpt-4o-mini',
     });
     const [job] = await getJudgeQueue().getJobs(['waiting', 'delayed']);
     expect(job!.data.images).toBeUndefined();
@@ -417,7 +456,7 @@ describe('large and missing inline images (review of PR #574)', () => {
     const experiment = (
       await agent
         .post('/api/v1/experiments')
-        .send({ dataset_id: dataset.id, prompt_id: promptId, version_ids: [versionId], models: ['gpt-4o-mini'] })
+        .send({ dataset_id: dataset.id, prompt_id: promptId, version_ids: [versionId], models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini' })
         .expect(201)
     ).body;
     const run = await runsRepo.createRun(teamId, experiment.id, {

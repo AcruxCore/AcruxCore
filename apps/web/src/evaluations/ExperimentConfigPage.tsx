@@ -14,6 +14,8 @@ import {
 } from '@/api';
 import type { Experiment } from '@/api';
 import { Button, Empty, Field, Input, PageSpinner, Select } from '@/ui';
+import { JudgeModelField } from './JudgeModelField';
+import { JudgePromptField } from './JudgePromptField';
 import { ModelCheckboxList } from './ModelCheckboxList';
 
 /** Toggles membership of `id` in a `Set`, returning a new set (never mutates in place). */
@@ -44,6 +46,8 @@ export function ExperimentConfigPage() {
   const [models, setModels] = useState<Set<string>>(new Set());
   const [name, setName] = useState('');
   const [alias, setAlias] = useState('');
+  const [judgeModel, setJudgeModel] = useState('');
+  const [judgePrompt, setJudgePrompt] = useState<{ id: string; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mismatchWarning, setMismatchWarning] = useState<{
     runId: string;
@@ -84,6 +88,10 @@ export function ExperimentConfigPage() {
       setError('Pick at least one model.');
       return;
     }
+    if (!judgeModel) {
+      setError('Pick a judge model.');
+      return;
+    }
     setError(null);
     try {
       const experiment = await createExperiment.mutateAsync({
@@ -92,6 +100,8 @@ export function ExperimentConfigPage() {
         name: name.trim() || undefined,
         version_ids: [...versionIds],
         models: [...models],
+        judge_model: judgeModel,
+        ...(judgePrompt ? { judge_prompt_id: judgePrompt.id } : {}),
         ...(alias ? { alias } : {}),
       });
       const { run_id } = await startRun.mutateAsync(experiment.id);
@@ -226,6 +236,17 @@ export function ExperimentConfigPage() {
             />
           )}
         </Field>
+
+        <JudgeModelField id="experiment-judge-model" value={judgeModel} onChange={setJudgeModel} grades="every result" />
+
+        <JudgePromptField
+          id="experiment-judge-prompt"
+          value={judgePrompt}
+          onChange={setJudgePrompt}
+          newPromptName={`${dataset.data.name} judge`}
+          grades="every result"
+          dataset={{ examples: dataset.data.examples, overallFeedback: dataset.data.overallFeedback }}
+        />
 
         {mismatchWarning && (
           <p className="text-[13px] text-warn">

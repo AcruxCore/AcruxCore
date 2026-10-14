@@ -182,14 +182,25 @@ class ExperimentsNamespace:
         version_ids: List[str],
         models: List[str],
         *,
+        judge_model: str,
         prompt_id: Optional[str] = None,
         name: Optional[str] = None,
         alias: Optional[str] = None,
+        judge_prompt_id: Optional[str] = None,
     ) -> ExperimentDto:
+        """Create an experiment.
+
+        ``judge_model`` is the model that grades every result: a model registered
+        under Gateway → Models. It is required because the server has no default judge.
+
+        ``judge_prompt_id`` is a prompt of yours that grades instead of the built-in
+        judge. Each run uses its ``production`` version (else its latest).
+        """
         body: Dict[str, Any] = {
             "dataset_id": dataset_id,
             "version_ids": version_ids,
             "models": models,
+            "judge_model": judge_model,
         }
         if prompt_id is not None:
             body["prompt_id"] = prompt_id
@@ -197,6 +208,8 @@ class ExperimentsNamespace:
             body["name"] = name
         if alias is not None:
             body["alias"] = alias
+        if judge_prompt_id is not None:
+            body["judge_prompt_id"] = judge_prompt_id
         response = await self._client._request(
             "POST", "/experiments", body, "creating experiment"
         )
@@ -375,12 +388,20 @@ class OptimizeNamespace:
         dataset_id: str,
         models: List[str],
         *,
+        judge_model: str,
         draft_count: Optional[int] = None,
         alias: Optional[str] = None,
     ) -> StartOptimizeResult:
+        """Start an optimize run.
+
+        ``judge_model`` is the model that grades every candidate and baseline result:
+        a model registered under Gateway → Models. It is required because the server
+        has no default judge.
+        """
         body: Dict[str, Any] = {
             "dataset_id": dataset_id,
             "models": models,
+            "judge_model": judge_model,
         }
         if draft_count is not None:
             body["draft_count"] = draft_count

@@ -275,7 +275,8 @@ ${fn('curl')} -X POST $ACRUX/experiments \\
     "dataset_id": "b7f1c0e2-…",
     "prompt_id": "4d9a7c18-…",
     "version_ids": ["e21c8a5f-…", "9c3b6d40-…"],
-    "models": ["gpt-4o-mini"]
+    "models": ["gpt-4o-mini"],
+    "judge_model": "gpt-4o"
   }'`)}
 ${cm('# → 201 { "id": … }  ← that is $EXP_ID')}
 

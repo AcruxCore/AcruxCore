@@ -29,6 +29,10 @@ export interface RunReportInputs {
   status: 'queued' | 'running' | 'succeeded' | 'failed';
   grid: ReportGridCell[];
   results: EvalResultRow[];
+  /** The judge model recorded at run start; null for runs created before it was. */
+  judgeModel: string | null;
+  /** The frozen custom judge prompt version; null for the built-in judge. */
+  judgePromptVersionId: string | null;
 }
 
 /** One (variant × model) cell as frozen into `ExperimentRun.grid` at run-start (`RunsService.resolveGrid`). */
@@ -107,6 +111,8 @@ export class RunsRepository {
       exampleSnapshot: Prisma.InputJsonValue;
       grid: Prisma.InputJsonValue;
       createdBy?: string | null;
+      judgeModel?: string | null;
+      judgePromptVersionId?: string | null;
     },
   ): Promise<Prisma.ExperimentRunGetPayload<{}>> {
     return prisma.experimentRun.create({
@@ -117,6 +123,8 @@ export class RunsRepository {
         exampleSnapshot: data.exampleSnapshot,
         grid: data.grid,
         createdBy: data.createdBy ?? null,
+        judgeModel: data.judgeModel ?? null,
+        judgePromptVersionId: data.judgePromptVersionId ?? null,
       },
     });
   }
@@ -645,7 +653,14 @@ export class RunsRepository {
       passed: row.passed,
     }));
 
-    return { id: run.id, status: run.status, grid, results };
+    return {
+      id: run.id,
+      status: run.status,
+      grid,
+      results,
+      judgeModel: run.judgeModel,
+      judgePromptVersionId: run.judgePromptVersionId,
+    };
   }
 
   /**

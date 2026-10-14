@@ -98,4 +98,10 @@ export interface RunReport {
   cells: RunReportCell[];
   leaderboard: string[];
   winner: RunReportWinner | null;
+  /**
+   * The judge that graded this run, as recorded on the run at start. Both
+   * fields are null for runs created before the judge was recorded on the run;
+   * `promptVersionId` is also null when the built-in judge graded it.
+   */
+  judge?: { model: string | null; promptVersionId: string | null };
 }

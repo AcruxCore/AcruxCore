@@ -210,6 +210,11 @@ export async function processCell(data: CellJobData): Promise<void> {
       criteria: example.criteria,
       history: example.history,
       overallFeedback: data.overallFeedback ?? null,
+      // The caller's chosen judge, carried as-is. Absent only on a job queued
+      // before judges were chosen per run; the judge refuses those.
+      ...(data.judgeModel ? { judgeModel: data.judgeModel } : {}),
+      // The run's frozen custom judge prompt version, when it has one.
+      ...(data.judgePromptVersionId ? { judgePromptVersionId: data.judgePromptVersionId } : {}),
       // The same image(s) the model saw, so a vision judge can check its answer against them.
       ...(images.length > 0 ? { images } : {}),
     },
@@ -227,7 +232,8 @@ export async function processCell(data: CellJobData): Promise<void> {
 }
 
 /**
- * Decides whether a failed cell job is final, so the worker writes its error row now.
+ * Decides whether a failed eval job is final, so the worker writes its error row now. The
+ * cell, judge and optimize workers all use it.
  *
  * BullMQ does not retry an `UnrecoverableError`, but the job still reports fewer attempts made
  * than allowed. A handler that only compared the two counts waited for retries that never came,

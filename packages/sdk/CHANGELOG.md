@@ -12,6 +12,26 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+### Added
+
+- `experiments.create` takes an optional `judgePromptId`: a prompt of yours that grades instead of the
+  built-in judge. Each run uses its `production` version (else its latest).
+- Typed judge fields: `ExperimentDto.config.judgeModel` and `judgePromptId`, each run's
+  `judgeModel` and `judgePromptVersionId`, and `RunReport.judge` (the judge that graded the run).
+
+### Changed
+
+- **`experiments.create` and `optimize.start` now require `judgeModel`.** The server no
+  longer picks the judge for offline runs; name a model registered under Gateway → Models.
+  Sent as `judge_model`. [Why](../../docs/superpowers/specs/phase-5/phase-5-faq.md)
+
+  **Migrating from 0.17**
+
+  1. Add `judgeModel: '<registered model name>'` to every `experiments.create({ … })` and
+     `optimize.start(promptId, { … })` call.
+  2. TypeScript catches a miss at compile time (`Property 'judgeModel' is missing`).
+     JavaScript callers must grep for both calls; without it the API answers 400.
+
 ## 0.17.0 — 2026-10-13
 
 ### Added

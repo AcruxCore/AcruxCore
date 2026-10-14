@@ -33,6 +33,18 @@ export const CreateExperimentSchema = z.object({
   // has no 'production' alias. No effect when `prompt_id` is omitted (no
   // baseline is ever injected in that case).
   alias: z.string().min(1).optional(),
+  // The model that grades every result. Required: the platform has no default
+  // judge (no code constant, no env var), so the caller always picks one. A
+  // team-registered `GatewayModel.publicName`; checked in the service because
+  // the check needs the team.
+  judge_model: z
+    .string({ required_error: 'judge_model is required: name a model registered under Gateway → Models.' })
+    .min(1, 'judge_model must not be empty.')
+    .max(200),
+  // Optional team prompt that replaces the built-in judge template (issue #578).
+  // Omitted -> the built-in judge. Checked in the service: it must be this
+  // team's prompt with at least one committed version.
+  judge_prompt_id: z.string().uuid().optional(),
 });
 
 /** Validated create-experiment payload. */
@@ -43,6 +55,18 @@ export interface ExperimentConfig {
   versionIds: string[];
   models: string[];
   alias?: string;
+  /**
+   * The judge model, as the caller named it. Optional in the type only because
+   * experiments saved before judges were chosen per request have none;
+   * `RunsService.startRun` refuses to run those rather than guess one.
+   */
+  judgeModel?: string;
+  /**
+   * The team prompt that grades instead of the built-in judge, when the caller
+   * chose one. Stored as the prompt, not a version: each run resolves it to
+   * the prompt's current `production` (else latest) version and freezes that.
+   */
+  judgePromptId?: string;
 }
 
 /** Response DTO for an experiment run (summary — no results list). */
@@ -54,6 +78,10 @@ export interface ExperimentRunDto {
   endedAt: string | null;
   error: string | null;
   createdAt: string;
+  /** Judge model recorded at run start; null on runs created before it was recorded. */
+  judgeModel: string | null;
+  /** Custom judge prompt version frozen at run start; null for the built-in judge. */
+  judgePromptVersionId: string | null;
 }
 
 /**

@@ -53,6 +53,13 @@ export const StartOptimizeSchema = z.object({
   // (a 400 naming the model, like `judgeModel`) rather than here, since the
   // check needs the team. Omitted -> the first entry of `models`.
   optimizer_model: z.string().min(1).optional(),
+  // The model that grades every candidate and baseline result. Required, like
+  // `judge_model` on an experiment: the server has no default judge. Validated
+  // against the team's registry in the service.
+  judge_model: z
+    .string({ required_error: 'judge_model is required: name a model registered under Gateway → Models.' })
+    .min(1, 'judge_model must not be empty.')
+    .max(200),
   // Optional team Prompt used as the optimizer's instructions instead of the
   // built-in ones. Mirrors `EvalRule.judgePromptId`. The output contract and the
   // untrusted-data message are appended regardless, so a custom template can

@@ -1,4 +1,5 @@
 import request from 'supertest';
+import { UnrecoverableError } from 'bullmq';
 import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
 import { processOptimize, processCell } from '../runs';
@@ -134,6 +135,32 @@ afterAll(async () => {
   await getRedisConnection().quit();
 });
 
+describe('an optimize job queued before judges were chosen per request', () => {
+  it('fails at once, before the paid optimizer call or any cell, and is not retried', async () => {
+    const { agent, teamId, userId } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agent);
+    mockFetchOnce(cannedOptimizer([{ messages: [{ role: 'system', content: 'Hi {{ name }}' }], rationale: 'x' }]));
+    const run = (
+      await agent
+        .post(`/api/v1/prompts/${promptId}/optimize`)
+        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini', draft_count: 1 })
+        .expect(202)
+    ).body;
+    const experimentId = (await prisma.experimentRun.findUniqueOrThrow({ where: { id: run.run_id } })).experimentId;
+    jest.restoreAllMocks();
+    const fetchSpy = jest.spyOn(global, 'fetch');
+
+    // A legacy payload: no `judgeModel`, so every judge job it would enqueue must fail.
+    const legacyJob = { teamId, userId, promptId, experimentId, runId: run.run_id, datasetId, models: ['gpt-4o-mini'], draftCount: 1 };
+    const err = await processOptimize(legacyJob).catch((e: Error) => e);
+
+    expect(err).toBeInstanceOf(UnrecoverableError);
+    expect((err as Error).message).toMatch(/judge model/i);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(await prisma.promptCandidate.count({ where: { experimentRunId: run.run_id } })).toBe(0);
+  });
+});
+
 describe('POST /prompts/:promptId/optimize + processOptimize', () => {
   it('drafts candidates and runs them + production baseline through the grid', async () => {
     const { agent, teamId, userId } = await authedAgent(app);
@@ -149,13 +176,17 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
     const run = (
       await agent
         .post(`/api/v1/prompts/${promptId}/optimize`)
-        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], draft_count: 2 })
+        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini', draft_count: 2 })
         .expect(202)
     ).body;
     expect(run.status).toBe('queued');
 
     const runRowBefore = await prisma.experimentRun.findUnique({ where: { id: run.run_id } });
     const experimentId = runRowBefore!.experimentId;
+    // The judge is recorded on the run at start, like an experiment run. An
+    // optimize run has no custom judge prompt, so the version id stays null.
+    expect(runRowBefore!.judgeModel).toBe('gpt-4o-mini');
+    expect(runRowBefore!.judgePromptVersionId).toBeNull();
 
     await processOptimize({
       teamId,
@@ -165,8 +196,12 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
       runId: run.run_id,
       datasetId,
       models: ['gpt-4o-mini'],
+      judgeModel: 'gpt-4o-mini',
       draftCount: 2,
     });
+
+    const report = (await agent.get(`/api/v1/runs/${run.run_id}/report`).expect(200)).body;
+    expect(report.judge).toEqual({ model: 'gpt-4o-mini', promptVersionId: null });
 
     const candidates = await prisma.promptCandidate.findMany({ where: { experimentRunId: run.run_id } });
     expect(candidates.length).toBe(2);
@@ -218,7 +253,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
     const run = (
       await agent
         .post(`/api/v1/prompts/${prompt.id}/optimize`)
-        .send({ dataset_id: dataset.id, models: ['gpt-4o-mini'], draft_count: 1 })
+        .send({ dataset_id: dataset.id, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini', draft_count: 1 })
         .expect(202)
     ).body;
     const runRowBefore = await prisma.experimentRun.findUnique({ where: { id: run.run_id } });
@@ -231,6 +266,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
       runId: run.run_id,
       datasetId: dataset.id,
       models: ['gpt-4o-mini'],
+      judgeModel: 'gpt-4o-mini',
       draftCount: 1,
     });
 
@@ -255,7 +291,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
     const run = (
       await agent
         .post(`/api/v1/prompts/${promptId}/optimize`)
-        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], draft_count: 2 })
+        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini', draft_count: 2 })
         .expect(202)
     ).body;
 
@@ -270,6 +306,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
       runId: run.run_id,
       datasetId,
       models: ['gpt-4o-mini'],
+      judgeModel: 'gpt-4o-mini',
       draftCount: 2,
     });
 
@@ -292,7 +329,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
     const run = (
       await agent
         .post(`/api/v1/prompts/${promptId}/optimize`)
-        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], draft_count: 2 })
+        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini', draft_count: 2 })
         .expect(202)
     ).body;
 
@@ -307,6 +344,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
       runId: run.run_id,
       datasetId,
       models: ['gpt-4o-mini'],
+      judgeModel: 'gpt-4o-mini',
       draftCount: 2,
     });
 
@@ -329,7 +367,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
 
     const res = await agent
       .post(`/api/v1/prompts/${promptId}/optimize`)
-      .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], optimizer_model: 'not-registered-anywhere' })
+      .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini', optimizer_model: 'not-registered-anywhere' })
       .expect(400);
 
     expect(res.body.error.message).toContain("not-registered-anywhere");
@@ -345,7 +383,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
     const run = (
       await agent
         .post(`/api/v1/prompts/${promptId}/optimize`)
-        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'] })
+        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini' })
         .expect(202)
     ).body;
 
@@ -371,7 +409,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
     const run = (
       await agent
         .post(`/api/v1/prompts/${promptId}/optimize`)
-        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], optimizer_model: 'gpt-4o', draft_count: 1 })
+        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini', optimizer_model: 'gpt-4o', draft_count: 1 })
         .expect(202)
     ).body;
     expect(run.optimizer_model).toBe('gpt-4o');
@@ -392,6 +430,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
       datasetId,
       models: ['gpt-4o-mini'],
       optimizerModel: 'gpt-4o',
+      judgeModel: 'gpt-4o-mini',
       draftCount: 1,
     });
 
@@ -425,7 +464,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
         .post(`/api/v1/prompts/${promptId}/optimize`)
         .send({
           dataset_id: datasetId,
-          models: ['gpt-4o-mini'],
+          models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini',
           optimizer_prompt_id: optimizerPrompt.id,
           draft_count: 2,
         })
@@ -449,6 +488,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
       models: ['gpt-4o-mini'],
       optimizerModel: 'gpt-4o-mini',
       optimizerPromptId: optimizerPrompt.id,
+      judgeModel: 'gpt-4o-mini',
       draftCount: 2,
     });
 
@@ -475,8 +515,34 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
 
     await agentB
       .post(`/api/v1/prompts/${promptId}/optimize`)
-      .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], optimizer_prompt_id: foreign.id })
+      .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini', optimizer_prompt_id: foreign.id })
       .expect(404);
+  });
+
+  it('400s when judge_model is missing: there is no default judge', async () => {
+    const { agent } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agent);
+
+    const res = await agent
+      .post(`/api/v1/prompts/${promptId}/optimize`)
+      .send({ dataset_id: datasetId, models: ['gpt-4o-mini'] })
+      .expect(400);
+
+    expect(JSON.stringify(res.body)).toContain('judge_model');
+    expect(await prisma.experimentRun.count()).toBe(0);
+  });
+
+  it('400s for a judge_model the team has not registered, before any run exists', async () => {
+    const { agent } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agent);
+
+    const res = await agent
+      .post(`/api/v1/prompts/${promptId}/optimize`)
+      .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], judge_model: 'not-a-registered-model' })
+      .expect(400);
+
+    expect(JSON.stringify(res.body)).toContain("Model 'not-a-registered-model' is not registered");
+    expect(await prisma.experimentRun.count()).toBe(0);
   });
 
   it('draft_count above the hard cap (6) is rejected with a 422', async () => {
@@ -485,7 +551,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
 
     await agent
       .post(`/api/v1/prompts/${promptId}/optimize`)
-      .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], draft_count: 10 })
+      .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini', draft_count: 10 })
       .expect(422);
   });
 
@@ -496,7 +562,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
     const { agent: agentB } = await authedAgent(app);
     await agentB
       .post(`/api/v1/prompts/${promptId}/optimize`)
-      .send({ dataset_id: datasetId, models: ['gpt-4o-mini'] })
+      .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini' })
       .expect(404);
   });
 
@@ -523,7 +589,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
     const run = (
       await agentA
         .post(`/api/v1/prompts/${promptIdA}/optimize`)
-        .send({ dataset_id: datasetIdA, models: ['gpt-4o-mini'], draft_count: 1 })
+        .send({ dataset_id: datasetIdA, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini', draft_count: 1 })
         .expect(202)
     ).body;
     const runRow = await prisma.experimentRun.findUnique({ where: { id: run.run_id } });
@@ -537,7 +603,8 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
         runId: run.run_id,
         datasetId: datasetIdA,
         models: ['gpt-4o-mini'],
-        draftCount: 1,
+        judgeModel: 'gpt-4o-mini',
+      draftCount: 1,
       }),
     ).rejects.toThrow(`Prompt ${promptIdB} not found`);
   });
@@ -556,7 +623,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
     const run = (
       await agent
         .post(`/api/v1/prompts/${promptId}/optimize`)
-        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], draft_count: 2 })
+        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini', draft_count: 2 })
         .expect(202)
     ).body;
 
@@ -568,6 +635,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
       runId: run.run_id,
       datasetId,
       models: ['gpt-4o-mini'],
+      judgeModel: 'gpt-4o-mini',
       draftCount: 2,
     });
 
@@ -665,7 +733,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
     const run = (
       await agent
         .post(`/api/v1/prompts/${promptB.id}/optimize`)
-        .send({ dataset_id: dataset.id, models: ['gpt-4o-mini'] })
+        .send({ dataset_id: dataset.id, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini' })
         .expect(202)
     ).body;
 
@@ -687,7 +755,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
     const run = (
       await agent
         .post(`/api/v1/prompts/${promptId}/optimize`)
-        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'] })
+        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini' })
         .expect(202)
     ).body;
 
@@ -730,7 +798,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
     const run = (
       await agent
         .post(`/api/v1/prompts/${promptA.id}/optimize`)
-        .send({ dataset_id: dataset.id, models: ['gpt-4o-mini'] })
+        .send({ dataset_id: dataset.id, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini' })
         .expect(202)
     ).body;
 
@@ -753,7 +821,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
     const run = (
       await agent
         .post(`/api/v1/prompts/${promptId}/optimize`)
-        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], draft_count: 1, alias: 'staging' })
+        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini', draft_count: 1, alias: 'staging' })
         .expect(202)
     ).body;
 
@@ -766,6 +834,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
       runId: run.run_id,
       datasetId,
       models: ['gpt-4o-mini'],
+      judgeModel: 'gpt-4o-mini',
       draftCount: 1,
       alias: 'staging',
     });
@@ -796,7 +865,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
     const run = (
       await agent
         .post(`/api/v1/prompts/${promptId}/optimize`)
-        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], draft_count: 1 })
+        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini', draft_count: 1 })
         .expect(202)
     ).body;
 
@@ -809,6 +878,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
       runId: run.run_id,
       datasetId,
       models: ['gpt-4o-mini'],
+      judgeModel: 'gpt-4o-mini',
       draftCount: 1,
     });
 
@@ -847,7 +917,7 @@ async function draftOptimizeRun(
   const run = (
     await agent
       .post(`/api/v1/prompts/${promptId}/optimize`)
-      .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], draft_count: 2 })
+      .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini', draft_count: 2 })
       .expect(202)
   ).body;
 
@@ -861,7 +931,8 @@ async function draftOptimizeRun(
     runId: run.run_id,
     datasetId,
     models: ['gpt-4o-mini'],
-    draftCount: 2,
+    judgeModel: 'gpt-4o-mini',
+      draftCount: 2,
   });
 
   const candidateA = await prisma.promptCandidate.findFirst({

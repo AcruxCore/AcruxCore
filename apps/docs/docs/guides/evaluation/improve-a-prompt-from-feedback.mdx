@@ -128,6 +128,7 @@ const dataset = await hub.datasets.buildFromFeedback({
 const run = await hub.optimize.start('<prompt-id>', {
   datasetId: dataset.id,
   models: ['gpt-4o-mini'],
+  judgeModel: 'gpt-4o-mini',
   draftCount: 3,
 });
 console.log(run.runId, run.status); // -> queued
@@ -155,6 +156,7 @@ run = await hub.optimize.start(
     "<prompt-id>",
     dataset_id=dataset.id,
     models=["gpt-4o-mini"],
+    judge_model="gpt-4o-mini",
     draft_count=3,
 )
 print(run.run_id, run.status)   # -> queued
@@ -179,7 +181,7 @@ curl -X POST "$ACRUXCORE_BASE_URL/datasets/from-feedback" \
 curl -X POST "$ACRUXCORE_BASE_URL/prompts/<prompt-id>/optimize" \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{ "dataset_id": "<dataset-id>", "models": ["gpt-4o-mini"], "draft_count": 3 }'
+  -d '{ "dataset_id": "<dataset-id>", "models": ["gpt-4o-mini"], "judge_model": "gpt-4o-mini", "draft_count": 3 }'
 # → { "run_id": "<run-id>", "status": "queued" }
 ```
 
@@ -205,6 +207,7 @@ dataset = requests.post(f"{base}/datasets/from-feedback", headers=h, json={
 run = requests.post(f"{base}/prompts/<prompt-id>/optimize", headers=h, json={
     "dataset_id": dataset["id"],
     "models": ["gpt-4o-mini"],
+    "judge_model": "gpt-4o-mini",
     "draft_count": 3,
 }).json()
 print(run["run_id"], run["status"])   # -> queued

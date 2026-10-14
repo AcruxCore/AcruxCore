@@ -141,7 +141,7 @@ async function arrangeRun(): Promise<ArrangedRun> {
   const experiment = (
     await agent
       .post('/api/v1/experiments')
-      .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [v1.id], models: ['gpt-4o-mini'] })
+      .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [v1.id], models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini' })
       .expect(201)
   ).body;
 
@@ -187,7 +187,7 @@ async function produceAndJudge(run: ArrangedRun): Promise<void> {
   jest.restoreAllMocks();
   for (const result of results) {
     queueFetchResponseOnce(cannedJudge({ score: 80, passed: true, reason: 'fine' }));
-    await processJudge({ teamId: run.teamId, resultId: result.id });
+    await processJudge({ teamId: run.teamId, resultId: result.id, judgeModel: 'gpt-4o-mini' });
   }
 
   await processFinalize({ teamId: run.teamId, runId: run.runId });
@@ -276,7 +276,7 @@ describe('DELETE /api/v1/runs/:id', () => {
     const optimizeRun = (
       await agent
         .post(`/api/v1/prompts/${prompt.id}/optimize`)
-        .send({ dataset_id: dataset.id, models: ['gpt-4o-mini'], draft_count: 1 })
+        .send({ dataset_id: dataset.id, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini', draft_count: 1 })
         .expect(202)
     ).body;
     const runRow = await prisma.experimentRun.findUnique({ where: { id: optimizeRun.run_id } });
@@ -288,6 +288,7 @@ describe('DELETE /api/v1/runs/:id', () => {
       runId: optimizeRun.run_id,
       datasetId: dataset.id,
       models: ['gpt-4o-mini'],
+      judgeModel: 'gpt-4o-mini',
       draftCount: 1,
     });
     jest.restoreAllMocks();

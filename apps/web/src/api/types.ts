@@ -881,12 +881,20 @@ export interface CreateExperimentInput {
   version_ids: string[];
   models: string[];
   alias?: string;
+  /** The model that grades every result: a team-registered model name. Required; the server has no default judge. */
+  judge_model: string;
+  /** A team prompt that grades instead of the built-in judge. Omit for the built-in judge. */
+  judge_prompt_id?: string;
 }
 
 /** Resolved (prompt-version × model) sweep persisted on the experiment. */
 export interface ExperimentConfig {
   versionIds: string[];
   models: string[];
+  /** The experiment's judge model; absent only on experiments saved before judges were chosen. */
+  judgeModel?: string;
+  /** The custom judge prompt, when one was chosen. */
+  judgePromptId?: string;
 }
 
 /** A run summary as nested inside an `Experiment` (no grid/results — see `Run` for that). */
@@ -1082,6 +1090,8 @@ export interface RunReport {
   cells: RunReportCell[];
   leaderboard: string[];
   winner: RunReportWinner | null;
+  /** The judge that graded this run. Both fields are null for runs created before it was recorded. */
+  judge?: { model: string | null; promptVersionId: string | null };
 }
 
 /**
@@ -1132,6 +1142,8 @@ export interface OptimizeInput {
   /** Team prompt supplying the optimizer's instructions; omitted uses the built-in ones. */
   optimizer_prompt_id?: string;
   draft_count?: number;
+  /** The model that grades every candidate and baseline result: a team-registered model name. Required. */
+  judge_model: string;
   alias?: string;
 }
 

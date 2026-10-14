@@ -2334,3 +2334,24 @@ async def test_aclose_is_idempotent():
     async with client:
         await client.aclose()
     assert client._client.is_closed
+
+
+def test_run_report_and_experiment_runs_expose_the_judge():
+    """The API returns the judge that graded a run on the report (`judge`) and on
+    each run of an experiment (`judgeModel`, `judgePromptVersionId`)."""
+    from acruxcore.eval_types import ExperimentDto, RunReport
+
+    report = RunReport.from_dict(
+        {"runId": "r1", "status": "succeeded", "judge": {"model": "gpt-4o-mini", "promptVersionId": "v1"}}
+    )
+    assert report.judge is not None
+    assert report.judge.model == "gpt-4o-mini"
+    assert report.judge.prompt_version_id == "v1"
+    # A run created before judges were recorded has no `judge` on its report.
+    assert RunReport.from_dict({"runId": "r0"}).judge is None
+
+    exp = ExperimentDto.from_dict(
+        {"id": "e1", "runs": [{"id": "r1", "judgeModel": "gpt-4o-mini", "judgePromptVersionId": None}]}
+    )
+    assert exp.runs[0].judge_model == "gpt-4o-mini"
+    assert exp.runs[0].judge_prompt_version_id is None

@@ -56,7 +56,13 @@ real (candidate + production-baseline) x model grid, and enqueuing the
 cell/finalize BullMQ Flow all happen out of the request path, in the
 `optimizeWorker` process (`processOptimize`).
 
-Four more fields exist alongside `dataset_id`/`models`/`draft_count`:
+`judge_model` is required: the model that grades every candidate and the baseline.
+It must be a model registered for your team under Gateway → Models, and it does not
+have to be one of the models in `models`. The server has no default judge, so a request
+without it is a 400, and so is a name your team has not registered. Both are checked
+before any run or job is created.
+
+Four more fields exist alongside `dataset_id`/`models`/`draft_count`/`judge_model`:
 
 - `optimizer_model` (request, optional) — the model that **writes** the
   candidate rewrites. This is not `models`, which is what the rewrites are then
@@ -99,7 +105,7 @@ explicit feedback and re-run.)
 curl -X POST $ACRUXCORE_BASE_URL/prompts/f23200d4-22df-4d3f-a4ac-f704fc0bd2f3/optimize \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"dataset_id": "ef6525f8-4597-456b-8b17-5dc2dbb1a4f2", "models": ["gpt-4o-mini"], "draft_count": 2}'
+  -d '{"dataset_id": "ef6525f8-4597-456b-8b17-5dc2dbb1a4f2", "models": ["gpt-4o-mini"], "judge_model": "gpt-4o-mini", "draft_count": 2}'
 ```
 
 </TabItem>
@@ -111,6 +117,7 @@ const result = await hub.optimize.start(
   {
     datasetId: 'ef6525f8-4597-456b-8b17-5dc2dbb1a4f2',
     models: ['gpt-4o-mini'],
+    judgeModel: 'gpt-4o-mini',
     draftCount: 2,
   }
 );
@@ -124,6 +131,7 @@ result = await hub.optimize.start(
     'f23200d4-22df-4d3f-a4ac-f704fc0bd2f3',
     dataset_id='ef6525f8-4597-456b-8b17-5dc2dbb1a4f2',
     models=['gpt-4o-mini'],
+    judge_model='gpt-4o-mini',
     draft_count=2,
 )
 ```
@@ -137,13 +145,56 @@ Response (status 202):
 { "run_id": "97584f62-79ca-4575-ab68-34c6ae5ada03", "status": "queued", "optimizer_model": "gpt-4o-mini" }
 ```
 
+The demo run behind this walkthrough was made when the server judged with a built-in
+`gpt-4o-mini`, so `"judge_model": "gpt-4o-mini"` reproduces it exactly. The same call on a
+fresh team, re-run after `judge_model` became required:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/prompts/07494047-7380-4324-acf9-069a40265323/optimize \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"dataset_id": "20e0308d-ec9c-40ac-8cd9-c20b4bb95df1", "models": ["gpt-4o-mini"], "judge_model": "gpt-4o-mini"}'
+```
+
+```json
+{ "run_id": "4cd6d50f-e451-49b9-9fd1-1b5719c079c5", "status": "queued", "optimizer_model": "gpt-4o-mini" }
+```
+
+#### Choosing the judge model
+
+Without `judge_model` (status 400):
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/prompts/07494047-7380-4324-acf9-069a40265323/optimize \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"dataset_id": "20e0308d-ec9c-40ac-8cd9-c20b4bb95df1", "models": ["gpt-4o-mini"]}'
+```
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "judge_model is required: name a model registered under Gateway → Models." } }
+```
+
+With a `judge_model` your team has not registered (status 400):
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/prompts/07494047-7380-4324-acf9-069a40265323/optimize \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"dataset_id": "20e0308d-ec9c-40ac-8cd9-c20b4bb95df1", "models": ["gpt-4o-mini"], "judge_model": "claude-judge"}'
+```
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "Model 'claude-judge' is not registered. Add it under Gateway → Models." } }
+```
+
 #### Choosing the optimizer model
 
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/prompts/a290cf2f-a724-4389-8bea-da8b53229e00/optimize \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"dataset_id": "50d1e513-7de5-4d73-b43c-7f7d584a3c3f", "models": ["gpt-4o-mini"], "optimizer_model": "claude-haiku", "draft_count": 2}'
+  -d '{"dataset_id": "50d1e513-7de5-4d73-b43c-7f7d584a3c3f", "models": ["gpt-4o-mini"], "judge_model": "gpt-4o-mini", "optimizer_model": "claude-haiku", "draft_count": 2}'
 ```
 
 Response (status 202):
@@ -164,7 +215,7 @@ the worker.
 curl -X POST $ACRUXCORE_BASE_URL/prompts/a290cf2f-a724-4389-8bea-da8b53229e00/optimize \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"dataset_id": "50d1e513-7de5-4d73-b43c-7f7d584a3c3f", "models": ["gpt-4o-mini"], "optimizer_model": "claude-opus-4"}'
+  -d '{"dataset_id": "50d1e513-7de5-4d73-b43c-7f7d584a3c3f", "models": ["gpt-4o-mini"], "judge_model": "gpt-4o-mini", "optimizer_model": "claude-opus-4"}'
 ```
 
 Response (status 400):
@@ -237,7 +288,7 @@ alias was separately promoted to v2:
 curl -X POST $ACRUXCORE_BASE_URL/prompts/e7ec9bcd-e5c1-4d28-bd48-1da7ad3c5027/optimize \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"dataset_id": "c4629544-565c-4e34-9d76-6074f525c596", "models": ["gpt-4o-mini"], "alias": "staging"}'
+  -d '{"dataset_id": "c4629544-565c-4e34-9d76-6074f525c596", "models": ["gpt-4o-mini"], "judge_model": "gpt-4o-mini", "alias": "staging"}'
 ```
 
 Response (status 202):
@@ -294,7 +345,7 @@ Nonexistent prompt id (status 404):
 curl -X POST $ACRUXCORE_BASE_URL/prompts/00000000-0000-0000-0000-000000000000/optimize \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"dataset_id": "ef6525f8-4597-456b-8b17-5dc2dbb1a4f2", "models": ["gpt-4o-mini"]}'
+  -d '{"dataset_id": "ef6525f8-4597-456b-8b17-5dc2dbb1a4f2", "models": ["gpt-4o-mini"], "judge_model": "gpt-4o-mini"}'
 ```
 
 ```json

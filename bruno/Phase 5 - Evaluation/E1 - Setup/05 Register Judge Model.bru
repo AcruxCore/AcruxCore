@@ -27,8 +27,7 @@ body:json {
 }
 
 script:post-response {
-  // The judge service always calls the fixed public name "gpt-4o-mini"
-  // (JUDGE_MODEL in judge.service.ts) regardless of which model(s) the
-  // experiment/optimize grid sweeps — it must be registered separately or
-  // every judge call fails with "Model 'gpt-4o-mini' is not registered."
+  // Create Experiment and Start Optimize name this model as their `judge_model`.
+  // The server has no default judge, so a judge must be registered first: an
+  // unregistered name is a 400, "Model 'gpt-4o-mini' is not registered."
 }

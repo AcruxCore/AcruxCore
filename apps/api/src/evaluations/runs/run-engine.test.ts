@@ -1,8 +1,9 @@
 import request from 'supertest';
-import type { Worker } from 'bullmq';
+import { UnrecoverableError, type Worker } from 'bullmq';
 import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
 import { RunsRepository } from './runs.repository';
+import { isTerminalCellFailure } from './cell.processor';
 import { processCell, processFinalize, processJudge, markFinalizeExhausted } from './index';
 import { getFlowProducer, getRedisConnection, getCellsQueue, getRunsQueue, getJudgeQueue, getOptimizeQueue } from '../queue';
 import { authedAgent } from '../../test-utils';
@@ -102,7 +103,7 @@ async function arrangeBasics(
         dataset_id: dataset.id,
         prompt_id: prompt.id,
         version_ids: [version.id],
-        models: ['gpt-4o-mini'],
+        models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini',
       })
       .expect(201)
   ).body;
@@ -279,7 +280,7 @@ describe('processCell', () => {
     const experiment = (
       await agent
         .post('/api/v1/experiments')
-        .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [version.id], models: ['gpt-4o-mini'] })
+        .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [version.id], models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini' })
         .expect(201)
     ).body;
 
@@ -362,7 +363,7 @@ describe('processCell', () => {
     const experiment = (
       await agent
         .post('/api/v1/experiments')
-        .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [version.id], models: ['gpt-4o-mini'] })
+        .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [version.id], models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini' })
         .expect(201)
     ).body;
 
@@ -423,7 +424,7 @@ describe('processCell', () => {
     const experiment = (
       await agent
         .post('/api/v1/experiments')
-        .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [version.id], models: ['haiku'] })
+        .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [version.id], models: ['haiku'], judge_model: 'haiku' })
         .expect(201)
     ).body;
 
@@ -559,7 +560,7 @@ describe('processFinalize', () => {
     // result gets marked "judged" (a `reason` set), which processFinalize now
     // requires before it will finalize the run (Task 4 of the E4 plan).
     const cellResult = await prisma.evalResult.findFirst({ where: { experimentRunId: run.id } });
-    await processJudge({ teamId, resultId: cellResult!.id });
+    await processJudge({ teamId, resultId: cellResult!.id, judgeModel: 'gpt-4o-mini' });
 
     await processFinalize({ teamId, runId: run.id });
 
@@ -708,7 +709,7 @@ describe('processJudge (E4 wiring)', () => {
     const experiment = (
       await agent
         .post('/api/v1/experiments')
-        .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [version.id], models: ['gpt-4o-mini'] })
+        .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [version.id], models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini' })
         .expect(201)
     ).body;
 
@@ -755,8 +756,8 @@ describe('processJudge (E4 wiring)', () => {
     queueFetchResponseOnce(cannedJudge({ score: 80, passed: true, reason: 'third person, good' }));
     queueFetchResponseOnce(cannedJudge({ score: 60, passed: true, reason: 'polite enough' }));
 
-    await processJudge({ teamId, resultId: results[0]!.id });
-    await processJudge({ teamId, resultId: results[1]!.id });
+    await processJudge({ teamId, resultId: results[0]!.id, judgeModel: 'gpt-4o-mini' });
+    await processJudge({ teamId, resultId: results[1]!.id, judgeModel: 'gpt-4o-mini' });
 
     await processFinalize({ teamId, runId: run.id });
 
@@ -765,6 +766,416 @@ describe('processJudge (E4 wiring)', () => {
 
     const updatedRun = await prisma.experimentRun.findUnique({ where: { id: run.id } });
     expect(updatedRun!.status).toBe('succeeded');
+  });
+});
+
+describe('the judge model is chosen by the caller, never by the server', () => {
+  /** A team with a prompt, a one-example dataset and two registered models: the one under test, and a distinct judge. */
+  async function arrangeWithJudge(agent: ReturnType<typeof request.agent>) {
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+    // Public name and upstream name differ on purpose, so the provider request
+    // body proves which registry entry the judge call resolved.
+    await agent
+      .post('/api/v1/gateway/models')
+      .send({ publicName: 'team-judge', upstreamModel: 'gpt-4.1', credentialId: credId })
+      .expect(201);
+
+    const prompt = (await agent.post('/api/v1/prompts').send({ name: 'greeting' }).expect(201)).body;
+    const version = (
+      await agent
+        .post(`/api/v1/prompts/${prompt.id}/versions`)
+        .send({ messages: [{ role: 'user', content: 'Say hi to {{ name }}' }] })
+        .expect(201)
+    ).body;
+    const dataset = (await agent.post('/api/v1/datasets').send({ name: 'greetings' }).expect(201)).body;
+    const example = (
+      await agent
+        .post(`/api/v1/datasets/${dataset.id}/examples`)
+        .send({ input: { name: 'Al' }, criteria: 'reply in third person' })
+        .expect(201)
+    ).body;
+    const experiment = (
+      await agent
+        .post('/api/v1/experiments')
+        .send({
+          dataset_id: dataset.id,
+          prompt_id: prompt.id,
+          version_ids: [version.id],
+          models: ['gpt-4o-mini'],
+          judge_model: 'team-judge',
+        })
+        .expect(201)
+    ).body;
+    return { prompt, version, example, experiment };
+  }
+
+  it("carries the experiment's judge_model from POST /runs through the cell job into the judge job", async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const { version, example, experiment } = await arrangeWithJudge(agent);
+    await getCellsQueue().obliterate({ force: true });
+    await getJudgeQueue().obliterate({ force: true });
+
+    const run = (await agent.post(`/api/v1/experiments/${experiment.id}/runs`).expect(202)).body;
+
+    const cellJobs = await getCellsQueue().getJobs(['waiting', 'prioritized', 'delayed', 'waiting-children']);
+    const mine = cellJobs.filter((j) => j.data.runId === run.run_id);
+    expect(mine.length).toBeGreaterThan(0);
+    expect(mine.every((j) => j.data.judgeModel === 'team-judge')).toBe(true);
+
+    mockFetchOnce(CANNED_OPENAI);
+    await processCell({
+      teamId,
+      runId: run.run_id,
+      cellKey: mine[0]!.data.cellKey,
+      variantKind: 'version',
+      promptVersionId: version.id,
+      variantLabel: 'v1',
+      model: 'gpt-4o-mini',
+      exampleId: example.id,
+      judgeModel: 'team-judge',
+    });
+    const judgeJobs = await getJudgeQueue().getJobs(['waiting', 'prioritized', 'delayed']);
+    expect(judgeJobs.some((j) => j.data.judgeModel === 'team-judge')).toBe(true);
+  });
+
+  it("judges with the model named on the job, resolved through the team's registry", async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const { version, example, experiment } = await arrangeWithJudge(agent);
+    const run = await createRun(teamId, experiment.id, version.id, example.id);
+
+    mockFetchOnce(CANNED_OPENAI);
+    await processCell({
+      teamId,
+      runId: run.id,
+      cellKey: 'v1|gpt-4o-mini',
+      variantKind: 'version',
+      promptVersionId: version.id,
+      variantLabel: 'v1',
+      model: 'gpt-4o-mini',
+      exampleId: example.id,
+      judgeModel: 'team-judge',
+    });
+    const result = await prisma.evalResult.findFirstOrThrow({ where: { experimentRunId: run.id } });
+
+    jest.restoreAllMocks();
+    const verdict = cannedJudge({ score: 90, passed: true, reason: 'ok' });
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => verdict,
+      text: async () => JSON.stringify(verdict),
+    } as unknown as Response);
+    await processJudge({
+      teamId,
+      resultId: result.id,
+      judgeModel: 'team-judge',
+      criteria: 'reply in third person',
+      overallFeedback: null,
+      history: null,
+    });
+
+    const sentModels = fetchSpy.mock.calls.map((c) => JSON.parse(String((c[1] as RequestInit).body)).model);
+    expect(sentModels).toEqual(['gpt-4.1']);
+    const scored = await prisma.evalResult.findUniqueOrThrow({ where: { id: result.id } });
+    expect(scored.score).toBe(90);
+  });
+
+  it('refuses to judge a job that names no model, even when EVAL_JUDGE_MODEL is set', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const { version, example, experiment } = await arrangeWithJudge(agent);
+    const run = await createRun(teamId, experiment.id, version.id, example.id);
+    mockFetchOnce(CANNED_OPENAI);
+    await processCell({
+      teamId,
+      runId: run.id,
+      cellKey: 'v1|gpt-4o-mini',
+      variantKind: 'version',
+      promptVersionId: version.id,
+      variantLabel: 'v1',
+      model: 'gpt-4o-mini',
+      exampleId: example.id,
+    });
+    const result = await prisma.evalResult.findFirstOrThrow({ where: { experimentRunId: run.id } });
+
+    jest.restoreAllMocks();
+    const fetchSpy = jest.spyOn(global, 'fetch');
+    process.env.EVAL_JUDGE_MODEL = 'gpt-4o-mini';
+    try {
+      const failure = processJudge({ teamId, resultId: result.id });
+      await expect(failure).rejects.toThrow(/judge model/i);
+      // Permanent: BullMQ must not retry it, and the failed handler must treat it as terminal.
+      const err = await failure.catch((e: Error) => e);
+      expect(err).toBeInstanceOf(UnrecoverableError);
+      expect(isTerminalCellFailure(1, 3, err as Error)).toBe(true);
+    } finally {
+      delete process.env.EVAL_JUDGE_MODEL;
+    }
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('an experiment run grades with a custom judge prompt (issue #578)', () => {
+  /** Same arrangement as the judge-model block, plus a team judge prompt with one committed version. */
+  async function arrangeWithJudgePrompt(agent: ReturnType<typeof request.agent>) {
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+    const judgePrompt = (await agent.post('/api/v1/prompts').send({ name: 'receipt judge' }).expect(201)).body;
+    const judgeV1 = (
+      await agent
+        .post(`/api/v1/prompts/${judgePrompt.id}/versions`)
+        .send({
+          messages: [
+            { role: 'system', content: 'V1 judge. The criteria are plain expected values: {{ criteria }}' },
+            { role: 'user', content: 'Answer to grade: {{ output }}' },
+          ],
+        })
+        .expect(201)
+    ).body;
+    const prompt = (await agent.post('/api/v1/prompts').send({ name: 'greeting' }).expect(201)).body;
+    const version = (
+      await agent
+        .post(`/api/v1/prompts/${prompt.id}/versions`)
+        .send({ messages: [{ role: 'user', content: 'Say hi to {{ name }}' }] })
+        .expect(201)
+    ).body;
+    const dataset = (await agent.post('/api/v1/datasets').send({ name: 'greetings' }).expect(201)).body;
+    const example = (
+      await agent
+        .post(`/api/v1/datasets/${dataset.id}/examples`)
+        .send({ input: { name: 'Al' }, criteria: 'Expected greeting: Hi Al' })
+        .expect(201)
+    ).body;
+    const experiment = (
+      await agent
+        .post('/api/v1/experiments')
+        .send({
+          dataset_id: dataset.id,
+          prompt_id: prompt.id,
+          version_ids: [version.id],
+          models: ['gpt-4o-mini'],
+          judge_model: 'gpt-4o-mini',
+          judge_prompt_id: judgePrompt.id,
+        })
+        .expect(201)
+    ).body;
+    return { judgePrompt, judgeV1, example, experiment };
+  }
+
+  it('freezes the judge prompt version at run start and grades with it, contract appended', async () => {
+    const { agent } = await authedAgent(app);
+    const { judgePrompt, judgeV1, experiment } = await arrangeWithJudgePrompt(agent);
+    await getCellsQueue().obliterate({ force: true });
+    await getJudgeQueue().obliterate({ force: true });
+
+    const run = (await agent.post(`/api/v1/experiments/${experiment.id}/runs`).expect(202)).body;
+
+    // The run itself records which judge graded it, so a finished run can be
+    // traced back to its judge after the experiment or alias moves on.
+    const row = await prisma.experimentRun.findUniqueOrThrow({ where: { id: run.run_id } });
+    expect(row.judgeModel).toBe('gpt-4o-mini');
+    expect(row.judgePromptVersionId).toBe(judgeV1.id);
+    const report = (await agent.get(`/api/v1/runs/${run.run_id}/report`).expect(200)).body;
+    expect(report.judge).toEqual({ model: 'gpt-4o-mini', promptVersionId: judgeV1.id });
+    // The experiment's run list carries the same two fields (the SDK types them).
+    const exp = (await agent.get(`/api/v1/experiments/${experiment.id}`).expect(200)).body;
+    expect(exp.runs[0]).toMatchObject({ judgeModel: 'gpt-4o-mini', judgePromptVersionId: judgeV1.id });
+
+    // A new judge version promoted mid-run must not change how this run grades.
+    await agent
+      .post(`/api/v1/prompts/${judgePrompt.id}/versions`)
+      .send({ messages: [{ role: 'user', content: 'V2 judge: {{ output }}' }] })
+      .expect(201);
+    await agent.post(`/api/v1/prompts/${judgePrompt.id}/aliases/production/promote`).send({ version_number: 2 }).expect(200);
+
+    const cellJobs = await getCellsQueue().getJobs(['waiting', 'prioritized', 'delayed', 'waiting-children']);
+    const mine = cellJobs.filter((j) => j.data.runId === run.run_id);
+    expect(mine.length).toBe(1);
+    expect(mine[0]!.data.judgePromptVersionId).toBe(judgeV1.id);
+
+    mockFetchOnce(CANNED_OPENAI);
+    await processCell(mine[0]!.data);
+    const [judgeJob] = await getJudgeQueue().getJobs(['waiting', 'prioritized', 'delayed']);
+    expect(judgeJob!.data.judgePromptVersionId).toBe(judgeV1.id);
+
+    jest.restoreAllMocks();
+    const verdict = cannedJudge({ score: 80, passed: true, reason: 'matches the expected greeting' });
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => verdict,
+      text: async () => JSON.stringify(verdict),
+    } as unknown as Response);
+    await processJudge(judgeJob!.data);
+
+    const sent = JSON.parse(String((fetchSpy.mock.calls[0]![1] as RequestInit).body));
+    expect(sent.messages[0]).toEqual({
+      role: 'system',
+      content: 'V1 judge. The criteria are plain expected values: Expected greeting: Hi Al',
+    });
+    expect(sent.messages[1].content).toContain('Answer to grade:');
+    // The output contract is appended after the team's template, so parseVerdict still works.
+    expect(sent.messages[2].role).toBe('system');
+    expect(sent.messages[2].content).toContain('Return ONLY a strict JSON object');
+    expect(JSON.stringify(sent.messages)).not.toContain('V2 judge');
+    const scored = await prisma.evalResult.findUniqueOrThrow({ where: { id: judgeJob!.data.resultId } });
+    expect(scored.score).toBe(80);
+    expect(scored.reason).toBe('matches the expected greeting');
+  });
+
+  it('records why a result is unscored when its judge prompt version cannot be loaded, without calling a model', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const { experiment, example } = await arrangeWithJudgePrompt(agent);
+    const otherTeam = await authedAgent(app);
+    const foreign = (await otherTeam.agent.post('/api/v1/prompts').send({ name: 'not yours' }).expect(201)).body;
+    const foreignVersion = (
+      await otherTeam.agent
+        .post(`/api/v1/prompts/${foreign.id}/versions`)
+        .send({ messages: [{ role: 'user', content: '{{ output }}' }] })
+        .expect(201)
+    ).body;
+    const versionId = (experiment.config.versionIds as string[])[0]!;
+    const run = await createRun(teamId, experiment.id, versionId, example.id);
+    mockFetchOnce(CANNED_OPENAI);
+    await processCell({
+      teamId,
+      runId: run.id,
+      cellKey: 'v1|gpt-4o-mini',
+      variantKind: 'version',
+      promptVersionId: versionId,
+      variantLabel: 'v1',
+      model: 'gpt-4o-mini',
+      exampleId: example.id,
+      judgeModel: 'gpt-4o-mini',
+    });
+    const result = await prisma.evalResult.findFirstOrThrow({ where: { experimentRunId: run.id } });
+
+    jest.restoreAllMocks();
+    const fetchSpy = jest.spyOn(global, 'fetch');
+    // Another team's version id on the job: it must not load, and must not be graded with.
+    await processJudge({
+      teamId,
+      resultId: result.id,
+      judgeModel: 'gpt-4o-mini',
+      judgePromptVersionId: foreignVersion.id,
+      criteria: 'Expected greeting: Hi Al',
+      overallFeedback: null,
+      history: null,
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    const unscored = await prisma.evalResult.findUniqueOrThrow({ where: { id: result.id } });
+    expect(unscored.score).toBeNull();
+    expect(unscored.reason).toMatch(/^judge prompt error: /);
+  });
+
+  /** Commits `messages` as a judge prompt version and returns a produced result to grade with it. */
+  async function arrangeResultAndJudgeVersion(messages: Array<{ role: string; content: string }>) {
+    const { agent, teamId } = await authedAgent(app);
+    const { experiment, example } = await arrangeWithJudgePrompt(agent);
+    const judge = (await agent.post('/api/v1/prompts').send({ name: 'rubric judge' }).expect(201)).body;
+    const judgeVersion = (await agent.post(`/api/v1/prompts/${judge.id}/versions`).send({ messages }).expect(201)).body;
+    const versionId = (experiment.config.versionIds as string[])[0]!;
+    const run = await createRun(teamId, experiment.id, versionId, example.id);
+    mockFetchOnce(CANNED_OPENAI);
+    await processCell({
+      teamId,
+      runId: run.id,
+      cellKey: 'v1|gpt-4o-mini',
+      variantKind: 'version',
+      promptVersionId: versionId,
+      variantLabel: 'v1',
+      model: 'gpt-4o-mini',
+      exampleId: example.id,
+      judgeModel: 'gpt-4o-mini',
+    });
+    const result = await prisma.evalResult.findFirstOrThrow({ where: { experimentRunId: run.id } });
+    jest.restoreAllMocks();
+    return { teamId, resultId: result.id, judgeVersionId: judgeVersion.id as string };
+  }
+
+  function spyJudgeVerdict(score: number) {
+    const verdict = cannedJudge({ score, passed: score >= 50, reason: 'graded by the rubric' });
+    return jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => verdict,
+      text: async () => JSON.stringify(verdict),
+    } as unknown as Response);
+  }
+
+  it('grades with a custom judge even when the example has no criteria and no overall feedback', async () => {
+    const { teamId, resultId, judgeVersionId } = await arrangeResultAndJudgeVersion([
+      { role: 'system', content: 'Rubric: score 100 if the reply greets someone by name.{% if criteria %} Expected: {{ criteria }}{% endif %}' },
+      { role: 'user', content: 'Reply: {{ output }}' },
+    ]);
+    const fetchSpy = spyJudgeVerdict(100);
+
+    await processJudge({
+      teamId,
+      resultId,
+      judgeModel: 'gpt-4o-mini',
+      judgePromptVersionId: judgeVersionId,
+      criteria: null,
+      overallFeedback: null,
+      history: null,
+    });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const sent = JSON.parse(String((fetchSpy.mock.calls[0]![1] as RequestInit).body));
+    // An absent value is an empty string, so `{% if criteria %}` skips the block.
+    expect(sent.messages[0].content).toBe('Rubric: score 100 if the reply greets someone by name.');
+    const scored = await prisma.evalResult.findUniqueOrThrow({ where: { id: resultId } });
+    expect(scored.score).toBe(100);
+  });
+
+  it('replaces inline images in history with a placeholder before the template renders', async () => {
+    const { teamId, resultId, judgeVersionId } = await arrangeResultAndJudgeVersion([
+      { role: 'user', content: 'Earlier turns: {{ history }}\nReply: {{ output }}' },
+    ]);
+    const fetchSpy = spyJudgeVerdict(70);
+    const photo = `data:image/png;base64,${'A'.repeat(64)}`;
+
+    await processJudge({
+      teamId,
+      resultId,
+      judgeModel: 'gpt-4o-mini',
+      judgePromptVersionId: judgeVersionId,
+      criteria: 'greets Al',
+      overallFeedback: null,
+      history: [
+        { role: 'user', content: [{ type: 'text', text: 'what is in this photo?' }, { type: 'image_url', image_url: { url: photo } }] },
+        { role: 'assistant', content: 'A cat.' },
+      ],
+    });
+
+    const sent = JSON.parse(String((fetchSpy.mock.calls[0]![1] as RequestInit).body));
+    expect(sent.messages[0].content).toContain('what is in this photo?');
+    expect(sent.messages[0].content).toContain('[inline image]');
+    expect(sent.messages[0].content).not.toContain('data:image');
+  });
+
+  it('rethrows an error that is not about the judge template, so BullMQ retries it', async () => {
+    const { teamId, resultId } = await arrangeResultAndJudgeVersion([{ role: 'user', content: '{{ output }}' }]);
+    const fetchSpy = jest.spyOn(global, 'fetch');
+
+    // Not a UUID: Postgres rejects the lookup itself. That is a database error, not a
+    // missing or broken template, so it must not be written as a permanent verdict.
+    await expect(
+      processJudge({
+        teamId,
+        resultId,
+        judgeModel: 'gpt-4o-mini',
+        judgePromptVersionId: 'not-a-uuid',
+        criteria: 'greets Al',
+        overallFeedback: null,
+        history: null,
+      }),
+    ).rejects.toThrow();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    const untouched = await prisma.evalResult.findUniqueOrThrow({ where: { id: resultId } });
+    expect(untouched.reason).toBeNull();
   });
 });
 
@@ -822,7 +1233,7 @@ describe('POST /experiments/:id/runs', () => {
     const exp = (
       await agent
         .post('/api/v1/experiments')
-        .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [v1.id], models: ['gpt-4o-mini'] })
+        .send({ dataset_id: dataset.id, prompt_id: prompt.id, version_ids: [v1.id], models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini' })
         .expect(201)
     ).body;
 

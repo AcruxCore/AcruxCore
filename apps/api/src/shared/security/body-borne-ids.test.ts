@@ -93,6 +93,10 @@ const UUID_FIELDS: Record<string, { verdict: Verdict; by: string }> = {
     verdict: 'ownership-checked',
     by: 'ExperimentsService.create → promptVersions.countByIdsForTeam, 404 unless every id is the team\u2019s.',
   },
+  'evaluations/experiments/experiments.types.ts:CreateExperimentSchema.judge_prompt_id': {
+    verdict: 'ownership-checked',
+    by: 'ExperimentsService.create → resolveJudgePromptVersion → promptsRepo.findById(id, teamId), 400; re-checked by RunsService.startRun.',
+  },
 
   'evaluations/online/online-eval-rule.types.ts:CreateEvalRuleSchema.judgePromptId': {
     verdict: 'ownership-checked',

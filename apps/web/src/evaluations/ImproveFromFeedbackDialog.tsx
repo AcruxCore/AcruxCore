@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ApiError, filterPrompts, useAliases, useAllPrompts, useCreateDatasetFromFeedback, useModels, useOptimize } from '@/api';
 import type { StartRunResponse } from '@/api';
 import { Button, Dialog, DialogFooter, Field, Input, Select, Textarea } from '@/ui';
+import { JudgeModelField } from './JudgeModelField';
 import { ModelCheckboxList } from './ModelCheckboxList';
 
 export interface ImproveFromFeedbackDialogProps {
@@ -35,6 +36,7 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
   const [promptId, setPromptId] = useState('');
   const [alias, setAlias] = useState('');
   const [models, setModels] = useState<Set<string>>(new Set());
+  const [judgeModel, setJudgeModel] = useState('');
   const [name, setName] = useState('');
   const [overallFeedback, setOverallFeedback] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +58,7 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
       setPromptId('');
       setAlias('');
       setModels(new Set());
+      setJudgeModel('');
       setName('');
       setOverallFeedback('');
       setError(null);
@@ -87,6 +90,10 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
       setError('Pick at least one model.');
       return;
     }
+    if (!judgeModel) {
+      setError('Pick a judge model.');
+      return;
+    }
     setError(null);
     setSubmitting(true);
     try {
@@ -98,6 +105,7 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
       const result = await optimize.mutateAsync({
         dataset_id: dataset.id,
         models: [...models],
+        judge_model: judgeModel,
         ...(alias ? { alias } : {}),
       });
       onStarted?.();
@@ -203,6 +211,13 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
             />
           )}
         </Field>
+
+        <JudgeModelField
+          id="improve-judge-model"
+          value={judgeModel}
+          onChange={setJudgeModel}
+          grades="every rewrite and the baseline"
+        />
 
         {mismatchWarning && (
           <p className="text-[13px] text-warn">

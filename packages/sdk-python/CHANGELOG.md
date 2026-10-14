@@ -12,6 +12,26 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+### Added
+
+- `experiments.create` takes an optional `judge_prompt_id`: a prompt of yours that grades instead of the
+  built-in judge. Each run uses its `production` version (else its latest).
+- `RunReport.judge` (a `RunJudge` with `model` and `prompt_version_id`) names the judge that graded
+  the run. Each `ExperimentRunDto` has the same as `judge_model` and `judge_prompt_version_id`.
+
+### Changed
+
+- **`experiments.create` and `optimize.start` now require `judge_model`.** The server no
+  longer picks the judge for offline runs; name a model registered under Gateway → Models.
+  It is keyword-only. [Why](../../docs/superpowers/specs/phase-5/phase-5-faq.md)
+
+  **Migrating from 0.17**
+
+  1. Add `judge_model="<registered model name>"` to every `experiments.create(…)` and
+     `optimize.start(…)` call.
+  2. Python catches a miss at call time (`TypeError: missing 1 required keyword-only
+     argument: 'judge_model'`), so it fails in your first test run, not in production.
+
 ## 0.17.0 — 2026-10-13
 
 ### Added

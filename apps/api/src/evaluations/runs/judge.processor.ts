@@ -1,3 +1,4 @@
+import { UnrecoverableError } from 'bullmq';
 import type { JudgeJobData } from '../queue';
 import { JudgeService } from '../judge/judge.service';
 
@@ -16,8 +17,9 @@ const judgeService = new JudgeService();
  * implementation, mirroring how `processCell`/`processFinalize` wrap
  * `GatewayService`/`RunsRepository` calls rather than re-implement them.
  *
- * @param data - The judge job payload (`JudgeJobData`): teamId + the
- *   `eval_result` row id produced by `processCell`.
+ * @param data - The judge job payload (`JudgeJobData`): teamId, the
+ *   `eval_result` row id produced by `processCell`, and the `judgeModel` the
+ *   run's caller chose.
  * @returns Nothing. The verdict (or unscored placeholder) is persisted as a
  *   side effect via `JudgeService.scoreResult` -> `RunsRepository.writeVerdict`.
  * @throws Rethrows whatever `JudgeService.scoreResult` throws (e.g. a
@@ -26,8 +28,20 @@ const judgeService = new JudgeService();
  *   here. `apps/worker`'s `judgeWorker` `'failed'` handler writes a terminal
  *   "judge call failed" marker onto the result once attempts are exhausted,
  *   so `finalize.processor`'s readiness check is never left waiting forever.
+ * @throws {UnrecoverableError} If the job names no judge model (queued before
+ *   judges were chosen per run). BullMQ does not retry it.
  */
 export async function processJudge(data: JudgeJobData): Promise<void> {
+  // No default judge exists, in code or in the environment. A job without a
+  // model was queued before judges were chosen per run; fail it loudly (the
+  // worker's `'failed'` handler then writes the terminal "judge call failed"
+  // marker) rather than grade with a model the caller never picked. It is
+  // unrecoverable: a retry would fail the same way, and only delay the run.
+  if (!data.judgeModel) {
+    throw new UnrecoverableError(
+      `Result ${data.resultId} has no judge model: the run was queued before judges were chosen per experiment. Start a new run.`,
+    );
+  }
   // Grade against the run's FROZEN criteria/overallFeedback/history (threaded
   // here by cell.processor from the run snapshot) rather than the live
   // mutable dataset, for reproducibility (FAQ Q5/Q19). Jobs enqueued before
@@ -42,5 +56,5 @@ export async function processJudge(data: JudgeJobData): Promise<void> {
           images: data.images ?? null,
         }
       : undefined;
-  await judgeService.scoreResult(data.teamId, data.resultId, frozen);
+  await judgeService.scoreResult(data.teamId, data.resultId, data.judgeModel, frozen, data.judgePromptVersionId);
 }

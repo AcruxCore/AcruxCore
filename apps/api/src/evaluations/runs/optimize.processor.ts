@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
+import { UnrecoverableError } from 'bullmq';
 import { RunsRepository } from './runs.repository';
 import { DatasetsRepository } from '../datasets/datasets.repository';
 import { PromptsRepository } from '../../prompts/prompts.repository';
@@ -113,6 +114,8 @@ async function retryGatewayCall<T>(fn: () => Promise<T>, attempts: number): Prom
  *    grid cell x snapshot example — identical shape/opts to `startRun`).
  *
  * @param data - The optimize job payload (`OptimizeJobData`).
+ * @throws {UnrecoverableError} If the job names no judge model (queued before
+ *   judges were chosen per request). Thrown before any paid call.
  * @throws {NotFoundError} If the run, the dataset, the prompt itself, the
  *   requested baseline alias (or, when none was requested, any committed
  *   version), or that baseline's version cannot be found for `data.teamId`.
@@ -121,6 +124,14 @@ async function retryGatewayCall<T>(fn: () => Promise<T>, attempts: number): Prom
  *   to bypass budgets/rate limits, mirroring `processCell`/`JudgeService`.
  */
 export async function processOptimize(data: OptimizeJobData): Promise<void> {
+  // A job queued before judges were chosen per request carries no judge model,
+  // so every judge job it enqueued would fail. Stop here, before the paid
+  // optimizer call and the paid cell calls; a retry would fail the same way.
+  if (!data.judgeModel) {
+    throw new UnrecoverableError(
+      `Optimize run ${data.runId} has no judge model: it was queued before judges were chosen per request. Start a new optimize run.`,
+    );
+  }
   const run = await runsRepo.getRunById(data.teamId, data.runId);
   if (!run) {
     throw new NotFoundError(`Experiment run ${data.runId} not found`);
@@ -286,6 +297,8 @@ export async function processOptimize(data: OptimizeJobData): Promise<void> {
           // the judge grades against the run's frozen value, not the live
           // dataset (FAQ Q5 reproducibility) — same as `RunsService.startRun`.
           overallFeedback: dataset.overallFeedback,
+          // The caller's judge from the optimize request, forwarded cell → judge job.
+          judgeModel: data.judgeModel,
           ...(cell.promptVersionId ? { promptVersionId: cell.promptVersionId } : {}),
           ...(cell.promptCandidateId ? { promptCandidateId: cell.promptCandidateId } : {}),
         };

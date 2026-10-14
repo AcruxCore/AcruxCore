@@ -3,6 +3,7 @@ import request from 'supertest';
 import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
 import { authedAgent } from '../../test-utils';
+import { registerTestModel } from '../../test-utils/gateway';
 
 const app = createApp();
 
@@ -61,7 +62,7 @@ describe('POST /api/v1/experiments — fan-out caps', () => {
     // prompts, so an invented UUID here is a 404 before the cap is ever reached.
     const res = await agent
       .post('/api/v1/experiments')
-      .send({ dataset_id: datasetId, version_ids: await createVersions(agent, 2), models: ['gpt-4o-mini', 'gpt-4o'] })
+      .send({ dataset_id: datasetId, version_ids: await createVersions(agent, 2), models: ['gpt-4o-mini', 'gpt-4o'], judge_model: await registerTestModel(agent) })
       .expect(201);
 
     expect(res.body.config.versionIds).toHaveLength(2);
@@ -74,7 +75,7 @@ describe('POST /api/v1/experiments — fan-out caps', () => {
 
     await agent
       .post('/api/v1/experiments')
-      .send({ dataset_id: datasetId, version_ids: uuids(51), models: ['gpt-4o-mini'] })
+      .send({ dataset_id: datasetId, version_ids: uuids(51), models: ['gpt-4o-mini'], judge_model: 'any-judge' })
       .expect(400);
   });
 
@@ -84,7 +85,7 @@ describe('POST /api/v1/experiments — fan-out caps', () => {
 
     await agent
       .post('/api/v1/experiments')
-      .send({ dataset_id: datasetId, version_ids: uuids(1), models: Array.from({ length: 51 }, (_, i) => `m${i}`) })
+      .send({ dataset_id: datasetId, version_ids: uuids(1), models: Array.from({ length: 51 }, (_, i) => `m${i}`), judge_model: 'any-judge' })
       .expect(400);
   });
 
@@ -96,7 +97,7 @@ describe('POST /api/v1/experiments — fan-out caps', () => {
 
     const res = await agent
       .post('/api/v1/experiments')
-      .send({ dataset_id: datasetId, version_ids: uuids(20), models: Array.from({ length: 20 }, (_, i) => `m${i}`) })
+      .send({ dataset_id: datasetId, version_ids: uuids(20), models: Array.from({ length: 20 }, (_, i) => `m${i}`), judge_model: 'any-judge' })
       .expect(400);
 
     expect(res.body.error.message).toMatch(/grid|too large|exceeds/i);
@@ -139,7 +140,7 @@ describe('POST /api/v1/experiments — alias baseline + prompt-mismatch warning'
     const experiment = (
       await agent
         .post('/api/v1/experiments')
-        .send({ dataset_id: datasetId, prompt_id: promptId, version_ids: [v1Id], models: ['gpt-4o-mini'], alias: 'staging' })
+        .send({ dataset_id: datasetId, prompt_id: promptId, version_ids: [v1Id], models: ['gpt-4o-mini'], alias: 'staging', judge_model: await registerTestModel(agent) })
         .expect(201)
     ).body;
     expect(experiment.config.alias).toBe('staging');
@@ -196,7 +197,7 @@ describe('POST /api/v1/experiments — alias baseline + prompt-mismatch warning'
     const experiment = (
       await agent
         .post('/api/v1/experiments')
-        .send({ dataset_id: dataset.id, prompt_id: promptBId, version_ids: [v1BId], models: ['gpt-4o-mini'] })
+        .send({ dataset_id: dataset.id, prompt_id: promptBId, version_ids: [v1BId], models: ['gpt-4o-mini'], judge_model: await registerTestModel(agent) })
         .expect(201)
     ).body;
 
@@ -220,6 +221,7 @@ describe('POST /api/v1/experiments — alias baseline + prompt-mismatch warning'
           prompt_id: promptId,
           version_ids: [versionId],
           models: ['gpt-4o-mini'],
+          judge_model: await registerTestModel(agent),
           alias: 'nonexistent-alias',
         })
         .expect(201)
@@ -233,5 +235,187 @@ describe('POST /api/v1/experiments — alias baseline + prompt-mismatch warning'
 
     const runCount = await prisma.experimentRun.count({ where: { experimentId: experiment.id } });
     expect(runCount).toBe(0);
+  });
+});
+
+describe('POST /api/v1/experiments — judge model', () => {
+  it('rejects a request that names no judge_model (the server has no default judge)', async () => {
+    const { agent } = await authedAgent(app);
+    const datasetId = await createDataset(agent, 1);
+
+    const res = await agent
+      .post('/api/v1/experiments')
+      .send({ dataset_id: datasetId, version_ids: await createVersions(agent, 1), models: ['gpt-4o-mini'] })
+      .expect(400);
+
+    expect(JSON.stringify(res.body)).toContain('judge_model');
+    expect(await prisma.experiment.count()).toBe(0);
+  });
+
+  it('rejects a judge_model the team has not registered, before anything is written', async () => {
+    const { agent } = await authedAgent(app);
+    const datasetId = await createDataset(agent, 1);
+
+    const res = await agent
+      .post('/api/v1/experiments')
+      .send({
+        dataset_id: datasetId,
+        version_ids: await createVersions(agent, 1),
+        models: ['gpt-4o-mini'],
+        judge_model: 'gpt-4o-mini',
+      })
+      .expect(400);
+
+    expect(JSON.stringify(res.body)).toContain("Model 'gpt-4o-mini' is not registered");
+    expect(await prisma.experiment.count()).toBe(0);
+  });
+
+  it("does not accept another team's registered model as the judge", async () => {
+    const { agent: owner } = await authedAgent(app);
+    const foreignModel = await registerTestModel(owner);
+    const { agent } = await authedAgent(app);
+    const datasetId = await createDataset(agent, 1);
+
+    await agent
+      .post('/api/v1/experiments')
+      .send({
+        dataset_id: datasetId,
+        version_ids: await createVersions(agent, 1),
+        models: ['gpt-4o-mini'],
+        judge_model: foreignModel,
+      })
+      .expect(400);
+  });
+
+  it('stores a registered judge_model on the experiment and returns it', async () => {
+    const { agent } = await authedAgent(app);
+    const judge = await registerTestModel(agent);
+    const datasetId = await createDataset(agent, 1);
+
+    const res = await agent
+      .post('/api/v1/experiments')
+      .send({
+        dataset_id: datasetId,
+        version_ids: await createVersions(agent, 1),
+        models: ['gpt-4o-mini'],
+        judge_model: judge,
+      })
+      .expect(201);
+
+    expect(res.body.config.judgeModel).toBe(judge);
+    const row = await prisma.experiment.findUniqueOrThrow({ where: { id: res.body.id } });
+    expect((row.config as { judgeModel?: string }).judgeModel).toBe(judge);
+  });
+
+  it('refuses to start a run on an experiment saved before judges were chosen, and says what to do', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const datasetId = await createDataset(agent, 1);
+    // Rows from before this change cannot be made through the API any more.
+    const legacy = await prisma.experiment.create({
+      data: { teamId, datasetId, config: { versionIds: [], models: ['gpt-4o-mini'] } },
+    });
+
+    const res = await agent.post(`/api/v1/experiments/${legacy.id}/runs`).expect(400);
+
+    expect(JSON.stringify(res.body)).toContain('judge');
+    expect(await prisma.experimentRun.count()).toBe(0);
+  });
+});
+
+describe('POST /api/v1/experiments — judge prompt (issue #578)', () => {
+  /** A team prompt to grade with; `committed: false` leaves it with no version. */
+  async function createJudgePrompt(agent: ReturnType<typeof request.agent>, committed = true): Promise<string> {
+    const prompt = (await agent.post('/api/v1/prompts').send({ name: `judge-${randomUUID()}` }).expect(201)).body;
+    if (committed) {
+      await agent
+        .post(`/api/v1/prompts/${prompt.id}/versions`)
+        .send({ messages: [{ role: 'user', content: 'Grade {{ output }} against {{ criteria }}' }] })
+        .expect(201);
+    }
+    return prompt.id;
+  }
+
+  it('stores an optional judge_prompt_id on the experiment, and leaves it out when none is sent', async () => {
+    const { agent } = await authedAgent(app);
+    const judge = await registerTestModel(agent);
+    const datasetId = await createDataset(agent, 1);
+    const judgePromptId = await createJudgePrompt(agent);
+    const base = { dataset_id: datasetId, version_ids: await createVersions(agent, 1), models: ['gpt-4o-mini'], judge_model: judge };
+
+    const custom = await agent.post('/api/v1/experiments').send({ ...base, judge_prompt_id: judgePromptId }).expect(201);
+    const builtIn = await agent.post('/api/v1/experiments').send(base).expect(201);
+
+    expect(custom.body.config.judgePromptId).toBe(judgePromptId);
+    const row = await prisma.experiment.findUniqueOrThrow({ where: { id: custom.body.id } });
+    expect((row.config as { judgePromptId?: string }).judgePromptId).toBe(judgePromptId);
+    expect(builtIn.body.config).not.toHaveProperty('judgePromptId');
+  });
+
+  it("rejects another team's prompt as the judge prompt, before anything is written", async () => {
+    const { agent: other } = await authedAgent(app);
+    const foreignPromptId = await createJudgePrompt(other);
+    const { agent } = await authedAgent(app);
+    const judge = await registerTestModel(agent);
+    const datasetId = await createDataset(agent, 1);
+
+    const res = await agent
+      .post('/api/v1/experiments')
+      .send({
+        dataset_id: datasetId,
+        version_ids: await createVersions(agent, 1),
+        models: ['gpt-4o-mini'],
+        judge_model: judge,
+        judge_prompt_id: foreignPromptId,
+      })
+      .expect(400);
+
+    expect(JSON.stringify(res.body)).toContain('judge_prompt_id');
+    expect(await prisma.experiment.count()).toBe(0);
+  });
+
+  it('rejects a judge prompt with no committed version, since every judge call would fail', async () => {
+    const { agent } = await authedAgent(app);
+    const judge = await registerTestModel(agent);
+    const datasetId = await createDataset(agent, 1);
+    const emptyPromptId = await createJudgePrompt(agent, false);
+
+    const res = await agent
+      .post('/api/v1/experiments')
+      .send({
+        dataset_id: datasetId,
+        version_ids: await createVersions(agent, 1),
+        models: ['gpt-4o-mini'],
+        judge_model: judge,
+        judge_prompt_id: emptyPromptId,
+      })
+      .expect(400);
+
+    expect(JSON.stringify(res.body)).toContain('no committed version');
+    expect(await prisma.experiment.count()).toBe(0);
+  });
+
+  it('refuses to start a run once the judge prompt has been deleted, before any run row exists', async () => {
+    const { agent } = await authedAgent(app);
+    const judge = await registerTestModel(agent);
+    const datasetId = await createDataset(agent, 1);
+    const judgePromptId = await createJudgePrompt(agent);
+    const experiment = (
+      await agent
+        .post('/api/v1/experiments')
+        .send({
+          dataset_id: datasetId,
+          version_ids: await createVersions(agent, 1),
+          models: ['gpt-4o-mini'],
+          judge_model: judge,
+          judge_prompt_id: judgePromptId,
+        })
+        .expect(201)
+    ).body;
+    await agent.delete(`/api/v1/prompts/${judgePromptId}`).expect(204);
+
+    const res = await agent.post(`/api/v1/experiments/${experiment.id}/runs`).expect(400);
+
+    expect(JSON.stringify(res.body)).toContain('judge_prompt_id');
+    expect(await prisma.experimentRun.count()).toBe(0);
   });
 });

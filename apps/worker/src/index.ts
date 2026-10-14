@@ -283,8 +283,9 @@ export async function startWorkers(): Promise<EvalWorkers> {
   judgeWorker.on('failed', async (job: Job<JudgeJobData> | undefined, error: Error) => {
     if (!job) return;
 
-    const attempts = job.opts.attempts ?? 1;
-    if (job.attemptsMade < attempts) return; // more retries scheduled — not terminal yet
+    // More retries scheduled — not terminal yet. An UnrecoverableError (a job
+    // with no judge model) is terminal on its first attempt.
+    if (!isTerminalCellFailure(job.attemptsMade, job.opts.attempts ?? 1, error)) return;
 
     Sentry.captureException(error);
     try {
@@ -324,8 +325,9 @@ export async function startWorkers(): Promise<EvalWorkers> {
   optimizeWorker.on('failed', async (job: Job<OptimizeJobData> | undefined, error: Error) => {
     if (!job) return;
 
-    const attempts = job.opts.attempts ?? 1;
-    if (job.attemptsMade < attempts) return; // more retries scheduled — not terminal yet
+    // Same terminal check as the cell and judge workers: an UnrecoverableError
+    // (a job with no judge model) is final on its first attempt.
+    if (!isTerminalCellFailure(job.attemptsMade, job.opts.attempts ?? 1, error)) return;
 
     Sentry.captureException(error);
     try {

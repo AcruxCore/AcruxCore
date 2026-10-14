@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ApiError, filterPrompts, useAliases, useAllPrompts, useCreatePrompt, useModels, useOptimize } from '@/api';
 import type { StartRunResponse } from '@/api';
 import { Button, Dialog, DialogFooter, Field, Input, Select, useToast } from '@/ui';
+import { JudgeModelField } from './JudgeModelField';
 import { ModelCheckboxList } from './ModelCheckboxList';
 import { PromptPicker } from './PromptPicker';
 
@@ -35,6 +36,7 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
   const [alias, setAlias] = useState('');
   const [models, setModels] = useState<Set<string>>(new Set());
   const [optimizerModel, setOptimizerModel] = useState('');
+  const [judgeModel, setJudgeModel] = useState('');
   const [optimizerPrompt, setOptimizerPrompt] = useState<{ id: string; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -61,6 +63,7 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
       setAlias('');
       setModels(new Set());
       setOptimizerModel('');
+      setJudgeModel('');
       setOptimizerPrompt(null);
       setError(null);
       setSubmitting(false);
@@ -86,12 +89,17 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
       setError('Pick at least one model.');
       return;
     }
+    if (!judgeModel) {
+      setError('Pick a judge model.');
+      return;
+    }
     setError(null);
     setSubmitting(true);
     try {
       const result = await optimize.mutateAsync({
         dataset_id: datasetId,
         models: [...models],
+        judge_model: judgeModel,
         ...(optimizerModel ? { optimizer_model: optimizerModel } : {}),
         ...(optimizerPrompt ? { optimizer_prompt_id: optimizerPrompt.id } : {}),
         ...(alias ? { alias } : {}),
@@ -195,6 +203,13 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
             ))}
           </Select>
         </Field>
+
+        <JudgeModelField
+          id="optimize-dataset-judge-model"
+          value={judgeModel}
+          onChange={setJudgeModel}
+          grades="every rewrite and the baseline"
+        />
 
         <Field
           label="Optimizer prompt"

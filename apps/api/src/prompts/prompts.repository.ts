@@ -67,6 +67,41 @@ export class PromptsRepository {
   }
 
   /**
+   * Loads what an online evaluation rule needs to grade with its custom judge
+   * prompt, in one call: the `production` alias's messages and the latest
+   * version's messages, so the caller can prefer the first.
+   *
+   * Deliberately does NOT filter on `deletedAt`. Prompt delete is a soft
+   * delete, so a rule keeps its `judge_prompt_id` after the prompt is deleted,
+   * and such rules have always kept grading. Offline runs use the stricter
+   * `findById` and refuse a deleted prompt at run start instead.
+   *
+   * @param id - Prompt UUID (the rule's `judge_prompt_id`).
+   * @param teamId - Isolation boundary. Another team's prompt returns null.
+   * @returns The prompt name and the two candidate message sets (each null when
+   *   absent), or null if the prompt does not exist in this team.
+   */
+  async findJudgeTemplateForTeam(
+    id: string,
+    teamId: string,
+  ): Promise<{ name: string; productionMessages: unknown | null; latestMessages: unknown | null } | null> {
+    const row = await prisma.prompt.findFirst({
+      where: { id, teamId },
+      select: {
+        name: true,
+        aliases: { where: { alias: 'production' }, select: { version: { select: { messages: true } } } },
+        versions: { orderBy: { versionNumber: 'desc' }, take: 1, select: { messages: true } },
+      },
+    });
+    if (!row) return null;
+    return {
+      name: row.name,
+      productionMessages: row.aliases[0]?.version.messages ?? null,
+      latestMessages: row.versions[0]?.messages ?? null,
+    };
+  }
+
+  /**
    * Returns a paginated list of active prompts for a team, optionally filtered
    * by a case-insensitive search against name and description.
    * Results are ordered newest-first.
