@@ -1,6 +1,7 @@
+import { DelayedError, type Job } from 'bullmq';
 import type { FinalizeJobData } from '../queue';
 import { RunsRepository } from './runs.repository';
-import { NotFoundError } from '../../shared/errors';
+import { NotFoundError, RunNotReadyError } from '../../shared/errors';
 // Imported from the concrete file, not the `../../notifications` barrel: that
 // barrel re-exports `notificationsRouter`, which pulls in Express as a load-time
 // side effect. This processor is part of apps/worker's dependency graph, which is
@@ -88,14 +89,15 @@ export async function notifyRunFinished(
  * — a result with `errorMessage`/`score`/`reason` all null has simply not
  * been judged yet.
  *
+ * Readiness is checked with one aggregate count, not by loading the results: this
+ * runs every few seconds for as long as judging lasts. Only a run whose every cell
+ * errored reads its rows, and then only their error messages.
+ *
  * @param data - The finalize job payload (`FinalizeJobData`, Task 2): teamId + runId.
  * @throws {NotFoundError} If the run cannot be found for this team.
- * @throws {Error} If fewer results than expected have been produced, or any
- *   produced result has not yet been judged. This is a deliberately retryable
- *   signal, not a terminal failure: the `finalize` Flow-parent job is created
- *   with `attempts`/`backoff` (see `runs.service.ts`'s `startRun`) precisely
- *   so BullMQ re-attempts this function until cell/judge jobs catch up,
- *   instead of the run finalizing prematurely while judging is still in flight.
+ * @throws {RunNotReadyError} If fewer results than expected have been produced, or
+ *   any produced result has not yet been judged. Not a failure: `processFinalizeJob`
+ *   catches it and polls again later without using an attempt.
  */
 export async function processFinalize(data: FinalizeJobData): Promise<void> {
   const run = await runsRepo.getRunById(data.teamId, data.runId);
@@ -107,15 +109,12 @@ export async function processFinalize(data: FinalizeJobData): Promise<void> {
   const snapshot = run.exampleSnapshot as unknown[];
   const expectedCellCount = grid.length * snapshot.length;
 
-  const results = await runsRepo.listResultsForRun(data.teamId, data.runId);
-  const isJudged = (r: (typeof results)[number]): boolean =>
-    r.errorMessage !== null || r.score !== null || r.reason !== null;
-
-  if (results.length < expectedCellCount || !results.every(isJudged)) {
-    throw new Error(`Run ${data.runId} not ready to finalize: cell/judge jobs still in flight`);
+  const { produced, judged, errored } = await runsRepo.countResultProgress(data.teamId, data.runId);
+  if (produced < expectedCellCount || judged < produced) {
+    throw new RunNotReadyError(data.runId, produced, judged, expectedCellCount);
   }
 
-  const everyCellErrored = results.length > 0 && results.every((r) => r.errorMessage !== null);
+  const everyCellErrored = produced > 0 && errored === produced;
   const status = expectedCellCount > 0 && everyCellErrored ? 'failed' : 'succeeded';
 
   await runsRepo.setRunStatus(data.runId, status, {
@@ -123,7 +122,9 @@ export async function processFinalize(data: FinalizeJobData): Promise<void> {
     // A run that failed because every cell failed used to be stored with a null
     // `error`, so `GET /runs/:id` answered "failed" and said nothing else — the
     // reason existed only on the individual `eval_results` rows (issue #504).
-    ...(status === 'failed' ? { error: summariseCellErrors(results) } : {}),
+    ...(status === 'failed'
+      ? { error: summariseCellErrors(await runsRepo.listResultErrorsForRun(data.teamId, data.runId)) }
+      : {}),
   });
 
   // After the status transition, so the email never describes a state that was
@@ -133,32 +134,93 @@ export async function processFinalize(data: FinalizeJobData): Promise<void> {
 }
 
 /**
- * Transitions a run to a terminal `failed` status once its finalize job's
- * BullMQ retries are genuinely exhausted (all `attempts`/`backoff` — set in
- * `runs.service.ts`'s `startRun` — used up while `processFinalize` kept
- * throwing because cell/judge jobs never all settled in time: a moderate-size
- * run at low concurrency, a backed-up judge queue, or a permanent judge/
- * gateway outage can all trigger this).
+ * The shortest stretch with no progress at all after which a run is failed. One
+ * judge call through a reasoning model, with the gateway's own retries on a 429,
+ * can take minutes; a run must not fail while that one call is still in flight.
+ */
+export const FINALIZE_MIN_STALL_MS = 5 * 60_000;
+
+/**
+ * The finalize worker's processor: finalizes the run, or waits while it is still
+ * making progress, and fails it only once it has stopped.
  *
- * Called from `apps/worker`'s `runWorker.on('failed', ...)` handler
- * (`apps/worker/src/index.ts`), which owns the actual BullMQ bookkeeping
- * check (`job.attemptsMade >= job.opts.attempts`) — that check is pure BullMQ
- * job-shape logic with no domain meaning, so it stays in the worker's thin
- * wiring, mirroring `cellWorker`/`judgeWorker`'s existing `'failed'`
- * handlers. This function is the actual domain logic ("what happens when
- * finalize permanently gives up") and is kept here, in apps/api, so it stays
- * testable without needing apps/worker's compiled `dist/` output or a real
- * multi-minute BullMQ retry cycle.
+ * The finalize job used to count every "not ready yet" poll as a failed attempt,
+ * so a run had a fixed time budget (attempts × backoff delay, about 3.5 minutes
+ * for 60 answers) measured from when its last *cell* finished. Judging is slower
+ * than producing answers — judge workers run 2 calls at a time, and a reasoning
+ * judge takes several seconds per call — so a healthy run whose verdicts were
+ * still arriving was marked `failed`, and its last verdicts landed after the
+ * report had been read.
  *
- * `setRunStatus`'s only other call site is `processFinalize`'s own success
- * path — without this function ever being invoked once retries are
- * exhausted, a run would stay at `queued` forever with no operator-visible
- * signal that anything went wrong.
+ * Now a not-ready poll moves the job back to delayed without using an attempt,
+ * remembering in the job data how many answers were produced plus judged. The
+ * run is failed only when that number has not moved for the stall window: the
+ * same attempts × delay the job was sized with, and never less than
+ * {@link FINALIZE_MIN_STALL_MS}. Any other error (a database failure, say)
+ * still uses the job's normal attempts and the worker's `'failed'` handler.
  *
- * @param data - The exhausted finalize job's payload (teamId + runId).
- * @param failedReason - The BullMQ job's `failedReason` from its last
- *   attempt (i.e. the message from `processFinalize`'s last thrown `Error`),
- *   folded into the stored `error` message so an operator can see why.
+ * @param job - The finalize job. Its `opts.attempts` and `opts.backoff.delay`
+ *   size the poll interval and the stall window.
+ * @param token - The worker's lock token, required by `moveToDelayed`.
+ * @param opts - `minStallMs` overrides {@link FINALIZE_MIN_STALL_MS} (tests only).
+ * @returns Nothing once the run is finalized or failed as stalled.
+ * @throws {DelayedError} While the run is still progressing — BullMQ's signal that
+ *   the job was moved back to delayed, not failed.
+ */
+export async function processFinalizeJob(
+  job: Job<FinalizeJobData>,
+  token?: string,
+  opts: { minStallMs?: number } = {},
+): Promise<void> {
+  try {
+    await processFinalize(job.data);
+    return;
+  } catch (err) {
+    if (!(err instanceof RunNotReadyError)) throw err;
+    const now = Date.now();
+    const count = err.produced + err.judged;
+    const last = job.data.progress;
+    const changedAt = !last || count > last.count ? now : last.changedAt;
+
+    const backoff = job.opts.backoff;
+    const pollMs = typeof backoff === 'object' && backoff.delay ? backoff.delay : 3000;
+    const stallMs = Math.max((job.opts.attempts ?? 20) * pollMs, opts.minStallMs ?? FINALIZE_MIN_STALL_MS);
+    if (now - changedAt > stallMs) {
+      const minutes = Math.round((now - changedAt) / 6000) / 10;
+      await markFinalizeExhausted(
+        job.data,
+        `no progress for ${minutes} min (${err.judged} of ${err.expected} results judged, ` +
+          `${err.produced} of ${err.expected} produced)`,
+      );
+      return;
+    }
+
+    await job.updateData({ ...job.data, progress: { count, changedAt } });
+    await job.moveToDelayed(now + pollMs, token);
+    throw new DelayedError();
+  }
+}
+
+/**
+ * Transitions a run to a terminal `failed` status once finalize gives up on it.
+ *
+ * Two callers, for two reasons:
+ * - `processFinalizeJob`, when the run has made no progress (no new answer and
+ *   no new verdict) for the whole stall window — a lost judge job, a backed-up
+ *   judge queue, or a judge/gateway outage. `failedReason` says how long and
+ *   how far it got.
+ * - `apps/worker`'s `runWorker.on('failed', ...)` handler, when the finalize job
+ *   used up its attempts on real errors (a database failure, say). That handler
+ *   owns the BullMQ check `job.attemptsMade >= job.opts.attempts`, which is job
+ *   bookkeeping with no domain meaning; this function is the domain step, kept
+ *   here in apps/api so it is testable without apps/worker's compiled `dist/`.
+ *
+ * Without it, a run that finalize abandoned would stay unfinished until the stale
+ * run reaper, with nothing on the run to say why.
+ *
+ * @param data - The finalize job's payload (teamId + runId).
+ * @param failedReason - Why finalize gave up, folded into the stored `error`
+ *   message so an operator can see it.
  */
 export async function markFinalizeExhausted(data: FinalizeJobData, failedReason: string | undefined): Promise<void> {
   await runsRepo.setRunStatus(data.runId, 'failed', {

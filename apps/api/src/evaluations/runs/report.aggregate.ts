@@ -57,9 +57,10 @@ function aggregateRows(rows: EvalResultRow[]): {
  * distinct `variantLabel`, independent of which models it was run against.
  *
  * @param grid - The run's resolved (variant × model) cells.
+ * @param versionNumbers - Version number per prompt version id, when known.
  * @returns The distinct variants, in first-seen order.
  */
-function deriveVariants(grid: ReportGridCell[]): RunReportVariant[] {
+function deriveVariants(grid: ReportGridCell[], versionNumbers: Record<string, number> = {}): RunReportVariant[] {
   const seen = new Map<string, RunReportVariant>();
   for (const cell of grid) {
     if (!seen.has(cell.variantLabel)) {
@@ -67,6 +68,7 @@ function deriveVariants(grid: ReportGridCell[]): RunReportVariant[] {
         variantKind: cell.variantKind as RunReportVariant['variantKind'],
         promptVersionId: cell.promptVersionId,
         variantLabel: cell.variantLabel,
+        versionNumber: (cell.promptVersionId && versionNumbers[cell.promptVersionId]) || null,
         isProductionBaseline: cell.isProductionBaseline,
       });
     }
@@ -106,7 +108,8 @@ function computeDelta(cell: CellAggregate, baseline: CellAggregate | undefined):
  * The grid (not the results) is the source of truth for which cells exist,
  * so a cell with zero results yet still appears with `avgScore: null`.
  *
- * @param input - `run` (id/status/grid) and the run's `eval_result` rows.
+ * @param input - `run` (id/status/grid), the run's `eval_result` rows, and the
+ *   version number of each prompt version in the grid.
  * @returns The computed {@link RunReport}.
  */
 export function buildRunReport(input: BuildRunReportInput): RunReport {
@@ -181,7 +184,7 @@ export function buildRunReport(input: BuildRunReportInput): RunReport {
     runId: run.id,
     status: run.status,
     models: Array.from(new Set(run.grid.map((cell) => cell.model))),
-    variants: deriveVariants(run.grid),
+    variants: deriveVariants(run.grid, input.versionNumbers),
     cells,
     leaderboard,
     winner,

@@ -3,6 +3,7 @@ import type { CreateModelInput, GatewayModel, UpdateModelInput } from '@/api';
 import { useConnections, useCreateModel, useModels, useUpdateModel, ApiError } from '@/api';
 import { Button, Dialog, DialogFooter, Field, Input, Select, useToast } from '@/ui';
 import { PROVIDER_LABELS } from './format';
+import { PRICE_FIELD_HINT } from './model-price';
 
 export interface ModelDialogProps {
   open: boolean;
@@ -165,7 +166,7 @@ export function ModelDialog({ open, onOpenChange, model }: ModelDialogProps) {
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Input $/1M" htmlFor="model-in" hint="Blank = auto for known models.">
+            <Field label="Input $/1M" htmlFor="model-in" hint={PRICE_FIELD_HINT}>
               <Input
                 id="model-in"
                 type="number"
@@ -176,7 +177,7 @@ export function ModelDialog({ open, onOpenChange, model }: ModelDialogProps) {
                 placeholder="auto"
               />
             </Field>
-            <Field label="Output $/1M" htmlFor="model-out" hint="Blank = auto for known models.">
+            <Field label="Output $/1M" htmlFor="model-out" hint={PRICE_FIELD_HINT}>
               <Input
                 id="model-out"
                 type="number"

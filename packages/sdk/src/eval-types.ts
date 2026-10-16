@@ -223,6 +223,8 @@ export interface RunReport {
     variantKind: 'version' | 'candidate';
     promptVersionId: string | null;
     variantLabel: string;
+    /** The version behind the label, e.g. 1 for a `production` baseline. Null for a candidate. */
+    versionNumber?: number | null;
     isProductionBaseline: boolean;
   }>;
   cells: RunReportCell[];

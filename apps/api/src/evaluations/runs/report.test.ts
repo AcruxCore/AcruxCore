@@ -169,6 +169,16 @@ afterAll(async () => {
 });
 
 describe('GET /runs/:id/report', () => {
+  it('names the version behind each variant, so an alias reads as "v2 (production)"', async () => {
+    const { agent, runId } = await arrangeRun();
+
+    const report = (await agent.get(`/api/v1/runs/${runId}/report`).expect(200)).body;
+
+    // arrangeRun promotes `production` to v2 and lists v1 explicitly.
+    const byLabel = Object.fromEntries(report.variants.map((v: any) => [v.variantLabel, v.versionNumber]));
+    expect(byLabel).toEqual({ v1: 1, production: 2 });
+  });
+
   it('returns the matrix with baseline, deltas, and winner', async () => {
     const { agent, teamId, runId, grid, exampleIds } = await arrangeRun();
     const v1Cell = grid.find((cell) => cell.variantLabel === 'v1')!;

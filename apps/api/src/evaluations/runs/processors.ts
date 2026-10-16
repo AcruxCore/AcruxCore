@@ -2,7 +2,7 @@
  * Narrow entry point for out-of-process job consumers (currently
  * `apps/worker`). Exposes ONLY the pieces a BullMQ worker process needs to
  * execute eval jobs and record terminal failures: `processCell`,
- * `processFinalize`, `processJudge`, `processOptimize`,
+ * `processFinalize`, `processFinalizeJob`, `processJudge`, `processOptimize`,
  * `markFinalizeExhausted`, and `RunsRepository` (used by the worker's
  * `'failed'` handlers to call `writeResultError`/`writeVerdict`).
  *
@@ -23,7 +23,7 @@
 export { RunsRepository } from './runs.repository';
 export type { ExperimentRunWithResults } from './runs.repository';
 export { processCell, isTerminalCellFailure } from './cell.processor';
-export { processFinalize, markFinalizeExhausted } from './finalize.processor';
+export { processFinalize, processFinalizeJob, markFinalizeExhausted } from './finalize.processor';
 export { processJudge } from './judge.processor';
 export { processOptimize } from './optimize.processor';
 export { processStaleRunsJob, reapStaleRuns } from './stale-runs.processor';

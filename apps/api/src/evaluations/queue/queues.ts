@@ -85,6 +85,12 @@ export interface FinalizeJobData {
   teamId: string;
   /** Experiment run ID to finalize. */
   runId: string;
+  /**
+   * Written by `processFinalizeJob` between polls, never by the enqueuer: how many
+   * answers were produced plus judged at the last poll, and when (epoch ms) that
+   * number last went up. Absent on a job's first poll.
+   */
+  progress?: { count: number; changedAt: number };
 }
 
 /**
@@ -190,24 +196,22 @@ export interface OptimizeJobData {
 }
 
 /**
- * Builds the BullMQ opts for a run's finalize (Flow-parent) job, sizing its
- * retry budget to the run.
+ * Builds the BullMQ opts for a run's finalize (Flow-parent) job.
  *
  * The finalize job is NOT a Flow parent of the per-cell judge jobs (those are
  * enqueued independently by `cell.processor` after each result is written), so
  * it becomes eligible as soon as all cell children settle — before judging has
- * necessarily finished. `processFinalize` throws while any produced result is
- * still unjudged, relying on BullMQ retries to poll until judging catches up.
+ * necessarily finished. While results are still unjudged, `processFinalizeJob`
+ * moves the job back to delayed every `backoff.delay` (3 s) without using an
+ * attempt, so these opts are not a time limit on a run that is progressing.
  *
- * A FIXED 3s poll with attempts scaled to the cell/judge count (`numCellJobs`)
- * gives a budget that grows ~linearly with run size: `min(400, max(20, n+10))`
- * attempts → roughly 60s for a tiny run up to ~20min for a very large one. This
- * replaces the previous fixed `10 × exponential(1s)` (~8.5min total regardless
- * of size), under which a large-but-healthy run could exhaust the budget while
- * judging was still legitimately draining and be marked terminally `failed`.
- * Once the budget is genuinely exhausted (e.g. a permanent judge/gateway
- * outage), `apps/worker`'s `runWorker.on('failed')` transitions the run to
- * `failed` rather than leaving it stuck at `queued` forever.
+ * They size two things instead:
+ * - The stall window: a run is failed once it makes no progress for
+ *   `attempts × delay` (never less than `FINALIZE_MIN_STALL_MS`, 5 min).
+ *   `attempts = min(400, max(20, n+10))`, so a large run waits longer
+ *   (up to ~20 min) between verdicts before it is called stuck.
+ * - Retries after real errors (a database failure, say); once those run out,
+ *   `apps/worker`'s `runWorker.on('failed')` marks the run `failed`.
  *
  * @param numCellJobs - Total cell jobs in the run (`grid × examples`); the
  *   upper bound on how many judge jobs must settle before finalize can succeed.

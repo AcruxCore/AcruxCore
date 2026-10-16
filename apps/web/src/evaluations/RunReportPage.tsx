@@ -5,6 +5,7 @@ import { useRun, useRunReport } from '@/api';
 import type { RunStatus } from '@/api/types';
 import { LeaderboardMatrix } from './LeaderboardMatrix';
 import { CellDrilldownPanel } from './CellDrilldownPanel';
+import { variantDisplayLabel } from './variant-label';
 
 /** One-line status strip shown above the matrix while a run is in flight or has failed; quiet (no strip) once it has succeeded. */
 function RunStatusBanner({ status, error }: { status: RunStatus; error?: string | null }) {
@@ -65,6 +66,10 @@ export function RunReportPage() {
   const data = report.data;
   const selectedGridCell = run.data?.grid.find((g) => g.cellKey === selectedCellKey) ?? null;
   const selectedCandidateId = selectedGridCell?.variantKind === 'candidate' ? selectedGridCell.promptCandidateId ?? null : null;
+  const selectedVariant = data?.variants.find((v) => v.variantLabel === selectedGridCell?.variantLabel);
+  const selectedVariantLabel = selectedVariant
+    ? variantDisplayLabel(selectedVariant.variantLabel, selectedVariant.versionNumber)
+    : undefined;
 
   return (
     <div className="flex flex-col gap-5">
@@ -97,6 +102,7 @@ export function RunReportPage() {
           runId={id}
           cellKey={selectedCellKey}
           candidateId={selectedCandidateId}
+          variantLabel={selectedVariantLabel}
           onClose={() => setSelectedCellKey(null)}
         />
       )}

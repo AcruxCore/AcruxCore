@@ -36,6 +36,11 @@ export interface BuildRunReportInput {
     grid: ReportGridCell[];
   };
   results: EvalResultRow[];
+  /**
+   * Version number per `promptVersionId` in the grid. Optional: a variant whose
+   * id is missing here reports `versionNumber: null`.
+   */
+  versionNumbers?: Record<string, number>;
 }
 
 /**
@@ -47,6 +52,12 @@ export interface RunReportVariant {
   variantKind: 'version' | 'candidate';
   promptVersionId: string | null;
   variantLabel: string;
+  /**
+   * The number of the prompt version behind this variant, so an alias label such
+   * as `production` can be shown as "v1 (production)". `null` for an optimizer
+   * candidate (no committed version) or a version that has since been deleted.
+   */
+  versionNumber: number | null;
   isProductionBaseline: boolean;
 }
 

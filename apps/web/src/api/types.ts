@@ -1045,6 +1045,8 @@ export interface RunReportVariant {
   variantKind: 'version' | 'candidate';
   promptVersionId?: string;
   variantLabel: string;
+  /** The version behind the label, so `production` can show as "v1 (production)". Absent from older APIs. */
+  versionNumber?: number | null;
   isProductionBaseline: boolean;
 }
 

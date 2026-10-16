@@ -43,8 +43,14 @@ called out in the week it ships and in the SDK release notes.
 
 - A custom judge prompt now grades examples that have no criteria; it holds its own rubric.
 - **Create judge prompt** starts from a template with a rubric section and a link to the guide.
-- The Run experiment screen warns when the judge uses `{{ criteria }}` that some examples lack.
+- Run experiment warns when the judge uses `{{ criteria }}` and some examples have none.
   [Guide →](/docs/guides/write-a-custom-judge-prompt)
+
+#### Slow judges no longer fail a healthy run
+
+- A run whose judge was still grading was marked failed after a few minutes, with answers unscored.
+- A run now fails only when no answer has been produced or graded for at least 5 minutes.
+- The failure message says so and counts the answers graded, such as "1 of 4 results judged".
 
 #### Discovery files for AI agents
 
@@ -89,6 +95,10 @@ called out in the week it ships and in the SDK release notes.
 - **New guide** — [Write a custom judge prompt](/docs/guides/write-a-custom-judge-prompt).
 - **Fixed** — the Evaluation code sample on acruxcore.com left out the required `judge_model`.
 - Blog titles and descriptions now name the search term first, such as "LangChain alternative".
+- **Fixed** — the New dataset dialog said examples are added by hand; it now mentions file import.
+- The Models page warns when a model lacks a price: its calls count as $0 in Usage and budgets.
+- The run report shows a baseline as "v1 (production)"; the report API returns `versionNumber`.
+- **Fixed** — the prompt Diff tab cut off long lines; they now wrap, so a changed rule is readable.
 
 ---
 

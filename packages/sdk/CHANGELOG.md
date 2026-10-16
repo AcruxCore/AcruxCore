@@ -18,6 +18,8 @@ changelog: <https://docs.acruxcore.com/changelog>
   built-in judge. Each run uses its `production` version (else its latest).
 - Typed judge fields: `ExperimentDto.config.judgeModel` and `judgePromptId`, each run's
   `judgeModel` and `judgePromptVersionId`, and `RunReport.judge` (the judge that graded the run).
+- `RunReport.variants[].versionNumber`: the version behind each variant, so a `production`
+  baseline can be shown as "v1 (production)".
 
 ### Changed
 

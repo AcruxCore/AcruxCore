@@ -4,11 +4,7 @@ import { useModels, useDeleteModel, useTestModel, ApiError } from '@/api';
 import { useAuth } from '@/auth/AuthContext';
 import { Badge, Button, Dialog, DialogFooter, Empty, PageSpinner, useToast } from '@/ui';
 import { ModelDialog } from './ModelDialog';
-
-// Formats a nullable per-1M price for display.
-function price(n: number | null): string {
-  return n == null ? '—' : `$${n}`;
-}
+import { modelPriceText } from './model-price';
 
 /**
  * The model registry: public names → upstream models on a credential, with prices
@@ -96,7 +92,9 @@ export function ModelsPage() {
         />
       ) : (
         <ul className="overflow-hidden rounded-xl border border-line">
-          {models.map((m) => (
+          {models.map((m) => {
+            const priceInfo = modelPriceText(m.inputPricePerM, m.outputPricePerM);
+            return (
             <li
               key={m.id}
               className="flex items-center gap-4 border-b border-line-soft bg-surface px-4 py-3.5 last:border-b-0"
@@ -108,11 +106,14 @@ export function ModelsPage() {
                   <span className="text-faint"> → {m.upstreamModel}</span>
                 </p>
                 <p className="mt-0.5 truncate font-mono text-[12px] text-faint">
-                  {m.credentialLabel} · in {price(m.inputPricePerM)} / out {price(m.outputPricePerM)} per 1M
+                  {m.credentialLabel} ·{' '}
+                  <span className={priceInfo.warning ? 'text-warn' : undefined}>{priceInfo.text}</span>
                   {m.fallbacks.length > 0
                     ? ` · fallback → ${m.fallbacks.map((f) => f.publicName).join(', ')}`
                     : ''}
                 </p>
+                {/* Its own wrapping line: the truncated line above would cut the warning off. */}
+                {priceInfo.warning && <p className="mt-1 text-[12px] text-warn">{priceInfo.warning}</p>}
               </div>
               {canManageTeam && (
                 <div className="ml-auto flex flex-none gap-2">
@@ -128,7 +129,8 @@ export function ModelsPage() {
                 </div>
               )}
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
 

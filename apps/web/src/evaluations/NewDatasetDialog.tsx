@@ -13,7 +13,7 @@ export interface NewDatasetDialogProps {
  * for a team that has no feedback yet, and so cannot use the
  * build-from-feedback flow (`CreateDatasetDialog`). Posts `{ name,
  * overall_feedback }` to `POST /datasets` and navigates straight to the new
- * dataset, where examples are added by hand.
+ * dataset, where examples are imported from a file or added by hand.
  */
 export function NewDatasetDialog({ open, onOpenChange }: NewDatasetDialogProps) {
   const toast = useToast();
@@ -59,7 +59,7 @@ export function NewDatasetDialog({ open, onOpenChange }: NewDatasetDialogProps) 
       open={open}
       onOpenChange={onOpenChange}
       title="New dataset"
-      description="Starts empty. Add examples by hand on the next screen."
+      description="Starts empty. On the next screen, import a CSV or JSON file, or add examples by hand."
     >
       <div className="flex flex-col gap-4">
         <Field label="Name" htmlFor="new-dataset-name" error={error ?? undefined} hint="What this dataset is for.">

@@ -95,12 +95,15 @@ export function DiffTab({ promptId }: { promptId: string }) {
           <Spinner />
         </div>
       ) : diff.data ? (
-        <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-          <pre className="min-w-full font-mono text-[12.5px] leading-relaxed">
+        <div className="overflow-hidden rounded-xl border border-line bg-surface">
+          {/* Lines wrap: a prompt line is often a whole paragraph, and a side-scrolling
+              diff hid exactly the part that changed. The hanging indent keeps a wrapped
+              line aligned after its +/- marker. */}
+          <pre className="min-w-full whitespace-pre-wrap break-words font-mono text-[12.5px] leading-relaxed">
             {diff.data.diff.split('\n').map((line, i) => {
               const kind = classify(line);
               return (
-                <div key={i} className={cn('px-4 py-px', LINE_STYLES[kind])}>
+                <div key={i} className={cn('py-px pl-[calc(1rem+1ch)] pr-4 -indent-[1ch]', LINE_STYLES[kind])}>
                   {line || ' '}
                 </div>
               );

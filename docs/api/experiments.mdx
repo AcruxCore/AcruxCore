@@ -857,6 +857,27 @@ curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" $ACRUXCORE_BASE_URL/runs/0000
 
 ---
 
+#### Which version is behind each variant
+
+Each entry in `variants` carries `versionNumber`, the number of the prompt version that
+variant ran. A baseline is labelled by its alias (`production`); `versionNumber` says which
+version that alias pointed to when the run started, so the dashboard shows it as
+"v1 (production)". It is `null` for an optimizer candidate or a version that was deleted.
+
+```bash
+curl $ACRUXCORE_BASE_URL/runs/9666961b-d72c-415f-80ea-e13d99b77977/report \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+Response (status 200), `variants` only:
+
+```json
+"variants": [
+  { "variantKind": "version", "promptVersionId": "660b027a-8ff6-4ee6-8f2e-4b913109dba3", "variantLabel": "v2", "versionNumber": 2, "isProductionBaseline": false },
+  { "variantKind": "version", "promptVersionId": "601f5f1c-7f54-47f9-ab8f-ef4387a0db53", "variantLabel": "production", "versionNumber": 1, "isProductionBaseline": true }
+]
+```
+
 ### GET /api/v1/runs/:id/cells/:cellKey
 
 Drill-down (Phase 5 E5): one grid cell's per-example outputs, judge

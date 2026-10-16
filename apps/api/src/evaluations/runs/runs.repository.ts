@@ -471,15 +471,44 @@ export class RunsRepository {
   }
 
   /**
-   * Lists a run's produced `eval_results` rows, team-scoped.
+   * Counts a run's results by stage, in one aggregate query.
    *
-   * @param teamId - Isolation boundary.
-   * @param runId - Run UUID.
-   * @returns Array of result rows for the run.
+   * The finalize job calls this every few seconds for as long as a run is still
+   * being judged. Loading the rows instead would read every answer's text on each
+   * poll — about 320 kB per poll on a 400-cell run.
+   *
+   * A result is `judged` once it carries an `errorMessage` (nothing to judge), a
+   * `score`, or a `reason` — the same test `processFinalize` documents.
+   *
+   * @param teamId - Owning team; another team's run counts as empty.
+   * @param runId - The run to count.
+   * @returns How many results exist, how many are judged, and how many are cell errors.
    */
-  async listResultsForRun(teamId: string, runId: string): Promise<Prisma.EvalResultGetPayload<{}>[]> {
+  async countResultProgress(
+    teamId: string,
+    runId: string,
+  ): Promise<{ produced: number; judged: number; errored: number }> {
+    const [row] = await prisma.$queryRaw<Array<{ produced: number; judged: number; errored: number }>>(Prisma.sql`
+      SELECT count(*)::int AS produced,
+             count(*) FILTER (WHERE error_message IS NOT NULL OR score IS NOT NULL OR reason IS NOT NULL)::int AS judged,
+             count(*) FILTER (WHERE error_message IS NOT NULL)::int AS errored
+        FROM eval_results
+       WHERE team_id = ${teamId}::uuid AND experiment_run_id = ${runId}::uuid`);
+    return row;
+  }
+
+  /**
+   * Every error message of a run's results, oldest first — only the column the
+   * all-cells-failed summary needs.
+   *
+   * @param teamId - Owning team.
+   * @param runId - The run.
+   * @returns One entry per result; null for a result that did not error.
+   */
+  async listResultErrorsForRun(teamId: string, runId: string): Promise<Array<{ errorMessage: string | null }>> {
     return prisma.evalResult.findMany({
       where: { teamId, experimentRunId: runId },
+      select: { errorMessage: true },
       orderBy: { createdAt: 'asc' },
     });
   }
@@ -687,5 +716,24 @@ export class RunsRepository {
       include: { example: { select: { input: true, criteria: true } } },
       orderBy: { createdAt: 'asc' },
     });
+  }
+
+  /**
+   * Looks up the version number of each prompt version a run's grid names, so
+   * the report can show an alias cell as "v1 (production)". Scoped to the team
+   * through the version's prompt; an id that is gone or belongs elsewhere is
+   * simply absent from the result.
+   *
+   * @param teamId - Isolation boundary.
+   * @param versionIds - Prompt version ids from the grid (nulls already removed).
+   * @returns Version number per version id.
+   */
+  async findVersionNumbers(teamId: string, versionIds: string[]): Promise<Record<string, number>> {
+    if (versionIds.length === 0) return {};
+    const rows = await prisma.promptVersion.findMany({
+      where: { id: { in: versionIds }, prompt: { teamId } },
+      select: { id: true, versionNumber: true },
+    });
+    return Object.fromEntries(rows.map((r) => [r.id, r.versionNumber]));
   }
 }

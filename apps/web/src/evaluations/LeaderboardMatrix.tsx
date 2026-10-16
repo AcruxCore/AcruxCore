@@ -2,6 +2,7 @@ import { Fragment } from 'react';
 import { Badge } from '@/ui';
 import { cn } from '@/lib/cn';
 import type { RunReport, RunReportCell } from '@/api/types';
+import { variantDisplayLabel } from './variant-label';
 import { deltaToChip, scoreToGrade, type DeltaTone, type ScoreGrade } from './matrix.helpers';
 
 export interface LeaderboardMatrixProps {
@@ -44,12 +45,15 @@ function barWidthPct(score: number | null): number {
 function LeaderboardRow({
   rank,
   cell,
+  label,
   isWinner,
   isSelected,
   onSelect,
 }: {
   rank: number;
   cell: RunReportCell;
+  /** The variant's display label, e.g. "v1 (production)". */
+  label: string;
   isWinner: boolean;
   isSelected: boolean;
   onSelect: () => void;
@@ -72,7 +76,7 @@ function LeaderboardRow({
         <span className="w-7 shrink-0 font-mono text-[12px] text-faint">#{rank}</span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[13px] font-medium text-ink">
-            {cell.variantLabel} <span className="text-faint">·</span> <span className="font-mono">{cell.model}</span>
+            {label} <span className="text-faint">·</span> <span className="font-mono">{cell.model}</span>
           </span>
           <span className="mt-1 block h-1 w-full overflow-hidden rounded-full bg-line-soft">
             <span
@@ -171,6 +175,10 @@ export function LeaderboardMatrix({ report, selectedCellKey, onSelectCell }: Lea
                 key={cell.cellKey}
                 rank={i + 1}
                 cell={cell}
+                label={variantDisplayLabel(
+                  cell.variantLabel,
+                  report.variants.find((v) => v.variantLabel === cell.variantLabel)?.versionNumber,
+                )}
                 isWinner={report.winner?.cellKey === cell.cellKey}
                 isSelected={selectedCellKey === cell.cellKey}
                 onSelect={() => onSelectCell(cell.cellKey)}
@@ -199,7 +207,9 @@ export function LeaderboardMatrix({ report, selectedCellKey, onSelectCell }: Lea
                 <Fragment key={variant.variantLabel}>
                   <tr className="border-b border-line-soft last:border-b-0">
                     <td className="sticky left-0 z-10 whitespace-nowrap bg-surface px-4 py-2.5 align-top">
-                      <span className="text-[13px] font-medium text-ink">{variant.variantLabel}</span>
+                      <span className="text-[13px] font-medium text-ink">
+                        {variantDisplayLabel(variant.variantLabel, variant.versionNumber)}
+                      </span>
                       {variant.isProductionBaseline && (
                         <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-accent align-middle" aria-hidden />
                       )}

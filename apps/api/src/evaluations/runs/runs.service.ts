@@ -319,10 +319,15 @@ export class RunsService {
     const data = await this.runsRepo.getRunWithResults(teamId, runId);
     if (!data) throw new NotFoundError('Run not found.');
 
+    // `!= null`, not `!== null`: an optimizer candidate cell has no promptVersionId at
+    // all, and an undefined id in the `in` list makes Prisma throw.
+    const versionIds = data.grid.map((c) => c.promptVersionId).filter((id): id is string => id != null);
+    const versionNumbers = await this.runsRepo.findVersionNumbers(teamId, [...new Set(versionIds)]);
     return {
       ...buildRunReport({
         run: { id: data.id, status: data.status, grid: data.grid },
         results: data.results,
+        versionNumbers,
       }),
       judge: { model: data.judgeModel, promptVersionId: data.judgePromptVersionId },
     };

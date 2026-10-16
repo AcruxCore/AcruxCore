@@ -21,6 +21,8 @@ export interface CellDrilldownPanelProps {
    * promoted.
    */
   candidateId: string | null;
+  /** The variant's display label from the report, e.g. "v1 (production)". Falls back to the cell's own label. */
+  variantLabel?: string;
   onClose: () => void;
 }
 
@@ -108,11 +110,11 @@ function ExampleRow({ example }: { example: RunCellExample }) {
  *   is a production-baseline (`'version'`) cell rather than a candidate one.
  * @param onClose - Called when the panel is dismissed (Esc, overlay click, or close button).
  */
-export function CellDrilldownPanel({ runId, cellKey, candidateId, onClose }: CellDrilldownPanelProps) {
+export function CellDrilldownPanel({ runId, cellKey, candidateId, variantLabel, onClose }: CellDrilldownPanelProps) {
   const { canWrite } = useAuth();
   const [promoteOpen, setPromoteOpen] = useState(false);
   const detail = useRunCell(runId, cellKey);
-  const title = detail.data ? `${detail.data.variantLabel} · ${detail.data.model}` : 'Cell detail';
+  const title = detail.data ? `${variantLabel ?? detail.data.variantLabel} · ${detail.data.model}` : 'Cell detail';
   const description = detail.data ? `${detail.data.examples.length} example${detail.data.examples.length === 1 ? '' : 's'}` : undefined;
 
   return (

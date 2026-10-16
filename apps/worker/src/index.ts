@@ -18,7 +18,7 @@ import {
 import {
   processCell,
   isTerminalCellFailure,
-  processFinalize,
+  processFinalizeJob,
   processJudge,
   processOptimize,
   markFinalizeExhausted,
@@ -99,14 +99,12 @@ const runsRepo = new RunsRepository();
  * itself never writes that row (retryable failures must not get a premature
  * terminal row; see its own docstring).
  *
- * `runWorker` runs `processFinalize` at a fixed concurrency of 1: only one
- * run finalizes at a time, and finalize is cheap (no gateway call). It
- * retries (via the finalize job's own `attempts`/`backoff`, set in
- * `runs.service.ts`'s `startRun`) until every cell's judge job has also
- * settled — see `processFinalize`'s docstring. Its `'failed'` handler fires
- * only once those retries are genuinely exhausted (moderate-sized runs at low
- * concurrency, a backed-up judge queue, or a permanent judge outage can all
- * burn through the whole retry budget before judging finishes): once
+ * `runWorker` runs `processFinalizeJob` at a fixed concurrency of 1: only one
+ * run finalizes at a time, and finalize is cheap (no gateway call). While the
+ * run is not ready it re-delays itself without using an attempt, and fails the
+ * run only after a stretch with no progress at all — see `processFinalizeJob`'s
+ * docstring. Its `'failed'` handler covers any other error (a database failure,
+ * say) once the job's attempts are genuinely exhausted: once
  * `job.attemptsMade >= job.opts.attempts`, it delegates to apps/api's
  * `markFinalizeExhausted` (see that function's own docstring), which
  * transitions the run to a real terminal `failed` status with an
@@ -242,7 +240,7 @@ export async function startWorkers(): Promise<EvalWorkers> {
   });
   await waitForWorkerReady(cellWorker);
 
-  const runWorker = new Worker<FinalizeJobData>(EVAL_RUNS_QUEUE, (job) => processFinalize(job.data), {
+  const runWorker = new Worker<FinalizeJobData>(EVAL_RUNS_QUEUE, (job, token) => processFinalizeJob(job, token), {
     connection,
     concurrency: 1,
   });
