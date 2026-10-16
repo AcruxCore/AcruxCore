@@ -409,16 +409,29 @@ export function useRunCell(id: string | null, cellKey: string | null) {
  * @param baseCell - The base cell's `${variantLabel}|${model}` key, or null.
  * @param targetRunId - The run holding the target cell; pass `id` for the same run.
  * @param targetCell - The target cell's key, or null.
+ * @param score - A local run's named score to classify on, or null for each result's
+ *   primary score.
  * @returns The query for the pairing: both cell refs, the per-change counts and every
  *   paired example. Errors with 404 for a cell key not in its run, 400
  *   `DATASET_MISMATCH` for runs over different datasets.
  */
-export function useRunCompare(id: string | null, baseCell: string | null, targetRunId: string | null, targetCell: string | null) {
+export function useRunCompare(
+  id: string | null,
+  baseCell: string | null,
+  targetRunId: string | null,
+  targetCell: string | null,
+  score: string | null = null,
+) {
   return useQuery({
-    queryKey: keys.runCompare(id ?? '', baseCell ?? '', targetRunId ?? '', targetCell ?? ''),
+    queryKey: [...keys.runCompare(id ?? '', baseCell ?? '', targetRunId ?? '', targetCell ?? ''), score ?? ''],
     queryFn: () =>
       api<RunCompare>(`/runs/${id}/compare`, {
-        query: { base_cell: baseCell ?? '', target_cell: targetCell ?? '', target_run_id: targetRunId ?? undefined },
+        query: {
+          base_cell: baseCell ?? '',
+          target_cell: targetCell ?? '',
+          target_run_id: targetRunId ?? undefined,
+          score: score ?? undefined,
+        },
       }),
     enabled: !!id && !!baseCell && !!targetCell && !!targetRunId,
   });

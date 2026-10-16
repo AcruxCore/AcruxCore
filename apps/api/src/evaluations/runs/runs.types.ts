@@ -11,6 +11,11 @@ export interface RunSnapshotExample {
   criteria: string | null;
   /** Prior-turn history frozen from the dataset example at run-start (FAQ Q19), or null. */
   history: import('../../gateway/providers/types').ChatMessage[] | null;
+  /**
+   * The example's structured reference answer (phase-5 FAQ Q46). Absent on runs
+   * frozen before the column existed; null when the example has none.
+   */
+  expected?: unknown;
 }
 
 /**
@@ -143,7 +148,7 @@ export interface RunListResultCounts {
 export interface RunListItemDto {
   id: string;
   status: string;
-  kind: 'evaluation' | 'optimize';
+  kind: import('./run-list.aggregate').RunKind;
   experimentId: string;
   experimentName: string | null;
   datasetId: string;
@@ -182,6 +187,8 @@ export interface RunListResponse {
 /** Response DTO for `GET /runs/:id`. */
 export interface RunDetailDto {
   id: string;
+  /** `local` for a run whose app and scorers ran in the caller's SDK (phase-5 FAQ Q46). */
+  kind: import('./run-list.aggregate').RunKind;
   experimentId: string;
   /** The dataset the run graded; runs sharing it can be compared per example. */
   datasetId: string;
@@ -224,6 +231,19 @@ export interface RunCellExampleDto {
   reason: string | null;
   traceId: string | null;
   judgeTraceId: string | null;
+  /** The example's structured reference answer (phase-5 FAQ Q46), or null. */
+  expected: unknown;
+  /** A local result's named scores, 0–100; empty on a server-side result. */
+  scores: RunNamedScore[];
+}
+
+/** One named score on a local result (phase-5 FAQ Q46), as every read returns it. */
+export interface RunNamedScore {
+  name: string;
+  /** 0–100, or null when the scorer raised. */
+  score: number | null;
+  passed: boolean | null;
+  reason: string | null;
 }
 
 /** Response DTO for `GET /runs/:id/cells/:cellKey`. */
@@ -242,6 +262,9 @@ export const RunCompareQuerySchema = z.object({
   base_cell: z.string({ required_error: '`base_cell` is required.' }).min(1, '`base_cell` is required.'),
   target_cell: z.string({ required_error: '`target_cell` is required.' }).min(1, '`target_cell` is required.'),
   target_run_id: z.string().uuid('`target_run_id` must be a UUID.').optional(),
+  // A local run's named score to classify on, instead of each result's primary
+  // score (phase-5 FAQ Q46). A side whose result lacks it reads as unscored.
+  score: z.string().min(1).max(100).optional(),
 });
 export type RunCompareQuery = z.infer<typeof RunCompareQuerySchema>;
 
@@ -262,6 +285,8 @@ export interface RunCompareSide {
   passed: boolean | null;
   reason: string | null;
   traceId: string | null;
+  /** Every named score of a local result; empty on a server-side result. */
+  scores: RunNamedScore[];
 }
 
 /** One dataset example, with both cells' results side by side. */
@@ -269,6 +294,8 @@ export interface RunCompareExampleDto {
   exampleId: string;
   input: Record<string, unknown>;
   criteria: string | null;
+  /** The example's structured reference answer, or null. */
+  expected: unknown;
   base: RunCompareSide | null;
   target: RunCompareSide | null;
   /** `target.score - base.score`, or null when either score is missing. */
@@ -288,6 +315,10 @@ export interface RunCompareCellRef {
 export interface RunCompareDto {
   base: RunCompareCellRef;
   target: RunCompareCellRef;
+  /** The named score the examples were classified on, or null for the primary score. */
+  score: string | null;
+  /** Every score name either side carries, in first-seen order, so a client can offer a picker. */
+  scoreNames: string[];
   /** How many examples fall under each change; the five always add up to `examples.length`. */
   counts: Record<RunCompareChange, number>;
   examples: RunCompareExampleDto[];

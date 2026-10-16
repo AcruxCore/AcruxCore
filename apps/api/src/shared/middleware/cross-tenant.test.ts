@@ -366,6 +366,12 @@ function probesFor(a: Fixture, b: Fixture): Record<string, Probe> {
     'GET /api/v1/runs/:id/cells/:cellKey': { url: `/api/v1/runs/${a.runId}/cells/any-cell` },
     'GET /api/v1/runs/:id/compare': { url: `/api/v1/runs/${a.runId}/compare?base_cell=any&target_cell=any` },
     'GET /api/v1/runs/:id/candidates/:candidateId': { url: `/api/v1/runs/${a.runId}/candidates/${ghostUuid}` },
+    // A valid body, so the only thing the call can trip on is the foreign run id.
+    'POST /api/v1/runs/:id/results': {
+      url: `/api/v1/runs/${a.runId}/results`,
+      body: { results: [{ example_id: ghostUuid, output: 'x' }] },
+    },
+    'POST /api/v1/runs/:id/finish': { url: `/api/v1/runs/${a.runId}/finish`, body: {} },
     'POST /api/v1/runs/:id/promote': {
       url: `/api/v1/runs/${a.runId}/promote`,
       body: { prompt_candidate_id: ghostUuid, alias: 'production' },

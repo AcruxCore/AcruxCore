@@ -98,9 +98,12 @@ describe('route policy', () => {
       'POST /api/v1/experiments': 'requireRole(owner|admin|editor)',
       'DELETE /api/v1/experiments/:id': 'requireRole(owner|admin|editor)',
       'POST /api/v1/experiments/:id/runs': 'requireRole(owner|admin|editor)',
+      'POST /api/v1/experiments/local': 'requireRole(owner|admin|editor)',
 
       'DELETE /api/v1/runs/:id': 'requireRole(owner|admin|editor)',
       'POST /api/v1/runs/:id/promote': 'requireRole(owner|admin|editor)',
+      'POST /api/v1/runs/:id/results': 'requireRole(owner|admin|editor)',
+      'POST /api/v1/runs/:id/finish': 'requireRole(owner|admin|editor)',
 
       'POST /api/v1/eval-rules': 'requireRole(owner|admin)',
       'PATCH /api/v1/eval-rules/:id': 'requireRole(owner|admin)',

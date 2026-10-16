@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { Empty, MonoBlock, PageSpinner, Select } from '@/ui';
+import { Button, Empty, MonoBlock, PageSpinner, Select } from '@/ui';
 import { formatPayload } from '@/traces';
 import { cn } from '@/lib/cn';
 import { useRun, useRunCompare, useRunReport, useRuns } from '@/api';
 import type { RunCompareChange, RunCompareExample, RunCompareSide, RunGridCell } from '@/api/types';
-import { compareErrorText, defaultComparePair, filterExamples, parseCompareFilter, targetRunProblem } from './compare.helpers';
+import { NamedScoreList } from './NamedScoreList';
+import { compareErrorText, defaultComparePair, filterExamples, nextCompareParams, parseCompareFilter, targetRunProblem } from './compare.helpers';
 import type { CompareFilter } from './compare.helpers';
 
 /** Label and colour for each change kind; the text always carries the meaning, never colour alone. */
@@ -45,7 +46,7 @@ function Verdict({ side }: { side: RunCompareSide | null }) {
 }
 
 /** The expanded half of a row: one cell's output, judge reason and trace link. */
-function SideDetail({ title, side }: { title: string; side: RunCompareSide | null }) {
+function SideDetail({ title, side, score }: { title: string; side: RunCompareSide | null; score: string | null }) {
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <div className="text-[11px] uppercase tracking-[0.06em] text-faint">{title}</div>
@@ -58,7 +59,11 @@ function SideDetail({ title, side }: { title: string; side: RunCompareSide | nul
           ) : (
             <MonoBlock label="Output" value={formatPayload(side.output)} />
           )}
-          {side.reason && <p className="text-[13px] text-ink">{side.reason}</p>}
+          {side.scores && side.scores.length > 0 ? (
+            <NamedScoreList scores={side.scores} highlight={score} />
+          ) : (
+            side.reason && <p className="text-[13px] text-ink">{side.reason}</p>
+          )}
           {side.traceId && (
             <Link to={`/traces/${side.traceId}`} className="text-[12px] text-varhi hover:underline">
               View trace →
@@ -71,7 +76,17 @@ function SideDetail({ title, side }: { title: string; side: RunCompareSide | nul
 }
 
 /** One example: a summary row that expands to both outputs side by side. */
-function CompareRow({ example, baseTitle, targetTitle }: { example: RunCompareExample; baseTitle: string; targetTitle: string }) {
+function CompareRow({
+  example,
+  baseTitle,
+  targetTitle,
+  score,
+}: {
+  example: RunCompareExample;
+  baseTitle: string;
+  targetTitle: string;
+  score: string | null;
+}) {
   const [open, setOpen] = useState(false);
   const meta = CHANGE_META[example.change];
   return (
@@ -101,10 +116,15 @@ function CompareRow({ example, baseTitle, targetTitle }: { example: RunCompareEx
         <tr className="border-b border-line-soft bg-elevated">
           <td colSpan={6} className="px-4 py-4">
             <MonoBlock label="Input" value={formatPayload(example.input)} />
+            {example.expected != null && (
+              <div className="mt-2">
+                <MonoBlock label="Expected" value={formatPayload(example.expected)} />
+              </div>
+            )}
             {example.criteria && <p className="mt-2 text-[12px] text-muted">Criteria: {example.criteria}</p>}
             <div className="mt-3 grid gap-4 md:grid-cols-2">
-              <SideDetail title={`Base — ${baseTitle}`} side={example.base} />
-              <SideDetail title={`Target — ${targetTitle}`} side={example.target} />
+              <SideDetail title={`Base — ${baseTitle}`} side={example.base} score={score} />
+              <SideDetail title={`Target — ${targetTitle}`} side={example.target} score={score} />
             </div>
           </td>
         </tr>
@@ -133,33 +153,34 @@ function CellSelect({ cells, value, onChange, label }: { cells: RunGridCell[]; v
  * point of the page, and it opens on "Changed" (improved or regressed).
  *
  * The base cell is in this run. The target is in this run or in another run over the
- * same dataset. Everything lives in the URL (`base`, `target`, `target_run`, `show`) so
- * a comparison can be shared as a link.
+ * same dataset. Everything lives in the URL (`base`, `target`, `target_run`, `show`,
+ * `score`) so a comparison can be shared as a link. `score` picks which named score a
+ * local run's examples are classified on; without it each result's primary score decides.
  */
 export function RunComparePage() {
   const { id } = useParams<{ id: string }>();
   const [sp, setSp] = useSearchParams();
   const report = useRunReport(id ?? null);
   const baseRun = useRun(id ?? null);
-  const targetRunId = sp.get('target_run') ?? id ?? null;
-  const targetRun = useRun(targetRunId);
   const datasetId = baseRun.data?.datasetId;
   const sameDataset = useRuns({ dataset_id: datasetId, limit: 50 }, { enabled: !!datasetId });
+  // A one-cell run (every local run) has nothing to compare inside itself, so its
+  // target defaults to the newest other run over the same dataset.
+  const singleCell = (report.data?.cells.length ?? 0) < 2;
+  const autoTargetRunId = singleCell ? (sameDataset.data?.data ?? []).find((r) => r.id !== id)?.id : undefined;
+  const targetRunId = sp.get('target_run') ?? autoTargetRunId ?? id ?? null;
+  const targetRun = useRun(targetRunId);
   const targetProblem = targetRunId === id ? null : targetRunProblem({ isError: targetRun.isError, grid: targetRun.data?.grid });
 
   const [defaultBase, defaultTarget] = report.data ? defaultComparePair(report.data.cells, report.data.winner?.cellKey ?? null) : [null, null];
   const baseCell = sp.get('base') ?? defaultBase;
   const targetCell = sp.get('target') ?? (targetRunId === id ? defaultTarget : targetRun.data?.grid[0]?.cellKey ?? null);
   const filter = parseCompareFilter(sp.get('show'));
-  const compare = useRunCompare(id ?? null, baseCell, targetRunId, targetCell);
+  const score = sp.get('score');
+  const compare = useRunCompare(id ?? null, baseCell, targetRunId, targetCell, score);
 
   const setParams = (patch: Record<string, string | null>) => {
-    const next = new URLSearchParams(sp);
-    for (const [k, v] of Object.entries(patch)) {
-      if (v === null) next.delete(k);
-      else next.set(k, v);
-    }
-    setSp(next, { replace: true });
+    setSp(nextCompareParams(sp, patch), { replace: true });
   };
 
   if (report.isLoading || baseRun.isLoading) return <PageSpinner />;
@@ -212,7 +233,8 @@ export function RunComparePage() {
           <div className="flex flex-wrap gap-2">
             <Select
               value={targetRunId ?? ''}
-              onChange={(e) => setParams({ target_run: e.target.value === id ? null : e.target.value, target: null })}
+              // Set even for "This run": clearing it would bring back the default target above.
+              onChange={(e) => setParams({ target_run: e.target.value, target: null })}
               className="w-56"
               aria-label="Target run"
               data-testid="compare-target-run"
@@ -234,6 +256,25 @@ export function RunComparePage() {
             )}
           </div>
         </div>
+        {(compare.data?.scoreNames?.length ?? 0) > 0 && (
+          <div className="flex flex-col gap-1">
+            <span className="text-[11px] uppercase tracking-[0.06em] text-faint">Score</span>
+            <Select
+              value={score ?? ''}
+              onChange={(e) => setParams({ score: e.target.value || null })}
+              className="w-48"
+              aria-label="Score"
+              data-testid="compare-score"
+            >
+              <option value="">Primary score</option>
+              {compare.data!.scoreNames!.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </Select>
+          </div>
+        )}
       </div>
 
       {report.data.cells.length < 2 && targetRunId === id ? (
@@ -245,7 +286,19 @@ export function RunComparePage() {
       ) : compare.isLoading || !targetCell ? (
         <PageSpinner />
       ) : compare.isError || !compare.data ? (
-        <Empty title="Could not compare these cells" description={compareErrorText(compare.error)} />
+        <Empty
+          title="Could not compare these cells"
+          description={compareErrorText(compare.error)}
+          action={
+            // The Score picker is built from the comparison, so it is gone when the
+            // comparison fails. A stale score in the URL needs its own way out.
+            score ? (
+              <Button size="sm" onClick={() => setParams({ score: null })} data-testid="compare-clear-score">
+                Use the primary score
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
         <>
           <div className="flex flex-wrap gap-2" data-testid="compare-counters">
@@ -278,7 +331,13 @@ export function RunComparePage() {
                 </thead>
                 <tbody>
                   {shown.map((e) => (
-                    <CompareRow key={e.exampleId} example={e} baseTitle={cellLabel(compare.data.base)} targetTitle={cellLabel(compare.data.target)} />
+                    <CompareRow
+                      key={e.exampleId}
+                      example={e}
+                      baseTitle={cellLabel(compare.data.base)}
+                      targetTitle={cellLabel(compare.data.target)}
+                      score={score}
+                    />
                   ))}
                 </tbody>
               </table>

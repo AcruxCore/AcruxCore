@@ -230,6 +230,14 @@ function ExampleRow({
       </td>
       <td className="px-4 py-2.5">
         <CriteriaCell datasetId={datasetId} example={example} />
+        {example.expected != null && (
+          // The reference answer code scorers compare against in a local run.
+          <p className="mt-1.5 break-words font-mono text-[12px] text-muted" data-testid="example-expected" title="Expected">
+            <span className="font-sans text-faint">Expected: </span>
+            {/* One line with a space after each comma and colon, so it wraps between values. */}
+            {JSON.stringify(example.expected, null, 1).replace(/\n\s*/g, ' ')}
+          </p>
+        )}
       </td>
       <td className="px-4 py-2.5">
         <HistoryDisclosure history={example.history} />

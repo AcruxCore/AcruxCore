@@ -9,6 +9,7 @@ export interface CompareResultRow extends RunCompareSide {
   datasetExampleId: string;
   input: Record<string, unknown>;
   criteria: string | null;
+  expected: unknown;
 }
 
 /**
@@ -35,6 +36,26 @@ function toSide(row: CompareResultRow): RunCompareSide {
     passed: row.passed,
     reason: row.reason,
     traceId: row.traceId,
+    scores: row.scores,
+  };
+}
+
+/**
+ * Re-points a row's `score`/`passed`/`reason` at one of its named scores, so
+ * the pairing below classifies on that score (phase-5 FAQ Q46). A row that
+ * lacks the name reads as unscored, never as a fail.
+ *
+ * @param row - One cell's result.
+ * @param name - The named score to classify on.
+ * @returns The row with its primary fields taken from that score.
+ */
+export function selectNamedScore(row: CompareResultRow, name: string): CompareResultRow {
+  const named = row.scores.find((s) => s.name === name);
+  return {
+    ...row,
+    score: named?.score ?? null,
+    passed: named?.passed ?? null,
+    reason: named?.reason ?? null,
   };
 }
 
@@ -70,6 +91,7 @@ export function compareCells(
       exampleId: row.datasetExampleId,
       input: row.input,
       criteria: row.criteria,
+      expected: row.expected,
       base,
       target,
       scoreDelta: base?.score != null && target?.score != null ? target.score - base.score : null,

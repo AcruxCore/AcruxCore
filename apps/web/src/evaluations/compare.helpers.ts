@@ -77,8 +77,34 @@ export function compareErrorText(error: unknown): string {
   if (error instanceof ApiError && error.code === 'DATASET_MISMATCH') {
     return 'Both cells must come from runs over the same dataset.';
   }
+  if (error instanceof ApiError && error.code === 'SCORE_NOT_FOUND') {
+    return 'Neither run has the score named in this link, so there is nothing to compare it on.';
+  }
   if (error instanceof ApiError && error.status === 404) {
     return 'A cell in this link is not in its run. Pick the cells again above.';
   }
   return error instanceof Error ? error.message : 'The comparison could not be loaded.';
+}
+
+/** URL keys whose change picks a different pair of cells, which may not share the picked score. */
+const PAIR_KEYS = ['base', 'target', 'target_run'];
+
+/**
+ * The compare page's next search params after `patch` (a `null` value removes the
+ * key). Changing the base, the target run or the target cell also clears `score`:
+ * the new pair may have no score of that name, and a stale one would mark every
+ * example unscored, or fail the comparison and hide the picker that could clear it.
+ *
+ * @param current - The page's current search params; not modified.
+ * @param patch - Keys to set, or `null` to remove.
+ * @returns A new `URLSearchParams`.
+ */
+export function nextCompareParams(current: URLSearchParams, patch: Record<string, string | null>): URLSearchParams {
+  const next = new URLSearchParams(current);
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === null) next.delete(k);
+    else next.set(k, v);
+  }
+  if (!('score' in patch) && Object.keys(patch).some((k) => PAIR_KEYS.includes(k))) next.delete('score');
+  return next;
 }

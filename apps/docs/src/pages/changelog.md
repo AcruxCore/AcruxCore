@@ -27,6 +27,13 @@ called out in the week it ships and in the SDK release notes.
 
 ### Major
 
+#### Run your own app code as an experiment
+
+- `experiments.run_local` (Python) and `runLocal` (Node) run your app and scorers on every example.
+- Results upload as a run: Runs, the report and Compare per example show it, named scores included.
+- Compare per example takes a **Score** picker; dataset examples take an optional `expected` value.
+  [Guide →](/docs/guides/run-your-app-as-an-experiment)
+
 #### Offline evaluation runs now need a judge model
 
 - `POST /experiments` and `POST /prompts/:id/optimize` now require `judge_model`.

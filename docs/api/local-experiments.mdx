@@ -1,0 +1,245 @@
+---
+sidebar_position: 8.5
+title: "Local experiments"
+description: "Run your own app and scorers on a dataset from the SDK, and upload the results as an evaluation run."
+---
+
+# Local experiments API
+
+A server-side experiment runs one stored prompt per example. A **local experiment** runs
+your own code instead: the SDK calls your app on each dataset example, calls your scorers
+on each output, and uploads the results here. The result is an ordinary run, so the run
+list, the report and **Compare per example** show it.
+
+You will usually not call these endpoints yourself. `experiments.run_local` (Python) and
+`experiments.runLocal` (Node) make all three calls for you. See the guide
+[Run your app as an experiment](/docs/guides/run-your-app-as-an-experiment).
+
+The flow is three calls:
+
+1. `POST /experiments/local` creates the experiment and a `running` run, and returns the
+   frozen examples.
+2. `POST /runs/:id/results` uploads results, up to 100 per call, as many times as needed.
+3. `POST /runs/:id/finish` closes the run.
+
+All three need `owner`, `admin` or `editor`. A team-scoped API key holds no role and is
+refused; use a personal key. Scores on the wire are 0–100, like the LLM judge. The SDKs
+take 0–1 from your scorers and convert.
+
+A run that stops uploading — your script crashed before `finish` — is marked `failed` by
+the stale-run sweep after 120 minutes without a new result. The SDKs upload finished results
+at least once a minute, so a run of slow examples is not mistaken for a crashed one.
+
+---
+
+### POST /api/v1/experiments/local
+
+Body:
+
+- `dataset_id` (required) — the dataset to run on. It must have at least one example.
+- `name` (required) — labels the run, for example `v1`. Becomes the experiment name and
+  the cell's variant label. At most 100 characters, no `|`.
+- `model` — a free-text label for the cell, default `local`. It is not checked against
+  Gateway → Models, because your app may call several models.
+- `primary_score` — the score the report, the run list and Compare per example use by
+  default. Omitted, each result's first score is used, which is the first scorer's when scores
+  keep scorer order. Named, every result that has scores must include it (see the errors below).
+- `metadata` — any JSON object, stored on the experiment (a git commit, a config name).
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/experiments/local \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"dataset_id":"bdefa344-5281-433c-97fe-aee0f06fdc90","name":"v1","model":"gpt-4o-mini-or","primary_score":"team_exact"}'
+```
+
+Response (status 201):
+
+```json
+{
+  "experiment_id": "1c0486a0-50df-466f-99f6-3a7f4d881a8a",
+  "run_id": "14f59c48-e618-41e6-a0a3-8b415c3c065c",
+  "cell_key": "v1|gpt-4o-mini-or",
+  "url": "http://localhost:5596/evaluations/runs/14f59c48-e618-41e6-a0a3-8b415c3c065c",
+  "examples": [
+    {
+      "id": "075e5ccd-8a97-4d8c-9ee4-be65920b5333",
+      "input": { "ticket": "I was charged twice for my October invoice." },
+      "criteria": null,
+      "expected": { "team": "finance", "category": "billing" },
+      "history": null
+    },
+    {
+      "id": "29a3c6d0-87a7-49ef-ba37-a2d38826b971",
+      "input": { "ticket": "And the second one?" },
+      "criteria": null,
+      "expected": { "team": "finance", "category": "billing" },
+      "history": [
+        { "role": "user", "content": "Which invoices are unpaid?" },
+        { "role": "assistant", "content": "October and November." }
+      ]
+    }
+  ]
+}
+```
+
+`url` is the run's page in the dashboard. It is `null` when the server has no `APP_URL`.
+`history` holds the earlier turns of an example built from a multi-turn session, or `null`.
+A server-side run replays it before the input; your app can do the same.
+
+#### Error responses
+
+| Status | Code | When |
+|--------|------|------|
+| 400 | `VALIDATION_ERROR` | `name` missing or contains `\|`, or the dataset has no examples |
+| 404 | `NOT_FOUND` | The dataset is not in your team |
+
+---
+
+### POST /api/v1/runs/:id/results
+
+Uploads 1 to 100 results. Each result:
+
+- `example_id` (required) — an example id from the create response.
+- `output` — what your app returned, any JSON up to 64 KB.
+- `trace_id` — the trace that holds this example's spans, so the dashboard can link it.
+- `error` — set when your app raised; leave `scores` empty then. The result's `output` is
+  stored as empty.
+- `scores` — `[{ name, score, passed?, reason? }]`. `score` is 0–100, or `null` when the
+  scorer itself failed, and is stored rounded to a whole number, like a judge score.
+  `passed` defaults to `score >= 50`. Names must be unique per result.
+
+Sending a result for an example that already has one **replaces** it, so a retried upload
+never creates a duplicate. That holds when the retry arrives while the first try is still
+being written: uploads to one run are written one at a time.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/runs/14f59c48-e618-41e6-a0a3-8b415c3c065c/results \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"results":[
+    {"example_id":"075e5ccd-8a97-4d8c-9ee4-be65920b5333","output":{"category":"billing","team":"finance"},
+     "scores":[{"name":"category_exact","score":100},{"name":"team_exact","score":100}]},
+    {"example_id":"29a3c6d0-87a7-49ef-ba37-a2d38826b971","output":{"category":"question","team":"support"},
+     "scores":[{"name":"category_exact","score":0,"reason":"expected billing, got question"},
+               {"name":"team_exact","score":0,"reason":"expected finance, got support"}]}]}'
+```
+
+Response (status 200):
+
+```json
+{ "written": 2, "completed": 2, "total": 2 }
+```
+
+`completed` is how many of the run's examples have a result so far; `total` is how many
+the run froze.
+
+#### Error responses
+
+| Status | Code | When |
+|--------|------|------|
+| 400 | `VALIDATION_ERROR` | An `example_id` is not in this run or appears twice in the batch; a score is outside 0–100; a scored result lacks the run's `primary_score` |
+| 404 | `NOT_FOUND` | The run is not in your team |
+| 409 | `RUN_NOT_LOCAL` | The run was started on the server; its results come from the run engine |
+| 409 | `RUN_NOT_RUNNING` | The run has already finished |
+
+```json
+{ "error": { "code": "RUN_NOT_RUNNING", "message": "This run has already finished, so it no longer accepts results. Start a new run." } }
+```
+
+A result without the named primary score, on the run created above with
+`"primary_score":"team_exact"`:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/runs/14f59c48-e618-41e6-a0a3-8b415c3c065c/results \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"results":[{"example_id":"075e5ccd-8a97-4d8c-9ee4-be65920b5333","output":{"category":"billing"},
+       "scores":[{"name":"category_exact","score":100}]}]}'
+```
+
+Response (status 400):
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "results[0] has no score named \"team_exact\", the run's primary score. Its scores are: category_exact." } }
+```
+
+---
+
+### POST /api/v1/runs/:id/finish
+
+Closes the run and returns its detail. The run ends `failed` when the body carries an
+`error` (the SDK sends one when its own loop broke), when no result was uploaded, or when
+every example errored. Otherwise it ends `succeeded`. No email is sent.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/runs/14f59c48-e618-41e6-a0a3-8b415c3c065c/finish \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+Response (status 200):
+
+```json
+{
+  "id": "14f59c48-e618-41e6-a0a3-8b415c3c065c",
+  "kind": "local",
+  "experimentId": "1c0486a0-50df-466f-99f6-3a7f4d881a8a",
+  "datasetId": "bdefa344-5281-433c-97fe-aee0f06fdc90",
+  "status": "succeeded",
+  "startedAt": "2026-10-16T14:28:08.246Z",
+  "endedAt": "2026-10-16T14:28:41.359Z",
+  "error": null,
+  "createdAt": "2026-10-16T14:28:08.247Z",
+  "grid": [
+    { "model": "gpt-4o-mini-or", "cellKey": "v1|gpt-4o-mini-or", "variantKind": "local", "variantLabel": "v1", "isProductionBaseline": false }
+  ],
+  "exampleCount": 2,
+  "results": { "total": 2, "succeeded": 2, "errored": 0 }
+}
+```
+
+A second `finish`, or a `finish` after the stale-run sweep failed the run, answers
+409 `RUN_NOT_RUNNING`.
+
+---
+
+### Reading a local run
+
+The read endpoints in [Experiments & Runs](./experiments.mdx) work on a local run as on any
+other. What a local run adds:
+
+- `GET /runs` and `GET /runs/:id` report `kind: "local"`.
+- `GET /runs/:id/report` cells carry `namedScores`, one aggregate per scorer. `avgScore`
+  and `passRate` on the cell are the primary score's.
+
+```json
+"namedScores": [
+  { "name": "category_exact", "avgScore": 50, "passRate": 0.5, "scoredCount": 2 },
+  { "name": "team_exact", "avgScore": 50, "passRate": 0.5, "scoredCount": 2 }
+]
+```
+
+- `GET /runs/:id/cells/:cellKey` examples carry `scores` (every named score with its
+  reason) and `expected`.
+- `GET /runs/:id/compare` takes `score=<name>` to classify on a named score instead of the
+  primary one, and returns `scoreNames` for a picker. A name that neither cell has answers
+  404 with its own code:
+
+```bash
+curl -G $ACRUXCORE_BASE_URL/runs/14f59c48-e618-41e6-a0a3-8b415c3c065c/compare \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  --data-urlencode "base_cell=v1|gpt-4o-mini-or" \
+  --data-urlencode "target_cell=v1|gpt-4o-mini-or" \
+  --data-urlencode "score=nope"
+```
+
+Response (status 404):
+
+```json
+{ "error": { "code": "SCORE_NOT_FOUND", "message": "Neither cell has a score named \"nope\"." } }
+```
+
+- `POST /experiments/:id/runs` on a local experiment answers 409 `LOCAL_EXPERIMENT`: the
+  server has no code to run for it.

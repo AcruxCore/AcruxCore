@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { datasetsRouter } from './datasets';
 import { experimentsRouter } from './experiments';
 import { runsRouter } from './runs';
+import { localRunsRouter } from './local';
 import { optimizeRouter } from './optimize';
 import { evalRulesRouter } from './online/online-eval-rule.router';
 
@@ -29,6 +30,8 @@ import { evalRulesRouter } from './online/online-eval-rule.router';
  */
 const r = Router();
 r.use('/datasets', datasetsRouter);
+// Before `/experiments`, so `POST /experiments/local` is never read as an experiment id.
+r.use('/', localRunsRouter);
 r.use('/experiments', experimentsRouter);
 r.use('/', runsRouter);
 r.use('/prompts', optimizeRouter);

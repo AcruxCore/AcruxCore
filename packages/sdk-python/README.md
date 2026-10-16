@@ -478,6 +478,33 @@ await hub.traces.update_feedback(trace_id, fb.id, rating=1)
 
 At least one of `rating` / `label` / `comment` is required per call.
 
+## Running your own code as an experiment
+
+`experiments.run_local` runs your app over a dataset on your machine, scores each output
+with your own functions, and uploads the outcome as a run. It appears under
+Evaluation → Runs and in Compare per example, like a run the server made.
+
+```python
+async def my_app(inp, ctx):                       # ctx: LocalExample
+    reply = await hub.gateway.chat("gpt-4o-mini", [...], trace=ctx.trace)
+    return {"items": parse(reply.content)}
+
+def items_exact(output, expected):                # gets only the arguments it names
+    return output["items"] == expected["items"]   # bool, 0–1 number, Score, dict or list
+
+result = await hub.experiments.run_local(
+    dataset_id, task=my_app, scorers=[items_exact], name="v2", concurrency=4)
+print(result)                                     # summary table and the run's URL
+```
+
+The task may be sync (it runs in a thread) or async, and may take `(input)` or
+`(input, ctx)`. Scorers can ask for `output`, `expected`, `input`, `criteria` and
+`example`. Scores are 0–1 here; the dashboard shows them as 0–100. A task that raises
+gives an errored result, and a scorer that raises gives an empty score with the error as
+its reason; neither stops the run. Each example gets a trace with one `chain` span for
+the task, and `trace=ctx.trace` puts your gateway calls in that same trace. Give
+examples a reference answer with `datasets.add_example(..., expected=...)`.
+
 ## Reading traces back
 
 ```python

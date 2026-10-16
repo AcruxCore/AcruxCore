@@ -116,3 +116,71 @@ async def test_list_runs_on_a_fresh_team(hub: AcruxCore) -> None:
     runs = await hub.runs.list(limit=5)
     assert runs.data is not None
     assert runs.total >= 0
+
+
+@pytest.mark.asyncio
+async def test_run_local_uploads_a_local_run_the_server_reads_back(hub: AcruxCore) -> None:
+    """``experiments.run_local`` against the real server, read back through the API.
+
+    Arranges a dataset with ``expected`` values, runs a task that gets one example
+    wrong and one that raises, then checks the run list, the cell drill-down (named
+    scores, 0–100, and ``expected``), the report's ``namedScores`` and the trace the
+    SDK filed for each example.
+    """
+    ds = await hub.datasets.create(name=f"Local run {uuid.uuid4().hex[:8]}")
+    await hub.datasets.add_examples(
+        ds.id,
+        [
+            {"input": {"n": 1}, "expected": {"double": 2}},
+            {"input": {"n": 2}, "expected": {"double": 4}},
+            {"input": {"n": 3}, "expected": {"double": 6}},
+        ],
+    )
+    got = await hub.datasets.get(ds.id)
+    assert sorted(e.expected["double"] for e in got.examples) == [2, 4, 6]
+
+    def task(inp, ctx):  # type: ignore[no-untyped-def]
+        if inp["n"] == 3:
+            raise ValueError("three is not supported")
+        return {"double": inp["n"] * 2 if inp["n"] == 1 else 0}
+
+    def exact(output, expected):  # type: ignore[no-untyped-def]
+        return output == expected
+
+    def closeness(output, expected):  # type: ignore[no-untyped-def]
+        return {"score": 1 - abs(output["double"] - expected["double"]) / 10, "reason": "distance"}
+
+    result = await hub.experiments.run_local(
+        ds.id, task=task, scorers=[exact, closeness], name="sdk-live", metadata={"git_sha": "abc"}
+    )
+
+    assert result.status == "succeeded"
+    assert len(result.items) == 3
+    assert result.summary["exact"].mean == 0.5 and result.summary["exact"].count == 2
+    errored = [i for i in result.items if i.error]
+    assert len(errored) == 1 and errored[0].error == "ValueError: three is not supported"
+
+    runs = await hub.runs.list(dataset_id=ds.id)
+    assert [r.kind for r in runs.data] == ["local"]
+
+    cell = await hub.runs.get_cell(result.run_id, "sdk-live|local")
+    rows = {json_key(r["input"]): r for r in cell.examples}
+    wrong = rows["2"]
+    assert wrong["expected"] == {"double": 4}
+    named = {s["name"]: s for s in wrong["scores"]}
+    assert named["exact"]["score"] == 0 and named["exact"]["passed"] is False
+    assert named["closeness"]["score"] == 60 and named["closeness"]["reason"] == "distance"
+
+    report = await hub.runs.get_report(result.run_id)
+    names = {n["name"] for n in report.cells[0]["namedScores"]}
+    assert names == {"exact", "closeness"}
+
+    trace_id = next(i.trace_id for i in result.items if i.input["n"] == 1)
+    assert trace_id
+    trace = await hub.traces.get(trace_id)
+    assert [s.kind for s in trace.spans] == ["chain"]
+
+
+def json_key(value):  # type: ignore[no-untyped-def]
+    """Key a cell row by its example's ``n`` so the assertions read by example."""
+    return str(value.get("n"))

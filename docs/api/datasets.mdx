@@ -707,6 +707,38 @@ curl -X POST $ACRUXCORE_BASE_URL/datasets/54fd9af3-c470-4d1a-a0eb-ea192b5b43ab/e
 { "error": { "code": "VALIDATION_ERROR", "message": "Array must contain at most 20 element(s)" } }
 ```
 
+#### Reference answer (`expected` field)
+
+`expected` is optional and takes any JSON: the right answer a code scorer compares
+against in a [local experiment](./local-experiments.mdx). It is returned on every read of
+the example and frozen into each run. The LLM judge does not read it; it grades against
+`criteria`. The bulk route below takes it per row too.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/datasets/37bb1960-529f-4eea-be58-4db9704ac831/examples \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"input":{"ticket":"How do I add a teammate?"},"expected":{"category":"question","team":"support"}}'
+```
+
+Response (status 201):
+
+```json
+{
+  "id": "51322565-1d21-40c4-b6fd-6a4f8bd113f8",
+  "datasetId": "37bb1960-529f-4eea-be58-4db9704ac831",
+  "input": { "ticket": "How do I add a teammate?" },
+  "criteria": null,
+  "history": null,
+  "expected": { "team": "support", "category": "question" },
+  "sourceTraceId": null,
+  "sourceFeedbackId": null,
+  "sourcePromptVersionId": null,
+  "sourcePrompt": null,
+  "createdAt": "2026-10-16T13:27:44.682Z"
+}
+```
+
 ---
 
 ### POST /api/v1/datasets/:id/examples/bulk

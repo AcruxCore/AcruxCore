@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RunCompareExample, RunReportCell } from '@/api/types';
 import { ApiError } from '@/api/client';
-import { compareErrorText, defaultComparePair, filterExamples, parseCompareFilter, targetRunProblem } from './compare.helpers';
+import { compareErrorText, defaultComparePair, filterExamples, nextCompareParams, parseCompareFilter, targetRunProblem } from './compare.helpers';
 
 const ex = (exampleId: string, change: RunCompareExample['change']): RunCompareExample => ({
   exampleId, change, input: {}, criteria: null, base: null, target: null, scoreDelta: null,
@@ -75,5 +75,26 @@ describe('compareErrorText', () => {
 
   it("falls back to the API's own message for anything else", () => {
     expect(compareErrorText(new ApiError(500, 'INTERNAL', 'boom'))).toBe('boom');
+  });
+});
+
+describe('PR #602 review fixes', () => {
+  it('clears the score filter when the base, the target run or the target cell changes', () => {
+    const sp = new URLSearchParams('target_run=r1&score=team_exact&show=all');
+    expect(nextCompareParams(sp, { target_run: 'r2', target: null }).toString()).toBe('target_run=r2&show=all');
+    expect(nextCompareParams(sp, { base: 'v2|m' }).get('score')).toBeNull();
+    expect(nextCompareParams(sp, { target: 'v3|m' }).get('score')).toBeNull();
+  });
+
+  it('keeps the score filter when only the chip filter or the score itself changes', () => {
+    const sp = new URLSearchParams('score=team_exact');
+    expect(nextCompareParams(sp, { show: 'regressed' }).get('score')).toBe('team_exact');
+    expect(nextCompareParams(sp, { score: 'category_exact' }).get('score')).toBe('category_exact');
+  });
+
+  it('says the score is unknown for SCORE_NOT_FOUND, not that a cell is missing', () => {
+    const text = compareErrorText(new ApiError(404, 'SCORE_NOT_FOUND', 'Neither cell has a score named "x".'));
+    expect(text).not.toMatch(/not in its run/);
+    expect(text).toMatch(/score/i);
   });
 });

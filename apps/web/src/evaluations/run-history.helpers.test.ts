@@ -63,6 +63,8 @@ it('names the dataset in the subtitle, unless it is already the title', () => {
 
 it('describes the grid shape, singularising each unit', () => {
   expect(runShapeLine(run())).toBe('2 variants × 1 model · 12 examples');
+  // A local run is one cell by construction; the line says where it ran instead.
+  expect(runShapeLine(run({ kind: 'local', variantCount: 1, modelCount: 1, exampleCount: 30 }))).toBe('Your code · 30 examples');
   expect(runShapeLine(run({ variantCount: 1, modelCount: 2, exampleCount: 1 }))).toBe(
     '1 variant × 2 models · 1 example',
   );

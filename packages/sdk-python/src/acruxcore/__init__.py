@@ -55,6 +55,13 @@ from .evaluations import (
     OptimizeNamespace,
     RunsNamespace,
 )
+from .local_experiments import (
+    LocalExample,
+    LocalRunItem,
+    LocalRunResult,
+    Score,
+    ScoreSummary,
+)
 from .prompts_api import PromptsNamespace
 from .response_format import pydantic_response_format
 from .tooling import ToolSpec, spec_of, tool
@@ -243,6 +250,11 @@ __all__ = [
     "ExperimentsNamespace",
     "OptimizeNamespace",
     "RunsNamespace",
+    "LocalExample",
+    "LocalRunItem",
+    "LocalRunResult",
+    "Score",
+    "ScoreSummary",
     "PromptsNamespace",
     "PromptDetail",
     "PromptListItem",

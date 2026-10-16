@@ -9,6 +9,7 @@ import type { RunCellExample } from '@/api/types';
 import { scoreToGrade } from './matrix.helpers';
 import { PromoteDialog } from './PromoteDialog';
 import { HistoryDisclosure } from './HistoryDisclosure';
+import { NamedScoreList } from './NamedScoreList';
 
 export interface CellDrilldownPanelProps {
   runId: string;
@@ -57,6 +58,7 @@ function ExampleRow({ example }: { example: RunCellExample }) {
       <HistoryDisclosure history={example.history} />
 
       <MonoBlock label="Input" value={formatPayload(example.input)} />
+      {example.expected != null && <MonoBlock label="Expected" value={formatPayload(example.expected)} />}
       {example.errorMessage != null ? (
         /* A cell that never produced output has no Output worth showing — the
            API returns null for it — and the reason is the only thing the reader
@@ -72,11 +74,17 @@ function ExampleRow({ example }: { example: RunCellExample }) {
         <MonoBlock label="Output" value={formatPayload(example.output)} />
       )}
 
-      {example.reason && (
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[11px] uppercase tracking-[0.06em] text-faint">Judge reasoning</span>
-          <p className="text-[13px] text-ink">{example.reason}</p>
-        </div>
+      {example.scores && example.scores.length > 0 ? (
+        /* A local result: every scorer's verdict, the primary one included, so
+           the single judge-reasoning line would only repeat one of them. */
+        <NamedScoreList scores={example.scores} />
+      ) : (
+        example.reason && (
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[11px] uppercase tracking-[0.06em] text-faint">Judge reasoning</span>
+            <p className="text-[13px] text-ink">{example.reason}</p>
+          </div>
+        )
       )}
 
       <div className="flex flex-wrap gap-3 border-t border-line-soft pt-2">

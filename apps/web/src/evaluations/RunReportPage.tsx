@@ -4,6 +4,7 @@ import { Empty, PageSpinner, Spinner } from '@/ui';
 import { useRun, useRunReport } from '@/api';
 import type { RunStatus } from '@/api/types';
 import { LeaderboardMatrix } from './LeaderboardMatrix';
+import { NamedScoreTable } from './NamedScoreTable';
 import { CellDrilldownPanel } from './CellDrilldownPanel';
 import { variantDisplayLabel } from './variant-label';
 
@@ -64,6 +65,7 @@ export function RunReportPage() {
   }
 
   const data = report.data;
+  const isLocal = run.data?.kind === 'local';
   const selectedGridCell = run.data?.grid.find((g) => g.cellKey === selectedCellKey) ?? null;
   const selectedCandidateId = selectedGridCell?.variantKind === 'candidate' ? selectedGridCell.promptCandidateId ?? null : null;
   const selectedVariant = data?.variants.find((v) => v.variantLabel === selectedGridCell?.variantLabel);
@@ -83,8 +85,17 @@ export function RunReportPage() {
         <div>
           <h1 className="text-[20px] font-semibold tracking-tight">Run report</h1>
           <p className="mt-1 text-[13px] text-muted">
-            {data.variants.length} variant{data.variants.length === 1 ? '' : 's'} × {data.models.length} model
-            {data.models.length === 1 ? '' : 's'}
+            {isLocal ? (
+              <span data-testid="run-local-note">
+                Local run: your app and scorers ran in your own code through the SDK, and the results were uploaded
+                here. The score below is the primary scorer.
+              </span>
+            ) : (
+              <>
+                {data.variants.length} variant{data.variants.length === 1 ? '' : 's'} × {data.models.length} model
+                {data.models.length === 1 ? '' : 's'}
+              </>
+            )}
             {data.judge?.model && (
               <span data-testid="run-judge">
                 {' '}· judged by {data.judge.model}
@@ -106,6 +117,8 @@ export function RunReportPage() {
       <RunStatusBanner status={data.status} error={run.data?.error} />
 
       <LeaderboardMatrix report={data} selectedCellKey={selectedCellKey} onSelectCell={setSelectedCellKey} />
+
+      <NamedScoreTable cells={data.cells} />
 
       {id && (
         <CellDrilldownPanel

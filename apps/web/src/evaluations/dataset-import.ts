@@ -11,6 +11,8 @@ export interface ImportRow {
   input: Record<string, unknown>;
   criteria?: string;
   history?: unknown[];
+  /** Structured reference answer for code scorers in a local experiment. Any JSON. */
+  expected?: unknown;
 }
 
 /** One problem found in the file, tied to the row a person would look for. */
@@ -50,6 +52,7 @@ export const MAX_BODY_BYTES = 1_000_000;
 /** Column / key names that are not input variables. Matched case-insensitively. */
 const CRITERIA_KEY = 'criteria';
 const HISTORY_KEY = 'history';
+const EXPECTED_KEY = 'expected';
 
 /** A sample CSV for the format hint and the download link. */
 export const SAMPLE_CSV = `question,customer_tier,criteria
@@ -148,6 +151,11 @@ function checkRow(row: ImportRow, rowNumber: number, issues: ImportIssue[]): boo
     issues.push({ row: rowNumber, message: `input is larger than ${MAX_INPUT_BYTES} bytes.` });
     return false;
   }
+  // The API caps `expected` like `input`; one oversized row would fail the whole import.
+  if (row.expected !== undefined && jsonBytes(row.expected) > MAX_INPUT_BYTES) {
+    issues.push({ row: rowNumber, message: `expected is larger than ${MAX_INPUT_BYTES} bytes.` });
+    return false;
+  }
   return true;
 }
 
@@ -160,8 +168,10 @@ function collectVariables(rows: ImportRow[]): string[] {
 /**
  * Builds rows from CSV text. The first line is the header. Every column becomes
  * an input variable, except a column named `criteria`, which becomes the
- * judge criteria. Values stay strings — the same thing a prompt template
- * renders.
+ * judge criteria, and a column named `expected`, which becomes the reference
+ * answer for code scorers. Variable values stay strings — the same thing a
+ * prompt template renders. An `expected` cell that parses as JSON (`8`,
+ * `{"total": 8}`) is stored as that value; any other text is stored as a string.
  */
 export function rowsFromCsv(text: string): ImportParseResult {
   const records = parseCsv(text);
@@ -179,6 +189,7 @@ export function rowsFromCsv(text: string): ImportParseResult {
   if (issues.length > 0) return { rows: [], rowNumbers: [], issues, variables: [] };
 
   const criteriaCol = header.findIndex((h) => h.toLowerCase() === CRITERIA_KEY);
+  const expectedCol = header.findIndex((h) => h.toLowerCase() === EXPECTED_KEY);
   const rows: ImportRow[] = [];
   const rowNumbers: number[] = [];
   records.slice(1).forEach((record, index) => {
@@ -192,10 +203,15 @@ export function rowsFromCsv(text: string): ImportParseResult {
     }
     const input: Record<string, unknown> = {};
     header.forEach((name, col) => {
-      if (col !== criteriaCol) input[name] = record[col];
+      if (col !== criteriaCol && col !== expectedCol) input[name] = record[col];
     });
     const criteria = criteriaCol >= 0 ? record[criteriaCol].trim() : '';
-    const row: ImportRow = { input, ...(criteria ? { criteria } : {}) };
+    const expectedText = expectedCol >= 0 ? record[expectedCol].trim() : '';
+    const row: ImportRow = {
+      input,
+      ...(criteria ? { criteria } : {}),
+      ...(expectedText ? { expected: parseExpectedCell(expectedText) } : {}),
+    };
     if (checkRow(row, rowNumber, issues)) {
       rows.push(row);
       rowNumbers.push(rowNumber);
@@ -207,10 +223,10 @@ export function rowsFromCsv(text: string): ImportParseResult {
 /**
  * Turns one JSON item into a row. Two shapes are accepted:
  *
- * - The API shape: `{ "input": {...}, "criteria": "...", "history": [...] }`.
+ * - The API shape: `{ "input": {...}, "criteria": "...", "history": [...], "expected": ... }`.
  * - A flat object: `{ "question": "...", "criteria": "..." }`, where every key
- *   other than `criteria` and `history` is a variable. This is how most hand-
- *   written test sets look.
+ *   other than `criteria`, `history` and `expected` is a variable. This is how
+ *   most hand-written test sets look.
  *
  * An item counts as the API shape only when its `input` is an object, so a flat
  * row with a string variable named `input` still works.
@@ -224,16 +240,19 @@ function rowFromItem(item: unknown, rowNumber: number, issues: ImportIssue[]): I
   let input: Record<string, unknown>;
   let criteriaValue: unknown;
   let historyValue: unknown;
+  let expectedValue: unknown;
   if (apiShape) {
     input = item.input as Record<string, unknown>;
     criteriaValue = item.criteria;
     historyValue = item.history;
+    expectedValue = item.expected;
   } else {
     input = {};
     for (const [key, value] of Object.entries(item)) {
       const lower = key.toLowerCase();
       if (lower === CRITERIA_KEY) criteriaValue = value;
       else if (lower === HISTORY_KEY) historyValue = value;
+      else if (lower === EXPECTED_KEY) expectedValue = value;
       else input[key] = value;
     }
   }
@@ -251,8 +270,26 @@ function rowFromItem(item: unknown, rowNumber: number, issues: ImportIssue[]): I
     input,
     ...(criteria ? { criteria } : {}),
     ...(Array.isArray(historyValue) && historyValue.length > 0 ? { history: historyValue } : {}),
+    ...(expectedValue !== undefined && expectedValue !== null ? { expected: expectedValue } : {}),
   };
   return checkRow(row, rowNumber, issues) ? row : null;
+}
+
+/**
+ * Reads a CSV `expected` cell. An object, array, string literal, `true`, `false` or
+ * `null` is parsed as JSON. A number is parsed only when it survives the round trip
+ * unchanged, so a long id such as `12345678901234567890` (past 2^53) or `007` stays
+ * the exact text instead of a rounded number. Anything else is the text itself.
+ */
+function parseExpectedCell(text: string): unknown {
+  const looksJson = /^[[{"]/.test(text) || text === 'true' || text === 'false' || text === 'null';
+  const exactNumber = /^-?\d/.test(text) && String(Number(text)) === text;
+  if (!looksJson && !exactNumber) return text;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
 }
 
 /**

@@ -124,3 +124,50 @@ describe('parseImportFile', () => {
     expect(parseImportFile('set.txt', SAMPLE_CSV).rows).toHaveLength(2);
   });
 });
+
+describe('expected (reference answer for code scorers)', () => {
+  it('reads an expected column as JSON when it parses, else as text, and never as a variable', () => {
+    const result = rowsFromCsv('message,expected\ntwo coffees,"{""total"": 8}"\none tea,8\nnothing,no order\n');
+    expect(result.issues).toEqual([]);
+    expect(result.rows).toEqual([
+      { input: { message: 'two coffees' }, expected: { total: 8 } },
+      { input: { message: 'one tea' }, expected: 8 },
+      { input: { message: 'nothing' }, expected: 'no order' },
+    ]);
+    expect(result.variables).toEqual(['message']);
+  });
+
+  it('takes expected from both JSON shapes', () => {
+    const result = rowsFromJson(
+      JSON.stringify([
+        { input: { message: 'a' }, expected: { total: 1 } },
+        { message: 'b', expected: [1, 2] },
+        { message: 'c' },
+      ]),
+    );
+    expect(result.rows).toEqual([
+      { input: { message: 'a' }, expected: { total: 1 } },
+      { input: { message: 'b' }, expected: [1, 2] },
+      { input: { message: 'c' } },
+    ]);
+  });
+});
+
+describe('expected — PR #602 review fixes', () => {
+  it('keeps a long numeric id as text instead of rounding it through JSON.parse', () => {
+    const result = rowsFromCsv('message,expected\norder,12345678901234567890\nleading zero,007\n');
+    expect(result.rows.map((r) => r.expected)).toEqual(['12345678901234567890', '007']);
+  });
+
+  it('still reads JSON objects, arrays, booleans and exact numbers from a CSV expected cell', () => {
+    const result = rowsFromCsv('message,expected\na,"{""total"": 8}"\nb,"[1,2]"\nc,true\nd,8\ne,2.5\n');
+    expect(result.rows.map((r) => r.expected)).toEqual([{ total: 8 }, [1, 2], true, 8, 2.5]);
+  });
+
+  it('refuses an expected value over the API cap before sending, naming the row', () => {
+    const big = JSON.stringify({ text: 'x'.repeat(9000) });
+    const result = rowsFromJson(JSON.stringify([{ message: 'a', expected: JSON.parse(big) }]));
+    expect(result.rows).toEqual([]);
+    expect(result.issues).toEqual([{ row: 1, message: 'expected is larger than 8192 bytes.' }]);
+  });
+});

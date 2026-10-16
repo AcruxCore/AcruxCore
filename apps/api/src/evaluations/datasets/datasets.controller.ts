@@ -9,19 +9,7 @@ import {
   UpdateDatasetSchema,
   UpdateExampleSchema,
 } from './datasets.types';
-import { ValidationError } from '../../shared/errors';
-
-/**
- * Renders a Zod issue path as the caller would write it — `examples[17].input`
- * rather than `examples.17.input` — so the row that failed is named in a form
- * that maps straight back to a line in their file.
- */
-function formatIssuePath(path: Array<string | number>): string {
-  return path.reduce<string>(
-    (out, part) => (typeof part === 'number' ? `${out}[${part}]` : out ? `${out}.${part}` : part),
-    '',
-  );
-}
+import { ValidationError, formatIssuePath } from '../../shared/errors';
 
 /**
  * HTTP handlers for the datasets domain. Assumes `req.teamId` is set by

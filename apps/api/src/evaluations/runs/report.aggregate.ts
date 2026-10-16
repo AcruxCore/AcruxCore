@@ -5,6 +5,7 @@ import type {
   RunReport,
   RunReportCell,
   RunReportDelta,
+  RunReportNamedScore,
   RunReportVariant,
   RunReportWinner,
 } from './report.types';
@@ -27,6 +28,33 @@ interface CellAggregate {
   exampleCount: number;
   scoredCount: number;
   unscoredCount: number;
+}
+
+/**
+ * Aggregates a cell's named scores (a local run, phase-5 FAQ Q46) per name, in
+ * the order the names first appear. A result that lacks a name, or carries it
+ * with a null value (the scorer raised), counts toward neither the mean nor
+ * the pass rate — unscored is not zero, as everywhere else in the report.
+ */
+function aggregateNamedScores(rows: EvalResultRow[]): RunReportNamedScore[] {
+  const byName = new Map<string, { sum: number; scored: number; passed: number }>();
+  for (const row of rows) {
+    for (const s of row.scores ?? []) {
+      const acc = byName.get(s.name) ?? { sum: 0, scored: 0, passed: 0 };
+      if (s.score !== null) {
+        acc.sum += s.score;
+        acc.scored += 1;
+        if (s.passed === true) acc.passed += 1;
+      }
+      byName.set(s.name, acc);
+    }
+  }
+  return [...byName.entries()].map(([name, acc]) => ({
+    name,
+    avgScore: acc.scored > 0 ? acc.sum / acc.scored : null,
+    passRate: acc.scored > 0 ? acc.passed / acc.scored : null,
+    scoredCount: acc.scored,
+  }));
 }
 
 /**
@@ -150,6 +178,7 @@ export function buildRunReport(input: BuildRunReportInput): RunReport {
     scoredCount: agg.scoredCount,
     unscoredCount: agg.unscoredCount,
     deltaVsBaseline: agg.isProductionBaseline ? null : computeDelta(agg, baselineByModel.get(agg.model)),
+    namedScores: aggregateNamedScores(rowsByCellKey.get(agg.cellKey) ?? []),
   }));
 
   const leaderboard = [...cells]

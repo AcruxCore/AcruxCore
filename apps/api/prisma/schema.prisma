@@ -1086,6 +1086,10 @@ model DatasetExample {
   input                 Json     @default("{}")
   criteria              String?
   history               Json?
+  /// Optional structured reference answer for code scorers in a local experiment
+  /// (phase-5 FAQ Q46). Any JSON. The LLM judge does not read it; `criteria` stays
+  /// the judge's rubric.
+  expected              Json?
   sourceTraceId         String?  @map("source_trace_id") @db.Uuid
   sourceFeedbackId      String?  @map("source_feedback_id") @db.Uuid
   sourcePromptVersionId String?  @map("source_prompt_version_id") @db.Uuid
@@ -1216,6 +1220,11 @@ model EvalResult {
   reason            String?
   /// The evaluate call's own trace ID.
   judgeTraceId      String?  @map("judge_trace_id") @db.Uuid
+  /// Named scores of a local-experiment result (phase-5 FAQ Q46):
+  /// `[{ name, score: 0–100 | null, passed: bool | null, reason: string | null }]`.
+  /// The run's primary score is also copied into `score`/`passed`/`reason`, so
+  /// every existing reader works unchanged. Null on server-side results.
+  scores            Json?
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   team    Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)

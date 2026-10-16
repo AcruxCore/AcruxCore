@@ -72,16 +72,17 @@ function FormatHint() {
           The first row is the header. Each column becomes an input variable, named after the
           header — so <code className="font-mono text-ink">question</code> fills{' '}
           <code className="font-mono text-ink">{'{{ question }}'}</code> in the prompt. A column
-          named <code className="font-mono text-ink">criteria</code> is the judge criteria instead.
-          Leave a criteria cell empty for no criteria.
+          named <code className="font-mono text-ink">criteria</code> is the judge criteria instead, and
+          one named <code className="font-mono text-ink">expected</code> is the right answer for code
+          scorers. Neither is a variable. Leave a cell empty for none.
         </p>
       ) : (
         <p className="text-[12.5px] leading-relaxed text-muted">
           A JSON array, one object per example: <code className="font-mono text-ink">input</code>{' '}
-          holds the variables, <code className="font-mono text-ink">criteria</code> and{' '}
-          <code className="font-mono text-ink">history</code> are optional. Flat objects also work —
-          every key other than <code className="font-mono text-ink">criteria</code> and{' '}
-          <code className="font-mono text-ink">history</code> is a variable. JSON Lines (
+          holds the variables; <code className="font-mono text-ink">criteria</code>,{' '}
+          <code className="font-mono text-ink">history</code> and{' '}
+          <code className="font-mono text-ink">expected</code> are optional. Flat objects also work —
+          every key other than those three is a variable. JSON Lines (
           <code className="font-mono text-ink">.jsonl</code>) is read the same way.
         </p>
       )}
@@ -158,6 +159,9 @@ export function ImportFilePanel({ datasetId, knownVariables, onDone }: ImportFil
     known.size > 0 && result ? [...known].filter((v) => !result.variables.includes(v)) : [];
   // Only multi-turn files get the column, so a plain CSV preview stays narrow.
   const anyHistory = rows.some((row) => row.history !== undefined);
+  // Shown whenever the file has one, so a column named `expected` is visibly the
+  // reference answer and not silently missing from the variables.
+  const anyExpected = rows.some((row) => row.expected !== undefined);
   const canImport = rows.length > 0 && !tooMany && !tooBig && !importRows.isPending;
 
   async function handleImport() {
@@ -284,6 +288,7 @@ export function ImportFilePanel({ datasetId, knownVariables, onDone }: ImportFil
                         </th>
                       ))}
                       <th className="px-3 py-2 font-medium">Criteria</th>
+                      {anyExpected && <th className="px-3 py-2 font-medium">Expected</th>}
                       {anyHistory && <th className="px-3 py-2 font-medium">History</th>}
                     </tr>
                   </thead>
@@ -299,6 +304,11 @@ export function ImportFilePanel({ datasetId, knownVariables, onDone }: ImportFil
                         <td className="max-w-[260px] truncate px-3 py-1.5 text-muted" title={row.criteria}>
                           {row.criteria ?? <span className="text-faint">—</span>}
                         </td>
+                        {anyExpected && (
+                          <td className="max-w-[220px] truncate px-3 py-1.5 font-mono text-muted" title={cellText(row.expected)}>
+                            {row.expected === undefined ? <span className="text-faint">—</span> : cellText(row.expected)}
+                          </td>
+                        )}
                         {anyHistory && (
                           <td className="whitespace-nowrap px-3 py-1.5 text-muted">
                             {row.history ? `${row.history.length} message${row.history.length === 1 ? '' : 's'}` : '—'}

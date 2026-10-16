@@ -9,7 +9,7 @@ import { MembersRepository } from '../../teams/members/members.repository';
 import { getFlowProducer, EVAL_CELLS_QUEUE, EVAL_RUNS_QUEUE, finalizeJobOpts } from '../queue';
 import { AppError, ConflictError, NotFoundError, ValidationError } from '../../shared/errors';
 import { buildRunReport } from './report.aggregate';
-import { compareCells } from './run-compare.aggregate';
+import { compareCells, selectNamedScore } from './run-compare.aggregate';
 import type { CompareResultRow } from './run-compare.aggregate';
 import { deriveGridShape, deriveRunKind, foldRunScores } from './run-list.aggregate';
 import type { ExperimentConfig } from '../experiments/experiments.types';
@@ -25,6 +25,7 @@ import type {
   RunCompareCellRef,
   RunCompareDto,
   RunCompareQuery,
+  RunNamedScore,
 } from './runs.types';
 import type { RunReport } from './report.types';
 import { assertModelRegistered, resolveJudgePromptVersion } from '../judge';
@@ -78,6 +79,17 @@ export class RunsService {
     const experiment = await this.experimentsRepo.getById(teamId, experimentId);
     if (!experiment) throw new NotFoundError('Experiment not found.');
 
+    // A local experiment's results come from the caller's SDK (phase-5 FAQ Q46);
+    // the server has no task to run for it. Checked before the dataset load (no
+    // reason to read every example only to refuse) and before the judge check
+    // below, whose "created before judges" message would be wrong for it.
+    if ((experiment.config as { kind?: string } | null)?.kind === 'local') {
+      throw new ConflictError(
+        'LOCAL_EXPERIMENT',
+        'This is a local experiment: its runs execute your own code through the SDK (experiments.run_local / runLocal), not on the server.',
+      );
+    }
+
     const dataset = await this.datasetsRepo.getDatasetById(teamId, experiment.datasetId);
     if (!dataset) throw new NotFoundError('Dataset not found.');
 
@@ -86,6 +98,7 @@ export class RunsService {
       input: example.input as Record<string, unknown>,
       criteria: example.criteria,
       history: example.history as unknown as RunSnapshotExample['history'],
+      expected: example.expected ?? null,
     }));
 
     const config = experiment.config as unknown as ExperimentConfig;
@@ -267,6 +280,7 @@ export class RunsService {
 
     return {
       id: run.id,
+      kind: deriveRunKind(grid),
       experimentId: run.experimentId,
       datasetId: header.datasetId,
       status: run.status,
@@ -375,6 +389,7 @@ export class RunsService {
     const snapshot = run.exampleSnapshot as unknown as RunSnapshotExample[];
     const frozenCriteria = new Map(snapshot.map((e) => [e.exampleId, e.criteria]));
     const frozenHistory = new Map(snapshot.map((e) => [e.exampleId, e.history]));
+    const frozenExpected = new Map(snapshot.map((e) => [e.exampleId, e.expected]));
 
     return {
       cellKey,
@@ -392,6 +407,8 @@ export class RunsService {
         reason: row.reason,
         traceId: row.traceId,
         judgeTraceId: row.judgeTraceId,
+        expected: frozenExpected.get(row.datasetExampleId) ?? row.example.expected ?? null,
+        scores: namedScores(row.scores),
       })),
     };
   }
@@ -433,7 +450,20 @@ export class RunsService {
       this.compareRows(teamId, baseRun.id, baseCell, baseRun.exampleSnapshot),
       this.compareRows(teamId, target.id, targetCell, target.exampleSnapshot),
     ]);
-    return { base: baseCell, target: targetCell, ...compareCells(baseRows, targetRows) };
+    const scoreNames = [...new Set([...baseRows, ...targetRows].flatMap((r) => r.scores.map((s) => s.name)))];
+    const score = query.score ?? null;
+    if (score && !scoreNames.includes(score)) {
+      // Its own code, so the dashboard can tell a stale score filter from a stale cell key.
+      throw new AppError(`Neither cell has a score named "${score}".`, 404, 'SCORE_NOT_FOUND');
+    }
+    const pick = (rows: CompareResultRow[]): CompareResultRow[] => (score ? rows.map((r) => selectNamedScore(r, score)) : rows);
+    return {
+      base: baseCell,
+      target: targetCell,
+      score,
+      scoreNames,
+      ...compareCells(pick(baseRows), pick(targetRows)),
+    };
   }
 
   /** Finds a cell in a run's frozen grid, or throws 404 naming the missing key. */
@@ -454,13 +484,15 @@ export class RunsService {
     snapshotJson: Prisma.JsonValue,
   ): Promise<CompareResultRow[]> {
     const rows = await this.runsRepo.getCellResults(teamId, runId, cell.variantLabel, cell.model);
-    const frozenCriteria = new Map(
-      (snapshotJson as unknown as RunSnapshotExample[]).map((e) => [e.exampleId, e.criteria]),
-    );
+    const snapshot = snapshotJson as unknown as RunSnapshotExample[];
+    const frozenCriteria = new Map(snapshot.map((e) => [e.exampleId, e.criteria]));
+    const frozenExpected = new Map(snapshot.map((e) => [e.exampleId, e.expected]));
     return rows.map((row) => ({
       datasetExampleId: row.datasetExampleId,
       input: row.example.input as Record<string, unknown>,
       criteria: frozenCriteria.get(row.datasetExampleId) ?? row.example.criteria,
+      expected: frozenExpected.get(row.datasetExampleId) ?? row.example.expected ?? null,
+      scores: namedScores(row.scores),
       output: row.output,
       errorMessage: row.errorMessage,
       score: row.score,
@@ -550,4 +582,9 @@ export class RunsService {
 
     return cells;
   }
+}
+
+/** Reads a result's stored named scores; a server-side result (null column) has none. */
+function namedScores(value: Prisma.JsonValue | null): RunNamedScore[] {
+  return Array.isArray(value) ? (value as unknown as RunNamedScore[]) : [];
 }

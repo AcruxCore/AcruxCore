@@ -23,8 +23,11 @@ import type {
   PromoteResult,
   StartOptimizeParams,
   StartOptimizeResult,
+  RunLocalOptions,
+  LocalRunResult,
 } from './eval-types';
 import type { NamespaceHost } from './host';
+import { runLocalExperiment } from './local-experiment';
 
 export type EvaluationsHost = NamespaceHost;
 
@@ -152,6 +155,44 @@ export class ExperimentsNamespace {
     const response = await this.client._request('POST', `/experiments/${encodeURIComponent(experimentId)}/runs`, undefined, 'starting run');
     const data = await this.client._parseJsonOrThrow(response, 'starting run') as { run_id: string; status: string };
     return { runId: data.run_id, status: data.status };
+  }
+
+  /**
+   * Runs your own app code over a dataset and stores the outcome as one run, so it
+   * shows under Evaluation → Runs and in Compare like a server-side experiment.
+   *
+   * Your `task` runs once per example (up to `concurrency` at once), in this process.
+   * Each example gets its own trace: pass `ctx.trace` as a gateway call's `trace`
+   * option and the app's model calls land in it beside the SDK's `chain` span. Your
+   * scorers grade each output in code and return 0–1 (the SDK sends 0–100). Results
+   * upload in batches of 20 as they finish, and the run is always finished — as
+   * failed, with the error, if the loop itself breaks.
+   *
+   * A task that throws gives an errored result and its scorers are skipped; a scorer
+   * that throws gives a null score whose reason is the error. Neither stops the run.
+   *
+   * @param datasetId - The dataset to run over; its examples are frozen into the run.
+   * @param options - `task`, `scorers`, the run `name` (required) and optional
+   *   `model` label, `primaryScore`, `metadata` and `concurrency` (default 4).
+   * @returns Run and experiment ids, the dashboard URL, the final status, every item
+   *   (scores 0–1) and a per-score summary.
+   * @throws {acruxcoreError} VALIDATION_ERROR for a missing `task` or `name`, a scorer
+   *   that is not a function, or a `concurrency` below 1 — before any request is sent.
+   * @throws {acruxcoreError} API_ERROR / NETWORK_ERROR when the run cannot be created,
+   *   or when a results upload still fails after retries (the run is marked failed first).
+   *
+   * @example
+   * ```typescript
+   * const result = await hub.experiments.runLocal(datasetId, {
+   *   name: 'v2',
+   *   task: async (input, ctx) => myApp(input, { trace: ctx.trace }),
+   *   scorers: [function exactMatch({ output, expected }) { return output === expected; }],
+   * });
+   * console.log(result.summary.exactMatch.mean, result.url);
+   * ```
+   */
+  async runLocal<O>(datasetId: string, options: RunLocalOptions<O>): Promise<LocalRunResult<O>> {
+    return runLocalExperiment(this.client, datasetId, options);
   }
 }
 

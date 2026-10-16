@@ -742,6 +742,8 @@ export interface DatasetExample {
   criteria: string | null;
   /** Prior-turn conversation reconstructed from the source session (FAQ Q19), or null. */
   history: ChatMessage[] | null;
+  /** Structured reference answer that code scorers compare against, or null. */
+  expected: unknown;
   sourceTraceId: string | null;
   sourceFeedbackId: string | null;
   sourcePromptVersionId: string | null;
@@ -806,6 +808,8 @@ export interface AddDatasetExampleInput {
   criteria?: string;
   /** Optional prior-turn conversation, OpenAI chat-message shape. */
   history?: unknown[];
+  /** Optional structured reference answer (any JSON) for code scorers in a local run. */
+  expected?: unknown;
 }
 
 /** POST /datasets/:id/examples/bulk — at most 500 rows, all-or-nothing. */
@@ -952,7 +956,8 @@ export interface StartRunResponse {
 /** One resolved (prompt-variant × model) cell inside a run's grid. */
 export interface RunGridCell {
   cellKey: string;
-  variantKind: 'version' | 'candidate';
+  /** `local` for a run whose app and scorers ran in the caller's SDK. */
+  variantKind: 'version' | 'candidate' | 'local';
   promptVersionId?: string;
   promptCandidateId?: string;
   variantLabel: string;
@@ -970,6 +975,8 @@ export type RunStatus = 'queued' | 'running' | 'succeeded' | 'failed';
 /** GET /runs/:id — the full run detail, including its resolved grid and result counts. */
 export interface Run {
   id: string;
+  /** Absent from APIs older than local runs; treat absent as `evaluation`. */
+  kind?: RunKind;
   experimentId: string;
   /** The dataset the run graded; only runs sharing it can be compared per example. */
   datasetId: string;
@@ -983,8 +990,11 @@ export interface Run {
   results: RunResultsSummary;
 }
 
-/** Whether a run swept explicit prompt versions or optimizer-drafted candidates. */
-export type RunKind = 'evaluation' | 'optimize';
+/**
+ * Whether a run swept explicit prompt versions, optimizer-drafted candidates,
+ * or ran the caller's own app and scorers through the SDK (`local`).
+ */
+export type RunKind = 'evaluation' | 'optimize' | 'local';
 
 /** Per-run result counts on a run-history row. `scored` ≤ `succeeded` — an example without criteria is never judged. */
 export interface RunListResultCounts {
@@ -1050,7 +1060,7 @@ export interface RunListFilters {
  * `PromptCandidate` via `Run.grid` (`RunGridCell.promptCandidateId`) instead.
  */
 export interface RunReportVariant {
-  variantKind: 'version' | 'candidate';
+  variantKind: 'version' | 'candidate' | 'local';
   promptVersionId?: string;
   variantLabel: string;
   /** The version behind the label, so `production` can show as "v1 (production)". Absent from older APIs. */
@@ -1081,6 +1091,26 @@ export interface RunReportCell {
   scoredCount: number;
   unscoredCount: number;
   deltaVsBaseline: RunReportDelta | null;
+  /** Per-name aggregates of a local run's scores; empty on a server-side cell. Absent from older APIs. */
+  namedScores?: RunReportNamedScore[];
+}
+
+/** One named score's aggregate over a cell (a local run's `items_exact`, a judge score, …). */
+export interface RunReportNamedScore {
+  name: string;
+  /** Mean 0–100, or null when no result carries a value for it. */
+  avgScore: number | null;
+  /** Share passed, 0–1, or null. */
+  passRate: number | null;
+  scoredCount: number;
+}
+
+/** One named score on a local result, 0–100. `score` is null when the scorer raised. */
+export interface RunNamedScore {
+  name: string;
+  score: number | null;
+  passed: boolean | null;
+  reason: string | null;
 }
 
 /** The top-ranked scored cell. `model` is advisory (FAQ Q11) — recorded, not pinned. */
@@ -1129,6 +1159,10 @@ export interface RunCellExample {
   reason: string | null;
   traceId: string | null;
   judgeTraceId: string | null;
+  /** The example's structured reference answer, or null. Absent from older APIs. */
+  expected?: unknown;
+  /** A local result's named scores; empty on a server-side result. Absent from older APIs. */
+  scores?: RunNamedScore[];
 }
 
 /** GET /runs/:id/cells/:cellKey — on-demand drill-down for one grid cell. */
@@ -1151,6 +1185,8 @@ export interface RunCompareSide {
   passed: boolean | null;
   reason: string | null;
   traceId: string | null;
+  /** A local result's named scores; empty on a server-side result. */
+  scores?: RunNamedScore[];
 }
 
 /**
@@ -1161,6 +1197,8 @@ export interface RunCompareExample {
   exampleId: string;
   input: Record<string, unknown>;
   criteria: string | null;
+  /** The example's structured reference answer, or null. */
+  expected?: unknown;
   base: RunCompareSide | null;
   target: RunCompareSide | null;
   /** `target.score - base.score`, or null when either is missing. */
@@ -1180,6 +1218,10 @@ export interface RunCompareCellRef {
 export interface RunCompare {
   base: RunCompareCellRef;
   target: RunCompareCellRef;
+  /** The named score the examples were classified on; null for each result's primary score. */
+  score?: string | null;
+  /** Every score name either side carries, for the score picker. Empty for server-side runs. */
+  scoreNames?: string[];
   counts: Record<RunCompareChange, number>;
   examples: RunCompareExample[];
 }

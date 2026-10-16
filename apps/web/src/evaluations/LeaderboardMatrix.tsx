@@ -101,10 +101,13 @@ function MatrixCell({
   cell,
   isSelected,
   onSelect,
+  hasBaseline,
 }: {
   cell: RunReportCell;
   isSelected: boolean;
   onSelect: () => void;
+  /** False when the run has no baseline cell at all (a local run), so no delta chip is shown. */
+  hasBaseline: boolean;
 }) {
   const grade = scoreToGrade(cell.avgScore);
   const gradeStyle = GRADE_STYLE[grade];
@@ -137,10 +140,12 @@ function MatrixCell({
           Baseline
         </Badge>
       ) : (
-        <span className={cn('mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium', deltaStyle.text)}>
-          <span aria-hidden>{deltaStyle.glyph}</span>
-          {chip.label}
-        </span>
+        hasBaseline && (
+          <span className={cn('mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium', deltaStyle.text)}>
+            <span aria-hidden>{deltaStyle.glyph}</span>
+            {chip.label}
+          </span>
+        )
       )}
     </button>
   );
@@ -224,6 +229,7 @@ export function LeaderboardMatrix({ report, selectedCellKey, onSelectCell }: Lea
                               cell={cell}
                               isSelected={selectedCellKey === cell.cellKey}
                               onSelect={() => onSelectCell(cell.cellKey)}
+                              hasBaseline={report.cells.some((c) => c.isProductionBaseline)}
                             />
                           ) : (
                             <span className="block px-2.5 py-2 text-[12px] text-faint">—</span>

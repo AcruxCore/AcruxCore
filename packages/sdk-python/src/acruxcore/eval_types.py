@@ -53,6 +53,9 @@ class DatasetExampleDto:
     source_feedback_id: Optional[str]
     source_prompt_version_id: Optional[str]
     created_at: Optional[str]
+    #: Optional reference answer in any JSON shape, read by local-experiment scorers.
+    #: ``None`` when the example has none (or on a server that predates it).
+    expected: Any = None
     raw: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -67,6 +70,7 @@ class DatasetExampleDto:
             source_feedback_id=d.get("sourceFeedbackId"),
             source_prompt_version_id=d.get("sourcePromptVersionId"),
             created_at=d.get("createdAt"),
+            expected=d.get("expected"),
             raw=d,
         )
 
@@ -219,6 +223,7 @@ class StartRunResult:
 class RunListItemDto:
     id: str
     status: str
+    #: ``evaluation``, ``optimize``, or ``local`` for a run made by ``experiments.run_local``.
     kind: str
     experiment_id: str
     experiment_name: Optional[str]
@@ -335,6 +340,8 @@ class RunReport:
     status: str
     models: List[str]
     variants: List[Dict[str, Any]]
+    #: Raw report cells. A local run's cells also carry ``namedScores``:
+    #: ``[{name, avgScore, passRate, scoredCount}]``, scores on the 0–100 scale.
     cells: List[Dict[str, Any]]
     leaderboard: List[str]
     winner: Optional[Dict[str, Any]]
@@ -362,6 +369,8 @@ class RunCellDetailDto:
     cell_key: str
     variant_label: str
     model: str
+    #: Raw per-example rows. Each also carries ``expected`` and ``scores`` (a local run's
+    #: named scores, ``[{name, score, passed, reason}]`` with score 0–100; null otherwise).
     examples: List[Dict[str, Any]] = field(default_factory=list)
     raw: Dict[str, Any] = field(default_factory=dict)
 

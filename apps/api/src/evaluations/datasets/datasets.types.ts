@@ -134,6 +134,9 @@ const ChatMessageSchema = z.object({
  * `criteria` is the per-example rubric (source feedback comment).
  * `history` is an optional hand-authored prior-turn conversation (FAQ Q19),
  * the same shape a feedback-built example's reconstructed `history` carries.
+ * `expected` is an optional structured reference answer — any JSON — that code
+ * scorers in a local experiment compare against (phase-5 FAQ Q46). `null` means
+ * "no reference", the same as omitting it.
  */
 export const AddExampleSchema = z.object({
   input: z.record(z.unknown()).refine(
@@ -147,6 +150,13 @@ export const AddExampleSchema = z.object({
     .refine(
       (value) => Buffer.byteLength(JSON.stringify(value), 'utf8') <= MAX_HISTORY_BYTES,
       { message: `history must serialize to at most ${MAX_HISTORY_BYTES} bytes` },
+    )
+    .optional(),
+  expected: z
+    .unknown()
+    .refine(
+      (value) => value === undefined || Buffer.byteLength(JSON.stringify(value), 'utf8') <= MAX_EXAMPLE_INPUT_BYTES,
+      { message: `expected must serialize to at most ${MAX_EXAMPLE_INPUT_BYTES} bytes` },
     )
     .optional(),
 });
@@ -206,6 +216,8 @@ export interface DatasetExampleDto {
   criteria: string | null;
   /** Prior-turn conversation reconstructed from the source session (FAQ Q19), or null if there was none. */
   history: import('../../gateway/providers/types').ChatMessage[] | null;
+  /** Structured reference answer for code scorers (phase-5 FAQ Q46), or null when none was given. */
+  expected: unknown;
   sourceTraceId: string | null;
   sourceFeedbackId: string | null;
   sourcePromptVersionId: string | null;

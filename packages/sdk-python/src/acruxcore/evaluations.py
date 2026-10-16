@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional
 from urllib.parse import quote
 
 if TYPE_CHECKING:
@@ -24,6 +24,7 @@ from .eval_types import (
     StartOptimizeResult,
     StartRunResult,
 )
+from .local_experiments import LocalRunResult, run_local_experiment
 
 
 class DatasetsNamespace:
@@ -123,12 +124,21 @@ class DatasetsNamespace:
         *,
         criteria: Optional[str] = None,
         history: Optional[List[Dict[str, Any]]] = None,
+        expected: Any = None,
     ) -> DatasetExampleDto:
+        """Add one example to a dataset.
+
+        ``expected`` is an optional reference answer in any JSON shape, for code
+        scorers in :meth:`ExperimentsNamespace.run_local`. The LLM judge does not read
+        it; it keeps grading against ``criteria``. ``None`` leaves it unset.
+        """
         body: Dict[str, Any] = {"input": input}
         if criteria is not None:
             body["criteria"] = criteria
         if history is not None:
             body["history"] = history
+        if expected is not None:
+            body["expected"] = expected
         response = await self._client._request(
             "POST",
             f"/datasets/{quote(dataset_id, safe='')}/examples",
@@ -145,7 +155,7 @@ class DatasetsNamespace:
         """Import many examples in one request — a prepared test set from a file.
 
         Each item has the same keys as :meth:`add_example`: ``input`` (required),
-        ``criteria`` and ``history`` (optional). All-or-nothing: one invalid row
+        ``criteria``, ``history`` and ``expected`` (optional). All-or-nothing: one invalid row
         rejects the call with a 400 naming the row (``examples[17].input: ...``)
         and nothing is written. At most 500 rows per call.
         """
@@ -257,6 +267,68 @@ class ExperimentsNamespace:
         )
         return StartRunResult.from_dict(
             self._client._parse_json_or_throw(response, "starting run")
+        )
+
+
+    async def run_local(
+        self,
+        dataset_id: str,
+        *,
+        task: Callable[..., Any],
+        scorers: Iterable[Callable[..., Any]] = (),
+        name: str,
+        model: Optional[str] = None,
+        primary_score: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        concurrency: int = 4,
+    ) -> LocalRunResult:
+        """Run your own code over a dataset and upload the outcome as a run.
+
+        Use it when the thing under test is your app — several prompts, tool calls
+        and plain code — rather than one stored prompt. The run appears under
+        Evaluation → Runs and in Compare per example like a server-side run.
+
+        ``task`` is called once per example, as ``task(input)`` or, when it takes two
+        positional parameters, ``task(input, ctx)`` with a :class:`LocalExample`.
+        Pass ``trace=ctx.trace`` to gateway calls so they join the example's trace.
+        Sync functions run in a thread; async ones are awaited. A task that raises
+        gives an errored result and its scorers are skipped; the run goes on.
+
+        Each scorer gets only the keyword arguments it declares among ``output``,
+        ``expected``, ``input``, ``criteria`` and ``example`` (all of them with
+        ``**kwargs``). It returns a bool, a number in 0–1, a :class:`Score`, a dict
+        ``{name?, score, passed?, reason?}``, or a list of those. Its name defaults to
+        the function's ``__name__``. A scorer that raises, or returns a score outside
+        0–1, gives a ``None`` score with the error as its reason.
+
+        :param dataset_id: The dataset whose examples are frozen into the run.
+        :param task: Your app, as a sync or async callable.
+        :param scorers: Code scorers, run in order on every successful output.
+        :param name: Labels the run (required, at most 100 characters, no ``|``).
+        :param model: Free-text label for the run's cell (default ``"local"``). It is
+            not checked against Gateway → Models, since the app may call any model.
+        :param primary_score: The score the run list and report rank by. Omitted,
+            each result's first score is used (the first scorer's, since scores keep
+            scorer order). A named one must be on every scored result, or the upload
+            is refused.
+        :param metadata: Any JSON you want stored with the experiment, e.g. a git SHA.
+        :param concurrency: Examples in flight at once (at least 1).
+        :returns: The run's id, URL, final status, every item and a per-score summary.
+        :raises AcruxCoreError: Creating the run failed (unknown dataset, bad name),
+            or results could not be uploaded after retries. When the loop fails this
+            way, or is interrupted, the run is marked failed before the error is
+            re-raised.
+        """
+        return await run_local_experiment(
+            self._client,
+            dataset_id,
+            task=task,
+            scorers=scorers,
+            name=name,
+            model=model,
+            primary_score=primary_score,
+            metadata=metadata,
+            concurrency=concurrency,
         )
 
 

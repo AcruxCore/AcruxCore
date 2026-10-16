@@ -437,6 +437,7 @@ export class DatasetsService {
       input: dto.input as Prisma.InputJsonValue,
       ...(dto.criteria ? { criteria: dto.criteria } : {}),
       ...(dto.history ? { history: dto.history as unknown as Prisma.InputJsonValue } : {}),
+      ...(dto.expected != null ? { expected: dto.expected as Prisma.InputJsonValue } : {}),
     });
     return this.exampleToDto(example);
   }
@@ -471,6 +472,7 @@ export class DatasetsService {
         // Same rule as `addExample`: an empty string is "no criteria", not a rubric.
         ...(row.criteria ? { criteria: row.criteria } : {}),
         ...(row.history ? { history: row.history as unknown as Prisma.InputJsonValue } : {}),
+        ...(row.expected != null ? { expected: row.expected as Prisma.InputJsonValue } : {}),
       })),
     );
     return { added, exampleCount };
@@ -803,6 +805,7 @@ export class DatasetsService {
       input: row.input as Record<string, unknown>,
       criteria: row.criteria,
       history: row.history as unknown as ChatMessage[] | null,
+      expected: row.expected,
       sourceTraceId: row.sourceTraceId,
       sourceFeedbackId: row.sourceFeedbackId,
       sourcePromptVersionId: row.sourcePromptVersionId,

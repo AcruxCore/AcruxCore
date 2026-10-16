@@ -24,6 +24,17 @@ changelog: <https://docs.acruxcore.com/changelog>
 - `ChatUsage.cached_tokens` and `ChatUsage.reasoning_tokens`, read from the gateway's flat `usage` or
   a provider's `*_tokens_details`. Set only when the provider reports more than zero.
 - `SpanUsage` takes `cachedTokens`, for spans you report yourself.
+- `experiments.run_local(dataset_id, task=, scorers=, name=)` runs your own code over a dataset
+  and uploads it as a run. Scorers return a bool, a 0–1 number, a `Score`, a dict or a list.
+  Returns a `LocalRunResult` with items and a per-score summary.
+- `run_local`'s `primary_score` has no default: the server uses each result's first score. NaN and
+  infinite floats in an output are sent as `null`. Results upload at least once a minute.
+- Each local-run example gets a `chain` span in its own trace; pass `trace=ctx.trace` (a
+  `LocalExample`, which also carries `history` for a session-built example) to gateway calls.
+- `datasets.add_example` and `add_examples` take `expected`, any JSON reference answer for
+  code scorers. `DatasetExampleDto.expected` reads it back.
+- Run reads cover local runs: `RunListItemDto.kind` can be `"local"`, cell rows carry `scores` and
+  `expected`, and `RunReport.cells` carry `namedScores` (all on the 0–100 scale).
 
 ### Changed
 

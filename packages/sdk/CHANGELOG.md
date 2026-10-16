@@ -27,6 +27,16 @@ changelog: <https://docs.acruxcore.com/changelog>
 - `ChatUsage.cachedTokens` and `ChatUsage.reasoningTokens`, read from the gateway's flat `usage` or a
   provider's `*_tokens_details`. Set only when the provider reports more than zero.
 - `IngestSpan.usage.cachedTokens`, for spans you report yourself.
+- `experiments.runLocal(datasetId, { task, scorers, name })` runs your own app code over a dataset
+  and stores it as one run (kind `local`) under Evaluation → Runs. Scorers return 0–1 (bool, number,
+  `Score` or `Score[]`); the SDK sends 0–100. Each example gets a trace; pass `ctx.trace` to the gateway.
+- A task or scorer that throws is recorded (errored result, or a null score with the error as its
+  reason) and never stops the run. Results upload as they finish (20 at most per call, under 800 KB,
+  and at least once a minute); the run is always finished. `ctx.history` holds a session's earlier turns.
+- `AddExampleParams.expected` and `DatasetExampleDto.expected`: a structured reference answer for
+  code scorers. Run cells carry `expected` and named `scores`; report cells carry `namedScores`.
+- `RunKind` (`'evaluation' | 'optimize' | 'local'`) on `RunListItemDto.kind` and `RunDetailDto.kind`.
+  New types: `RunLocalOptions`, `LocalRunResult`, `Scorer`, `Score`, `LocalTaskContext` and friends.
 
 ### Changed
 

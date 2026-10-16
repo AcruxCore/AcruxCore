@@ -80,6 +80,15 @@ export function RunHistoryTable({ runs, onDeleteRun }: RunHistoryTableProps) {
                         optimize
                       </span>
                     )}
+                    {run.kind === 'local' && (
+                      <span
+                        className="rounded-full border border-line px-2 py-0.5 font-mono text-[11px] text-ink"
+                        title="Your own app and scorers ran through the SDK; the results were uploaded here."
+                        data-testid="run-kind-local"
+                      >
+                        local
+                      </span>
+                    )}
                   </div>
                   <p className="mt-0.5 text-[12px] text-muted" title={runResultsLine(run)}>
                     {runSubtitle(run)}

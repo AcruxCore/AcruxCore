@@ -1,0 +1,18 @@
+[
+  { "input": { "ticket": "I was charged twice for my October invoice. Please refund one of the payments." },
+    "expected": { "category": "billing", "team": "finance" } },
+  { "input": { "ticket": "The export button returns a 500 error every time I click it." },
+    "expected": { "category": "bug", "team": "engineering" } },
+  { "input": { "ticket": "How do I add a teammate to my workspace?" },
+    "expected": { "category": "question", "team": "support" } },
+  { "input": { "ticket": "I can't log in. The reset-password email never arrives." },
+    "expected": { "category": "account", "team": "support" } },
+  { "input": { "ticket": "Why does the dashboard show a blank page since this morning? Is anything down?" },
+    "expected": { "category": "bug", "team": "engineering" } },
+  { "input": { "ticket": "Can I get an invoice with our VAT number on it?" },
+    "expected": { "category": "billing", "team": "finance" } },
+  { "input": { "ticket": "Please change the email address on my account to ana@example.com." },
+    "expected": { "category": "account", "team": "support" } },
+  { "input": { "ticket": "Is there a way to schedule a report to send every Monday?" },
+    "expected": { "category": "question", "team": "support" } }
+]

@@ -26,6 +26,29 @@ export interface EvalResultRow {
   isProductionBaseline?: boolean;
   score: number | null;
   passed: boolean | null;
+  /** A local run's named scores (phase-5 FAQ Q46); null or absent on a server-side result. */
+  scores?: ReportNamedScoreInput[] | null;
+}
+
+/** One named score as stored on a local result, as far as the report reads it. */
+export interface ReportNamedScoreInput {
+  name: string;
+  score: number | null;
+  passed: boolean | null;
+}
+
+/**
+ * One named score's aggregate over a cell's results — how a local run's
+ * `items_exact`, `total_exact` and judge score each did. Empty list on a
+ * server-side cell, which has one judge score only.
+ */
+export interface RunReportNamedScore {
+  name: string;
+  /** Mean 0–100 over the results that carry this score with a value. Null when none do. */
+  avgScore: number | null;
+  /** Share of those results that passed, 0–1. Null when none are scored. */
+  passRate: number | null;
+  scoredCount: number;
 }
 
 /** Input to {@link buildRunReport}. */
@@ -49,7 +72,7 @@ export interface BuildRunReportInput {
  * of which models they were run against.
  */
 export interface RunReportVariant {
-  variantKind: 'version' | 'candidate';
+  variantKind: 'version' | 'candidate' | 'local';
   promptVersionId: string | null;
   variantLabel: string;
   /**
@@ -85,6 +108,8 @@ export interface RunReportCell {
   scoredCount: number;
   unscoredCount: number;
   deltaVsBaseline: RunReportDelta | null;
+  /** Per-name aggregates of a local run's scores, in first-seen order; empty on a server-side cell. */
+  namedScores: RunReportNamedScore[];
 }
 
 /** The top-ranked scored cell. The `model` is advisory (FAQ Q11) — recorded, not pinned. */

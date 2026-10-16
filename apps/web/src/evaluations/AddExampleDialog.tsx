@@ -275,6 +275,7 @@ export function AddExampleDialog({ open, onOpenChange, datasetId, knownVariables
   const [jsonMode, setJsonMode] = useState(false);
   const [json, setJson] = useState('{}');
   const [criteria, setCriteria] = useState('');
+  const [expectedText, setExpectedText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<DialogTab>('feedback');
 
@@ -287,6 +288,7 @@ export function AddExampleDialog({ open, onOpenChange, datasetId, knownVariables
     setJsonMode(false);
     setJson('{}');
     setCriteria('');
+    setExpectedText('');
     setError(null);
     setTab('feedback');
   }, [open, knownVariables]);
@@ -322,9 +324,23 @@ export function AddExampleDialog({ open, onOpenChange, datasetId, knownVariables
       return;
     }
 
+    let expected: unknown;
+    if (expectedText.trim()) {
+      try {
+        expected = JSON.parse(expectedText);
+      } catch {
+        setError('Expected must be valid JSON, for example {"total": 8} or "yes" in quotes.');
+        return;
+      }
+    }
+
     setError(null);
     try {
-      await add.mutateAsync({ input, criteria: criteria.trim() || undefined });
+      await add.mutateAsync({
+        input,
+        criteria: criteria.trim() || undefined,
+        ...(expected !== undefined ? { expected } : {}),
+      });
       toast.success('Example added');
       onOpenChange(false);
     } catch (e) {
@@ -438,6 +454,22 @@ export function AddExampleDialog({ open, onOpenChange, datasetId, knownVariables
             onChange={(e) => setCriteria(e.target.value)}
             placeholder="Names the policy and quotes the refund window."
             data-testid="add-example-criteria"
+          />
+        </Field>
+
+        <Field
+          label="Expected"
+          htmlFor="add-example-expected"
+          hint="Optional JSON. The right answer, for code scorers in an experiment you run from the SDK."
+        >
+          <Textarea
+            id="add-example-expected"
+            rows={2}
+            value={expectedText}
+            onChange={(e) => setExpectedText(e.target.value)}
+            placeholder='{"total": 8}'
+            className="font-mono"
+            data-testid="add-example-expected"
           />
         </Field>
       </div>

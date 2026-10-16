@@ -60,11 +60,13 @@ export function runTitle(run: RunListItem): string {
  * @returns One line describing what the run swept.
  */
 export function runShapeLine(run: RunListItem): string {
+  const examples = `${run.exampleCount} example${run.exampleCount === 1 ? '' : 's'}`;
+  // A local run has one cell by construction, so "1 variant × 1 model" says nothing.
+  if (run.kind === 'local') return `Your code · ${examples}`;
   if (run.variantCount === 0 || run.modelCount === 0) return 'Resolving grid…';
 
   const variants = `${run.variantCount} variant${run.variantCount === 1 ? '' : 's'}`;
   const models = `${run.modelCount} model${run.modelCount === 1 ? '' : 's'}`;
-  const examples = `${run.exampleCount} example${run.exampleCount === 1 ? '' : 's'}`;
   return `${variants} × ${models} · ${examples}`;
 }
 

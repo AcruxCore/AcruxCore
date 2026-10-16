@@ -20,7 +20,7 @@ export type EvalResultWithJudgeInputs = Prisma.EvalResultGetPayload<{
  * drill-down endpoint (`GET /runs/:id/cells/:cellKey`).
  */
 export type EvalResultWithExample = Prisma.EvalResultGetPayload<{
-  include: { example: { select: { input: true; criteria: true } } };
+  include: { example: { select: { input: true; criteria: true; expected: true } } };
 }>;
 
 /** A run's grid + produced results, shaped for {@link buildRunReport}'s input. */
@@ -703,7 +703,9 @@ export class RunsRepository {
     const grid: ReportGridCell[] = rawGrid.map((cell) => ({
       cellKey: cell.cellKey,
       variantKind: cell.variantKind,
-      promptVersionId: cell.promptVersionId,
+      // Null, not absent, for a cell with no prompt version (an optimizer
+      // candidate, a local run): the report type promises `string | null`.
+      promptVersionId: cell.promptVersionId ?? null,
       variantLabel: cell.variantLabel,
       model: cell.model,
       // Read the frozen flag; fall back to the label heuristic for pre-flag runs.
@@ -719,6 +721,7 @@ export class RunsRepository {
       isProductionBaseline: productionCellKeys.has(`${row.variantLabel}|${row.model}`),
       score: row.score,
       passed: row.passed,
+      scores: row.scores as unknown as EvalResultRow['scores'],
     }));
 
     return {
@@ -752,7 +755,7 @@ export class RunsRepository {
   ): Promise<EvalResultWithExample[]> {
     return prisma.evalResult.findMany({
       where: { teamId, experimentRunId: runId, variantLabel, model },
-      include: { example: { select: { input: true, criteria: true } } },
+      include: { example: { select: { input: true, criteria: true, expected: true } } },
       orderBy: { createdAt: 'asc' },
     });
   }

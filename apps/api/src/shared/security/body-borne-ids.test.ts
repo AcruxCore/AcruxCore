@@ -81,6 +81,26 @@ const UUID_FIELDS: Record<string, { verdict: Verdict; by: string }> = {
     by: 'Narrows rows already scoped to the team; a foreign id matches none of them.',
   },
 
+  'evaluations/local/local-runs.types.ts:CreateLocalExperimentSchema.dataset_id': {
+    verdict: 'ownership-checked',
+    by: 'LocalRunsService.createLocalExperiment → datasetsRepo.getDatasetById(teamId), 404.',
+  },
+  'evaluations/local/local-runs.types.ts:LocalResultSchema.example_id': {
+    verdict: 'filter-only',
+    by: 'LocalRunsService.submitResults accepts only ids in the run\u2019s own frozen snapshot, 400 otherwise.',
+  },
+  'evaluations/local/local-runs.types.ts:SubmitLocalResultsSchema.results[].example_id': {
+    verdict: 'filter-only',
+    by: 'The result shape inside the batch above.',
+  },
+  'evaluations/local/local-runs.types.ts:LocalResultSchema.trace_id': {
+    verdict: 'not-an-object-ref',
+    by: 'Minted by the SDK before the trace exists; only read back through team-scoped GET /traces/:id.',
+  },
+  'evaluations/local/local-runs.types.ts:SubmitLocalResultsSchema.results[].trace_id': {
+    verdict: 'not-an-object-ref',
+    by: 'The result shape inside the batch above.',
+  },
   'evaluations/experiments/experiments.types.ts:CreateExperimentSchema.dataset_id': {
     verdict: 'ownership-checked',
     by: 'ExperimentsService.create → datasetsRepo.getDatasetById(teamId), 404.',

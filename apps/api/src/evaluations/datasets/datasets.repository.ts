@@ -255,6 +255,7 @@ export class DatasetsRepository {
       input: Prisma.InputJsonValue;
       criteria?: string;
       history?: Prisma.InputJsonValue;
+      expected?: Prisma.InputJsonValue;
       sourceTraceId?: string;
       sourceFeedbackId?: string;
       sourcePromptVersionId?: string;
@@ -273,6 +274,8 @@ export class DatasetsRepository {
         // the JSON literal `null`, which reads back the same in JS but makes
         // `history IS NULL` false for every row.
         history: data.history ?? Prisma.DbNull,
+        // SQL NULL for "no reference answer", for the same reason as `history`.
+        expected: data.expected ?? Prisma.DbNull,
         sourceTraceId: data.sourceTraceId ?? null,
         sourceFeedbackId: data.sourceFeedbackId ?? null,
         sourcePromptVersionId: data.sourcePromptVersionId ?? null,
@@ -516,6 +519,7 @@ export class DatasetsRepository {
       input: Prisma.InputJsonValue;
       criteria?: string;
       history?: Prisma.InputJsonValue;
+      expected?: Prisma.InputJsonValue;
       sourceTraceId?: string;
       sourceFeedbackId?: string;
       sourcePromptVersionId?: string;
@@ -553,6 +557,7 @@ export class DatasetsRepository {
           criteria: example.criteria ?? null,
           // SQL NULL, not the JSON literal `null` — see `createExample`.
           history: example.history ?? Prisma.DbNull,
+          expected: example.expected ?? Prisma.DbNull,
           sourceTraceId: example.sourceTraceId ?? null,
           sourceFeedbackId: example.sourceFeedbackId ?? null,
           sourcePromptVersionId: example.sourcePromptVersionId ?? null,
@@ -624,6 +629,7 @@ export class DatasetsRepository {
       input: Prisma.InputJsonValue;
       criteria?: string;
       history?: Prisma.InputJsonValue;
+      expected?: Prisma.InputJsonValue;
       sourceTraceId?: string;
       sourceFeedbackId?: string;
       sourcePromptVersionId?: string;
@@ -641,6 +647,7 @@ export class DatasetsRepository {
             criteria: example.criteria ?? null,
             // SQL NULL, not the JSON literal `null` — see `createExample`.
             history: example.history ?? Prisma.DbNull,
+            expected: example.expected ?? Prisma.DbNull,
             sourceTraceId: example.sourceTraceId ?? null,
             sourceFeedbackId: example.sourceFeedbackId ?? null,
             sourcePromptVersionId: example.sourcePromptVersionId ?? null,
