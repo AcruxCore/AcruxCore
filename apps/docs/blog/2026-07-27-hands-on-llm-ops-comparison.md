@@ -8,7 +8,7 @@ image: /img/social-card.png
 keywords: [llm observability tools, ai observability, llm monitoring, ai agent observability, langsmith alternatives, langfuse alternatives, promptlayer alternatives, arize phoenix alternatives, opik alternatives, mlflow alternatives, helicone alternatives, laminar alternatives, open source llm observability, llm ops comparison, prompt management comparison, llm tracing comparison, llm evaluation comparison]
 ---
 
-Most tool comparisons are written from docs and marketing pages. We didn't do that here.
+Most comparisons of the best LLM observability tools are written from docs and marketing pages. We didn't do that here.
 We ran nine LLM-ops platforms ourselves — **LangSmith**, **Langfuse**, **PromptLayer**,
 **Arize Phoenix**, **Opik**, **MLflow**, **Helicone**, and **Laminar**, plus our own
 **AcruxCore** as the baseline — and did the same thing on each one: create a prompt, version

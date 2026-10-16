@@ -1,6 +1,6 @@
 ---
 title: "MLflow alternative: two gateways, one with guardrails"
-description: Considering an MLflow alternative for LLM work? We timed the same prompt through both gateways — MLflow's added +135 to +225 ms, ours +21 to +43 ms.
+description: An MLflow alternative for LLM work, measured. We timed the same prompt through both gateways. MLflow's gateway added +135 to +225 ms, and ours added +21 to +43 ms.
 slug: acruxcore-vs-mlflow
 date: 2026-08-11
 authors: [acrux]

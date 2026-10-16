@@ -1,11 +1,11 @@
 ---
-title: "LangChain vs AcruxCore SDK: the same tool-calling agent"
-description: We rewrote the same tool-calling agent with LangChain's create_agent and the AcruxCore SDK's run_tool_loop, ran both live, and compared the code and traces.
+title: "LangChain alternative: the same tool-calling agent, built twice"
+description: A LangChain alternative for tool-calling agents, tested. We rewrote the same agent with LangChain's create_agent and the AcruxCore SDK's run_tool_loop, ran both live, and compared the code and traces.
 slug: tool-agent-sdk-langchain-vs-acruxcore
 authors: [acrux]
 tags: [llmops-comparison, llm-tracing]
 image: /img/social-card.png
-keywords: [langchain create_agent, langchain vs acruxcore sdk, run_tool_loop, agent sdk comparison, langchain tool tracing, python llm agent sdk]
+keywords: [langchain alternative, langchain alternatives, langchain create_agent, langchain vs acruxcore sdk, run_tool_loop, agent sdk comparison, langchain tool tracing, python llm agent sdk]
 ---
 
 In the [previous post](/blog/tool-calling-traces-langsmith-vs-acruxcore) we wrote the same
@@ -378,7 +378,10 @@ ecosystem of components. AcruxCore gives you a versioned catalog artifact your o
 services can call, in any language, and a version you can promote without redeploying the
 caller.
 
-## Where each one is actually better
+## Is AcruxCore a LangChain alternative?
+
+For a tool-calling agent, yes. For an agent that needs LangChain's retrievers, memory and
+integrations, no.
 
 **On tool ergonomics they are now level.** Both decorators read the schema off your type
 hints and docstring, and neither needs a separate registration step.

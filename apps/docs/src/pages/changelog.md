@@ -88,6 +88,7 @@ called out in the week it ships and in the SDK release notes.
 - The run report names the judge model that graded it; the report API returns it as `judge`.
 - **New guide** — [Write a custom judge prompt](/docs/guides/write-a-custom-judge-prompt).
 - **Fixed** — the Evaluation code sample on acruxcore.com left out the required `judge_model`.
+- Blog titles and descriptions now name the search term first, such as "LangChain alternative".
 
 ---
 
