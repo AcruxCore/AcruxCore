@@ -257,6 +257,25 @@ export const ChatCompletionRequestSchema = z
     tool_refs: z.array(ToolRefSchema).optional(),
     /** Structured-output response format. */
     response_format: ResponseFormatSchema.optional(),
+    /**
+     * Reasoning effort for a reasoning model (OpenAI o-series / gpt-5, z.ai GLM, DeepSeek).
+     * Forwarded as-is, not checked against a list: each provider names its own levels, and
+     * an upstream that rejects a value says so in its own error. This field used to be
+     * stripped by Zod, so the model thought at its default effort, silently (issue #593).
+     * `null` means "not set", as in OpenAI's own schema, so it is read as absent.
+     */
+    reasoning_effort: z
+      .string()
+      .min(1)
+      .max(32)
+      .nullish()
+      .transform((v) => v ?? undefined),
+    /**
+     * OpenAI's streaming options. `include_usage: true` asks for one last chunk with empty
+     * `choices` and the call's `usage`. The gateway always asks its upstream for usage, so
+     * this only decides whether the caller is sent it.
+     */
+    stream_options: z.object({ include_usage: z.boolean().optional() }).optional(),
   })
   .superRefine((data, ctx) => {
     const hasMessages = data.messages !== undefined;
@@ -320,6 +339,8 @@ export type GatewayCompletionRequest = Omit<NormalizedRequest, 'messages' | 'mod
   gateway?: GatewayControl;
   /** Q5: catalog references, resolved+merged into `tools` in the service (Task 5). */
   tool_refs?: { name: string; alias?: string; version?: number }[];
+  /** Whether a stream ends with a usage chunk; read by the controller, then stripped. */
+  stream_options?: { include_usage?: boolean };
 };
 
 /**
@@ -389,6 +410,12 @@ export interface GatewayResult {
   requestId: string;
   /** RPM headroom after this call; undefined when no RPM limit applies. Surfaced as x-gateway-ratelimit-remaining. (G4) */
   rateLimitRemaining?: number;
+  /**
+   * Fields the serving deployment refused with a 400, so it was called again without them
+   * (see `withoutRefusedReasoningEffort`). Listed in `x-gateway-params-ignored`. Absent on
+   * a cache hit and when nothing was dropped.
+   */
+  droppedParams?: string[];
   /**
    * The trace this call's `llm` span landed in — either the caller-supplied
    * `x-trace-id` or the one the gateway minted. Surfaced as `x-gateway-trace-id`

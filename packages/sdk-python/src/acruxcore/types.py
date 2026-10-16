@@ -207,9 +207,14 @@ ResponseFormat = Dict[str, Any]
 
 
 class SpanUsage(TypedDict, total=False):
+    """Token counts on a span. ``cachedTokens`` is the part of ``promptTokens`` served from
+    the provider's prompt cache; the server prices it at the cached input rate, so leaving
+    it out bills every prompt token at the full rate. It may not exceed ``promptTokens``."""
+
     promptTokens: int
     completionTokens: int
     totalTokens: int
+    cachedTokens: int
 
 
 class IngestSpan(TypedDict, total=False):
@@ -286,6 +291,12 @@ class ChatUsage:
     prompt_tokens: Optional[int] = None
     completion_tokens: Optional[int] = None
     total_tokens: Optional[int] = None
+    #: The part of ``prompt_tokens`` the provider served from its prompt cache — a subset,
+    #: not an addition. Set only when the provider reported a count above zero.
+    cached_tokens: Optional[int] = None
+    #: The part of ``completion_tokens`` a reasoning model spent thinking before it
+    #: answered — a subset, not an addition. Set only when reported above zero.
+    reasoning_tokens: Optional[int] = None
 
 
 @dataclass

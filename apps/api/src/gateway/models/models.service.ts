@@ -60,6 +60,9 @@ export class ModelsService {
       credentialId: dto.credentialId,
       inputPricePerM,
       outputPricePerM,
+      // Never prefilled: no registry entry knows a provider's cached rate, and null
+      // already means "the provider's default cache rate".
+      cachedInputPricePerM: toDecimal(dto.cachedInputPricePerM ?? null),
       createdBy: actorId,
       fallbackModelIds: this.dedupe(dto.fallbackModelIds),
     });
@@ -121,12 +124,14 @@ export class ModelsService {
       credentialId?: string;
       inputPricePerM?: Prisma.Decimal | null;
       outputPricePerM?: Prisma.Decimal | null;
+      cachedInputPricePerM?: Prisma.Decimal | null;
     } = {};
     if (dto.publicName !== undefined) patch.publicName = dto.publicName;
     if (dto.upstreamModel !== undefined) patch.upstreamModel = dto.upstreamModel;
     if (dto.credentialId !== undefined) patch.credentialId = dto.credentialId;
     if (dto.inputPricePerM !== undefined) patch.inputPricePerM = toDecimal(dto.inputPricePerM);
     if (dto.outputPricePerM !== undefined) patch.outputPricePerM = toDecimal(dto.outputPricePerM);
+    if (dto.cachedInputPricePerM !== undefined) patch.cachedInputPricePerM = toDecimal(dto.cachedInputPricePerM);
 
     const fallbacks =
       dto.fallbackModelIds !== undefined ? this.dedupe(dto.fallbackModelIds) : undefined;
@@ -269,6 +274,7 @@ export class ModelsService {
       provider: row.credential.provider,
       inputPricePerM: row.inputPricePerM ? row.inputPricePerM.toNumber() : null,
       outputPricePerM: row.outputPricePerM ? row.outputPricePerM.toNumber() : null,
+      cachedInputPricePerM: row.cachedInputPricePerM ? row.cachedInputPricePerM.toNumber() : null,
       fallbacks: row.fallbacks.map((f) => ({
         id: f.fallbackModel.id,
         publicName: f.fallbackModel.publicName,

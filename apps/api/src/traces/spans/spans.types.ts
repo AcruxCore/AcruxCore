@@ -40,6 +40,8 @@ export interface CreateSpanInput {
   promptTokens?: number | null;
   completionTokens?: number | null;
   totalTokens?: number | null;
+  /** Part of `promptTokens` served from the provider's prompt cache. */
+  cachedTokens?: number | null;
   costUsd?: number | null;
   promptVersionId?: string | null;
   gatewayRequestId?: string | null;

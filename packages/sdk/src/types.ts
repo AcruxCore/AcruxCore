@@ -786,6 +786,11 @@ export interface RunToolLoopOptions {
   temperature?: number;
   maxTokens?: number;
   /**
+   * Sent as `reasoning_effort` — how hard a reasoning model thinks before answering.
+   * See {@link ReasoningEffort}.
+   */
+  reasoningEffort?: ReasoningEffort;
+  /**
    * Structured-output format for the loop's final answer. May be combined with
    * `tools`/`toolDefs`/`toolRefs`: when it is, the SDK runs the tool-gathering loop
    * with the format stripped, then one follow-up call with `responseFormat` set and
@@ -931,7 +936,26 @@ export interface ChatUsage {
   promptTokens?: number;
   completionTokens?: number;
   totalTokens?: number;
+  /**
+   * The part of `promptTokens` the provider served from its prompt cache — a subset, not
+   * an addition. Set only when the provider reported a count above zero. Read from the
+   * gateway's flat `usage.cached_tokens`, or a provider's `usage.prompt_tokens_details`.
+   */
+  cachedTokens?: number;
+  /**
+   * The part of `completionTokens` a reasoning model spent thinking before it answered —
+   * a subset, not an addition. Set only when the provider reported a count above zero.
+   */
+  reasoningTokens?: number;
 }
+
+/**
+ * How hard a reasoning model should think before it answers, sent as the OpenAI-shaped
+ * `reasoning_effort` field. The named values are the common ones; any other string is
+ * passed through unchanged, since providers add levels faster than an SDK release ships.
+ * A model that does not reason ignores it, or the provider rejects it.
+ */
+export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | (string & {});
 
 /** Options for {@link acruxcore.chat} — a single, non-looping gateway completion call. */
 /**
@@ -976,6 +1000,11 @@ export interface ChatOptions {
   responseFormat?: ResponseFormat;
   temperature?: number;
   maxTokens?: number;
+  /**
+   * Sent as `reasoning_effort` — how hard a reasoning model thinks before answering.
+   * See {@link ReasoningEffort}.
+   */
+  reasoningEffort?: ReasoningEffort;
   /** When true, `chat()` returns an async iterable of {@link ChatChunk} instead of a {@link ChatResult}. */
   stream?: boolean;
   /** Per-call BYO override; wins over the client's config.provider. */
@@ -1239,7 +1268,12 @@ export interface IngestSpan {
   endTime?: string;
   model?: string;
   provider?: string;
-  usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number };
+  /**
+   * Token counts. `cachedTokens` is the part of `promptTokens` served from the provider's
+   * prompt cache; the server prices it at the cached input rate, so leaving it out bills
+   * every prompt token at the full rate. It may not exceed `promptTokens`.
+   */
+  usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number; cachedTokens?: number };
   costUsd?: number;
   promptVersionId?: string;
   /**

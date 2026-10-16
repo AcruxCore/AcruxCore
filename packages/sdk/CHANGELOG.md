@@ -22,6 +22,11 @@ changelog: <https://docs.acruxcore.com/changelog>
   `judgeModel` and `judgePromptVersionId`, and `RunReport.judge` (the judge that graded the run).
 - `RunReport.variants[].versionNumber`: the version behind each variant, so a `production`
   baseline can be shown as "v1 (production)".
+- `reasoningEffort` on `chat`, `stream`, `runToolLoop` and `runPromptWithTools`, sent as
+  `reasoning_effort` on the gateway and BYO paths alike. New `ReasoningEffort` type.
+- `ChatUsage.cachedTokens` and `ChatUsage.reasoningTokens`, read from the gateway's flat `usage` or a
+  provider's `*_tokens_details`. Set only when the provider reports more than zero.
+- `IngestSpan.usage.cachedTokens`, for spans you report yourself.
 
 ### Changed
 
@@ -35,6 +40,11 @@ changelog: <https://docs.acruxcore.com/changelog>
      `optimize.start(promptId, { … })` call.
   2. TypeScript catches a miss at compile time (`Property 'judgeModel' is missing`).
      JavaScript callers must grep for both calls; without it the API answers 400.
+
+### Fixed
+
+- BYO-provider spans now report `cachedTokens` to `/traces`, so cached prompt tokens are priced at the
+  cached input rate. Before, every prompt token on a traced BYO call was billed at the full rate.
 
 ## 0.17.0 — 2026-10-13
 

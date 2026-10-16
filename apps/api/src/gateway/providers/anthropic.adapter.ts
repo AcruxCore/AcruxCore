@@ -255,6 +255,11 @@ interface AnthropicStreamEvent {
  */
 export class AnthropicAdapter implements ProviderAdapter {
   readonly provider = 'anthropic' as const;
+  /**
+   * The Messages API has no `reasoning_effort`. Its thinking control is a token budget, and
+   * which budget a level means depends on the model, so the field is left out (issue #593).
+   */
+  readonly unsentParams: ReadonlyArray<keyof NormalizedRequest> = ['reasoning_effort'];
 
   /**
    * @param req - Canonical request. `system` messages are hoisted; `max_tokens` defaulted.

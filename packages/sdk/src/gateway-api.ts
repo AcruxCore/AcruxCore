@@ -243,6 +243,63 @@ interface ByoStreamState {
   toolCalls?: ToolCall[];
 }
 
+/** The OpenAI-shaped `usage` object, in either the gateway's flat form or a provider's nested one. */
+interface RawUsage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  /** The gateway's flat form. */
+  cached_tokens?: number;
+  reasoning_tokens?: number;
+  /** A provider's nested form (OpenAI and every OpenAI-compatible API). */
+  prompt_tokens_details?: { cached_tokens?: number } | null;
+  completion_tokens_details?: { reasoning_tokens?: number } | null;
+}
+
+/**
+ * Reads a wire `usage` object into a {@link ChatUsage}.
+ *
+ * The gateway answers with the cached and reasoning counts flat on `usage`; a BYO
+ * provider nests them under `*_tokens_details`. Both are read, flat first. A count of
+ * zero is left out, so `cachedTokens` present always means "some of this was cached".
+ */
+function readUsage(raw: RawUsage | undefined): ChatUsage | undefined {
+  if (!raw) return undefined;
+  const usage: ChatUsage = {
+    promptTokens: raw.prompt_tokens,
+    completionTokens: raw.completion_tokens,
+    totalTokens: raw.total_tokens,
+  };
+  const cached = raw.cached_tokens ?? raw.prompt_tokens_details?.cached_tokens;
+  const reasoning = raw.reasoning_tokens ?? raw.completion_tokens_details?.reasoning_tokens;
+  if (typeof cached === 'number' && cached > 0) usage.cachedTokens = cached;
+  if (typeof reasoning === 'number' && reasoning > 0) usage.reasoningTokens = reasoning;
+  return usage;
+}
+
+/**
+ * Narrows a {@link ChatUsage} to what `POST /traces` takes for a span.
+ *
+ * `cachedTokens` is what lets the server price a BYO span at the cached input rate —
+ * without it every prompt token was billed at the full rate (issue #594). The server
+ * rejects the whole trace when `cachedTokens` exceeds `promptTokens`, so a provider that
+ * reports an impossible count loses the cached figure rather than the span.
+ * `reasoningTokens` is not part of the span schema and stays on the call result.
+ */
+function spanUsage(usage: ChatUsage | undefined): IngestSpan['usage'] {
+  if (!usage) return undefined;
+  const out: NonNullable<IngestSpan['usage']> = {
+    promptTokens: usage.promptTokens,
+    completionTokens: usage.completionTokens,
+    totalTokens: usage.totalTokens,
+  };
+  const cached = usage.cachedTokens;
+  if (cached !== undefined && (usage.promptTokens === undefined || cached <= usage.promptTokens)) {
+    out.cachedTokens = cached;
+  }
+  return out;
+}
+
 /**
  * Parses one tool call's `arguments` JSON string into an object.
  *
@@ -361,7 +418,7 @@ export class GatewayNamespace {
           endTime: new Date().toISOString(),
           model: result.model,
           provider: result.gateway.provider ?? undefined,
-          usage: result.usage,
+          usage: spanUsage(result.usage),
           costUsd: result.gateway.costUsd ?? undefined,
           promptVersionId: options.promptVersionId,
           variables: options.variables,
@@ -594,6 +651,7 @@ export class GatewayNamespace {
     if (options.responseFormat) body['response_format'] = options.responseFormat;
     if (options.temperature !== undefined) body['temperature'] = options.temperature;
     if (options.maxTokens !== undefined) body['max_tokens'] = options.maxTokens;
+    if (options.reasoningEffort !== undefined) body['reasoning_effort'] = options.reasoningEffort;
     if (options.stream) body['stream'] = true;
     // Gateway-only, like `prompt_version_id` above: a BYO provider has no gateway
     // to control and never asked for this field.
@@ -610,7 +668,7 @@ export class GatewayNamespace {
       id: string;
       model: string;
       choices: { message: AssistantMessage; finish_reason: string | null }[];
-      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+      usage?: RawUsage;
     };
     const choice = data.choices[0];
     return {
@@ -619,13 +677,7 @@ export class GatewayNamespace {
       content: choice.message.content ?? null,
       message: choice.message,
       finishReason: choice.finish_reason,
-      usage: data.usage
-        ? {
-            promptTokens: data.usage.prompt_tokens,
-            completionTokens: data.usage.completion_tokens,
-            totalTokens: data.usage.total_tokens,
-          }
-        : undefined,
+      usage: readUsage(data.usage),
       gateway,
     };
   }
@@ -689,7 +741,7 @@ export class GatewayNamespace {
       id: string;
       model: string;
       choices: { message: AssistantMessage; finish_reason: string | null }[];
-      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+      usage?: RawUsage;
     };
     const choice = data.choices[0];
 
@@ -699,13 +751,7 @@ export class GatewayNamespace {
       content: choice.message.content ?? null,
       message: choice.message,
       finishReason: choice.finish_reason,
-      usage: data.usage
-        ? {
-            promptTokens: data.usage.prompt_tokens,
-            completionTokens: data.usage.completion_tokens,
-            totalTokens: data.usage.total_tokens,
-          }
-        : undefined,
+      usage: readUsage(data.usage),
       gateway: {
         requestId: data.id,
         provider: inferProviderName(providerConfig.baseUrl),
@@ -891,16 +937,10 @@ export class GatewayNamespace {
             id: string;
             model: string;
             choices?: { delta: ChatChunk['delta']; finish_reason: string | null }[];
-            usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+            usage?: RawUsage;
           };
           finalModel = parsed.model ?? finalModel;
-          if (parsed.usage) {
-            usage = {
-              promptTokens: parsed.usage.prompt_tokens,
-              completionTokens: parsed.usage.completion_tokens,
-              totalTokens: parsed.usage.total_tokens,
-            };
-          }
+          if (parsed.usage) usage = readUsage(parsed.usage);
           const choice = parsed.choices?.[0];
           if (choice?.delta.content) accumulatedContent += choice.delta.content;
           if (choice?.finish_reason) finishReason = choice.finish_reason;
@@ -993,7 +1033,7 @@ export class GatewayNamespace {
       endTime: new Date().toISOString(),
       model,
       provider: inferProviderName(providerConfig.baseUrl),
-      usage: state.usage,
+      usage: spanUsage(state.usage),
       promptVersionId: lineage.promptVersionId,
       variables: lineage.variables,
       input: { messages },
@@ -1214,6 +1254,7 @@ export class GatewayNamespace {
                 tools: byoToolSchemas,
                 temperature: options.temperature,
                 maxTokens: options.maxTokens,
+                reasoningEffort: options.reasoningEffort,
                 responseFormat: effectiveResponseFormat,
               },
               providerConfig,
@@ -1226,6 +1267,7 @@ export class GatewayNamespace {
                 toolRefs: effectiveRefs.length > 0 ? effectiveRefs : undefined,
                 temperature: options.temperature,
                 maxTokens: options.maxTokens,
+                reasoningEffort: options.reasoningEffort,
                 responseFormat: effectiveResponseFormat,
                 promptVersionId: options.promptVersionId,
                 variables: options.variables,
@@ -1248,7 +1290,7 @@ export class GatewayNamespace {
             endTime: new Date().toISOString(),
             model: result.model,
             provider: result.gateway.provider ?? undefined,
-            usage: result.usage,
+            usage: spanUsage(result.usage),
             promptVersionId: options.promptVersionId,
             variables: options.variables,
             input: { messages },
@@ -1546,6 +1588,7 @@ export class GatewayNamespace {
       toolRefs: providerConfig ? undefined : (args.effectiveRefs.length > 0 ? args.effectiveRefs : undefined),
       temperature: options.temperature,
       maxTokens: options.maxTokens,
+      reasoningEffort: options.reasoningEffort,
       responseFormat: args.responseFormat,
       promptVersionId: options.promptVersionId,
       variables: options.variables,

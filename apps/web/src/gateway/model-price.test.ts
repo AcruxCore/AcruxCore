@@ -9,6 +9,12 @@ describe('modelPriceText', () => {
     });
   });
 
+  // Issue #594: a team can enter its provider's cached rate; the line shows it when set.
+  it('shows the cached input price between the two when the model has one', () => {
+    expect(modelPriceText(1.4, 4.4, 0.26).text).toBe('in $1.4 / cached $0.26 / out $4.4 per 1M');
+    expect(modelPriceText(1.4, 4.4, null).text).toBe('in $1.4 / out $4.4 per 1M');
+  });
+
   it('says plainly that an unpriced model is counted as $0', () => {
     const result = modelPriceText(null, null);
     expect(result.text).toBe('no price set');

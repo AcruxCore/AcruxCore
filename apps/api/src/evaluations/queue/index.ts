@@ -15,3 +15,4 @@ export {
   getOptimizeQueue,
   finalizeJobOpts,
 } from './queues';
+export { hasUnsettledJudgeJob, judgeJobId } from './pending-judge-jobs';

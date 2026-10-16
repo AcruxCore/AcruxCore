@@ -15,6 +15,8 @@ export const CreateModelSchema = z.object({
   credentialId: z.string().uuid('credentialId must be a UUID.'),
   inputPricePerM: priceSchema.optional(),
   outputPricePerM: priceSchema.optional(),
+  /** USD per 1M cached prompt tokens. Omitted or null = the provider's default cache rate. */
+  cachedInputPricePerM: priceSchema.optional(),
   fallbackModelIds: z.array(z.string().uuid()).default([]),
 });
 
@@ -32,6 +34,7 @@ export const UpdateModelSchema = z.object({
   credentialId: z.string().uuid().optional(),
   inputPricePerM: priceSchema.optional(),
   outputPricePerM: priceSchema.optional(),
+  cachedInputPricePerM: priceSchema.optional(),
   fallbackModelIds: z.array(z.string().uuid()).optional(),
 });
 
@@ -52,6 +55,8 @@ export interface GatewayModelDto {
   provider: string;
   inputPricePerM: number | null;
   outputPricePerM: number | null;
+  /** USD per 1M cached prompt tokens; null means the provider's default cache rate applies. */
+  cachedInputPricePerM: number | null;
   fallbacks: { id: string; publicName: string }[];
   createdAt: Date;
   updatedAt: Date;

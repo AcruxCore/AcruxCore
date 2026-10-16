@@ -93,7 +93,7 @@ export function ModelsPage() {
       ) : (
         <ul className="overflow-hidden rounded-xl border border-line">
           {models.map((m) => {
-            const priceInfo = modelPriceText(m.inputPricePerM, m.outputPricePerM);
+            const priceInfo = modelPriceText(m.inputPricePerM, m.outputPricePerM, m.cachedInputPricePerM);
             return (
             <li
               key={m.id}

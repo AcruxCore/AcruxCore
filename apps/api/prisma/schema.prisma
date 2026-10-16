@@ -18,38 +18,38 @@ datasource db {
 /// (see `shared/auth/better-auth.ts`), and the credential hash lives on
 /// `AuthAccount.password` — never on this row.
 model User {
-  id                    String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email                 String                   @unique(map: "users_email_unique")
-  emailVerified         Boolean                  @default(false) @map("email_verified")
-  displayName           String?                  @map("display_name")
-  marketingConsent      Boolean                  @default(false) @map("marketing_consent")
-  termsAcceptedAt       DateTime?                @map("terms_accepted_at") @db.Timestamptz(6)
-  image                 String?
-  defaultTeamId         String?                  @map("default_team_id") @db.Uuid
-  defaultTeam           Team?                    @relation("UserDefaultTeam", fields: [defaultTeamId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "users_default_team_id_teams_id_fk")
-  createdAt             DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  authSessions          AuthSession[]
-  authAccounts          AuthAccount[]
-  knownDevices          KnownDevice[]
-  apiKeys               ApiKey[]
-  teamMemberships       TeamMember[]
-  prompts               Prompt[]
-  auditLogs             AuditLog[]
-  promptVersions        PromptVersion[]
-  invitesSent           TeamInvite[]
-  providerConnections   ProviderConnection[]
-  virtualKeysCreated    VirtualKey[]
-  budgets               Budget[]
-  evalRules             EvalRule[]
-  gatewayModels         GatewayModel[]
-  traceFeedback         TraceFeedback[]
-  datasets              Dataset[]
-  tools                 Tool[]
-  toolVersions          ToolVersion[]
-  secrets               Secret[]
-  notificationPrefs     NotificationPreference[]
-  promptToolBindings PromptToolBinding[]
+  id                  String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email               String                   @unique(map: "users_email_unique")
+  emailVerified       Boolean                  @default(false) @map("email_verified")
+  displayName         String?                  @map("display_name")
+  marketingConsent    Boolean                  @default(false) @map("marketing_consent")
+  termsAcceptedAt     DateTime?                @map("terms_accepted_at") @db.Timestamptz(6)
+  image               String?
+  defaultTeamId       String?                  @map("default_team_id") @db.Uuid
+  defaultTeam         Team?                    @relation("UserDefaultTeam", fields: [defaultTeamId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "users_default_team_id_teams_id_fk")
+  createdAt           DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  authSessions        AuthSession[]
+  authAccounts        AuthAccount[]
+  knownDevices        KnownDevice[]
+  apiKeys             ApiKey[]
+  teamMemberships     TeamMember[]
+  prompts             Prompt[]
+  auditLogs           AuditLog[]
+  promptVersions      PromptVersion[]
+  invitesSent         TeamInvite[]
+  providerConnections ProviderConnection[]
+  virtualKeysCreated  VirtualKey[]
+  budgets             Budget[]
+  evalRules           EvalRule[]
+  gatewayModels       GatewayModel[]
+  traceFeedback       TraceFeedback[]
+  datasets            Dataset[]
+  tools               Tool[]
+  toolVersions        ToolVersion[]
+  secrets             Secret[]
+  notificationPrefs   NotificationPreference[]
+  promptToolBindings  PromptToolBinding[]
 
   @@index([email], map: "idx_users_email")
   @@map("users")
@@ -568,9 +568,9 @@ model Tool {
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
 
-  versions          ToolVersion[]
-  aliases           ToolAlias[]
-  promptBindings    PromptToolBinding[]
+  versions       ToolVersion[]
+  aliases        ToolAlias[]
+  promptBindings PromptToolBinding[]
 
   @@index([teamId], map: "idx_tools_team_id")
   @@index([teamId, name], map: "idx_tools_team_name")
@@ -601,8 +601,8 @@ model ToolVersion {
   creator          User              @relation(fields: [createdBy], references: [id])
   createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  toolAliases         ToolAlias[]
-  pinnedByBindings    PromptToolBinding[] @relation("PinnedToolVersion")
+  toolAliases      ToolAlias[]
+  pinnedByBindings PromptToolBinding[] @relation("PinnedToolVersion")
 
   @@unique([toolId, versionNumber], name: "uq_tool_versions_tool_version")
   @@index([toolId, versionNumber], map: "idx_tool_versions_lookup")
@@ -717,16 +717,19 @@ model Secret {
 /// as `model`; `upstreamModel` is what is actually sent to the provider. Bound to
 /// exactly one credential. Deleting the credential is blocked while a model uses it.
 model GatewayModel {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teamId          String   @map("team_id") @db.Uuid
-  publicName      String   @map("public_name")
-  upstreamModel   String   @map("upstream_model")
-  credentialId    String   @map("credential_id") @db.Uuid
-  inputPricePerM  Decimal? @map("input_price_per_m") @db.Decimal(12, 4)
-  outputPricePerM Decimal? @map("output_price_per_m") @db.Decimal(12, 4)
-  createdBy       String   @map("created_by") @db.Uuid
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId               String   @map("team_id") @db.Uuid
+  publicName           String   @map("public_name")
+  upstreamModel        String   @map("upstream_model")
+  credentialId         String   @map("credential_id") @db.Uuid
+  inputPricePerM       Decimal? @map("input_price_per_m") @db.Decimal(12, 4)
+  outputPricePerM      Decimal? @map("output_price_per_m") @db.Decimal(12, 4)
+  /// USD per 1M prompt tokens served from the provider's cache. Null = the provider's default
+  /// cache rate as a fraction of input_price_per_m (0.5x, or Anthropic's 0.1x).
+  cachedInputPricePerM Decimal? @map("cached_input_price_per_m") @db.Decimal(12, 4)
+  createdBy            String   @map("created_by") @db.Uuid
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   team                Team                   @relation(fields: [teamId], references: [id], onDelete: Cascade)
   credential          ProviderConnection     @relation(fields: [credentialId], references: [id], onDelete: Restrict)
@@ -949,6 +952,8 @@ model Span {
   promptTokens     Int?        @map("prompt_tokens")
   completionTokens Int?        @map("completion_tokens")
   totalTokens      Int?        @map("total_tokens")
+  /// Part of promptTokens the provider served from its prompt cache; null when not reported.
+  cachedTokens     Int?        @map("cached_tokens")
   costUsd          Decimal?    @map("cost_usd") @db.Decimal(18, 9)
   promptVersionId  String?     @map("prompt_version_id") @db.Uuid
   gatewayRequestId String?     @map("gateway_request_id") @db.Uuid
@@ -1128,30 +1133,30 @@ model Experiment {
 /// One execution of an experiment. Snapshots the exact example set + resolved grid
 /// for reproducibility (FAQ Q5). `status` tracks the BullMQ flow lifecycle.
 model ExperimentRun {
-  id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teamId          String                @map("team_id") @db.Uuid
-  experimentId    String                @map("experiment_id") @db.Uuid
-  status          experiment_run_status @default(queued)
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId               String                @map("team_id") @db.Uuid
+  experimentId         String                @map("experiment_id") @db.Uuid
+  status               experiment_run_status @default(queued)
   /// Frozen example set: [{ exampleId, input, criteria }].
-  exampleSnapshot Json                  @default("[]") @map("example_snapshot")
+  exampleSnapshot      Json                  @default("[]") @map("example_snapshot")
   /// Resolved cells: [{ cellKey, variantKind, promptVersionId, versionLabel, model }].
-  grid            Json                  @default("[]")
-  error           String?
+  grid                 Json                  @default("[]")
+  error                String?
   /// User who started this run. Null for runs created before this column, and
   /// for runs started by a team-scoped API key (which has no acting user).
   /// The run-finished notification falls back to `experiment.createdBy`, then to
   /// the team's owners/admins, so a null here never means "email nobody".
-  createdBy       String?               @map("created_by") @db.Uuid
+  createdBy            String?               @map("created_by") @db.Uuid
   /// The judge model that graded this run, copied from the experiment at run
   /// start. Null for runs created before judges were recorded on the run.
-  judgeModel      String?               @map("judge_model")
+  judgeModel           String?               @map("judge_model")
   /// The custom judge prompt version frozen at run start (FAQ Q5). Null for the
   /// built-in judge and for runs created before this column. Not a foreign key:
   /// it is a historical record and must outlive the version row.
-  judgePromptVersionId String?          @map("judge_prompt_version_id") @db.Uuid
-  startedAt       DateTime?             @map("started_at") @db.Timestamptz(6)
-  endedAt         DateTime?             @map("ended_at") @db.Timestamptz(6)
-  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  judgePromptVersionId String?               @map("judge_prompt_version_id") @db.Uuid
+  startedAt            DateTime?             @map("started_at") @db.Timestamptz(6)
+  endedAt              DateTime?             @map("ended_at") @db.Timestamptz(6)
+  createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
 
   team             Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
   experiment       Experiment        @relation(fields: [experimentId], references: [id], onDelete: Cascade)

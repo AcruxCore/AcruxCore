@@ -49,8 +49,33 @@ called out in the week it ships and in the SDK release notes.
 #### Slow judges no longer fail a healthy run
 
 - A run whose judge was still grading was marked failed after a few minutes, with answers unscored.
-- A run now fails only when no answer has been produced or graded for at least 5 minutes.
+- A run fails once nothing is answered or graded for 5 minutes and no judge call is pending.
 - The failure message says so and counts the answers graded, such as "1 of 4 results judged".
+
+#### Cached prompt tokens are priced at your provider's rate
+
+- A model now takes a **Cached input $/1M** price, such as z.ai's $0.26 for `glm-5.3`.
+- Traced SDK and OTLP spans take `usage.cachedTokens`, bill them at that price, and store them.
+- With no cached price set, a cache hit costs 0.5× the input price, or 0.1× for Claude models.
+  [Reference →](/api-reference/gateway/models)
+
+#### The gateway forwards `reasoning_effort`
+
+- `POST /gateway/chat/completions` sends `reasoning_effort` to OpenAI and OpenAI-compatible models.
+- A model that says it does not support `reasoning_effort` is called once more without it.
+- `x-gateway-params-ignored` names each field the provider did not receive, such as `seed`.
+  [Reference →](/api-reference/gateway#reasoning-effort-and-fields-the-gateway-does-not-send)
+
+#### The gateway returns token details where the OpenAI SDKs read them
+
+- `usage.completion_tokens_details.reasoning_tokens` counts the tokens the model spent thinking.
+- `usage.prompt_tokens_details.cached_tokens` counts the prompt tokens served from cache.
+- `stream_options.include_usage: true` ends a stream with one chunk that carries the usage.
+
+#### Gemini thinking tokens are billed
+
+- A Gemini thinking model's thinking tokens now count in `completion_tokens` and in cost.
+- They are also returned as `usage.reasoning_tokens`.
 
 #### Discovery files for AI agents
 
@@ -103,6 +128,7 @@ called out in the week it ships and in the SDK release notes.
 
 ### Minor
 
+- **Fixed** — a run failed while its last judge call was being retried; it now waits up to 30 min.
 - **Fixed** — a traced span sent without `totalTokens` now counts prompt + completion, not 0.
 - **Fixed** — dashboard latency under one second could show as `980.0999999999999ms`.
 - **Fixed** — an image link the provider could not fetch gave a 500; it is now a 400.

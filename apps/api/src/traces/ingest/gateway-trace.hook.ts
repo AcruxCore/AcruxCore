@@ -232,6 +232,8 @@ export async function recordGatewaySpan(args: {
           promptTokens: reqRow.promptTokens,
           completionTokens: reqRow.completionTokens,
           totalTokens: reqRow.totalTokens,
+          // The ledger row has no cached count; the provider's usage does.
+          cachedTokens: result.body.usage.cached_tokens ?? null,
           costUsd: reqRow.costUsd == null ? null : reqRow.costUsd.toNumber(),
           promptVersionId: reqRow.promptVersionId,
           gatewayRequestId: reqRow.id,

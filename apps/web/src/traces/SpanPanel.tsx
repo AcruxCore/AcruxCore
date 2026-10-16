@@ -123,6 +123,10 @@ export function SpanPanel({ span, traceId, feedback }: SpanPanelProps) {
         )}
         {span.provider != null && <Metric label="Provider" value={span.provider} />}
         {span.totalTokens != null && <Metric label="Tokens" value={formatCount(span.totalTokens)} />}
+        {/* Prompt tokens served from the provider's cache, billed at the cached price. */}
+        {span.cachedTokens != null && span.cachedTokens > 0 && (
+          <Metric label="Cached prompt tokens" value={formatCount(span.cachedTokens)} />
+        )}
         {span.costUsd != null && <Metric label="Cost" value={formatUsd(span.costUsd)} />}
         <Metric label="Latency" value={formatLatency(span.latencyMs)} />
         {failure.httpStatus != null && failure.httpStatus > 0 && (

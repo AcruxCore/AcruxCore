@@ -83,6 +83,25 @@ export interface CacheRates {
   read: number;
   /** Charged per token written into the cache (`usage.cache_write_tokens`). */
   write: number;
+  /**
+   * The model's own cached input price, USD per 1M tokens. When set, cached tokens are billed
+   * at this price and `read` is not used. Kept as a price rather than turned into a fraction
+   * of the input price, so it still applies when the input price is $0.
+   */
+  readPricePerM?: number;
+}
+
+/** A stored price: Prisma returns a `Decimal`, tests and the registry pass a plain number. */
+export type StoredPrice = { toNumber(): number } | number;
+
+/**
+ * Reads a stored price as a number.
+ *
+ * @param price - A Prisma `Decimal` or a plain number.
+ * @returns The price in USD per 1M tokens.
+ */
+export function priceToNumber(price: StoredPrice): number {
+  return typeof price === 'number' ? price : price.toNumber();
 }
 
 /** OpenAI-style automatic caching: reads at half price, nothing is ever billed as a write. */
@@ -123,6 +142,29 @@ export function cacheRatesFor(provider: string, upstreamModel: string): CacheRat
 }
 
 /**
+ * Picks the cache rates for a team's registered model: its own cached input price when it
+ * has one, otherwise its provider's default (`cacheRatesFor`).
+ *
+ * Providers publish their own cached rate. z.ai's glm-5.3 charges $0.26 against $1.40 input,
+ * 0.186x, so the fixed 0.5x default overstated every cache hit by about a third (issue #594).
+ *
+ * @param provider - The provider of the connection that serves the model.
+ * @param upstreamModel - The id the provider knows.
+ * @param cachedInputPricePerM - The model's cached input price, or null to use the default.
+ * @returns The provider's default fractions, plus `readPricePerM` when the model has a cached
+ *          price. Only reads are overridden: no provider that reports a cache write lets a
+ *          team enter its own write rate yet.
+ */
+export function cacheRatesForModel(
+  provider: string,
+  upstreamModel: string,
+  cachedInputPricePerM: StoredPrice | null,
+): CacheRates {
+  const rates = cacheRatesFor(provider, upstreamModel);
+  return cachedInputPricePerM == null ? rates : { ...rates, readPricePerM: priceToNumber(cachedInputPricePerM) };
+}
+
+/**
  * Splits prompt tokens into the parts billed at the full, cache-read and cache-write rates, and
  * returns the blended input cost.
  *
@@ -140,6 +182,9 @@ function inputCost(usage: Usage, inputPricePerM: number, rates: CacheRates): num
   const cached = Math.min(Math.max(usage.cached_tokens ?? 0, 0), usage.prompt_tokens);
   const written = Math.min(Math.max(usage.cache_write_tokens ?? 0, 0), usage.prompt_tokens - cached);
   const full = usage.prompt_tokens - cached - written;
+  if (rates.readPricePerM !== undefined) {
+    return ((full + written * rates.write) / 1e6) * inputPricePerM + (cached / 1e6) * rates.readPricePerM;
+  }
   return ((full + cached * rates.read + written * rates.write) / 1e6) * inputPricePerM;
 }
 
@@ -228,13 +273,14 @@ export function lookupDefaultPricing(
  * @returns Cost in USD, or `null` when either price is null (cost logged null).
  */
 export function computeCostFromPrices(
-  inputPricePerM: { toNumber(): number } | number | null,
-  outputPricePerM: { toNumber(): number } | number | null,
+  inputPricePerM: StoredPrice | null,
+  outputPricePerM: StoredPrice | null,
   usage: Usage,
   rates: CacheRates = DEFAULT_CACHE_RATES,
 ): number | null {
   if (inputPricePerM == null || outputPricePerM == null) return null;
-  const inP = typeof inputPricePerM === 'number' ? inputPricePerM : inputPricePerM.toNumber();
-  const outP = typeof outputPricePerM === 'number' ? outputPricePerM : outputPricePerM.toNumber();
-  return inputCost(usage, inP, rates) + (usage.completion_tokens / 1e6) * outP;
+  return (
+    inputCost(usage, priceToNumber(inputPricePerM), rates) +
+    (usage.completion_tokens / 1e6) * priceToNumber(outputPricePerM)
+  );
 }

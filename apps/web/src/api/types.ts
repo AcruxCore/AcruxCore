@@ -292,6 +292,8 @@ export interface GatewayModel {
   provider: string;
   inputPricePerM: number | null;
   outputPricePerM: number | null;
+  /** USD per 1M cached prompt tokens; null = the provider's default cache rate. */
+  cachedInputPricePerM: number | null;
   fallbacks: { id: string; publicName: string }[];
   createdAt: string;
   updatedAt: string;
@@ -303,6 +305,7 @@ export interface CreateModelInput {
   credentialId: string;
   inputPricePerM?: number | null;
   outputPricePerM?: number | null;
+  cachedInputPricePerM?: number | null;
   fallbackModelIds?: string[];
 }
 
@@ -312,6 +315,7 @@ export interface UpdateModelInput {
   credentialId?: string;
   inputPricePerM?: number | null;
   outputPricePerM?: number | null;
+  cachedInputPricePerM?: number | null;
   fallbackModelIds?: string[];
 }
 
@@ -478,6 +482,8 @@ export interface Span {
   promptTokens: number | null;
   completionTokens: number | null;
   totalTokens: number | null;
+  /** Part of promptTokens the provider served from its cache; null when not reported. */
+  cachedTokens: number | null;
   costUsd: number | null;
   promptVersionId: string | null;
   gatewayRequestId: string | null;

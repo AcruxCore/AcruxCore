@@ -1,6 +1,5 @@
-import type { GatewayModel } from '@prisma/client';
-import { ModelsRepository } from '../../gateway/models/models.repository';
-import { computeCost, computeCostFromPrices, stripDateSuffix } from '../../gateway/providers/models';
+import { ModelsRepository, type PricedGatewayModel } from '../../gateway/models/models.repository';
+import { cacheRatesForModel, computeCost, computeCostFromPrices, stripDateSuffix } from '../../gateway/providers/models';
 import type { IngestSpan, IngestTrace } from './ingest.types';
 
 /**
@@ -9,7 +8,8 @@ import type { IngestSpan, IngestTrace } from './ingest.types';
  *
  * The order is: a cost the client sent, then the team's own price for that model
  * (`gateway_models.input_price_per_m` / `output_price_per_m`, matched on public name or
- * upstream id), then the built-in `MODELS` registry. Without the team step, any model the
+ * upstream id), then the built-in `MODELS` registry. A span's `usage.cachedTokens` is billed at
+ * the model's cached input price, the same split the gateway bills. Without the team step, any model the
  * registry does not list stayed at `cost = null` on every traced call, and the cost charts
  * undercounted with no warning (issue #588).
  */
@@ -61,7 +61,7 @@ function needsPrice(span: IngestSpan): boolean {
  * upstream-id match, and either wins over a match on the date-stripped id. `priced` is
  * newest-edit first, so ties go to the most recently updated model.
  */
-function findTeamPrice(model: string, priced: GatewayModel[]): GatewayModel | undefined {
+function findTeamPrice(model: string, priced: PricedGatewayModel[]): PricedGatewayModel | undefined {
   const bare = stripDateSuffix(model);
   return (
     priced.find((m) => m.publicName === model) ??
@@ -71,18 +71,28 @@ function findTeamPrice(model: string, priced: GatewayModel[]): GatewayModel | un
 }
 
 /** Returns `span` with `costUsd` set from the team price, else the registry, else unchanged. */
-function withCost(span: IngestSpan, priced: GatewayModel[]): IngestSpan {
+function withCost(span: IngestSpan, priced: PricedGatewayModel[]): IngestSpan {
   const promptTokens = span.usage!.promptTokens!;
   const completionTokens = span.usage!.completionTokens!;
-  // Traced usage carries no cached-token split, so cache rates never apply here.
+  const cachedTokens = span.usage!.cachedTokens;
   const usage = {
     prompt_tokens: promptTokens,
     completion_tokens: completionTokens,
     total_tokens: span.usage!.totalTokens ?? promptTokens + completionTokens,
+    ...(cachedTokens ? { cached_tokens: cachedTokens } : {}),
   };
   const team = findTeamPrice(span.model!, priced);
+  // The same blended pricing as the gateway: cached tokens at the team's cached input
+  // price, or at the provider's default cache rate when the model has none (issue #594).
   const costUsd = team
-    ? computeCostFromPrices(team.inputPricePerM, team.outputPricePerM, usage)
+    ? computeCostFromPrices(
+        team.inputPricePerM,
+        team.outputPricePerM,
+        usage,
+        // The connection that serves the model sets the default cache rate, as on the gateway.
+        // The span's own `provider` is free text from the client and may say anything.
+        cacheRatesForModel(team.credential.provider, team.upstreamModel, team.cachedInputPricePerM),
+      )
     : computeCost(span.model!, usage);
   return costUsd == null ? span : { ...span, costUsd };
 }

@@ -125,6 +125,10 @@ function mapOpenInferenceSpan(raw: RawSpan, attrs: Record<string, unknown>): Ing
   const promptTokens = typeof attrs['llm.token_count.prompt'] === 'number' ? attrs['llm.token_count.prompt'] as number : undefined;
   const completionTokens = typeof attrs['llm.token_count.completion'] === 'number' ? attrs['llm.token_count.completion'] as number : undefined;
   const totalTokens = typeof attrs['llm.token_count.total'] === 'number' ? attrs['llm.token_count.total'] as number : undefined;
+  // OpenInference's cache-read count, a subset of the prompt count. Prices the span (#594).
+  const cacheRead = attrs['llm.token_count.prompt_details.cache_read'];
+  const cachedTokens =
+    typeof cacheRead === 'number' && (promptTokens === undefined || cacheRead <= promptTokens) ? cacheRead : undefined;
   const provider =
     (typeof attrs['llm.provider'] === 'string' && (attrs['llm.provider'] as string)) ||
     (typeof attrs['llm.system'] === 'string' && (attrs['llm.system'] as string)) ||
@@ -142,7 +146,7 @@ function mapOpenInferenceSpan(raw: RawSpan, attrs: Record<string, unknown>): Ing
     provider,
     usage:
       promptTokens !== undefined || completionTokens !== undefined || totalTokens !== undefined
-        ? { promptTokens, completionTokens, totalTokens }
+        ? { promptTokens, completionTokens, totalTokens, ...(cachedTokens !== undefined ? { cachedTokens } : {}) }
         : undefined,
     // No cost here: `IngestService` prices the span at ingest, where the team's own
     // model prices are known (team price first, built-in registry second).

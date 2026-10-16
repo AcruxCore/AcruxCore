@@ -282,6 +282,8 @@ describe('an eval over a prompt with an image (issue #573)', () => {
     expect(job!.data.images).toEqual([{ type: 'image_url', image_url: { url: RECEIPT_URL, detail: 'high' } }]);
 
     const result = await prisma.evalResult.findFirstOrThrow({ where: { experimentRunId: run.id } });
+    // Named after its result, so finalize can ask for this one job's state (issue #591).
+    expect(job!.id).toBe(`judge-${result.id}`);
     await processJudge(job!.data);
 
     const judgeMessage = sent[1]!['messages'][1];

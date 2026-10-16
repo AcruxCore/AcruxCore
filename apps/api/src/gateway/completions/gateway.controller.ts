@@ -9,6 +9,8 @@ import type {
   TraceContextBody,
 } from './completions.types';
 import { ProviderError } from '../providers/adapter';
+import { unappliedParams } from '../providers/unapplied-params';
+import { toWireUsage } from './wire-usage';
 import { ValidationError, RateLimitedError, ProviderRateLimitedError } from '../../shared/errors';
 
 /**
@@ -178,6 +180,65 @@ function readTracingContext(
   };
 }
 
+/** Top-level body fields the gateway reads: the schema's own plus the two context objects. */
+const KNOWN_BODY_FIELDS = new Set([...Object.keys(ChatCompletionRequestSchema.innerType().shape), 'trace', 'span']);
+
+/**
+ * Lists the top-level body fields the gateway does not know, sorted.
+ *
+ * Zod strips them, so they never reach the provider. That used to happen in silence:
+ * a caller who set `reasoning_effort` got default effort with nothing said (issue #593).
+ * Rejecting them would break every OpenAI client that sends a field we have not
+ * modelled yet (`seed`, `user`, `n`, …), so the call goes through and the names come
+ * back in `x-gateway-params-ignored`.
+ */
+function unknownBodyFields(body: unknown): string[] {
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) return [];
+  return Object.keys(body)
+    .filter((k) => !KNOWN_BODY_FIELDS.has(k))
+    .sort();
+}
+
+/** Longest `x-gateway-params-ignored` value; nginx's default proxy buffer is 4 KB for all headers. */
+const MAX_IGNORED_HEADER_CHARS = 1024;
+
+/**
+ * Sets `x-gateway-params-ignored` when any field was not sent upstream: unknown body
+ * fields, plus known ones the serving provider's adapter did not send.
+ *
+ * The names come from the caller's own body, and this runs after the provider call was
+ * billed. So the header must never throw and never grow without limit:
+ * - Each name is percent-encoded, as `x-trace-name` is. Node throws on a header value
+ *   that is not Latin-1 or holds a control character, which turned a billed call into a
+ *   500 and, on a stream, skipped the ledger write.
+ * - Names are added in sorted order while they fit in {@link MAX_IGNORED_HEADER_CHARS}.
+ *   `x-gateway-params-ignored-count` always gives the full number, so a caller can tell
+ *   when the list was cut short.
+ *
+ * @param res - The response, before its headers are sent.
+ * @param lists - Field-name lists to merge; duplicates are reported once.
+ */
+function setIgnoredParamsHeader(res: Response, ...lists: string[][]): void {
+  const all = [...new Set(lists.flat())].sort();
+  if (all.length === 0) return;
+  const shown: string[] = [];
+  let length = 0;
+  for (const name of all) {
+    let encoded: string;
+    try {
+      encoded = encodeURIComponent(name);
+    } catch {
+      continue; // A lone UTF-16 surrogate cannot be encoded; it is still counted below.
+    }
+    const next = length + (shown.length > 0 ? 1 : 0) + encoded.length;
+    if (next > MAX_IGNORED_HEADER_CHARS) continue;
+    shown.push(encoded);
+    length = next;
+  }
+  if (shown.length > 0) res.setHeader('x-gateway-params-ignored', shown.join(','));
+  res.setHeader('x-gateway-params-ignored-count', String(all.length));
+}
+
 /**
  * HTTP boundary for the gateway completion endpoint. Validates the OpenAI-shaped
  * body, builds the call context from the authenticated session / API key, invokes
@@ -227,12 +288,13 @@ export class GatewayController {
       // with no trace and nothing to explain where it went (#511). Failing the call
       // instead would be worse, so the answer is a header the caller can read.
       if (dropped.length > 0) res.setHeader('x-gateway-context-ignored', dropped.join(','));
+      const unknownFields = unknownBodyFields(req.body);
 
       // Streaming branch: serve Server-Sent Events. completeStream throws BEFORE
       // headers are sent for any pre-first-chunk failure, so those surface as JSON
       // errors via the outer catch below.
       if (parsed.data.stream === true) {
-        await this.handleStream(ctx, parsed.data, res);
+        await this.handleStream(ctx, parsed.data, res, unknownFields);
         return;
       }
 
@@ -243,6 +305,13 @@ export class GatewayController {
       res.setHeader('x-gateway-model', result.model);
       res.setHeader('x-gateway-cost-usd', result.costUsd === null ? '' : String(result.costUsd));
       res.setHeader('x-gateway-cache', result.cacheHit ? 'hit' : 'miss');
+      // A cache hit served no provider, so only the unknown fields apply to it.
+      setIgnoredParamsHeader(
+        res,
+        unknownFields,
+        result.cacheHit ? [] : unappliedParams(result.provider, parsed.data),
+        result.droppedParams ?? [],
+      );
       // T1: expose the trace this call's span landed in + the span's own ref, so a
       // client-side tool loop can thread every span into one trace and nest its
       // tool spans under this llm span (undefined when the best-effort write no-op'd).
@@ -252,7 +321,7 @@ export class GatewayController {
         res.setHeader('x-gateway-ratelimit-remaining', String(result.rateLimitRemaining));
       }
 
-      res.status(200).json(result.body);
+      res.status(200).json({ ...result.body, usage: toWireUsage(result.body.usage) });
     } catch (err) {
       // Surface Retry-After for rate limits — ours (populated by G4) and the
       // upstream provider's, forwarded verbatim from its own 429 response.
@@ -275,6 +344,7 @@ export class GatewayController {
    * @param ctx - The resolved gateway call context.
    * @param body - The validated streaming request.
    * @param res - The Express response (headers not yet sent when called).
+   * @param unknownFields - Body fields the schema stripped, for `x-gateway-params-ignored`.
    * @throws Any pre-first-chunk pipeline error (budget/rate/scope/provider) — the
    *   outer controller catch maps it to a JSON error since no bytes were written.
    */
@@ -282,6 +352,7 @@ export class GatewayController {
     ctx: GatewayCallContext,
     body: GatewayCompletionRequest,
     res: Response,
+    unknownFields: string[],
   ): Promise<void> => {
     // completeStream throws BEFORE headers are sent for any pre-first-chunk
     // failure (402/429/400/502) → caught by the outer handler → JSON error.
@@ -308,6 +379,7 @@ export class GatewayController {
     // tool loop can nest its own spans under a streamed turn (see GatewayStream).
     res.setHeader('x-gateway-trace-id', gs.traceId);
     res.setHeader('x-gateway-span-id', gs.spanRef);
+    setIgnoredParamsHeader(res, unknownFields, unappliedParams(gs.provider, body), gs.droppedParams);
     res.flushHeaders();
 
     const id = `chatcmpl-${gs.requestId}`;
@@ -348,11 +420,25 @@ export class GatewayController {
 
     // Persist row + budget increment exactly once, BEFORE signaling stream end,
     // so the gateway_requests row is durable by the time the client sees `[DONE]`.
-    await gs.finalize({
+    const usage = await gs.finalize({
       status: streamErrored ? 'error' : 'success',
       errorCode,
       clientAborted,
     });
+
+    // OpenAI's `stream_options.include_usage`: one last chunk, empty `choices`, the usage
+    // the call was billed for. Sent after `finalize` so it is the billed figure.
+    if (body.stream_options?.include_usage && usage && !streamErrored && !clientAborted && !res.writableEnded) {
+      const frame = {
+        id,
+        object: 'chat.completion.chunk',
+        created,
+        model: gs.resolvedModel,
+        choices: [],
+        usage: toWireUsage(usage),
+      };
+      res.write(`data: ${JSON.stringify(frame)}\n\n`);
+    }
 
     if (!clientAborted && !res.writableEnded) {
       res.write('data: [DONE]\n\n');

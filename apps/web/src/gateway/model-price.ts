@@ -4,6 +4,13 @@
  */
 export const PRICE_FIELD_HINT = 'Blank = auto for known models. If either price is unknown, the whole call counts as $0.';
 
+/**
+ * The hint under the cached-input price field. Blank keeps the gateway's default cache
+ * rate for the provider: half the input price, or a tenth for Anthropic models.
+ */
+export const CACHED_PRICE_FIELD_HINT =
+  "Your provider's price for prompt tokens it serves from cache. Blank = 0.5× input (0.1× for Claude).";
+
 // Formats a nullable per-1M price for display.
 function price(n: number | null): string {
   return n == null ? '—' : `$${n}`;
@@ -19,17 +26,21 @@ function price(n: number | null): string {
  *
  * @param inputPricePerM - USD per million input tokens, or null when unknown.
  * @param outputPricePerM - USD per million output tokens, or null when unknown.
+ * @param cachedInputPricePerM - USD per million cached input tokens, or null for the
+ *   provider's default cache rate. Shown only when set.
  * @returns `text`, the short price line, and `warning`, a full sentence to show on its
  *   own line (it must not be truncated), or null when both prices are set.
  */
 export function modelPriceText(
   inputPricePerM: number | null,
   outputPricePerM: number | null,
+  cachedInputPricePerM: number | null = null,
 ): { text: string; warning: string | null } {
   if (inputPricePerM == null && outputPricePerM == null) {
     return { text: 'no price set', warning: 'Calls through this model are counted as $0 in Usage and budgets.' };
   }
-  const text = `in ${price(inputPricePerM)} / out ${price(outputPricePerM)} per 1M`;
+  const cached = cachedInputPricePerM == null ? '' : ` / cached ${price(cachedInputPricePerM)}`;
+  const text = `in ${price(inputPricePerM)}${cached} / out ${price(outputPricePerM)} per 1M`;
   if (inputPricePerM != null && outputPricePerM != null) return { text, warning: null };
   const [missing, other] = inputPricePerM == null ? ['input', 'output'] : ['output', 'input'];
   return {

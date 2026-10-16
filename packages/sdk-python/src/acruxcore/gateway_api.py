@@ -58,6 +58,7 @@ from .types import (
     GatewayCallMeta,
     GatewayControl,
     IngestSpan,
+    SpanUsage,
     Literal,
     Message,
     ProviderConfig,
@@ -116,6 +117,55 @@ ClientToolsMap = Mapping[str, Callable[..., Any]]
 
 # Re-export so callers can ``from acruxcore import AsyncChatStream``.
 __all__ = ["GatewayNamespace", "AsyncChatStream", "AsyncToolLoopStream"]
+
+
+def _read_usage(raw: Optional[Dict[str, Any]]) -> Optional[ChatUsage]:
+    """Read a wire ``usage`` object into a :class:`ChatUsage`.
+
+    The gateway answers with the cached and reasoning counts flat on ``usage``; a BYO
+    provider nests them under ``prompt_tokens_details`` / ``completion_tokens_details``.
+    Both are read, flat first. A count of zero is left as ``None``, so a set
+    ``cached_tokens`` always means "some of this was cached".
+    """
+    if not raw:
+        return None
+    prompt_details = raw.get("prompt_tokens_details") or {}
+    completion_details = raw.get("completion_tokens_details") or {}
+    cached = raw.get("cached_tokens")
+    if cached is None:
+        cached = prompt_details.get("cached_tokens")
+    reasoning = raw.get("reasoning_tokens")
+    if reasoning is None:
+        reasoning = completion_details.get("reasoning_tokens")
+    return ChatUsage(
+        prompt_tokens=raw.get("prompt_tokens"),
+        completion_tokens=raw.get("completion_tokens"),
+        total_tokens=raw.get("total_tokens"),
+        cached_tokens=cached if isinstance(cached, int) and cached > 0 else None,
+        reasoning_tokens=reasoning if isinstance(reasoning, int) and reasoning > 0 else None,
+    )
+
+
+def _span_usage(usage: ChatUsage) -> SpanUsage:
+    """Narrow a :class:`ChatUsage` to the camelCase ``usage`` a ``/traces`` span takes.
+
+    ``cachedTokens`` is what lets the server price a BYO span at the cached input rate —
+    without it every prompt token was billed at the full rate (issue #594). The server
+    rejects the whole trace when ``cachedTokens`` exceeds ``promptTokens``, so a provider
+    that reports an impossible count loses the cached figure rather than the span.
+    ``reasoning_tokens`` is not part of the span schema and stays on the call result.
+    """
+    out: SpanUsage = {}
+    if usage.prompt_tokens is not None:
+        out["promptTokens"] = usage.prompt_tokens
+    if usage.completion_tokens is not None:
+        out["completionTokens"] = usage.completion_tokens
+    if usage.total_tokens is not None:
+        out["totalTokens"] = usage.total_tokens
+    cached = usage.cached_tokens
+    if cached is not None and (usage.prompt_tokens is None or cached <= usage.prompt_tokens):
+        out["cachedTokens"] = cached
+    return out
 
 
 def _now_iso() -> str:
@@ -473,6 +523,7 @@ class GatewayNamespace:
         response_format: Optional[ResponseFormat] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
         stream: bool = False,
         provider: Optional[ProviderConfig] = None,
         gateway: Optional[GatewayControl] = None,
@@ -494,6 +545,10 @@ class GatewayNamespace:
             :class:`~acruxcore.types.GatewayControl`. These are what the *gateway* does
             upstream, a different layer from the client's own ``max_retries``, which only
             retries this SDK's request to AcruxCore. Ignored on a BYO-provider call.
+        :param reasoning_effort: How hard a reasoning model thinks before it answers —
+            ``"low"``, ``"medium"``, ``"high"`` and so on, sent as ``reasoning_effort`` on
+            the gateway and the BYO path alike. A model that does not reason ignores it,
+            or its provider rejects it. ``result.usage.reasoning_tokens`` reports the cost.
         :param prompt_version_id: Which prompt version the messages came from, for trace
             lineage. Send ``variables`` with it.
         :param variables: The values the messages were rendered from. Recorded on the
@@ -511,6 +566,7 @@ class GatewayNamespace:
             prompt_version_id=None if provider_config is not None else prompt_version_id,
             variables=None if provider_config is not None else variables,
             gateway=None if provider_config is not None else gateway,
+            reasoning_effort=reasoning_effort,
         )
         if stream:
             if provider_config is not None:
@@ -543,13 +599,13 @@ class GatewayNamespace:
             result = await self._complete_via_provider(
                 model, messages, tools=tools, tool_refs=tool_refs, tool_choice=tool_choice,
                 response_format=response_format,
-                temperature=temperature, max_tokens=max_tokens, provider_config=provider_config,
+                temperature=temperature, max_tokens=max_tokens, reasoning_effort=reasoning_effort, provider_config=provider_config,
             )
         else:
             result = await self._complete_once(
                 model, messages, tools=tools, tool_refs=tool_refs, tool_choice=tool_choice,
                 response_format=response_format,
-                temperature=temperature, max_tokens=max_tokens, extra_headers=trace_headers,
+                temperature=temperature, max_tokens=max_tokens, reasoning_effort=reasoning_effort, extra_headers=trace_headers,
                 prompt_version_id=prompt_version_id, variables=variables, gateway=gateway,
             )
 
@@ -570,11 +626,7 @@ class GatewayNamespace:
             if result.gateway.provider:
                 span["provider"] = result.gateway.provider
             if result.usage is not None:
-                span["usage"] = {
-                    "promptTokens": result.usage.prompt_tokens,
-                    "completionTokens": result.usage.completion_tokens,
-                    "totalTokens": result.usage.total_tokens,
-                }
+                span["usage"] = _span_usage(result.usage)
             if result.gateway.cost_usd is not None:
                 span["costUsd"] = result.gateway.cost_usd
             if prompt_version_id:
@@ -601,6 +653,7 @@ class GatewayNamespace:
         response_format: Optional[ResponseFormat] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
         provider: Optional[ProviderConfig] = None,
         prompt_version_id: Optional[str] = None,
         variables: Optional[Dict[str, Any]] = None,
@@ -613,7 +666,7 @@ class GatewayNamespace:
         return await self.chat(
             model, messages,
             tools=tools, tool_refs=tool_refs, tool_choice=tool_choice,
-            response_format=response_format, temperature=temperature, max_tokens=max_tokens,
+            response_format=response_format, temperature=temperature, max_tokens=max_tokens, reasoning_effort=reasoning_effort,
             stream=True, provider=provider, prompt_version_id=prompt_version_id,
             variables=variables, trace=trace,
         )  # type: ignore[return-value]
@@ -632,8 +685,12 @@ class GatewayNamespace:
         prompt_version_id: Optional[str] = None,
         variables: Optional[Dict[str, Any]] = None,
         gateway: Optional[GatewayControl] = None,
+        reasoning_effort: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Build the JSON body for one completion.
+
+        :param reasoning_effort: Sent as ``reasoning_effort`` on both paths — it is an
+            OpenAI field, so a BYO provider is asked for it too.
 
         :param prompt_version_id: Which prompt version these messages were rendered
             from. Only ever passed for a GATEWAY call — it is our field, not
@@ -666,6 +723,8 @@ class GatewayNamespace:
             body["temperature"] = temperature
         if max_tokens is not None:
             body["max_tokens"] = max_tokens
+        if reasoning_effort is not None:
+            body["reasoning_effort"] = reasoning_effort
         if stream:
             body["stream"] = True
         if gateway:
@@ -683,6 +742,7 @@ class GatewayNamespace:
         response_format: Optional[ResponseFormat] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
         extra_headers: Optional[Dict[str, str]] = None,
         prompt_version_id: Optional[str] = None,
         variables: Optional[Dict[str, Any]] = None,
@@ -691,6 +751,7 @@ class GatewayNamespace:
         body = self._build_chat_body(
             model, messages, tools, tool_refs, tool_choice, response_format, temperature, max_tokens, False,
             prompt_version_id=prompt_version_id, variables=variables, gateway=gateway,
+            reasoning_effort=reasoning_effort,
         )
         response = await self._host._request(
             "POST", "/gateway/chat/completions", body, "calling chat completions", extra_headers
@@ -698,16 +759,7 @@ class GatewayNamespace:
         gateway = self._read_gateway_meta(response)
         data = self._host._parse_json_or_throw(response, "calling chat completions")
         choice = data["choices"][0]
-        usage_raw = data.get("usage")
-        usage = (
-            ChatUsage(
-                prompt_tokens=usage_raw.get("prompt_tokens"),
-                completion_tokens=usage_raw.get("completion_tokens"),
-                total_tokens=usage_raw.get("total_tokens"),
-            )
-            if usage_raw
-            else None
-        )
+        usage = _read_usage(data.get("usage"))
         return ChatResult(
             id=data["id"],
             model=data["model"],
@@ -729,6 +781,7 @@ class GatewayNamespace:
         response_format: Optional[ResponseFormat] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
         provider_config: ProviderConfig,
     ) -> ChatResult:
         if not provider_config.get("api_key"):
@@ -743,7 +796,8 @@ class GatewayNamespace:
             )
         _warn_if_cleartext_url(provider_config["base_url"], "provider.base_url")
         body = self._build_chat_body(
-            model, messages, tools, tool_refs, tool_choice, response_format, temperature, max_tokens, False
+            model, messages, tools, tool_refs, tool_choice, response_format, temperature, max_tokens, False,
+            reasoning_effort=reasoning_effort,
         )
         base_url = provider_config["base_url"].rstrip("/")
         url = f"{base_url}/chat/completions"
@@ -775,16 +829,7 @@ class GatewayNamespace:
 
         data = response.json()
         choice = data["choices"][0]
-        usage_raw = data.get("usage")
-        usage = (
-            ChatUsage(
-                prompt_tokens=usage_raw.get("prompt_tokens"),
-                completion_tokens=usage_raw.get("completion_tokens"),
-                total_tokens=usage_raw.get("total_tokens"),
-            )
-            if usage_raw
-            else None
-        )
+        usage = _read_usage(data.get("usage"))
         return ChatResult(
             id=data["id"],
             model=data["model"],
@@ -936,7 +981,7 @@ class GatewayNamespace:
         accumulated_content = ""
         final_model = model
         final_finish_reason: Optional[str] = None
-        usage: Optional[Dict[str, Any]] = None
+        usage: Optional[SpanUsage] = None
         tool_call_parts: Dict[int, Dict[str, str]] = {}
 
         total_attempts = 1 + self._host._max_retries
@@ -983,12 +1028,8 @@ class GatewayNamespace:
                             parsed = json.loads(payload)
                             final_model = parsed.get("model") or final_model
                             if parsed.get("usage"):
-                                u = parsed["usage"]
-                                usage = {
-                                    "promptTokens": u.get("prompt_tokens"),
-                                    "completionTokens": u.get("completion_tokens"),
-                                    "totalTokens": u.get("total_tokens"),
-                                }
+                                read = _read_usage(parsed["usage"])
+                                usage = _span_usage(read) if read is not None else None
                             choices = parsed.get("choices") or []
                             choice = choices[0] if choices else {}
                             if choice.get("finish_reason"):
@@ -1294,6 +1335,7 @@ class GatewayNamespace:
         max_iterations: int = ...,
         temperature: Optional[float] = ...,
         max_tokens: Optional[int] = ...,
+        reasoning_effort: Optional[str] = ...,
         response_format: Optional[ResponseFormat] = ...,
         trace: Union[bool, Dict[str, Any]] = ...,
         provider: Optional[ProviderConfig] = ...,
@@ -1318,6 +1360,7 @@ class GatewayNamespace:
         max_iterations: int = ...,
         temperature: Optional[float] = ...,
         max_tokens: Optional[int] = ...,
+        reasoning_effort: Optional[str] = ...,
         response_format: Optional[ResponseFormat] = ...,
         trace: Union[bool, Dict[str, Any]] = ...,
         provider: Optional[ProviderConfig] = ...,
@@ -1340,6 +1383,7 @@ class GatewayNamespace:
         max_iterations: int = 10,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
         response_format: Optional[ResponseFormat] = None,
         trace: Union[bool, Dict[str, Any]] = True,
         provider: Optional[ProviderConfig] = None,
@@ -1351,6 +1395,8 @@ class GatewayNamespace:
         """Run the full tool-calling loop, then — when ``response_format`` is also
         given — shape the gathered facts into one typed answer.
 
+        :param reasoning_effort: Sent as ``reasoning_effort`` on every round, as in
+            :meth:`chat`.
         :param variables: The values the messages were rendered from, stamped on every
             ``llm`` span this loop records. Worth passing whenever ``prompt_version_id``
             is, because the two are one fact together: an evaluation dataset example *is*
@@ -1384,7 +1430,7 @@ class GatewayNamespace:
                     model, messages, tools=tools, tool_defs=tool_defs, tool_refs=tool_refs,
                     client_tools=client_tools, dispatch=dispatch, sync=sync,
                     max_iterations=max_iterations,
-                    temperature=temperature, max_tokens=max_tokens,
+                    temperature=temperature, max_tokens=max_tokens, reasoning_effort=reasoning_effort,
                     response_format=response_format, trace=trace, provider=provider,
                     gateway=gateway,
                     prompt_version_id=prompt_version_id, variables=variables,
@@ -1397,7 +1443,7 @@ class GatewayNamespace:
         gathered = await self._run_tool_loop_gather(
             model, messages, tools=tools, tool_defs=tool_defs, tool_refs=tool_refs,
             client_tools=client_tools, dispatch=dispatch, sync=sync, max_iterations=max_iterations,
-            temperature=temperature, max_tokens=max_tokens,
+            temperature=temperature, max_tokens=max_tokens, reasoning_effort=reasoning_effort,
             response_format=None if shaping else response_format,
             trace=trace, provider=provider, gateway=gateway,
             prompt_version_id=prompt_version_id,
@@ -1419,7 +1465,7 @@ class GatewayNamespace:
             p2_trace = {"trace_id": gathered.trace_id}
         shaped = await self._run_tool_loop_gather(
             model, convo, tools=None, tool_defs=None, tool_refs=None, dispatch=dispatch,
-            sync=False, max_iterations=1, temperature=temperature, max_tokens=max_tokens,
+            sync=False, max_iterations=1, temperature=temperature, max_tokens=max_tokens, reasoning_effort=reasoning_effort,
             response_format=response_format, trace=p2_trace, provider=provider,
             gateway=gateway,
             prompt_version_id=prompt_version_id, variables=variables,
@@ -1454,6 +1500,7 @@ class GatewayNamespace:
         max_iterations: int = ...,
         temperature: Optional[float] = ...,
         max_tokens: Optional[int] = ...,
+        reasoning_effort: Optional[str] = ...,
         response_format: Optional[ResponseFormat] = ...,
         trace: Union[bool, Dict[str, Any]] = ...,
         provider: Optional[ProviderConfig] = ...,
@@ -1479,6 +1526,7 @@ class GatewayNamespace:
         max_iterations: int = ...,
         temperature: Optional[float] = ...,
         max_tokens: Optional[int] = ...,
+        reasoning_effort: Optional[str] = ...,
         response_format: Optional[ResponseFormat] = ...,
         trace: Union[bool, Dict[str, Any]] = ...,
         provider: Optional[ProviderConfig] = ...,
@@ -1502,6 +1550,7 @@ class GatewayNamespace:
         max_iterations: int = 10,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
         response_format: Optional[ResponseFormat] = None,
         trace: Union[bool, Dict[str, Any]] = True,
         provider: Optional[ProviderConfig] = None,
@@ -1619,7 +1668,7 @@ class GatewayNamespace:
             sync=sync,
             max_iterations=max_iterations,
             temperature=temperature,
-            max_tokens=max_tokens,
+            max_tokens=max_tokens, reasoning_effort=reasoning_effort,
             response_format=response_format,
             trace=trace,
             provider=provider,
@@ -1643,6 +1692,7 @@ class GatewayNamespace:
         max_iterations: int = 10,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
         response_format: Optional[ResponseFormat] = None,
         trace: Union[bool, Dict[str, Any]] = True,
         provider: Optional[ProviderConfig] = None,
@@ -1698,14 +1748,14 @@ class GatewayNamespace:
                     result = await self._complete_via_provider(
                         model, convo, tools=byo_tool_schemas,
                         response_format=response_format,
-                        temperature=temperature, max_tokens=max_tokens,
+                        temperature=temperature, max_tokens=max_tokens, reasoning_effort=reasoning_effort,
                         provider_config=provider_config,
                     )
                 else:
                     result = await self._complete_once(
                         model, convo, tools=tool_defs, tool_refs=effective_refs or None,
                         response_format=response_format,
-                        temperature=temperature, max_tokens=max_tokens, extra_headers=extra_headers,
+                        temperature=temperature, max_tokens=max_tokens, reasoning_effort=reasoning_effort, extra_headers=extra_headers,
                         prompt_version_id=prompt_version_id, variables=variables, gateway=gateway,
                     )
 
@@ -1729,11 +1779,7 @@ class GatewayNamespace:
                     if result.gateway.provider:
                         llm_span["provider"] = result.gateway.provider
                     if result.usage is not None:
-                        llm_span["usage"] = {
-                            "promptTokens": result.usage.prompt_tokens,
-                            "completionTokens": result.usage.completion_tokens,
-                            "totalTokens": result.usage.total_tokens,
-                        }
+                        llm_span["usage"] = _span_usage(result.usage)
                     if prompt_version_id:
                         llm_span["promptVersionId"] = prompt_version_id
                     if variables is not None:
@@ -1816,6 +1862,7 @@ class GatewayNamespace:
         max_iterations: int,
         temperature: Optional[float],
         max_tokens: Optional[int],
+        reasoning_effort: Optional[str],
         response_format: Optional[ResponseFormat],
         trace: Union[bool, Dict[str, Any]],
         provider: Optional[ProviderConfig],
@@ -1885,7 +1932,7 @@ class GatewayNamespace:
                     byo_tool_schemas=byo_tool_schemas,
                     response_format=gather_response_format,
                     temperature=temperature,
-                    max_tokens=max_tokens,
+                    max_tokens=max_tokens, reasoning_effort=reasoning_effort,
                     provider_config=provider_config,
                     gateway=gateway,
                     prompt_version_id=prompt_version_id,
@@ -2008,7 +2055,7 @@ class GatewayNamespace:
             byo_tool_schemas=None,
             response_format=response_format,
             temperature=temperature,
-            max_tokens=max_tokens,
+            max_tokens=max_tokens, reasoning_effort=reasoning_effort,
             provider_config=provider_config,
             gateway=gateway,
             prompt_version_id=prompt_version_id,
@@ -2047,6 +2094,7 @@ class GatewayNamespace:
         response_format: Optional[ResponseFormat],
         temperature: Optional[float],
         max_tokens: Optional[int],
+        reasoning_effort: Optional[str],
         provider_config: Optional[ProviderConfig],
         gateway: Optional[GatewayControl],
         prompt_version_id: Optional[str],
@@ -2082,6 +2130,7 @@ class GatewayNamespace:
             prompt_version_id=None if provider_config is not None else prompt_version_id,
             variables=None if provider_config is not None else variables,
             gateway=None if provider_config is not None else gateway,
+            reasoning_effort=reasoning_effort,
         )
 
         content_parts: List[str] = []

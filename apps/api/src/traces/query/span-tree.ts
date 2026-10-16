@@ -24,6 +24,7 @@ function toNode(s: SpanRow, payload?: SpanPayloadRow): SpanNode {
     promptTokens: s.promptTokens,
     completionTokens: s.completionTokens,
     totalTokens: s.totalTokens,
+    cachedTokens: s.cachedTokens,
     costUsd: s.costUsd === null ? null : Number(s.costUsd),
     promptVersionId: s.promptVersionId,
     gatewayRequestId: s.gatewayRequestId,

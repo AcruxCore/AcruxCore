@@ -51,6 +51,12 @@ attribute set CrewAI, LangChain, and LlamaIndex all use; OTel GenAI semantic
 conventions, used by some other frameworks, are not mapped yet), and stores it
 exactly like a native span.
 
+`llm.token_count.prompt_details.cache_read` becomes the span's
+[`cachedTokens`](/api-reference/traces#cached-prompt-tokens), so cached prompt tokens are billed
+at the model's cached input price. An LLM span with `llm.token_count.prompt` 1891,
+`llm.token_count.completion` 42 and `cache_read` 1856, on a model priced at $1.40 input, $0.26
+cached input and $4.40 output per 1M tokens, was stored at `cost_usd` 0.000716360.
+
 A request body here is protobuf-encoded binary, so it can't be inlined as JSON
 like the native endpoint's docs. The curl below sends a file produced by a
 small Node script built for this verification, using `protobufjs` against the

@@ -517,6 +517,26 @@ export class RunsRepository {
   }
 
   /**
+   * The ids of a run's results that have not been judged yet — the complement of
+   * `countResultProgress`'s `judged` test.
+   *
+   * Read only when a run looks stalled, to ask the judge queue whether any of these
+   * still has a job waiting, running or retrying (issue #591). Ids only, never the
+   * answer text.
+   *
+   * @param teamId - Owning team; another team's run has no results.
+   * @param runId - The run.
+   * @returns The unjudged result ids, in no particular order.
+   */
+  async listUnjudgedResultIds(teamId: string, runId: string): Promise<string[]> {
+    const rows = await prisma.evalResult.findMany({
+      where: { teamId, experimentRunId: runId, errorMessage: null, score: null, reason: null },
+      select: { id: true },
+    });
+    return rows.map((r) => r.id);
+  }
+
+  /**
    * Every error message of a run's results, oldest first — only the column the
    * all-cells-failed summary needs.
    *

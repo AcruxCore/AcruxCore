@@ -888,7 +888,8 @@ drops it for every other model.
 `usage` then reports the cache. `cache_write_tokens` counts tokens written to the cache and
 `cached_tokens` counts tokens read from it. Both are part of `prompt_tokens`, not added to it.
 The recorded cost bills a write at 1.25x and a read at 0.1x the model's input price, the rates
-Anthropic charges. Anthropic caches nothing below a minimum prompt length that depends on the
+Anthropic charges. A model with a [cached input price](/api-reference/gateway/models#cached-input-price)
+bills reads at that price instead, on any provider. Anthropic caches nothing below a minimum prompt length that depends on the
 model ([Anthropic's limits](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching)).
 A shorter marked prompt runs uncached, and `usage` then has neither cache field.
 
@@ -927,6 +928,83 @@ The second call, within five minutes, with `"question":"What is the warranty on 
 
 At $1 per million input tokens and $5 per million output tokens, the gateway recorded $0.011324
 for the first call and $0.001000 for the second. Without the marker, each call costs $0.009084.
+
+### Reasoning effort, and fields the gateway does not send
+
+`reasoning_effort` sets how hard a reasoning model thinks, for example `"low"` or `"high"`. The
+gateway sends it as given to OpenAI and OpenAI-compatible models. `null` means "not set", as in
+OpenAI's own API. The model's thinking count comes back twice in `usage`: as
+`completion_tokens_details.reasoning_tokens`, where the OpenAI SDKs read it, and as
+`reasoning_tokens`.
+
+Some models do not take `reasoning_effort` at all, such as `gpt-4o`. When a model answers 400
+and says the parameter is not supported, the gateway calls that model once more without it.
+This also keeps a fallback chain such as `gpt-5` → `gpt-4o` working. A 400 about the value
+itself, such as z.ai's `reasoning_effort must be one of: none, minimal, …`, is returned to you
+unchanged.
+
+Any other top-level field the gateway does not know is not sent to the provider. The response
+names each one in `x-gateway-params-ignored`, comma-separated and percent-encoded. That header
+also names `reasoning_effort` when it was not sent: on an Anthropic or Gemini connection, whose
+adapters do not send it, and after the retry above. The header stops at 1,024 characters.
+`x-gateway-params-ignored-count` always gives the full number of fields.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"glm-docs","messages":[{"role":"user","content":"Is 1001 a prime number? Answer yes or no with one short reason."}],"reasoning_effort":"low","seed":7,"温度":0.2}'
+```
+
+Response headers (status 200):
+
+```text
+x-gateway-provider: openai_compatible
+x-gateway-model: glm-5.3
+x-gateway-cost-usd: 0.00018140000000000002
+x-gateway-params-ignored: seed,%E6%B8%A9%E5%BA%A6
+x-gateway-params-ignored-count: 2
+```
+
+Response body (status 200):
+
+```json
+{
+  "id": "2026101620250288ee2f30d56a4638",
+  "model": "glm-5.3",
+  "object": "chat.completion",
+  "created": 1792153503,
+  "choices": [{"index":0,"message":{"role":"assistant","content":"No — 1001 = 7 × 11 × 13, so it's composite."},"finish_reason":"stop"}],
+  "usage": {"prompt_tokens":29,"completion_tokens":32,"total_tokens":61,"reasoning_tokens":10,"completion_tokens_details":{"reasoning_tokens":10}}
+}
+```
+
+A cached prompt count comes back the same way, as `prompt_tokens_details.cached_tokens` and as
+`cached_tokens`.
+
+On a stream, send `"stream_options": {"include_usage": true}` to get the usage. The last chunk
+before `[DONE]` then has empty `choices` and the usage the call was billed for:
+
+```bash
+curl -N -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"glm-docs","messages":[{"role":"user","content":"Is 1001 a prime number? Answer yes or no."}],"stream":true,"stream_options":{"include_usage":true}}'
+```
+
+The last two lines of the stream (status 200):
+
+```text
+data: {"id":"chatcmpl-a7271703-10d8-45ab-a82c-a10d52d2503e","object":"chat.completion.chunk","created":1792153506,"model":"glm-5.3","choices":[],"usage":{"prompt_tokens":25,"completion_tokens":83,"total_tokens":108,"reasoning_tokens":57,"completion_tokens_details":{"reasoning_tokens":57}}}
+data: [DONE]
+```
+
+On this prompt, two `glm-5.3` calls with `"low"` spent 10 and 12 reasoning tokens. Two calls
+with no `reasoning_effort` spent 20 and 44.
+
+A cached response is stored per `reasoning_effort`, so a `"high"` call never gets the answer of
+a `"low"` one. For a Gemini thinking model, `completion_tokens` counts its thinking tokens as
+well as its answer, and `reasoning_tokens` repeats the thinking part.
 
 ---
 

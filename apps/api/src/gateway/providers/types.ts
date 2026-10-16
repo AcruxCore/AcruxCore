@@ -114,6 +114,13 @@ export interface NormalizedRequest {
    * a caller may see it silently ignored (see the Supervisor Multi-Agent tutorial for a worked
    * example against OpenRouter). */
   response_format?: ResponseFormat;
+  /**
+   * How hard a reasoning model should think (`none`, `minimal`, `low`, `medium`, `high`,
+   * `xhigh`, or whatever the upstream accepts). Forwarded as-is by the OpenAI-shaped
+   * adapters; the Anthropic and Gemini adapters do not send it, and the gateway says so in
+   * `x-gateway-params-ignored` (see `unappliedParams`).
+   */
+  reasoning_effort?: string;
 }
 
 /** Token accounting reported by the provider, in OpenAI field names. */
@@ -140,6 +147,13 @@ export interface Usage {
    * write is not free; see `cacheRatesFor` in `models.ts`. Absent when nothing was written.
    */
   cache_write_tokens?: number;
+  /**
+   * Completion tokens the model spent reasoning — a **subset of `completion_tokens`**, already
+   * billed at the output rate. OpenAI and OpenAI-compatible providers send it as
+   * `usage.completion_tokens_details.reasoning_tokens`; Gemini as `thoughtsTokenCount`.
+   * Absent when the provider reports none.
+   */
+  reasoning_tokens?: number;
 }
 
 /**

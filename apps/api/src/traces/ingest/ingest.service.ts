@@ -289,6 +289,7 @@ export class IngestService {
         (s.usage?.promptTokens !== undefined && s.usage?.completionTokens !== undefined
           ? s.usage.promptTokens + s.usage.completionTokens
           : null),
+      cachedTokens: s.usage?.cachedTokens ?? null,
       costUsd: s.costUsd ?? null,
       promptVersionId: s.promptVersionId ?? null,
       gatewayRequestId: null, // SDK-reported spans have no gateway ledger row

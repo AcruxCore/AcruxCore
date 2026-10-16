@@ -19,6 +19,11 @@ changelog: <https://docs.acruxcore.com/changelog>
   built-in judge. Each run uses its `production` version (else its latest).
 - `RunReport.judge` (a `RunJudge` with `model` and `prompt_version_id`) names the judge that graded
   the run. Each `ExperimentRunDto` has the same as `judge_model` and `judge_prompt_version_id`.
+- `reasoning_effort` on `chat`, `stream`, `run_tool_loop` and `run_prompt_with_tools`, sent as
+  `reasoning_effort` on the gateway and BYO paths alike.
+- `ChatUsage.cached_tokens` and `ChatUsage.reasoning_tokens`, read from the gateway's flat `usage` or
+  a provider's `*_tokens_details`. Set only when the provider reports more than zero.
+- `SpanUsage` takes `cachedTokens`, for spans you report yourself.
 
 ### Changed
 
@@ -32,6 +37,11 @@ changelog: <https://docs.acruxcore.com/changelog>
      `optimize.start(…)` call.
   2. Python catches a miss at call time (`TypeError: missing 1 required keyword-only
      argument: 'judge_model'`), so it fails in your first test run, not in production.
+
+### Fixed
+
+- BYO-provider spans now report `cachedTokens` to `/traces`, so cached prompt tokens are priced at the
+  cached input rate. Before, every prompt token on a traced BYO call was billed at the full rate.
 
 ## 0.17.0 — 2026-10-13
 

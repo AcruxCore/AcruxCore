@@ -4,12 +4,16 @@ import prisma from '../../shared/db/client';
 import { authedAgent } from '../../test-utils';
 import {
   EVAL_CELLS_QUEUE,
+  EVAL_JUDGE_QUEUE,
   EVAL_RUNS_QUEUE,
   getCellsQueue,
+  getJudgeQueue,
   getRedisConnection,
   getRunsQueue,
+  hasUnsettledJudgeJob,
   type CellJobData,
   type FinalizeJobData,
+  type JudgeJobData,
 } from '../queue';
 import { RunsRepository } from './runs.repository';
 import { markFinalizeExhausted, processFinalizeJob } from './finalize.processor';
@@ -98,8 +102,9 @@ function startCellStandIn(): Worker<CellJobData> {
  * Starts a finalize worker wired the way apps/worker wires it: `processFinalizeJob`
  * as the processor, and `markFinalizeExhausted` once a job's attempts run out.
  */
-function startFinalizeWorker(queueName: string, minStallMs?: number): Worker<FinalizeJobData> {
-  const worker = new Worker<FinalizeJobData>(queueName, (job, token) => processFinalizeJob(job, token, { minStallMs }), {
+function startFinalizeWorker(queueName: string, minStallMs?: number, maxJudgeWaitMs?: number): Worker<FinalizeJobData> {
+  const opts = { minStallMs, maxJudgeWaitMs } as Parameters<typeof processFinalizeJob>[2];
+  const worker = new Worker<FinalizeJobData>(queueName, (job, token) => processFinalizeJob(job, token, opts), {
     connection: getRedisConnection(),
     concurrency: 1,
   });
@@ -137,7 +142,11 @@ describe('finalize waits for a run that is still making progress', () => {
       prompt_aliases, prompt_versions, prompts,
       notification_preferences, email_log, audit_log, api_keys, team_members, teams, users
       RESTART IDENTITY CASCADE`);
-    await Promise.all([getCellsQueue().obliterate({ force: true }), getRunsQueue().obliterate({ force: true })]);
+    await Promise.all([
+      getCellsQueue().obliterate({ force: true }),
+      getRunsQueue().obliterate({ force: true }),
+      getJudgeQueue().obliterate({ force: true }),
+    ]);
   });
 
   afterEach(async () => {
@@ -213,6 +222,117 @@ describe('finalize waits for a run that is still making progress', () => {
     expect(await waitFor(runStatus(runId), isTerminal, 5000)).toBe('succeeded');
     const run = await prisma.experimentRun.findUniqueOrThrow({ where: { id: runId } });
     expect(run.error).toBeNull();
+  }, 30_000);
+
+  // Issue #591: the last judge job of a run was still inside its normal retry cycle (the
+  // gateway timed out twice, the third attempt scored it) when the stall window ran out,
+  // so the run was failed 15 s before its last verdict landed. A judge job that is still
+  // queued, running or waiting to retry is not a stall.
+  it('does not fail a run while a judge job for one of its results is still retrying', async () => {
+    const { teamId, runId } = await startRun();
+    workers.push(startCellStandIn());
+    const ids = await waitFor(resultIdsFor(runId), (r) => r.length === EXAMPLES, 10_000);
+    for (const id of ids.slice(0, -1)) {
+      await runsRepo.writeVerdict(id, { score: 90, passed: true, reason: 'ok', judgeTraceId: null });
+    }
+
+    // The real judge queue, with the job options `cell.processor` gives a judge job. Each
+    // of the first two attempts fails after a slow call; the third writes the verdict.
+    // Attempts plus backoff take ~4 s, far past the 450 ms stall window below.
+    const judgeWorker = new Worker<JudgeJobData>(
+      EVAL_JUDGE_QUEUE,
+      async (job) => {
+        await sleep(800);
+        if (job.attemptsMade < 2) throw new Error('GatewayTimeoutError: Upstream provider timed out.');
+        await runsRepo.writeVerdict(job.data.resultId, { score: 100, passed: true, reason: 'late', judgeTraceId: null });
+      },
+      { connection: getRedisConnection(), concurrency: 1 },
+    );
+    workers.push(judgeWorker);
+    const last = ids[ids.length - 1];
+    await getJudgeQueue().add(
+      'judge',
+      { teamId, resultId: last, judgeModel: 'gpt-4o-mini' },
+      { jobId: `judge-${last}`, attempts: 3, backoff: { type: 'exponential', delay: 1000 } },
+    );
+
+    const queue = new Queue<FinalizeJobData>(`finalize-progress-${Date.now()}`, { connection: getRedisConnection() });
+    extraQueues.push(queue);
+    workers.push(startFinalizeWorker(queue.name, 0));
+    await queue.add('finalize', { teamId, runId }, JOB_OPTS);
+
+    expect(await waitFor(runStatus(runId), isTerminal, 15_000)).toBe('succeeded');
+    const run = await prisma.experimentRun.findUniqueOrThrow({ where: { id: runId } });
+    expect(run.error).toBeNull();
+    expect(await prisma.evalResult.count({ where: { experimentRunId: runId, score: { not: null } } })).toBe(EXAMPLES);
+  }, 40_000);
+
+  // The review of #591: the queue was read 500 jobs at a time, and a job can change state
+  // between two reads. A job at the back of a long wait list that a judge worker picks up
+  // after the first page sits at the front of `active`, which the first page already read,
+  // so it was on neither page and the run was failed while its judge was running.
+  it('finds a judge job that moves from waiting to active while the queue is being read', async () => {
+    const queue = getJudgeQueue();
+    const target = '00000000-0000-4000-8000-000000000591';
+    // The target is the oldest job, so it is the one a worker takes next.
+    await queue.add('judge', { teamId: target, resultId: target }, { jobId: `judge-${target}` });
+    await queue.addBulk(
+      Array.from({ length: 600 }, (_, i) => ({
+        name: 'judge',
+        data: { teamId: target, resultId: `filler-${i}` },
+        opts: { jobId: `judge-filler-${i}` },
+      })),
+    );
+    const picker = new Worker<JudgeJobData>(EVAL_JUDGE_QUEUE, null, { connection: getRedisConnection() });
+    workers.push(picker);
+
+    // A judge worker takes the target as soon as the first page has been read. Only the
+    // timing is arranged here: every read still goes to Redis.
+    const readPage = queue.getJobs.bind(queue);
+    let picked = false;
+    const spy = jest.spyOn(queue, 'getJobs').mockImplementation(async (...args) => {
+      const page = await readPage(...args);
+      if (!picked) {
+        picked = true;
+        await picker.getNextJob('picker-token');
+      }
+      return page;
+    });
+    try {
+      expect(await hasUnsettledJudgeJob([target])).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+    // A lookup that never reads pages gives the race no gap. Once taken, the job is found
+    // in `active` as well.
+    if (!picked) await picker.getNextJob('picker-token');
+    expect(await queue.getJobState(`judge-${target}`)).toBe('active');
+    expect(await hasUnsettledJudgeJob([target])).toBe(true);
+  }, 30_000);
+
+  // The review of #591: an unsettled judge job restarted the stall window every time, with
+  // no limit. A judge call that hangs while its worker keeps the lock, or a paused judge
+  // queue, kept a run `running` until the 2-hour stale-run reaper.
+  it('fails a run whose judge job never settles once the judge wait limit is reached', async () => {
+    const { teamId, runId } = await startRun();
+    workers.push(startCellStandIn());
+    const ids = await waitFor(resultIdsFor(runId), (r) => r.length === EXAMPLES, 10_000);
+    for (const id of ids.slice(0, -1)) {
+      await runsRepo.writeVerdict(id, { score: 90, passed: true, reason: 'ok', judgeTraceId: null });
+    }
+    // Queued, and no judge worker ever takes it.
+    const last = ids[ids.length - 1];
+    await getJudgeQueue().add('judge', { teamId, resultId: last }, { jobId: `judge-${last}` });
+
+    const queue = new Queue<FinalizeJobData>(`finalize-progress-${Date.now()}`, { connection: getRedisConnection() });
+    extraQueues.push(queue);
+    workers.push(startFinalizeWorker(queue.name, 0, 1500));
+    await queue.add('finalize', { teamId, runId }, JOB_OPTS);
+
+    expect(await waitFor(runStatus(runId), isTerminal, 8000)).toBe('failed');
+    const run = await prisma.experimentRun.findUniqueOrThrow({ where: { id: runId } });
+    expect(run.error).toMatch(/3 of 4 results judged/);
+    expect(run.error).toMatch(/a judge job is still queued or running/);
   }, 30_000);
 
   it('still fails a run that stops making progress, and says why', async () => {

@@ -1,6 +1,7 @@
 import type { ProviderConnection, GatewayModel } from '@prisma/client';
 import { ModelsRepository } from '../models/models.repository';
 import { ProviderError } from '../providers/adapter';
+import { withoutRefusedReasoningEffort } from '../providers/refused-params';
 import type { NormalizedRequest, NormalizedResponse } from '../providers/types';
 
 // ── Deployment resolution ─────────────────────────────────────────────────────
@@ -114,6 +115,11 @@ export interface FallbackTrailEntry {
    * 200. `GatewayService` scans for it and notifies once per connection.
    */
   blockedAddress?: true;
+  /**
+   * Request fields this deployment refused with a 400, so the gateway retried it once
+   * without them. Set only on the entry that then answered.
+   */
+  droppedParams?: string[];
 }
 
 /** How much of a provider's own error message the trail keeps. */
@@ -141,6 +147,8 @@ export interface FallbackResult {
   response: NormalizedResponse;
   deployment: ResolvedDeployment;
   meta: FallbackMeta;
+  /** Fields the serving deployment refused, and was retried without. Empty when none. */
+  droppedParams: string[];
 }
 
 /** Options controlling retry depth, cross-model fallback, and the overall timeout budget. */
@@ -182,7 +190,9 @@ export class FallbackExhaustedError extends Error {
  * Per deployment, retries up to `maxRetriesPerConn` (default 1) on a *retriable*
  * `ProviderError` (429/5xx/network) with exponential backoff+jitter, bounded by
  * `timeoutBudgetMs`. A provider **400** is the caller's fault and is surfaced
- * immediately with no fan-out. A **401/403** (bad key) is not retried on the same
+ * immediately with no fan-out. The one exception is a 400 that refuses
+ * `reasoning_effort`: that deployment is called once more without the field
+ * (`withoutRefusedReasoningEffort`), and the result's `droppedParams` says so. A **401/403** (bad key) is not retried on the same
  * deployment but does fall back to the next one. When the chain is exhausted the
  * last error is thrown.
  *
@@ -231,15 +241,19 @@ export async function callWithFallback(
     };
     let connError: ProviderError | undefined;
     let tries = 0;
+    // Reset per deployment: a field one model refuses may be one the next model takes.
+    let deploymentReq = req;
+    const droppedParams: string[] = [];
 
     for (let tryN = 0; tryN <= maxRetries; tryN++) {
       attempts++;
       tries++;
       try {
-        const response = await invoke(deployment, req);
+        const response = await invoke(deployment, deploymentReq);
         trail.push({
           ...entry,
           attempts: tries,
+          ...(droppedParams.length > 0 ? { droppedParams: [...droppedParams] } : {}),
           ...(connError
             ? {
                 retriedAfter: {
@@ -249,12 +263,22 @@ export async function callWithFallback(
               }
             : {}),
         });
-        return { response, deployment, meta: { attempts, trail } };
+        return { response, deployment, meta: { attempts, trail }, droppedParams };
       } catch (err) {
         if (!(err instanceof ProviderError)) throw err; // real bug — never swallow
         lastError = err;
         connError = err;
         if (!blockedAddressError && err.providerCode === 'SSRF_BLOCKED') blockedAddressError = err;
+
+        // A model that does not take `reasoning_effort` refused it: retry it once
+        // without the field. This does not use up one of the retries for a transient error.
+        const retryReq = droppedParams.length === 0 ? withoutRefusedReasoningEffort(deploymentReq, err) : null;
+        if (retryReq) {
+          deploymentReq = retryReq;
+          droppedParams.push('reasoning_effort');
+          tryN--;
+          continue;
+        }
 
         // Caller's fault (malformed request): surface immediately, no fan-out.
         if (err.status === 400) {

@@ -30,19 +30,28 @@ async function registerPricedModel(
   upstreamModel: string,
   inputPricePerM: number,
   outputPricePerM: number,
+  cachedInputPricePerM?: number,
+  provider: 'openai' | 'anthropic' = 'openai',
 ): Promise<void> {
   const conn = await agent
     .post('/api/v1/gateway/connections')
-    .send({ provider: 'openai', label: `conn ${publicName}`, apiKey: 'sk-test-abcdAB12', config: {} })
+    .send({ provider, label: `conn ${publicName}`, apiKey: 'sk-test-abcdAB12', config: {} })
     .expect(201);
   await agent
     .post('/api/v1/gateway/models')
-    .send({ publicName, upstreamModel, credentialId: conn.body.id, inputPricePerM, outputPricePerM })
+    .send({
+      publicName,
+      upstreamModel,
+      credentialId: conn.body.id,
+      inputPricePerM,
+      outputPricePerM,
+      ...(cachedInputPricePerM !== undefined ? { cachedInputPricePerM } : {}),
+    })
     .expect(201);
 }
 
 /** One OpenInference LLM span as an OTLP/JSON export request. */
-function otlpLlmSpan(model: string, prompt: number, completion: number): object {
+function otlpLlmSpan(model: string, prompt: number, completion: number, cacheRead?: number): object {
   return {
     resourceSpans: [
       {
@@ -61,6 +70,9 @@ function otlpLlmSpan(model: string, prompt: number, completion: number): object 
                   { key: 'llm.model_name', value: { stringValue: model } },
                   { key: 'llm.token_count.prompt', value: { intValue: prompt } },
                   { key: 'llm.token_count.completion', value: { intValue: completion } },
+                  ...(cacheRead !== undefined
+                    ? [{ key: 'llm.token_count.prompt_details.cache_read', value: { intValue: cacheRead } }]
+                    : []),
                 ],
                 status: { code: 1 },
               },
@@ -73,14 +85,25 @@ function otlpLlmSpan(model: string, prompt: number, completion: number): object 
 }
 
 /** One native-JSON trace holding a single llm span. */
-function nativeLlmTrace(model: string, prompt: number, completion: number, costUsd?: number): object {
+function nativeLlmTrace(
+  model: string,
+  prompt: number,
+  completion: number,
+  costUsd?: number,
+  cachedTokens?: number,
+): object {
   return {
     name: 'pricing-native',
     spans: [
       {
         spanId: 's1', name: 'chat', kind: 'llm',
         startTime: '2026-10-16T10:00:00.000Z', endTime: '2026-10-16T10:00:01.000Z',
-        model, usage: { promptTokens: prompt, completionTokens: completion },
+        model,
+        usage: {
+          promptTokens: prompt,
+          completionTokens: completion,
+          ...(cachedTokens !== undefined ? { cachedTokens } : {}),
+        },
         ...(costUsd !== undefined ? { costUsd } : {}),
       },
     ],
@@ -182,5 +205,126 @@ describe('span cost at ingest — team model prices first, registry second', () 
       .send({ traces: [nativeLlmTrace('nobody-prices-this', 1000, 1000)] })
       .expect(200);
     expect(await storedCost(other.teamId)).toBeNull();
+  });
+});
+
+// Issue #594: a traced span carried no cached-token split, so every prompt token was
+// charged the full input rate — 56% too high on the scope-check run. Numbers are z.ai's
+// glm-5.3 rates: $1.40 input, $0.26 cached input, $4.40 output per 1M tokens.
+describe('cached input tokens on traced spans (issue #594)', () => {
+  const IN = 1.4;
+  const CACHED = 0.26;
+  const OUT = 4.4;
+
+  it("bills a native span's cached tokens at the team's cached input price", async () => {
+    const ctx = await signup();
+    await registerPricedModel(ctx.agent, 'glm-5.3', 'glm-5.3', IN, OUT, CACHED);
+
+    await request(app)
+      .post('/api/v1/traces')
+      .set('Authorization', `Bearer ${ctx.apiKey}`)
+      .send({ traces: [nativeLlmTrace('glm-5.3', 1000, 100, undefined, 800)] })
+      .expect(200);
+
+    expect(await storedCost(ctx.teamId)).toBeCloseTo((200 * IN + 800 * CACHED + 100 * OUT) / 1e6, 9);
+  });
+
+  it('reads the OpenInference cache_read count off an OTLP span', async () => {
+    const ctx = await signup();
+    await registerPricedModel(ctx.agent, 'glm-5.3', 'glm-5.3', IN, OUT, CACHED);
+
+    await request(app)
+      .post('/api/v1/traces/otlp')
+      .set('Authorization', `Bearer ${ctx.apiKey}`)
+      .set('Content-Type', 'application/json')
+      .send(otlpLlmSpan('glm-5.3', 1000, 100, 800))
+      .expect(200);
+
+    expect(await storedCost(ctx.teamId)).toBeCloseTo((200 * IN + 800 * CACHED + 100 * OUT) / 1e6, 9);
+  });
+
+  it("uses the provider's default cache rate when the team set no cached price", async () => {
+    const ctx = await signup();
+    await registerPricedModel(ctx.agent, 'glm-5.3', 'glm-5.3', IN, OUT);
+
+    await request(app)
+      .post('/api/v1/traces')
+      .set('Authorization', `Bearer ${ctx.apiKey}`)
+      .send({ traces: [nativeLlmTrace('glm-5.3', 1000, 100, undefined, 800)] })
+      .expect(200);
+
+    // OpenAI-style automatic caching: a read costs half the input rate.
+    expect(await storedCost(ctx.teamId)).toBeCloseTo((200 * IN + 800 * IN * 0.5 + 100 * OUT) / 1e6, 9);
+  });
+
+  // Review of #594: one span with cachedTokens > promptTokens used to fail the whole batch
+  // with a 400, so every trace in it was lost. Anthropic's own usage has this shape: its
+  // `input_tokens` does not include `cache_read_input_tokens`.
+  it('keeps the whole batch when one span reports more cached tokens than prompt tokens', async () => {
+    const ctx = await signup();
+    await registerPricedModel(ctx.agent, 'glm-5.3', 'glm-5.3', IN, OUT, CACHED);
+
+    await request(app)
+      .post('/api/v1/traces')
+      .set('Authorization', `Bearer ${ctx.apiKey}`)
+      .send({ traces: [nativeLlmTrace('glm-5.3', 1000, 100), nativeLlmTrace('glm-5.3', 40, 100, undefined, 1800)] })
+      .expect(200);
+
+    const rows = await prisma.$queryRaw<Array<{ prompt_tokens: number; cached_tokens: number | null; cost_usd: string }>>`
+      SELECT prompt_tokens, cached_tokens, cost_usd::text FROM spans WHERE team_id = ${ctx.teamId}::uuid ORDER BY prompt_tokens`;
+    expect(rows).toHaveLength(2);
+    // The cached count is capped at the prompt count it is part of, and priced that way.
+    expect(rows[0]).toMatchObject({ prompt_tokens: 40, cached_tokens: 40 });
+    expect(Number(rows[0].cost_usd)).toBeCloseTo((40 * CACHED + 100 * OUT) / 1e6, 9);
+  });
+
+  // Review of #594: the cached count priced the span and was then thrown away, so nothing
+  // could show which spans were cache hits.
+  it("stores a span's cached token count and returns it with the trace", async () => {
+    const ctx = await signup();
+    await registerPricedModel(ctx.agent, 'glm-5.3', 'glm-5.3', IN, OUT, CACHED);
+
+    const res = await request(app)
+      .post('/api/v1/traces')
+      .set('Authorization', `Bearer ${ctx.apiKey}`)
+      .send({ traces: [nativeLlmTrace('glm-5.3', 1000, 100, undefined, 800)] })
+      .expect(200);
+    await request(app)
+      .post('/api/v1/traces/otlp')
+      .set('Authorization', `Bearer ${ctx.apiKey}`)
+      .set('Content-Type', 'application/json')
+      .send(otlpLlmSpan('glm-5.3', 1000, 100, 700))
+      .expect(200);
+
+    const rows = await prisma.$queryRaw<Array<{ cached_tokens: number | null }>>`
+      SELECT cached_tokens FROM spans WHERE team_id = ${ctx.teamId}::uuid ORDER BY cached_tokens`;
+    expect(rows.map((r) => r.cached_tokens)).toEqual([700, 800]);
+
+    const traceId = res.body.traces?.[0]?.traceId ?? res.body.traceIds?.[0] ?? res.body[0]?.traceId;
+    const trace = await request(app)
+      .get(`/api/v1/traces/${traceId}`)
+      .set('Authorization', `Bearer ${ctx.apiKey}`)
+      .expect(200);
+    expect(JSON.stringify(trace.body)).toContain('"cachedTokens":800');
+  });
+
+  // Review of #594: the pricer took the cache rate from the provider the span reported,
+  // the gateway from the connection that serves the model. A Claude model on a native
+  // Anthropic connection, under an id with no "claude" in it, was billed 0.5x on a span
+  // and 0.1x on the gateway.
+  it("uses the cache rate of the team model's own connection, not the span's provider field", async () => {
+    const ctx = await signup();
+    await registerPricedModel(ctx.agent, 'house-sonnet', 'house-sonnet', 3, 15, undefined, 'anthropic');
+
+    const trace = nativeLlmTrace('house-sonnet', 1000, 100, undefined, 800) as { spans: Array<Record<string, unknown>> };
+    trace.spans[0].provider = 'openai';
+    await request(app)
+      .post('/api/v1/traces')
+      .set('Authorization', `Bearer ${ctx.apiKey}`)
+      .send({ traces: [trace] })
+      .expect(200);
+
+    // Anthropic's cache read rate is 0.1x the input price.
+    expect(await storedCost(ctx.teamId)).toBeCloseTo((200 * 3 + 800 * 3 * 0.1 + 100 * 15) / 1e6, 9);
   });
 });

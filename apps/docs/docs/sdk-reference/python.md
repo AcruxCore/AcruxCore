@@ -294,6 +294,7 @@ async for chunk in stream:
 | `response_format` | [`ResponseFormat`](#structured-output) | no | Structured output. Mutually exclusive with `tools`/`tool_choice`. |
 | `temperature` | `float` | no | Sampling temperature. |
 | `max_tokens` | `int` | no | Max completion tokens. |
+| `reasoning_effort` | `str` | no | How hard a reasoning model thinks, e.g. `"low"` or `"high"`. Sent as `reasoning_effort`. Not in 0.17.0; comes in the next release. |
 | `stream` | `bool` | no | Return an async iterator of `ChatChunk` instead of `ChatResult`. |
 | `provider` | [`ProviderConfig`](#byo-provider) | no | Per-call BYO override. |
 | `gateway` | `{"max_retries": int, "fallback": bool}` | no | Per-call gateway controls: how many times the **provider** may be retried (0–5), and whether a failure may fall back to the next model in the chain. A different layer from the client's `max_retries`, which only retries this SDK's request to AcruxCore. Ignored on a BYO call. |
@@ -304,7 +305,9 @@ async for chunk in stream:
 **Returns** `ChatResult` (`id`, `model`, `content`, `message`, `finish_reason`,
 `usage`, `gateway`) or, when streaming via `gateway.stream()`, an async iterator of `ChatChunk`.
 `gateway` carries `request_id`, `provider`, `model`, `cost_usd`, `cache`,
-`trace_id`, and `span_ref` read from the gateway's `x-gateway-*` headers.
+`trace_id`, and `span_ref` read from the gateway's `x-gateway-*` headers. `usage` also carries
+`cached_tokens` (part of `prompt_tokens`) and `reasoning_tokens` (part of `completion_tokens`)
+when the provider reports them.
 
 :::note
 `response_format` and `tools`/`tool_choice`/`tool_refs` cannot ride the same
@@ -352,6 +355,7 @@ print(result.content, result.trace_id)
 | `max_iterations` | `int` | no | Max round-trips. Default `10`. |
 | `temperature` | `float` | no | Sampling temperature. |
 | `max_tokens` | `int` | no | Max completion tokens. |
+| `reasoning_effort` | `str` | no | How hard a reasoning model thinks, e.g. `"low"` or `"high"`. Sent as `reasoning_effort`. Not in 0.17.0; comes in the next release. |
 | `response_format` | [`ResponseFormat`](#structured-output) | no | Shapes the final answer; may be combined with tools (gather + shape). |
 | `trace` | `bool \| {trace_id?, name?, session_id?}` | no | Default `True`. |
 | `provider` | [`ProviderConfig`](#byo-provider) | no | Per-call BYO override. |
@@ -888,7 +892,7 @@ response.
 | `startTime` | `str` | Required; ISO-8601 with offset. |
 | `endTime` | `str` | ISO-8601. |
 | `model`, `provider` | `str` | Model/provider metadata. |
-| `usage` | `dict` | `{promptTokens?, completionTokens?, totalTokens?}`. |
+| `usage` | `dict` | `{promptTokens?, completionTokens?, totalTokens?, cachedTokens?}`. `cachedTokens` is the part of `promptTokens` served from the provider's cache, priced at the cached rate. |
 | `costUsd` | `float` | Cost in USD. |
 | `promptVersionId` | `str` | Prompt lineage. |
 | `variables` | `Any` | The prompt variables behind `input`. Read back when feedback becomes a dataset example. |

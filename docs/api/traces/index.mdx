@@ -107,6 +107,45 @@ corresponds to index i of the request's `traces` array.
 
 ---
 
+#### Cached prompt tokens
+
+An `llm` span's `usage` takes `cachedTokens`, the part of `promptTokens` that the provider served
+from its cache. OpenAI-compatible providers return it as `usage.prompt_tokens_details.cached_tokens`.
+The span's cost bills those tokens at the model's
+[cached input price](/api-reference/gateway/models#cached-input-price), and the rest at the input
+price. With no cached price, the default rate comes from the provider of the model's own
+connection, not from the span's `provider` field. The span stores `cachedTokens`, and
+`GET /traces/:id` returns it.
+
+`cachedTokens` is part of `promptTokens`, so a larger value is capped at `promptTokens`, and
+the batch is still accepted. Anthropic's own usage has that shape: its `input_tokens` leaves out
+`cache_read_input_tokens`. Add the two before you send them as `promptTokens`.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/traces \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"traces":[{"name":"classify","spans":[{"spanId":"s1","name":"classify","kind":"llm","model":"glm-docs","startTime":"2026-10-16T11:00:00.000Z","endTime":"2026-10-16T11:00:02.000Z","usage":{"promptTokens":1891,"completionTokens":42,"cachedTokens":1856}}]},{"name":"anthropic-shape","spans":[{"spanId":"s1","name":"classify","kind":"llm","model":"glm-docs","startTime":"2026-10-16T11:00:00.000Z","endTime":"2026-10-16T11:00:02.000Z","usage":{"promptTokens":40,"completionTokens":42,"cachedTokens":1800}}]}]}'
+```
+
+Response (status 200):
+
+```json
+{"accepted":2,"traceIds":["42dddf95-433b-44bf-ac0a-431320afbeba","e03a2da2-f867-4466-9c99-f6b32841db8a"]}
+```
+
+The two spans, as `GET /traces/:id` returns them (other fields left out):
+
+```json
+{"promptTokens": 1891, "completionTokens": 42, "totalTokens": 1933, "cachedTokens": 1856, "costUsd": 0.00071636}
+{"promptTokens": 40, "completionTokens": 42, "totalTokens": 82, "cachedTokens": 40, "costUsd": 0.0001952}
+```
+
+`glm-docs` is priced at $1.40 input, $0.26 cached input and $4.40 output per 1M tokens. Without
+`cachedTokens`, the first span would cost $0.0028322.
+
+---
+
 #### Appending spans to an existing trace
 
 Supplying `traceId` appends to a trace already owned by the caller's team

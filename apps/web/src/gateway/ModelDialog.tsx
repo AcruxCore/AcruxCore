@@ -3,7 +3,7 @@ import type { CreateModelInput, GatewayModel, UpdateModelInput } from '@/api';
 import { useConnections, useCreateModel, useModels, useUpdateModel, ApiError } from '@/api';
 import { Button, Dialog, DialogFooter, Field, Input, Select, useToast } from '@/ui';
 import { PROVIDER_LABELS } from './format';
-import { PRICE_FIELD_HINT } from './model-price';
+import { CACHED_PRICE_FIELD_HINT, PRICE_FIELD_HINT } from './model-price';
 
 export interface ModelDialogProps {
   open: boolean;
@@ -11,6 +11,9 @@ export interface ModelDialogProps {
   /** When set, the dialog edits this model instead of creating a new one. */
   model?: GatewayModel | null;
 }
+
+/** The three price inputs, for tracking which one holds text that is not a number. */
+type PriceField = 'input' | 'output' | 'cached';
 
 // Parses an optional price input: '' → undefined (omit), otherwise a number.
 function parsePrice(v: string): number | null | undefined {
@@ -38,6 +41,10 @@ export function ModelDialog({ open, onOpenChange, model }: ModelDialogProps) {
   const [credentialId, setCredentialId] = useState('');
   const [inputPrice, setInputPrice] = useState('');
   const [outputPrice, setOutputPrice] = useState('');
+  const [cachedPrice, setCachedPrice] = useState('');
+  // Price fields the browser cannot read as a number. A number input reports `value` as ''
+  // for "0.3e", so without this a typo was saved as "blank" and cleared a stored price.
+  const [badPrices, setBadPrices] = useState<Set<PriceField>>(new Set());
   const [fallbackIds, setFallbackIds] = useState<string[]>([]);
 
   useEffect(() => {
@@ -48,6 +55,7 @@ export function ModelDialog({ open, onOpenChange, model }: ModelDialogProps) {
       setCredentialId(model.credentialId);
       setInputPrice(model.inputPricePerM != null ? String(model.inputPricePerM) : '');
       setOutputPrice(model.outputPricePerM != null ? String(model.outputPricePerM) : '');
+      setCachedPrice(model.cachedInputPricePerM != null ? String(model.cachedInputPricePerM) : '');
       setFallbackIds(model.fallbacks.map((f) => f.id));
     } else {
       setPublicName('');
@@ -55,9 +63,31 @@ export function ModelDialog({ open, onOpenChange, model }: ModelDialogProps) {
       setCredentialId(credentials?.[0]?.id ?? '');
       setInputPrice('');
       setOutputPrice('');
+      setCachedPrice('');
       setFallbackIds([]);
     }
+    setBadPrices(new Set());
   }, [open, model, credentials]);
+
+  // Records the text and whether the browser could read it as a number. Both run on the
+  // native `input` event: React's onChange skips an edit that leaves `value` unchanged, and
+  // clearing "0.3e" goes from '' to '', so the error would never clear.
+  function priceInputProps(field: PriceField, set: (v: string) => void) {
+    return {
+      onChange: (e: React.ChangeEvent<HTMLInputElement>) => set(e.target.value),
+      onInput: (e: React.FormEvent<HTMLInputElement>) => {
+        const bad = e.currentTarget.validity.badInput;
+        setBadPrices((cur) => {
+          if (cur.has(field) === bad) return cur;
+          const next = new Set(cur);
+          if (bad) next.add(field);
+          else next.delete(field);
+          return next;
+        });
+      },
+    };
+  }
+  const priceError = (field: PriceField) => (badPrices.has(field) ? 'Enter a number, or leave it blank.' : undefined);
 
   const busy = create.isPending || update.isPending;
   const selectedCred = credentials?.find((c) => c.id === credentialId);
@@ -82,6 +112,11 @@ export function ModelDialog({ open, onOpenChange, model }: ModelDialogProps) {
         const op = parsePrice(outputPrice);
         if (ip !== undefined) body.inputPricePerM = ip;
         if (op !== undefined) body.outputPricePerM = op;
+        // Unlike the two prices above, blanking this one means something: go back to the
+        // provider's default rate. So a cleared field sends null rather than nothing.
+        const cp = parsePrice(cachedPrice);
+        if (cp !== undefined) body.cachedInputPricePerM = cp;
+        else if (model.cachedInputPricePerM != null) body.cachedInputPricePerM = null;
         await update.mutateAsync({ id: model.id, body });
         toast.success('Model updated');
       } else {
@@ -95,6 +130,8 @@ export function ModelDialog({ open, onOpenChange, model }: ModelDialogProps) {
         const op = parsePrice(outputPrice);
         if (ip !== undefined) body.inputPricePerM = ip;
         if (op !== undefined) body.outputPricePerM = op;
+        const cp = parsePrice(cachedPrice);
+        if (cp !== undefined) body.cachedInputPricePerM = cp;
         await create.mutateAsync(body);
         toast.success('Model registered');
       }
@@ -104,7 +141,7 @@ export function ModelDialog({ open, onOpenChange, model }: ModelDialogProps) {
     }
   }
 
-  const canSubmit = publicName.trim() && upstreamModel.trim() && credentialId;
+  const canSubmit = publicName.trim() && upstreamModel.trim() && credentialId && badPrices.size === 0;
 
   return (
     <Dialog
@@ -166,29 +203,46 @@ export function ModelDialog({ open, onOpenChange, model }: ModelDialogProps) {
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Input $/1M" htmlFor="model-in" hint={PRICE_FIELD_HINT}>
+            <Field label="Input $/1M" htmlFor="model-in" hint={PRICE_FIELD_HINT} error={priceError('input')}>
               <Input
                 id="model-in"
                 type="number"
                 min="0"
                 step="0.01"
                 value={inputPrice}
-                onChange={(e) => setInputPrice(e.target.value)}
+                {...priceInputProps('input', setInputPrice)}
                 placeholder="auto"
               />
             </Field>
-            <Field label="Output $/1M" htmlFor="model-out" hint={PRICE_FIELD_HINT}>
+            <Field label="Output $/1M" htmlFor="model-out" hint={PRICE_FIELD_HINT} error={priceError('output')}>
               <Input
                 id="model-out"
                 type="number"
                 min="0"
                 step="0.01"
                 value={outputPrice}
-                onChange={(e) => setOutputPrice(e.target.value)}
+                {...priceInputProps('output', setOutputPrice)}
                 placeholder="auto"
               />
             </Field>
           </div>
+
+          <Field
+            label="Cached input $/1M"
+            htmlFor="model-cached"
+            hint={CACHED_PRICE_FIELD_HINT}
+            error={priceError('cached')}
+          >
+            <Input
+              id="model-cached"
+              type="number"
+              min="0"
+              step="0.01"
+              value={cachedPrice}
+              {...priceInputProps('cached', setCachedPrice)}
+              placeholder="default"
+            />
+          </Field>
 
           {fallbackChoices.length > 0 && (
             <Field label="Fallbacks" htmlFor="model-fallbacks" hint="Tried in order if this model fails.">

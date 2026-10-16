@@ -300,6 +300,7 @@ for await (const chunk of stream) process.stdout.write(chunk.delta.content ?? ''
 | `responseFormat` | [`ResponseFormat`](#structured-output) | no | Structured output. Mutually exclusive with `tools`/`toolChoice`. |
 | `temperature` | `number` | no | Sampling temperature. |
 | `maxTokens` | `number` | no | Max completion tokens. |
+| `reasoningEffort` | `string` | no | How hard a reasoning model thinks, e.g. `'low'` or `'high'`. Sent as `reasoning_effort`. Not in 0.17.0; comes in the next release. |
 | `stream` | `boolean` | no | Return an async iterable of `ChatChunk` instead of `ChatResult`. |
 | `provider` | [`ProviderConfig`](#byo-provider) | no | Per-call BYO override. |
 | `gateway` | `{ maxRetries?: number; fallback?: boolean }` | no | Per-call gateway controls: how many times the **provider** may be retried (0–5), and whether a failure may fall back to the next model in the chain. A different layer from the client's `maxRetries`, which only retries this SDK's request to AcruxCore. Ignored on a BYO call. |
@@ -310,7 +311,8 @@ for await (const chunk of stream) process.stdout.write(chunk.delta.content ?? ''
 **Returns** `ChatResult` (`{ id, model, content, message, finishReason, usage?, gateway }`)
 or, when streaming via `gateway.stream()`, an `AsyncGenerator<ChatChunk>`. `gateway` carries
 `requestId`, `provider`, `model`, `costUsd`, `cache`, `traceId`, and `spanRef`
-read from the gateway's `x-gateway-*` headers.
+read from the gateway's `x-gateway-*` headers. `usage` also carries `cachedTokens` (part of
+`promptTokens`) and `reasoningTokens` (part of `completionTokens`) when the provider reports them.
 
 :::note
 `responseFormat` and `tools`/`toolChoice`/`toolRefs` cannot ride the same gateway
@@ -353,6 +355,7 @@ const { content, traceId } = await hub.gateway.runToolLoop({
 | `maxIterations` | `number` | no | Max round-trips. Default `10`. |
 | `temperature` | `number` | no | Sampling temperature. |
 | `maxTokens` | `number` | no | Max completion tokens. |
+| `reasoningEffort` | `string` | no | How hard a reasoning model thinks, e.g. `'low'` or `'high'`. Sent as `reasoning_effort`. Not in 0.17.0; comes in the next release. |
 | `responseFormat` | [`ResponseFormat`](#structured-output) | no | Shapes the final answer; may be combined with tools (gather + shape). |
 | `trace` | `boolean \| { traceId?; name?; sessionId? }` | no | Default `true`. |
 | `provider` | [`ProviderConfig`](#byo-provider) | no | Per-call BYO override. |
@@ -878,7 +881,7 @@ never saw the call). Throws `PROVIDER_ERROR` for a non-2xx provider response.
 | `startTime` | `string` | Required; ISO-8601 with offset. |
 | `endTime` | `string` | ISO-8601. |
 | `model`, `provider` | `string` | Model/provider metadata. |
-| `usage` | `{ promptTokens?; completionTokens?; totalTokens? }` | Token usage. |
+| `usage` | `{ promptTokens?; completionTokens?; totalTokens?; cachedTokens? }` | Token usage. `cachedTokens` is the part of `promptTokens` served from the provider's cache, priced at the cached rate. |
 | `costUsd` | `number` | Cost in USD. |
 | `promptVersionId` | `string` | Prompt lineage. |
 | `variables` | `unknown` | The prompt variables behind `input`. Read back when feedback becomes a dataset example. |

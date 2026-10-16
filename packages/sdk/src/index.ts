@@ -47,6 +47,7 @@ export type {
   ChatResult,
   ChatChunk,
   ChatUsage,
+  ReasoningEffort,
   GatewayCallMeta,
   FeedbackInput,
   FeedbackUpdateInput,

@@ -6,8 +6,8 @@ import type { NormalizedRequest } from '../providers/types';
  *
  * The key is the SHA-256 hex digest of a canonical JSON object built from the
  * request fields that affect the model output: model, messages (in order), the
- * four sampling params, `response_format`, and the declared `tools` /
- * `tool_choice`. Optional params that are absent
+ * four sampling params, `response_format`, the declared `tools` /
+ * `tool_choice`, and `reasoning_effort` when one is set. Optional params that are absent
  * are normalized to `null` so an omitted field and an explicit-null field
  * collide (they mean the same thing to the provider). `response_format` is
  * included so a `json_schema`/`json_object` request and an otherwise-identical
@@ -44,6 +44,10 @@ export function computeCacheKey(teamId: string, req: NormalizedRequest): string 
     // is part of the request the provider sees.
     tools: req.tools ?? null,
     tool_choice: req.tool_choice ?? null,
+    // Only when set, so every key cached before this field existed stays valid. It is in
+    // the key because it changes the answer: without it a `high` call was served the
+    // cached answer of a `low` one (issue #593).
+    ...(req.reasoning_effort !== undefined ? { reasoning_effort: req.reasoning_effort } : {}),
   });
   return createHash('sha256').update(canonical).digest('hex');
 }

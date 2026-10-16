@@ -1,5 +1,5 @@
 import { DelayedError, type Job } from 'bullmq';
-import type { FinalizeJobData } from '../queue';
+import { hasUnsettledJudgeJob, type FinalizeJobData } from '../queue';
 import { RunsRepository } from './runs.repository';
 import { NotFoundError, RunNotReadyError } from '../../shared/errors';
 // Imported from the concrete file, not the `../../notifications` barrel: that
@@ -141,6 +141,15 @@ export async function processFinalize(data: FinalizeJobData): Promise<void> {
 export const FINALIZE_MIN_STALL_MS = 5 * 60_000;
 
 /**
+ * The longest a run waits with no progress while one of its judge jobs is still queued
+ * or running. A healthy judge job ends well inside this: 3 attempts, 2 gateway calls each,
+ * each allowed `GATEWAY_TIMEOUT_MS` (60 s), is about 6 minutes plus backoff. Without a
+ * limit, a judge call that hangs while its worker keeps renewing the lock, or a paused
+ * judge queue, kept the run `running` until the stale-run reaper (2 hours).
+ */
+export const FINALIZE_MAX_JUDGE_WAIT_MS = 30 * 60_000;
+
+/**
  * The finalize worker's processor: finalizes the run, or waits while it is still
  * making progress, and fails it only once it has stopped.
  *
@@ -156,13 +165,17 @@ export const FINALIZE_MIN_STALL_MS = 5 * 60_000;
  * remembering in the job data how many answers were produced plus judged. The
  * run is failed only when that number has not moved for the stall window: the
  * same attempts × delay the job was sized with, and never less than
- * {@link FINALIZE_MIN_STALL_MS}. Any other error (a database failure, say)
- * still uses the job's normal attempts and the worker's `'failed'` handler.
+ * {@link FINALIZE_MIN_STALL_MS}. While a judge job for one of the run's unjudged
+ * results is still queued, running or waiting to retry, the run keeps waiting
+ * (issue #591), but for no longer than {@link FINALIZE_MAX_JUDGE_WAIT_MS} with no
+ * progress. Any other error (a database failure, say) still uses the job's normal
+ * attempts and the worker's `'failed'` handler.
  *
  * @param job - The finalize job. Its `opts.attempts` and `opts.backoff.delay`
  *   size the poll interval and the stall window.
  * @param token - The worker's lock token, required by `moveToDelayed`.
- * @param opts - `minStallMs` overrides {@link FINALIZE_MIN_STALL_MS} (tests only).
+ * @param opts - `minStallMs` overrides {@link FINALIZE_MIN_STALL_MS} and `maxJudgeWaitMs`
+ *   overrides {@link FINALIZE_MAX_JUDGE_WAIT_MS} (tests only).
  * @returns Nothing once the run is finalized or failed as stalled.
  * @throws {DelayedError} While the run is still progressing — BullMQ's signal that
  *   the job was moved back to delayed, not failed.
@@ -170,7 +183,7 @@ export const FINALIZE_MIN_STALL_MS = 5 * 60_000;
 export async function processFinalizeJob(
   job: Job<FinalizeJobData>,
   token?: string,
-  opts: { minStallMs?: number } = {},
+  opts: { minStallMs?: number; maxJudgeWaitMs?: number } = {},
 ): Promise<void> {
   try {
     await processFinalize(job.data);
@@ -185,14 +198,27 @@ export async function processFinalizeJob(
     const backoff = job.opts.backoff;
     const pollMs = typeof backoff === 'object' && backoff.delay ? backoff.delay : 3000;
     const stallMs = Math.max((job.opts.attempts ?? 20) * pollMs, opts.minStallMs ?? FINALIZE_MIN_STALL_MS);
-    if (now - changedAt > stallMs) {
-      const minutes = Math.round((now - changedAt) / 6000) / 10;
-      await markFinalizeExhausted(
-        job.data,
-        `no progress for ${minutes} min (${err.judged} of ${err.expected} results judged, ` +
-          `${err.produced} of ${err.expected} produced)`,
+    // One judge job can outlast the stall window without being stuck: 3 attempts with
+    // backoff, up to 2 gateway calls each, each allowed GATEWAY_TIMEOUT_MS, plus any
+    // wait behind other teams' runs. While a job for one of this run's unjudged
+    // results is still queued, running or retrying, the run is waiting, not stalled
+    // (issue #591). `changedAt` is left alone, so the wait is measured from the last
+    // real progress and is cut off at maxJudgeWaitMs.
+    const stalledFor = now - changedAt;
+    if (stalledFor > stallMs) {
+      const judgePending = await hasUnsettledJudgeJob(
+        await runsRepo.listUnjudgedResultIds(job.data.teamId, job.data.runId),
       );
-      return;
+      if (!judgePending || stalledFor > (opts.maxJudgeWaitMs ?? FINALIZE_MAX_JUDGE_WAIT_MS)) {
+        const minutes = Math.round(stalledFor / 6000) / 10;
+        await markFinalizeExhausted(
+          job.data,
+          `no progress for ${minutes} min (${err.judged} of ${err.expected} results judged, ` +
+            `${err.produced} of ${err.expected} produced)` +
+            (judgePending ? '; a judge job is still queued or running' : ''),
+        );
+        return;
+      }
     }
 
     await job.updateData({ ...job.data, progress: { count, changedAt } });
@@ -205,10 +231,10 @@ export async function processFinalizeJob(
  * Transitions a run to a terminal `failed` status once finalize gives up on it.
  *
  * Two callers, for two reasons:
- * - `processFinalizeJob`, when the run has made no progress (no new answer and
- *   no new verdict) for the whole stall window — a lost judge job, a backed-up
- *   judge queue, or a judge/gateway outage. `failedReason` says how long and
- *   how far it got.
+ * - `processFinalizeJob`, when the run has made no progress (no new answer, no
+ *   new verdict, and no judge job of its own still queued or retrying) for the
+ *   whole stall window — in practice, a lost judge job. `failedReason` says how
+ *   long and how far it got.
  * - `apps/worker`'s `runWorker.on('failed', ...)` handler, when the finalize job
  *   used up its attempts on real errors (a database failure, say). That handler
  *   owns the BullMQ check `job.attemptsMade >= job.opts.attempts`, which is job

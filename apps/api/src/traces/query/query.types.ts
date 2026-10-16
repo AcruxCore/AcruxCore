@@ -86,6 +86,8 @@ export interface SpanNode {
   promptTokens: number | null;
   completionTokens: number | null;
   totalTokens: number | null;
+  /** Part of `promptTokens` served from the provider's prompt cache; null when not reported. */
+  cachedTokens: number | null;
   costUsd: number | null;
   promptVersionId: string | null;
   gatewayRequestId: string | null;

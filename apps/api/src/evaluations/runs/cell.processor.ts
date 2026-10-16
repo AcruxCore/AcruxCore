@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { getJudgeQueue, type CellJobData } from '../queue';
+import { getJudgeQueue, judgeJobId, type CellJobData } from '../queue';
 import { RunsRepository } from './runs.repository';
 import { VersionsRepository } from '../../prompts/versions/versions.repository';
 import { OptimizeRepository } from '../optimize/optimize.repository';
@@ -225,6 +225,9 @@ export async function processCell(data: CellJobData): Promise<void> {
       // 429/5xx permanently lost a cell's score (the worker's `'failed'` handler
       // wrote a terminal "judge call failed" marker on the first failure).
       // `JudgeService.scoreResult` rethrows gateway errors, so BullMQ retries them.
+      // Named after the result, so finalize can ask for this job's state directly
+      // rather than reading the whole judge queue (issue #591).
+      jobId: judgeJobId(result.id),
       attempts: Number(process.env.EVAL_JUDGE_JOB_ATTEMPTS ?? 3),
       backoff: { type: 'exponential', delay: 1000 },
     },

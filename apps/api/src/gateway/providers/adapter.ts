@@ -14,6 +14,13 @@ export { GATEWAY_TIMEOUT_MS } from './timeout';
 export interface ProviderAdapter {
   readonly provider: 'openai' | 'anthropic' | 'openai_compatible' | 'gemini';
   /**
+   * Request fields this adapter accepts but does not put on the wire. Declared here, beside
+   * the code that builds the payload, so `x-gateway-params-ignored` cannot drift from what
+   * the adapter really sends (see `unappliedParams`). A new adapter must list every
+   * `NormalizedRequest` field it leaves out.
+   */
+  readonly unsentParams: ReadonlyArray<keyof NormalizedRequest>;
+  /**
    * Perform a non-streaming chat completion.
    * @throws {ProviderError} On any provider HTTP error, timeout, or network failure.
    */

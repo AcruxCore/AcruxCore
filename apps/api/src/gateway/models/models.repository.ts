@@ -2,6 +2,9 @@ import { Prisma } from '@prisma/client';
 import type { GatewayModel } from '@prisma/client';
 import prisma from '../../shared/db/client';
 
+/** A priced model row plus the provider of the connection that serves it. */
+export type PricedGatewayModel = GatewayModel & { credential: { provider: string } };
+
 /** Include shape used everywhere: bound credential + ordered fallbacks (each with its own credential). */
 const modelInclude = {
   credential: true,
@@ -32,6 +35,7 @@ export class ModelsRepository {
     credentialId: string;
     inputPricePerM: Prisma.Decimal | null;
     outputPricePerM: Prisma.Decimal | null;
+    cachedInputPricePerM: Prisma.Decimal | null;
     createdBy: string;
     fallbackModelIds: string[];
   }): Promise<GatewayModelWithRelations> {
@@ -44,6 +48,7 @@ export class ModelsRepository {
           credentialId: params.credentialId,
           inputPricePerM: params.inputPricePerM,
           outputPricePerM: params.outputPricePerM,
+          cachedInputPricePerM: params.cachedInputPricePerM,
           createdBy: params.createdBy,
         },
       });
@@ -102,12 +107,12 @@ export class ModelsRepository {
    *
    * @param teamId - The team's UUID.
    * @param names - Model strings as spans report them; an empty list returns nothing.
-   * @returns Plain rows (no relations) — only the names and prices are needed.
+   * @returns The rows with their connection's provider, which picks the default cache rate.
    */
   async listPricedByNames(
     teamId: string,
     names: string[],
-  ): Promise<GatewayModel[]> {
+  ): Promise<PricedGatewayModel[]> {
     if (names.length === 0) return [];
     return prisma.gatewayModel.findMany({
       where: {
@@ -116,6 +121,8 @@ export class ModelsRepository {
         outputPricePerM: { not: null },
         OR: [{ publicName: { in: names } }, { upstreamModel: { in: names } }],
       },
+      // The provider decides the default cache rate, as it does on the gateway.
+      include: { credential: { select: { provider: true } } },
       orderBy: { updatedAt: 'desc' },
     });
   }
@@ -137,6 +144,7 @@ export class ModelsRepository {
       credentialId?: string;
       inputPricePerM?: Prisma.Decimal | null;
       outputPricePerM?: Prisma.Decimal | null;
+      cachedInputPricePerM?: Prisma.Decimal | null;
     },
     fallbackModelIds?: string[],
   ): Promise<GatewayModelWithRelations> {
@@ -149,6 +157,7 @@ export class ModelsRepository {
       }
       if (patch.inputPricePerM !== undefined) data.inputPricePerM = patch.inputPricePerM;
       if (patch.outputPricePerM !== undefined) data.outputPricePerM = patch.outputPricePerM;
+      if (patch.cachedInputPricePerM !== undefined) data.cachedInputPricePerM = patch.cachedInputPricePerM;
 
       await tx.gatewayModel.update({ where: { id }, data });
 

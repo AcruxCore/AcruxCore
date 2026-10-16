@@ -23,6 +23,8 @@ interface OpenAiStreamFrame {
     total_tokens: number;
     /** Prefix-cache detail; `cached_tokens` is a subset of `prompt_tokens`, billed at a discount. */
     prompt_tokens_details?: PromptTokensDetails | null;
+    /** Reasoning detail; `reasoning_tokens` is a subset of `completion_tokens`. */
+    completion_tokens_details?: { reasoning_tokens?: number } | null;
   } | null;
 }
 
@@ -51,6 +53,8 @@ interface OpenAiResponseBody {
     total_tokens: number;
     /** Prefix-cache detail; `cached_tokens` is a subset of `prompt_tokens`, billed at a discount. */
     prompt_tokens_details?: PromptTokensDetails | null;
+    /** Reasoning detail; `reasoning_tokens` is a subset of `completion_tokens`. */
+    completion_tokens_details?: { reasoning_tokens?: number } | null;
   };
 }
 
@@ -79,6 +83,15 @@ function cachedTokens(
   if (typeof cached === 'number' && cached > 0) out.cached_tokens = cached;
   if (typeof written === 'number' && written > 0) out.cache_write_tokens = written;
   return out;
+}
+
+/**
+ * The reasoning count from `completion_tokens_details`, only when above zero — the same
+ * rule as {@link cachedTokens}, so a non-reasoning model's `usage` keeps its old shape.
+ */
+function reasoningTokens(details: { reasoning_tokens?: number } | null | undefined): { reasoning_tokens?: number } {
+  const n = details?.reasoning_tokens;
+  return typeof n === 'number' && n > 0 ? { reasoning_tokens: n } : {};
 }
 
 /**
@@ -131,6 +144,8 @@ const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
  */
 export class OpenAiAdapter implements ProviderAdapter {
   readonly provider: 'openai' | 'openai_compatible';
+  /** Every modelled field is sent: the canonical request is already OpenAI-shaped. */
+  readonly unsentParams: ReadonlyArray<keyof NormalizedRequest> = [];
 
   /**
    * @param provider - `'openai'` (default base URL) or `'openai_compatible'` (baseUrl required).
@@ -174,6 +189,7 @@ export class OpenAiAdapter implements ProviderAdapter {
     if (req.tools !== undefined) payload['tools'] = req.tools;
     if (req.tool_choice !== undefined) payload['tool_choice'] = req.tool_choice;
     if (req.response_format !== undefined) payload['response_format'] = req.response_format;
+    if (req.reasoning_effort !== undefined) payload['reasoning_effort'] = req.reasoning_effort;
     return payload;
   }
 
@@ -256,6 +272,7 @@ export class OpenAiAdapter implements ProviderAdapter {
           completion_tokens: data.usage.completion_tokens,
           total_tokens: data.usage.total_tokens,
           ...cachedTokens(data.usage.prompt_tokens_details),
+          ...reasoningTokens(data.usage.completion_tokens_details),
         },
       };
     } finally {
@@ -344,6 +361,7 @@ export class OpenAiAdapter implements ProviderAdapter {
               completion_tokens: frame.usage.completion_tokens,
               total_tokens: frame.usage.total_tokens,
               ...cachedTokens(frame.usage.prompt_tokens_details),
+              ...reasoningTokens(frame.usage.completion_tokens_details),
             }
           : undefined;
         // Map partial OpenAI tool-call deltas to the canonical ToolCall shape (fields

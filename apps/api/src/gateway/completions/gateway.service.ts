@@ -16,8 +16,9 @@ import {
 import { notify } from '../../notifications/notify';
 import { appLink } from '../../email';
 import { getAdapter, ProviderError } from '../providers/adapter';
-import { cacheRatesFor, computeCostFromPrices } from '../providers/models';
+import { cacheRatesForModel, computeCostFromPrices } from '../providers/models';
 import { estimateTokens } from '../providers/token-estimate';
+import { withoutRefusedReasoningEffort } from '../providers/refused-params';
 import type { ChatMessage, NormalizedRequest, ProviderCredentials, StreamChunk, ToolCall, Usage } from '../providers/types';
 // Imported from the concrete file, not the `../../prompts/aliases` barrel:
 // that barrel also re-exports `aliasesRouter`/`renderRouter`, which pulls in
@@ -110,10 +111,20 @@ export interface GatewayStream {
   traceId: string;
   /** Ref of the span `finalize` will write, likewise available before the first chunk. */
   spanRef: string;
+  /**
+   * Fields the selected deployment refused with a 400 before its first chunk, so it was
+   * opened again without them. Listed in `x-gateway-params-ignored`. Empty when none.
+   */
+  droppedParams: string[];
   /** Async generator of normalized chunks; accumulates text + usage internally. */
   chunks: AsyncGenerator<StreamChunk>;
-  /** Persist the request row and increment budgets in one transaction. Idempotent per handle. */
-  finalize(opts: FinalizeStreamOpts): Promise<void>;
+  /**
+   * Persist the request row and increment budgets in one transaction. Idempotent per handle.
+   *
+   * @returns The usage the call was billed for, or undefined when this handle was already
+   *   finalized. The controller sends it as the final chunk when the caller asked for it.
+   */
+  finalize(opts: FinalizeStreamOpts): Promise<Usage | undefined>;
   /** Tear down the upstream provider stream (called by the controller on client disconnect). */
   abort(): void;
 }
@@ -888,7 +899,15 @@ export class GatewayService {
     }
 
     // ── Strip the gateway control field so the body stays OpenAI-compatible ──────
-    const { gateway, prompt: _prompt, variables: _variables, tool_refs: _toolRefs, prompt_version_id: _pvid, ...rest } = req;
+    const {
+      gateway,
+      prompt: _prompt,
+      variables: _variables,
+      tool_refs: _toolRefs,
+      prompt_version_id: _pvid,
+      stream_options: _streamOptions,
+      ...rest
+    } = req;
     // After stage 2b (or validation) `messages` and `model` are guaranteed present.
     const normalized: NormalizedRequest = { ...rest, model: req.model!, messages: req.messages! };
 
@@ -1043,12 +1062,17 @@ export class GatewayService {
     const servedDeployment = served.deployment;
 
     // 8. Compute cost from the served deployment's stored prices + provider usage. Cache
-    // reads and writes are billed at the served provider's own rates (issue #552).
+    // reads and writes are billed at the served provider's own rates (issue #552), or at the
+    // team's own cached input price when the model has one (issue #594).
     const costUsd = computeCostFromPrices(
       servedDeployment.model.inputPricePerM,
       servedDeployment.model.outputPricePerM,
       response.usage,
-      cacheRatesFor(servedDeployment.credential.provider, servedDeployment.model.upstreamModel),
+      cacheRatesForModel(
+        servedDeployment.credential.provider,
+        servedDeployment.model.upstreamModel,
+        servedDeployment.model.cachedInputPricePerM,
+      ),
     );
     if (costUsd === null) {
       console.warn(`[gateway] no pricing for model '${normalized.model}'; cost recorded as null`);
@@ -1128,6 +1152,7 @@ export class GatewayService {
       cacheHit,
       requestId: row.id,
       rateLimitRemaining,
+      ...(served.droppedParams.length > 0 ? { droppedParams: served.droppedParams } : {}),
     };
 
     // T1: mirror the committed ledger row into a span — AFTER the money tx
@@ -1233,7 +1258,16 @@ export class GatewayService {
     // `fallback` knob is kept (`maxRetries` is not: a stream commits to a
     // deployment the moment its first chunk arrives, so there is nothing to
     // retry on the same one).
-    const { gateway, prompt: _prompt, variables: _variables, tool_refs: _toolRefs, prompt_version_id: _pvid, ...rest } = req;
+    // `stream_options` is read by the controller; the adapter sets its own.
+    const {
+      gateway,
+      prompt: _prompt,
+      variables: _variables,
+      tool_refs: _toolRefs,
+      prompt_version_id: _pvid,
+      stream_options: _streamOptions,
+      ...rest
+    } = req;
     const allowFallback = gateway?.fallback ?? true;
     const normalized: NormalizedRequest = { ...rest, model: req.model!, messages: req.messages! };
 
@@ -1282,55 +1316,68 @@ export class GatewayService {
     // Connections this chain was refused for, in order. Read after the loop
     // whether or not anything answered.
     const streamBlocked: { credentialId: string; reason: string }[] = [];
+    let droppedParams: string[] = [];
 
-    for (const deployment of scopedDeployments) {
-      try {
-        const creds: ProviderCredentials = {
-          apiKey: decryptStoredSecret(
-            deployment.credential.secretCiphertext,
-            'provider_credential',
-            deployment.credential.label,
-          ),
-          baseUrl: connectionBaseUrl(deployment.credential.config),
-        };
-        const adapter = getAdapter(deployment.credential.provider);
-        const upstreamReq: NormalizedRequest = { ...normalized, model: deployment.model.upstreamModel };
-        const it = adapter.streamChatCompletion(upstreamReq, creds, abortController.signal)[Symbol.asyncIterator]();
-        const first = await it.next(); // may throw ProviderError before the first chunk
-        selected = deployment;
-        iterator = it;
-        firstChunk = first;
-        break;
-      } catch (err) {
-        if (!(err instanceof ProviderError)) {
-          // A real bug (never swallowed) aborts the whole request with no
-          // real cost incurred — credit back the full reservation before
-          // rethrowing. Without this, only a `ProviderError` on every
-          // deployment reached the `recordStreamRow` credit-back below (via
-          // the `!selected` branch); any OTHER exception type propagated out
-          // of `completeStream` directly, permanently leaking the reservation
-          // `reserveBudgets` took above.
-          if (reservedBudgets.length > 0) {
-            await runInTransaction((tx) =>
-              this.reconcileBudgets(tx, reservedBudgets, estimatedCostUsd, 0),
-            );
+    deployments: for (const deployment of scopedDeployments) {
+      let attemptReq: NormalizedRequest = { ...normalized, model: deployment.model.upstreamModel };
+      const attemptDropped: string[] = [];
+      for (;;) {
+        try {
+          const creds: ProviderCredentials = {
+            apiKey: decryptStoredSecret(
+              deployment.credential.secretCiphertext,
+              'provider_credential',
+              deployment.credential.label,
+            ),
+            baseUrl: connectionBaseUrl(deployment.credential.config),
+          };
+          const adapter = getAdapter(deployment.credential.provider);
+          const it = adapter.streamChatCompletion(attemptReq, creds, abortController.signal)[Symbol.asyncIterator]();
+          const first = await it.next(); // may throw ProviderError before the first chunk
+          selected = deployment;
+          iterator = it;
+          firstChunk = first;
+          droppedParams = attemptDropped;
+          break deployments;
+        } catch (err) {
+          if (!(err instanceof ProviderError)) {
+            // A real bug (never swallowed) aborts the whole request with no
+            // real cost incurred — credit back the full reservation before
+            // rethrowing. Without this, only a `ProviderError` on every
+            // deployment reached the `recordStreamRow` credit-back below (via
+            // the `!selected` branch); any OTHER exception type propagated out
+            // of `completeStream` directly, permanently leaking the reservation
+            // `reserveBudgets` took above.
+            if (reservedBudgets.length > 0) {
+              await runInTransaction((tx) =>
+                this.reconcileBudgets(tx, reservedBudgets, estimatedCostUsd, 0),
+              );
+            }
+            throw err;
           }
-          throw err;
-        }
-        // Nothing sent yet → fall through to the next deployment, unless the
-        // caller asked for this model or nothing (`gateway.fallback: false`).
-        lastProviderError = err;
-        if (err.providerCode === 'SSRF_BLOCKED') {
-          if (!streamBlockedError) streamBlockedError = err;
-          if (!streamBlocked.some((b) => b.credentialId === deployment.credential.id)) {
-            streamBlocked.push({
-              credentialId: deployment.credential.id,
-              reason: (err.detail ?? err.message).trim(),
-            });
+          // A model that does not take `reasoning_effort` refused it: open this same
+          // deployment once more without the field, as `callWithFallback` does.
+          const retryReq = attemptDropped.length === 0 ? withoutRefusedReasoningEffort(attemptReq, err) : null;
+          if (retryReq) {
+            attemptReq = retryReq;
+            attemptDropped.push('reasoning_effort');
+            continue;
           }
+          // Nothing sent yet → fall through to the next deployment, unless the
+          // caller asked for this model or nothing (`gateway.fallback: false`).
+          lastProviderError = err;
+          if (err.providerCode === 'SSRF_BLOCKED') {
+            if (!streamBlockedError) streamBlockedError = err;
+            if (!streamBlocked.some((b) => b.credentialId === deployment.credential.id)) {
+              streamBlocked.push({
+                credentialId: deployment.credential.id,
+                reason: (err.detail ?? err.message).trim(),
+              });
+            }
+          }
+          if (!allowFallback) break deployments;
+          continue deployments;
         }
-        if (!allowFallback) break;
-        continue;
       }
     }
 
@@ -1432,8 +1479,8 @@ export class GatewayService {
     }
 
     const recordStreamRow = this.recordStreamRow.bind(this);
-    const finalize = async (opts: FinalizeStreamOpts): Promise<void> => {
-      if (finalized) return;
+    const finalize = async (opts: FinalizeStreamOpts): Promise<Usage | undefined> => {
+      if (finalized) return undefined;
       // Two flags, because they answer different questions. `finalized` means the
       // ledger row is committed, and is claimed only once the awaited work below has
       // actually succeeded — setting it up front meant a failed `recordStreamRow` (a
@@ -1443,7 +1490,7 @@ export class GatewayService {
       // the work is running right now, and stops a second entry from starting while
       // the first is still awaiting: the controller calls this once per stream today,
       // but both a normal end and a client abort route here, and the two can race.
-      if (inFlight) return;
+      if (inFlight) return undefined;
       inFlight = true;
 
       let promptTokens: number;
@@ -1465,12 +1512,13 @@ export class GatewayService {
         // Keep the provider's cache counts, or a streamed cache hit is billed at full price.
         ...(providerUsage?.cached_tokens ? { cached_tokens: providerUsage.cached_tokens } : {}),
         ...(providerUsage?.cache_write_tokens ? { cache_write_tokens: providerUsage.cache_write_tokens } : {}),
+        ...(providerUsage?.reasoning_tokens ? { reasoning_tokens: providerUsage.reasoning_tokens } : {}),
       };
       const costUsd = computeCostFromPrices(
         selectedModel.inputPricePerM,
         selectedModel.outputPricePerM,
         usage,
-        cacheRatesFor(provider, resolvedModel),
+        cacheRatesForModel(provider, resolvedModel, selectedModel.cachedInputPricePerM),
       ); // null if the served model is unpriced
 
       const meta: Record<string, unknown> = {};
@@ -1565,6 +1613,7 @@ export class GatewayService {
         promptVariables: promptVariables ?? null,
         spanRef,
       });
+      return usage;
     };
 
     return {
@@ -1574,6 +1623,7 @@ export class GatewayService {
       providerConnectionId,
       traceId,
       spanRef,
+      droppedParams,
       chunks: streamBody(),
       finalize,
       abort: () => abortController.abort(),

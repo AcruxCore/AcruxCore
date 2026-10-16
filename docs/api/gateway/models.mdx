@@ -111,6 +111,74 @@ Response (status 200) — excerpt:
 
 ---
 
+### Cached input price
+
+`cachedInputPricePerM` is the price your provider charges, per 1M prompt tokens, for tokens it
+serves from its prompt cache. The gateway bills a call's `usage.cached_tokens` at this price, and
+traced spans bill their `usage.cachedTokens` at it too. Leave it out, or set it to `null`, to use
+the default: half the input price, or a tenth of it for Claude models. It is never filled in
+for you.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/gateway/models \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"publicName":"glm-docs","upstreamModel":"glm-5.3","credentialId":"d3144f6a-55f0-4cc3-9d41-4c14052035b9","inputPricePerM":1.4,"outputPricePerM":4.4,"cachedInputPricePerM":0.26}'
+```
+
+Response (status 201):
+
+```json
+{
+  "id": "b5f318a0-aa91-417f-a8b9-d133ad5d3f32",
+  "publicName": "glm-docs",
+  "upstreamModel": "glm-5.3",
+  "credentialId": "d3144f6a-55f0-4cc3-9d41-4c14052035b9",
+  "credentialLabel": "z.ai",
+  "provider": "openai_compatible",
+  "inputPricePerM": 1.4,
+  "outputPricePerM": 4.4,
+  "cachedInputPricePerM": 0.26,
+  "fallbacks": [],
+  "createdAt": "2026-10-16T11:08:00.790Z",
+  "updatedAt": "2026-10-16T11:08:00.790Z"
+}
+```
+
+Send `null` to go back to the default:
+
+```bash
+curl -X PATCH $ACRUXCORE_BASE_URL/gateway/models/b5f318a0-aa91-417f-a8b9-d133ad5d3f32 \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"cachedInputPricePerM":null}'
+```
+
+Response (status 200):
+
+```json
+{
+  "id": "b5f318a0-aa91-417f-a8b9-d133ad5d3f32",
+  "publicName": "glm-docs",
+  "upstreamModel": "glm-5.3",
+  "credentialId": "d3144f6a-55f0-4cc3-9d41-4c14052035b9",
+  "credentialLabel": "z.ai",
+  "provider": "openai_compatible",
+  "inputPricePerM": 1.4,
+  "outputPricePerM": 4.4,
+  "cachedInputPricePerM": null,
+  "fallbacks": [],
+  "createdAt": "2026-10-16T11:08:00.790Z",
+  "updatedAt": "2026-10-16T11:08:00.826Z"
+}
+```
+
+With z.ai's $0.26 cached price, a `glm-5.3` call with 1,891 prompt tokens, 1,856 of them cached,
+and 68 completion tokens was recorded at $0.0008308. At the default rate the same call is
+$0.0016474.
+
+---
+
 ### DELETE /api/v1/gateway/models/:id
 
 Delete a model (owner/admin). Blocked while it is another model's fallback.

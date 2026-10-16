@@ -10,6 +10,7 @@ import type {
   ContentPart,
   ToolDefinition,
   ToolChoice,
+  Usage,
 } from './types';
 import { parseSseStream } from './sse-parse';
 import { guardedFetch } from './guarded-fetch';
@@ -191,10 +192,35 @@ interface GeminiResponseBody {
     finishReason?: string;
     index?: number;
   }[];
-  usageMetadata?: {
-    promptTokenCount?: number;
-    candidatesTokenCount?: number;
-    totalTokenCount?: number;
+  usageMetadata?: GeminiUsageMetadata;
+}
+
+/** Gemini's token counts. `thoughtsTokenCount` is NOT part of `candidatesTokenCount`. */
+interface GeminiUsageMetadata {
+  promptTokenCount?: number;
+  candidatesTokenCount?: number;
+  /** Thinking tokens; billed at the output rate, counted apart from the answer. */
+  thoughtsTokenCount?: number;
+  totalTokenCount?: number;
+}
+
+/**
+ * Maps Gemini's usage block to the OpenAI shape.
+ *
+ * Gemini reports a thinking model's reasoning in `thoughtsTokenCount`, apart from
+ * `candidatesTokenCount`, and bills both at the output rate. OpenAI counts reasoning
+ * inside `completion_tokens` and repeats it as `reasoning_tokens`. Reading
+ * `candidatesTokenCount` alone left every thinking token unbilled (issue #593).
+ */
+function toUsage(meta: GeminiUsageMetadata): Usage {
+  const promptTokens = meta.promptTokenCount ?? 0;
+  const thoughts = meta.thoughtsTokenCount ?? 0;
+  const completionTokens = (meta.candidatesTokenCount ?? 0) + thoughts;
+  return {
+    prompt_tokens: promptTokens,
+    completion_tokens: completionTokens,
+    total_tokens: meta.totalTokenCount ?? promptTokens + completionTokens,
+    ...(thoughts > 0 ? { reasoning_tokens: thoughts } : {}),
   };
 }
 
@@ -229,6 +255,11 @@ function mapFinishReason(reason: string | undefined): string | null {
  */
 export class GeminiAdapter implements ProviderAdapter {
   readonly provider = 'gemini' as const;
+  /**
+   * Gemini has no `reasoning_effort`. Its thinking control (`thinkingConfig`) differs by model
+   * generation, so the field is left out (issue #593).
+   */
+  readonly unsentParams: ReadonlyArray<keyof NormalizedRequest> = ['reasoning_effort'];
 
   /**
    * @param req - Canonical request; `system` hoisted, `assistant`→`model`, sampling params → generationConfig, tools/tool_choice translated.
@@ -309,9 +340,6 @@ export class GeminiAdapter implements ProviderAdapter {
       // so force 'tool_calls' when the model actually emitted one, matching OpenAI's
       // and the Anthropic adapter's finish_reason semantics.
       const finishReason = toolCalls.length > 0 ? 'tool_calls' : mapFinishReason(candidate?.finishReason);
-      const promptTokens = data.usageMetadata?.promptTokenCount ?? 0;
-      const completionTokens = data.usageMetadata?.candidatesTokenCount ?? 0;
-      const totalTokens = data.usageMetadata?.totalTokenCount ?? promptTokens + completionTokens;
 
       return {
         id: `chatcmpl-${randomUUID()}`,
@@ -329,11 +357,7 @@ export class GeminiAdapter implements ProviderAdapter {
             finish_reason: finishReason,
           },
         ],
-        usage: {
-          prompt_tokens: promptTokens,
-          completion_tokens: completionTokens,
-          total_tokens: totalTokens,
-        },
+        usage: toUsage(data.usageMetadata ?? {}),
       };
     } finally {
       if (dispatcher) await dispatcher.close();
@@ -432,16 +456,7 @@ export class GeminiAdapter implements ProviderAdapter {
         // As in the non-streaming path, force 'tool_calls' when the frame carries a
         // functionCall — Gemini's own finishReason is typically STOP even then.
         const finishReason = toolCalls ? 'tool_calls' : mapFinishReason(candidate?.finishReason);
-        const usage = frame.usageMetadata
-          ? {
-              prompt_tokens: frame.usageMetadata.promptTokenCount ?? 0,
-              completion_tokens: frame.usageMetadata.candidatesTokenCount ?? 0,
-              total_tokens:
-                frame.usageMetadata.totalTokenCount ??
-                (frame.usageMetadata.promptTokenCount ?? 0) +
-                  (frame.usageMetadata.candidatesTokenCount ?? 0),
-            }
-          : undefined;
+        const usage = frame.usageMetadata ? toUsage(frame.usageMetadata) : undefined;
         // Skip empty keep-alives, but always forward finish, usage, and tool-call frames.
         if (delta === '' && finishReason === null && !usage && !toolCalls) continue;
         yield { delta, finish_reason: finishReason, usage, tool_calls: toolCalls };

@@ -18,12 +18,30 @@ export type SpanStatus = z.infer<typeof SpanStatusSchema>;
 /** ISO-8601 datetime with a timezone offset (or `Z`). */
 const isoDatetime = z.string().datetime({ offset: true });
 
-/** Token counts for an llm span. All optional, all non-negative integers. */
-export const UsageSchema = z.object({
-  promptTokens: z.number().int().nonnegative().optional(),
-  completionTokens: z.number().int().nonnegative().optional(),
-  totalTokens: z.number().int().nonnegative().optional(),
-});
+/**
+ * Token counts for an llm span. All optional, all non-negative integers.
+ *
+ * `cachedTokens` is the part of `promptTokens` the provider served from its prefix cache
+ * (OpenAI's `usage.prompt_tokens_details.cached_tokens`). It is a subset, not an addition.
+ * It prices the span, since without it every prompt token was charged the full input rate
+ * (issue #594), and it is stored on the span.
+ *
+ * A count larger than `promptTokens` is capped at `promptTokens`, not refused. Anthropic's
+ * own usage has that shape (`input_tokens` leaves out `cache_read_input_tokens`), and a 400
+ * here would drop every trace in the batch over one span's token split.
+ */
+export const UsageSchema = z
+  .object({
+    promptTokens: z.number().int().nonnegative().optional(),
+    completionTokens: z.number().int().nonnegative().optional(),
+    totalTokens: z.number().int().nonnegative().optional(),
+    cachedTokens: z.number().int().nonnegative().optional(),
+  })
+  .transform((u) =>
+    u.cachedTokens !== undefined && u.promptTokens !== undefined && u.cachedTokens > u.promptTokens
+      ? { ...u, cachedTokens: u.promptTokens }
+      : u,
+  );
 
 /**
  * One OTel-shaped span in an ingestion batch. `spanId` is the caller-supplied
