@@ -1,0 +1,16 @@
+2026-10-16T11:01:47+05:00
+# 21 Langfuse: production label moved to v2 in the UI; same app, no code change, run --id msg-15
+seconds 14.5 total 120
+Add Google Analytics | out_of_scope analytics_setup 1
+Connect Google Analytics to Instagram ads | needs_estimate None 1
+
+real	0m15.655s
+user	0m0.915s
+sys	0m0.125s
+trace ea0a67fdb1353cfdc06a8d611708d4f6 latency 14.457 total_cost 0.00233752 observations 10 scores 0
+OpenAI-generation prompt scope-classify v 2 model glm-5.3 cost 0.00056368 usage {'input': 62, 'output': 63, 'total': 893, 'input_cached_tokens': 768, 'output_reasoning_tokens': 0}
+OpenAI-generation prompt scope-classify v 2 model glm-5.3 cost 0.00051548 usage {'input': 59, 'output': 53, 'total': 880, 'input_cached_tokens': 768, 'output_reasoning_tokens': 0}
+OpenAI-generation prompt scope-reply v 1 model glm-5.3 cost 0.00111648 usage {'input': 186, 'output': 187, 'total': 501, 'input_cached_tokens': 128, 'output_reasoning_tokens': 0}
+OpenAI-generation prompt scope-extract v 2 model glm-5.3 cost 0.00014188 usage {'input': 21, 'output': 18, 'total': 167, 'input_cached_tokens': 128, 'output_reasoning_tokens': 0}
+prod versions {'scope-extract': 2, 'scope-classify': 2, 'scope-reply': 1}
+after rollback, prod versions {'scope-extract': 1, 'scope-classify': 1, 'scope-reply': 1, 'scope-judge': 1}

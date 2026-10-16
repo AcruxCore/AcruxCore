@@ -1,0 +1,4 @@
+['reply_judge', 'items_exact', 'total_exact']
+created config human_reply_ok
+after update rubric_instructions Would you send this reply to the client as is? If not, correct the items or total in the output.
+[{'feedback_key': 'human_reply_ok', 'description': 'Would you send this reply to the client as is?', 'value_descriptions': {}, 'score_descriptions': {}, 'is_required': False, 'is_assertion': False, 'regex_validator': None, 'feedback_config_id': '6c6491d6-dafa-419e-9e03-d3367440351a', 'feedback_config': {'id': '6c6491d6-dafa-419e-9e03-d3367440351a', 'feedback_key': 'human_reply_ok', 'feedback_config': {'type': 'categorical', 'min': None, 'max': None, 'categories': [{'value': 1.0, 'label': 'send as is'}, {'value': 0.0, 'label': 'needs a fix'}]}, 'tenant_id': '24efd6a9-61ac-434f-9426-6a082c6b512d', 'modified_at': '2026-10-16T05:20:11.960349+00:00', 'is_lower_score_better': False, 'is_enforced': False, 'is_first': True, 'is_deleted': False}}]

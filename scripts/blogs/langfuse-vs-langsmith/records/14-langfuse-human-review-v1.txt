@@ -1,0 +1,9 @@
+human verdicts 30 true 28 false 2
+msg-03 human False | auto {'reply_judge': 0.0, 'total_exact': 0.0, 'items_exact': 0.0} | Booking and payments is one rate-card item ($1,400). Counted twice: $2,800.
+msg-05 human True | auto {'reply_judge': 1.0, 'items_exact': 0.0, 'total_exact': 1.0} | None
+msg-11 human True | auto {'reply_judge': 1.0, 'total_exact': 1.0, 'items_exact': 0.0} | Reply is fine. items_exact fails only because the item cites S1; the reply also names S5.
+msg-20 human True | auto {'reply_judge': 1.0, 'items_exact': 0.0, 'total_exact': 1.0} | Total right. items_exact fails because French and German are two items instead of one with quantity 2.
+msg-21 human False | auto {'reply_judge': 0.0, 'items_exact': 0.0, 'total_exact': 1.0} | Gives the copy-to-sender feature away free; S3 only covers email to the studio. Also says 'Hi [Client]'.
+msg-24 human True | auto {'reply_judge': 1.0, 'items_exact': 0.0, 'total_exact': 1.0} | Sendable. Adds a domain-move estimate the client did not ask for, but frames it as a question.
+corrections [('msg-03', 'Online class booking and payments is one rate-card item: $1,400. Total: $1,400.')]
+queue status Counter({'COMPLETED': 30})

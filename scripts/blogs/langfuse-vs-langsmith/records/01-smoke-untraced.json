@@ -1,0 +1,131 @@
+[
+ {
+  "id": "msg-06",
+  "seconds": 10.4,
+  "items_exact": true,
+  "total_exact": true,
+  "judge": {
+   "verdict": "PASS",
+   "reason": "Both out-of-scope requests are answered, the total of $550 matches the expected amount, and no free work is offered."
+  },
+  "output": {
+   "items": [
+    {
+     "request": "Add a Spanish version of the whole site",
+     "status": "out_of_scope",
+     "clause": null,
+     "rate_item": "language_version",
+     "quantity": 1,
+     "reason": "A Spanish version of the site is excluded by the scope and the rate card prices it per language."
+    },
+    {
+     "request": "Add a newsletter signup in the footer",
+     "status": "out_of_scope",
+     "clause": null,
+     "rate_item": "newsletter_signup",
+     "quantity": 1,
+     "reason": "A newsletter signup form is not in the signed scope and matches the newsletter_signup rate-card item."
+    }
+   ],
+   "quote": {
+    "currency": "USD",
+    "lines": [
+     {
+      "item": "language_version",
+      "quantity": 1,
+      "unit_price": 400,
+      "amount": 400
+     },
+     {
+      "item": "newsletter_signup",
+      "quantity": 1,
+      "unit_price": 150,
+      "amount": 150
+     }
+    ],
+    "total": 550
+   },
+   "total": 550,
+   "reply": "Subject: Re: Spanish Version & Newsletter Signup\n\nHi there,\n\nThanks for reaching out! I checked both requests against the signed scope, and unfortunately neither is included in the current work. Here's a quick breakdown:\n\n**Spanish version of the site** \u2013 Not included in the current scope. Adding a full Spanish version is priced per language at **$400**.\n\n**Newsletter signup in the footer** \u2013 Also not included in the current scope. I can add this for **$150**.\n\n**Total for both: $550**\n\nIf you'd like to go ahead with one or both, just let me know and I'll get started. Happy to prioritize whichever matters most to you.\n\nBest,\nSam"
+  }
+ },
+ {
+  "id": "msg-15",
+  "seconds": 24.7,
+  "items_exact": false,
+  "total_exact": false,
+  "judge": {
+   "verdict": "FAIL",
+   "reason": "The reply quotes $240 instead of the expected $120 total and fails to ask a clarifying question or provide an estimate for the Instagram ads connection, which was flagged as needing an estimate."
+  },
+  "output": {
+   "items": [
+    {
+     "request": "Add Google Analytics",
+     "status": "out_of_scope",
+     "clause": null,
+     "rate_item": "analytics_setup",
+     "quantity": 1,
+     "reason": "Analytics setup is not in the signed scope and matches the analytics_setup rate-card item."
+    },
+    {
+     "request": "Connect Google Analytics to Instagram ads",
+     "status": "out_of_scope",
+     "clause": null,
+     "rate_item": "analytics_setup",
+     "quantity": 1,
+     "reason": "Analytics tracking is not in the signed scope and the rate card's analytics_setup item is the closest match."
+    }
+   ],
+   "quote": {
+    "currency": "USD",
+    "lines": [
+     {
+      "item": "analytics_setup",
+      "quantity": 1,
+      "unit_price": 120,
+      "amount": 120
+     },
+     {
+      "item": "analytics_setup",
+      "quantity": 1,
+      "unit_price": 120,
+      "amount": 120
+     }
+    ],
+    "total": 240
+   },
+   "total": 240,
+   "reply": "Subject: Re: Google Analytics + Instagram Ads\n\nHi there,\n\nThanks for reaching out! Happy to help with both requests. Just so you know, neither of these is part of our signed scope, so they'd be billed as extra work at the rate card price:\n\n1. **Google Analytics setup** \u2013 extra, $120\n2. **Connecting Google Analytics to your Instagram ads** \u2013 extra, $120\n\n**Total: $240 (USD)**\n\nIf that works for you, just reply to confirm and I'll get started right away.\n\nBest,\nSam"
+  }
+ },
+ {
+  "id": "msg-27",
+  "seconds": 16.8,
+  "items_exact": true,
+  "total_exact": true,
+  "judge": {
+   "verdict": "PASS",
+   "reason": "The unclear/out-of-scope map issue is answered with a promised estimate, no money is requested now ($0 total), and no free out-of-scope work is offered."
+  },
+  "output": {
+   "items": [
+    {
+     "request": "The map on the Contact page stopped loading this week.",
+     "status": "needs_estimate",
+     "clause": null,
+     "rate_item": null,
+     "quantity": 1,
+     "reason": "A map is not in the signed scope, and even if treated as a bug fix, the 30-day window under S7 ended 5 November 2026; no rate-card item covers post-window fixes, so it needs an estimate."
+    }
+   ],
+   "quote": {
+    "currency": "USD",
+    "lines": [],
+    "total": 0
+   },
+   "total": 0,
+   "reply": "Subject: Re: Contact Page Map Issue\n\nHi,\n\nThanks for letting me know about the map on the Contact page.\n\nI've looked into it: the map isn't part of our original scope of work, and the 30-day bug-fix window from the contract closed on 5 November, so this one isn't covered. Since it's outside the scope and the fix window, I'll need to put together a separate estimate for the repair \u2014 I'll send that over shortly so you can decide how to proceed.\n\nTotal for now: $0 (map repair estimate to follow).\n\nHappy to answer any questions in the meantime.\n\nBest,\nSam"
+  }
+ }
+]

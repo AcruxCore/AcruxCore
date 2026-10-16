@@ -1,0 +1,8 @@
+scope-extract -> https://eu.smith.langchain.com/prompts/scope-extract/fd054f80?organizationId=24efd6a9-61ac-434f-9426-6a082c6b512d
+scope-classify -> https://eu.smith.langchain.com/prompts/scope-classify/fb633e6c?organizationId=24efd6a9-61ac-434f-9426-6a082c6b512d
+scope-reply -> https://eu.smith.langchain.com/prompts/scope-reply/ac945905?organizationId=24efd6a9-61ac-434f-9426-6a082c6b512d
+scope-judge -> https://eu.smith.langchain.com/prompts/scope-judge/526e8495?organizationId=24efd6a9-61ac-434f-9426-6a082c6b512d
+
+real	0m7.008s
+user	0m0.776s
+sys	0m0.096s

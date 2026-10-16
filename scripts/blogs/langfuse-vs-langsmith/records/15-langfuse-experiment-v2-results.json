@@ -1,0 +1,1524 @@
+{
+ "run": "v2",
+ "run_id": "27d5ea9d-5245-43e0-902e-74a0a49ebebf",
+ "rows": [
+  {
+   "message_id": "msg-01",
+   "trace_id": "48428138cbd29ea354f206f01fe236df",
+   "seconds": 10.381,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "The reply addresses the in-scope color change, states a $0 total with no payment request, and no clarifying question or out-of-scope work is involved."
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Change the button green to new brand colour #2E7D6B",
+      "status": "in_scope",
+      "clause": "S6",
+      "rate_item": null,
+      "quantity": 1,
+      "reason": "A colour change to the agreed mockups falls under the two included rounds of design changes."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [],
+     "total": 0
+    },
+    "total": 0,
+    "reply": "Subject: Re: Button colour change\n\nHi!\n\nThanks for reaching out. Good news \u2014 changing the button green to your new brand colour, #2E7D6B, is already included in the project. Since we're still within the second of your two included design rounds, there's no extra charge for this one.\n\nI'll get that updated for you shortly.\n\nTotal: $0 \u2014 no additional cost.\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "in_scope",
+      "clauses": [
+       "S6"
+      ]
+     }
+    ],
+    "total": 0
+   }
+  },
+  {
+   "message_id": "msg-02",
+   "trace_id": "e1d502a982c865ec3fdf0231dedc52df",
+   "seconds": 9.524,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "The reply correctly identifies the blog as out of scope, quotes the expected total of $650, and does not offer free work."
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Add a blog where teachers can post once a month",
+      "status": "out_of_scope",
+      "clause": null,
+      "rate_item": "blog",
+      "quantity": 1,
+      "reason": "A blog with posts by the studio's teachers matches the blog rate-card item and is explicitly excluded by the signed scope."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [
+      {
+       "item": "blog",
+       "quantity": 1,
+       "unit_price": 650,
+       "amount": 650
+      }
+     ],
+     "total": 650
+    },
+    "total": 650,
+    "reply": "Subject: Re: Teacher Blog\n\nHi there,\n\nThanks for reaching out! Yes, a blog where your teachers can post is definitely possible \u2014 teachers would be able to publish posts once a month (or more often, if you like).\n\nJust a heads-up: the blog isn't included in our current project scope, so it would be an additional cost:\n\n- Blog setup: $650\n\n**Total: $650 (USD)**\n\nIf you'd like to go ahead, just let me know and I'll get it added to the project.\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "out_of_scope",
+      "quantity": 1,
+      "rate_item": "blog"
+     }
+    ],
+    "total": 650
+   }
+  },
+  {
+   "message_id": "msg-03",
+   "trace_id": "3e40888704d922cc700130f358aeb761",
+   "seconds": 13.503,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "The out-of-scope booking/payment feature is quoted at the expected $1,400 total, no free work is offered, and a clarifying question about the payment provider is included."
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Add online booking and payment for classes",
+      "status": "out_of_scope",
+      "clause": null,
+      "rate_item": "online_booking_payments",
+      "quantity": 1,
+      "reason": "Online payments are explicitly excluded and the rate card has a matching fixed-price item."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [
+      {
+       "item": "online_booking_payments",
+       "quantity": 1,
+       "unit_price": 1400,
+       "amount": 1400
+      }
+     ],
+     "total": 1400
+    },
+    "total": 1400,
+    "reply": "Subject: Re: Online booking and payment for classes\n\nHi there,\n\nGreat to hear from you! Adding online booking and payments is definitely doable \u2014 it just falls outside our original project scope, so it would be an extra cost.\n\n**What's included:** Your current site already displays class information, so that part needs no changes.\n\n**Extra cost:**\n- Online booking and payment system \u2014 $1,400 (fixed price from my rate card)\n\n**Total for this addition: $1,400 USD**\n\nThis would let people browse classes, book spots, and pay online, which should cut down your admin work significantly.\n\nOne quick question so I can scope it properly: which payment provider would you like to use (e.g., Stripe, PayPal, or something else)?\n\nLet me know if you'd like to go ahead, and I'll get started!\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "out_of_scope",
+      "quantity": 1,
+      "rate_item": "online_booking_payments"
+     }
+    ],
+    "total": 1400
+   }
+  },
+  {
+   "message_id": "msg-04",
+   "trace_id": "4be3e0e8cfab2f264bc468bf91d131a4",
+   "seconds": 15.838,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "The reply addresses the in-scope bug under clause S7 at no extra cost ($0 total) and commits to fixing it without offering free out-of-scope work."
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Fix the contact form so it sends emails again",
+      "status": "in_scope",
+      "clause": "S7",
+      "rate_item": null,
+      "quantity": 1,
+      "reason": "Bug fixes within 30 days of launch (until 5 November 2026) cover repairing the included contact form."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [],
+     "total": 0
+    },
+    "total": 0,
+    "reply": "Subject: Re: Contact form not sending emails\n\nHi there,\n\nThanks for flagging this! Good news: fixing the contact form so it sends emails again is already covered under the bug fix warranty (clause S7), since we're within 30 days of launch. No extra charge for that \u2014 I'll get started on it right away.\n\nThere are no additional items to quote, so the total for this request is $0.\n\nI'll aim to have the form working again shortly and will confirm once it's fixed and tested.\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "in_scope",
+      "clauses": [
+       "S7",
+       "S3"
+      ]
+     }
+    ],
+    "total": 0
+   }
+  },
+  {
+   "message_id": "msg-05",
+   "trace_id": "c2f2623b32a8e6b5e5f4f87033b3505d",
+   "seconds": 12.825,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "Both extra pages are correctly identified as out of scope, priced at $180 each totaling $360, and no work is offered for free."
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Add two pages: Workshops and Retreats",
+      "status": "out_of_scope",
+      "clause": null,
+      "rate_item": "extra_page",
+      "quantity": 2,
+      "reason": "Two new pages beyond the five included pages are extra work at $180 per page."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [
+      {
+       "item": "extra_page",
+       "quantity": 2,
+       "unit_price": 180,
+       "amount": 360
+      }
+     ],
+     "total": 360
+    },
+    "total": 360,
+    "reply": "Subject: Re: Workshops & Retreats Pages\n\nHi!\n\nThanks for reaching out. Adding a Workshops page and a Retreats page isn't included in our current scope (the five pages we agreed on), but I'd be happy to add them for you.\n\n- Workshops page: $180\n- Retreats page: $180\n\n**Total for both new pages: $360**\n\nJust let me know if you'd like to go ahead, and I'll get started!\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "out_of_scope",
+      "quantity": 2,
+      "rate_item": "extra_page"
+     }
+    ],
+    "total": 360
+   }
+  },
+  {
+   "message_id": "msg-06",
+   "trace_id": "a83fc3125158e389907a7920e242f972",
+   "seconds": 19.811,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "Both out-of-scope requests are answered with the exact expected total of $550, nothing is offered for free, and a clarifying question about the email service is asked."
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Add Spanish version of the whole site",
+      "status": "out_of_scope",
+      "clause": null,
+      "rate_item": "language_version",
+      "quantity": 1,
+      "reason": "Another language is excluded and the rate card covers a Spanish version of the site."
+     },
+     {
+      "request": "Add newsletter signup in the footer",
+      "status": "out_of_scope",
+      "clause": null,
+      "rate_item": "newsletter_signup",
+      "quantity": 1,
+      "reason": "A newsletter signup form is not in the signed scope and matches the newsletter_signup rate-card item."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [
+      {
+       "item": "language_version",
+       "quantity": 1,
+       "unit_price": 400,
+       "amount": 400
+      },
+      {
+       "item": "newsletter_signup",
+       "quantity": 1,
+       "unit_price": 150,
+       "amount": 150
+      }
+     ],
+     "total": 550
+    },
+    "total": 550,
+    "reply": "Subject: Re: Spanish version + newsletter signup\n\nHi!\n\nThanks for reaching out \u2014 happy to help with both of these. Just a heads up, neither is included in our current scope, so they'd be billed at the standard rate:\n\n- Spanish version of the site: $400\n- Newsletter signup in the footer: $150\n\nTotal: $550\n\nIf that works for you, just confirm and I'll get started. One quick question on the newsletter signup: which email service should it connect to (e.g., Mailchimp, Constant Contact)?\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "out_of_scope",
+      "quantity": 1,
+      "rate_item": "language_version"
+     },
+     {
+      "status": "out_of_scope",
+      "quantity": 1,
+      "rate_item": "newsletter_signup"
+     }
+    ],
+    "total": 550
+   }
+  },
+  {
+   "message_id": "msg-07",
+   "trace_id": "f5ead549e5cb4226ba2f897866920247",
+   "seconds": 16.699,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "The out-of-scope PDF export request is answered with a paid quote matching the expected total of $250, no free work is offered, and no unclear requests exist."
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Make the schedule downloadable as a PDF so students can print it",
+      "status": "out_of_scope",
+      "clause": null,
+      "rate_item": "pdf_export",
+      "quantity": 1,
+      "reason": "A printable PDF of the class schedule matches the pdf_export rate-card item and is not in the signed scope."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [
+      {
+       "item": "pdf_export",
+       "quantity": 1,
+       "unit_price": 250,
+       "amount": 250
+      }
+     ],
+     "total": 250
+    },
+    "total": 250,
+    "reply": "Subject: Re: Printable PDF of the Schedule\n\nHi there,\n\nThanks for reaching out! Adding a downloadable PDF version of the schedule for students to print is a great idea.\n\nThis feature isn't part of the current project scope, but it's something I can add for an extra cost of **$250**. That would cover setting up a clean, print-friendly PDF export of the class schedule.\n\n**Quote summary:**\n- PDF export of the schedule: $250\n- **Total: $250**\n\nJust let me know if you'd like to go ahead, and I'll get it scheduled.\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "out_of_scope",
+      "quantity": 1,
+      "rate_item": "pdf_export"
+     }
+    ],
+    "total": 250
+   }
+  },
+  {
+   "message_id": "msg-08",
+   "trace_id": "69c1484ff9ef25b30360a254074470a5",
+   "seconds": 11.909,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "The out-of-scope copywriting is offered as a paid add-on at the correct $90 total, no free work is promised, and a clarifying question about teacher bios is included."
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Write the text for the Teachers page",
+      "status": "out_of_scope",
+      "clause": null,
+      "rate_item": "copywriting",
+      "quantity": 1,
+      "reason": "Writing page text is excluded from the scope and matches the copywriting rate item for one page."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [
+      {
+       "item": "copywriting",
+       "quantity": 1,
+       "unit_price": 90,
+       "amount": 90
+      }
+     ],
+     "total": 90
+    },
+    "total": 90,
+    "reply": "Subject: Re: Teachers Page Text\n\nHi there,\n\nHappy to help with that! Just so you know, writing page text isn't included in our current scope of work, but I do offer copywriting as an add-on service.\n\n**Quote:**\n- Copywriting for the Teachers page (1 page): $90\n\n**Total: $90**\n\nIf that works for you, just let me know and I'll get started. Also, quick question: roughly how many teachers will the page feature, and do you have any bios or notes I can work from?\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "out_of_scope",
+      "quantity": 1,
+      "rate_item": "copywriting"
+     }
+    ],
+    "total": 90
+   }
+  },
+  {
+   "message_id": "msg-09",
+   "trace_id": "c67fd6398424240b2a95154fc87c38ed",
+   "seconds": 15.87,
+   "total_cost": 0.0,
+   "scores": {},
+   "output": "Error: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+   "expected": {
+    "items": [
+     {
+      "status": "in_scope",
+      "clauses": [
+       "S4",
+       "S7"
+      ]
+     }
+    ],
+    "total": 0
+   }
+  },
+  {
+   "message_id": "msg-10",
+   "trace_id": "2af381481c5e2c8d4458625b0ff1391c",
+   "seconds": 12.938,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "The reply asks a clarifying question about the vague 'more modern' request, requests no payment, and does not commit to any free out-of-scope work."
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Make the design look more modern",
+      "status": "unclear",
+      "clause": null,
+      "rate_item": null,
+      "quantity": null,
+      "reason": "It is a design-change request that may fall under S6's two included revision rounds, but we cannot tell how many rounds have been used or what specific changes are wanted."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [],
+     "total": 0
+    },
+    "total": 0,
+    "reply": "Subject: Re: Modern design update\n\nHi,\n\nThanks for reaching out! I'd be happy to help make the site look more modern.\n\nBefore I can confirm whether this fits within your included revision rounds, could you let me know which specific changes you have in mind (e.g., colors, typography, layout)? That way I can tell you exactly what's covered and quote anything extra if needed.\n\nLooking forward to your reply!\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "unclear"
+     }
+    ],
+    "total": 0
+   }
+  },
+  {
+   "message_id": "msg-11",
+   "trace_id": "a43a85c87e2577dfc09581e39e0f8c81",
+   "seconds": 33.868,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "The reply addresses the sitemap fix as covered under S5, quotes a correct total of $0 with no charge, and the request is clear enough to need no clarifying question."
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Add the Pricing page to the sitemap",
+      "status": "in_scope",
+      "clause": "S5",
+      "rate_item": null,
+      "quantity": null,
+      "reason": "The sitemap covering the included Pricing page is part of the basic SEO clause S5."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [],
+     "total": 0
+    },
+    "total": 0,
+    "reply": "Subject: Re: Sitemap Missing Pricing Page\n\nHi there,\n\nThanks for flagging that! Good news: adding the Pricing page to your sitemap is already covered under the basic SEO work in clause S5 of our agreement, so there's no extra charge for this.\n\n**Quote summary:**\n- Add Pricing page to sitemap \u2014 included, $0\n- **Total: $0**\n\nI'll get this sorted for you right away. Let me know if you spot anything else!\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "in_scope",
+      "clauses": [
+       "S5",
+       "S7"
+      ]
+     }
+    ],
+    "total": 0
+   }
+  },
+  {
+   "message_id": "msg-12",
+   "trace_id": "c756d3cf33964bce6449d08d58628d89",
+   "seconds": 20.5,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "The reply correctly identifies the members area login as out of scope, quotes the expected $1,200 total rather than offering it free, and answers the request."
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Add a members area where regulars can see their class history",
+      "status": "out_of_scope",
+      "clause": null,
+      "rate_item": "member_login",
+      "quantity": 1,
+      "reason": "A members area with class history requires a member login, which is excluded from scope and priced on the rate card."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [
+      {
+       "item": "member_login",
+       "quantity": 1,
+       "unit_price": 1200,
+       "amount": 1200
+      }
+     ],
+     "total": 1200
+    },
+    "total": 1200,
+    "reply": "Subject: Re: Members Area Request\n\nHi there,\n\nThanks for reaching out! Happy to help with this.\n\n**Class history members area:** This isn't part of our current project scope, since it requires a member login system (which is excluded from the original scope). I can definitely add it, though \u2014 it's a flat **$1,200** on the rate card, which covers the members area with class history viewing.\n\n**Total for this addition: $1,200 USD**\n\nJust let me know if you'd like to go ahead, and I'll schedule it in. And if you have any other features in mind for the members area, send them over and I'll let you know if they'd affect the estimate.\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "out_of_scope",
+      "quantity": 1,
+      "rate_item": "member_login"
+     }
+    ],
+    "total": 1200
+   }
+  },
+  {
+   "message_id": "msg-13",
+   "trace_id": "9b4ef6749e786bc175c91ee09dccbd76",
+   "seconds": 20.176,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "The out-of-scope dark mode request is quoted as a paid extra at the correct total of $300, with no free work offered."
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Add a dark mode",
+      "status": "out_of_scope",
+      "clause": null,
+      "rate_item": "dark_mode",
+      "quantity": 1,
+      "reason": "Dark mode is not in the signed scope and matches the rate card's dark_mode item."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [
+      {
+       "item": "dark_mode",
+       "quantity": 1,
+       "unit_price": 300,
+       "amount": 300
+      }
+     ],
+     "total": 300
+    },
+    "total": 300,
+    "reply": "Subject: Re: Dark Mode Request\n\nHi there,\n\nThanks for reaching out! Dark mode definitely sounds like a nice addition for your evening students.\n\nI checked our signed scope, and unfortunately dark mode isn't included in the current agreement. However, I can absolutely add it for you as an extra:\n\n- **Dark mode (new request, not in scope):** $300\n\n**Total for this addition: $300**\n\nWould you like me to go ahead with it? Just let me know and I'll get started \u2014 I'd estimate roughly a week for design, implementation, and testing across your site.\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "out_of_scope",
+      "quantity": 1,
+      "rate_item": "dark_mode"
+     }
+    ],
+    "total": 300
+   }
+  },
+  {
+   "message_id": "msg-14",
+   "trace_id": "c538cdca9e2548f86a8e10b4da02e8ec",
+   "seconds": 26.242,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "The reply correctly identifies the third revision round as out of scope, quotes the expected total of 220 USD, and does not offer free work."
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Third round of header layout design changes",
+      "status": "out_of_scope",
+      "clause": null,
+      "rate_item": "extra_revision_round",
+      "quantity": 1,
+      "reason": "Only two rounds of design changes are included (S6), so a third round is billable."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [
+      {
+       "item": "extra_revision_round",
+       "quantity": 1,
+       "unit_price": 220,
+       "amount": 220
+      }
+     ],
+     "total": 220
+    },
+    "total": 220,
+    "reply": "Subject: Re: Third Round of Header Changes\n\nHi,\n\nThanks for reaching out! Happy to do another round of header layout changes. Just a heads up: the original scope included two rounds of design changes, so this third round falls outside that and would be billed as an extra revision round.\n\nHere's the quick breakdown:\n\n- Third round of header layout changes: $220 (extra revision round)\n\n**Total: $220 USD**\n\nJust reply to confirm and I'll get started \u2014 happy to jump on a quick call first if you'd like to talk through the new direction.\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "out_of_scope",
+      "quantity": 1,
+      "rate_item": "extra_revision_round"
+     }
+    ],
+    "total": 220
+   }
+  },
+  {
+   "message_id": "msg-15",
+   "trace_id": "d57723d06c5920df66d55c361f793b82",
+   "seconds": 21.556,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "The reply charges $120 for the out-of-scope analytics setup rather than doing it free, promises an estimate for the needs_estimate item, matches the expected total, and asks a clarifying question about the Instagram integration."
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Add Google Analytics",
+      "status": "out_of_scope",
+      "clause": null,
+      "rate_item": "analytics_setup",
+      "quantity": 1,
+      "reason": "Google Analytics setup is not in the signed scope and matches the analytics_setup rate-card item."
+     },
+     {
+      "request": "Connect Google Analytics to Instagram ads",
+      "status": "needs_estimate",
+      "clause": null,
+      "rate_item": null,
+      "quantity": null,
+      "reason": "Analytics setup is covered by the rate card, but connecting it to Instagram ad campaigns is integration work beyond that item's label."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [
+      {
+       "item": "analytics_setup",
+       "quantity": 1,
+       "unit_price": 120,
+       "amount": 120
+      }
+     ],
+     "total": 120
+    },
+    "total": 120,
+    "reply": "Subject: Re: Google Analytics + Instagram Ads\n\nHi there,\n\nThanks for reaching out! Here's a quick breakdown of your requests:\n\n**Google Analytics setup** \u2013 This isn't included in our current scope, so it's an additional cost. Based on my rate card, it comes to **$120**.\n\n**Connecting Analytics to Instagram ads** \u2013 This is integration work that goes a bit beyond the standard setup, so I'll put together a separate estimate for it and send it your way shortly.\n\n**Total so far: $120** (Instagram integration to be quoted separately)\n\nOne quick question: when you say connecting to Instagram ads, are you running the campaigns through Meta Ads Manager, or boosting posts directly from the Instagram app? That affects how the tracking gets set up.\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "out_of_scope",
+      "quantity": 1,
+      "rate_item": "analytics_setup"
+     },
+     {
+      "status": "needs_estimate"
+     }
+    ],
+    "total": 120
+   }
+  },
+  {
+   "message_id": "msg-16",
+   "trace_id": "49d12aa8a87bf69b820a221a88f3db6f",
+   "seconds": 24.12,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "The reply confirms the in-scope auto-update under clause S2, charges nothing, and offers no out-of-scope free work."
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Auto-update the class schedule from edits to the Google Sheet",
+      "status": "in_scope",
+      "clause": "S2",
+      "rate_item": null,
+      "quantity": 1,
+      "reason": "S2 explicitly covers a schedule read from a Google Sheet the studio edits, so auto-updating is included."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [],
+     "total": 0
+    },
+    "total": 0,
+    "reply": "Subject: Re: Auto-updating class schedule\n\nHi there,\n\nGood news \u2014 yes! The auto-update you're asking about is already included in our current agreement (clause S2 covers the schedule reading directly from your Google Sheet), so Mia can stop messaging me and just edit the sheet. No extra charge, and the quote total stays at $0.\n\nIf you run into any trouble with it once you start editing, just let me know.\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "in_scope",
+      "clauses": [
+       "S2"
+      ]
+     }
+    ],
+    "total": 0
+   }
+  },
+  {
+   "message_id": "msg-17",
+   "trace_id": "2dd5bee9d5e1211bf3454a47c85ff598",
+   "seconds": 20.112,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "The reply promises an estimate, asks a clarifying question, does not offer the out-of-scope app work for free, and requests no money."
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Build a small iPhone app for booking",
+      "status": "needs_estimate",
+      "clause": null,
+      "rate_item": null,
+      "quantity": 1,
+      "reason": "An iPhone app is not a website page or feature and no rate-card item covers native app development."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [],
+     "total": 0
+    },
+    "total": 0,
+    "reply": "Subject: Re: iPhone Booking App\n\nHi there,\n\nThanks for reaching out! Happy to help with a booking app for iPhone.\n\nQuick note: native iPhone app development falls outside the scope of my usual web work, so there's no fixed price I can quote right off the bat. I'll put together a separate estimate for the app and send it over shortly.\n\nOne question to help me scope it accurately: will the app need to sync bookings with an existing online system (like your website's calendar), or will it be standalone?\n\nOnce I hear back, I'll get the estimate to you within a couple of days.\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "needs_estimate"
+     }
+    ],
+    "total": 0
+   }
+  },
+  {
+   "message_id": "msg-18",
+   "trace_id": "1bc1305d9143a1df1b45aa8ed57e6705",
+   "seconds": 16.212,
+   "total_cost": 0.0,
+   "scores": {},
+   "output": "Error: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+   "expected": {
+    "items": [
+     {
+      "status": "out_of_scope",
+      "quantity": 3,
+      "rate_item": "extra_page"
+     }
+    ],
+    "total": 540
+   }
+  },
+  {
+   "message_id": "msg-19",
+   "trace_id": "b7148b388f1c55d902f4a2eba506a02f",
+   "seconds": 25.327,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "The reply addresses the typo fix as in-scope under S7, states a $0 total without asking for money, and offers no free out-of-scope work; no clarification is needed since the request is clear."
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Fix typo on Classes page: 'Vinyassa' should be 'Vinyasa'",
+      "status": "in_scope",
+      "clause": "S7",
+      "rate_item": null,
+      "quantity": 1,
+      "reason": "Today (16 Oct 2026) is within the 30-day bug-fix window, and a typo fix counts as a bug fix covered by S7."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [],
+     "total": 0
+    },
+    "total": 0,
+    "reply": "Subject: Re: Typo on Classes Page\n\nHi,\n\nGood news \u2014 fixing the typo ('Vinyassa' \u2192 'Vinyasa') on the Classes page is already covered under the 30-day bug-fix window in Section 7 of our agreement, so there's no extra charge. Total: $0.\n\nI'll get that corrected right away.\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "in_scope",
+      "clauses": [
+       "S7"
+      ]
+     }
+    ],
+    "total": 0
+   }
+  },
+  {
+   "message_id": "msg-20",
+   "trace_id": "12b28c1ca905430fbc389145c65b779f",
+   "seconds": 22.204,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "Both out-of-scope requests are priced (2 \u00d7 $400 + $90 = $890), nothing is offered for free, and no unclear requests require clarification."
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Add two language versions: French and German",
+      "status": "out_of_scope",
+      "clause": null,
+      "rate_item": "language_version",
+      "quantity": 2,
+      "reason": "Other languages are excluded by the scope and the rate card prices per language."
+     },
+     {
+      "request": "Write the text for the Pricing page",
+      "status": "out_of_scope",
+      "clause": null,
+      "rate_item": "copywriting",
+      "quantity": 1,
+      "reason": "Writing page text is excluded from scope and matches the copywriting rate item for one page."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [
+      {
+       "item": "language_version",
+       "quantity": 2,
+       "unit_price": 400,
+       "amount": 800
+      },
+      {
+       "item": "copywriting",
+       "quantity": 1,
+       "unit_price": 90,
+       "amount": 90
+      }
+     ],
+     "total": 890
+    },
+    "total": 890,
+    "reply": "Subject: Re: French/German Versions & Pricing Page Copy\n\nHi,\n\nThanks for reaching out! I've looked at both requests, and here's the breakdown:\n\n**French and German versions** \u2014 These are outside the current project scope, but I'm happy to add them. The rate is $400 per language version, so 2 \u00d7 $400 = **$800**.\n\n**Writing the Pricing page text** \u2014 Copywriting is also excluded from the current scope. I can write it for one page at **$90**.\n\n**Total for both: $890 (USD)**\n\nLet me know if you'd like to go ahead with everything, just one of the two, or if you have any questions \u2014 happy to adjust the quote accordingly.\n\nBest regards,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "out_of_scope",
+      "quantity": 2,
+      "rate_item": "language_version"
+     },
+     {
+      "status": "out_of_scope",
+      "quantity": 1,
+      "rate_item": "copywriting"
+     }
+    ],
+    "total": 890
+   }
+  },
+  {
+   "message_id": "msg-21",
+   "trace_id": "c571406f5ba14fee641e5fa3ee7fb388",
+   "seconds": 37.903,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "The newsletter checkbox is quoted as an extra at $150 matching the expected total, the auto-copy request is flagged for a separate estimate with a clarifying question, and nothing out of scope is offered for free."
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Add auto-copy to sender on contact form submission",
+      "status": "needs_estimate",
+      "clause": null,
+      "rate_item": null,
+      "quantity": 1,
+      "reason": "Sending an automatic confirmation copy to the sender is new behaviour beyond S3's form that emails the studio, and no rate-card item matches."
+     },
+     {
+      "request": "Add newsletter checkbox to the contact form",
+      "status": "out_of_scope",
+      "clause": null,
+      "rate_item": "newsletter_signup",
+      "quantity": 1,
+      "reason": "The scope covers a contact form that emails the studio (S3) but not newsletter signup, which matches the rate card item."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [
+      {
+       "item": "newsletter_signup",
+       "quantity": 1,
+       "unit_price": 150,
+       "amount": 150
+      }
+     ],
+     "total": 150
+    },
+    "total": 150,
+    "reply": "Subject: Re: Contact form additions\n\nHi Mia,\n\nGreat to hear the mockups were a hit! Happy to help with the form changes.\n\nThe newsletter checkbox falls outside the original scope (S3 covers the form emailing the studio only), so it's an extra: $150, bringing the total to $150 USD.\n\nThe auto-copy to the sender is also new behaviour, but it needs a bit of scoping first \u2014 I'll send you a separate estimate for that shortly so you can decide before we proceed.\n\nOne quick question to help with that estimate: should the sender's copy be a simple confirmation message, or an exact duplicate of what's sent to the studio?\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "needs_estimate"
+     },
+     {
+      "status": "out_of_scope",
+      "quantity": 1,
+      "rate_item": "newsletter_signup"
+     }
+    ],
+    "total": 150
+   }
+  },
+  {
+   "message_id": "msg-22",
+   "trace_id": "052f483fd5658b679373586a40de6064",
+   "seconds": 16.974,
+   "total_cost": 0.0,
+   "scores": {},
+   "output": "Error: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+   "expected": {
+    "items": [
+     {
+      "status": "unclear"
+     }
+    ],
+    "total": 0
+   }
+  },
+  {
+   "message_id": "msg-23",
+   "trace_id": "8b488a652bb0e356bc54512eb7c38a04",
+   "seconds": 28.116,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "The reply treats the request as needing an estimate, asks a clarifying question about pop-up behavior, and does not offer the out-of-scope work for free."
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Add a pop-up for the summer discount",
+      "status": "needs_estimate",
+      "clause": null,
+      "rate_item": null,
+      "quantity": 1,
+      "reason": "A promotional pop-up is new behaviour not covered by the scope and no rate-card item matches it."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [],
+     "total": 0
+    },
+    "total": 0,
+    "reply": "Subject: Re: Summer Discount Pop-Up\n\nHi,\n\nThanks for reaching out! Happy to help with a summer discount pop-up for your site.\n\nI've reviewed the request against your current scope and rate card. A promotional pop-up is new functionality not covered by the existing work, and there's no matching rate item \u2014 so I'll prepare a separate estimate for it and send that over shortly.\n\nOne quick question to help me scope it accurately: should the pop-up appear immediately when visitors land on the site, or only after they've browsed for a certain amount of time?\n\nOnce I have your answer, I'll send over the estimate for approval before starting any work.\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "needs_estimate"
+     }
+    ],
+    "total": 0
+   }
+  },
+  {
+   "message_id": "msg-24",
+   "trace_id": "8e9c309aaf88951805da8d27824f86cb",
+   "seconds": 43.797,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "Both sitemap and page title updates are covered under S5 at no charge, the out-of-scope domain migration is not offered for free and will be estimated, and a clarifying question about domain ownership is included."
+    },
+    "items_exact": {
+     "value": 0.0,
+     "comment": null
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Move domain to willowyoga.co",
+      "status": "needs_estimate",
+      "clause": null,
+      "rate_item": null,
+      "quantity": null,
+      "reason": "Moving the site to a new domain is not covered by any scope clause and no rate-card item matches."
+     },
+     {
+      "request": "Update the sitemap",
+      "status": "in_scope",
+      "clause": "S5",
+      "rate_item": null,
+      "quantity": 1,
+      "reason": "The sitemap is part of the included basic SEO, and today is within the bug-fix window until 5 November 2026."
+     },
+     {
+      "request": "Update the page titles",
+      "status": "in_scope",
+      "clause": "S5",
+      "rate_item": null,
+      "quantity": 1,
+      "reason": "Page titles are part of the basic SEO included in S5."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [],
+     "total": 0
+    },
+    "total": 0,
+    "reply": "Subject: Re: Domain move to willowyoga.co\n\nHi,\n\nThanks for reaching out! Here's a quick breakdown:\n\n**Already included (no charge):**\n- Updating the sitemap \u2014 covered under S5 (basic SEO)\n- Updating the page titles \u2014 also covered under S5\n\n**Needs a separate estimate:**\n- Moving the site to willowyoga.co \u2014 this is outside the current scope, so I'll put together an estimate for the migration work and send it over shortly.\n\nOne quick question on the move: do you already own willowyoga.co, or should the estimate include registering/transferring the domain as well?\n\nTalk soon,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "in_scope",
+      "clauses": [
+       "S5"
+      ]
+     }
+    ],
+    "total": 0
+   }
+  },
+  {
+   "message_id": "msg-25",
+   "trace_id": "e915858877499957f279adb2dc61b533",
+   "seconds": 30.386,
+   "total_cost": 0.0,
+   "scores": {},
+   "output": "Error: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+   "expected": {
+    "items": [
+     {
+      "status": "needs_estimate"
+     }
+    ],
+    "total": 0
+   }
+  },
+  {
+   "message_id": "msg-26",
+   "trace_id": "94869bcafd4c2dab55aaf412ac4ce20f",
+   "seconds": 15.824,
+   "total_cost": 0.0,
+   "scores": {},
+   "output": "Error: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}",
+   "expected": {
+    "items": [
+     {
+      "status": "out_of_scope",
+      "quantity": 1,
+      "rate_item": "online_booking_payments"
+     },
+     {
+      "status": "out_of_scope",
+      "quantity": 1,
+      "rate_item": "member_login"
+     },
+     {
+      "status": "out_of_scope",
+      "quantity": 1,
+      "rate_item": "blog"
+     }
+    ],
+    "total": 3250
+   }
+  },
+  {
+   "message_id": "msg-27",
+   "trace_id": "38b2593378346390573351b676a2b7a7",
+   "seconds": 19.641,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "The reply explains the fix is out of scope, promises an estimate rather than requesting money now, and asks a clarifying question about recent changes."
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Fix the map on the Contact page that stopped loading",
+      "status": "needs_estimate",
+      "clause": null,
+      "rate_item": null,
+      "quantity": 1,
+      "reason": "The bug-fix window (S7) expired on 5 November 2026, and no rate-card item covers post-window fixes."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [],
+     "total": 0
+    },
+    "total": 0,
+    "reply": "Subject: Re: Contact Page Map Issue\n\nHi,\n\nThanks for letting me know about the map on the Contact page.\n\nUnfortunately, this fix isn't covered right now \u2014 the bug-fix window (Section 7) expired on 5 November 2026, and there's no rate-card item covering post-window fixes. So there's nothing already included and no extra-cost line I can quote yet.\n\nI'll need to investigate the cause before I can price it, so I'll send you a separate estimate for the fix shortly. Once you approve it, I can get started.\n\nOne quick question while I look into it: did anything change recently on your end, such as an update to your Google Maps API key or billing account?\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "needs_estimate"
+     }
+    ],
+    "total": 0
+   }
+  },
+  {
+   "message_id": "msg-28",
+   "trace_id": "6fbddd84a85a8fd36b7baca97381fc76",
+   "seconds": 19.595,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "The in-scope mobile menu request is answered, no extra cost is charged, and no out-of-scope work is offered."
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Collapse the menu into one button on phones",
+      "status": "in_scope",
+      "clause": "S4",
+      "rate_item": null,
+      "quantity": null,
+      "reason": "A mobile-friendly layout (S4) covers collapsing the menu into a hamburger button on phones."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [],
+     "total": 0
+    },
+    "total": 0,
+    "reply": "Subject: Re: Mobile menu\n\nHi there,\n\nGood news \u2014 collapsing the menu into a single button on phones is already covered under section S4 (mobile-friendly layout) of our agreement, so there's no extra charge for that.\n\nI'll get it done in the next update.\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "in_scope",
+      "clauses": [
+       "S4",
+       "S7"
+      ]
+     }
+    ],
+    "total": 0
+   }
+  },
+  {
+   "message_id": "msg-29",
+   "trace_id": "e25f203fe20064269c4d07e9e5d0d701",
+   "seconds": 18.519,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "The reply correctly identifies the Gift Cards page as out of scope, quotes the expected $180 total with no free work offered, and no clarifying question is needed since the request is clear."
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Add a Gift Cards page",
+      "status": "out_of_scope",
+      "clause": null,
+      "rate_item": "extra_page",
+      "quantity": 1,
+      "reason": "A new Gift Cards page is beyond the five pages in S1 and matches the extra_page rate item."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [
+      {
+       "item": "extra_page",
+       "quantity": 1,
+       "unit_price": 180,
+       "amount": 180
+      }
+     ],
+     "total": 180
+    },
+    "total": 180,
+    "reply": "Subject: Re: Gift Cards Page\n\nHi,\n\nThanks for reaching out! Happy to help with this.\n\nA new Gift Cards page isn't included in the current scope (the agreement covers the five pages from our original plan), but it's definitely something I can add as an extra. The cost would be:\n\n- Extra page (Gift Cards): $180\n\n**Total: $180**\n\nJust let me know if you'd like to go ahead, and I'll get started.\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "out_of_scope",
+      "quantity": 1,
+      "rate_item": "extra_page"
+     }
+    ],
+    "total": 180
+   }
+  },
+  {
+   "message_id": "msg-30",
+   "trace_id": "20e94d886bbffca241a3fe80cb309553",
+   "seconds": 27.628,
+   "total_cost": 0.0,
+   "scores": {
+    "reply_judge": {
+     "value": 1.0,
+     "comment": "Both out-of-scope requests are answered with the correct $270 total, no free work is offered, and a clarifying question about the email service is included."
+    },
+    "total_exact": {
+     "value": 1.0,
+     "comment": null
+    },
+    "items_exact": {
+     "value": 1.0,
+     "comment": null
+    }
+   },
+   "output": {
+    "items": [
+     {
+      "request": "Add a newsletter signup",
+      "status": "out_of_scope",
+      "clause": null,
+      "rate_item": "newsletter_signup",
+      "quantity": 1,
+      "reason": "Newsletter signup is not in the signed scope and matches the rate-card item."
+     },
+     {
+      "request": "Set up Google Analytics",
+      "status": "out_of_scope",
+      "clause": null,
+      "rate_item": "analytics_setup",
+      "quantity": 1,
+      "reason": "Analytics setup is not in the signed scope and matches the rate card item directly."
+     }
+    ],
+    "quote": {
+     "currency": "USD",
+     "lines": [
+      {
+       "item": "newsletter_signup",
+       "quantity": 1,
+       "unit_price": 150,
+       "amount": 150
+      },
+      {
+       "item": "analytics_setup",
+       "quantity": 1,
+       "unit_price": 120,
+       "amount": 120
+      }
+     ],
+     "total": 270
+    },
+    "total": 270,
+    "reply": "Subject: Re: Newsletter Signup & Google Analytics\n\nHi there,\n\nThanks for reaching out! Happy to help with both of these. Just a quick note: neither item is part of the original project scope, so they'd be billed separately:\n\n- **Newsletter signup** \u2013 $150\n- **Google Analytics setup** \u2013 $120\n\n**Total: $270**\n\nIf that works for you, just reply to confirm and I'll get started. And one quick question on the newsletter signup: do you have a preferred email service (like Mailchimp or ConvertKit), or would you like me to recommend one?\n\nBest,\nSam"
+   },
+   "expected": {
+    "items": [
+     {
+      "status": "out_of_scope",
+      "quantity": 1,
+      "rate_item": "newsletter_signup"
+     },
+     {
+      "status": "out_of_scope",
+      "quantity": 1,
+      "rate_item": "analytics_setup"
+     }
+    ],
+    "total": 270
+   }
+  }
+ ]
+}

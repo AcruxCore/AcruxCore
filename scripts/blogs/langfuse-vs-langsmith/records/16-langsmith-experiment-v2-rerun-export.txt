@@ -1,0 +1,4 @@
+items_exact 26.0 / 30
+total_exact 30.0 / 30
+reply_judge 28.0 / 30
+errors 0 stats {'run_count': 30, 'latency_p50': datetime.timedelta(seconds=12, microseconds=305344), 'latency_p99': datetime.timedelta(seconds=24, microseconds=289796), 'total_tokens': 51535, 'total_cost': Decimal('0')}

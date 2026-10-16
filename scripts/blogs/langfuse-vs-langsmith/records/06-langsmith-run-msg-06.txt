@@ -1,0 +1,45 @@
+{
+ "seconds": 11.4,
+ "items": [
+  {
+   "request": "Add a Spanish version of the whole site",
+   "status": "out_of_scope",
+   "clause": null,
+   "rate_item": "language_version",
+   "quantity": 1,
+   "reason": "Another language is explicitly excluded by the scope and covered by the language_version rate item."
+  },
+  {
+   "request": "Add a newsletter signup in the footer",
+   "status": "out_of_scope",
+   "clause": null,
+   "rate_item": "newsletter_signup",
+   "quantity": 1,
+   "reason": "A newsletter signup form is not in the signed scope and matches the rate card's newsletter_signup item."
+  }
+ ],
+ "quote": {
+  "currency": "USD",
+  "lines": [
+   {
+    "item": "language_version",
+    "quantity": 1,
+    "unit_price": 400,
+    "amount": 400
+   },
+   {
+    "item": "newsletter_signup",
+    "quantity": 1,
+    "unit_price": 150,
+    "amount": 150
+   }
+  ],
+  "total": 550
+ },
+ "total": 550,
+ "reply": "Subject: Re: Spanish Version + Newsletter Signup\n\nHi,\n\nThanks for reaching out! Both requests are doable, but neither is included in the current scope, so they'd be billed as extras:\n\n- Spanish version of the site \u2013 $400\n- Newsletter signup in the footer \u2013 $150\n\n**Total: $550 USD**\n\nJust let me know if you'd like to proceed with both, and I'll get started. Also, for the signup form, should it connect to a specific email service (e.g., Mailchimp), or do you need me to set one up?\n\nBest,\nSam"
+}
+
+real	0m12.927s
+user	0m1.220s
+sys	0m0.175s

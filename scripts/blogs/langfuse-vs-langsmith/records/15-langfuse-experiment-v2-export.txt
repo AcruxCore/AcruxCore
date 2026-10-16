@@ -1,0 +1,4 @@
+items_exact 24.0 / 30 missing 5
+total_exact 25.0 / 30 missing 5
+reply_judge 25.0 / 30 missing 5
+items 30 p50 19.811 max 43.797

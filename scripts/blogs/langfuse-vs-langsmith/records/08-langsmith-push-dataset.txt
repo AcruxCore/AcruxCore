@@ -1,0 +1,5 @@
+dataset scope-check examples 30
+
+real	0m2.201s
+user	0m0.816s
+sys	0m0.091s

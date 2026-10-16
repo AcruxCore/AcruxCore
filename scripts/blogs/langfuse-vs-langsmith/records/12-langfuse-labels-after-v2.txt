@@ -1,0 +1,4 @@
+no label -> version 1
+{'label': 'production'} -> version 1
+{'label': 'candidate'} -> version 2
+{'label': 'latest'} -> version 2

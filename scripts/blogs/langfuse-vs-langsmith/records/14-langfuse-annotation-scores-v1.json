@@ -1,0 +1,219 @@
+[
+ {
+  "message_id": "msg-30",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-27",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-29",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-28",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-26",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-25",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-24",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": "Sendable. Adds a domain-move estimate the client did not ask for, but frames it as a question."
+ },
+ {
+  "message_id": "msg-23",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-22",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-21",
+  "name": "human_reply_ok",
+  "value": 0.0,
+  "string": "False",
+  "comment": "Gives the copy-to-sender feature away free; S3 only covers email to the studio. Also says 'Hi [Client]'."
+ },
+ {
+  "message_id": "msg-20",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": "Total right. items_exact fails because French and German are two items instead of one with quantity 2."
+ },
+ {
+  "message_id": "msg-19",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-18",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-17",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-16",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-15",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-14",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-13",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-12",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-11",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": "Reply is fine. items_exact fails only because the item cites S1; the reply also names S5."
+ },
+ {
+  "message_id": "msg-10",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-09",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-08",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-07",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-06",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-05",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-04",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-03",
+  "name": "output",
+  "value": 0.0,
+  "string": "Online class booking and payments is one rate-card item: $1,400. Total: $1,400.",
+  "comment": null
+ },
+ {
+  "message_id": "msg-03",
+  "name": "human_reply_ok",
+  "value": 0.0,
+  "string": "False",
+  "comment": "Booking and payments is one rate-card item ($1,400). Counted twice: $2,800."
+ },
+ {
+  "message_id": "msg-02",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ },
+ {
+  "message_id": "msg-01",
+  "name": "human_reply_ok",
+  "value": 1.0,
+  "string": "True",
+  "comment": null
+ }
+]

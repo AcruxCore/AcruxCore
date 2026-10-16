@@ -1,0 +1,35 @@
+# 23 Langfuse billable units per trace, measured on the 30 v2-rerun task traces
+# unit = 1 trace + each observation + each score (Langfuse pricing FAQ)
+msg-01 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-02 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-03 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-04 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-05 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-06 observations 17 {'EVALUATOR': 3, 'GENERATION': 5, 'SPAN': 8, 'TOOL': 1} scores 3
+msg-07 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-08 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-09 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-10 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-11 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-12 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-13 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-14 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-15 observations 17 {'EVALUATOR': 3, 'GENERATION': 5, 'SPAN': 8, 'TOOL': 1} scores 3
+msg-16 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-17 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-18 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-19 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-20 observations 17 {'EVALUATOR': 3, 'GENERATION': 5, 'SPAN': 8, 'TOOL': 1} scores 3
+msg-21 observations 17 {'EVALUATOR': 3, 'GENERATION': 5, 'SPAN': 8, 'TOOL': 1} scores 3
+msg-22 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-23 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-24 observations 19 {'EVALUATOR': 3, 'GENERATION': 6, 'SPAN': 9, 'TOOL': 1} scores 3
+msg-25 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-26 observations 19 {'EVALUATOR': 3, 'GENERATION': 6, 'SPAN': 9, 'TOOL': 1} scores 3
+msg-27 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-28 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-29 observations 15 {'EVALUATOR': 3, 'GENERATION': 4, 'SPAN': 7, 'TOOL': 1} scores 3
+msg-30 observations 17 {'EVALUATOR': 3, 'GENERATION': 5, 'SPAN': 8, 'TOOL': 1} scores 3
+avg observations 15.6 min 15 max 19
+avg scores on trace 3.0
+avg units without scores (live traffic) 16.6

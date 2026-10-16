@@ -1,0 +1,5 @@
+endpoint https://eu.api.smith.langchain.com
+list -> ImportError The client.create_commit function requires the langchain-corepackage to run.
+Install with `pip install langchain-core`
+dict -> ImportError The client.create_commit function requires the langchain-corepackage to run.
+Install with `pip install langchain-core`

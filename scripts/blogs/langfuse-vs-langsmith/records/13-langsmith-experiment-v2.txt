@@ -1,0 +1,532 @@
+Fri 16 Oct 10:29:21 PKT 2026
+View the evaluation results for experiment: 'v2-4badd90d' at:
+https://eu.smith.langchain.com/o/24efd6a9-61ac-434f-9426-6a082c6b512d/datasets/1a54f3fd-86ff-4402-b855-27d66e86f996/compare?selectedSessions=a37c82a8-5e1b-4f64-bbd1-809f331fbaa4
+
+
+0it [00:00, ?it/s]1it [00:21, 21.17s/it]Error running evaluator <DynamicRunEvaluator judge_eval> on run 01a1432f-bc3f-7172-92c5-13a740f12808: RateLimitError("Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}")
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1679, in _run_evaluators
+    evaluator_response = evaluator.evaluate_run(  # type: ignore[call-arg]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 370, in evaluate_run
+    result = self.func(
+             ^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 791, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 89, in judge_eval
+    verdict = judge_reply(client, judge_messages, inputs["message"], reference_outputs, outputs["reply"],
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/scoring.py", line 40, in judge_reply
+    response = client.chat.completions.create(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/wrappers/_openai.py", line 303, in create
+    return decorator(original_create)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_utils/_utils.py", line 298, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/resources/chat/completions/completions.py", line 1284, in create
+    return self._post(
+           ^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_base_client.py", line 1360, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_base_client.py", line 1133, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.RateLimitError: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+Error running target function: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1989, in _forward
+    fn(*args, langsmith_extra=langsmith_extra)
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 80, in target
+    return app(**inputs)
+           ^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/pipeline.py", line 81, in scope_check
+    requests = extract(message)
+               ^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/pipeline.py", line 41, in extract
+    return ask("scope-extract", message=message).get("requests", [])
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/pipeline.py", line 33, in ask
+    response = client.chat.completions.create(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/wrappers/_openai.py", line 303, in create
+    return decorator(original_create)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_utils/_utils.py", line 298, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/resources/chat/completions/completions.py", line 1284, in create
+    return self._post(
+           ^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_base_client.py", line 1360, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_base_client.py", line 1133, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.RateLimitError: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+3it [00:38, 11.73s/it]Error running evaluator <DynamicRunEvaluator items_eval> on run 01a14330-1690-7912-88c9-ce9db5e7e5be: KeyError('items')
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1679, in _run_evaluators
+    evaluator_response = evaluator.evaluate_run(  # type: ignore[call-arg]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 370, in evaluate_run
+    result = self.func(
+             ^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 791, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 83, in items_eval
+    return {"key": "items_exact", "score": float(items_exact(outputs["items"], reference_outputs["items"]))}
+                                                             ~~~~~~~^^^^^^^^^
+KeyError: 'items'
+Error running evaluator <DynamicRunEvaluator total_eval> on run 01a14330-1690-7912-88c9-ce9db5e7e5be: KeyError('total')
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1679, in _run_evaluators
+    evaluator_response = evaluator.evaluate_run(  # type: ignore[call-arg]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 370, in evaluate_run
+    result = self.func(
+             ^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 791, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 86, in total_eval
+    return {"key": "total_exact", "score": float(total_exact(outputs["total"], reference_outputs["total"]))}
+                                                             ~~~~~~~^^^^^^^^^
+KeyError: 'total'
+Error running evaluator <DynamicRunEvaluator judge_eval> on run 01a14330-1690-7912-88c9-ce9db5e7e5be: KeyError('reply')
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1679, in _run_evaluators
+    evaluator_response = evaluator.evaluate_run(  # type: ignore[call-arg]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 370, in evaluate_run
+    result = self.func(
+             ^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 791, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 89, in judge_eval
+    verdict = judge_reply(client, judge_messages, inputs["message"], reference_outputs, outputs["reply"],
+                                                                                        ~~~~~~~^^^^^^^^^
+KeyError: 'reply'
+5it [00:39,  6.17s/it]6it [00:46,  6.39s/it]Error running target function: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1989, in _forward
+    fn(*args, langsmith_extra=langsmith_extra)
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 80, in target
+    return app(**inputs)
+           ^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/pipeline.py", line 82, in scope_check
+    checked = [classify(r, received) for r in requests]
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/pipeline.py", line 45, in classify
+    result = ask(
+             ^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/pipeline.py", line 33, in ask
+    response = client.chat.completions.create(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/wrappers/_openai.py", line 303, in create
+    return decorator(original_create)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_utils/_utils.py", line 298, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/resources/chat/completions/completions.py", line 1284, in create
+    return self._post(
+           ^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_base_client.py", line 1360, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_base_client.py", line 1133, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.RateLimitError: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+Error running evaluator <DynamicRunEvaluator items_eval> on run 01a14330-0ef4-7a82-ae01-a1c74d65531d: KeyError('items')
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1679, in _run_evaluators
+    evaluator_response = evaluator.evaluate_run(  # type: ignore[call-arg]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 370, in evaluate_run
+    result = self.func(
+             ^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 791, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 83, in items_eval
+    return {"key": "items_exact", "score": float(items_exact(outputs["items"], reference_outputs["items"]))}
+                                                             ~~~~~~~^^^^^^^^^
+KeyError: 'items'
+Error running evaluator <DynamicRunEvaluator total_eval> on run 01a14330-0ef4-7a82-ae01-a1c74d65531d: KeyError('total')
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1679, in _run_evaluators
+    evaluator_response = evaluator.evaluate_run(  # type: ignore[call-arg]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 370, in evaluate_run
+    result = self.func(
+             ^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 791, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 86, in total_eval
+    return {"key": "total_exact", "score": float(total_exact(outputs["total"], reference_outputs["total"]))}
+                                                             ~~~~~~~^^^^^^^^^
+KeyError: 'total'
+Error running evaluator <DynamicRunEvaluator judge_eval> on run 01a14330-0ef4-7a82-ae01-a1c74d65531d: KeyError('reply')
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1679, in _run_evaluators
+    evaluator_response = evaluator.evaluate_run(  # type: ignore[call-arg]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 370, in evaluate_run
+    result = self.func(
+             ^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 791, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 89, in judge_eval
+    verdict = judge_reply(client, judge_messages, inputs["message"], reference_outputs, outputs["reply"],
+                                                                                        ~~~~~~~^^^^^^^^^
+KeyError: 'reply'
+8it [00:57,  6.03s/it]10it [01:14,  6.85s/it]Error running evaluator <DynamicRunEvaluator judge_eval> on run 01a14330-733f-7e70-b0f1-22f7850b5782: RateLimitError("Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}")
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1679, in _run_evaluators
+    evaluator_response = evaluator.evaluate_run(  # type: ignore[call-arg]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 370, in evaluate_run
+    result = self.func(
+             ^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 791, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 89, in judge_eval
+    verdict = judge_reply(client, judge_messages, inputs["message"], reference_outputs, outputs["reply"],
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/scoring.py", line 40, in judge_reply
+    response = client.chat.completions.create(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/wrappers/_openai.py", line 303, in create
+    return decorator(original_create)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_utils/_utils.py", line 298, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/resources/chat/completions/completions.py", line 1284, in create
+    return self._post(
+           ^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_base_client.py", line 1360, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_base_client.py", line 1133, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.RateLimitError: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+11it [01:30,  8.88s/it]Error running target function: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1989, in _forward
+    fn(*args, langsmith_extra=langsmith_extra)
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 80, in target
+    return app(**inputs)
+           ^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/pipeline.py", line 82, in scope_check
+    checked = [classify(r, received) for r in requests]
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/pipeline.py", line 45, in classify
+    result = ask(
+             ^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/pipeline.py", line 33, in ask
+    response = client.chat.completions.create(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/wrappers/_openai.py", line 303, in create
+    return decorator(original_create)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_utils/_utils.py", line 298, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/resources/chat/completions/completions.py", line 1284, in create
+    return self._post(
+           ^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_base_client.py", line 1360, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_base_client.py", line 1133, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.RateLimitError: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+Error running evaluator <DynamicRunEvaluator items_eval> on run 01a14330-dead-76f2-8159-30a6c5a81033: KeyError('items')
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1679, in _run_evaluators
+    evaluator_response = evaluator.evaluate_run(  # type: ignore[call-arg]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 370, in evaluate_run
+    result = self.func(
+             ^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 791, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 83, in items_eval
+    return {"key": "items_exact", "score": float(items_exact(outputs["items"], reference_outputs["items"]))}
+                                                             ~~~~~~~^^^^^^^^^
+KeyError: 'items'
+Error running evaluator <DynamicRunEvaluator total_eval> on run 01a14330-dead-76f2-8159-30a6c5a81033: KeyError('total')
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1679, in _run_evaluators
+    evaluator_response = evaluator.evaluate_run(  # type: ignore[call-arg]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 370, in evaluate_run
+    result = self.func(
+             ^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 791, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 86, in total_eval
+    return {"key": "total_exact", "score": float(total_exact(outputs["total"], reference_outputs["total"]))}
+                                                             ~~~~~~~^^^^^^^^^
+KeyError: 'total'
+Error running evaluator <DynamicRunEvaluator judge_eval> on run 01a14330-dead-76f2-8159-30a6c5a81033: KeyError('reply')
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1679, in _run_evaluators
+    evaluator_response = evaluator.evaluate_run(  # type: ignore[call-arg]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 370, in evaluate_run
+    result = self.func(
+             ^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 791, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 89, in judge_eval
+    verdict = judge_reply(client, judge_messages, inputs["message"], reference_outputs, outputs["reply"],
+                                                                                        ~~~~~~~^^^^^^^^^
+KeyError: 'reply'
+15it [01:33,  4.34s/it]Error running target function: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1989, in _forward
+    fn(*args, langsmith_extra=langsmith_extra)
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 80, in target
+    return app(**inputs)
+           ^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/pipeline.py", line 85, in scope_check
+    "reply": reply(message, checked, quote)}
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/pipeline.py", line 71, in reply
+    return ask(
+           ^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/pipeline.py", line 33, in ask
+    response = client.chat.completions.create(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/wrappers/_openai.py", line 303, in create
+    return decorator(original_create)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_utils/_utils.py", line 298, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/resources/chat/completions/completions.py", line 1284, in create
+    return self._post(
+           ^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_base_client.py", line 1360, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_base_client.py", line 1133, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.RateLimitError: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+16it [01:38,  4.52s/it]Error running evaluator <DynamicRunEvaluator items_eval> on run 01a14330-de7c-7281-be27-7025b1161e05: KeyError('items')
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1679, in _run_evaluators
+    evaluator_response = evaluator.evaluate_run(  # type: ignore[call-arg]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 370, in evaluate_run
+    result = self.func(
+             ^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 791, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 83, in items_eval
+    return {"key": "items_exact", "score": float(items_exact(outputs["items"], reference_outputs["items"]))}
+                                                             ~~~~~~~^^^^^^^^^
+KeyError: 'items'
+Error running evaluator <DynamicRunEvaluator total_eval> on run 01a14330-de7c-7281-be27-7025b1161e05: KeyError('total')
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1679, in _run_evaluators
+    evaluator_response = evaluator.evaluate_run(  # type: ignore[call-arg]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 370, in evaluate_run
+    result = self.func(
+             ^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 791, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 86, in total_eval
+    return {"key": "total_exact", "score": float(total_exact(outputs["total"], reference_outputs["total"]))}
+                                                             ~~~~~~~^^^^^^^^^
+KeyError: 'total'
+Error running evaluator <DynamicRunEvaluator judge_eval> on run 01a14330-de7c-7281-be27-7025b1161e05: KeyError('reply')
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1679, in _run_evaluators
+    evaluator_response = evaluator.evaluate_run(  # type: ignore[call-arg]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 370, in evaluate_run
+    result = self.func(
+             ^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 791, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 89, in judge_eval
+    verdict = judge_reply(client, judge_messages, inputs["message"], reference_outputs, outputs["reply"],
+                                                                                        ~~~~~~~^^^^^^^^^
+KeyError: 'reply'
+17it [01:42,  4.48s/it]18it [01:51,  5.27s/it]Error running target function: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1989, in _forward
+    fn(*args, langsmith_extra=langsmith_extra)
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 80, in target
+    return app(**inputs)
+           ^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/pipeline.py", line 85, in scope_check
+    "reply": reply(message, checked, quote)}
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/pipeline.py", line 71, in reply
+    return ask(
+           ^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/pipeline.py", line 33, in ask
+    response = client.chat.completions.create(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/wrappers/_openai.py", line 303, in create
+    return decorator(original_create)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_utils/_utils.py", line 298, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/resources/chat/completions/completions.py", line 1284, in create
+    return self._post(
+           ^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_base_client.py", line 1360, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_base_client.py", line 1133, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.RateLimitError: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+20it [01:54,  3.90s/it]Error running evaluator <DynamicRunEvaluator items_eval> on run 01a14331-1e49-7c92-a938-90c5c08110cd: KeyError('items')
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1679, in _run_evaluators
+    evaluator_response = evaluator.evaluate_run(  # type: ignore[call-arg]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 370, in evaluate_run
+    result = self.func(
+             ^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 791, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 83, in items_eval
+    return {"key": "items_exact", "score": float(items_exact(outputs["items"], reference_outputs["items"]))}
+                                                             ~~~~~~~^^^^^^^^^
+KeyError: 'items'
+Error running evaluator <DynamicRunEvaluator total_eval> on run 01a14331-1e49-7c92-a938-90c5c08110cd: KeyError('total')
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1679, in _run_evaluators
+    evaluator_response = evaluator.evaluate_run(  # type: ignore[call-arg]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 370, in evaluate_run
+    result = self.func(
+             ^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 791, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 86, in total_eval
+    return {"key": "total_exact", "score": float(total_exact(outputs["total"], reference_outputs["total"]))}
+                                                             ~~~~~~~^^^^^^^^^
+KeyError: 'total'
+Error running evaluator <DynamicRunEvaluator judge_eval> on run 01a14331-1e49-7c92-a938-90c5c08110cd: KeyError('reply')
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1679, in _run_evaluators
+    evaluator_response = evaluator.evaluate_run(  # type: ignore[call-arg]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 370, in evaluate_run
+    result = self.func(
+             ^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 791, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 89, in judge_eval
+    verdict = judge_reply(client, judge_messages, inputs["message"], reference_outputs, outputs["reply"],
+                                                                                        ~~~~~~~^^^^^^^^^
+KeyError: 'reply'
+21it [01:56,  3.53s/it]23it [02:03,  3.53s/it]24it [02:08,  3.73s/it]25it [02:16,  4.92s/it]Error running target function: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1989, in _forward
+    fn(*args, langsmith_extra=langsmith_extra)
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 80, in target
+    return app(**inputs)
+           ^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/pipeline.py", line 82, in scope_check
+    checked = [classify(r, received) for r in requests]
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/pipeline.py", line 45, in classify
+    result = ask(
+             ^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/pipeline.py", line 33, in ask
+    response = client.chat.completions.create(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/wrappers/_openai.py", line 303, in create
+    return decorator(original_create)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_utils/_utils.py", line 298, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/resources/chat/completions/completions.py", line 1284, in create
+    return self._post(
+           ^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_base_client.py", line 1360, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/openai/_base_client.py", line 1133, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.RateLimitError: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+Error running evaluator <DynamicRunEvaluator items_eval> on run 01a14331-9f39-7990-8032-3a10878943a1: KeyError('items')
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1679, in _run_evaluators
+    evaluator_response = evaluator.evaluate_run(  # type: ignore[call-arg]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 370, in evaluate_run
+    result = self.func(
+             ^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 791, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 83, in items_eval
+    return {"key": "items_exact", "score": float(items_exact(outputs["items"], reference_outputs["items"]))}
+                                                             ~~~~~~~^^^^^^^^^
+KeyError: 'items'
+Error running evaluator <DynamicRunEvaluator total_eval> on run 01a14331-9f39-7990-8032-3a10878943a1: KeyError('total')
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1679, in _run_evaluators
+    evaluator_response = evaluator.evaluate_run(  # type: ignore[call-arg]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 370, in evaluate_run
+    result = self.func(
+             ^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 791, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 86, in total_eval
+    return {"key": "total_exact", "score": float(total_exact(outputs["total"], reference_outputs["total"]))}
+                                                             ~~~~~~~^^^^^^^^^
+KeyError: 'total'
+Error running evaluator <DynamicRunEvaluator judge_eval> on run 01a14331-9f39-7990-8032-3a10878943a1: KeyError('reply')
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/_runner.py", line 1679, in _run_evaluators
+    evaluator_response = evaluator.evaluate_run(  # type: ignore[call-arg]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 370, in evaluate_run
+    result = self.func(
+             ^^^^^^^^^^
+  File "/tmp/claude-1000/-home-talhaanwar-Code-agenticprompthub/097329a5-f389-4f95-86d6-d6b4035bdba2/scratchpad/venv-langsmith/lib/python3.12/site-packages/langsmith/evaluation/evaluator.py", line 791, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/talhaanwar/Code/agenticprompthub/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py", line 89, in judge_eval
+    verdict = judge_reply(client, judge_messages, inputs["message"], reference_outputs, outputs["reply"],
+                                                                                        ~~~~~~~^^^^^^^^^
+KeyError: 'reply'
+27it [02:22,  4.10s/it]28it [02:25,  3.79s/it]29it [02:25,  2.95s/it]30it [02:28,  2.86s/it]30it [02:28,  4.94s/it]
+experiment v2-4badd90d
+wall seconds 149.9
+
+real	2m31.486s
+user	0m1.888s
+sys	0m0.383s

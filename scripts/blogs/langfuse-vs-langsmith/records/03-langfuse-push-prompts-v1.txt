@@ -1,0 +1,8 @@
+scope-extract -> Langfuse version 1 labels ['production', 'latest']
+scope-classify -> Langfuse version 1 labels ['production', 'latest']
+scope-reply -> Langfuse version 1 labels ['production', 'latest']
+scope-judge -> Langfuse version 1 labels ['production', 'latest']
+
+real	0m2.209s
+user	0m0.863s
+sys	0m0.076s

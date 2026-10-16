@@ -1,0 +1,6 @@
+scope-extract -> Langfuse version 2 labels ['candidate', 'latest']
+scope-classify -> Langfuse version 2 labels ['candidate', 'latest']
+
+real	0m1.669s
+user	0m0.852s
+sys	0m0.102s

@@ -1,0 +1,1127 @@
+[
+ {
+  "message_id": "msg-15",
+  "key": "note",
+  "score": null,
+  "value": null,
+  "comment": "Instagram-ads link has no rate-card item: should be needs_estimate. Total should be $120, not $240.",
+  "source": "app",
+  "created": "2026-10-16 05:37:28.634309"
+ },
+ {
+  "message_id": "msg-21",
+  "key": "note",
+  "score": null,
+  "value": null,
+  "comment": "Offers the copy-to-sender feature for free. S3 only covers email to the studio; this needs an estimate. The judge passed it.",
+  "source": "app",
+  "created": "2026-10-16 05:37:04.653467"
+ },
+ {
+  "message_id": "msg-21",
+  "key": "human_reply_ok",
+  "score": 0.0,
+  "value": "needs a fix",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:36:52.965119"
+ },
+ {
+  "message_id": "msg-23",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:36:39.010126"
+ },
+ {
+  "message_id": "msg-04",
+  "key": "note",
+  "score": null,
+  "value": null,
+  "comment": "Reply is right. The judge failed it because it read the clause list (S7 or S3) as both required.",
+  "source": "app",
+  "created": "2026-10-16 05:36:27.668320"
+ },
+ {
+  "message_id": "msg-04",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:36:17.830414"
+ },
+ {
+  "message_id": "msg-29",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:36:03.887059"
+ },
+ {
+  "message_id": "msg-01",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:35:51.257043"
+ },
+ {
+  "message_id": "msg-12",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:35:38.582899"
+ },
+ {
+  "message_id": "msg-03",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:35:25.260726"
+ },
+ {
+  "message_id": "msg-27",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:35:12.067022"
+ },
+ {
+  "message_id": "msg-02",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:34:58.377210"
+ },
+ {
+  "message_id": "msg-24",
+  "key": "note",
+  "score": null,
+  "value": null,
+  "comment": "Total is right. Item 1 calls S5 the 30-day bug-fix window; S5 is basic SEO, the bug-fix window is S7.",
+  "source": "app",
+  "created": "2026-10-16 05:34:45.700759"
+ },
+ {
+  "message_id": "msg-24",
+  "key": "human_reply_ok",
+  "score": 0.0,
+  "value": "needs a fix",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:34:33.626934"
+ },
+ {
+  "message_id": "msg-10",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:34:17.077644"
+ },
+ {
+  "message_id": "msg-11",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:34:02.776367"
+ },
+ {
+  "message_id": "msg-16",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:33:49.478307"
+ },
+ {
+  "message_id": "msg-09",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:33:34.363645"
+ },
+ {
+  "message_id": "msg-05",
+  "key": "note",
+  "score": null,
+  "value": null,
+  "comment": "Reply is right ($360). items_exact fails only because the label groups both pages into one item with quantity 2.",
+  "source": "app",
+  "created": "2026-10-16 05:33:04.601792"
+ },
+ {
+  "message_id": "msg-05",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:32:51.729578"
+ },
+ {
+  "message_id": "msg-25",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:32:36.343804"
+ },
+ {
+  "message_id": "msg-15",
+  "key": "human_reply_ok",
+  "score": 0.0,
+  "value": "needs a fix",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:32:03.950938"
+ },
+ {
+  "message_id": "msg-19",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:31:53.792704"
+ },
+ {
+  "message_id": "msg-08",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:31:44.615291"
+ },
+ {
+  "message_id": "msg-18",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:31:35.821521"
+ },
+ {
+  "message_id": "msg-07",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:31:27.111252"
+ },
+ {
+  "message_id": "msg-26",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:31:18.220920"
+ },
+ {
+  "message_id": "msg-17",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:31:09.272356"
+ },
+ {
+  "message_id": "msg-14",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:30:58.608594"
+ },
+ {
+  "message_id": "msg-13",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:30:49.779793"
+ },
+ {
+  "message_id": "msg-06",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:30:41.099734"
+ },
+ {
+  "message_id": "msg-28",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:30:32.289902"
+ },
+ {
+  "message_id": "msg-30",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:30:22.901341"
+ },
+ {
+  "message_id": "msg-20",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:30:13.644987"
+ },
+ {
+  "message_id": "msg-22",
+  "key": "human_reply_ok",
+  "score": 1.0,
+  "value": "send as is",
+  "comment": null,
+  "source": "app",
+  "created": "2026-10-16 05:29:58.579143"
+ },
+ {
+  "message_id": "msg-23",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "The unclear pop-up request gets a clarifying question, the estimate is promised without quoting a cost or doing free out-of-scope work, and the total remains $0 as expected.",
+  "source": "model",
+  "created": "2026-10-16 05:14:59.715333"
+ },
+ {
+  "message_id": "msg-27",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "The reply correctly states the fix needs a separate estimate, keeps the total at $0 without asking for payment now, does not offer out-of-scope work for free, and asks a clarifying question about the map issue.",
+  "source": "model",
+  "created": "2026-10-16 05:14:57.674069"
+ },
+ {
+  "message_id": "msg-27",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:54.591822"
+ },
+ {
+  "message_id": "msg-27",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:54.591822"
+ },
+ {
+  "message_id": "msg-23",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:54.590636"
+ },
+ {
+  "message_id": "msg-17",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "The reply treats the app as out-of-scope new work, promises an estimate rather than free work or a $0 total, and asks a clarifying question.",
+  "source": "model",
+  "created": "2026-10-16 05:14:54.590636"
+ },
+ {
+  "message_id": "msg-23",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:54.590636"
+ },
+ {
+  "message_id": "msg-17",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:53.044210"
+ },
+ {
+  "message_id": "msg-17",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:53.044210"
+ },
+ {
+  "message_id": "msg-05",
+  "key": "items_exact",
+  "score": 0.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:53.040984"
+ },
+ {
+  "message_id": "msg-05",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:53.040984"
+ },
+ {
+  "message_id": "msg-05",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "Both extra pages are quoted at $180 each totaling $360 with no free out-of-scope work, and no unclear requests remain.",
+  "source": "model",
+  "created": "2026-10-16 05:14:53.040984"
+ },
+ {
+  "message_id": "msg-24",
+  "key": "reply_judge",
+  "score": 0.0,
+  "value": null,
+  "comment": "The reply offers the page title updates for free under an SEO clause, but that work is not covered by the expected in-scope request (S5 sitemap only), so out-of-scope work is being provided at no cost.",
+  "source": "model",
+  "created": "2026-10-16 05:14:49.145975"
+ },
+ {
+  "message_id": "msg-15",
+  "key": "reply_judge",
+  "score": 0.0,
+  "value": null,
+  "comment": "The quoted total is $240 instead of the expected $120, and connecting analytics to Instagram ads (a needs_estimate item with unclear specifics) was priced rather than clarified or estimated correctly.",
+  "source": "model",
+  "created": "2026-10-16 05:14:49.140488"
+ },
+ {
+  "message_id": "msg-01",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "The in-scope request is addressed under clause S6, no money is requested with the total correctly stated as $0, and no out-of-scope work is offered for free.",
+  "source": "model",
+  "created": "2026-10-16 05:14:47.879437"
+ },
+ {
+  "message_id": "msg-01",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:42.761818"
+ },
+ {
+  "message_id": "msg-15",
+  "key": "total_exact",
+  "score": 0.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:42.761818"
+ },
+ {
+  "message_id": "msg-24",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:42.761818"
+ },
+ {
+  "message_id": "msg-24",
+  "key": "items_exact",
+  "score": 0.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:42.761818"
+ },
+ {
+  "message_id": "msg-01",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:42.761818"
+ },
+ {
+  "message_id": "msg-15",
+  "key": "items_exact",
+  "score": 0.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:42.761818"
+ },
+ {
+  "message_id": "msg-18",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "The reply prices all three out-of-scope pages correctly at $540 total, offers them as paid work, and asks a clarifying question about content.",
+  "source": "model",
+  "created": "2026-10-16 05:14:40.010933"
+ },
+ {
+  "message_id": "msg-10",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "The reply asks a clarifying question for the unclear request, does not request payment, and defers any out-of-scope redesign work to a paid estimate.",
+  "source": "model",
+  "created": "2026-10-16 05:14:37.670966"
+ },
+ {
+  "message_id": "msg-10",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:32.753438"
+ },
+ {
+  "message_id": "msg-10",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:32.753438"
+ },
+ {
+  "message_id": "msg-03",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "The out-of-scope booking/payment feature is not offered for free, the total matches the expected $1,400, and the client's single request is addressed.",
+  "source": "model",
+  "created": "2026-10-16 05:14:32.743916"
+ },
+ {
+  "message_id": "msg-18",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:29.715071"
+ },
+ {
+  "message_id": "msg-18",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:29.715071"
+ },
+ {
+  "message_id": "msg-03",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:29.715071"
+ },
+ {
+  "message_id": "msg-03",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:29.715071"
+ },
+ {
+  "message_id": "msg-02",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "The reply correctly quotes the out-of-scope blog at the expected $650 total, doesn't offer free work, and responds to the request clearly.",
+  "source": "model",
+  "created": "2026-10-16 05:14:29.706956"
+ },
+ {
+  "message_id": "msg-02",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:27.603208"
+ },
+ {
+  "message_id": "msg-02",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:27.603208"
+ },
+ {
+  "message_id": "msg-20",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "Both requests are addressed with correct pricing totaling $890, out-of-scope work is not offered free, and a clarifying question is asked about translation provision.",
+  "source": "model",
+  "created": "2026-10-16 05:14:27.594975"
+ },
+ {
+  "message_id": "msg-25",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "The reply addresses the request with a separate estimate, confirms no change to the existing total, and does not offer the out-of-scope work for free.",
+  "source": "model",
+  "created": "2026-10-16 05:14:27.594975"
+ },
+ {
+  "message_id": "msg-25",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:23.901632"
+ },
+ {
+  "message_id": "msg-12",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "The out-of-scope member login is not offered for free, the $1,200 total matches the expected total, and no unclear requests require clarification.",
+  "source": "model",
+  "created": "2026-10-16 05:14:23.901632"
+ },
+ {
+  "message_id": "msg-25",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:23.901632"
+ },
+ {
+  "message_id": "msg-12",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:22.596297"
+ },
+ {
+  "message_id": "msg-12",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:22.596297"
+ },
+ {
+  "message_id": "msg-20",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:22.592949"
+ },
+ {
+  "message_id": "msg-20",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:22.592949"
+ },
+ {
+  "message_id": "msg-22",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:22.592648"
+ },
+ {
+  "message_id": "msg-22",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:22.592648"
+ },
+ {
+  "message_id": "msg-22",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "The unclear request received a clarifying question, no money was requested, and no out-of-scope work was offered.",
+  "source": "model",
+  "created": "2026-10-16 05:14:22.592648"
+ },
+ {
+  "message_id": "msg-11",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "The sitemap request is answered as in-scope work with no charge, the total of $0 matches, no out-of-scope free work is offered, and no clarification is needed since the request is clear.",
+  "source": "model",
+  "created": "2026-10-16 05:14:17.587992"
+ },
+ {
+  "message_id": "msg-04",
+  "key": "reply_judge",
+  "score": 0.0,
+  "value": null,
+  "comment": "The reply cites only clause S7 and never addresses the second expected clause S3 covering the request.",
+  "source": "model",
+  "created": "2026-10-16 05:14:17.576191"
+ },
+ {
+  "message_id": "msg-28",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "The in-scope mobile menu request is confirmed covered under S4 at no extra charge, with no unpaid out-of-scope work offered.",
+  "source": "model",
+  "created": "2026-10-16 05:14:17.576191"
+ },
+ {
+  "message_id": "msg-11",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:13.038011"
+ },
+ {
+  "message_id": "msg-11",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:13.038011"
+ },
+ {
+  "message_id": "msg-28",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:08.235866"
+ },
+ {
+  "message_id": "msg-04",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:08.235866"
+ },
+ {
+  "message_id": "msg-04",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:08.235866"
+ },
+ {
+  "message_id": "msg-28",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:08.235866"
+ },
+ {
+  "message_id": "msg-30",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "Both out-of-scope requests are quoted at the correct total of $270 with no free work offered and no unclear requests requiring clarification.",
+  "source": "model",
+  "created": "2026-10-16 05:14:08.230493"
+ },
+ {
+  "message_id": "msg-30",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:05.330437"
+ },
+ {
+  "message_id": "msg-09",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "The reply addresses the iPad layout issue as in-scope under S4 with no extra charge, and asks a clarifying question about the iPad model.",
+  "source": "model",
+  "created": "2026-10-16 05:14:05.330437"
+ },
+ {
+  "message_id": "msg-30",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:14:05.330437"
+ },
+ {
+  "message_id": "msg-21",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "Both requests are addressed: the in-scope confirmation copy is confirmed at no charge, the out-of-scope newsletter checkbox is quoted at $150 matching the expected total, and nothing out of scope is offered for free.",
+  "source": "model",
+  "created": "2026-10-16 05:14:02.601739"
+ },
+ {
+  "message_id": "msg-19",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "The typo fix is acknowledged as in-scope under clause S7 at $0 total with no free out-of-scope work offered, and no unclear requests needed clarification.",
+  "source": "model",
+  "created": "2026-10-16 05:14:02.601739"
+ },
+ {
+  "message_id": "msg-19",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:59.795919"
+ },
+ {
+  "message_id": "msg-19",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:59.795919"
+ },
+ {
+  "message_id": "msg-09",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:59.189924"
+ },
+ {
+  "message_id": "msg-09",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:59.189924"
+ },
+ {
+  "message_id": "msg-29",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:57.969438"
+ },
+ {
+  "message_id": "msg-29",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:57.969438"
+ },
+ {
+  "message_id": "msg-29",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "The reply identifies the Gift Cards page as out of scope, quotes the $180 total correctly, and does not offer free work.",
+  "source": "model",
+  "created": "2026-10-16 05:13:57.969438"
+ },
+ {
+  "message_id": "msg-21",
+  "key": "items_exact",
+  "score": 0.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:53.171202"
+ },
+ {
+  "message_id": "msg-13",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "The reply addresses the out-of-scope dark mode request by offering it as a paid add-on at the correct total of $300 USD without offering free work.",
+  "source": "model",
+  "created": "2026-10-16 05:13:53.171202"
+ },
+ {
+  "message_id": "msg-21",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:53.171202"
+ },
+ {
+  "message_id": "msg-07",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "The out-of-scope PDF export is quoted at $250 (matching the expected total), not offered for free, and a clarifying question is asked about the PDF format.",
+  "source": "model",
+  "created": "2026-10-16 05:13:53.150500"
+ },
+ {
+  "message_id": "msg-07",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:53.150500"
+ },
+ {
+  "message_id": "msg-07",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:53.150500"
+ },
+ {
+  "message_id": "msg-13",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:49.788091"
+ },
+ {
+  "message_id": "msg-13",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:49.788091"
+ },
+ {
+  "message_id": "msg-14",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:47.532464"
+ },
+ {
+  "message_id": "msg-14",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "The out-of-scope third revision round is offered only as paid work at the correct $220 total, and the developer asks for a consolidated list clarifying the requested changes.",
+  "source": "model",
+  "created": "2026-10-16 05:13:47.532464"
+ },
+ {
+  "message_id": "msg-14",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:47.532464"
+ },
+ {
+  "message_id": "msg-26",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "All three requests are addressed with correct pricing totaling $3,250, out-of-scope work is quoted rather than offered free, and a clarifying question about password resets is included.",
+  "source": "model",
+  "created": "2026-10-16 05:13:47.532464"
+ },
+ {
+  "message_id": "msg-26",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:43.637618"
+ },
+ {
+  "message_id": "msg-26",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:43.637618"
+ },
+ {
+  "message_id": "msg-06",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:42.609655"
+ },
+ {
+  "message_id": "msg-16",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "The reply confirms the S2 automatic schedule update is in scope at no extra cost, matches the $0 total, and offers no out-of-scope free work.",
+  "source": "model",
+  "created": "2026-10-16 05:13:42.609655"
+ },
+ {
+  "message_id": "msg-06",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:42.609655"
+ },
+ {
+  "message_id": "msg-08",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "The out-of-scope copywriting request is offered as a paid add-on at the correct expected total of $90, with no free work or unaddressed requests.",
+  "source": "model",
+  "created": "2026-10-16 05:13:42.609655"
+ },
+ {
+  "message_id": "msg-06",
+  "key": "reply_judge",
+  "score": 1.0,
+  "value": null,
+  "comment": "Both out-of-scope requests are addressed with quotes totaling $550, no free work is offered, and no unclear requests require clarification.",
+  "source": "model",
+  "created": "2026-10-16 05:13:42.609655"
+ },
+ {
+  "message_id": "msg-08",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:37.789774"
+ },
+ {
+  "message_id": "msg-16",
+  "key": "total_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:37.789774"
+ },
+ {
+  "message_id": "msg-16",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:37.789774"
+ },
+ {
+  "message_id": "msg-08",
+  "key": "items_exact",
+  "score": 1.0,
+  "value": null,
+  "comment": null,
+  "source": "model",
+  "created": "2026-10-16 05:13:37.789774"
+ }
+]

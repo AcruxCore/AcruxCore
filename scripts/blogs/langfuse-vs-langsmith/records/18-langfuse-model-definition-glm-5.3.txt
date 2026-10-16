@@ -1,0 +1,43 @@
+# 18 Langfuse custom model definition for glm-5.3 (2026-10-16T10:52:04+05:00)
+UI: Project Settings -> Model Definitions -> Add Model Definition. Fields: Model Name glm-5.3; Match pattern (?i)^(glm-5\.3)$; Prices input 0.0000014, output 0.0000044, input_cached_tokens 0.00000026 (per token; z.ai public price per 1M: 1.40/4.40/0.26). Tokenizer None. Submit.
+Clicks: Settings(1) Model Definitions(1) Add Model Definition(1) Add Price x1 (2 rows exist by default) Submit(1) = 5 clicks + 7 fields typed.
+API check after submit:
+{
+ "id": "a39e056e-4773-4916-a811-798f4939aeaa",
+ "createdAt": "2026-10-16T05:51:32.742Z",
+ "modelName": "glm-5.3",
+ "matchPattern": "(?i)^(glm-5\\.3)$",
+ "startDate": "2010-01-01T00:00:00.000Z",
+ "tokenizerId": null,
+ "tokenizerConfig": null,
+ "unit": "TOKENS",
+ "inputPrice": 1.4e-06,
+ "outputPrice": 4.4e-06,
+ "totalPrice": null,
+ "prices": {
+  "input": {
+   "price": 1.4e-06
+  },
+  "output": {
+   "price": 4.4e-06
+  },
+  "input_cached_tokens": {
+   "price": 2.6e-07
+  }
+ },
+ "isLangfuseManaged": false,
+ "pricingTiers": [
+  {
+   "id": "cmvajv79q017gad0j20v8k6mt",
+   "name": "Standard",
+   "isDefault": true,
+   "priority": 0,
+   "conditions": [],
+   "prices": {
+    "input": 1.4e-06,
+    "output": 4.4e-06,
+    "input_cached_tokens": 2.6e-07
+   }
+  }
+ ]
+}

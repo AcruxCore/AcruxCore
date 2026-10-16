@@ -1,0 +1,7 @@
+human verdicts 30 send as is 27 needs a fix 3
+msg-04 human send as is | auto {'items_exact': 1.0, 'total_exact': 1.0, 'reply_judge': 0.0} | comment None
+msg-05 human send as is | auto {'items_exact': 0.0, 'total_exact': 1.0, 'reply_judge': 1.0} | comment None
+msg-15 human needs a fix | auto {'items_exact': 0.0, 'total_exact': 0.0, 'reply_judge': 0.0} | comment None
+msg-21 human needs a fix | auto {'items_exact': 0.0, 'total_exact': 1.0, 'reply_judge': 1.0} | comment None
+msg-24 human needs a fix | auto {'items_exact': 0.0, 'total_exact': 1.0, 'reply_judge': 0.0} | comment None
+other feedback keys {'note'}

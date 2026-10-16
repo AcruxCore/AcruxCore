@@ -1,0 +1,35 @@
+Fri 16 Oct 10:29:21 PKT 2026
+Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+Item 4 failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+Item 5 failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+Item 8 failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+Item 12 failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+Item 21 failed: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}
+Individual Results: Hidden (25 items)
+💡 Set include_item_results=True to view them
+
+──────────────────────────────────────────────────
+🧪 Experiment: v2
+📋 Run name: v2
+25 items
+Evaluations:
+  • total_exact
+  • items_exact
+  • reply_judge
+
+Average Scores:
+  • total_exact: 1.000
+  • items_exact: 0.960
+  • reply_judge: 1.000
+
+🔗 Dataset Run:
+   https://cloud.langfuse.com/project/cmvahd5rm0b0xad0k7r8rgfdp/datasets/cmvaihov701soad0k417ocr3p/runs/27d5ea9d-5245-43e0-902e-74a0a49ebebf
+wall seconds 161.3
+
+real	2m43.255s
+user	0m1.823s
+sys	0m0.158s

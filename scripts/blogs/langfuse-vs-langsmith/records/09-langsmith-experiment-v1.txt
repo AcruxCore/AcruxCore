@@ -1,0 +1,12 @@
+Fri 16 Oct 10:13:21 PKT 2026
+View the evaluation results for experiment: 'v1-a7184457' at:
+https://eu.smith.langchain.com/o/24efd6a9-61ac-434f-9426-6a082c6b512d/datasets/1a54f3fd-86ff-4402-b855-27d66e86f996/compare?selectedSessions=db0aadd4-fd5f-418d-b236-858d626c121c
+
+
+0it [00:00, ?it/s]1it [00:15, 15.25s/it]3it [00:20,  5.87s/it]5it [00:23,  3.72s/it]6it [00:25,  3.08s/it]7it [00:30,  3.69s/it]8it [00:33,  3.45s/it]9it [00:38,  3.98s/it]12it [00:44,  2.83s/it]13it [00:54,  4.40s/it]16it [00:57,  2.82s/it]17it [01:01,  2.91s/it]20it [01:05,  2.31s/it]22it [01:15,  3.05s/it]24it [01:23,  3.42s/it]27it [01:26,  2.39s/it]28it [01:29,  2.48s/it]29it [01:31,  2.41s/it]30it [01:32,  2.20s/it]30it [01:32,  3.09s/it]
+experiment v1-a7184457
+wall seconds 94.3
+
+real	1m35.940s
+user	0m1.666s
+sys	0m0.285s

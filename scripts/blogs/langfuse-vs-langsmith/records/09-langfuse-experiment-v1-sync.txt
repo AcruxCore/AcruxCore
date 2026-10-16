@@ -1,0 +1,25 @@
+Fri 16 Oct 10:13:21 PKT 2026
+Individual Results: Hidden (30 items)
+💡 Set include_item_results=True to view them
+
+──────────────────────────────────────────────────
+🧪 Experiment: v1
+📋 Run name: v1
+30 items
+Evaluations:
+  • items_exact
+  • total_exact
+  • reply_judge
+
+Average Scores:
+  • items_exact: 0.800
+  • total_exact: 1.000
+  • reply_judge: 0.900
+
+🔗 Dataset Run:
+   https://cloud.langfuse.com/project/cmvahd5rm0b0xad0k7r8rgfdp/datasets/cmvaihov701soad0k417ocr3p/runs/c3b580b9-5240-4c51-875f-2679d8b9d272
+wall seconds 472.1
+
+real	7m53.977s
+user	0m1.802s
+sys	0m0.150s

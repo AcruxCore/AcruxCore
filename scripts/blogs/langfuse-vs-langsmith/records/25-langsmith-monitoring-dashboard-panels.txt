@@ -1,0 +1,13 @@
+# 25 LangSmith project "scope-check" → Dashboard (Monitoring), read 2026-10-16 ~11:25 PKT
+# Screenshots of this page timed out in the browser extension (renderer busy) three times,
+# so the panel list is recorded from the page text instead.
+Tabs: Monitoring | Analytics | Alerts. Range: Last 7 days. Sections and panels, built in, no setup:
+- Traces: Trace Count (success/error), Trace Latency (P50/P99), Trace Error Rate
+- LLM Calls: LLM Count, LLM Latency (P50/P99)
+- Cost & Tokens: Total Cost, Cost per Trace (P50/P99), Output Tokens, Output Tokens per Trace,
+  Input Tokens, Input Tokens per Trace
+- Tools: Run Count by Tool (price), Median Latency by Tool, Error Rate by Tool
+- Run Types (depth=1): Run Count by Name (classify, extract, price, reply), Median Latency by
+  Run Name, Error Rate by Run Name
+- Feedback Scores
+Project header also shows "Retention 14d" and an alerts bell.

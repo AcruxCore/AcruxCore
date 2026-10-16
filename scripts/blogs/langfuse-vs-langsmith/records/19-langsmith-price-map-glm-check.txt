@@ -1,0 +1,38 @@
+# 19 LangSmith built-in price map: which rules match model 'glm-5.3' 2026-10-16T10:52:26.951985
+total rules 997 workspace-owned 0
+MATCH {"name": "glm-5.3", "match_pattern": "^glm\\-5\\.3$", "prompt_cost": 1.75e-06, "completion_cost": 5.5e-06, "prompt_cost_details": {"cache_read": 3.25e-07}, "provider": "azure", "start_time": "2026-09-10T00:00:00+00:00", "tenant_id": null}
+NAMED {"name": "GLM-5.3", "match_pattern": "^zai\\-org/GLM\\-5\\.3$", "prompt_cost": 9e-07, "completion_cost": 4e-06, "provider": "deepinfra"}
+NAMED {"name": "GLM-5.3", "match_pattern": "^zai\\-glm\\-5\\-3$", "prompt_cost": 1.4e-06, "completion_cost": 4.4e-06, "provider": "mistral"}
+NAMED {"name": "GLM-5.3", "match_pattern": "^zai\\-org/GLM\\-5\\.3$", "prompt_cost": 1.2e-06, "completion_cost": 4e-06, "provider": "deepinfra"}
+NAMED {"name": "glm-5.3", "match_pattern": "^glm\\-5\\.3$", "prompt_cost": 1.75e-06, "completion_cost": 5.5e-06, "provider": "azure"}
+NAMED {"name": "GLM-5.3", "match_pattern": "^zai\\-org/GLM\\-5\\.3$", "prompt_cost": 1.2e-06, "completion_cost": 4e-06, "provider": "deepinfra"}
+NAMED {"name": "GLM 5.3", "match_pattern": "^accounts/fireworks/models/glm\\-5p3$", "prompt_cost": 1.4e-06, "completion_cost": 4.4e-06, "provider": null}
+NAMED {"name": "GLM 5.3", "match_pattern": "^zai\\-org/GLM\\-5\\.3$", "prompt_cost": 1.4e-06, "completion_cost": 4.4e-06, "provider": "baseten"}
+
+## Why our runs show no cost: the built-in 'glm-5.3' rule is pinned to PROVIDER azure; wrap_openai records ls_provider=openai, ls_model_name=glm-5.3, so no rule applies (prompt_cost None).
+
+## Added workspace rule 2026-10-16T10:53:43+05:00
+UI: Settings -> Model pricing -> + Model. Name zai-glm-5.3; Input 1.40 /1M with breakdown cache_read 0.26; Output 4.40; Match Pattern ^glm\-5\.3$; Provider openai. Create.
+Trap: Match Pattern auto-fills from Model Name (^zai\-glm\-5\.3$) and typing appends to it; select-all before typing.
+Clicks: Settings(1) Model pricing(1) +Model(1) +Add Breakdown(1) Create(1) = 5 clicks + 7 fields typed.
+{
+ "id": "29ca53f8-c866-4a5c-bdc1-c44e4c64b4c4",
+ "name": "zai-glm-5.3",
+ "start_time": null,
+ "tenant_id": "24efd6a9-61ac-434f-9426-6a082c6b512d",
+ "match_path": [
+  "model",
+  "model_name",
+  "model_id",
+  "model_path",
+  "endpoint_name"
+ ],
+ "match_pattern": "^glm\\-5\\.3$",
+ "prompt_cost": 1.4e-06,
+ "completion_cost": 4.4e-06,
+ "prompt_cost_details": {
+  "cache_read": 2.6e-07
+ },
+ "completion_cost_details": null,
+ "provider": "openai"
+}

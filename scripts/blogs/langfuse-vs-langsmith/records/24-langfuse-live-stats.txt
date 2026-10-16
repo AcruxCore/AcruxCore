@@ -1,0 +1,6 @@
+# 24 Langfuse live traffic, traces named scope-check 11:03:40-11:13:20 PKT
+traces 30
+latency s: p50 16.84 p95 31.55 max 47.58
+cost per trace $: mean 0.00158 min 0.00111296 max 0.00298452 sum 0.047386
+observations per trace (ids on list): mean 8.67 min 8 max 12
+units per trace (1 trace + observations, no scores): mean 9.67
