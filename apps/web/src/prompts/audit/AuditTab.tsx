@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { AuditEntry } from '@/api';
 import { useAudit } from '@/api';
+import { auditSummary } from '@/team/audit/summary';
 import { dateTime, timeAgo } from '@/lib/format';
 import { Button, Empty, PageSpinner } from '@/ui';
 
@@ -21,17 +21,6 @@ const EVENT_LABELS: Record<string, string> = {
   member_invite_revoked: 'Invite revoked',
 };
 
-/** One-line human summary from an event's metadata, when useful. */
-function detail(entry: AuditEntry): string | null {
-  const m = entry.metadata;
-  if (!m) return null;
-  const parts: string[] = [];
-  if (typeof m.versionNumber === 'number') parts.push(`v${m.versionNumber}`);
-  if (typeof m.alias === 'string') parts.push(m.alias);
-  if (typeof m.name === 'string') parts.push(m.name);
-  return parts.length ? parts.join(' · ') : null;
-}
-
 /** Audit tab: paginated, human-readable trail of who changed what. */
 export function AuditTab({ promptId }: { promptId: string }) {
   const [page, setPage] = useState(1);
@@ -49,7 +38,7 @@ export function AuditTab({ promptId }: { promptId: string }) {
     <div className="flex flex-col gap-4">
       <ol className="overflow-hidden rounded-xl border border-line">
         {entries.map((e) => {
-          const d = detail(e);
+          const d = auditSummary(e);
           return (
             <li
               key={e.id}

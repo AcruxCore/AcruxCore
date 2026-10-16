@@ -154,6 +154,7 @@ called out in the week it ships and in the SDK release notes.
 - The Models page warns when a model lacks a price: its calls count as $0 in Usage and budgets.
 - The run report shows a baseline as "v1 (production)"; the report API returns `versionNumber`.
 - **Fixed** — the prompt Diff tab cut off long lines; they now wrap, so a changed rule is readable.
+- **Fixed** — a prompt's Audit tab now shows which version an alias moved from and to.
 
 ---
 
