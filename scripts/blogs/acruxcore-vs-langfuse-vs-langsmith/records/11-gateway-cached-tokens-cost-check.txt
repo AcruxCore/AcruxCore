@@ -1,0 +1,3 @@
+call 1: status 200 usage {"prompt_tokens": 739, "completion_tokens": 108, "total_tokens": 847} recorded cost $0.0015098 | full-price $0.0015098 | at z.ai cached rate $0.0015098 | at 0.5x $0.0015098
+call 2: status 200 usage {"prompt_tokens": 739, "completion_tokens": 155, "total_tokens": 894, "cached_tokens": 704} recorded cost $0.0012238 | full-price $0.0017166 | at z.ai cached rate $0.0009140 | at 0.5x $0.0012238
+call 3: status 200 usage {"prompt_tokens": 739, "completion_tokens": 143, "total_tokens": 882, "cached_tokens": 704} recorded cost $0.0011710 | full-price $0.0016638 | at z.ai cached rate $0.0008612 | at 0.5x $0.0011710

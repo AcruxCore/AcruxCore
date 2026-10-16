@@ -1,0 +1,31 @@
+msg-01 api send as is
+msg-02 api send as is
+msg-03 api needs a fix: charges online_booking_payments twice ($2,800 instead of $1,400)
+msg-04 api send as is
+msg-05 api send as is
+msg-06 api send as is
+msg-07 api send as is
+msg-08 api send as is
+msg-09 api send as is
+msg-10 api send as is
+msg-11 api send as is
+msg-12 api send as is
+msg-13 api send as is
+msg-14 api send as is
+msg-15 api send as is
+msg-16 api send as is
+msg-17 api send as is
+msg-18 api send as is
+msg-19 api send as is
+msg-20 api send as is
+msg-21 api needs a fix: says the copy-to-sender email is included; it needs an estimate
+msg-22 api send as is
+msg-23 api send as is
+msg-24 api send as is
+msg-25 api send as is
+msg-26 api send as is
+msg-27 api send as is
+msg-28 api send as is
+msg-29 api send as is
+msg-30 browser send as is
+human verdicts 30 send as is 28 needs a fix 2

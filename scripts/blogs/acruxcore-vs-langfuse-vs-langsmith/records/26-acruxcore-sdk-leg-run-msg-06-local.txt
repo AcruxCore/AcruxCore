@@ -1,0 +1,42 @@
+{
+ "seconds": 9.1,
+ "trace_id": "4591a94f-2e2d-4a74-8da6-53604208ddb5",
+ "items": [
+  {
+   "request": "Spanish version of the whole site",
+   "status": "out_of_scope",
+   "clause": null,
+   "rate_item": "language_version",
+   "quantity": 1,
+   "reason": "Another language is excluded by the signed scope and the rate card prices it per language."
+  },
+  {
+   "request": "Newsletter signup in the footer",
+   "status": "out_of_scope",
+   "clause": null,
+   "rate_item": "newsletter_signup",
+   "quantity": 1,
+   "reason": "A newsletter signup is not in the signed scope and the rate card has a fixed-price item for it."
+  }
+ ],
+ "quote": {
+  "currency": "USD",
+  "lines": [
+   {
+    "item": "language_version",
+    "quantity": 1,
+    "unit_price": 400,
+    "amount": 400
+   },
+   {
+    "item": "newsletter_signup",
+    "quantity": 1,
+    "unit_price": 150,
+    "amount": 150
+   }
+  ],
+  "total": 550
+ },
+ "total": 550,
+ "reply": "Subject: Re: Spanish version + newsletter signup\n\nHi there,\n\nThanks for reaching out! Here's a quick breakdown of your two requests:\n\n**Spanish version of the site** \u2013 This falls outside our signed scope, but I can absolutely do it. It's priced per language on the rate card: **$400**.\n\n**Newsletter signup in the footer** \u2013 Also outside the current scope, and it's a fixed-price item: **$150**.\n\n**Total for both additions: $550 (USD)**\n\nNeither item is included in the current work, so both would be billed as extras. If that works for you, just reply to confirm and I'll send over an updated agreement before getting started.\n\nLet me know if you have any questions!\n\nBest,\nSam"
+}

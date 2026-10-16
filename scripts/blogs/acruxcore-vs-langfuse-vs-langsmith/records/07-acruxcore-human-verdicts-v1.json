@@ -1,0 +1,152 @@
+{
+ "msg-01": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "7a6523fd-323c-425f-ba8b-5cb7236dd448"
+ },
+ "msg-02": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "f9b64c1f-0104-48bd-bf7c-372474b23cf4"
+ },
+ "msg-03": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "85e4f033-251a-41e2-a92a-65b4762bc984"
+ },
+ "msg-04": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "face1311-68db-4fd3-94e8-dcc289aa5262"
+ },
+ "msg-05": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "77c8d0ab-0145-4713-9c49-74defb14b2c4"
+ },
+ "msg-06": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "19d4b152-013c-488e-95cb-688b055b6e20"
+ },
+ "msg-07": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "21f6a389-2017-46b5-9a2e-4462d6d93f0c"
+ },
+ "msg-08": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "af3ad13e-dd28-467f-9064-655c47583872"
+ },
+ "msg-09": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "484c43ac-5c11-497d-b404-3356fbb65463"
+ },
+ "msg-10": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "f9d6cb74-d7e9-41d7-a5d2-ad1652aaa9b1"
+ },
+ "msg-11": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "06a266a8-a1ba-479b-b765-956382501864"
+ },
+ "msg-12": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "959e0b73-065e-4f9f-a0a4-f2a58a409f35"
+ },
+ "msg-13": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "ab8efe3a-5dfc-4a8d-ac33-7e25efa664c0"
+ },
+ "msg-14": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "aa107801-55ac-4da0-9c99-bcd74d643fc7"
+ },
+ "msg-15": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "cf3f0797-6c92-48cb-a32c-268509b12782"
+ },
+ "msg-16": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "f7089905-0c4d-4954-84fb-81d7d803a3f1"
+ },
+ "msg-17": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "b9656115-55f4-4428-93bd-8a36097f74b0"
+ },
+ "msg-18": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "c7444682-0289-46d5-9dff-e84d08ab7ded"
+ },
+ "msg-19": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "0a0a6cea-3e50-4e05-a4e6-e7c8a9231137"
+ },
+ "msg-20": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "0e7f82f3-e304-425c-b2c5-38ffd80b81f8"
+ },
+ "msg-21": {
+  "send_as_is": false,
+  "note": "Shows the client an internal pricing note (copywriting at $90) and a wrong $240 total; the confirmation copy needs an estimate, total $150.",
+  "trace_id": "16cb4cd8-ab0e-40c8-84ea-3530e07ef17b"
+ },
+ "msg-22": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "3e35916d-77af-4aab-8aa4-82d24d448833"
+ },
+ "msg-23": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "02244832-4368-4351-aa46-2f432a14184c"
+ },
+ "msg-24": {
+  "send_as_is": false,
+  "note": "Claims a maintenance package that does not exist and invents a separate domain-migration estimate; sitemap and titles are in scope (S5), total $0.",
+  "trace_id": "32e824a2-df8d-420b-8ba3-9f13174ed2c9"
+ },
+ "msg-25": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "68ff8a26-b328-494b-a73d-0aeff07355a9"
+ },
+ "msg-26": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "64129f8a-8379-45f1-a2d8-854f0ad2aeed"
+ },
+ "msg-27": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "92a57b26-bcec-45fc-b018-e9d3823f2caa"
+ },
+ "msg-28": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "376a3fc0-9655-4b98-81a5-d36ae29e0a8e"
+ },
+ "msg-29": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "99897878-355f-4890-97df-0ebd19ed17ac"
+ },
+ "msg-30": {
+  "send_as_is": true,
+  "note": null,
+  "trace_id": "0791c09e-62ad-454b-a598-c113f63dcc66"
+ }
+}

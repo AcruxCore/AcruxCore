@@ -1,0 +1,12 @@
+{
+ "name": "v2",
+ "run_id": "bf57a013-7179-4c99-adbb-763a9f6b445c",
+ "status": "succeeded",
+ "wall_seconds": 97.6,
+ "errors": 0,
+ "summary": {
+  "items_exact": 27,
+  "total_exact": 30,
+  "reply_judge": 30
+ }
+}

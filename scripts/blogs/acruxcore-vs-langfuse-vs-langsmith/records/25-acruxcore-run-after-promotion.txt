@@ -1,0 +1,19 @@
+ "seconds": 13.2,
+ "trace_id": "b9019c99-b23c-4ead-ac84-e3b02e422156",
+scope-judge aliases {'production': 1, 'staging': 1}
+scope-reply aliases {'production': 1, 'staging': 1}
+scope-classify aliases {'staging': 1, 'candidate': 2, 'production': 2}
+scope-extract aliases {'staging': 1, 'candidate': 2, 'production': 2}
+step extract -> ('scope-extract', 2)
+step classify -> ('scope-classify', 2)
+step classify -> ('scope-classify', 2)
+step reply -> ('scope-reply', 1)
+after rollback:
+scope-classify {'staging': 1, 'candidate': 2, 'production': 1}
+  audit alias_promoted {'alias': 'production', 'toVersionNumber': 1, 'fromVersionNumber': 2} 2026-10-16T17:37:22.636Z
+  audit alias_promoted {'alias': 'production', 'toVersionNumber': 2, 'fromVersionNumber': 1} 2026-10-16T17:33:55.784Z
+  audit alias_promoted {'alias': 'candidate', 'toVersionNumber': 2, 'fromVersionNumber': None} 2026-10-16T10:24:57.583Z
+scope-extract {'staging': 1, 'candidate': 2, 'production': 1}
+  audit alias_promoted {'alias': 'production', 'toVersionNumber': 1, 'fromVersionNumber': 2} 2026-10-16T17:37:42.709Z
+  audit alias_promoted {'alias': 'production', 'toVersionNumber': 2, 'fromVersionNumber': 1} 2026-10-16T17:33:38.027Z
+  audit alias_promoted {'alias': 'candidate', 'toVersionNumber': 2, 'fromVersionNumber': None} 2026-10-16T10:24:56.969Z

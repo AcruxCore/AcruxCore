@@ -1,0 +1,2 @@
+langfuse {'traces': 30, 'p50_s': 16.84, 'p95_s': 31.55, 'max_s': 47.58, 'cost_mean': 0.00158, 'cost_sum': 0.047386, 'without_cost': 0, 'spans_mean': 8.67}
+langsmith {'traces': 30, 'p50_s': 16.89, 'p95_s': 29.94, 'max_s': 48.29, 'cost_mean': 0.001795, 'cost_sum': 0.053835, 'without_cost': 0, 'spans_mean': None}

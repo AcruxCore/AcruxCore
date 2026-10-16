@@ -1,0 +1,12 @@
+{
+ "name": "sdk-leg-v1",
+ "run_id": "dcd7109e-6cad-4ff0-a38e-4740de5985de",
+ "status": "succeeded",
+ "wall_seconds": 85.3,
+ "errors": 0,
+ "summary": {
+  "items_exact": 26,
+  "total_exact": 30,
+  "reply_judge": 29
+ }
+}

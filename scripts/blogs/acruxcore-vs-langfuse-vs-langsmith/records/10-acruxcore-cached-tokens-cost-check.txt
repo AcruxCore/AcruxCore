@@ -1,0 +1,6 @@
+one llm span as stored: {"name": "glm-5.3", "model": "glm-5.3", "costUsd": 0.0002342, "usage": null, "promptTokens": 95, "completionTokens": 23, "attributes": {"cached_tokens": 0}}
+v1 experiment, 30 traces: prompt tokens 39810, of which cached 26752 (67%), completion tokens 6590
+stored cost (AcruxCore)            $0.084730  per trace $0.002824
+all input at $1.40/M (recomputed)  $0.084730
+cached input at $0.26/M (z.ai)     $0.054233  per trace $0.001808
+overstatement 56%

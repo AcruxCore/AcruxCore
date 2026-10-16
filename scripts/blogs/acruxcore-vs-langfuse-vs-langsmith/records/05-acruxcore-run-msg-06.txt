@@ -1,0 +1,42 @@
+{
+ "seconds": 15.8,
+ "trace_id": "5db76699-6e4b-4bac-b56b-c96960582f41",
+ "items": [
+  {
+   "request": "Add a Spanish version of the whole site",
+   "status": "out_of_scope",
+   "clause": null,
+   "rate_item": "language_version",
+   "quantity": 1,
+   "reason": "A Spanish version is explicitly excluded by the scope and matches the language_version rate-card item."
+  },
+  {
+   "request": "Add a newsletter signup in the footer",
+   "status": "out_of_scope",
+   "clause": null,
+   "rate_item": "newsletter_signup",
+   "quantity": 1,
+   "reason": "A newsletter signup form is not in the signed scope and matches the rate card item at $150."
+  }
+ ],
+ "quote": {
+  "currency": "USD",
+  "lines": [
+   {
+    "item": "language_version",
+    "quantity": 1,
+    "unit_price": 400,
+    "amount": 400
+   },
+   {
+    "item": "newsletter_signup",
+    "quantity": 1,
+    "unit_price": 150,
+    "amount": 150
+   }
+  ],
+  "total": 550
+ },
+ "total": 550,
+ "reply": "Subject: Re: Spanish Version & Newsletter Signup\n\nHi there,\n\nThanks for reaching out! I checked both requests against our agreed scope, and unfortunately neither is included in the current project. Here's the breakdown:\n\n- **Spanish version of the site** \u2013 This is outside the signed scope, but I can add it for **$400**.\n- **Newsletter signup in the footer** \u2013 Also not included, but I can build this for **$150**.\n\n**Total for both additions: $550**\n\nIf you'd like to go ahead with either or both, just let me know and I'll send over an updated agreement before starting.\n\nBest,\nSam"
+}

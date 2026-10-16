@@ -1,0 +1,4 @@
+30 live traces: prompt 40558, cached 34560 (85%), completion 7069
+stored by AcruxCore   $0.048486  per trace $0.001616
+recomputed 1.40/0.26/4.40 $0.048486
+if cached billed in full $0.087885

@@ -1,0 +1,4 @@
+scope-extract -> AcruxCore version 1 aliases {'production': 1, 'staging': 1}
+scope-classify -> AcruxCore version 1 aliases {'production': 1, 'staging': 1}
+scope-reply -> AcruxCore version 1 aliases {'production': 1, 'staging': 1}
+scope-judge -> AcruxCore version 1 aliases {'production': 1, 'staging': 1}

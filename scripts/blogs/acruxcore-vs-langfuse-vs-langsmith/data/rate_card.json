@@ -1,0 +1,16 @@
+{
+  "currency": "USD",
+  "items": {
+    "extra_page":             {"label": "Extra page",                          "price": 180,  "unit": "page"},
+    "blog":                   {"label": "Blog with posts by the studio",        "price": 650,  "unit": "fixed"},
+    "online_booking_payments":{"label": "Online class booking and payments",    "price": 1400, "unit": "fixed"},
+    "member_login":           {"label": "Member login area",                    "price": 1200, "unit": "fixed"},
+    "dark_mode":              {"label": "Dark mode",                            "price": 300,  "unit": "fixed"},
+    "pdf_export":             {"label": "Printable PDF of the class schedule",  "price": 250,  "unit": "fixed"},
+    "newsletter_signup":      {"label": "Newsletter signup form",               "price": 150,  "unit": "fixed"},
+    "language_version":       {"label": "Site in another language",             "price": 400,  "unit": "language"},
+    "copywriting":            {"label": "Writing the text for a page",          "price": 90,   "unit": "page"},
+    "extra_revision_round":   {"label": "Extra round of design changes",        "price": 220,  "unit": "round"},
+    "analytics_setup":        {"label": "Google Analytics setup",               "price": 120,  "unit": "fixed"}
+  }
+}

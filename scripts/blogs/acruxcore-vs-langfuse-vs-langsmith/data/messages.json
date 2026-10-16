@@ -1,0 +1,543 @@
+[
+  {
+    "id": "msg-01",
+    "input": {
+      "received": "2026-09-15",
+      "message": "Hi! Could you change the button green to our new brand colour, #2E7D6B? We're still in the second design round."
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "in_scope",
+          "clauses": [
+            "S6"
+          ]
+        }
+      ],
+      "total": 0
+    }
+  },
+  {
+    "id": "msg-02",
+    "input": {
+      "received": "2026-09-16",
+      "message": "We'd love a blog where our teachers can post once a month. Is that possible?"
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "out_of_scope",
+          "rate_item": "blog",
+          "quantity": 1
+        }
+      ],
+      "total": 650
+    }
+  },
+  {
+    "id": "msg-03",
+    "input": {
+      "received": "2026-09-18",
+      "message": "Can people book and pay for classes on the site? It would save us so much admin."
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "out_of_scope",
+          "rate_item": "online_booking_payments",
+          "quantity": 1
+        }
+      ],
+      "total": 1400
+    }
+  },
+  {
+    "id": "msg-04",
+    "input": {
+      "received": "2026-10-14",
+      "message": "Since launch last week the contact form isn't sending us any emails."
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "in_scope",
+          "clauses": [
+            "S7",
+            "S3"
+          ]
+        }
+      ],
+      "total": 0
+    }
+  },
+  {
+    "id": "msg-05",
+    "input": {
+      "received": "2026-09-20",
+      "message": "Could we add a Workshops page and a Retreats page?"
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "out_of_scope",
+          "rate_item": "extra_page",
+          "quantity": 2
+        }
+      ],
+      "total": 360
+    }
+  },
+  {
+    "id": "msg-06",
+    "input": {
+      "received": "2026-09-21",
+      "message": "Please add a Spanish version of the whole site. Also a newsletter signup in the footer would be great."
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "out_of_scope",
+          "rate_item": "language_version",
+          "quantity": 1
+        },
+        {
+          "status": "out_of_scope",
+          "rate_item": "newsletter_signup",
+          "quantity": 1
+        }
+      ],
+      "total": 550
+    }
+  },
+  {
+    "id": "msg-07",
+    "input": {
+      "received": "2026-09-22",
+      "message": "Can you make the schedule downloadable as a PDF so students can print it?"
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "out_of_scope",
+          "rate_item": "pdf_export",
+          "quantity": 1
+        }
+      ],
+      "total": 250
+    }
+  },
+  {
+    "id": "msg-08",
+    "input": {
+      "received": "2026-09-23",
+      "message": "Also, could you write the text for the Teachers page? We just don't have time."
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "out_of_scope",
+          "rate_item": "copywriting",
+          "quantity": 1
+        }
+      ],
+      "total": 90
+    }
+  },
+  {
+    "id": "msg-09",
+    "input": {
+      "received": "2026-10-12",
+      "message": "The site looks squashed on my iPad."
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "in_scope",
+          "clauses": [
+            "S4",
+            "S7"
+          ]
+        }
+      ],
+      "total": 0
+    }
+  },
+  {
+    "id": "msg-10",
+    "input": {
+      "received": "2026-09-24",
+      "message": "Can you make it look more modern?"
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "unclear"
+        }
+      ],
+      "total": 0
+    }
+  },
+  {
+    "id": "msg-11",
+    "input": {
+      "received": "2026-10-15",
+      "message": "Our sitemap is missing the Pricing page."
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "in_scope",
+          "clauses": [
+            "S5",
+            "S7"
+          ]
+        }
+      ],
+      "total": 0
+    }
+  },
+  {
+    "id": "msg-12",
+    "input": {
+      "received": "2026-09-25",
+      "message": "We'd like a members area where regulars can see their class history."
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "out_of_scope",
+          "rate_item": "member_login",
+          "quantity": 1
+        }
+      ],
+      "total": 1200
+    }
+  },
+  {
+    "id": "msg-13",
+    "input": {
+      "received": "2026-09-26",
+      "message": "Could we get a dark mode? A few of our evening students asked for it."
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "out_of_scope",
+          "rate_item": "dark_mode",
+          "quantity": 1
+        }
+      ],
+      "total": 300
+    }
+  },
+  {
+    "id": "msg-14",
+    "input": {
+      "received": "2026-09-27",
+      "message": "We changed our minds on the header layout again. Can we do a third round of design changes?"
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "out_of_scope",
+          "rate_item": "extra_revision_round",
+          "quantity": 1
+        }
+      ],
+      "total": 220
+    }
+  },
+  {
+    "id": "msg-15",
+    "input": {
+      "received": "2026-09-28",
+      "message": "Please add Google Analytics, and connect it to our Instagram ads."
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "out_of_scope",
+          "rate_item": "analytics_setup",
+          "quantity": 1
+        },
+        {
+          "status": "needs_estimate"
+        }
+      ],
+      "total": 120
+    }
+  },
+  {
+    "id": "msg-16",
+    "input": {
+      "received": "2026-09-29",
+      "message": "Quick one: can the class schedule update by itself when we edit our Google Sheet? Right now Mia has to message you."
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "in_scope",
+          "clauses": [
+            "S2"
+          ]
+        }
+      ],
+      "total": 0
+    }
+  },
+  {
+    "id": "msg-17",
+    "input": {
+      "received": "2026-09-30",
+      "message": "Could you build us a small iPhone app for booking?"
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "needs_estimate"
+        }
+      ],
+      "total": 0
+    }
+  },
+  {
+    "id": "msg-18",
+    "input": {
+      "received": "2026-10-01",
+      "message": "Please add a separate page for each of our three new teachers."
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "out_of_scope",
+          "rate_item": "extra_page",
+          "quantity": 3
+        }
+      ],
+      "total": 540
+    }
+  },
+  {
+    "id": "msg-19",
+    "input": {
+      "received": "2026-10-16",
+      "message": "There's a typo on the Classes page: 'Vinyassa' should be 'Vinyasa'."
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "in_scope",
+          "clauses": [
+            "S7"
+          ]
+        }
+      ],
+      "total": 0
+    }
+  },
+  {
+    "id": "msg-20",
+    "input": {
+      "received": "2026-10-02",
+      "message": "We want French and German versions of the site. Could you also write the text for the Pricing page?"
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "out_of_scope",
+          "rate_item": "language_version",
+          "quantity": 2
+        },
+        {
+          "status": "out_of_scope",
+          "rate_item": "copywriting",
+          "quantity": 1
+        }
+      ],
+      "total": 890
+    }
+  },
+  {
+    "id": "msg-21",
+    "input": {
+      "received": "2026-10-03",
+      "message": "Hope your week is going well! Mia loved the mockups. One thing: can the contact form also send a copy to the person who wrote in? And maybe a newsletter checkbox on it?"
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "needs_estimate"
+        },
+        {
+          "status": "out_of_scope",
+          "rate_item": "newsletter_signup",
+          "quantity": 1
+        }
+      ],
+      "total": 150
+    }
+  },
+  {
+    "id": "msg-22",
+    "input": {
+      "received": "2026-10-04",
+      "message": "Is it possible to make everything faster?"
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "unclear"
+        }
+      ],
+      "total": 0
+    }
+  },
+  {
+    "id": "msg-23",
+    "input": {
+      "received": "2026-10-05",
+      "message": "Can you add a pop-up for our summer discount?"
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "needs_estimate"
+        }
+      ],
+      "total": 0
+    }
+  },
+  {
+    "id": "msg-24",
+    "input": {
+      "received": "2026-10-20",
+      "message": "Our domain is moving to willowyoga.co. Can you update the sitemap and the page titles?"
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "in_scope",
+          "clauses": [
+            "S5"
+          ]
+        }
+      ],
+      "total": 0
+    }
+  },
+  {
+    "id": "msg-25",
+    "input": {
+      "received": "2026-10-21",
+      "message": "Could you also post to our Instagram every week?"
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "needs_estimate"
+        }
+      ],
+      "total": 0
+    }
+  },
+  {
+    "id": "msg-26",
+    "input": {
+      "received": "2026-10-22",
+      "message": "Can students pay online, and get a login to see their passes? And we'd like a blog later this year."
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "out_of_scope",
+          "rate_item": "online_booking_payments",
+          "quantity": 1
+        },
+        {
+          "status": "out_of_scope",
+          "rate_item": "member_login",
+          "quantity": 1
+        },
+        {
+          "status": "out_of_scope",
+          "rate_item": "blog",
+          "quantity": 1
+        }
+      ],
+      "total": 3250
+    }
+  },
+  {
+    "id": "msg-27",
+    "input": {
+      "received": "2026-12-08",
+      "message": "The map on the Contact page stopped loading this week."
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "needs_estimate"
+        }
+      ],
+      "total": 0
+    }
+  },
+  {
+    "id": "msg-28",
+    "input": {
+      "received": "2026-10-23",
+      "message": "Could the menu fold into one button on phones? It takes up half the screen."
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "in_scope",
+          "clauses": [
+            "S4",
+            "S7"
+          ]
+        }
+      ],
+      "total": 0
+    }
+  },
+  {
+    "id": "msg-29",
+    "input": {
+      "received": "2026-10-24",
+      "message": "Please add a Gift Cards page."
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "out_of_scope",
+          "rate_item": "extra_page",
+          "quantity": 1
+        }
+      ],
+      "total": 180
+    }
+  },
+  {
+    "id": "msg-30",
+    "input": {
+      "received": "2026-10-25",
+      "message": "Can you add a newsletter signup and set up Google Analytics?"
+    },
+    "expected": {
+      "items": [
+        {
+          "status": "out_of_scope",
+          "rate_item": "newsletter_signup",
+          "quantity": 1
+        },
+        {
+          "status": "out_of_scope",
+          "rate_item": "analytics_setup",
+          "quantity": 1
+        }
+      ],
+      "total": 270
+    }
+  }
+]

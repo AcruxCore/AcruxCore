@@ -1,0 +1,6 @@
+direct-low run1 seconds=7.366925198 usage={"completion_tokens": 17, "completion_tokens_details": {"reasoning_tokens": 0}, "prompt_tokens": 29, "prompt_tokens_details": {"cached_tokens": 0}, "total_tokens": 46} ignored=
+direct-default run1 seconds=4.107872409 usage={"completion_tokens": 88, "completion_tokens_details": {"reasoning_tokens": 57}, "prompt_tokens": 29, "prompt_tokens_details": {"cached_tokens": 0}, "total_tokens": 117} ignored=
+gateway-low run1 seconds=3.897062867 usage={"prompt_tokens": 29, "completion_tokens": 62, "total_tokens": 91} ignored=
+direct-low run2 seconds=6.688649533 usage={"completion_tokens": 27, "completion_tokens_details": {"reasoning_tokens": 10}, "prompt_tokens": 29, "prompt_tokens_details": {"cached_tokens": 0}, "total_tokens": 56} ignored=
+direct-default run2 seconds=2.349009062 usage={"completion_tokens": 68, "completion_tokens_details": {"reasoning_tokens": 49}, "prompt_tokens": 29, "prompt_tokens_details": {"cached_tokens": 0}, "total_tokens": 97} ignored=
+gateway-low run2 seconds=5.431780033 usage={"prompt_tokens": 29, "completion_tokens": 83, "total_tokens": 112} ignored=
