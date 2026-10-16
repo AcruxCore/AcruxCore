@@ -25,6 +25,7 @@ import type {
   PromoteCandidateResult,
   Run,
   RunCellDetail,
+  RunCompare,
   RunListFilters,
   RunListItem,
   RunReport,
@@ -332,12 +333,15 @@ export function useStartRun() {
  *
  * @param filters - Wire-shaped (`snake_case`) status/dataset/prompt filters and
  *   pagination. Empty values are dropped by the client's query serializer.
+ * @param options - `enabled: false` holds the query until a filter it depends on is
+ *   known, so it never fetches (and polls) the unfiltered list in the meantime.
  */
-export function useRuns(filters: RunListFilters) {
+export function useRuns(filters: RunListFilters, options: { enabled?: boolean } = {}) {
   const query = filters as ApiQuery;
   return useQuery({
     queryKey: keys.runs(query),
     queryFn: () => api<Paginated<RunListItem>>('/runs', { query }),
+    enabled: options.enabled ?? true,
     refetchInterval: (q) =>
       (q.state.data?.data ?? []).some((run) => run.status === 'queued' || run.status === 'running')
         ? RUN_POLL_INTERVAL_MS
@@ -393,6 +397,30 @@ export function useRunCell(id: string | null, cellKey: string | null) {
     queryKey: keys.runCell(id ?? '', cellKey ?? ''),
     queryFn: () => api<RunCellDetail>(`/runs/${id}/cells/${encodeURIComponent(cellKey ?? '')}`),
     enabled: !!id && !!cellKey,
+  });
+}
+
+/**
+ * Two grid cells side by side, one row per dataset example, with a count of the examples
+ * the target fixed or broke. The cells may sit in one run or in two runs over the same
+ * dataset. Disabled until both cell keys are chosen.
+ *
+ * @param id - The run holding the base cell, or null while unresolved.
+ * @param baseCell - The base cell's `${variantLabel}|${model}` key, or null.
+ * @param targetRunId - The run holding the target cell; pass `id` for the same run.
+ * @param targetCell - The target cell's key, or null.
+ * @returns The query for the pairing: both cell refs, the per-change counts and every
+ *   paired example. Errors with 404 for a cell key not in its run, 400
+ *   `DATASET_MISMATCH` for runs over different datasets.
+ */
+export function useRunCompare(id: string | null, baseCell: string | null, targetRunId: string | null, targetCell: string | null) {
+  return useQuery({
+    queryKey: keys.runCompare(id ?? '', baseCell ?? '', targetRunId ?? '', targetCell ?? ''),
+    queryFn: () =>
+      api<RunCompare>(`/runs/${id}/compare`, {
+        query: { base_cell: baseCell ?? '', target_cell: targetCell ?? '', target_run_id: targetRunId ?? undefined },
+      }),
+    enabled: !!id && !!baseCell && !!targetCell && !!targetRunId,
   });
 }
 

@@ -1,5 +1,5 @@
 import type { IngestSpan, IngestTrace, SpanKind, SpanStatus } from '../ingest.types';
-import { computeCost, resolveProvider } from '../../../gateway/providers/models';
+import { resolveProvider } from '../../../gateway/providers/models';
 import type { RawAnyValue, RawKeyValue, RawResourceSpans, RawSpan } from './otlp.types';
 
 const OPENINFERENCE_KIND_MAP: Record<string, SpanKind> = {
@@ -129,16 +129,6 @@ function mapOpenInferenceSpan(raw: RawSpan, attrs: Record<string, unknown>): Ing
     (typeof attrs['llm.provider'] === 'string' && (attrs['llm.provider'] as string)) ||
     (typeof attrs['llm.system'] === 'string' && (attrs['llm.system'] as string)) ||
     (model ? resolveProvider(model) ?? undefined : undefined);
-  const costUsd =
-    model && promptTokens !== undefined && completionTokens !== undefined
-      ? computeCost(model, {
-          prompt_tokens: promptTokens,
-          completion_tokens: completionTokens,
-          // `computeCost` only reads prompt/completion tokens, but `Usage` requires
-          // `total_tokens` — fall back to the sum when OTel didn't report one.
-          total_tokens: totalTokens ?? promptTokens + completionTokens,
-        }) ?? undefined
-      : undefined;
 
   return {
     spanId: raw.spanId,
@@ -154,7 +144,8 @@ function mapOpenInferenceSpan(raw: RawSpan, attrs: Record<string, unknown>): Ing
       promptTokens !== undefined || completionTokens !== undefined || totalTokens !== undefined
         ? { promptTokens, completionTokens, totalTokens }
         : undefined,
-    costUsd,
+    // No cost here: `IngestService` prices the span at ingest, where the team's own
+    // model prices are known (team price first, built-in registry second).
     input: attrs['input.value'],
     output: resolveOutput(attrs),
     attributes: stripPayloadAttributes(attrs),

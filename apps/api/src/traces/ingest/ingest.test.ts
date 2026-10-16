@@ -164,6 +164,26 @@ describe('POST /api/v1/traces — ingestion', () => {
     expect(updated?.spanCount).toBe(2);
   });
 
+  it('stores total tokens as prompt + completion when the client sends no total', async () => {
+    const ctx = await signup();
+    await request(app)
+      .post('/api/v1/traces')
+      .set('Authorization', `Bearer ${ctx.apiKey}`)
+      .send({
+        traces: [{
+          name: 'no-total',
+          spans: [
+            { spanId: 'a', name: 'chat', kind: 'llm', startTime: '2026-07-04T10:00:00.000Z', usage: { promptTokens: 900, completionTokens: 150 } },
+            { spanId: 'b', name: 'embed', kind: 'embedding', startTime: '2026-07-04T10:00:01.000Z', usage: { promptTokens: 40 } },
+          ],
+        }],
+      })
+      .expect(200);
+
+    const spans = await prisma.span.findMany({ where: { teamId: ctx.teamId }, orderBy: { spanRef: 'asc' } });
+    expect(spans.map((s) => s.totalTokens)).toEqual([1050, null]);
+  });
+
   it('stores payloads when capture is on (default)', async () => {
     const { agent } = await signup();
     const res = await agent.post('/api/v1/traces').send({ traces: [threeSpanTrace()] }).expect(200);

@@ -24,6 +24,7 @@ export type { EvaluationsTabsProps } from './EvaluationsTabs';
 export { DatasetDetailPage } from './DatasetDetailPage';
 export { ExperimentConfigPage } from './ExperimentConfigPage';
 export { RunReportPage } from './RunReportPage';
+export { RunComparePage } from './RunComparePage';
 export { LeaderboardMatrix } from './LeaderboardMatrix';
 export type { LeaderboardMatrixProps } from './LeaderboardMatrix';
 export { CellDrilldownPanel } from './CellDrilldownPanel';

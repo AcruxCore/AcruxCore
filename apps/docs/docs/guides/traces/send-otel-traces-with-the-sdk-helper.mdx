@@ -143,8 +143,10 @@ print(response.choices[0].message.content)
 tracer_provider.force_flush()
 ```
 
-The resulting span carries the real model, provider, token counts, and cost —
-`openinference-instrumentation-openai` reads them straight off the OpenAI response:
+The resulting span carries the real model, provider, token counts, and cost.
+`openinference-instrumentation-openai` reads the model and token counts straight off
+the OpenAI response. AcruxCore then prices the span when it arrives, as described in
+[Where the cost comes from](#where-the-cost-comes-from):
 
 </TabItem>
 <TabItem value="node" label="Node">
@@ -362,6 +364,21 @@ one place it's visible directly.
 
 </TabItem>
 </Tabs>
+
+## Where the cost comes from
+
+The instrumentation reports the model and the token counts, not a price. AcruxCore adds
+the cost when the span arrives, in this order:
+
+1. A `costUsd` you sent on the span yourself.
+2. The input and output price on one of your **Models**, when its public name or its
+   upstream id equals the span's model, such as `glm-5.3`.
+3. AcruxCore's built-in price list.
+
+A model that matches none of these is stored with no cost. To price it, open
+**Gateway → Models** and add the model with its input and output prices. Every span
+sent after that gets a cost; spans already stored keep the cost they had. A model needs
+a provider connection, even when you only add it to set a price.
 
 ## What's next
 

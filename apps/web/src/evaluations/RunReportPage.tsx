@@ -79,18 +79,28 @@ export function RunReportPage() {
         ← Runs
       </Link>
 
-      <header>
-        <h1 className="text-[20px] font-semibold tracking-tight">Run report</h1>
-        <p className="mt-1 text-[13px] text-muted">
-          {data.variants.length} variant{data.variants.length === 1 ? '' : 's'} × {data.models.length} model
-          {data.models.length === 1 ? '' : 's'}
-          {data.judge?.model && (
-            <span data-testid="run-judge">
-              {' '}· judged by {data.judge.model}
-              {data.judge.promptVersionId ? ' with a custom judge prompt' : ''}
-            </span>
-          )}
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-[20px] font-semibold tracking-tight">Run report</h1>
+          <p className="mt-1 text-[13px] text-muted">
+            {data.variants.length} variant{data.variants.length === 1 ? '' : 's'} × {data.models.length} model
+            {data.models.length === 1 ? '' : 's'}
+            {data.judge?.model && (
+              <span data-testid="run-judge">
+                {' '}· judged by {data.judge.model}
+                {data.judge.promptVersionId ? ' with a custom judge prompt' : ''}
+              </span>
+            )}
+          </p>
+        </div>
+        {/* Averages hide examples that flipped both ways; the compare page shows them. */}
+        <Link
+          to={`/evaluations/runs/${id}/compare`}
+          className="rounded-lg border border-line bg-surface px-3 py-1.5 text-[13px] text-ink hover:bg-elevated"
+          data-testid="run-compare-link"
+        >
+          Compare per example
+        </Link>
       </header>
 
       <RunStatusBanner status={data.status} error={run.data?.error} />

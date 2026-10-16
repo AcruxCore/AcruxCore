@@ -90,6 +90,8 @@ export const keys = {
   run: (id: string) => ['run', id] as const,
   runReport: (id: string) => ['runReport', id] as const,
   runCell: (id: string, cellKey: string) => ['runCell', id, cellKey] as const,
+  runCompare: (id: string, baseCell: string, targetRunId: string, targetCell: string) =>
+    ['runCompare', id, baseCell, targetRunId, targetCell] as const,
   // Evaluations: optimize + promote-review (E7)
   runCandidate: (id: string, candidateId: string) => ['runCandidate', id, candidateId] as const,
   // Tool Catalog (TC1-TC5)

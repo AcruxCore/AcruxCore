@@ -1,0 +1,24 @@
+meta {
+  name: Get Analytics By Step
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/traces/analytics?group_by=span_name
+  body: none
+  auth: bearer
+}
+
+params:query {
+  group_by: span_name
+  ~kind: tool
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+assert {
+  res.status: eq 200
+}

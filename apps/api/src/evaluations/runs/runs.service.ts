@@ -7,8 +7,10 @@ import { AliasesService } from '../../prompts/aliases/aliases.service';
 import { VersionsRepository } from '../../prompts/versions/versions.repository';
 import { MembersRepository } from '../../teams/members/members.repository';
 import { getFlowProducer, EVAL_CELLS_QUEUE, EVAL_RUNS_QUEUE, finalizeJobOpts } from '../queue';
-import { ConflictError, NotFoundError, ValidationError } from '../../shared/errors';
+import { AppError, ConflictError, NotFoundError, ValidationError } from '../../shared/errors';
 import { buildRunReport } from './report.aggregate';
+import { compareCells } from './run-compare.aggregate';
+import type { CompareResultRow } from './run-compare.aggregate';
 import { deriveGridShape, deriveRunKind, foldRunScores } from './run-list.aggregate';
 import type { ExperimentConfig } from '../experiments/experiments.types';
 import type {
@@ -20,6 +22,9 @@ import type {
   RunSnapshotExample,
   StartRunResult,
   RunCellDetailDto,
+  RunCompareCellRef,
+  RunCompareDto,
+  RunCompareQuery,
 } from './runs.types';
 import type { RunReport } from './report.types';
 import { assertModelRegistered, resolveJudgePromptVersion } from '../judge';
@@ -251,8 +256,11 @@ export class RunsService {
    * @throws {NotFoundError} If the run does not exist for this team.
    */
   async getRun(teamId: string, runId: string): Promise<RunDetailDto> {
-    const run = await this.runsRepo.getRunById(teamId, runId);
-    if (!run) throw new NotFoundError('Run not found.');
+    const [run, header] = await Promise.all([
+      this.runsRepo.getRunById(teamId, runId),
+      this.runsRepo.getRunHeader(teamId, runId),
+    ]);
+    if (!run || !header) throw new NotFoundError('Run not found.');
 
     const grid = run.grid as unknown as RunGridCell[];
     const errored = run.results.filter((r) => r.errorMessage !== null).length;
@@ -260,6 +268,7 @@ export class RunsService {
     return {
       id: run.id,
       experimentId: run.experimentId,
+      datasetId: header.datasetId,
       status: run.status,
       startedAt: run.startedAt ? run.startedAt.toISOString() : null,
       endedAt: run.endedAt ? run.endedAt.toISOString() : null,
@@ -385,6 +394,80 @@ export class RunsService {
         judgeTraceId: row.judgeTraceId,
       })),
     };
+  }
+
+  /**
+   * Puts two grid cells side by side, one row per dataset example, and counts which
+   * examples a change fixed or broke. A cell's average can stay flat while it fixes some
+   * examples and breaks others; this is the read that shows it (issue #588).
+   *
+   * Both cells must come from runs over the same dataset, because examples are matched by
+   * dataset example id. The two cells may sit in one run (v1 against v2) or in two.
+   *
+   * @param teamId - Isolation boundary; both runs must belong to it.
+   * @param runId - UUID of the run holding the base cell.
+   * @param query - `base_cell`, `target_cell`, and an optional `target_run_id` (defaults
+   *   to `runId`). Cell keys are `${variantLabel}|${model}`, as in the run's grid.
+   * @returns Both cells' identities, a count per change, and the paired examples.
+   * @throws {NotFoundError} If either run is not this team's, or a cell key is not in its
+   *   run's grid.
+   * @throws {AppError} 400 `DATASET_MISMATCH` if the two runs graded different datasets.
+   */
+  async compareCells(teamId: string, runId: string, query: RunCompareQuery): Promise<RunCompareDto> {
+    const targetRunId = query.target_run_id ?? runId;
+    const [baseRun, targetRun] = await Promise.all([
+      this.runsRepo.getRunHeader(teamId, runId),
+      targetRunId === runId ? null : this.runsRepo.getRunHeader(teamId, targetRunId),
+    ]);
+    if (!baseRun) throw new NotFoundError('Run not found.');
+    const target = targetRunId === runId ? baseRun : targetRun;
+    if (!target) throw new NotFoundError('Target run not found.');
+    if (baseRun.datasetId !== target.datasetId) {
+      throw new AppError('The two runs graded different datasets, so their examples cannot be paired.', 400, 'DATASET_MISMATCH');
+    }
+
+    const baseCell = this.findGridCell(baseRun.grid, query.base_cell, baseRun.id);
+    const targetCell = this.findGridCell(target.grid, query.target_cell, target.id);
+
+    const [baseRows, targetRows] = await Promise.all([
+      this.compareRows(teamId, baseRun.id, baseCell, baseRun.exampleSnapshot),
+      this.compareRows(teamId, target.id, targetCell, target.exampleSnapshot),
+    ]);
+    return { base: baseCell, target: targetCell, ...compareCells(baseRows, targetRows) };
+  }
+
+  /** Finds a cell in a run's frozen grid, or throws 404 naming the missing key. */
+  private findGridCell(grid: Prisma.JsonValue, cellKey: string, runId: string): RunCompareCellRef {
+    const cell = (grid as unknown as RunGridCell[]).find((c) => c.cellKey === cellKey);
+    if (!cell) throw new NotFoundError(`Cell "${cellKey}" is not in run ${runId}.`);
+    return { runId, cellKey: cell.cellKey, variantLabel: cell.variantLabel, model: cell.model };
+  }
+
+  /**
+   * One cell's results in the shape the compare pairing reads, with the criteria the run
+   * was graded against (frozen at run start), as {@link getCell} shows them.
+   */
+  private async compareRows(
+    teamId: string,
+    runId: string,
+    cell: RunCompareCellRef,
+    snapshotJson: Prisma.JsonValue,
+  ): Promise<CompareResultRow[]> {
+    const rows = await this.runsRepo.getCellResults(teamId, runId, cell.variantLabel, cell.model);
+    const frozenCriteria = new Map(
+      (snapshotJson as unknown as RunSnapshotExample[]).map((e) => [e.exampleId, e.criteria]),
+    );
+    return rows.map((row) => ({
+      datasetExampleId: row.datasetExampleId,
+      input: row.example.input as Record<string, unknown>,
+      criteria: frozenCriteria.get(row.datasetExampleId) ?? row.example.criteria,
+      output: row.output,
+      errorMessage: row.errorMessage,
+      score: row.score,
+      passed: row.passed,
+      reason: row.reason,
+      traceId: row.traceId,
+    }));
   }
 
   /**

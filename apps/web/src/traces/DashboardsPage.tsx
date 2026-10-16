@@ -5,10 +5,21 @@ import { Badge, BarChart, Empty, Input, LineChart, PageSpinner, Select } from '@
 import { useTraceAnalytics } from '@/api';
 import { formatCount, formatLatency, formatPercent, formatUsd } from './format';
 import { DATE_RANGE_PRESETS, presetFrom, type DateRangePreset } from './date-range';
-import type { AnalyticsGroupBy } from '@/api/types';
+import type { AnalyticsGroupBy, SpanKind } from '@/api/types';
+import { SpanNameTable } from './SpanNameTable';
 
 /** Dimensions with a bounded, comparable set of group keys worth narrowing down. */
-const FILTERABLE_GROUP_BYS: AnalyticsGroupBy[] = ['model', 'prompt_version'];
+const FILTERABLE_GROUP_BYS: AnalyticsGroupBy[] = ['model', 'prompt_version', 'span_name'];
+
+/** What the key-filter input calls the things it narrows, per grouping. */
+const KEY_NOUN: Partial<Record<AnalyticsGroupBy, string>> = {
+  model: 'models',
+  prompt_version: 'prompt versions',
+  span_name: 'steps',
+};
+
+/** Step kinds offered by the "By step" kind filter, in the order a trace usually runs. */
+const STEP_KINDS: SpanKind[] = ['agent', 'chain', 'llm', 'tool', 'retrieval', 'embedding', 'other'];
 
 /** One totals tile (requests, error rate, tokens, cost, latency percentiles). */
 function Stat({ label, value }: { label: string; value: string }) {
@@ -34,7 +45,8 @@ function ChartCard({ title, children }: { title: string; children: ReactNode }) 
  * The `/observability` dashboards screen: a URL-synced date range + `group_by`
  * control over {@link useTraceAnalytics}, rendered as a totals row plus either
  * time-series line charts (`group_by=day`) or grouped bar charts (model, session,
- * prompt version). Nullable latency percentiles and an empty bucket list are
+ * prompt version), or a per-step table (`group_by=span_name`, see {@link SpanNameTable}).
+ * Nullable latency percentiles and an empty bucket list are
  * handled by the chart components themselves (gaps / placeholder, never `NaN`).
  *
  * The date range is a preset picker (`?range=7d|30d|90d|mtd|ytd|custom`, see
@@ -58,7 +70,10 @@ export function DashboardsPage() {
   // midnight-exclusive and would silently cut off today's data if used instead.
   const from = isCustomRange ? (sp.get('from') ?? undefined) : (presetFrom(range) ?? undefined);
   const to = isCustomRange ? (sp.get('to') ?? undefined) : undefined;
-  const { data, isLoading, isError } = useTraceAnalytics({ from, to, groupBy });
+  // The kind filter belongs to the per-step view only: there it answers "which tool is
+  // slow", while on the other groupings it would silently change every total.
+  const kind = groupBy === 'span_name' ? ((sp.get('kind') as SpanKind | null) ?? undefined) : undefined;
+  const { data, isLoading, isError } = useTraceAnalytics({ from, to, groupBy, kind });
   const [draftKey, setDraftKey] = useState('');
 
   const setParam = (key: string, value: string) => {
@@ -85,6 +100,7 @@ export function DashboardsPage() {
     if (value) next.set('group_by', value);
     else next.delete('group_by');
     next.delete('keys');
+    next.delete('kind');
     setSp(next);
   };
 
@@ -164,7 +180,24 @@ export function DashboardsPage() {
             <option value="model">By model</option>
             <option value="session">By session</option>
             <option value="prompt_version">By prompt version</option>
+            <option value="span_name">By step (span name)</option>
           </Select>
+          {groupBy === 'span_name' && (
+            <Select
+              value={kind ?? ''}
+              onChange={(e) => setParam('kind', e.target.value)}
+              className="w-36"
+              aria-label="Step kind"
+              data-testid="analytics-kind"
+            >
+              <option value="">All kinds</option>
+              {STEP_KINDS.map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </Select>
+          )}
         </div>
       </header>
 
@@ -180,7 +213,7 @@ export function DashboardsPage() {
           ))}
           <Input
             list="analytics-key-options"
-            placeholder={selectedKeys.length === 0 ? `Filter ${groupBy === 'model' ? 'models' : 'prompt versions'}…` : 'Add…'}
+            placeholder={selectedKeys.length === 0 ? `Filter ${KEY_NOUN[groupBy] ?? 'groups'}…` : 'Add…'}
             value={draftKey}
             onChange={(e) => setDraftKey(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addKey(draftKey)}
@@ -261,8 +294,10 @@ export function DashboardsPage() {
           ) : displayedBuckets.length === 0 ? (
             <Empty
               title="No matching groups"
-              description="None of the selected models / prompt versions have traffic in this range. Clear the filter above to see everything."
+              description={`None of the selected ${KEY_NOUN[groupBy] ?? 'groups'} have traffic in this range. Clear the filter above to see everything.`}
             />
+          ) : groupBy === 'span_name' ? (
+            <SpanNameTable buckets={displayedBuckets} />
           ) : (
             <div className="grid gap-4 lg:grid-cols-2" data-testid="analytics-charts">
               <ChartCard title="Requests">

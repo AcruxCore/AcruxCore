@@ -60,8 +60,9 @@ class TracesNamespace:
             server's last-30-days default.
         :param to: ISO date/datetime, exclusive upper bound on ``startedAt``.
         :param group_by: Aggregation dimension — ``'day'``, ``'model'``,
-            ``'session'``, or ``'prompt_version'``. Defaults server-side to
-            ``'day'``.
+            ``'session'``, ``'prompt_version'``, or ``'span_name'`` (one bucket
+            per step name; gateway calls sent without a span name share one
+            ``'(unnamed)'`` bucket). Defaults server-side to ``'day'``.
         :param kind: Narrows to spans of one kind (``'llm'``, ``'tool'``, ...).
         :param model: Narrows to spans reported with this exact model string.
         :returns: :class:`~acruxcore.types.AnalyticsResult` — totals across the

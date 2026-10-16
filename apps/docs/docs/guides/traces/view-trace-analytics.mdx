@@ -1,6 +1,6 @@
 ---
 title: View trace analytics
-description: Read aggregate volume, error-rate, token, cost, and latency metrics over every trace your team has recorded, grouped by day, model, session, or prompt version.
+description: Read aggregate volume, error-rate, token, cost, and latency metrics over every trace your team has recorded, grouped by day, model, session, prompt version, or step.
 sidebar_position: 5
 keywords: [traces, analytics, observability, cost, latency, error rate, dashboards]
 slug: /guides/view-trace-analytics
@@ -233,7 +233,7 @@ a span with no session id or prompt version.
 :::
 
 Other supported dimensions and filters — `group_by=session` /
-`group_by=prompt_version`, `kind=llm|tool|retrieval|embedding|agent|chain|other`,
+`group_by=prompt_version` / `group_by=span_name`, `kind=llm|tool|retrieval|embedding|agent|chain|other`,
 `model=<exact-name>`, and an explicit `from`/`to` window — are documented with
 their own curl-verified examples in the
 [Traces API reference](/api-reference) under **Trace Analytics**.
@@ -246,6 +246,12 @@ range) plus a `group_by` control, rendered as time-series line charts for
 `day` or grouped bar charts for `model`/`session`/`prompt_version`. For the bar
 views, a chip-and-autocomplete filter narrows the charts down to a chosen
 subset of models or prompt versions without an extra request.
+
+**By step (span name)** shows a table instead, one row per step name inside your
+traces, with calls, error rate, p50/p95/p99, tokens and cost. Click a column header
+to sort by it. The **kind** picker next to it narrows the table to one kind of step,
+such as `tool`, so a slow or failing tool is easy to find. Gateway calls sent without
+an `x-span-name` header share one `(unnamed)` row.
 
 ## What's next
 

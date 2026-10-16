@@ -1,0 +1,25 @@
+meta {
+  name: Compare Run Cells
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{baseUrl}}/api/v1/runs/{{runId}}/compare?base_cell={{baseCellKey}}&target_cell={{cellKey}}
+  body: none
+  auth: bearer
+}
+
+params:query {
+  base_cell: {{baseCellKey}}
+  target_cell: {{cellKey}}
+  ~target_run_id: {{otherRunId}}
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+assert {
+  res.status: eq 200
+}

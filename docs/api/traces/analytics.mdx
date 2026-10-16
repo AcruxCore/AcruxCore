@@ -27,7 +27,7 @@ Query params (all optional):
 
 - `from`, `to` — ISO dates; default window is the **last 30 days** (applied to
   span `started_at`).
-- `group_by` — `day` | `model` | `session` | `prompt_version` (default `day`).
+- `group_by` — `day` | `model` | `session` | `prompt_version` | `span_name` (default `day`).
 - `kind` — span-kind filter: `llm` | `tool` | `retrieval` | `embedding` |
   `agent` | `chain` | `other`.
 - `model` — exact-model filter.
@@ -269,6 +269,122 @@ is joined in.
 
 ---
 
+#### `group_by=span_name` — one bucket per step
+
+Each step inside a trace is a span with a name, such as `search_docs` or `draft-reply`.
+Grouping by that name shows which step is slow, failing or expensive. Two traces, each with
+a `search_docs` tool span and a `draft-reply` llm span, were sent first; one `search_docs`
+call failed.
+
+```bash
+curl -s -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces/analytics?group_by=span_name&from=2026-03-02&to=2026-03-03"
+```
+
+Response (status 200):
+
+```json
+{
+  "from": "2026-03-02",
+  "to": "2026-03-03",
+  "groupBy": "span_name",
+  "totals": {
+    "requests": 4,
+    "errorRate": 0.25,
+    "promptTokens": 1600,
+    "completionTokens": 240,
+    "totalTokens": 1840,
+    "costUsd": 0.000384,
+    "latencyMs": {
+      "p50": 1050,
+      "p95": 1879.9999999999998,
+      "p99": 1975.9999999999998
+    }
+  },
+  "buckets": [
+    {
+      "key": "draft-reply",
+      "requests": 2,
+      "errorRate": 0,
+      "promptTokens": 1600,
+      "completionTokens": 240,
+      "totalTokens": 1840,
+      "costUsd": 0.000384,
+      "latencyMs": {
+        "p50": 1050,
+        "p95": 1185,
+        "p99": 1197
+      }
+    },
+    {
+      "key": "search_docs",
+      "requests": 2,
+      "errorRate": 0.5,
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "costUsd": 0,
+      "latencyMs": {
+        "p50": 1060,
+        "p95": 1906,
+        "p99": 1981.2
+      }
+    }
+  ]
+}
+```
+
+A gateway call sent without an `x-span-name` header is named after its start time. All
+such calls share one `(unnamed)` bucket, so they do not become one bucket per call.
+
+Add `kind` to look at one kind of step only:
+
+```bash
+curl -s -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces/analytics?group_by=span_name&kind=tool&from=2026-03-02&to=2026-03-03"
+```
+
+Response (status 200):
+
+```json
+{
+  "from": "2026-03-02",
+  "to": "2026-03-03",
+  "groupBy": "span_name",
+  "totals": {
+    "requests": 2,
+    "errorRate": 0.5,
+    "promptTokens": 0,
+    "completionTokens": 0,
+    "totalTokens": 0,
+    "costUsd": 0,
+    "latencyMs": {
+      "p50": 1060,
+      "p95": 1906,
+      "p99": 1981.2
+    }
+  },
+  "buckets": [
+    {
+      "key": "search_docs",
+      "requests": 2,
+      "errorRate": 0.5,
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "costUsd": 0,
+      "latencyMs": {
+        "p50": 1060,
+        "p95": 1906,
+        "p99": 1981.2
+      }
+    }
+  ]
+}
+```
+
+---
+
 #### `kind=llm` filter
 
 ```bash
@@ -496,7 +612,7 @@ curl -s -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
 ```
 
 ```json
-{ "error": { "code": "VALIDATION_ERROR", "message": "Invalid enum value. Expected 'day' | 'model' | 'session' | 'prompt_version', received 'banana'" } }
+{"error":{"code":"VALIDATION_ERROR","message":"Invalid enum value. Expected 'day' | 'model' | 'session' | 'prompt_version' | 'span_name', received 'banana'"}}
 ```
 
 Invalid `kind` (status 400):

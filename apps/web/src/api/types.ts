@@ -656,7 +656,7 @@ export interface SessionsParams {
   limit?: number;
 }
 
-export type AnalyticsGroupBy = 'day' | 'model' | 'session' | 'prompt_version';
+export type AnalyticsGroupBy = 'day' | 'model' | 'session' | 'prompt_version' | 'span_name';
 
 /** Latency percentiles in ms; null when the bucket/range has no timed spans. */
 export interface LatencyPercentiles {
@@ -675,7 +675,7 @@ export interface AnalyticsTotals {
   latencyMs: LatencyPercentiles;
 }
 
-/** One grouped bucket (a day, model, session id, or prompt-version id) — same shape as the range totals, plus `key`. */
+/** One grouped bucket (a day, model, session id, prompt-version id, or span name) — same shape as the range totals, plus `key`. */
 export interface AnalyticsBucket extends AnalyticsTotals {
   key: string;
 }
@@ -965,6 +965,8 @@ export type RunStatus = 'queued' | 'running' | 'succeeded' | 'failed';
 export interface Run {
   id: string;
   experimentId: string;
+  /** The dataset the run graded; only runs sharing it can be compared per example. */
+  datasetId: string;
   status: RunStatus;
   startedAt: string | null;
   endedAt: string | null;
@@ -1129,6 +1131,51 @@ export interface RunCellDetail {
   variantLabel: string;
   model: string;
   examples: RunCellExample[];
+}
+
+// ── Evaluations: per-example comparison of two cells ───────────────────────
+/** How one example moved from the base cell to the target cell, decided on pass/fail. */
+export type RunCompareChange = 'improved' | 'regressed' | 'unchanged' | 'unscored' | 'missing';
+
+/** One side of a compared example. */
+export interface RunCompareSide {
+  output: unknown;
+  errorMessage: string | null;
+  score: number | null;
+  passed: boolean | null;
+  reason: string | null;
+  traceId: string | null;
+}
+
+/**
+ * One dataset example paired across the two cells. A side is null when that cell has
+ * no result for the example (`change: 'missing'`).
+ */
+export interface RunCompareExample {
+  exampleId: string;
+  input: Record<string, unknown>;
+  criteria: string | null;
+  base: RunCompareSide | null;
+  target: RunCompareSide | null;
+  /** `target.score - base.score`, or null when either is missing. */
+  scoreDelta: number | null;
+  change: RunCompareChange;
+}
+
+/** Which cell a side of the comparison came from: its run and its grid coordinates. */
+export interface RunCompareCellRef {
+  runId: string;
+  cellKey: string;
+  variantLabel: string;
+  model: string;
+}
+
+/** GET /runs/:id/compare */
+export interface RunCompare {
+  base: RunCompareCellRef;
+  target: RunCompareCellRef;
+  counts: Record<RunCompareChange, number>;
+  examples: RunCompareExample[];
 }
 
 // ── Evaluations: optimize loop + promote (E6) ───────────────────────────────

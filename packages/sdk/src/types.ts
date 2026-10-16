@@ -1282,8 +1282,12 @@ export interface AnalyticsOptions {
   from?: string;
   /** ISO date/datetime — exclusive upper bound on `startedAt`. */
   to?: string;
-  /** Aggregation dimension. Defaults server-side to `'day'`. */
-  groupBy?: 'day' | 'model' | 'session' | 'prompt_version';
+  /**
+   * Aggregation dimension. Defaults server-side to `'day'`. `'span_name'` gives one bucket
+   * per step name inside your traces; gateway calls sent without a span name share one
+   * `'(unnamed)'` bucket.
+   */
+  groupBy?: 'day' | 'model' | 'session' | 'prompt_version' | 'span_name';
   /** Narrows to spans of one kind. */
   kind?: SpanKind;
   /** Narrows to spans reported with this exact model string. */
@@ -1321,7 +1325,7 @@ export interface AnalyticsResult {
   from: string;
   /** Resolved window end, `YYYY-MM-DD`. */
   to: string;
-  groupBy: 'day' | 'model' | 'session' | 'prompt_version';
+  groupBy: 'day' | 'model' | 'session' | 'prompt_version' | 'span_name';
   totals: AnalyticsTotals;
   /**
    * One entry per distinct group key that occurred in the window. A bucket whose

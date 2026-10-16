@@ -560,6 +560,39 @@ curl "$ACRUXCORE_BASE_URL/runs?dataset_id=<dataset-id>" \
 </TabItem>
 </Tabs>
 
+### See which examples changed
+
+A cell's average can hide what happened to single examples. A new version can fix three
+examples and break two, and its average still goes up. The compare view puts two cells
+side by side, one row per example, and counts the examples that went from fail to pass
+(**Improved**) and from pass to fail (**Regressed**).
+
+<Tabs groupId="lang">
+<TabItem value="dashboard" label="Dashboard">
+
+On a run report, click **Compare per example**. The page opens on the baseline against
+the best other cell, and shows only the examples that changed. Click a counter to show
+another group, and click a row to read both outputs and both judge reasons. To compare
+with an earlier run over the same dataset, pick it under **Target**.
+
+![The Compare per example page. The base is production · mistral-small and the target is v2 · mistral-small. The counters read Changed 5, Improved 3, Regressed 2, Unchanged 25. The table lists two regressed examples, with pass at 90 and 80 becoming fail at 60, and three improved examples.](/img/guides/evaluate-a-prompt/compare-per-example.png)
+
+</TabItem>
+<TabItem value="curl" label="curl">
+
+```bash
+curl "$ACRUXCORE_BASE_URL/runs/<run-id>/compare?base_cell=production%7Cgpt-4o-mini&target_cell=v2%7Cgpt-4o-mini" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+# → { "counts": { "improved": 2, "regressed": 1, "unchanged": 0, ... }, "examples": [ ... ] }
+```
+
+Add `target_run_id=<other-run-id>` to compare with a cell of another run over the same
+dataset. The full response is in the
+[API reference](/api-reference/experiments#get-apiv1runscompare).
+
+</TabItem>
+</Tabs>
+
 ## 5. Use this as a gate before you promote
 
 The automatic baseline cell from step 3 is what makes this a **regression
@@ -571,7 +604,8 @@ promoting a version, not after:
 - Candidate clearly beats baseline → promote it, per
   [Version a prompt](./version-a-prompt).
 - Candidate ties or loses on one or more examples → that's a regression the
-  dataset caught before a real user did. Don't promote; either fix the
+  dataset caught before a real user did. **Compare per example** lists those examples,
+  even when the average went up. Don't promote; either fix the
   version or revisit the dataset's `criteria` if the loss looks like a
   scoring artifact rather than a real quality drop.
 

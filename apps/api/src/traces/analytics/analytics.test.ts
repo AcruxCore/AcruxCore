@@ -230,6 +230,41 @@ describe('GET /api/v1/traces/analytics', () => {
     expect(keys).toEqual(['sess-a', 'sess-b']);
   });
 
+  it('group_by=span_name gives one bucket per step, and combines with the kind filter', async () => {
+    const { agent } = await authedAgent(app);
+    const step = (spanId: string, name: string, kind: string, status: string, startMs: number, ms: number) => ({
+      spanId, name, kind, status,
+      startTime: new Date(Date.UTC(2026, 5, 10, 10, 0, 0, startMs)).toISOString(),
+      endTime: new Date(Date.UTC(2026, 5, 10, 10, 0, 0, startMs + ms)).toISOString(),
+    });
+    await agent
+      .post('/api/v1/traces')
+      .send({
+        traces: [
+          { name: 'run-1', spans: [step('a1', 'search_docs', 'tool', 'ok', 0, 100), step('a2', 'draft-reply', 'chain', 'ok', 200, 400)] },
+          { name: 'run-2', spans: [step('b1', 'search_docs', 'tool', 'error', 0, 300), step('b2', 'draft-reply', 'chain', 'ok', 400, 600)] },
+          // A gateway call sent without a span name is named after its own start time.
+          { name: 'run-3', spans: [step('c1', '2026-06-10T10:00:05.000Z', 'llm', 'ok', 5000, 50)] },
+        ],
+      })
+      .expect(200);
+
+    const res = await agent.get(`/api/v1/traces/analytics?group_by=span_name&${RANGE}`).expect(200);
+    expect(res.body.groupBy).toBe('span_name');
+    const byKey = Object.fromEntries(res.body.buckets.map((b: { key: string }) => [b.key, b]));
+    // Every placeholder-named span shares one bucket instead of one bucket per timestamp.
+    expect(Object.keys(byKey).sort()).toEqual(['(unnamed)', 'draft-reply', 'search_docs']);
+    expect(byKey.search_docs).toMatchObject({ requests: 2, errorRate: 0.5 });
+    expect(byKey.search_docs.latencyMs.p50).toBeCloseTo(200, 6);
+    expect(byKey['draft-reply']).toMatchObject({ requests: 2, errorRate: 0 });
+    expect(byKey['draft-reply'].latencyMs.p50).toBeCloseTo(500, 6);
+
+    const tools = await agent
+      .get(`/api/v1/traces/analytics?group_by=span_name&kind=tool&${RANGE}`)
+      .expect(200);
+    expect(tools.body.buckets.map((b: { key: string }) => b.key)).toEqual(['search_docs']);
+  });
+
   it('the kind filter narrows totals to spans of that kind', async () => {
     const { agent } = await authedAgent(app);
     await seedMixedSpans(agent);

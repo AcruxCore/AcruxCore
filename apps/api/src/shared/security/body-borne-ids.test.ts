@@ -132,6 +132,10 @@ const UUID_FIELDS: Record<string, { verdict: Verdict; by: string }> = {
     by: 'optimizeRepo.getCandidateForRun(teamId, runId, id).',
   },
 
+  'evaluations/runs/runs.types.ts:RunCompareQuerySchema.target_run_id': {
+    verdict: 'ownership-checked',
+    by: 'RunsService.compareCells → runsRepo.getRunHeader(teamId, id), 404 before any result is read.',
+  },
   'evaluations/runs/runs.types.ts:RunListQuerySchema.dataset_id': {
     verdict: 'filter-only',
     by: 'Narrows a run list already scoped to the team.',

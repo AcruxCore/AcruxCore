@@ -364,6 +364,7 @@ function probesFor(a: Fixture, b: Fixture): Record<string, Probe> {
     'DELETE /api/v1/runs/:id': { url: `/api/v1/runs/${a.runId}` },
     'GET /api/v1/runs/:id/report': { url: `/api/v1/runs/${a.runId}/report` },
     'GET /api/v1/runs/:id/cells/:cellKey': { url: `/api/v1/runs/${a.runId}/cells/any-cell` },
+    'GET /api/v1/runs/:id/compare': { url: `/api/v1/runs/${a.runId}/compare?base_cell=any&target_cell=any` },
     'GET /api/v1/runs/:id/candidates/:candidateId': { url: `/api/v1/runs/${a.runId}/candidates/${ghostUuid}` },
     'POST /api/v1/runs/:id/promote': {
       url: `/api/v1/runs/${a.runId}/promote`,

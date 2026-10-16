@@ -67,6 +67,13 @@ export class AnalyticsRepository {
         return Prisma.sql`t.session_id`;
       case 'prompt_version':
         return Prisma.sql`COALESCE(p.name || ' v' || pv.version_number::text, s.prompt_version_id::text)`;
+      case 'span_name':
+        // A gateway call sent without `x-span-name` is named after its own start time
+        // (`gateway-trace.hook.ts`), so grouping by the raw name would give one bucket per
+        // call. Those placeholder names share one `(unnamed)` bucket instead.
+        return Prisma.sql`CASE
+          WHEN s.name = to_char(s.started_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+          THEN '(unnamed)' ELSE s.name END`;
     }
   }
 

@@ -154,7 +154,7 @@ function inputCost(usage: Usage, inputPricePerM: number, rates: CacheRates): num
  * @param model - A model id, possibly with a trailing `-YYYY-MM-DD` suffix.
  * @returns `model` with any trailing date suffix removed; unchanged if none.
  */
-function stripDateSuffix(model: string): string {
+export function stripDateSuffix(model: string): string {
   return model.replace(/-\d{4}-\d{2}-\d{2}$/, '');
 }
 

@@ -334,6 +334,25 @@ export class RunsRepository {
   }
 
   /**
+   * Reads a run's grid, frozen example snapshot and dataset id, without its results —
+   * what `GET /runs/:id/compare` needs to check that two runs graded the same dataset.
+   *
+   * @param teamId - Isolation boundary; another team's run reads as null.
+   * @param id - Run UUID.
+   * @returns The run's header fields, or null if no such run in this team.
+   */
+  async getRunHeader(
+    teamId: string,
+    id: string,
+  ): Promise<{ id: string; grid: Prisma.JsonValue; exampleSnapshot: Prisma.JsonValue; datasetId: string } | null> {
+    const run = await prisma.experimentRun.findFirst({
+      where: { id, teamId },
+      select: { id: true, grid: true, exampleSnapshot: true, experiment: { select: { datasetId: true } } },
+    });
+    return run ? { id: run.id, grid: run.grid, exampleSnapshot: run.exampleSnapshot, datasetId: run.experiment.datasetId } : null;
+  }
+
+  /**
    * Hard-deletes one run. Its `eval_results` cascade; `prompt_candidates.run`
    * is `SetNull`, so a candidate the optimizer drafted (and possibly already
    * promoted to a real prompt version) survives with its run link cleared.

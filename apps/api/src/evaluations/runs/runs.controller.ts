@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { RunsService } from './runs.service';
-import { RunListQuerySchema } from './runs.types';
+import { RunCompareQuerySchema, RunListQuerySchema } from './runs.types';
 import { ValidationError } from '../../shared/errors';
 
 /**
@@ -78,6 +78,18 @@ export class RunsController {
     try {
       const cellKey = decodeURIComponent(req.params.cellKey);
       const result = await this.service.getCell(req.teamId!, req.params.id, cellKey);
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /** GET /api/v1/runs/:id/compare — two grid cells side by side, per example. */
+  compare = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const parsed = RunCompareQuerySchema.safeParse(req.query);
+      if (!parsed.success) throw new ValidationError(parsed.error.issues[0].message);
+      const result = await this.service.compareCells(req.teamId!, req.params.id, parsed.data);
       res.status(200).json(result);
     } catch (err) {
       next(err);

@@ -14,6 +14,7 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ### Added
 
+- `traces.analytics(group_by="span_name")` gives one bucket per step name inside your traces.
 - `experiments.create` takes an optional `judge_prompt_id`: a prompt of yours that grades instead of the
   built-in judge. Each run uses its `production` version (else its latest).
 - `RunReport.judge` (a `RunJudge` with `model` and `prompt_version_id`) names the judge that graded

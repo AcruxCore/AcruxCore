@@ -183,6 +183,8 @@ export interface RunListResponse {
 export interface RunDetailDto {
   id: string;
   experimentId: string;
+  /** The dataset the run graded; runs sharing it can be compared per example. */
+  datasetId: string;
   status: string;
   startedAt: string | null;
   endedAt: string | null;
@@ -231,3 +233,63 @@ export interface RunCellDetailDto {
   model: string;
   examples: RunCellExampleDto[];
 }
+
+/**
+ * Query params for `GET /runs/:id/compare`. The base cell is in the run named by the
+ * path; the target cell is in `target_run_id`, or the same run when it is omitted.
+ */
+export const RunCompareQuerySchema = z.object({
+  base_cell: z.string({ required_error: '`base_cell` is required.' }).min(1, '`base_cell` is required.'),
+  target_cell: z.string({ required_error: '`target_cell` is required.' }).min(1, '`target_cell` is required.'),
+  target_run_id: z.string().uuid('`target_run_id` must be a UUID.').optional(),
+});
+export type RunCompareQuery = z.infer<typeof RunCompareQuerySchema>;
+
+/**
+ * How one example moved from the base cell to the target cell. Decided on pass/fail,
+ * because the judge's 0–100 score moves a few points between runs on the same output;
+ * `scoreDelta` is reported beside it but never decides the change.
+ * `unscored` — one side has no pass/fail verdict (not judged, or the cell failed).
+ * `missing` — the example has a result on only one side.
+ */
+export type RunCompareChange = 'improved' | 'regressed' | 'unchanged' | 'unscored' | 'missing';
+
+/** One side of a compared example: what that cell produced and how it was judged. */
+export interface RunCompareSide {
+  output: unknown;
+  errorMessage: string | null;
+  score: number | null;
+  passed: boolean | null;
+  reason: string | null;
+  traceId: string | null;
+}
+
+/** One dataset example, with both cells' results side by side. */
+export interface RunCompareExampleDto {
+  exampleId: string;
+  input: Record<string, unknown>;
+  criteria: string | null;
+  base: RunCompareSide | null;
+  target: RunCompareSide | null;
+  /** `target.score - base.score`, or null when either score is missing. */
+  scoreDelta: number | null;
+  change: RunCompareChange;
+}
+
+/** Identifies one compared cell. */
+export interface RunCompareCellRef {
+  runId: string;
+  cellKey: string;
+  variantLabel: string;
+  model: string;
+}
+
+/** Response for `GET /runs/:id/compare`. */
+export interface RunCompareDto {
+  base: RunCompareCellRef;
+  target: RunCompareCellRef;
+  /** How many examples fall under each change; the five always add up to `examples.length`. */
+  counts: Record<RunCompareChange, number>;
+  examples: RunCompareExampleDto[];
+}
+

@@ -82,8 +82,29 @@ called out in the week it ships and in the SDK release notes.
 - Code that reads `content` as a string must narrow it first; the type checker reports each place.
 - Release notes: [TypeScript](https://github.com/AcruxCore/AcruxCore/blob/main/packages/sdk/CHANGELOG.md) · [Python](https://github.com/AcruxCore/AcruxCore/blob/main/packages/sdk-python/CHANGELOG.md)
 
+#### Traced calls are priced with your own model prices
+
+- SDK and OTLP spans that skip the gateway now use the price you set on a registered model.
+- The span's model matches the model's public name or its upstream id, such as `glm-5.3`.
+- With no team price, the built-in price list is used; native SDK spans get a cost this way too.
+
+#### Dashboards can group by step
+
+- **By step (span name)** on Dashboards lists each step with calls, error rate and p50/p95/p99.
+- A kind picker narrows it to one kind of step, such as `tool`; every column sorts.
+- The analytics API takes `group_by=span_name`. [Reference →](/api-reference/traces/analytics)
+
+#### Compare two runs example by example
+
+- **Compare per example** on a run report shows which examples a version fixed and which it broke.
+- Counters for improved, regressed and unchanged act as filters; the page opens on changed only.
+- `GET /runs/:id/compare` returns the same, for two cells of one run or two runs on one dataset.
+  [Guide →](/docs/guides/evaluate-a-prompt#see-which-examples-changed)
+
 ### Minor
 
+- **Fixed** — a traced span sent without `totalTokens` now counts prompt + completion, not 0.
+- **Fixed** — dashboard latency under one second could show as `980.0999999999999ms`.
 - **Fixed** — an image link the provider could not fetch gave a 500; it is now a 400.
 - **New guide** — [Evaluate a prompt that reads an image](/docs/guides/evaluate-a-prompt-that-reads-an-image).
 - Adding feedback to a dataset skips a call whose image was sent inline, and names the variable.

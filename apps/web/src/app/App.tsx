@@ -39,6 +39,7 @@ import {
   ExperimentConfigPage,
   RunHistoryPage,
   RunReportPage,
+  RunComparePage,
   RulesPage,
 } from '@/evaluations';
 import {
@@ -140,6 +141,7 @@ export function App() {
         <Route path="/evaluations/datasets/:id/run" element={<ExperimentConfigPage />} />
         <Route path="/evaluations/runs" element={<RunHistoryPage />} />
         <Route path="/evaluations/runs/:id" element={<RunReportPage />} />
+        <Route path="/evaluations/runs/:id/compare" element={<RunComparePage />} />
         <Route path="/evaluations/rules" element={<RulesPage />} />
       </Route>
 

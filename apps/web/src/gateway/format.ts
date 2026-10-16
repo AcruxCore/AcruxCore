@@ -38,6 +38,8 @@ export function formatPercent(fraction: number): string {
 /** Format a latency in milliseconds, switching to seconds past 1000ms. */
 export function formatLatency(ms: number | null | undefined): string {
   if (ms === null || ms === undefined) return '—';
-  if (ms < 1000) return `${ms}ms`;
+  // Percentiles come from Postgres `percentile_cont`, which interpolates to a fraction.
+  const whole = Math.round(ms);
+  if (whole < 1000) return `${whole}ms`;
   return `${(ms / 1000).toFixed(2)}s`;
 }

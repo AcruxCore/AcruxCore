@@ -1054,6 +1054,191 @@ curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" "$ACRUXCORE_BASE_URL/runs/6e8
 
 ---
 
+### GET /api/v1/runs/:id/compare
+
+Two grid cells side by side, one row per dataset example. A cell's average can stay the
+same while it fixes some examples and breaks others; this read shows which ones.
+
+Query params:
+
+- `base_cell` (required) — a cell key in the run named by `:id`, URL-encoded (`|` → `%7C`).
+- `target_cell` (required) — a cell key in the target run.
+- `target_run_id` — the run holding the target cell. Omit it to compare two cells of one run.
+
+Each example's `change` is decided on pass/fail: `improved` (fail → pass), `regressed`
+(pass → fail), `unchanged`, `unscored` (a side has no verdict), or `missing` (only one side
+has a result). `scoreDelta` is `target.score - base.score` and never decides `change`.
+`counts` holds one number per change, and they add up to the number of examples.
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/runs/a2c402ba-9e4a-4382-8942-2d759b5f1378/compare?base_cell=production%7Cgpt-4o-mini&target_cell=v2%7Cgpt-4o-mini"
+```
+
+Response (status 200):
+
+```json
+{
+  "base": {
+    "runId": "a2c402ba-9e4a-4382-8942-2d759b5f1378",
+    "cellKey": "production|gpt-4o-mini",
+    "variantLabel": "production",
+    "model": "gpt-4o-mini"
+  },
+  "target": {
+    "runId": "a2c402ba-9e4a-4382-8942-2d759b5f1378",
+    "cellKey": "v2|gpt-4o-mini",
+    "variantLabel": "v2",
+    "model": "gpt-4o-mini"
+  },
+  "counts": {
+    "improved": 2,
+    "regressed": 1,
+    "unchanged": 0,
+    "unscored": 0,
+    "missing": 0
+  },
+  "examples": [
+    {
+      "exampleId": "dd9e6463-1909-4819-bb36-90ac68a57505",
+      "input": {
+        "message": "Any idea when SSO is landing? We have been waiting since March and our security review is blocked on it."
+      },
+      "criteria": "Say whether we have a date. If we do not, say so plainly, say what we do know, and tell them how they will hear when it changes. Four sentences at most, and do not promise a month we have not committed to.",
+      "base": {
+        "output": "Hello,\n\nThank you for reaching out and for your patience regarding the Single Sign-On (SSO) feature. I understand how important this is for your security review process.\n\nAs of my last update, our team has been diligently working on implementing SSO, and I can confirm that it is a priority for us. While I do not have a specific release date at the moment, I recommend keeping an eye on our official communication channels for updates. \n\nIn the meantime, if you have any other questions or if there\u2019s anything else I can assist you with, please feel free to let me know.\n\nThank you for your understanding!\n\nBest regards,\n[Your Name]  \nAcrux Core Support Team",
+        "errorMessage": null,
+        "score": 70,
+        "passed": true,
+        "reason": "The output acknowledges the lack of a specific release date for the SSO feature and suggests monitoring official communication channels for updates. However, it could be more concise and directly state the absence of a date in the first sentence, as well as provide a clearer next step with a time frame.",
+        "traceId": "6b79ce66-d667-4fd9-946b-85579fd1ac75"
+      },
+      "target": {
+        "output": "You've mentioned that you're waiting for the SSO feature, which is currently holding up your security review. I understand how important this is for your project. I recommend checking back with us in two weeks for an update on the SSO implementation timeline.",
+        "errorMessage": null,
+        "score": 60,
+        "passed": false,
+        "reason": "The output acknowledges the user's concern but does not clearly state whether a date for the SSO feature is available. It lacks a direct apology and does not provide a concrete next step with a specific time frame, which is essential according to the feedback.",
+        "traceId": "51b56fa2-fa87-4e14-a1cb-b7d29b98e482"
+      },
+      "scoreDelta": -10,
+      "change": "regressed"
+    },
+    {
+      "exampleId": "c3c69779-d6db-48f0-a504-7d181328335f",
+      "input": {
+        "message": "I was charged for another month yesterday even though I cancelled. Your help page says refunds only inside 14 days and I am on day 16. Is there really nothing you can do?"
+      },
+      "criteria": "Say plainly that day 16 is outside the 14-day window, offer what we can do instead, and end with one concrete next step. Four sentences at most, and at most one apology.",
+      "base": {
+        "output": "Dear [Customer's Name],\n\nThank you for reaching out to us regarding your recent charge. I understand how frustrating this situation must be, especially after you took the steps to cancel your subscription.\n\nWhile our policy states that refunds are typically processed within 14 days of the charge, I would be happy to look into your case further. Could you please provide me with the email address associated with your account or any relevant details about your cancellation? This will help me to investigate the matter and see if there are any options available for you.\n\nThank you for your patience, and I look forward to assisting you.\n\nBest regards,\n\n[Your Name]  \nCustomer Support Agent  \nAcrux Core",
+        "errorMessage": null,
+        "score": 40,
+        "passed": false,
+        "reason": "The output does not clearly state that day 16 is outside the 14-day refund window, and it does not provide a concrete next step or time frame. It also exceeds the four-sentence limit.",
+        "traceId": "8e468ee6-8e92-4b6f-a0d7-ad19549b4741"
+      },
+      "target": {
+        "output": "You are experiencing a charge for your subscription despite having canceled, and you are outside the 14-day refund window. I understand how frustrating this situation can be. I can escalate your case to our billing department for further review and they will get back to you within 3 business days to provide an update.",
+        "errorMessage": null,
+        "score": 70,
+        "passed": true,
+        "reason": "The output identifies the issue of being outside the 14-day refund window and includes an apology. It offers a next step by stating that the case can be escalated to the billing department, which provides a concrete action. However, it could be more direct in stating that day 16 is outside the refund window.",
+        "traceId": "f5fba8af-18f7-42ad-bdfe-14e32f78e722"
+      },
+      "scoreDelta": 30,
+      "change": "improved"
+    },
+    {
+      "exampleId": "07885ab9-6bca-4eec-bee0-eb0a6f818300",
+      "input": {
+        "message": "Our API keys stopped working this morning \u2014 every call comes back 401 and nothing changed on our side. We have a customer demo at 2pm and I am getting nervous."
+      },
+      "criteria": "Name the 401 errors in the first sentence, give them one thing to try right now, and say when we will come back to them. There is a demo in a few hours, so keep it to four sentences.",
+      "base": {
+        "output": "Hello,\n\nI understand how frustrating this situation can be, especially with a demo coming up soon. A 401 error typically indicates that the authentication has failed, which could happen for several reasons. Here are a few steps you can take to troubleshoot the issue:\n\n1. **Check API Key**: Ensure that the API key you\u2019re using is correct. Double-check for any typos or extra spaces.\n\n2. **Re-Generate API Key**: If you believe the key might have been compromised or changed, consider regenerating a new API key in your dashboard.\n\n3. **Scope and Permissions**: Verify if there have been any changes in the permissions or scope assigned to the API key you are using.\n\n4. **Rate Limits**: Ensure that you have not exceeded any rate limits that might restrict access.\n\n5. **Backend Changes**: Although you mentioned that nothing changed on your side, it may be worth checking if there were any updates or changes on our end that could have affected the API access.\n\nTo assist you further, could you please provide the following information?\n- The specific API endpoints you are trying to access\n- The way you are making the calls (e.g., tool, method)\n- Any recent changes to your application that could be relevant\n\nWe\u2019re here to help you resolve this issue as quickly as possible. \n\nBest regards,  \n[Your Name]  \nAcrux Core Support Team",
+        "errorMessage": null,
+        "score": 30,
+        "passed": false,
+        "reason": "The output does not name the 401 error in the first sentence, does not apologize, and exceeds four sentences. It also lacks a concrete next step and a time frame for follow-up.",
+        "traceId": "2b7bb00b-4976-4dc8-9981-f5026ef7ffcf"
+      },
+      "target": {
+        "output": "You've experienced a sudden issue with your API keys returning a 401 error, even though no changes were made on your side. I understand how urgent this is, especially with your demo at 2pm. Please verify if there are any recent changes in your account settings or if your API keys have been regenerated. Meanwhile, I'll have our technical team review your API keys and provide feedback within the next hour.",
+        "errorMessage": null,
+        "score": 70,
+        "passed": true,
+        "reason": "The output identifies the 401 error in the first sentence and acknowledges the urgency of the situation. It provides a suggestion to verify account settings or regenerated API keys, which serves as a concrete next step. However, it could be more concise, as it slightly exceeds the four-sentence limit.",
+        "traceId": "26242b8e-08d6-4746-bedd-c1905d681527"
+      },
+      "scoreDelta": 40,
+      "change": "improved"
+    }
+  ]
+}
+```
+
+The two runs must have graded the same dataset, because examples are paired by
+dataset example id. `GET /api/v1/runs/:id` returns `datasetId` so a client can find runs
+to compare against:
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" $ACRUXCORE_BASE_URL/runs/a2c402ba-9e4a-4382-8942-2d759b5f1378
+```
+
+Response (status 200):
+
+```json
+{
+  "id": "a2c402ba-9e4a-4382-8942-2d759b5f1378",
+  "experimentId": "9f9d6b8c-145a-4cf7-8993-c1023ec24a0d",
+  "datasetId": "c776580d-e46e-45a4-8847-b00004871502",
+  "status": "succeeded",
+  "startedAt": "2026-09-06T11:24:41.342Z",
+  "endedAt": "2026-09-06T11:24:50.360Z",
+  "error": null,
+  "createdAt": "2026-09-06T11:24:41.327Z",
+  "grid": [
+    {
+      "model": "gpt-4o-mini",
+      "cellKey": "v2|gpt-4o-mini",
+      "variantKind": "version",
+      "variantLabel": "v2",
+      "promptVersionId": "6059a265-eaff-4107-b98a-bf4808e630e5",
+      "isProductionBaseline": false
+    },
+    {
+      "model": "gpt-4o-mini",
+      "cellKey": "production|gpt-4o-mini",
+      "variantKind": "version",
+      "variantLabel": "production",
+      "promptVersionId": "4ccc4890-c7ca-4352-af8a-0a74896b1ff9",
+      "isProductionBaseline": true
+    }
+  ],
+  "exampleCount": 3,
+  "results": {
+    "total": 6,
+    "succeeded": 6,
+    "errored": 0
+  }
+}
+```
+
+Comparing against a run over a different dataset (status 400):
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/runs/5ab85a08-19d3-4a26-9461-d98e2f4e8070/compare?base_cell=production%7Cmistral-small&target_run_id=80ddaa53-e87d-4a73-b914-551f08428896&target_cell=v2%7Cmistral-small"
+```
+
+```json
+{"error":{"code":"DATASET_MISMATCH","message":"The two runs graded different datasets, so their examples cannot be paired."}}
+```
+
+A cell key that is not in its run's grid returns 404 `NOT_FOUND`, and a missing
+`base_cell` or `target_cell` returns 400 `VALIDATION_ERROR`.
+
 ### GET /api/v1/experiments
 
 Lists the team's experiments. Note: unlike the JSDoc on `ExperimentDto`

@@ -6,6 +6,7 @@ import { AppError, NotFoundError, PayloadTooLargeError } from '../../shared/erro
 import { enqueueOnlineEval } from '../../evaluations/online/enqueue-online-eval';
 import { VersionsRepository } from '../../prompts/versions/versions.repository';
 import type { IngestSpan, IngestTrace, IngestResponse } from './ingest.types';
+import { SpanPricer } from './span-pricer';
 
 /** Maximum spans accepted in one ingestion request (Phase-3 guard, FAQ / spec). */
 const MAX_SPANS_PER_BATCH = 200;
@@ -32,6 +33,9 @@ export class IngestService {
    * `GatewayService`, which resolves the same client-supplied field the same way.
    */
   private readonly promptVersions = new VersionsRepository();
+
+  /** Prices spans that arrive without a cost: team model price first, registry second. */
+  private readonly pricer = new SpanPricer();
 
   /**
    * Validates and persists a batch of traces for a team.
@@ -75,12 +79,13 @@ export class IngestService {
     }
 
     await this.assertPromptVersionsAreOurs(teamId, traces);
+    const pricedTraces = await this.pricer.price(teamId, traces);
 
     // Team-level capture default is resolved once; each trace may override it.
     const teamSetting = (await this.settings.get(teamId))?.capturePayloads ?? true;
 
     const traceIds: string[] = [];
-    for (const trace of traces) {
+    for (const trace of pricedTraces) {
       traceIds.push(
         await this.ingestTrace(teamId, trace, teamSetting, {
           idempotent: opts?.idempotent ?? false,
@@ -277,7 +282,13 @@ export class IngestService {
       provider: s.provider ?? null,
       promptTokens: s.usage?.promptTokens ?? null,
       completionTokens: s.usage?.completionTokens ?? null,
-      totalTokens: s.usage?.totalTokens ?? null,
+      // Many clients send only prompt + completion; without this the span's tokens summed
+      // as 0 in every analytics total and dashboard column.
+      totalTokens:
+        s.usage?.totalTokens ??
+        (s.usage?.promptTokens !== undefined && s.usage?.completionTokens !== undefined
+          ? s.usage.promptTokens + s.usage.completionTokens
+          : null),
       costUsd: s.costUsd ?? null,
       promptVersionId: s.promptVersionId ?? null,
       gatewayRequestId: null, // SDK-reported spans have no gateway ledger row

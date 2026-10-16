@@ -82,7 +82,10 @@ describe('AnalyticsRepository.bucket — totals', () => {
     expect(totals.promptTokens).toBe(800);
     expect(totals.completionTokens).toBe(160);
     expect(totals.totalTokens).toBe(960);
-    expect(totals.costUsd).toBeCloseTo(0.014, 6);
+    // 0.014 from the seeded costs, plus b2: it sent tokens but no cost, so ingest prices it
+    // from the built-in gpt-4o rate (150 × $2.50/M + 30 × $10/M = 0.000675). The tool span
+    // b3 has no model and stays null — that is the null-as-0 case.
+    expect(totals.costUsd).toBeCloseTo(0.014675, 6);
     expect(totals.latencyMs.p50).toBeCloseTo(300, 6);
     expect(totals.latencyMs.p95).toBeCloseTo(480, 6);
     expect(totals.latencyMs.p99).toBeCloseTo(496, 6);

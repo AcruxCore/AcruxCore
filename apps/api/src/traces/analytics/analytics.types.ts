@@ -1,7 +1,11 @@
 import { z } from 'zod';
 
-/** Dimension the analytics aggregate is grouped by. */
-export const GroupBySchema = z.enum(['day', 'model', 'session', 'prompt_version']);
+/**
+ * Dimension the analytics aggregate is grouped by. `span_name` buckets by the step name
+ * inside a trace (`search_docs`, `draft-reply`), which shows which step is slow, failing
+ * or expensive; pair it with the `kind` filter to look at one kind of step only.
+ */
+export const GroupBySchema = z.enum(['day', 'model', 'session', 'prompt_version', 'span_name']);
 export type GroupBy = z.infer<typeof GroupBySchema>;
 
 /** span_kind enum values (conventions §1). Used for the optional `kind` filter. */
@@ -60,7 +64,7 @@ export interface AnalyticsTotals {
   latencyMs: LatencyPercentiles;
 }
 
-/** One grouped bucket (a day, a model, a session id, or a prompt-version id). */
+/** One grouped bucket (a day, a model, a session id, a prompt-version id, or a span name). */
 export interface AnalyticsBucket extends AnalyticsTotals {
   key: string;
 }

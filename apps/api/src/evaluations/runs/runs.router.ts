@@ -68,6 +68,7 @@ runsRouter.get('/runs/:id', requireAnyAuth, controller.getRun);
 runsRouter.delete('/runs/:id', requireAnyAuth, requireRole('owner', 'admin', 'editor'), controller.remove);
 runsRouter.get('/runs/:id/report', requireAnyAuth, controller.getReport);
 runsRouter.get('/runs/:id/cells/:cellKey', requireAnyAuth, controller.getCell);
+runsRouter.get('/runs/:id/compare', requireAnyAuth, controller.compare);
 
 // Read one optimizer-drafted candidate's template + rationale (E7 Task 5) —
 // the promote-review UI's "what am I about to promote" read. Read-only, so

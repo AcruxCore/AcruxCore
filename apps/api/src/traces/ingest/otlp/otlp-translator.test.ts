@@ -8,7 +8,7 @@ function kv(key: string, value: unknown): { key: string; value: any } {
 }
 
 describe('translateResourceSpans', () => {
-  it('maps an OpenInference LLM span into an IngestTrace with computed cost', () => {
+  it('maps an OpenInference LLM span into an IngestTrace, leaving cost to ingest', () => {
     const traceIdHex = 'a'.repeat(32);
     const input: RawResourceSpans[] = [
       {
@@ -45,7 +45,8 @@ describe('translateResourceSpans', () => {
     expect(span.kind).toBe('llm');
     expect(span.model).toBe('gpt-4o-mini');
     expect(span.usage).toEqual({ promptTokens: 100, completionTokens: 20, totalTokens: 120 });
-    expect(span.costUsd).toBeCloseTo((100 / 1e6) * 0.15 + (20 / 1e6) * 0.6, 9);
+    // Priced later by `SpanPricer`, where the team's own model prices are known.
+    expect(span.costUsd).toBeUndefined();
     expect(span.status).toBe('ok');
     expect(span.startTime).toBe('2023-11-14T22:13:20.000Z');
     expect(span.endTime).toBe('2023-11-14T22:13:20.500Z');

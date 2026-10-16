@@ -14,6 +14,8 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ### Added
 
+- `traces.analytics({ groupBy: 'span_name' })` gives one bucket per step name inside your traces;
+  the `groupBy` type now accepts it.
 - `experiments.create` takes an optional `judgePromptId`: a prompt of yours that grades instead of the
   built-in judge. Each run uses its `production` version (else its latest).
 - Typed judge fields: `ExperimentDto.config.judgeModel` and `judgePromptId`, each run's

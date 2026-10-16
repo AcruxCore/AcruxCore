@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import type { GatewayModel } from '@prisma/client';
 import prisma from '../../shared/db/client';
 
 /** Include shape used everywhere: bound credential + ordered fallbacks (each with its own credential). */
@@ -92,6 +93,31 @@ export class ModelsRepository {
       include: modelInclude,
     });
     return row ?? undefined;
+  }
+
+  /**
+   * Pricing lookup for traced spans: the team's models that carry both prices and whose
+   * public name or upstream id is one of `names`. Newest edit first, so when two models
+   * share an upstream id the caller can take the most recently priced one.
+   *
+   * @param teamId - The team's UUID.
+   * @param names - Model strings as spans report them; an empty list returns nothing.
+   * @returns Plain rows (no relations) — only the names and prices are needed.
+   */
+  async listPricedByNames(
+    teamId: string,
+    names: string[],
+  ): Promise<GatewayModel[]> {
+    if (names.length === 0) return [];
+    return prisma.gatewayModel.findMany({
+      where: {
+        teamId,
+        inputPricePerM: { not: null },
+        outputPricePerM: { not: null },
+        OR: [{ publicName: { in: names } }, { upstreamModel: { in: names } }],
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
   }
 
   /**
