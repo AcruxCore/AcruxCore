@@ -140,6 +140,7 @@ called out in the week it ships and in the SDK release notes.
 - **Fixed** — dashboard latency under one second could show as `980.0999999999999ms`.
 - **Fixed** — an image link the provider could not fetch gave a 500; it is now a 400.
 - **New guide** — [Evaluate a prompt that reads an image](/docs/guides/evaluate-a-prompt-that-reads-an-image).
+- The [Run your app as an experiment](/docs/guides/run-your-app-as-an-experiment) guide now shows how to reach Compare per example.
 - Adding feedback to a dataset skips a call whose image was sent inline, and names the variable.
 - **Fixed** — with `"moduleResolution": "nodenext"`, TypeScript rejected `new AcruxCore()`.
 - Unknown `/.well-known/` addresses on acruxcore.com return 404 instead of the home page.

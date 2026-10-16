@@ -44,9 +44,11 @@ One SDK call starts the whole process: `experiments.run_local` in Python, or
 4. uploads the outputs and scores to the server in batches;
 5. tells the server the run is finished, and returns a summary with a link to the run.
 
-The run then appears under **Evaluations → Runs**, next to runs that the server ran. Its
-run page has the same parts as any other run: a report with the scores, a list of every
-example, and a **Compare per example** button.
+The run then appears in the run list, next to runs that the server ran. To open the list,
+click **Datasets** under **Evaluations** in the sidebar, then click the **Runs** tab at the
+top of the page. Click a run to open its run report. The report of a local run has the same
+parts as the report of any other run: the scores, a panel with every example, and a
+**Compare per example** button.
 
 ## The app in this guide
 
@@ -387,8 +389,9 @@ The screenshots below come from the Node run, so the scorers have their Node nam
 
 ## Step 5 — Read the run in the dashboard
 
-Open the link that the script printed. The run page shows the first scorer as the run's
-main score. Below the main score, a **Scores** table lists every scorer:
+Open the link that the script printed. You can also open the run from the **Runs** tab, as
+described in [How a local experiment works](#how-a-local-experiment-works). The run page
+shows the first scorer as the run's main score. Below the main score, a **Scores** table lists every scorer:
 
 ![The run page of a local run: a 75.0 score, and a Scores table with categoryExact at 6 of 8 and teamExact at 8 of 8](/img/guides/run-your-app-as-an-experiment/02-run-report.png)
 
@@ -440,12 +443,38 @@ open: http://localhost:5596/evaluations/runs/b74a3de4-4ee0-4e99-a64b-1cfe79535e5
 </TabItem>
 </Tabs>
 
-Open the version 1 run page and click **Compare per example** at the top. The comparison
-has a base run and a target run. The base is the run you opened. By default the target is
-the newest run on the same dataset apart from the base, here the version 2 run. The
-comparison table lists the examples that passed in one run and failed in the other:
+Open the version 1 run report. **Compare per example** is a button at the top right, on the
+same line as the **Run report** title. The example panel from step 5 opens over the right
+side of the page and hides the button. Close the panel first if it is open.
+
+The comparison has a base run and a target run. The base is the run you opened. By default
+the target is the newest other run on the same dataset. In this guide, the target is the
+version 2 run. The **Base** and **Target** pickers choose other runs.
+
+You do not create the comparison yourself. Each time you open the page, AcruxCore builds the
+comparison from the results that the two runs stored. Any two runs on the same dataset can
+be compared, whether the SDK or the server ran them.
+
+The page compares each example's pass or fail result, not its score. The page puts every
+example in one of five groups:
+
+| Group | The example… |
+|---|---|
+| **Improved** | failed in the base run and passed in the target run |
+| **Regressed** | passed in the base run and failed in the target run |
+| **Unchanged** | passed in both runs, or failed in both runs |
+| **Unscored** | has a result in both runs, but one of the two results has no pass or fail |
+| **Missing** | has no result in one of the runs |
+
+An example that passes in both runs is Unchanged, even when its score went up.
+
+Above the table, a row of filter buttons shows how many examples each group holds. The
+table opens on the **Changed** filter, which shows the Improved and Regressed examples:
 
 ![Compare per example between v1 and v2: two account tickets went from fail to pass](/img/guides/run-your-app-as-an-experiment/04-compare.png)
+
+Click the **All** filter to see every example, including the Unchanged ones. The table then
+shows each example's score in both runs, and the difference in the **Δ** column.
 
 The **Score** picker sets which scorer's pass or fail is compared. On `categoryExact`, the
 two account tickets improved. On `teamExact`, no ticket changed in the Node runs, because both
