@@ -115,6 +115,34 @@ export const DEFAULT_CACHE_RATES: CacheRates = { read: CACHED_INPUT_DISCOUNT, wr
 export const ANTHROPIC_CACHE_RATES: CacheRates = { read: 0.1, write: 1.25 };
 
 /**
+ * Google's published cached-input price for Gemini: 0.1x the input rate on every current
+ * model that offers caching (ai.google.dev/gemini-api/docs/pricing, checked 16 Oct 2026 —
+ * e.g. gemini-2.5-flash $0.03 against $0.30). Gemini bills no separate cache write on the
+ * implicit cache. A team whose model differs sets its own cached input price (issue #595).
+ */
+export const GEMINI_CACHE_RATES: CacheRates = { read: 0.1, write: 1 };
+
+/**
+ * Google's cached-input price for the Gemini 1.5 and 2.0 families: 0.25x the input rate
+ * (gemini-2.0-flash $0.025 against $0.10). The built-in registry still prices these models,
+ * and an SDK span priced from the registry has no team setting to correct the rate.
+ */
+export const GEMINI_LEGACY_CACHE_RATES: CacheRates = { read: 0.25, write: 1 };
+
+/** Gemini ids from the 1.5 and 2.0 families, e.g. `gemini-2.0-flash` or `google/gemini-1.5-pro-002`. */
+const GEMINI_LEGACY_ID = /(^|\/)gemini-(1\.5|2\.0)-/i;
+
+/**
+ * Whether an upstream model id names a Gemini model, whatever connection serves it.
+ *
+ * @param upstreamModel - The id the provider knows, e.g. `google/gemini-2.5-flash`.
+ * @returns True for an id whose last path segment starts with `gemini-`.
+ */
+export function isGeminiModel(upstreamModel: string): boolean {
+  return /(^|\/)gemini-/i.test(upstreamModel);
+}
+
+/**
  * Whether an upstream model id names an Anthropic model, whatever connection serves it.
  *
  * An `openai_compatible` connection such as OpenRouter reaches Claude as `anthropic/claude-…`,
@@ -133,12 +161,14 @@ export function isAnthropicModel(upstreamModel: string): boolean {
  * @param provider - The provider of the connection that served the call.
  * @param upstreamModel - The upstream model id that connection was asked for.
  * @returns `ANTHROPIC_CACHE_RATES` for a native Anthropic connection or an Anthropic model behind
- *          any other connection, `DEFAULT_CACHE_RATES` otherwise.
+ *          any other connection, `GEMINI_LEGACY_CACHE_RATES` for a Gemini 1.5 or 2.0 id,
+ *          `GEMINI_CACHE_RATES` for any other Gemini model, `DEFAULT_CACHE_RATES` otherwise.
  */
 export function cacheRatesFor(provider: string, upstreamModel: string): CacheRates {
-  return provider === 'anthropic' || isAnthropicModel(upstreamModel)
-    ? ANTHROPIC_CACHE_RATES
-    : DEFAULT_CACHE_RATES;
+  if (provider === 'anthropic' || isAnthropicModel(upstreamModel)) return ANTHROPIC_CACHE_RATES;
+  if (GEMINI_LEGACY_ID.test(upstreamModel)) return GEMINI_LEGACY_CACHE_RATES;
+  if (provider === 'gemini' || isGeminiModel(upstreamModel)) return GEMINI_CACHE_RATES;
+  return DEFAULT_CACHE_RATES;
 }
 
 /**

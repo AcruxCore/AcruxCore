@@ -464,7 +464,7 @@ process killed by a signal drops whatever spans were buffered.
 ```python
 fb = await hub.traces.submit_feedback(
     trace_id,
-    rating=-1,                # -1..5
+    rating=-1,                # 1 = thumbs up, -1 = thumbs down
     label="wrong_answer",
     comment="The tool call missed relevant docs.",
     source="end_user",        # 'user' | 'developer' | 'end_user' | 'api'

@@ -17,3 +17,4 @@ const ctrl = new AnalyticsController(service);
 export const analyticsRouter: IRouter = Router();
 
 analyticsRouter.get('/analytics', requireAnyAuth, ctrl.getAnalytics);
+analyticsRouter.get('/analytics/scores', requireAnyAuth, ctrl.getScores);

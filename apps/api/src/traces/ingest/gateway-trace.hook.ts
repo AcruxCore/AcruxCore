@@ -122,6 +122,26 @@ function rescueWarning(meta: unknown): Record<string, unknown> {
 }
 
 /**
+ * Picks an `llm` span's name: the caller's span name, else the model the caller asked for.
+ *
+ * The requested model (a team alias like `support-model`, or `gpt-4o-mini`) is what the caller
+ * wrote, so unnamed calls to the same model share one name and group together in
+ * `groupBy: span_name`. The served model stays on `Span.model`. Phase-3 FAQ Q15.
+ *
+ * @param ctx - The call context; `spanName` wins when it is non-blank.
+ * @param requestedModel - `gateway_requests.requestedModel`; may be empty on an old row.
+ * @param startedAt - Last-resort label when neither name is available.
+ * @returns A non-empty span name.
+ */
+export function defaultLlmSpanName(
+  ctx: Pick<GatewayCallContext, 'spanName'>,
+  requestedModel: string | null | undefined,
+  startedAt: Date,
+): string {
+  return ctx.spanName?.trim() || requestedModel?.trim() || startedAt.toISOString();
+}
+
+/**
  * Turns a committed gateway completion into one `llm` span (FAQ Q1/Q2). Runs
  * AFTER the Phase 2 money `$transaction` has committed and is passed the already-
  * committed `gatewayRequestId` (NOT a transaction client) — it owns its OWN
@@ -222,7 +242,7 @@ export async function recordGatewaySpan(args: {
           spanRef,
           parentSpanRef: ctx.parentSpanRef ?? null,
           kind: 'llm',
-          name: ctx.spanName?.trim() || startedAt.toISOString(),
+          name: defaultLlmSpanName(ctx, reqRow.requestedModel, startedAt),
           status: spanStatus,
           startedAt,
           endedAt,
@@ -355,7 +375,7 @@ export async function recordGatewayErrorSpan(args: {
           spanRef,
           parentSpanRef: ctx.parentSpanRef ?? null,
           kind: 'llm',
-          name: ctx.spanName?.trim() || startedAt.toISOString(),
+          name: defaultLlmSpanName(ctx, reqRow.requestedModel, startedAt),
           status: status as SpanStatus,
           startedAt,
           endedAt,

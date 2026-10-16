@@ -99,6 +99,9 @@ describe('acruxcore SDK — hub.traces', () => {
     // 2. Default analytics — one span each, so requests == 2 spans total.
     const totals = await hub.traces.analytics();
     expect(totals.totals.requests).toBe(2);
+    // Two one-span traces, so the cost distribution has a value at both ends.
+    expect(totals.costPerTrace?.p50).toEqual(expect.any(Number));
+    expect(totals.costPerTrace?.p99).toEqual(expect.any(Number));
 
     // 3. Grouped by model — one bucket per model, with per-model metrics.
     const byModel = await hub.traces.analytics({ groupBy: 'model' });
@@ -130,14 +133,14 @@ describe('acruxcore SDK — hub.traces', () => {
     expect(reread).toEqual({ capturePayloads: false, updatedAt: updated.updatedAt });
 
     // 8. Attach feedback, then read it back three ways.
-    const feedback = await hub.traces.submitFeedback({ traceId: traceIdA, rating: 5 });
+    const feedback = await hub.traces.submitFeedback({ traceId: traceIdA, rating: 1 });
 
     const summary = await hub.traces.getFeedbackSummary({ groupBy: 'model' });
     expect(summary.groupBy).toBe('model');
     // `label` and `promptId` (#383) are part of the bucket now; grouping by model
     // makes the label the model name and leaves promptId null.
     expect(summary.buckets).toEqual([
-      { key: 'gpt-4o-mini', label: 'gpt-4o-mini', promptId: null, count: 1, avgRating: 5, downCount: 0 },
+      { key: 'gpt-4o-mini', label: 'gpt-4o-mini', promptId: null, count: 1, avgRating: 1, downCount: 0 },
     ]);
 
     const list = await hub.traces.listFeedback();

@@ -14,6 +14,8 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ### Added
 
+- `traces.analytics()` returns `cost_per_trace` (a `CostPerTrace` with `p50` and `p99`), the median
+  and p99 cost of one trace in the window. `None` from an older server.
 - `traces.analytics(group_by="span_name")` gives one bucket per step name inside your traces.
 - `experiments.create` takes an optional `judge_prompt_id`: a prompt of yours that grades instead of the
   built-in judge. Each run uses its `production` version (else its latest).
@@ -48,6 +50,17 @@ changelog: <https://docs.acruxcore.com/changelog>
      `optimize.start(…)` call.
   2. Python catches a miss at call time (`TypeError: missing 1 required keyword-only
      argument: 'judge_model'`), so it fails in your first test run, not in production.
+
+- **A feedback `rating` is a thumb: `1` (up) or `-1` (down).** The API refuses any other
+  number with a 400, raised as `AcruxCoreError` (code `API_ERROR`). `submit_feedback` types it
+  as `Literal[1, -1]`. [Why](../../docs/superpowers/specs/phase-3/phase-3-faq.md)
+
+  **Migrating from 0.17**
+
+  1. Map a score to a thumb before `submit_feedback` / `update_feedback`, for example
+     `rating=1 if stars >= 4 else -1`, or leave `rating` out and keep the score in `label`.
+  2. A type checker (mypy, pyright) flags `rating=5`; Python itself does not. Grep for `rating=`
+     in those two calls, since a missed one raises `AcruxCoreError` (status 400) at runtime.
 
 ### Fixed
 

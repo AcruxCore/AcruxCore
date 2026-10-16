@@ -9,20 +9,23 @@ export const FeedbackSourceSchema = z.enum(['user', 'developer', 'end_user', 'ap
 export type FeedbackSource = z.infer<typeof FeedbackSourceSchema>;
 
 /**
+ * A thumb: 1 is up, -1 is down. Nothing else is accepted, so every stored rating has one
+ * meaning (phase-3 FAQ Q44). Feedback with no thumb leaves `rating` out, or null.
+ */
+export const RatingSchema = z
+  .number()
+  .refine((n) => n === 1 || n === -1, 'rating must be 1 (thumbs up) or -1 (thumbs down).');
+
+/**
  * Body for POST /traces/:id/feedback. `rating`, `label`, and `comment` are each
- * optional, but the refine below requires at least one. `rating` is a permissive
- * integer in [-1, 5] (a ±1 thumbs schema and a 1–5 score both fit). `spanId`, when
+ * optional, but the refine below requires at least one. `rating` is a thumb
+ * ({@link RatingSchema}). `spanId`, when
  * present, is the caller-supplied span reference (the OTel span id returned by
  * GET /traces/:id), resolved to a span within the trace by the service.
  */
 export const CreateFeedbackSchema = z
   .object({
-    rating: z
-      .number()
-      .int('rating must be an integer.')
-      .min(-1, 'rating must be between -1 and 5.')
-      .max(5, 'rating must be between -1 and 5.')
-      .optional(),
+    rating: RatingSchema.optional(),
     label: z.string().min(1).max(200, 'label must be 200 characters or fewer.').optional(),
     comment: z.string().min(1).max(5000, 'comment must be 5000 characters or fewer.').optional(),
     spanId: z.string().min(1).optional(),
@@ -44,13 +47,7 @@ export type CreateFeedbackDto = z.infer<typeof CreateFeedbackSchema>;
  * — enforced in the service, since it needs the existing row to check that.
  */
 export const UpdateFeedbackSchema = z.object({
-  rating: z
-    .number()
-    .int('rating must be an integer.')
-    .min(-1, 'rating must be between -1 and 5.')
-    .max(5, 'rating must be between -1 and 5.')
-    .nullable()
-    .optional(),
+  rating: RatingSchema.nullable().optional(),
   label: z.string().min(1).max(200, 'label must be 200 characters or fewer.').nullable().optional(),
   comment: z.string().min(1).max(5000, 'comment must be 5000 characters or fewer.').nullable().optional(),
 });

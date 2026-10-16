@@ -3,7 +3,7 @@ feedback summary/list."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Union
 from urllib.parse import quote, urlencode
 
 from .types import (
@@ -61,8 +61,9 @@ class TracesNamespace:
         :param to: ISO date/datetime, exclusive upper bound on ``startedAt``.
         :param group_by: Aggregation dimension — ``'day'``, ``'model'``,
             ``'session'``, ``'prompt_version'``, or ``'span_name'`` (one bucket
-            per step name; gateway calls sent without a span name share one
-            ``'(unnamed)'`` bucket). Defaults server-side to ``'day'``.
+            per step name; a gateway call sent without a span name is named after
+            the requested model, and a span named with its own start time goes into
+            one ``'(unnamed)'`` bucket). Defaults server-side to ``'day'``.
         :param kind: Narrows to spans of one kind (``'llm'``, ``'tool'``, ...).
         :param model: Narrows to spans reported with this exact model string.
         :returns: :class:`~acruxcore.types.AnalyticsResult` — totals across the
@@ -421,7 +422,7 @@ class TracesNamespace:
         trace_id: str,
         *,
         span_id: Optional[str] = None,
-        rating: Optional[int] = None,
+        rating: Optional[Literal[1, -1]] = None,
         label: Optional[str] = None,
         comment: Optional[str] = None,
         source: Optional[str] = None,
@@ -430,7 +431,8 @@ class TracesNamespace:
 
         :param trace_id: The trace id.
         :param span_id: Scope feedback to one span instead of the whole trace.
-        :param rating: -1..5.
+        :param rating: A thumb: ``1`` is up, ``-1`` is down. Any other
+            number is refused with a 400. Omit it for feedback with no thumb.
         :param label: A short label.
         :param comment: Free text.
         :param source: ``user`` | ``developer`` | ``end_user`` | ``api``.
@@ -469,7 +471,7 @@ class TracesNamespace:
 
         :param trace_id: The trace id.
         :param feedback_id: The feedback row id.
-        :param rating: New rating, or ``None`` to clear. Omit to keep.
+        :param rating: New thumb (``1`` or ``-1``), or ``None`` to clear. Omit to keep.
         :param label: New label, or ``None`` to clear. Omit to keep.
         :param comment: New comment, or ``None`` to clear. Omit to keep.
         :returns: The updated feedback row.

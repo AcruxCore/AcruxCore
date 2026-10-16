@@ -14,6 +14,8 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ### Added
 
+- `traces.analytics()` returns `costPerTrace: { p50, p99 }`, the median and p99 cost of one trace
+  in the window. Optional in the type, since older servers do not send it.
 - `traces.analytics({ groupBy: 'span_name' })` gives one bucket per step name inside your traces;
   the `groupBy` type now accepts it.
 - `experiments.create` takes an optional `judgePromptId`: a prompt of yours that grades instead of the
@@ -50,6 +52,17 @@ changelog: <https://docs.acruxcore.com/changelog>
      `optimize.start(promptId, { … })` call.
   2. TypeScript catches a miss at compile time (`Property 'judgeModel' is missing`).
      JavaScript callers must grep for both calls; without it the API answers 400.
+
+- **A feedback `rating` is a thumb: `1` (up) or `-1` (down).** The API refuses any other number
+  with a 400. `FeedbackInput.rating` and `FeedbackUpdateInput.rating` are now the new
+  `FeedbackRating` type (`1 | -1`). [Why](../../docs/superpowers/specs/phase-3/phase-3-faq.md)
+
+  **Migrating from 0.17**
+
+  1. Map a score to a thumb before `submitFeedback` / `updateFeedback`, for example
+     `rating: stars >= 4 ? 1 : -1`, or leave `rating` out and keep the score in `label`.
+  2. TypeScript catches a literal like `rating: 5` at compile time. A `number` variable
+     also fails to compile; JavaScript callers only see the 400 at runtime, so grep for them.
 
 ### Fixed
 

@@ -686,12 +686,52 @@ export interface AnalyticsBucket extends AnalyticsTotals {
   key: string;
 }
 
+/** Median and p99 of one trace's summed span cost; null when the window has no trace. */
+export interface CostPerTrace {
+  p50: number | null;
+  p99: number | null;
+}
+
 export interface TraceAnalytics {
   from: string;
   to: string;
   groupBy: AnalyticsGroupBy;
   totals: AnalyticsTotals;
+  /** Absent from an API older than this field, e.g. while web and API deploy at different times. */
+  costPerTrace?: CostPerTrace;
   buckets: AnalyticsBucket[];
+}
+
+/** Thumbs counts: ratings of exactly 1 and -1. */
+export interface FeedbackCounts {
+  up: number;
+  down: number;
+}
+
+/** One online-evaluation rule's verdicts in the window. */
+export interface RuleScoreSummary {
+  ruleId: string;
+  name: string;
+  scored: number;
+  passed: number;
+  failed: number;
+  avgScore: number | null;
+}
+
+/** One UTC day of thumbs and verdicts, summed over every rule. */
+export interface ScoreDay extends FeedbackCounts {
+  day: string;
+  passed: number;
+  failed: number;
+}
+
+/** GET /traces/analytics/scores. */
+export interface TraceScores {
+  from: string;
+  to: string;
+  feedback: FeedbackCounts;
+  rules: RuleScoreSummary[];
+  days: ScoreDay[];
 }
 
 export interface AnalyticsParams {

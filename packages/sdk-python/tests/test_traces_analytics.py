@@ -152,6 +152,10 @@ async def test_analytics_facets_settings_and_feedback_read_back_what_was_ingeste
     # 1. Default analytics — one span each, so requests == 2 spans total.
     totals = await hub.traces.analytics()
     assert totals.totals.requests == 2
+    # Two one-span traces, so the cost distribution has a value at both ends.
+    assert totals.cost_per_trace is not None
+    assert totals.cost_per_trace.p50 is not None
+    assert totals.cost_per_trace.p99 is not None
 
     # 2. Grouped by model — one bucket per model, with per-model metrics.
     by_model = await hub.traces.analytics(group_by="model")
@@ -187,7 +191,7 @@ async def test_analytics_facets_settings_and_feedback_read_back_what_was_ingeste
     assert reread.updated_at == updated.updated_at
 
     # 7. Attach feedback, then read it back three ways.
-    feedback = await hub.traces.submit_feedback(trace_a.trace_id, rating=5)
+    feedback = await hub.traces.submit_feedback(trace_a.trace_id, rating=1)
 
     summary = await hub.traces.get_feedback_summary(group_by="model")
     assert summary.group_by == "model"
@@ -195,7 +199,7 @@ async def test_analytics_facets_settings_and_feedback_read_back_what_was_ingeste
     bucket = summary.buckets[0]
     assert bucket.key == "gpt-4o-mini"
     assert bucket.count == 1
-    assert bucket.avg_rating == 5
+    assert bucket.avg_rating == 1
     assert bucket.down_count == 0
 
     listed = await hub.traces.list_feedback()

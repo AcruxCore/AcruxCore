@@ -828,7 +828,11 @@ model VirtualKey {
   revokedAt        DateTime?        @map("revoked_at") @db.Timestamptz(6)
   gatewayRequests  GatewayRequest[]
   budgets          Budget[]
+  ownTeamBudgets   Budget[]         @relation("BudgetVirtualKeyOwnTeam")
 
+  /// Redundant for lookups (`id` is the primary key). It exists only so
+  /// `budgets_virtual_key_team_fk` has a unique index to reference.
+  @@unique([id, teamId], map: "virtual_keys_id_team_id_key")
   @@index([teamId], map: "idx_virtual_keys_team")
   @@map("virtual_keys")
 }
@@ -838,37 +842,32 @@ model VirtualKey {
 /// resets_at is null for 'total'; otherwise it is the start of the next period
 /// and is lazily rolled forward on read (no cron).
 model Budget {
-  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teamId       String        @map("team_id") @db.Uuid
-  team         Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId            String        @map("team_id") @db.Uuid
+  team              Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
   /// null = team-wide budget. Non-null = scoped to a single virtual key.
-  virtualKeyId String?       @map("virtual_key_id") @db.Uuid
-  virtualKey   VirtualKey?   @relation(fields: [virtualKeyId], references: [id], onDelete: Cascade)
-  period       budget_period
-  limitUsd     Decimal       @map("limit_usd") @db.Decimal(12, 4)
-  spendUsd     Decimal       @default(0) @map("spend_usd") @db.Decimal(18, 9)
-  resetsAt     DateTime?     @map("resets_at") @db.Timestamptz(6)
-  createdBy    String        @map("created_by") @db.Uuid
-  creator      User          @relation(fields: [createdBy], references: [id])
-  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  virtualKeyId      String?       @map("virtual_key_id") @db.Uuid
+  virtualKey        VirtualKey?   @relation(fields: [virtualKeyId], references: [id], onDelete: Cascade)
+  /// Composite guard: a budget may only point at a key its own team owns. Postgres
+  /// skips the check when virtual_key_id is null (MATCH SIMPLE), so team-wide
+  /// budgets are unconstrained. Read and write through `virtualKey`; this relation
+  /// exists so `prisma migrate dev` / `db push` keep the constraint.
+  ownTeamVirtualKey VirtualKey?   @relation("BudgetVirtualKeyOwnTeam", fields: [virtualKeyId, teamId], references: [id, teamId], onDelete: Cascade, onUpdate: NoAction, map: "budgets_virtual_key_team_fk")
+  period            budget_period
+  limitUsd          Decimal       @map("limit_usd") @db.Decimal(12, 4)
+  spendUsd          Decimal       @default(0) @map("spend_usd") @db.Decimal(18, 9)
+  resetsAt          DateTime?     @map("resets_at") @db.Timestamptz(6)
+  createdBy         String        @map("created_by") @db.Uuid
+  creator           User          @relation(fields: [createdBy], references: [id])
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   // NOTE: the (team_id, COALESCE(virtual_key_id, …), period) partial-unique index
   // CANNOT be expressed as a Prisma @@unique because Postgres treats NULLs as
   // distinct — two team-wide budgets (virtual_key_id = NULL) for the same period
   // would NOT collide. It is created as raw SQL in a --create-only migration.
   // The service layer also pre-checks to return a clean 409 BUDGET_EXISTS.
-  //
-  // NOTE: `budgets_virtual_key_team_fk` is a second, composite foreign key —
-  // (virtual_key_id, team_id) -> virtual_keys (id, team_id) — so a budget can
-  // only ever point at a key its own team owns. Prisma cannot express it: the
-  // `team` relation already claims `teamId`, and a scalar field may belong to
-  // only one relation. It lives in the same migration as the unique index it
-  // references, virtual_keys (id, team_id).
-  //
-  // Both objects are invisible to `prisma migrate dev`, which diffs this file
-  // against a shadow database and will therefore offer to DROP them. Delete
-  // that part of any generated migration.
+
   @@index([teamId], map: "idx_budgets_team")
   @@map("budgets")
 }

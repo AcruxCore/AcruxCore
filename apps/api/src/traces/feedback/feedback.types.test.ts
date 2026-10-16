@@ -17,9 +17,10 @@ describe('feedback Zod schemas', () => {
     expect(parsed.success).toBe(false);
   });
 
-  it('rejects a rating above the [-1, 5] range', () => {
-    const parsed = CreateFeedbackSchema.safeParse({ rating: 9 });
-    expect(parsed.success).toBe(false);
+  it('rejects any rating other than 1 or -1', () => {
+    for (const rating of [0, 2, 5, 9, -2]) {
+      expect(CreateFeedbackSchema.safeParse({ rating }).success).toBe(false);
+    }
   });
 
   it('rejects a non-integer rating', () => {

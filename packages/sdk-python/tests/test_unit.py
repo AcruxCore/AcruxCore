@@ -1655,14 +1655,14 @@ async def test_submit_feedback():
         assert request.method == "POST"
         assert request.url.path == "/api/v1/traces/trace_1/feedback"
         b = body_of(request)
-        assert b == {"rating": 5, "source": "end_user"}
-        return httpx.Response(201, json={"id": "fb_1", "traceId": "trace_1", "spanId": None, "rating": 5, "label": None, "comment": None, "source": "end_user", "createdBy": "u1", "createdAt": "t", "updatedAt": "t"})
+        assert b == {"rating": 1, "source": "end_user"}
+        return httpx.Response(201, json={"id": "fb_1", "traceId": "trace_1", "spanId": None, "rating": 1, "label": None, "comment": None, "source": "end_user", "createdBy": "u1", "createdAt": "t", "updatedAt": "t"})
 
     async with make_client(handler) as c:
-        fb = await c.traces.submit_feedback("trace_1", rating=5, source="end_user")
+        fb = await c.traces.submit_feedback("trace_1", rating=1, source="end_user")
 
     assert fb.id == "fb_1"
-    assert fb.rating == 5
+    assert fb.rating == 1
     assert fb.source == "end_user"
 
 

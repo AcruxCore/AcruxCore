@@ -465,7 +465,7 @@ Attach feedback to a trace (or one span), then edit it in place. Only the
 original author may edit.
 
 ```python
-fb = await hub.traces.submit_feedback(trace_id, rating=5, label="helpful", comment="Resolved my issue.")
+fb = await hub.traces.submit_feedback(trace_id, rating=1, label="helpful", comment="Resolved my issue.")
 await hub.traces.update_feedback(trace_id, fb.id, rating=1, label="unhelpful")
 ```
 
@@ -475,7 +475,7 @@ await hub.traces.update_feedback(trace_id, fb.id, rating=1, label="unhelpful")
 |-------|------|-------|
 | `trace_id` | `str` | Required (positional). |
 | `span_id` | `str` | Scope to one span. |
-| `rating` | `int` | `-1..5`. |
+| `rating` | `int` | `1` (thumbs up) or `-1` (thumbs down). |
 | `label` | `str` | Short label. |
 | `comment` | `str` | Free text. |
 | `source` | `str` | `"user" \| "developer" \| "end_user" \| "api"`. |

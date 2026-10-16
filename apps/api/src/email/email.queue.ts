@@ -98,10 +98,15 @@ export async function closeEmailQueue(): Promise<void> {
  * enqueue → render → transport → `email_log` path without booting a Worker and
  * waiting on its timing. Only ever called from tests.
  *
+ * The queue is shared by every process on the same Redis DB, so a second test run
+ * can put its own jobs on it at any moment. Pass `teamId` to process only that
+ * team's jobs and leave the rest alone; a test that counts messages should (issue #589).
+ *
+ * @param opts.teamId - Only drain jobs for this team. Omit to drain every job.
  * @returns The number of jobs processed.
  * @throws {Error} Whatever a job's delivery threw, so a test can assert on it.
  */
-export async function drainEmailQueue(): Promise<number> {
+export async function drainEmailQueue(opts: { teamId?: string } = {}): Promise<number> {
   // Imported lazily so that a direct, barrel-bypassing importer of this file
   // (e.g. `email.service.ts`, which imports `getEmailQueue`/`emailJobOpts`
   // straight from here) does not transitively load `email.processor` — and
@@ -118,7 +123,8 @@ export async function drainEmailQueue(): Promise<number> {
   // directly (confirmed: `require('@acruxcore/api/email/email.processor')`
   // throws `ERR_PACKAGE_PATH_NOT_EXPORTED`).
   const { processEmail } = await import('./email.processor');
-  const jobs = await getEmailQueue().getJobs(['waiting', 'delayed', 'paused']);
+  const all = await getEmailQueue().getJobs(['waiting', 'delayed', 'paused']);
+  const jobs = opts.teamId ? all.filter((job) => job.data.teamId === opts.teamId) : all;
   for (const job of jobs) {
     try {
       await processEmail(job.data);

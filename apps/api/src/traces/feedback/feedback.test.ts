@@ -192,6 +192,23 @@ describe('POST /api/v1/traces/:id/feedback', () => {
     expect(res.body.error.code).not.toBe('INVALID_SPAN');
   });
 
+  it('accepts only thumbs: 1 and -1 are stored, 0, 2 and 5 are refused with a clear message', async () => {
+    const ctx = await signup();
+    const { traceId } = await postTrace(ctx.agent);
+
+    for (const rating of [1, -1]) {
+      await ctx.agent.post(`/api/v1/traces/${traceId}/feedback`).send({ rating }).expect(201);
+    }
+    for (const rating of [0, 2, 5]) {
+      const res = await ctx.agent.post(`/api/v1/traces/${traceId}/feedback`).send({ rating }).expect(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      expect(res.body.error.message).toContain('rating must be 1 (thumbs up) or -1 (thumbs down)');
+    }
+
+    const rows = await prisma.traceFeedback.findMany({ where: { traceId }, select: { rating: true } });
+    expect(rows.map((r) => r.rating).sort()).toEqual([-1, 1]);
+  });
+
   it('returns 400 VALIDATION_ERROR for a rating out of range', async () => {
     const ctx = await signup();
     const { traceId } = await postTrace(ctx.agent);
@@ -476,6 +493,23 @@ describe('PATCH /api/v1/traces/:id/feedback/:feedbackId', () => {
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
     const row = await prisma.traceFeedback.findUniqueOrThrow({ where: { id: created.body.id } });
     expect(row.rating).toBe(-1);
+  });
+
+  it('an edit can set a thumb or clear it, but not set a 1–5 score', async () => {
+    const ctx = await signup();
+    const { traceId } = await postTrace(ctx.agent);
+    const created = await ctx.agent
+      .post(`/api/v1/traces/${traceId}/feedback`)
+      .send({ rating: 1, comment: 'Looks right.' })
+      .expect(201);
+    const url = `/api/v1/traces/${traceId}/feedback/${created.body.id}`;
+
+    await ctx.agent.patch(url).send({ rating: 4 }).expect(400);
+    expect((await prisma.traceFeedback.findUniqueOrThrow({ where: { id: created.body.id } })).rating).toBe(1);
+
+    // No thumb at all: the comment stays, the rating is empty.
+    const cleared = await ctx.agent.patch(url).send({ rating: null }).expect(200);
+    expect(cleared.body.rating).toBeNull();
   });
 
   it('unknown feedback id returns 404', async () => {

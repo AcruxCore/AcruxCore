@@ -69,11 +69,73 @@ export interface AnalyticsBucket extends AnalyticsTotals {
   key: string;
 }
 
+/**
+ * Cost of one trace (the sum of its spans' `cost_usd` that match the filters), as a
+ * distribution over the traces in the window. Null when no trace is in the window.
+ */
+export interface CostPerTrace {
+  p50: number | null;
+  p99: number | null;
+}
+
 /** Response for GET /traces/analytics. */
 export interface AnalyticsResponse {
   from: string; // YYYY-MM-DD
   to: string; // YYYY-MM-DD
   groupBy: GroupBy;
   totals: AnalyticsTotals;
+  costPerTrace: CostPerTrace;
   buckets: AnalyticsBucket[];
+}
+
+/**
+ * Query params for GET /traces/analytics/scores. Same window rules as the main
+ * analytics query, applied to when a verdict was recorded (`created_at`).
+ *
+ * @throws (via safeParse) VALIDATION_ERROR if `from` is after `to`.
+ */
+export const ScoresQuerySchema = z
+  .object({
+    from: z.coerce.date().optional(),
+    to: z.coerce.date().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.from && data.to && data.from > data.to) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: '`from` must be on or before `to`.' });
+    }
+  });
+export type ScoresQuery = z.infer<typeof ScoresQuerySchema>;
+
+/** Thumbs feedback counts: ratings of 1 (up) and -1 (down), the only ratings the API accepts. */
+export interface FeedbackCounts {
+  up: number;
+  down: number;
+}
+
+/** One online-evaluation rule's verdicts in the window. Unscored judge calls are left out. */
+export interface RuleScoreSummary {
+  ruleId: string;
+  name: string;
+  /** Verdicts with a pass/fail result. */
+  scored: number;
+  passed: number;
+  failed: number;
+  /** Mean 0–100 score over verdicts that have one; null when none do. */
+  avgScore: number | null;
+}
+
+/** One UTC day of the trend: thumbs counts and verdicts summed over every rule. */
+export interface ScoreDay extends FeedbackCounts {
+  day: string; // YYYY-MM-DD
+  passed: number;
+  failed: number;
+}
+
+/** Response for GET /traces/analytics/scores. */
+export interface ScoresResponse {
+  from: string; // YYYY-MM-DD, first day in the window
+  to: string; // YYYY-MM-DD, last day in the window (the query's `to` is exclusive)
+  feedback: FeedbackCounts;
+  rules: RuleScoreSummary[];
+  days: ScoreDay[];
 }

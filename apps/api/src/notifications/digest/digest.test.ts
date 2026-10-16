@@ -3,6 +3,7 @@ import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
 import { addUserToTeam, authedAgent, type AuthedAgent } from '../../test-utils';
 import { drainEmailQueue, getEmailQueue } from '../../email/email.queue';
+import { EmailRepository, EmailService } from '../../email';
 import { getMemoryTransport } from '../../email/memory.transport';
 import type { EmailMessage } from '../../email/email.types';
 import { DigestRepository } from './digest.repository';
@@ -48,15 +49,18 @@ async function seedTrace(teamId: string, at: Date, name = 'agent run'): Promise<
     VALUES (${teamId}::uuid, ${name}, ${at}, ${at})`;
 }
 
-/** Delivers everything queued and returns the accepted messages. */
-async function flush(): Promise<EmailMessage[]> {
-  await drainEmailQueue();
+/**
+ * Delivers one team's queued mail and returns the accepted messages. Scoped to the
+ * team because the queue is shared with any other test run on the same Redis DB.
+ */
+async function flush(teamId: string): Promise<EmailMessage[]> {
+  await drainEmailQueue({ teamId });
   return getMemoryTransport().sent();
 }
 
-/** The one digest message, asserting there is exactly one. */
-async function theDigest(): Promise<EmailMessage> {
-  const messages = await flush();
+/** The team's one digest message, asserting there is exactly one. */
+async function theDigest(teamId: string): Promise<EmailMessage> {
+  const messages = await flush(teamId);
   expect(messages).toHaveLength(1);
   return messages[0];
 }
@@ -97,7 +101,7 @@ describe('digest eligibility', () => {
 
     expect(dispatched).toBe(0);
     expect(await getDigestQueue().getJobCountByTypes('waiting')).toBe(0);
-    expect(await flush()).toHaveLength(0);
+    expect(await flush(dormant.teamId)).toHaveLength(0);
     expect(await prisma.emailLog.count({ where: { teamId: dormant.teamId } })).toBe(0);
   });
 
@@ -165,7 +169,7 @@ describe('digest content', () => {
     await seedTrace(owner.teamId, INSIDE);
 
     await service.send(owner.teamId, WINDOW, isoWeekKey(NOW));
-    const digest = await theDigest();
+    const digest = await theDigest(owner.teamId);
 
     expect(digest.to).toBe(owner.email);
     expect(digest.text).toContain('$6.00'); // 4.25 + 1.75
@@ -210,7 +214,7 @@ describe('digest content', () => {
     await seedRequest(owner.teamId, INSIDE, 12);
 
     await service.send(owner.teamId, WINDOW, isoWeekKey(NOW));
-    const digest = await theDigest();
+    const digest = await theDigest(owner.teamId);
 
     expect(digest.text).toContain('+20% vs last week');
   });
@@ -220,7 +224,7 @@ describe('digest content', () => {
     await seedRequest(owner.teamId, INSIDE, 3);
 
     await service.send(owner.teamId, WINDOW, isoWeekKey(NOW));
-    const digest = await theDigest();
+    const digest = await theDigest(owner.teamId);
 
     expect(digest.text).toContain('new this week');
     expect(digest.text).not.toMatch(/NaN|Infinity/);
@@ -236,7 +240,7 @@ describe('digest content', () => {
       .expect(201);
 
     await service.send(owner.teamId, WINDOW, isoWeekKey(NOW));
-    const digest = await theDigest();
+    const digest = await theDigest(owner.teamId);
 
     expect(digest.text).toContain('Team-wide (month)');
     expect(digest.text).toContain('of $50.00');
@@ -268,7 +272,7 @@ describe('digest content', () => {
     await seedRequest(owner.teamId, INSIDE, 2);
 
     await service.send(owner.teamId, WINDOW, isoWeekKey(NOW));
-    const digest = await theDigest();
+    const digest = await theDigest(owner.teamId);
 
     expect(digest.text).not.toContain(SECRET_PROMPT);
     expect(digest.html).not.toContain(SECRET_PROMPT);
@@ -286,7 +290,7 @@ describe('one-click unsubscribe headers', () => {
     await seedRequest(owner.teamId, INSIDE, 1);
 
     await service.send(owner.teamId, WINDOW, isoWeekKey(NOW));
-    const digest = await theDigest();
+    const digest = await theDigest(owner.teamId);
 
     // A footer link alone does not satisfy Gmail/Yahoo's bulk-sender requirement.
     expect(digest.headers?.['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click');
@@ -313,7 +317,7 @@ describe('digest recipients', () => {
 
     await service.send(owner.teamId, WINDOW, isoWeekKey(NOW));
 
-    const recipients = (await flush()).map((m) => m.to).sort();
+    const recipients = (await flush(owner.teamId)).map((m) => m.to).sort();
     expect(recipients).toEqual([admin.email, owner.email].sort());
     expect(recipients).not.toContain(editor.email);
     expect(recipients).not.toContain(viewer.email);
@@ -330,7 +334,33 @@ describe('digest recipients', () => {
 
     await service.send(owner.teamId, WINDOW, isoWeekKey(NOW));
 
-    expect((await flush()).map((m) => m.to)).toEqual([admin.email]);
+    expect((await flush(owner.teamId)).map((m) => m.to)).toEqual([admin.email]);
+  });
+});
+
+describe('digest test isolation (issue #589)', () => {
+  it('counts only its own team’s mail when another team’s email is waiting in the shared queue', async () => {
+    const owner = await authedAgent(app);
+    const admin = await addUserToTeam(app, owner.teamId, 'admin');
+    await seedRequest(owner.teamId, INSIDE, 1);
+    await owner.agent
+      .patch('/api/v1/notifications/preferences')
+      .send({ category: 'weekly_digest', enabled: false })
+      .expect(200);
+
+    // What a second Jest run on the same Redis DB does between this file's
+    // `beforeEach` and its flush: put another team's email on the one shared queue.
+    const stranger = await authedAgent(app);
+    await new EmailService(new EmailRepository()).enqueue({
+      teamId: stranger.teamId,
+      to: stranger.email,
+      dedupeKey: `isolation-589:${stranger.userId}`,
+      payload: { type: 'welcome', props: { dashboardUrl: 'http://localhost/prompts', teamName: 'theirs' } },
+    });
+
+    await service.send(owner.teamId, WINDOW, isoWeekKey(NOW));
+
+    expect((await flush(owner.teamId)).map((m) => m.to)).toEqual([admin.email]);
   });
 });
 
@@ -361,7 +391,7 @@ describe('digest scheduling', () => {
     // Run the single job that survived; one email, not two.
     await service.send(owner.teamId, WINDOW, isoWeekKey(NOW));
     await service.send(owner.teamId, WINDOW, isoWeekKey(NOW));
-    expect(await flush()).toHaveLength(1);
+    expect(await flush(owner.teamId)).toHaveLength(1);
   });
 
   it('the dispatch processor fans out, and the team processor sends', async () => {
@@ -374,7 +404,7 @@ describe('digest scheduling', () => {
     expect(job).toBeDefined();
 
     await processDigest(DIGEST_TEAM_JOB, job!.data, NOW);
-    const digest = await theDigest();
+    const digest = await theDigest(owner.teamId);
     expect(digest.text).toContain('$7.50');
   });
 
@@ -390,6 +420,6 @@ describe('digest scheduling', () => {
     await prisma.$executeRaw`DELETE FROM teams WHERE id = ${owner.teamId}::uuid`;
 
     expect(await service.send(owner.teamId, WINDOW, isoWeekKey(NOW))).toBe(0);
-    expect(await flush()).toHaveLength(0);
+    expect(await flush(owner.teamId)).toHaveLength(0);
   });
 });

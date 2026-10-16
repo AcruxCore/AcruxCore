@@ -460,7 +460,7 @@ original author may edit.
 ```typescript
 const fb = await hub.traces.submitFeedback({
   traceId,
-  rating: 5,
+  rating: 1,
   label: 'helpful',
   comment: 'Resolved my issue.',
 });
@@ -473,7 +473,7 @@ await hub.traces.updateFeedback({ traceId, feedbackId: fb.id, rating: 1, label: 
 |-------|------|-------|
 | `traceId` | `string` | Required. |
 | `spanId` | `string` | Scope to one span. |
-| `rating` | `number` | `-1..5`. |
+| `rating` | `1 \| -1` | `1` (thumbs up) or `-1` (thumbs down). |
 | `label` | `string` | Short label. |
 | `comment` | `string` | Free text. |
 | `source` | `'user' \| 'developer' \| 'end_user' \| 'api'` | Origin. |

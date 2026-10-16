@@ -456,7 +456,7 @@ page, but from code (e.g. surfacing an end-user's thumbs-up/down):
 ```typescript
 const feedback = await hub.traces.submitFeedback({
   traceId,
-  rating: -1,               // -1..5
+  rating: -1,               // 1 = thumbs up, -1 = thumbs down
   label: 'wrong_answer',
   comment: 'The tool call missed relevant docs.',
   source: 'end_user',       // 'user' | 'developer' | 'end_user' | 'api', defaults to 'user'

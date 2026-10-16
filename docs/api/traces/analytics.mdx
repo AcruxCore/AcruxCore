@@ -41,9 +41,16 @@ Response shape:
     "requests", "errorRate", "promptTokens", "completionTokens", "totalTokens",
     "costUsd", "latencyMs": { "p50", "p95", "p99" }
   },
+  "costPerTrace": { "p50", "p99" },
   "buckets": [ { "key": "...", ...same metrics as totals } ]
 }
 ```
+
+`costPerTrace` is the median and p99 cost of **one trace**: each trace's spans that match
+the window and the `kind`/`model` filters are summed, then the percentiles are taken over
+those sums. A trace with no priced span is left out, so unpriced traffic does not show as
+$0. Both are `null` when no priced trace is in the window. It is not repeated per bucket,
+because one trace can fall into several buckets.
 
 Notes (verified below):
 - `costUsd` sums null `cost_usd` as `0`.
@@ -334,8 +341,10 @@ Response (status 200):
 }
 ```
 
-A gateway call sent without an `x-span-name` header is named after its start time. All
-such calls share one `(unnamed)` bucket, so they do not become one bucket per call.
+A gateway call sent without an `x-span-name` header is named after the model you asked
+for, so those calls get one bucket per model. A span whose name is its own start time,
+such as `2026-03-02T09:30:00.000Z`, goes into one `(unnamed)` bucket instead of a bucket
+per call.
 
 Add `kind` to look at one kind of step only:
 
@@ -602,6 +611,25 @@ accordingly.
 
 ---
 
+#### Cost per trace
+
+The three traces seeded above cost $0.00002, $0.00009 and $0.000015 (the tool span has no
+cost). The median is the middle one; `percentile_cont` interpolates the p99 between the two
+most expensive traces.
+
+```bash
+curl -s -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces/analytics?from=2026-06-01&to=2026-07-01"
+```
+
+Response (status 200):
+
+```json
+{"from":"2026-06-01","to":"2026-07-01","groupBy":"day","totals":{"requests":4,"errorRate":0.25,"promptTokens":480,"completionTokens":60,"totalTokens":540,"costUsd":0.000125,"latencyMs":{"p50":1000,"p95":1879.9999999999998,"p99":1975.9999999999998}},"costPerTrace":{"p50":0.00002,"p99":0.0000886},"buckets":[{"key":"2026-06-20","requests":2,"errorRate":0,"promptTokens":100,"completionTokens":40,"totalTokens":140,"costUsd":0.00002,"latencyMs":{"p50":700,"p95":1150,"p99":1190}},{"key":"2026-06-21","requests":1,"errorRate":1,"promptTokens":300,"completionTokens":0,"totalTokens":300,"costUsd":0.00009,"latencyMs":{"p50":2000,"p95":2000,"p99":2000}},{"key":"2026-06-22","requests":1,"errorRate":0,"promptTokens":80,"completionTokens":20,"totalTokens":100,"costUsd":0.000015,"latencyMs":{"p50":800,"p95":800,"p99":800}}]}
+```
+
+---
+
 #### Error responses
 
 Invalid `group_by` (status 400):
@@ -645,6 +673,100 @@ curl -s "$ACRUXCORE_BASE_URL/traces/analytics"
 
 ```json
 { "error": { "code": "UNAUTHORIZED", "message": "Authentication required." } }
+```
+
+---
+
+### GET /api/v1/traces/analytics/scores
+
+Quality over a window: thumbs feedback from people and verdicts from
+[online evaluation rules](/api-reference/eval-rules). Same auth as above.
+
+Query params (both optional):
+
+- `from`, `to` — ISO dates; default window is the **last 30 days**, applied to when the
+  feedback or verdict was recorded (`created_at`).
+
+Response fields:
+
+- `from`, `to` — the first and the last day the window holds. The query's `to` is
+  exclusive, so `to=2026-10-07` returns `"to": "2026-10-06"`.
+- `feedback` — `up` and `down`: feedback with a rating of `1` and of `-1`. Feedback with
+  no rating counts as neither.
+- `rules` — one entry per rule with at least one verdict: `scored` (verdicts with a
+  pass/fail result), `passed`, `failed`, and `avgScore` (mean 0–100 score, or `null`). A
+  judge call that could not score is left out.
+- `days` — one entry per UTC day that has either kind: `up`, `down`, `passed`, `failed`
+  summed over every rule.
+
+```bash
+curl -s -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces/analytics/scores"
+```
+
+Response (status 200):
+
+```json
+{
+  "from": "2026-09-16",
+  "to": "2026-10-16",
+  "feedback": { "up": 0, "down": 1 },
+  "rules": [
+    {
+      "ruleId": "8cd75bc2-e496-4851-8a12-762238b73206",
+      "name": "One-sentence answer quality",
+      "scored": 17,
+      "passed": 6,
+      "failed": 11,
+      "avgScore": 47.05882352941177
+    }
+  ],
+  "days": [
+    { "day": "2026-10-05", "up": 0, "down": 0, "passed": 6, "failed": 11 },
+    { "day": "2026-10-13", "up": 0, "down": 1, "passed": 0, "failed": 0 }
+  ]
+}
+```
+
+A custom window. `to=2026-10-07` is exclusive, so the last day returned is 6 October:
+
+```bash
+curl -s -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces/analytics/scores?from=2026-10-04&to=2026-10-07"
+```
+
+Response (status 200):
+
+```json
+{
+  "from": "2026-10-04",
+  "to": "2026-10-06",
+  "feedback": { "up": 0, "down": 0 },
+  "rules": [
+    {
+      "ruleId": "8cd75bc2-e496-4851-8a12-762238b73206",
+      "name": "One-sentence answer quality",
+      "scored": 17,
+      "passed": 6,
+      "failed": 11,
+      "avgScore": 47.05882352941177
+    }
+  ],
+  "days": [
+    { "day": "2026-10-05", "up": 0, "down": 0, "passed": 6, "failed": 11 }
+  ]
+}
+```
+
+`from` after `to` (status 400):
+
+```bash
+curl -s -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  "$ACRUXCORE_BASE_URL/traces/analytics/scores?from=2026-07-01&to=2026-06-01"
+```
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"`from` must be on or before `to`."}}
 ```
 
 ---

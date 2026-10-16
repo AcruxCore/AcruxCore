@@ -250,8 +250,21 @@ subset of models or prompt versions without an extra request.
 **By step (span name)** shows a table instead, one row per step name inside your
 traces, with calls, error rate, p50/p95/p99, tokens and cost. Click a column header
 to sort by it. The **kind** picker next to it narrows the table to one kind of step,
-such as `tool`, so a slow or failing tool is easy to find. Gateway calls sent without
-an `x-span-name` header share one `(unnamed)` row.
+such as `tool`, so a slow or failing tool is easy to find. A gateway call sent without
+an `x-span-name` header is named after the model you asked for. A step whose name is its
+own start time, such as `2026-10-01T09:30:00.000Z`, goes into one `(unnamed)` row.
+
+The row of totals ends with two cost tiles: **Cost / trace p50** and **Cost / trace p99**.
+A trace's cost is the sum of its spans' costs in the selected range. The p50 tile shows
+the cost of a typical trace, and the p99 tile shows the cost of the most expensive 1%.
+`GET /traces/analytics` returns the same two numbers in its `costPerTrace` field.
+
+The **Quality** panel below the totals shows two sources of quality data. People rate
+traces with thumbs up or thumbs down, and the panel counts the thumbs up and the thumbs down. Each
+[online evaluation rule](/docs/guides/score-live-traffic-with-an-evaluation-rule) gets a row with its
+verdict count, pass rate, failures and average score. A chart plots two lines for each
+day: the share of thumbs up, and the share of rule verdicts that passed.
+`GET /traces/analytics/scores` returns the data behind this panel.
 
 ## What's next
 

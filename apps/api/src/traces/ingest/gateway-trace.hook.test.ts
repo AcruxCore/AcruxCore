@@ -3,7 +3,7 @@ import prisma from '../../shared/db/client';
 import { GatewayRepository } from '../../gateway/completions/gateway.repository';
 import { TraceSettingsRepository } from '../settings/settings.repository';
 import type { GatewayCallContext, GatewayCompletionRequest, GatewayResult } from '../../gateway/completions/completions.types';
-import { recordGatewaySpan } from './gateway-trace.hook';
+import { recordGatewayErrorSpan, recordGatewaySpan } from './gateway-trace.hook';
 import { signupTestUser } from '../../test-utils';
 
 const app = createApp();
@@ -158,15 +158,16 @@ describe('recordGatewaySpan', () => {
     expect(updated!.name).toBe('trip-planner-v2');
   });
 
-  it('T9: gateway auto-traced span name defaults to the timestamp, and honors ctx.spanName', async () => {
+  it('gateway auto-traced span name defaults to the requested model, and honors ctx.spanName (#601)', async () => {
     const { teamId } = await signupTestUser(app);
-    const row1 = await seedSuccessRow(teamId);
+    // The caller asked for a team alias; the provider resolved it to a dated model.
+    const row1 = await seedSuccessRow(teamId, { requestedModel: 'support-model', resolvedModel: 'gpt-4o-mini-2024-07-18' });
     const ctx1: GatewayCallContext = { teamId };
     await recordGatewaySpan({ ctx: ctx1, result: makeResult(), request: baseRequest, gatewayRequestId: row1.id });
     const span1 = (await prisma.span.findFirst({ where: { gatewayRequestId: row1.id } }))!;
-    expect(() => new Date(span1.name).toISOString()).not.toThrow();
-    expect(span1.name).not.toBe('gpt-4o-mini'); // no longer defaults to the model name
-    expect(span1.model).toBe('gpt-4o-mini'); // model is still on its own field
+    // The name a caller wrote groups calls in `groupBy: span_name`; a timestamp made one bucket per call.
+    expect(span1.name).toBe('support-model');
+    expect(span1.model).toBe('gpt-4o-mini-2024-07-18'); // the served model stays on its own field
 
     const row2 = await seedSuccessRow(teamId);
     const ctx2: GatewayCallContext = {
@@ -180,6 +181,21 @@ describe('recordGatewaySpan', () => {
     expect(span2.name).toBe('detect-intent');
     expect(span2.tags.sort()).toEqual(['nl', 'prod']);
     expect(span2.metadata).toEqual({ userId: 'u_789' });
+  });
+
+  it('a failed gateway round with no span name is named by the requested model (#601)', async () => {
+    const { teamId } = await signupTestUser(app);
+    const row = await seedSuccessRow(teamId, {
+      status: 'error',
+      errorCode: 'PROVIDER_ERROR',
+      requestedModel: 'support-model',
+      resolvedModel: undefined,
+      costUsd: undefined,
+    });
+    await recordGatewayErrorSpan({ ctx: { teamId }, request: baseRequest, gatewayRequestId: row.id });
+    const span = (await prisma.span.findFirst({ where: { gatewayRequestId: row.id } }))!;
+    expect(span.status).toBe('error');
+    expect(span.name).toBe('support-model');
   });
 
   it('appends the span under an existing trace when ctx.traceId names one for this team', async () => {
@@ -207,7 +223,7 @@ describe('recordGatewaySpan', () => {
     const row = await seedSuccessRow(teamId, {
       status: 'error',
       errorCode: 'PROVIDER_ERROR',
-      resolvedModel: null,
+      resolvedModel: undefined,
       promptTokens: 0,
       completionTokens: 0,
       totalTokens: 0,

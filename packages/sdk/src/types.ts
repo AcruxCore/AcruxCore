@@ -1078,13 +1078,16 @@ export interface ChatChunk {
   finishReason: string | null;
 }
 
+/** A thumbs rating: 1 is up, -1 is down. The API refuses any other number with a 400. */
+export type FeedbackRating = 1 | -1;
+
 /** Input to {@link acruxcore.submitFeedback}. At least one of rating/label/comment is required. */
 export interface FeedbackInput {
   traceId: string;
   /** Attaches to one span instead of the whole trace; omit for whole-trace feedback. */
   spanId?: string;
-  /** -1..5. */
-  rating?: number;
+  /** A thumb: 1 is up, -1 is down. Omit it for feedback with no thumb. */
+  rating?: FeedbackRating;
   label?: string;
   comment?: string;
   source?: 'user' | 'developer' | 'end_user' | 'api';
@@ -1094,7 +1097,8 @@ export interface FeedbackInput {
 export interface FeedbackUpdateInput {
   traceId: string;
   feedbackId: string;
-  rating?: number | null;
+  /** A thumb, or null to clear it. */
+  rating?: FeedbackRating | null;
   label?: string | null;
   comment?: string | null;
 }
@@ -1318,7 +1322,8 @@ export interface AnalyticsOptions {
   to?: string;
   /**
    * Aggregation dimension. Defaults server-side to `'day'`. `'span_name'` gives one bucket
-   * per step name inside your traces; gateway calls sent without a span name share one
+   * per step name inside your traces. A gateway call sent without a span name is named
+   * after the requested model; a span named with its own start time goes into one
    * `'(unnamed)'` bucket.
    */
   groupBy?: 'day' | 'model' | 'session' | 'prompt_version' | 'span_name';
@@ -1353,6 +1358,12 @@ export interface AnalyticsBucket extends AnalyticsTotals {
   key: string;
 }
 
+/** Median and p99 of one trace's summed span cost (USD). Each is `null` when the window has no trace. */
+export interface CostPerTrace {
+  p50: number | null;
+  p99: number | null;
+}
+
 /** Result of {@link TracesNamespace.analytics}. */
 export interface AnalyticsResult {
   /** Resolved window start, `YYYY-MM-DD`. */
@@ -1361,6 +1372,11 @@ export interface AnalyticsResult {
   to: string;
   groupBy: 'day' | 'model' | 'session' | 'prompt_version' | 'span_name';
   totals: AnalyticsTotals;
+  /**
+   * The distribution of cost per trace, over spans that match the same window and filters.
+   * Absent from servers older than this SDK.
+   */
+  costPerTrace?: CostPerTrace;
   /**
    * One entry per distinct group key that occurred in the window. A bucket whose
    * group key is null (e.g. a span with no model) is omitted here entirely, even

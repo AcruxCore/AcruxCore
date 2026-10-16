@@ -9,7 +9,7 @@ export const PRICE_FIELD_HINT = 'Blank = auto for known models. If either price 
  * rate for the provider: half the input price, or a tenth for Anthropic models.
  */
 export const CACHED_PRICE_FIELD_HINT =
-  "Your provider's price for prompt tokens it serves from cache. Blank = 0.5× input (0.1× for Claude).";
+  "Your provider's price for prompt tokens it serves from cache. Blank = 0.5× input (0.1× for Claude and Gemini, 0.25× for Gemini 1.5 and 2.0).";
 
 // Formats a nullable per-1M price for display.
 function price(n: number | null): string {

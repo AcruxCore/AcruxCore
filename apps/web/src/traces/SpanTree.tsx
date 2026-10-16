@@ -92,9 +92,9 @@ export function SpanTree({ spans, traceId, feedback, initialExpandedSpanId }: Sp
                   {kind.glyph} {kind.label}
                 </span>
                 <span className="truncate text-[13px] text-ink">{span.name}</span>
-                {/* An unnamed gateway span is labelled with its start timestamp (phase-3 FAQ
-                    Q15), which says nothing about the call — so surface the model here, where
-                    a reader scanning the waterfall needs it. */}
+                {/* An unnamed gateway span is named after the requested model alias (phase-3
+                    FAQ Q15), and older ones after their start timestamp, so surface the served
+                    model here, where a reader scanning the waterfall needs it. */}
                 {span.model && (
                   <span
                     className="hidden shrink-0 rounded bg-bg px-1.5 py-0.5 font-mono text-[10.5px] text-muted sm:inline"

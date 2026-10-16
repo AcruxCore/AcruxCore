@@ -105,7 +105,7 @@ describe('acruxcore SDK — feedback + trace read-back', () => {
       spans: [{ spanId: 's1', name: 'gpt-4o-mini', kind: 'llm', startTime: '2026-07-13T10:00:00.000Z' }],
     });
 
-    const feedback = await hub.traces.submitFeedback({ traceId, spanId: 's1', rating: 5 });
+    const feedback = await hub.traces.submitFeedback({ traceId, spanId: 's1', rating: 1 });
     expect(feedback.spanId).toBe('s1');
 
     await close();

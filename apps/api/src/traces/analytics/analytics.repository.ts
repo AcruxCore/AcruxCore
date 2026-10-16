@@ -1,6 +1,15 @@
 import { Prisma } from '@prisma/client';
 import prisma from '../../shared/db/client';
-import type { GroupBy, SpanKind, AnalyticsTotals, AnalyticsBucket } from './analytics.types';
+import type {
+  GroupBy,
+  SpanKind,
+  AnalyticsTotals,
+  AnalyticsBucket,
+  CostPerTrace,
+  FeedbackCounts,
+  RuleScoreSummary,
+  ScoreDay,
+} from './analytics.types';
 
 /** Parameters for a single analytics aggregation over spans. */
 interface BucketParams {
@@ -68,9 +77,9 @@ export class AnalyticsRepository {
       case 'prompt_version':
         return Prisma.sql`COALESCE(p.name || ' v' || pv.version_number::text, s.prompt_version_id::text)`;
       case 'span_name':
-        // A gateway call sent without `x-span-name` is named after its own start time
-        // (`gateway-trace.hook.ts`), so grouping by the raw name would give one bucket per
-        // call. Those placeholder names share one `(unnamed)` bucket instead.
+        // Before #601 a gateway call sent without `x-span-name` was named after its own
+        // start time, so grouping those rows by the raw name would give one bucket per
+        // call. They share one `(unnamed)` bucket instead; newer rows carry the model name.
         return Prisma.sql`CASE
           WHEN s.name = to_char(s.started_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
           THEN '(unnamed)' ELSE s.name END`;
@@ -158,6 +167,110 @@ export class AnalyticsRepository {
         .filter((r) => r.key !== null)
         .map((r) => ({ key: r.key as string, ...this.toMetrics(r) })),
     };
+  }
+
+  /**
+   * The median and p99 cost of one trace in the window. A trace's cost is the sum of its
+   * spans' `cost_usd` that pass the same window and kind/model filters as {@link bucket},
+   * so a `kind=llm` view gives the model spend per trace. A trace with no priced span sums
+   * to NULL and is left out, so unpriced traffic does not pull the percentiles to $0.
+   *
+   * @param teamId - Team scope.
+   * @param params - Window and optional kind/model filters; `groupBy` is ignored.
+   * @returns Both percentiles, or nulls when no span is in the window.
+   */
+  async costPerTrace(teamId: string, params: Omit<BucketParams, 'groupBy'>): Promise<CostPerTrace> {
+    const { from, to, kind, model } = params;
+    const kindFilter = kind ? Prisma.sql`AND s.kind = ${kind}::span_kind` : Prisma.empty;
+    const modelFilter = model ? Prisma.sql`AND s.model = ${model}` : Prisma.empty;
+    const rows = await prisma.$queryRaw<Array<{ p50: number | null; p99: number | null }>>(Prisma.sql`
+      SELECT
+        percentile_cont(0.5)  WITHIN GROUP (ORDER BY cost)::float8 AS "p50",
+        percentile_cont(0.99) WITHIN GROUP (ORDER BY cost)::float8 AS "p99"
+      FROM (
+        SELECT SUM(s.cost_usd) AS cost
+        FROM spans s
+        WHERE s.team_id = ${teamId}::uuid
+          AND s.started_at >= ${from}
+          AND s.started_at < ${to}
+          ${kindFilter}
+          ${modelFilter}
+        GROUP BY s.trace_id
+      ) per_trace
+    `);
+    return { p50: rows[0]?.p50 ?? null, p99: rows[0]?.p99 ?? null };
+  }
+
+  /**
+   * Thumbs feedback and online-eval verdicts recorded in a window, per rule and per UTC day.
+   *
+   * A rating is a thumb: 1 is up, -1 is down, and feedback with no rating is neither. A
+   * verdict with a null `passed` (the judge could not score) is left out of every count.
+   *
+   * @param teamId - Team scope; both tables are filtered on it.
+   * @param from - Inclusive lower bound on `created_at`.
+   * @param to - Exclusive upper bound on `created_at`.
+   * @returns Window totals for feedback, one row per rule that has a verdict (by name),
+   *   and one row per day that has either.
+   */
+  async scores(
+    teamId: string,
+    from: Date,
+    to: Date,
+  ): Promise<{ feedback: FeedbackCounts; rules: RuleScoreSummary[]; days: ScoreDay[] }> {
+    const inWindow = Prisma.sql`f.team_id = ${teamId}::uuid AND f.created_at >= ${from} AND f.created_at < ${to}`;
+    const feedbackRows = await prisma.$queryRaw<Array<FeedbackCounts>>(Prisma.sql`
+      SELECT
+        COUNT(*) FILTER (WHERE f.rating = 1)::int AS "up",
+        COUNT(*) FILTER (WHERE f.rating = -1)::int AS "down"
+      FROM trace_feedback f
+      WHERE ${inWindow}
+    `);
+
+    const rules = await prisma.$queryRaw<RuleScoreSummary[]>(Prisma.sql`
+      SELECT
+        r.id::text AS "ruleId",
+        r.name AS "name",
+        COUNT(*)::int AS "scored",
+        COUNT(*) FILTER (WHERE sc.passed)::int AS "passed",
+        COUNT(*) FILTER (WHERE NOT sc.passed)::int AS "failed",
+        AVG(sc.score)::float8 AS "avgScore"
+      FROM eval_rule_scores sc
+      JOIN eval_rules r ON r.id = sc.rule_id AND r.team_id = ${teamId}::uuid
+      WHERE sc.team_id = ${teamId}::uuid
+        AND sc.created_at >= ${from} AND sc.created_at < ${to}
+        AND sc.passed IS NOT NULL
+      GROUP BY r.id, r.name
+      ORDER BY r.name, r.id
+    `);
+
+    // UTC days, for the same reason as `groupExpr('day')` (issue #238).
+    const days = await prisma.$queryRaw<ScoreDay[]>(Prisma.sql`
+      SELECT
+        day AS "day",
+        SUM(up)::int AS "up",
+        SUM(down)::int AS "down",
+        SUM(passed)::int AS "passed",
+        SUM(failed)::int AS "failed"
+      FROM (
+        SELECT
+          to_char(date_trunc('day', f.created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day,
+          (f.rating = 1)::int AS up, (f.rating = -1)::int AS down, 0 AS passed, 0 AS failed
+        FROM trace_feedback f
+        WHERE ${inWindow} AND f.rating IN (1, -1)
+        UNION ALL
+        SELECT
+          to_char(date_trunc('day', sc.created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD'),
+          0, 0, (sc.passed)::int, (NOT sc.passed)::int
+        FROM eval_rule_scores sc
+        WHERE sc.team_id = ${teamId}::uuid AND sc.created_at >= ${from} AND sc.created_at < ${to}
+          AND sc.passed IS NOT NULL
+      ) events
+      GROUP BY day
+      ORDER BY day
+    `);
+
+    return { feedback: feedbackRows[0] ?? { up: 0, down: 0 }, rules, days };
   }
 
   /** Maps a raw aggregate row to the metrics DTO, nesting the latency percentiles. */

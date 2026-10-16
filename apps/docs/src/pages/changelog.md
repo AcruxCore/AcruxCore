@@ -27,6 +27,32 @@ called out in the week it ships and in the SDK release notes.
 
 ### Major
 
+#### Unnamed gateway calls are named by their model in traces
+
+- A gateway call sent without a span name now takes the requested model as its span name.
+- Grouping traces by span name now shows unnamed gateway calls as one row per model.
+- Spans recorded before this change keep their timestamp names.
+
+#### Gemini cache hits are priced as cached
+
+- Gemini calls now report `usage.cached_tokens` from Gemini's cache count, streamed or not.
+- Cached Gemini tokens now cost Google's rate: 0.1× the input price, or 0.25× on 1.5 and 2.0.
+- A **Cached input $/1M** price you set on the model replaces the default, on Gemini or OpenRouter.
+
+#### Feedback ratings are thumbs only
+
+- A feedback `rating` must be `1` (thumbs up) or `-1` (thumbs down). Other numbers return 400.
+- Feedback with no thumb still works: send only a comment or a label.
+- Both SDKs type the rating as `1` or `-1`. Map a 1–5 score to a thumb before you send it.
+  [Reference →](/api-reference/traces/feedback)
+
+#### Quality and cost per trace on the Dashboards page
+
+- A **Quality** panel shows thumbs up/down and each online evaluation rule's pass rate, per day.
+- Two new tiles show what one trace costs: the median, and the p99 for the costliest 1%.
+- The API serves both: `GET /traces/analytics/scores`, and `costPerTrace` on `/traces/analytics`.
+  [Reference →](/api-reference/traces/analytics)
+
 #### Run your own app code as an experiment
 
 - `experiments.run_local` (Python) and `runLocal` (Node) run your app and scorers on every example.

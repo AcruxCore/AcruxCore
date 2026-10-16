@@ -31,7 +31,7 @@ has been edited.
 
 ### POST /api/v1/traces/:id/feedback
 
-Attaches feedback to a trace. Body accepts `rating` (integer -1..5), `label`
+Attaches feedback to a trace. Body accepts `rating` (`1` for thumbs up, `-1` for thumbs down; omit it for no thumb), `label`
 (string, `<=200` chars), `comment` (string, `<=5000` chars), `spanId` (OTel ref,
 optional — omit for whole-trace feedback), and `source` (one of `user`,
 `developer`, `end_user`, `api`; defaults to `user`). At least one of
@@ -44,7 +44,7 @@ yield null, though that path was not separately exercised).
 <TabItem value="curl" label="curl">
 
 ```bash
-curl -X POST $ACRUXCORE_BASE_URL/traces/fbb5f16e-521b-4839-b9ab-78ace8c1f0a4/feedback \
+curl -X POST $ACRUXCORE_BASE_URL/traces/52093972-de09-403e-bb1c-85e8881bb3ce/feedback \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"rating": -1, "label": "wrong_answer", "comment": "The tool call missed relevant docs.", "source": "end_user"}'
@@ -55,7 +55,7 @@ curl -X POST $ACRUXCORE_BASE_URL/traces/fbb5f16e-521b-4839-b9ab-78ace8c1f0a4/fee
 
 ```typescript
 const feedback = await hub.traces.submitFeedback({
-  traceId: 'fbb5f16e-521b-4839-b9ab-78ace8c1f0a4',
+  traceId: '52093972-de09-403e-bb1c-85e8881bb3ce',
   rating: -1,
   label: 'wrong_answer',
   comment: 'The tool call missed relevant docs.',
@@ -68,7 +68,7 @@ const feedback = await hub.traces.submitFeedback({
 
 ```python
 feedback = await hub.traces.submit_feedback(
-    'fbb5f16e-521b-4839-b9ab-78ace8c1f0a4',
+    '52093972-de09-403e-bb1c-85e8881bb3ce',
     rating=-1,
     label='wrong_answer',
     comment='The tool call missed relevant docs.',
@@ -83,16 +83,21 @@ Response (status 201):
 
 ```json
 {
-  "id": "d71ba68f-a7bf-424d-a424-a0ed80ec1592",
-  "traceId": "fbb5f16e-521b-4839-b9ab-78ace8c1f0a4",
+  "id": "26243eda-dacc-4d62-8424-aaf8b38824e4",
+  "traceId": "52093972-de09-403e-bb1c-85e8881bb3ce",
   "spanId": null,
   "rating": -1,
   "label": "wrong_answer",
   "comment": "The tool call missed relevant docs.",
   "source": "end_user",
-  "createdBy": "8e16d0ed-e41a-4006-b098-5e4aecd4998d",
-  "createdAt": "2026-07-05T02:33:11.976Z",
-  "updatedAt": "2026-07-05T02:33:11.976Z"
+  "createdBy": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+  "author": {
+    "id": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+    "name": "Demo",
+    "email": "demo@acruxcore.com"
+  },
+  "createdAt": "2026-10-16T18:42:53.742Z",
+  "updatedAt": "2026-10-16T18:42:53.742Z"
 }
 ```
 
@@ -106,26 +111,31 @@ trace. The value is the OTel ref from the original POST /api/v1/traces call
 span's internal UUID.
 
 ```bash
-curl -X POST $ACRUXCORE_BASE_URL/traces/fbb5f16e-521b-4839-b9ab-78ace8c1f0a4/feedback \
+curl -X POST $ACRUXCORE_BASE_URL/traces/52093972-de09-403e-bb1c-85e8881bb3ce/feedback \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"rating": 5, "spanId": "s1"}'
+  -d '{"rating": 1, "spanId": "s1"}'
 ```
 
 Response (status 201):
 
 ```json
 {
-  "id": "bd505193-ea39-4e23-a9b5-c356d38b5064",
-  "traceId": "fbb5f16e-521b-4839-b9ab-78ace8c1f0a4",
+  "id": "eeed0b74-1da8-4336-acd1-03e939916cd4",
+  "traceId": "52093972-de09-403e-bb1c-85e8881bb3ce",
   "spanId": "s1",
-  "rating": 5,
+  "rating": 1,
   "label": null,
   "comment": null,
   "source": "user",
-  "createdBy": "8e16d0ed-e41a-4006-b098-5e4aecd4998d",
-  "createdAt": "2026-07-05T02:33:24.590Z",
-  "updatedAt": "2026-07-05T02:33:24.590Z"
+  "createdBy": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+  "author": {
+    "id": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+    "name": "Demo",
+    "email": "demo@acruxcore.com"
+  },
+  "createdAt": "2026-10-16T18:42:53.769Z",
+  "updatedAt": "2026-10-16T18:42:53.769Z"
 }
 ```
 
@@ -133,7 +143,7 @@ A second span-level example — label only, no rating, source "developer",
 against span "s2" (a tool span, child of "s1"):
 
 ```bash
-curl -X POST $ACRUXCORE_BASE_URL/traces/fbb5f16e-521b-4839-b9ab-78ace8c1f0a4/feedback \
+curl -X POST $ACRUXCORE_BASE_URL/traces/52093972-de09-403e-bb1c-85e8881bb3ce/feedback \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"label": "good_tool_use", "spanId": "s2", "source": "developer"}'
@@ -143,16 +153,21 @@ Response (status 201):
 
 ```json
 {
-  "id": "f848d26d-5f1f-4d18-8d47-2dc76675fb21",
-  "traceId": "fbb5f16e-521b-4839-b9ab-78ace8c1f0a4",
+  "id": "4e1d8758-8e84-476b-9e77-646b1674b99c",
+  "traceId": "52093972-de09-403e-bb1c-85e8881bb3ce",
   "spanId": "s2",
   "rating": null,
   "label": "good_tool_use",
   "comment": null,
   "source": "developer",
-  "createdBy": "8e16d0ed-e41a-4006-b098-5e4aecd4998d",
-  "createdAt": "2026-07-05T02:33:24.608Z",
-  "updatedAt": "2026-07-05T02:33:24.608Z"
+  "createdBy": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+  "author": {
+    "id": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+    "name": "Demo",
+    "email": "demo@acruxcore.com"
+  },
+  "createdAt": "2026-10-16T18:42:53.781Z",
+  "updatedAt": "2026-10-16T18:42:53.781Z"
 }
 ```
 
@@ -303,7 +318,7 @@ first. Continuing the example above, after the three POSTs:
 
 ```bash
 curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
-  "$ACRUXCORE_BASE_URL/traces/fbb5f16e-521b-4839-b9ab-78ace8c1f0a4/feedback"
+  "$ACRUXCORE_BASE_URL/traces/52093972-de09-403e-bb1c-85e8881bb3ce/feedback"
 ```
 
 Response (status 200):
@@ -312,40 +327,55 @@ Response (status 200):
 {
   "data": [
     {
-      "id": "f848d26d-5f1f-4d18-8d47-2dc76675fb21",
-      "traceId": "fbb5f16e-521b-4839-b9ab-78ace8c1f0a4",
+      "id": "4e1d8758-8e84-476b-9e77-646b1674b99c",
+      "traceId": "52093972-de09-403e-bb1c-85e8881bb3ce",
       "spanId": "s2",
       "rating": null,
       "label": "good_tool_use",
       "comment": null,
       "source": "developer",
-      "createdBy": "8e16d0ed-e41a-4006-b098-5e4aecd4998d",
-      "createdAt": "2026-07-05T02:33:24.608Z",
-      "updatedAt": "2026-07-05T02:33:24.608Z"
+      "createdBy": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+      "author": {
+        "id": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+        "name": "Demo",
+        "email": "demo@acruxcore.com"
+      },
+      "createdAt": "2026-10-16T18:42:53.781Z",
+      "updatedAt": "2026-10-16T18:42:53.781Z"
     },
     {
-      "id": "bd505193-ea39-4e23-a9b5-c356d38b5064",
-      "traceId": "fbb5f16e-521b-4839-b9ab-78ace8c1f0a4",
+      "id": "eeed0b74-1da8-4336-acd1-03e939916cd4",
+      "traceId": "52093972-de09-403e-bb1c-85e8881bb3ce",
       "spanId": "s1",
-      "rating": 5,
+      "rating": 1,
       "label": null,
       "comment": null,
       "source": "user",
-      "createdBy": "8e16d0ed-e41a-4006-b098-5e4aecd4998d",
-      "createdAt": "2026-07-05T02:33:24.590Z",
-      "updatedAt": "2026-07-05T02:33:24.590Z"
+      "createdBy": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+      "author": {
+        "id": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+        "name": "Demo",
+        "email": "demo@acruxcore.com"
+      },
+      "createdAt": "2026-10-16T18:42:53.769Z",
+      "updatedAt": "2026-10-16T18:42:53.769Z"
     },
     {
-      "id": "d71ba68f-a7bf-424d-a424-a0ed80ec1592",
-      "traceId": "fbb5f16e-521b-4839-b9ab-78ace8c1f0a4",
+      "id": "26243eda-dacc-4d62-8424-aaf8b38824e4",
+      "traceId": "52093972-de09-403e-bb1c-85e8881bb3ce",
       "spanId": null,
       "rating": -1,
       "label": "wrong_answer",
       "comment": "The tool call missed relevant docs.",
       "source": "end_user",
-      "createdBy": "8e16d0ed-e41a-4006-b098-5e4aecd4998d",
-      "createdAt": "2026-07-05T02:33:11.976Z",
-      "updatedAt": "2026-07-05T02:33:11.976Z"
+      "createdBy": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+      "author": {
+        "id": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+        "name": "Demo",
+        "email": "demo@acruxcore.com"
+      },
+      "createdAt": "2026-10-16T18:42:53.742Z",
+      "updatedAt": "2026-10-16T18:42:53.742Z"
     }
   ]
 }
@@ -448,7 +478,7 @@ A window containing no feedback returns an empty bucket list:
 Empty body — none of rating/label/comment supplied (status 400):
 
 ```bash
-curl -X POST $ACRUXCORE_BASE_URL/traces/fbb5f16e-521b-4839-b9ab-78ace8c1f0a4/feedback \
+curl -X POST $ACRUXCORE_BASE_URL/traces/52093972-de09-403e-bb1c-85e8881bb3ce/feedback \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" -d '{}'
 ```
 
@@ -456,21 +486,21 @@ curl -X POST $ACRUXCORE_BASE_URL/traces/fbb5f16e-521b-4839-b9ab-78ace8c1f0a4/fee
 { "error": { "code": "VALIDATION_ERROR", "message": "Provide at least one of rating, label, or comment." } }
 ```
 
-rating outside -1..5 (status 400):
+A rating other than 1 or -1, such as a 1–5 score (status 400):
 
 ```bash
-curl -X POST $ACRUXCORE_BASE_URL/traces/fbb5f16e-521b-4839-b9ab-78ace8c1f0a4/feedback \
-  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" -d '{"rating": 9}'
+curl -X POST $ACRUXCORE_BASE_URL/traces/52093972-de09-403e-bb1c-85e8881bb3ce/feedback \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" -d '{"rating": 5}'
 ```
 
 ```json
-{ "error": { "code": "VALIDATION_ERROR", "message": "rating must be between -1 and 5." } }
+{ "error": { "code": "VALIDATION_ERROR", "message": "rating must be 1 (thumbs up) or -1 (thumbs down)." } }
 ```
 
 spanId does not belong to this trace (status 400, distinct error code):
 
 ```bash
-curl -X POST $ACRUXCORE_BASE_URL/traces/fbb5f16e-521b-4839-b9ab-78ace8c1f0a4/feedback \
+curl -X POST $ACRUXCORE_BASE_URL/traces/52093972-de09-403e-bb1c-85e8881bb3ce/feedback \
   -H "Authorization: Bearer $ACRUXCORE_API_KEY" -H "Content-Type: application/json" -d '{"rating": 1, "spanId": "does-not-exist"}'
 ```
 

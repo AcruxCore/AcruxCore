@@ -824,6 +824,19 @@ class AnalyticsBucket:
 
 
 @dataclass
+class CostPerTrace:
+    """Median and p99 of one trace's summed span cost (USD). Each is ``None``
+    when the window has no trace."""
+
+    p50: Optional[float]
+    p99: Optional[float]
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "CostPerTrace":
+        return cls(p50=d.get("p50"), p99=d.get("p99"))
+
+
+@dataclass
 class AnalyticsResult:
     """Result of :meth:`~acruxcore.traces_api.TracesNamespace.analytics`."""
 
@@ -838,15 +851,20 @@ class AnalyticsResult:
     #: whose group key is null (e.g. a span with no model) is omitted here
     #: entirely, even though it is still counted in ``totals``.
     buckets: List[AnalyticsBucket] = field(default_factory=list)
+    #: The distribution of cost per trace, over spans that match the same window
+    #: and filters. ``None`` from a server older than this SDK.
+    cost_per_trace: Optional[CostPerTrace] = None
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "AnalyticsResult":
+        cpt = d.get("costPerTrace")
         return cls(
             from_=d["from"],
             to=d["to"],
             group_by=d["groupBy"],
             totals=AnalyticsTotals.from_dict(d.get("totals") or {}),
             buckets=[AnalyticsBucket.from_dict(b) for b in (d.get("buckets") or [])],
+            cost_per_trace=CostPerTrace.from_dict(cpt) if cpt is not None else None,
         )
 
 

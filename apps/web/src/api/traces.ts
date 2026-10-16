@@ -16,6 +16,7 @@ import type {
   SavedView,
   SessionsParams,
   TraceAnalytics,
+  TraceScores,
   TraceDetail,
   TraceFacets,
   TraceFilters,
@@ -118,6 +119,20 @@ export function useTraceAnalytics(params: AnalyticsParams) {
   return useQuery({
     queryKey: keys.traceAnalytics(query),
     queryFn: () => api<TraceAnalytics>('/traces/analytics', { query }),
+  });
+}
+
+/**
+ * Fetches quality scores over a window: thumbs feedback and online-eval verdicts.
+ *
+ * @param params - from/to (ISO); omitted means the last 30 days.
+ * @returns TanStack query of `TraceScores`.
+ */
+export function useTraceScores(params: { from?: string; to?: string }) {
+  const query = { from: params.from, to: params.to };
+  return useQuery({
+    queryKey: keys.traceScores(query),
+    queryFn: () => api<TraceScores>('/traces/analytics/scores', { query }),
   });
 }
 

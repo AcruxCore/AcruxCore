@@ -116,7 +116,8 @@ Response (status 200) — excerpt:
 `cachedInputPricePerM` is the price your provider charges, per 1M prompt tokens, for tokens it
 serves from its prompt cache. The gateway bills a call's `usage.cached_tokens` at this price, and
 traced spans bill their `usage.cachedTokens` at it too. Leave it out, or set it to `null`, to use
-the default: half the input price, or a tenth of it for Claude models. It is never filled in
+the default: half the input price, a tenth of it for Claude and Gemini models, or a quarter of it for
+Gemini 1.5 and 2.0 models. It is never filled in
 for you.
 
 ```bash

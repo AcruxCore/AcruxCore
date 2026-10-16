@@ -68,6 +68,7 @@ export const keys = {
   traces: (filters: ApiQuery) => ['traces', filters] as const,
   trace: (id: string) => ['trace', id] as const,
   traceAnalytics: (params: Record<string, string | undefined>) => ['traceAnalytics', params] as const,
+  traceScores: (params: Record<string, string | undefined>) => ['traceScores', params] as const,
   sessions: (params: Record<string, string | number | undefined>) => ['sessions', params] as const,
   session: (id: string) => ['session', id] as const,
   promptVersionTraces: (promptId: string, n: number, page: number) =>

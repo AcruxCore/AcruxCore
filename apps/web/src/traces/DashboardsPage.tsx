@@ -7,6 +7,7 @@ import { formatCount, formatLatency, formatPercent, formatUsd } from './format';
 import { DATE_RANGE_PRESETS, presetFrom, type DateRangePreset } from './date-range';
 import type { AnalyticsGroupBy, SpanKind } from '@/api/types';
 import { SpanNameTable } from './SpanNameTable';
+import { QualityPanel } from './QualityPanel';
 
 /** Dimensions with a bounded, comparable set of group keys worth narrowing down. */
 const FILTERABLE_GROUP_BYS: AnalyticsGroupBy[] = ['model', 'prompt_version', 'span_name'];
@@ -132,7 +133,7 @@ export function DashboardsPage() {
         <div>
           <h1 className="text-[22px] font-semibold tracking-tight">Dashboards</h1>
           <p className="mt-1 text-[13px] text-muted">
-            Volume, latency, tokens, cost, and error rate across gateway and SDK traffic.
+            Volume, latency, tokens, cost, error rate and quality across gateway and SDK traffic.
           </p>
         </div>
         <div className="ml-auto flex flex-wrap items-end gap-2">
@@ -237,7 +238,7 @@ export function DashboardsPage() {
         <Empty title="Couldn’t load analytics" description="Something went wrong. Try again." />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7" data-testid="analytics-totals">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 2xl:grid-cols-9" data-testid="analytics-totals">
             <Stat label="Requests" value={formatCount(data.totals.requests)} />
             <Stat label="Error rate" value={formatPercent(data.totals.errorRate)} />
             <Stat label="Tokens" value={formatCount(data.totals.totalTokens)} />
@@ -245,7 +246,11 @@ export function DashboardsPage() {
             <Stat label="p50" value={formatLatency(data.totals.latencyMs.p50)} />
             <Stat label="p95" value={formatLatency(data.totals.latencyMs.p95)} />
             <Stat label="p99" value={formatLatency(data.totals.latencyMs.p99)} />
+            <Stat label="Cost / trace p50" value={formatUsd(data.costPerTrace?.p50)} />
+            <Stat label="Cost / trace p99" value={formatUsd(data.costPerTrace?.p99)} />
           </div>
+
+          <QualityPanel from={from} to={to} />
 
           {data.buckets.length === 0 ? (
             <Empty title="No data in range" description="No traced traffic for this window." />

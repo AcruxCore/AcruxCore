@@ -206,11 +206,11 @@ async def main() -> None:
               any(t.id == tw.trace_id for t in by_session.data), f"total={by_session.total}")
 
         print("\n=== 9. submit_feedback + update_feedback ===")
-        fb = await hub.traces.submit_feedback(trace_id, rating=5, label="good", comment="worked", source="developer")
+        fb = await hub.traces.submit_feedback(trace_id, rating=1, label="good", comment="worked", source="developer")
         check("feedback created", fb.id is not None, fb.id)
-        check("feedback rating stored", fb.rating == 5, str(fb.rating))
-        upd = await hub.traces.update_feedback(trace_id, fb.id, rating=1, comment="revised")
-        check("feedback updated rating", upd.rating == 1, str(upd.rating))
+        check("feedback rating stored", fb.rating == 1, str(fb.rating))
+        upd = await hub.traces.update_feedback(trace_id, fb.id, rating=-1, comment="revised")
+        check("feedback updated rating", upd.rating == -1, str(upd.rating))
         check("feedback updated comment", upd.comment == "revised", str(upd.comment))
 
         print("\n=== 10. error handling (missing prompt -> API_ERROR 404) ===")

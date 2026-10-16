@@ -198,6 +198,8 @@ interface GeminiResponseBody {
 /** Gemini's token counts. `thoughtsTokenCount` is NOT part of `candidatesTokenCount`. */
 interface GeminiUsageMetadata {
   promptTokenCount?: number;
+  /** Prompt tokens served from Gemini's cache; a subset of `promptTokenCount`. */
+  cachedContentTokenCount?: number;
   candidatesTokenCount?: number;
   /** Thinking tokens; billed at the output rate, counted apart from the answer. */
   thoughtsTokenCount?: number;
@@ -211,16 +213,22 @@ interface GeminiUsageMetadata {
  * `candidatesTokenCount`, and bills both at the output rate. OpenAI counts reasoning
  * inside `completion_tokens` and repeats it as `reasoning_tokens`. Reading
  * `candidatesTokenCount` alone left every thinking token unbilled (issue #593).
+ *
+ * `cachedContentTokenCount` is already inside `promptTokenCount`, the same shape as OpenAI's
+ * `cached_tokens`, so it maps across unchanged. Ignoring it billed every cache hit at the
+ * full input price (issue #595).
  */
 function toUsage(meta: GeminiUsageMetadata): Usage {
   const promptTokens = meta.promptTokenCount ?? 0;
   const thoughts = meta.thoughtsTokenCount ?? 0;
   const completionTokens = (meta.candidatesTokenCount ?? 0) + thoughts;
+  const cached = meta.cachedContentTokenCount ?? 0;
   return {
     prompt_tokens: promptTokens,
     completion_tokens: completionTokens,
     total_tokens: meta.totalTokenCount ?? promptTokens + completionTokens,
     ...(thoughts > 0 ? { reasoning_tokens: thoughts } : {}),
+    ...(cached > 0 ? { cached_tokens: cached } : {}),
   };
 }
 
