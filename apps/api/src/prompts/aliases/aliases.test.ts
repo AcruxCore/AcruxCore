@@ -653,3 +653,51 @@ describe('render returns attached tools', () => {
     expect(res.body.tools).toEqual([]);
   });
 });
+
+describe('GET /api/v1/prompt-versions?name=&alias=', () => {
+  it('returns the version an alias points at, by prompt name, and follows a promote', async () => {
+    const { apiKey, promptId, promptName } = await setupPromptWithVersions(2);
+
+    const first = await request(app)
+      .get('/api/v1/prompt-versions')
+      .query({ name: promptName, alias: 'production' })
+      .set('Authorization', `Bearer ${apiKey}`)
+      .expect(200);
+    // The same shape as GET /prompts/:id/versions/:n, so SDKs read it with one parser.
+    const direct = await request(app)
+      .get(`/api/v1/prompts/${promptId}/versions/1`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .expect(200);
+    expect(first.body).toEqual(direct.body);
+    expect(first.body.messages[0].content).toBe('Version 1 content for {{ name }}');
+
+    await request(app)
+      .post(`/api/v1/prompts/${promptId}/aliases/production/promote`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ version_number: 2 })
+      .expect(200);
+    const moved = await request(app)
+      .get('/api/v1/prompt-versions')
+      .query({ name: promptName, alias: 'production' })
+      .set('Authorization', `Bearer ${apiKey}`)
+      .expect(200);
+    expect(moved.body.versionNumber).toBe(2);
+  });
+
+  it('answers 404 NOT_FOUND for an unknown name or alias, and 400 without both params', async () => {
+    const { apiKey, promptName } = await setupPromptWithVersions(1);
+    const get = (query: Record<string, string>) =>
+      request(app).get('/api/v1/prompt-versions').query(query).set('Authorization', `Bearer ${apiKey}`);
+
+    expect((await get({ name: 'no-such-prompt', alias: 'production' }).expect(404)).body.error.code).toBe('NOT_FOUND');
+    expect((await get({ name: promptName, alias: 'canary' }).expect(404)).body.error.code).toBe('NOT_FOUND');
+    expect((await get({ name: promptName }).expect(400)).body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('never resolves another team’s prompt', async () => {
+    const { promptName } = await setupPromptWithVersions(1);
+    const { agent } = await authedAgent(app);
+    const res = await agent.get('/api/v1/prompt-versions').query({ name: promptName, alias: 'production' }).expect(404);
+    expect(res.body.error.code).toBe('NOT_FOUND');
+  });
+});

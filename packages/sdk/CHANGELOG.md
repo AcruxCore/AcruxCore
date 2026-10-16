@@ -39,6 +39,24 @@ changelog: <https://docs.acruxcore.com/changelog>
   code scorers. Run cells carry `expected` and named `scores`; report cells carry `namedScores`.
 - `RunKind` (`'evaluation' | 'optimize' | 'local'`) on `RunListItemDto.kind` and `RunDetailDto.kind`.
   New types: `RunLocalOptions`, `LocalRunResult`, `Scorer`, `Score`, `LocalTaskContext` and friends.
+- `traces.step(name, options?, fn)` runs `fn` as one span of your own code; `traces.wrap(name, options?, fn)`
+  makes every call of a function one. Steps nest, and `chat()` / `stream()` inside a step land under it
+  on both paths. New types `Step`, `StepOptions`. [Why](../../docs/superpowers/specs/cross-cutting/sdk-faq.md)
+- `traces.wrap` on a generator function keeps the step open until the generator ends, and makes it the
+  open step only while the generator's own code runs. A step still open when its root ends is sent then.
+- A wrapped generator dropped part-way, without `return()`, has its step closed when it is
+  garbage-collected, so its trace is still sent and freed.
+- A step joins only calls made on the client that opened it; another client's call inside it starts
+  its own trace. One trace holds at most 1,000 spans; the rest are dropped and counted as
+  `droppedSpans` on the root span.
+- `prompts.getByAlias(name, alias)` returns the version an alias points at, template unrendered. Cached
+  for `cacheTtl`, up to `maxCacheSize` entries; each call returns its own copy.
+- A `getByAlias` miss is one request, `GET /prompt-versions?name=&alias=`. Against a server without
+  that endpoint it falls back to three (find the prompt, read its aliases, read the version).
+- `extraBody` on `chat` and `stream` adds more OpenAI fields (`top_p`, `seed`, …) on both paths.
+  A key another option already sets, or `model` / `messages` / `stream`, throws `VALIDATION_ERROR`.
+- `trace.parentSpanId` puts a call's `llm` span under a span you reported: `x-parent-span-id` on the
+  gateway path, `parentSpanId` on a BYO span.
 
 ### Changed
 
@@ -53,6 +71,8 @@ changelog: <https://docs.acruxcore.com/changelog>
   2. TypeScript catches a miss at compile time (`Property 'judgeModel' is missing`).
      JavaScript callers must grep for both calls; without it the API answers 400.
 
+- Tool spans from `runToolLoop` have ids like `tool-0-0-1a2b3c4d5e6f`, not `tool-0-0`. Two loops
+  reporting to one trace reused the short ids, and the server kept only the first loop's spans.
 - **A feedback `rating` is a thumb: `1` (up) or `-1` (down).** The API refuses any other number
   with a 400. `FeedbackInput.rating` and `FeedbackUpdateInput.rating` are now the new
   `FeedbackRating` type (`1 | -1`). [Why](../../docs/superpowers/specs/phase-3/phase-3-faq.md)
@@ -68,6 +88,18 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 - BYO-provider spans now report `cachedTokens` to `/traces`, so cached prompt tokens are priced at the
   cached input rate. Before, every prompt token on a traced BYO call was billed at the full rate.
+- Two `runToolLoop` calls with the same `trace: { traceId }` lost the second loop's tool spans: their
+  ids repeated the first loop's. Each tool span id is now unique.
+- A `traces.ingest(…, { wait: false })` report with `capturePayloads: false` could be merged with
+  another queued report for the same trace and lose the flag, so its payloads were stored anyway.
+- Leaving a stream early with `break` now closes its connection at once. It stayed open until the
+  response body was garbage-collected.
+- A BYO `chat()` / `stream()` call now names its trace from `trace: { name }`, as the gateway path does.
+  It was always `'chat'`.
+- A BYO call (`chat`, `stream` and both tool loops) now sends `trace.tags` and `trace.metadata` with
+  its spans, as the gateway path does. They were dropped, so a tag filter missed every BYO call.
+- A BYO stream (or a streamed BYO tool loop) left early with `break` now reports its `llm` span with
+  what arrived, `status: 'ok'` and `attributes.clientClosed: true`. It wrote no span at all.
 
 ## 0.17.0 — 2026-10-13
 

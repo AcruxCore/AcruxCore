@@ -174,6 +174,26 @@ const v = await hub.prompts.getVersion(promptId, 1);
 
 **Returns** `VersionDetail`.
 
+### `prompts.getByAlias(name, alias)`
+
+The version an alias points at, found by prompt name. Its `messages` are the
+template, with `{{ placeholders }}` still in them. Use it when your app renders
+templates itself; use [`prompts.render`](#promptsrendername-alias-variables)
+when the server should fill them in. Pass `version.id` as `promptVersionId` to
+link the model call to this version.
+
+```typescript
+const version = await hub.prompts.getByAlias('support-reply', 'production');
+const messages = myRender(version.messages, { ticket });
+const reply = await hub.gateway.chat({ model: 'support-model', messages, promptVersionId: version.id });
+```
+
+**Returns** `VersionDetail`, a fresh copy on every call, so changing its `messages`
+in place is safe. Cached for `cacheTtl` per `(name, alias)`, up to `maxCacheSize`
+entries; a miss makes one request (three against a server older than `GET /prompt-versions`). Throws `API_ERROR` with `statusCode` 404
+when no prompt has that exact name, or the prompt has no such alias. Not in 0.17.0;
+comes in the next release.
+
 ### `prompts.diff(promptId, from, to)`
 
 Diff two versions.
@@ -290,6 +310,10 @@ const stream = await hub.gateway.stream({ model: 'support-model', messages });
 for await (const chunk of stream) process.stdout.write(chunk.delta.content ?? '');
 ```
 
+Leaving the loop early with `break` closes the connection to the model at once. A BYO stream left
+this way still records its `llm` span, with the text received so far and the attribute
+`clientClosed: true`. Token usage is usually missing on that span, since the provider sends it last.
+
 | Parameter | Type | Required | Notes |
 |-----------|------|----------|-------|
 | `model` | `string` | yes | Model public name. |
@@ -302,11 +326,12 @@ for await (const chunk of stream) process.stdout.write(chunk.delta.content ?? ''
 | `maxTokens` | `number` | no | Max completion tokens. |
 | `reasoningEffort` | `string` | no | How hard a reasoning model thinks, e.g. `'low'` or `'high'`. Sent as `reasoning_effort`. Not in 0.17.0; comes in the next release. |
 | `stream` | `boolean` | no | Return an async iterable of `ChatChunk` instead of `ChatResult`. |
+| `extraBody` | `Record<string, unknown>` | no | More OpenAI fields (`top_p`, `seed`, `stop`, …) added to the body on both paths. A key another option already sets, or `model` / `messages` / `stream`, throws `VALIDATION_ERROR` before anything is sent. The gateway forwards only fields it knows and names the rest in `x-gateway-params-ignored`. Not in 0.17.0; comes in the next release. |
 | `provider` | [`ProviderConfig`](#byo-provider) | no | Per-call BYO override. |
 | `gateway` | `{ maxRetries?: number; fallback?: boolean }` | no | Per-call gateway controls: how many times the **provider** may be retried (0–5), and whether a failure may fall back to the next model in the chain. A different layer from the client's `maxRetries`, which only retries this SDK's request to AcruxCore. Ignored on a BYO call. |
 | `promptVersionId` | `string` | no | From `prompts.render().versionId`; stamped on the trace span. |
 | `variables` | `Record<string, unknown>` | no | From `prompts.render().variables`. Recorded on the span, never sent to a BYO provider. Send it whenever `promptVersionId` is set — without it the run cannot seed a dataset. With no `promptVersionId`, a gateway call renders `{{ placeholders }}` in your messages with these instead. |
-| `trace` | `boolean \| { traceId?; sessionId? }` | no | Default `true` on the BYO path, `false` on the gateway path. |
+| `trace` | `boolean \| { traceId?; parentSpanId?; name?; sessionId?; tags?; metadata? }` | no | Default `true` on the BYO path, `false` on the gateway path. `parentSpanId` puts the call's `llm` span under a span you reported. `name` names a new trace on both paths. Inside [`traces.step`](#tracesstepname-options-fn) the call joins the step on its own. |
 
 **Returns** `ChatResult` (`{ id, model, content, message, finishReason, usage?, gateway }`)
 or, when streaming via `gateway.stream()`, an `AsyncGenerator<ChatChunk>`. `gateway` carries
@@ -451,6 +476,92 @@ gateway's spans, which share the buffer — and `gateway.close()` flushes too.
 
 Wait for every trace buffered by `ingest(…, { wait: false })` (and by the
 gateway's own span reporting) to be sent. Resolves once the queue is empty.
+
+## `traces.step(name, options?, fn)`
+
+Run one step of your own code — a retrieval, a parse, a whole request handler —
+as a span. `fn` runs at once and gets the open step; `step()` returns what `fn`
+returns. [`traces.wrap`](#traceswrapname-options-fn) does the same for every call
+of a function.
+
+```typescript
+const classify = hub.traces.wrap('classify', { kind: 'chain' }, async (ticket: string) => {
+  const reply = await hub.gateway.chat({ model: 'support-model', messages: [{ role: 'user', content: ticket }] });
+  return reply.content;
+});
+
+const answer = await hub.traces.step('handle-ticket', { kind: 'agent' }, () => classify(ticket));
+```
+
+This gives one trace named `handle-ticket`, with `classify` under it and the
+model call under `classify`:
+
+```
+handle-ticket   agent
+└─ classify     chain
+   └─ llm       support-model
+```
+
+A step opened inside another step is its child. A `gateway.chat()` or
+`gateway.stream()` inside a step joins the step's trace, with its `llm` span
+under the step. This works on the gateway path and the BYO path.
+`runToolLoop` does not join on its own; pass it
+`trace: { traceId: step.traceId }`, and the trace still takes the step's name.
+
+| Option | Type | Default | Notes |
+|--------|------|---------|-------|
+| `kind` | `SpanKind` | `'chain'` | `llm`, `tool`, `retrieval`, `embedding`, `agent`, `chain` or `other`. |
+| `input` | `unknown` | none (`wrap`: the arguments) | `wrap()` records the call's arguments as an array. |
+| `captureInput` / `captureOutput` | `boolean` | `true` | `false` records no input / output. |
+| `sessionId` | `string` | — | Session for the trace. |
+| `tags` / `metadata` | `string[]` / `object` | — | Added to the trace, from any step. |
+
+The return value is the step's output; set `step.output` to record something
+else. `step.spanId` and `step.traceId` are readable inside `fn`. An async `fn`
+keeps the step open until its promise settles. A thrown error or a rejected
+promise marks the span `status: 'error'` and is thrown again unchanged. A value
+JSON cannot hold is stored safely: a `bigint` as its digits, a repeated object
+as `'[Circular]'`.
+
+```typescript
+await hub.traces.step('retrieve', { kind: 'retrieval' }, async (step) => {
+  const docs = await search(query);
+  step.output = { hits: docs.length };
+});
+```
+
+The whole tree of the outermost step is sent as one report when that step ends,
+in the background. So the trace appears once the request finishes, not span by
+span. A step that is still running when the outermost step ends — work started
+without `await` — is sent when it ends. Call [`traces.flush()`](#tracesflush)
+before reading a trace back. Not in 0.17.0; comes in the next release.
+
+A step only collects calls made on the client that opened it. A call on a
+second client inside the step starts that client's own trace, because the two
+clients may belong to different teams. One trace holds at most 1,000 spans.
+Spans past that are dropped, and the root span's `droppedSpans` attribute
+counts them.
+
+## `traces.wrap(name, options?, fn)`
+
+Wrap a function so that every call of it is one step, with the same options as
+[`traces.step`](#tracesstepname-options-fn). The wrapped function takes the same
+arguments and returns the same value; `this` is passed through.
+
+On a generator function (`function*` or `async function*`), the step stays open
+until the generator ends, and calls made by the code that reads it are not
+counted as part of the step. Leaving the loop early with `break` closes the
+generator and ends the step as `ok`. A generator dropped part-way, without
+`break` or `return()`, ends its step as `ok` when it is garbage-collected. A
+generator's step records no output.
+
+```typescript
+const retrieve = hub.traces.wrap('retrieve', { kind: 'retrieval' }, async function* (query: string) {
+  for await (const doc of search(query)) yield doc;
+});
+```
+
+Not in 0.17.0; comes in the next release.
 
 ## `traces.submitFeedback(input)` / `traces.updateFeedback(input)`
 

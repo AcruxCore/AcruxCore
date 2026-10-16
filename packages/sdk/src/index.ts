@@ -8,6 +8,7 @@ export { ToolsNamespace, _resetSyncCacheForTesting } from './tools-api';
 export type { ToolSyncOptions, ToolExecuteOptions } from './tools-api';
 export { TracesNamespace } from './traces-api';
 export type { IngestOptions, TracesNamespaceHost } from './traces-api';
+export type { Step, StepOptions } from './steps';
 export { SessionsNamespace } from './sessions-api';
 export { PromptsNamespace } from './prompts-api';
 export { withToolOverride } from './tool-override';

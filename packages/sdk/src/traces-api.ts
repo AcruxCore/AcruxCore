@@ -21,6 +21,8 @@ import type {
 import { randomUUID } from 'node:crypto';
 import type { NamespaceHost } from './host';
 import type { SpanQueue } from './span-queue';
+import { routeReport, runAsStep, generatorKindOf } from './steps';
+import type { Step, StepOptions } from './steps';
 
 /**
  * The subset of the client this namespace needs.
@@ -271,7 +273,10 @@ export class TracesNamespace {
       // creates the trace under a supplied id when it does not exist yet, so a
       // client-generated one behaves identically to one it minted itself.
       const traceId = input.traceId ?? randomUUID();
-      this.client.spanQueue.enqueue({ ...input, traceId });
+      const payload = { ...input, traceId };
+      // Inside a step on the same trace, the spans travel with the step, so a
+      // `parentSpanId` naming that step is known when they arrive.
+      if (!routeReport(payload, this.client.spanQueue)) this.client.spanQueue.enqueue(payload);
       return { traceId };
     }
 
@@ -293,6 +298,88 @@ export class TracesNamespace {
     const data = (await response.json()) as { accepted: number; traceIds: string[] };
     return { traceId: data.traceIds[0] };
   }
+
+  /**
+   * Runs `fn` now as one step of your app — a span the SDK writes for your own code — and
+   * returns what `fn` returns.
+   *
+   * A step opened inside another step is its child. A `gateway.chat()` or
+   * `gateway.stream()` made inside a step joins the step's trace as its child, on the
+   * gateway path and the BYO path alike. `runToolLoop` joins only when given
+   * `trace: { traceId: step.traceId }`, and then names a new trace after the step.
+   *
+   * The whole tree is sent as one trace report when the outermost step ends, because
+   * `POST /traces` rejects a span whose parent is not stored yet. An async `fn` keeps the
+   * step open until its promise settles; a generator function keeps it open until the
+   * generator finishes. A thrown error is recorded on the span and rethrown.
+   *
+   * @param name - The span's name. The outermost step's name is the trace's name.
+   * @param options - Kind, input, and trace-level tags, metadata and session. May be
+   *   left out.
+   * @param fn - The step's code. It receives the open {@link Step}; set `step.output` to
+   *   record something other than the return value.
+   * @returns Whatever `fn` returns, unchanged.
+   *
+   * @example
+   * ```typescript
+   * const answer = await hub.traces.step('handle-ticket', { kind: 'agent', input: ticket }, async () => {
+   *   const docs = await hub.traces.step('retrieve', { kind: 'retrieval' }, () => search(ticket));
+   *   return (await hub.gateway.chat({ model, messages: prompt(ticket, docs) })).content;
+   * });
+   * ```
+   */
+  step<T>(name: string, fn: (step: Step) => T): T;
+  step<T>(name: string, options: StepOptions, fn: (step: Step) => T): T;
+  step<T>(name: string, optionsOrFn: StepOptions | ((step: Step) => T), maybeFn?: (step: Step) => T): T {
+    const [options, fn] = typeof optionsOrFn === 'function'
+      ? [{}, optionsOrFn]
+      : [optionsOrFn, maybeFn as (step: Step) => T];
+    return runAsStep(name, options, this.sink, this.client.spanQueue, options.input, fn);
+  }
+
+  /**
+   * Wraps a function so that every call of it is one step. The returned function takes
+   * the same arguments and returns the same value; see {@link step} for how steps nest
+   * and when they are sent.
+   *
+   * The step's input is the call's arguments, as an array, unless `options.input` is
+   * set or `captureInput` is `false`. Its output is the return value — for an async
+   * function, the resolved value. A generator function's step stays open until the
+   * generator finishes, and records no output.
+   *
+   * @param name - The span's name.
+   * @param options - As for {@link step}.
+   * @param fn - The function to trace. `this` is passed through.
+   * @returns A function with `fn`'s signature.
+   *
+   * @example
+   * ```typescript
+   * const retrieve = hub.traces.wrap('retrieve', { kind: 'retrieval' }, async (query: string) => search(query));
+   * ```
+   */
+  wrap<A extends unknown[], R>(name: string, fn: (...args: A) => R): (...args: A) => R;
+  wrap<A extends unknown[], R>(name: string, options: StepOptions, fn: (...args: A) => R): (...args: A) => R;
+  wrap<A extends unknown[], R>(
+    name: string,
+    optionsOrFn: StepOptions | ((...args: A) => R),
+    maybeFn?: (...args: A) => R,
+  ): (...args: A) => R {
+    const [options, fn] = typeof optionsOrFn === 'function'
+      ? [{} as StepOptions, optionsOrFn]
+      : [optionsOrFn, maybeFn as (...args: A) => R];
+    const sink = this.sink;
+    const owner = this.client.spanQueue;
+    const kind = generatorKindOf(fn);
+    return function (this: unknown, ...args: A): R {
+      const input = options.input !== undefined ? options.input : args;
+      return runAsStep(name, options, sink, owner, input, () => fn.apply(this, args), kind);
+    };
+  }
+
+  /** Where a finished step's report goes: this client's span queue. */
+  private readonly sink = (payload: TraceInput): void => {
+    this.client.spanQueue.enqueue(payload);
+  };
 
   /**
    * Waits for every trace buffered by `ingest(..., { wait: false })` to be sent.

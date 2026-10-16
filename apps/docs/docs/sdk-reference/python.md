@@ -16,8 +16,9 @@ the casing and a few option shapes differ.
 pip install acruxcore
 ```
 
-The SDK is async throughout, so `AcruxCore` is an async context manager. Create
-one instance at startup and reuse it.
+`AcruxCore` is async, so it is an async context manager. For code that is not
+async, use [`AcruxCoreSync`](#sync-client-acruxcoresync), which has the same
+methods. Create one instance at startup and reuse it.
 
 ## Construct the client
 
@@ -47,6 +48,30 @@ asyncio.run(main())
 
 Errors raise `AcruxCoreError` with a machine-readable `code` — see
 [Error codes](#error-codes).
+
+### Sync client: `AcruxCoreSync`
+
+For code that is not async — a script, a Flask or Django app. It takes the same
+arguments and has the same namespaces, but every method blocks and returns the
+result. A streaming call returns a plain iterator.
+
+```python
+from acruxcore import AcruxCoreSync
+
+with AcruxCoreSync() as hub:
+    reply = hub.gateway.chat("support-model", messages)
+    for chunk in hub.gateway.stream("support-model", messages):
+        print(chunk.delta.get("content", ""), end="")
+```
+
+One client can be shared across threads. It runs the async client on its own
+background thread. `close()` (or leaving the `with` block) sends buffered traces;
+so does interpreter exit, or the client being garbage-collected. A stream you leave
+with `break` is closed when the iterator is dropped; call its `close()` to release it
+at once. Do not call it from a sync tool function that
+`run_tool_loop` runs: that raises `VALIDATION_ERROR`, because the call would wait
+forever. Make that tool `async` and use `AcruxCore` inside it. Not in 0.17.0; comes in
+the next release.
 
 ## `prompts.render(name, alias, variables=None)`
 
@@ -171,6 +196,25 @@ v = await hub.prompts.get_version(prompt_id, 1)
 
 **Returns** `VersionDetail`.
 
+### `prompts.get_by_alias(name, alias)`
+
+The version an alias points at, found by prompt name. Its `messages` are the
+template, with `{{ placeholders }}` still in them. Use it when your app renders
+templates itself; use [`prompts.render`](#promptsrendername-alias-variablesnone)
+when the server should fill them in. Pass `version.id` as `prompt_version_id` to
+link the model call to this version.
+
+```python
+version = await hub.prompts.get_by_alias("support-reply", "production")
+messages = my_render(version.messages, ticket=ticket)
+reply = await hub.gateway.chat("support-model", messages, prompt_version_id=version.id)
+```
+
+**Returns** `VersionDetail`, a fresh copy on every call, so changing its `messages`
+in place is safe. Cached for `cache_ttl` per `(name, alias)`, up to
+`max_cache_size` entries; a miss makes one request (three against a server older than `GET /prompt-versions`). Raises `API_ERROR` with status 404 when no prompt has
+that exact name, or the prompt has no such alias. Not in 0.17.0; comes in the next release.
+
 ### `prompts.diff(prompt_id, from_version, to_version)`
 
 Diff two versions.
@@ -284,6 +328,11 @@ async for chunk in stream:
     print(chunk.delta.get("content", ""), end="", flush=True)
 ```
 
+To stop reading early, `break` and then `await stream.aclose()`, which closes the connection. A BYO
+stream closed this way still records its `llm` span, with the text received so far and the
+attribute `clientClosed: true`. Token usage is usually missing on that span, since the provider
+sends it last.
+
 | Parameter | Type | Required | Notes |
 |-----------|------|----------|-------|
 | `model` | `str` | yes | Model public name. |
@@ -300,7 +349,8 @@ async for chunk in stream:
 | `gateway` | `{"max_retries": int, "fallback": bool}` | no | Per-call gateway controls: how many times the **provider** may be retried (0–5), and whether a failure may fall back to the next model in the chain. A different layer from the client's `max_retries`, which only retries this SDK's request to AcruxCore. Ignored on a BYO call. |
 | `prompt_version_id` | `str` | no | From `prompts.render().version_id`; stamped on the trace span. |
 | `variables` | `dict` | no | From `prompts.render().variables`. Recorded on the span, never sent to a BYO provider. Send it whenever `prompt_version_id` is set — without it the run cannot seed a dataset. With no `prompt_version_id`, a gateway call renders `{{ placeholders }}` in your messages with these instead. |
-| `trace` | `bool \| {trace_id?, session_id?}` | no | Default `True` on the BYO path, `False` on the gateway path. |
+| `trace` | `bool \| dict` | no | `False` reports nothing. A dict takes `name`, `trace_id`, `parent_span_id`, `session_id`, `tags` and `metadata`. `parent_span_id` puts this call's `llm` span under a span you reported. Inside a [step](#tracesstepname--kindchain-), the call joins the step's trace on its own. |
+| `extra_body` | `dict` | no | More OpenAI fields (`top_p`, `seed`, `stop`, …) added to the request body. Raises `VALIDATION_ERROR` for a key a named argument already sets, or for `model`, `messages` or `stream`. The gateway forwards only fields it knows and names the rest in its `x-gateway-params-ignored` response header; a BYO provider gets them all. Not in 0.17.0; comes in the next release. |
 
 **Returns** `ChatResult` (`id`, `model`, `content`, `message`, `finish_reason`,
 `usage`, `gateway`) or, when streaming via `gateway.stream()`, an async iterator of `ChatChunk`.
@@ -444,7 +494,7 @@ result = await hub.traces.ingest({"name": "retrieval", "spans": [...]}, wait=Fal
 
 # Usable straight away — the id is generated client-side, and the API creates
 # the trace under it. Hand it to the gateway so both land on one trace.
-await hub.gateway.chat(model="gpt-4o-mini", messages=[...], trace={"traceId": result.trace_id})
+await hub.gateway.chat(model="gpt-4o-mini", messages=[...], trace={"trace_id": result.trace_id})
 
 await hub.traces.flush()   # before reading it back, or before the process exits
 ```
@@ -458,6 +508,74 @@ gateway's spans, which share the buffer — and `AcruxCore.aclose()` flushes too
 
 Wait for every trace buffered by `ingest(..., wait=False)` (and by the gateway's
 own span reporting) to be sent. Returns once the queue is empty.
+
+## `traces.step(name, *, kind="chain", ...)`
+
+Trace one step of your own code — a retrieval, a parse, a whole request handler.
+Use it as a decorator on a sync or async function, or as a `with` / `async with`
+block. On a generator function, the step stays open until the generator ends,
+and calls made by the code that reads it are not counted as part of the step.
+
+```python
+@hub.traces.step("classify", kind="chain")
+async def classify(ticket: str) -> str:
+    reply = await hub.gateway.chat("support-model", [{"role": "user", "content": ticket}])
+    return reply.content
+
+@hub.traces.step("handle-ticket", kind="agent")
+async def handle(ticket: str) -> str:
+    return await classify(ticket)
+```
+
+This gives one trace named `handle-ticket`, with `classify` under it and the
+model call under `classify`:
+
+```
+handle-ticket   agent
+└─ classify     chain
+   └─ llm       support-model
+```
+
+A step opened inside another step is its child. A `gateway.chat()` or
+`gateway.stream()` inside a step joins the step's trace, with its `llm` span
+under the step. This works on the gateway path and the BYO path.
+`run_tool_loop` does not join on its own; pass it
+`trace={"trace_id": step.trace_id}`, and the trace still takes the step's name.
+
+| Parameter | Type | Default | Notes |
+|-----------|------|---------|-------|
+| `name` | `str` | — | The span's name. The outermost step's name is also the trace's name. |
+| `kind` | `str` | `"chain"` | `llm`, `tool`, `retrieval`, `embedding`, `agent`, `chain` or `other`. |
+| `input` | `Any` | the arguments | A decorated function records its arguments by name (without `self`). |
+| `capture_input` / `capture_output` | `bool` | `True` | `False` records no input / output. |
+| `session_id` | `str` | — | Session for the trace. |
+| `tags` / `metadata` | `list` / `dict` | — | Added to the trace, from any step. |
+
+The return value is the step's output. In a `with` block, set it yourself:
+
+```python
+async with hub.traces.step("retrieve", kind="retrieval") as step:
+    docs = await search(query)
+    step.output = {"hits": len(docs)}
+```
+
+`step.span_id` and `step.trace_id` are readable inside the block. A value that
+is not JSON is stored as its `repr`. An exception marks the span
+`status="error"` and is raised again unchanged. One step object can be entered
+again, or by several tasks at once; each entry records its own output.
+
+A step only collects calls made on the client that opened it. A call on a
+second client inside the step starts that client's own trace, because the two
+clients may belong to different teams. One trace holds at most 1,000 spans.
+Spans past that are dropped, and the root span's `droppedSpans` attribute
+counts them.
+
+The whole tree of the outermost step is sent as one report when that step ends,
+in the background. So the trace appears once the request finishes, not span by
+span. A step that is still running when the outermost step ends — a task it
+started without awaiting — is sent when it ends. Call
+[`traces.flush()`](#tracesflush) before reading it back. Not in 0.17.0; comes in
+the next release.
 
 ## `traces.submit_feedback(...)` / `traces.update_feedback(...)`
 

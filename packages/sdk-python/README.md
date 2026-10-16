@@ -436,6 +436,39 @@ has payload capture on (or you pass `capturePayloads: True`). Up to 200 spans pe
 call. Span keys are camelCase (`spanId`, `parentSpanId`, `startTime`) because they
 are sent to the API verbatim.
 
+### Tracing your own steps
+
+`hub.traces.step` turns a function (sync or async) or a `with` block into a span.
+Steps nest, and a `gateway.chat()` or `gateway.stream()` inside a step lands under
+it — on the gateway and BYO paths alike:
+
+```python
+@hub.traces.step("retrieve", kind="retrieval")
+async def retrieve(query: str) -> list[str]: ...
+
+@hub.traces.step("handle-ticket", kind="agent")
+async def handle(ticket: str) -> str:
+    docs = await retrieve(ticket)
+    reply = await hub.gateway.chat("support-model", build_messages(ticket, docs))
+    return reply.content
+```
+
+The outermost step names the trace and sends the whole tree in one report when it
+ends. To nest a call under a span you reported by hand, pass
+`trace={"trace_id": ..., "parent_span_id": ...}`.
+
+### Sync code: `AcruxCoreSync`
+
+Same arguments, same namespaces, blocking methods — for a script or a Flask app:
+
+```python
+from acruxcore import AcruxCoreSync
+
+with AcruxCoreSync() as hub:
+    version = hub.prompts.get_by_alias("support-reply", "production")  # the template, not rendered
+    reply = hub.gateway.chat("support-model", my_render(version.messages), prompt_version_id=version.id)
+```
+
 ### When automatic traces are sent
 
 `traces.ingest()` above is awaited — you get the `trace_id` back. The **automatic** reports
@@ -576,6 +609,7 @@ Error codes: `MISSING_API_KEY`, `MISSING_BASE_URL`, `NETWORK_ERROR`, `API_ERROR`
 | `hub.tools.resolve(refs)` | `hub.tools.resolve(refs)` |
 | `hub.tools.execute(toolId, args, {...})` | `hub.tools.execute(tool_id, args, ...)` |
 | `trace(input)` | `traces.ingest(input)` |
+| — (issue #612) | `traces.step(name, kind=...)`, `prompts.get_by_alias(name, alias)`, `AcruxCoreSync` |
 | `submitFeedback({...})` | `traces.submit_feedback(trace_id, *, ...)` |
 | `updateFeedback({...})` | `traces.update_feedback(trace_id, feedback_id, *, ...)` |
 | `getTrace(id)` | `traces.get(trace_id)` |

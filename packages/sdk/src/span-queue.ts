@@ -245,7 +245,10 @@ export class SpanQueue {
  * preserving span order within each trace and the order the traces first appeared.
  *
  * Entries with no trace id are left alone — each one mints its own trace server-side,
- * so merging them would collapse unrelated activity into a single trace.
+ * so merging them would collapse unrelated activity into a single trace. Entries that
+ * set `capturePayloads` differently stay apart too, because the flag covers a whole
+ * entry: merging applied one entry's choice to the other's spans, which stored payloads
+ * a caller had opted out of.
  *
  * @param batch - Entries selected for one request.
  * @returns The same spans, in the same order, in as few entries as possible.
@@ -261,11 +264,12 @@ function mergeByTraceId(batch: TraceInput[]): TraceInput[] {
       merged.push(entry);
       continue;
     }
-    const existing = byTraceId.get(entry.traceId);
+    const key = `${entry.traceId}\u0000${String(entry.capturePayloads)}`;
+    const existing = byTraceId.get(key);
     if (!existing) {
       // Copied so merging never mutates what the caller handed to `enqueue`.
       const copy: TraceInput = { ...entry, spans: [...(entry.spans ?? [])] };
-      byTraceId.set(entry.traceId, copy);
+      byTraceId.set(key, copy);
       merged.push(copy);
       continue;
     }

@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import hashlib
 import json
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 from urllib.parse import quote, urlencode
 
-from .cache import CacheEntry, get_cache
+from .cache import CacheEntry, _LRUCache, get_cache
 from .errors import (
     API_ERROR,
     MISSING_VARIABLES,
@@ -109,6 +110,22 @@ def _binding_body(
     return {"off": True}
 
 
+
+def _json_or_none(response: Any) -> Any:
+    try:
+        return response.json()
+    except ValueError:
+        return None
+
+
+def _error_code(response: Any) -> Optional[str]:
+    """The ``error.code`` of an API error body, or ``None`` — as for the 404 Express sends
+    when no route matched, which is how an older server answers a newer path."""
+    body = _json_or_none(response)
+    error = body.get("error") if isinstance(body, dict) else None
+    code = error.get("code") if isinstance(error, dict) else None
+    return code if isinstance(code, str) else None
+
 class PromptsNamespace:
     """Prompt and prompt-version lifecycle operations, reached as ``client.prompts``.
 
@@ -130,6 +147,9 @@ class PromptsNamespace:
         self._client = client
         self._cache_ttl = cache_ttl
         self._max_cache_size = max_cache_size
+        # get_by_alias results, bounded by max_cache_size like render()'s cache. Kept
+        # apart from that process-wide cache: its keys are rendered-prompt hashes.
+        self._alias_versions = _LRUCache(max_cache_size)
 
     async def list(
         self,
@@ -355,6 +375,78 @@ class PromptsNamespace:
         return VersionDetail.from_dict(
             self._client._parse_json_or_throw(response, "fetching prompt version")
         )
+
+    async def get_by_alias(self, name: str, alias: str) -> VersionDetail:
+        """The version an alias points at, by prompt name — its template, not rendered.
+
+        For an app that renders its own templates: ``messages`` still hold their
+        ``{{ placeholders }}``, and ``id`` is what to pass as ``prompt_version_id`` so
+        the model call is linked to this version. :meth:`render` is the call to use when
+        the server should fill the template in.
+
+        Cached for ``cache_ttl`` milliseconds per ``(name, alias)``, so moving an alias
+        reaches a running app within that time; ``cache_ttl=0`` makes every call a miss.
+        A miss is one request (``GET /prompt-versions?name=&alias=``). Against an older
+        server without that route it falls back to three: find the prompt, read its
+        aliases, read the version.
+
+        :param name: The prompt's exact name.
+        :param alias: The alias to resolve, e.g. ``"production"``.
+        :returns: The version, with ``messages``, ``variables`` and ``model``.
+        :raises AcruxCoreError: ``API_ERROR`` 404 if no prompt has that name, or the
+            prompt has no such alias.
+        :raises AcruxCoreError: ``NETWORK_ERROR`` if the API is unreachable after retries.
+        """
+        key = json.dumps([name, alias])
+        now = time.time() * 1000
+        hit = self._alias_versions.get(key)
+        if hit is not None and now - hit.fetched_at < self._cache_ttl:
+            # A copy: an app that fills the template in place must not change what the
+            # next caller is handed.
+            return copy.deepcopy(cast(VersionDetail, hit.value))
+
+        response = await self._client._request(
+            "GET", f"/prompt-versions?{urlencode({'name': name, 'alias': alias})}", None,
+            "fetching prompt version by alias",
+        )
+        if response.status_code == 404 and not _error_code(response):
+            # No route matched: a server older than this endpoint. Resolve it in three.
+            version = await self._get_by_alias_in_steps(name, alias)
+        elif response.status_code == 404:
+            raise AcruxCoreError(
+                f'acruxcore: no prompt "{name}" with an alias "{alias}"', API_ERROR, 404,
+                _json_or_none(response),
+            )
+        else:
+            version = VersionDetail.from_dict(
+                self._client._parse_json_or_throw(response, "fetching prompt version by alias")
+            )
+        if self._cache_ttl > 0:
+            self._alias_versions.set(key, CacheEntry(value=copy.deepcopy(version), fetched_at=now))
+        return version
+
+    async def _get_by_alias_in_steps(self, name: str, alias: str) -> VersionDetail:
+        """:meth:`get_by_alias` for a server without ``GET /prompt-versions``."""
+        prompt_id = await self._find_prompt_id(name)
+        target = next((a for a in await self.list_aliases(prompt_id) if a.alias == alias), None)
+        if target is None:
+            raise AcruxCoreError(
+                f'acruxcore: prompt "{name}" has no alias "{alias}"', API_ERROR, 404
+            )
+        return await self.get_version(prompt_id, target.version_number)
+
+    async def _find_prompt_id(self, name: str) -> str:
+        """Id of the prompt named exactly ``name``. ``search`` is a substring match, so
+        every page of results is checked for the exact name rather than taking the first."""
+        page = 1
+        while True:
+            result = await self.list(search=name, page=page, limit=100)
+            for prompt in result.data:
+                if prompt.name == name:
+                    return prompt.id
+            if not result.data or page * result.limit >= result.total:
+                raise AcruxCoreError(f'acruxcore: no prompt named "{name}"', API_ERROR, 404)
+            page += 1
 
     async def diff(self, prompt_id: str, from_version: int, to_version: int) -> DiffResult:
         """Computes a unified diff between two versions' message content.
@@ -763,9 +855,9 @@ class PromptsNamespace:
         if cached is not None:
             age = now - cached.fetched_at
             if age < self._cache_ttl:
-                return cached.value
+                return cast(RenderResult, cached.value)
             self._spawn_background_refresh(name, alias, variables, cache_key)
-            return cached.value
+            return cast(RenderResult, cached.value)
 
         return await self._fetch_and_cache(name, alias, variables, cache_key)
 

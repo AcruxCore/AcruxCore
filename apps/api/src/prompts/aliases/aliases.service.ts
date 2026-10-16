@@ -4,6 +4,8 @@ import { PromptsRepository } from '../prompts.repository';
 import { renderMessages, extractVariables, NunjucksRenderError } from '../versions/nunjucks.utils';
 import type { TemplateContent } from '../versions/nunjucks.utils';
 import { PromptToolResolver } from '../versions/prompt-tool-resolver';
+import { VersionsService } from '../versions/versions.service';
+import type { VersionDetail } from '../versions/versions.types';
 import type { AliasDetail, RenderResponse, RenderedWithVersion, PromoteAliasDto } from './aliases.types';
 import { audit } from '../../shared/audit/audit.helper';
 import prisma from '../../shared/db/client';
@@ -31,6 +33,7 @@ export class AliasesService {
   private versionsRepo: VersionsRepository;
   private promptsRepo: PromptsRepository;
   private readonly toolResolver = new PromptToolResolver();
+  private readonly versions = new VersionsService();
 
   constructor() {
     this.aliasesRepo = new AliasesRepository();
@@ -48,6 +51,25 @@ export class AliasesService {
   private async assertPromptAccessible(promptId: string, teamId: string): Promise<void> {
     const prompt = await this.promptsRepo.findById(promptId, teamId);
     if (!prompt) throw new NotFoundError('Prompt not found');
+  }
+
+  /**
+   * The version an alias points at, found by prompt name: its template, not rendered.
+   *
+   * One request for what an SDK otherwise does in three (search the prompt by name, list
+   * its aliases, fetch the version). The alias row names an immutable version, so the
+   * answer is one consistent version even if the alias moves while this runs.
+   *
+   * @param teamId - UUID of the authenticated user's team.
+   * @param promptName - The prompt's exact name.
+   * @param alias - The alias to resolve, e.g. `production`.
+   * @returns The version, in the same shape as `GET /prompts/:id/versions/:n`.
+   * @throws {NotFoundError} If the team has no prompt of that name, or it has no such alias.
+   */
+  async getVersionByAlias(teamId: string, promptName: string, alias: string): Promise<VersionDetail> {
+    const resolved = await this.aliasesRepo.findByPromptName(teamId, promptName, alias);
+    if (!resolved) throw new NotFoundError('Prompt or alias not found');
+    return this.versions.getVersion(resolved.promptId, teamId, resolved.versionNumber);
   }
 
   /**

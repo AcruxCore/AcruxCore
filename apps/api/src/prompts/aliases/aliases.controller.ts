@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { AliasesService } from './aliases.service';
-import { PromoteAliasBodySchema, RenderBodySchema } from './aliases.types';
+import { PromoteAliasBodySchema, RenderBodySchema, VersionByAliasQuerySchema } from './aliases.types';
 import { AppError } from '../../shared/errors/app-error';
 
 const service = new AliasesService();
@@ -124,6 +124,34 @@ export async function renderHandler(
       });
       return;
     }
+    next(err);
+  }
+}
+
+/**
+ * GET /api/v1/prompt-versions?name=&alias=
+ * The version an alias points at, by prompt name, unrendered.
+ * Auth: requireAnyAuth (any role) — enforced in router.
+ */
+export async function getVersionByAliasHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const query = VersionByAliasQuerySchema.safeParse(req.query);
+    if (!query.success) {
+      res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: query.error.errors[0]?.message ?? 'Invalid request',
+        },
+      });
+      return;
+    }
+    const version = await service.getVersionByAlias(req.teamId!, query.data.name, query.data.alias);
+    res.status(200).json(version);
+  } catch (err) {
     next(err);
   }
 }

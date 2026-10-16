@@ -37,6 +37,32 @@ changelog: <https://docs.acruxcore.com/changelog>
   code scorers. `DatasetExampleDto.expected` reads it back.
 - Run reads cover local runs: `RunListItemDto.kind` can be `"local"`, cell rows carry `scores` and
   `expected`, and `RunReport.cells` carry `namedScores` (all on the 0–100 scale).
+- `traces.step(name, kind=)` traces your own code, as a decorator (sync or async) or a `with` block.
+  Steps nest, and `chat()` / `stream()` inside a step land under it on both paths. One report per
+  outermost step. [Why](../../docs/superpowers/specs/cross-cutting/sdk-faq.md)
+- `AcruxCoreSync`: the same client with blocking methods, for code that is not async. Thread-safe;
+  a streaming call returns a plain iterator.
+- `prompts.get_by_alias(name, alias)` returns the version an alias points at, template unrendered,
+  for apps that render their own. Cached for `cache_ttl`, up to `max_cache_size` entries; each call
+  returns its own copy, so filling the template in place is safe.
+- A `get_by_alias` miss is one request, `GET /prompt-versions?name=&alias=`. Against a server
+  without that endpoint it falls back to three (find the prompt, read its aliases, read the version).
+- `@traces.step` also wraps generator and async-generator functions: the step stays open until the
+  generator ends, and is current only while the generator's own code runs. `send()` and `throw()`
+  reach the generator as they would undecorated.
+- A step joins only calls made on the client that opened it; another client's call inside it starts
+  its own trace. One trace holds at most 1,000 spans; the rest are dropped and counted as
+  `droppedSpans` on the root span.
+- One `traces.step(...)` object may be entered again, or by several tasks at once: each entry keeps its
+  own output and ids. A plain function that returns a coroutine is traced until that coroutine ends.
+- A step still open when its outermost step ends (a task it started without awaiting) is sent when
+  it ends, with the calls made inside it.
+- `AsyncChatStream.aclose()` releases a stream read part-way. On `AcruxCoreSync`, a stream left with
+  `break` is closed when dropped, or at once with `.close()` or a `with` block.
+- `extra_body` on `chat` and `stream` adds more OpenAI fields (`top_p`, `seed`, …) on both paths.
+  A key a named argument already sets raises `VALIDATION_ERROR`.
+- `trace={"parent_span_id": ...}` puts a call's `llm` span under a span you reported:
+  `x-parent-span-id` on the gateway path, `parentSpanId` on a BYO span.
 
 ### Changed
 
@@ -51,6 +77,8 @@ changelog: <https://docs.acruxcore.com/changelog>
   2. Python catches a miss at call time (`TypeError: missing 1 required keyword-only
      argument: 'judge_model'`), so it fails in your first test run, not in production.
 
+- Tool spans from `run_tool_loop` have ids like `tool-0-0-1a2b3c4d5e6f`, not `tool-0-0`. Two loops
+  reporting to one trace reused the short ids, and the server rejected the second loop's spans.
 - **A feedback `rating` is a thumb: `1` (up) or `-1` (down).** The API refuses any other
   number with a 400, raised as `AcruxCoreError` (code `API_ERROR`). `submit_feedback` types it
   as `Literal[1, -1]`. [Why](../../docs/superpowers/specs/phase-3/phase-3-faq.md)
@@ -64,8 +92,19 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ### Fixed
 
+- Two `run_tool_loop` calls with the same `trace={"trace_id": ...}` lost the second loop's tool
+  spans: their ids repeated the first loop's. Each tool span id is now unique.
+- A `traces.ingest(..., wait=False)` report with `capturePayloads: False` could be merged with
+  another queued report for the same trace and lose the flag, so its payloads were stored anyway.
 - BYO-provider spans now report `cachedTokens` to `/traces`, so cached prompt tokens are priced at the
   cached input rate. Before, every prompt token on a traced BYO call was billed at the full rate.
+- A BYO `chat()` / `stream()` call now names its trace from `trace={"name": ...}`, as the gateway
+  path does. It was always `"chat"`.
+- A BYO call (`chat`, `stream` and both tool loops) now sends the trace's `tags` and `metadata` with
+  its spans, as the gateway path does. They were dropped, so a tag filter missed every BYO call.
+- A BYO stream (or a streamed BYO tool loop) closed early with `aclose()` now reports its `llm` span
+  with what arrived, `status: "ok"` and `attributes["clientClosed"] = True`. It wrote no span at all.
+- The `traces.ingest` docstring said `trace={"traceId": ...}`; the key `chat()` reads is `trace_id`.
 
 ## 0.17.0 — 2026-10-13
 

@@ -3,9 +3,10 @@ feedback summary/list."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union, cast
 from urllib.parse import quote, urlencode
 
+from .steps import Sink, Step, route_report
 from .types import (
     AnalyticsResult,
     FacetValuesResult,
@@ -17,7 +18,9 @@ from .types import (
     TraceFacets,
     TraceFeedbackResult,
     TraceResult,
+    TraceInput,
     TraceSettings,
+    SpanKind,
 )
 
 if TYPE_CHECKING:  # avoids a circular import at runtime
@@ -40,6 +43,65 @@ class TracesNamespace:
 
     def __init__(self, client: "AcruxCore") -> None:
         self._client = client
+        #: Where a finished root step's trace goes. The sync client replaces this so the
+        #: report is enqueued on its own event loop's thread, not the caller's.
+        self._step_sink: Sink = lambda payload: client._span_queue.enqueue(dict(payload))
+
+    def step(
+        self,
+        name: str,
+        *,
+        kind: SpanKind = "chain",
+        input: Any = None,
+        capture_input: bool = True,
+        capture_output: bool = True,
+        session_id: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Step:
+        """Trace one step of your own code, as a decorator or a context manager.
+
+        Works on sync and async functions alike, generators included — a generator's step
+        stays open until it ends::
+
+            @hub.traces.step("retrieve", kind="retrieval")
+            async def retrieve(query: str) -> list[str]: ...
+
+            async with hub.traces.step("handle-ticket", kind="agent") as step:
+                docs = await retrieve(ticket)
+                step.output = await answer(docs)
+
+        A step opened inside another step is its child. A ``gateway.chat()`` or
+        ``gateway.stream()`` made inside a step joins the step's trace, with its ``llm``
+        span under the step, on the gateway and BYO paths alike. The outermost step names
+        the trace and sends the whole tree in one report when it ends — call
+        :meth:`flush` before reading it back. ``run_tool_loop`` does not join a step on
+        its own; pass it ``trace={"trace_id": step.trace_id}`` to share the trace, which then
+        still takes the step's name.
+
+        An exception marks the span ``status="error"`` with the exception's ``repr`` and
+        is re-raised unchanged.
+
+        :param name: The span's name; for the outermost step, the trace's name too.
+        :param kind: One of ``llm``, ``tool``, ``retrieval``, ``embedding``, ``agent``,
+            ``chain`` or ``other``.
+        :param input: The span's input. A decorated function records its arguments by
+            name (without ``self``) unless this is given.
+        :param capture_input: ``False`` to record no input.
+        :param capture_output: ``False`` to record no output. A decorated function's
+            return value is the output; a ``with`` block sets ``step.output``.
+        :param session_id: Session for the trace.
+        :param tags: Added to the trace's tags.
+        :param metadata: Merged into the trace's metadata.
+        :returns: A :class:`~acruxcore.steps.Step`. Values that are not JSON are stored
+            as their ``repr``.
+        """
+        return Step(
+            name, kind=kind, sink=self._step_sink, input=input,
+            capture_input=capture_input, capture_output=capture_output,
+            session_id=session_id, tags=tags, metadata=metadata,
+            owner=self._client._span_queue,
+        )
 
     async def analytics(
         self,
@@ -276,7 +338,7 @@ class TracesNamespace:
         costs no network wait. The trace id is then generated client-side, or
         taken from ``input["traceId"]`` when you supplied one; either way it is
         usable straight away, so handing it to
-        ``gateway.chat(trace={"traceId": trace_id})`` lands both on one trace.
+        ``gateway.chat(trace={"trace_id": trace_id})`` lands both on one trace.
 
         The trade with ``wait=False`` is that nothing is confirmed at the call
         site: a failed send warns once per error kind and drops the batch,
@@ -300,7 +362,11 @@ class TracesNamespace:
             # endpoint creates the trace under a supplied id when it does not
             # exist yet, so a client-generated one behaves identically.
             trace_id = input.get("traceId") or str(uuid.uuid4())
-            self._client._span_queue.enqueue({**input, "traceId": trace_id})
+            payload = {**input, "traceId": trace_id}
+            # Inside a step on the same trace, the spans travel with the step, so a
+            # parentSpanId naming that step is known when they arrive.
+            if not route_report(cast(TraceInput, payload), self._client._span_queue):
+                self._client._span_queue.enqueue(payload)
             return TraceResult(trace_id=trace_id)
 
         try:

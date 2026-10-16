@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import warnings
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Set
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple
 
 DEFAULT_MAX_BATCH_SPANS = 200
 DEFAULT_MAX_QUEUED_SPANS = 2000
@@ -38,6 +38,8 @@ def _merge_by_trace_id(batch: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     Span order within each trace, and the order the traces first appeared, are both
     preserved. Entries with no trace id are left alone: each one mints its own trace
     server-side, so merging them would collapse unrelated activity into a single trace.
+    Entries that set ``capturePayloads`` differently stay apart too, because the flag
+    covers a whole entry: merging would apply one entry's choice to the other's spans.
 
     :param batch: Entries selected for one request.
     :returns: The same spans, in the same order, in as few entries as possible.
@@ -46,19 +48,20 @@ def _merge_by_trace_id(batch: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return batch
 
     merged: List[Dict[str, Any]] = []
-    by_trace_id: Dict[str, Dict[str, Any]] = {}
+    by_trace_id: Dict[Tuple[str, Optional[bool]], Dict[str, Any]] = {}
 
     for entry in batch:
         trace_id = entry.get("traceId")
         if not trace_id:
             merged.append(entry)
             continue
-        existing = by_trace_id.get(trace_id)
+        key = (trace_id, entry.get("capturePayloads"))
+        existing = by_trace_id.get(key)
         if existing is None:
             # Copied so merging never mutates what the caller handed to `enqueue`.
             copy = dict(entry)
             copy["spans"] = list(entry.get("spans") or [])
-            by_trace_id[trace_id] = copy
+            by_trace_id[key] = copy
             merged.append(copy)
             continue
         existing["spans"].extend(entry.get("spans") or [])

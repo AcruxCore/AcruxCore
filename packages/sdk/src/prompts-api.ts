@@ -28,6 +28,7 @@ import type {
 import type { NamespaceHost } from './host';
 import { acruxcoreError } from './error';
 import { getCache } from './cache';
+import { LRUCache } from 'lru-cache';
 import { fetchWithRetry } from './fetch';
 
 /**
@@ -123,6 +124,12 @@ export class PromptsNamespace {
   private readonly client: PromptsNamespaceHost;
   private readonly cacheTtl: number;
   private readonly maxCacheSize: number;
+  /**
+   * `getByAlias` results, per client rather than in the shared render cache: the entries
+   * hold a different shape, and a per-instance cache needs no key fingerprint. Bounded by
+   * the same `maxCacheSize` — Python's first version of this cache grew without limit.
+   */
+  private readonly aliasVersions: LRUCache<string, { value: VersionDetail; fetchedAt: number }>;
 
   /**
    * @param client - The owning client, used for its request/parse helpers.
@@ -133,6 +140,7 @@ export class PromptsNamespace {
     this.client = client;
     this.cacheTtl = cacheTtl;
     this.maxCacheSize = maxCacheSize;
+    this.aliasVersions = new LRUCache({ max: Math.max(1, maxCacheSize) });
   }
 
   /**
@@ -307,6 +315,74 @@ export class PromptsNamespace {
       'fetching prompt version',
     );
     return this.client._parseJsonOrThrow(response, 'fetching prompt version') as Promise<VersionDetail>;
+  }
+
+  /**
+   * The version an alias points at, by prompt name — its template, not rendered.
+   *
+   * For an app that renders its own templates: `messages` still hold their
+   * `{{ placeholders }}`, and `id` is what to pass as `promptVersionId` so the model call
+   * is linked to this version. {@link render} is the call to use when the server should
+   * fill the template in.
+   *
+   * Cached for `cacheTtl` milliseconds per `(name, alias)`, so moving an alias reaches a
+   * running app within that time; `cacheTtl: 0` makes every call a miss. A miss is one
+   * request (`GET /prompt-versions?name=&alias=`). Against an older server without that
+   * route it falls back to three: find the prompt, read its aliases, read the version. Each call
+   * returns its own copy, so filling a template in place cannot change what the next
+   * caller is handed.
+   *
+   * @param name - The prompt's exact name. Matching is exact, not the substring match
+   *   `list({ search })` does.
+   * @param alias - The alias to resolve, e.g. `'production'`.
+   * @returns The version, with `messages`, `variables` and `model`.
+   * @throws {acruxcoreError} API_ERROR 404 if no prompt has that name, or the prompt has
+   *   no such alias.
+   * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries.
+   */
+  async getByAlias(name: string, alias: string): Promise<VersionDetail> {
+    const key = JSON.stringify([name, alias]);
+    const hit = this.aliasVersions.get(key);
+    if (hit && Date.now() - hit.fetchedAt < this.cacheTtl) return structuredClone(hit.value);
+
+    const query = new URLSearchParams({ name, alias }).toString();
+    const response = await this.client._request('GET', `/prompt-versions?${query}`, undefined, 'fetching prompt version by alias');
+    let version: VersionDetail;
+    if (response.status === 404) {
+      const body = await response.json().catch(() => undefined) as { error?: { code?: unknown } } | undefined;
+      // No error code means no route matched: a server older than this endpoint.
+      if (typeof body?.error?.code !== 'string') version = await this._getByAliasInSteps(name, alias);
+      else throw new acruxcoreError(`acruxcore: no prompt "${name}" with an alias "${alias}"`, 'API_ERROR', 404, body);
+    } else {
+      version = await this.client._parseJsonOrThrow(response, 'fetching prompt version by alias') as VersionDetail;
+    }
+    if (this.cacheTtl > 0) this.aliasVersions.set(key, { value: structuredClone(version), fetchedAt: Date.now() });
+    return version;
+  }
+
+  /** {@link getByAlias} for a server without `GET /prompt-versions`. */
+  private async _getByAliasInSteps(name: string, alias: string): Promise<VersionDetail> {
+    const promptId = await this._findPromptId(name);
+    const target = (await this.listAliases(promptId)).find((a) => a.alias === alias);
+    if (!target) {
+      throw new acruxcoreError(`acruxcore: prompt "${name}" has no alias "${alias}"`, 'API_ERROR', 404);
+    }
+    return this.getVersion(promptId, target.versionNumber);
+  }
+
+  /**
+   * Id of the prompt named exactly `name`. `search` is a substring match, so every page of
+   * results is checked for the exact name rather than taking the first.
+   */
+  private async _findPromptId(name: string): Promise<string> {
+    for (let page = 1; ; page++) {
+      const result = await this.list({ search: name, page, limit: 100 });
+      const found = result.data.find((p) => p.name === name);
+      if (found) return found.id;
+      if (result.data.length === 0 || page * result.limit >= result.total) {
+        throw new acruxcoreError(`acruxcore: no prompt named "${name}"`, 'API_ERROR', 404);
+      }
+    }
   }
 
   /**

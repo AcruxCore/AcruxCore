@@ -9,16 +9,17 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Union
 
-from .types import RenderResult
+from .types import RenderResult, VersionDetail
 
 
 @dataclass
 class CacheEntry:
-    """One cache slot: the rendered value plus the epoch-ms it was fetched at."""
+    """One cache slot: the cached value plus the epoch-ms it was fetched at."""
 
-    value: RenderResult
+    #: A rendered prompt in the render cache; a version in ``get_by_alias``'s own cache.
+    value: Union[RenderResult, "VersionDetail"]
     fetched_at: float  # epoch milliseconds
 
 

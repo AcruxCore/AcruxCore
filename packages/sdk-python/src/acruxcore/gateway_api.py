@@ -48,6 +48,7 @@ from .http import request_with_retry
 from .provider import infer_provider_name
 from .response_format import normalize_response_format
 from .span_queue import SpanQueue
+from .steps import join_step, route_report, step_trace_name
 from .result_schema import validate_against_schema
 from .tooling import ToolSpec, spec_of
 from .tool_result import ToolResult
@@ -119,6 +120,36 @@ ClientToolsMap = Mapping[str, Callable[..., Any]]
 __all__ = ["GatewayNamespace", "AsyncChatStream", "AsyncToolLoopStream"]
 
 
+#: Body fields ``extra_body`` may never set, even when the call left them out: they decide
+#: what is being called, so a stray one would change the call's meaning, not tune it.
+_EXTRA_BODY_RESERVED = frozenset({"model", "messages", "stream"})
+
+#: What a BYO stream adds to the body: without it the provider sends no usage.
+_BYO_STREAM_FIELDS: Dict[str, Any] = {"stream_options": {"include_usage": True}}
+
+
+def _merge_extra_body(body: Dict[str, Any], extra_body: Optional[Dict[str, Any]]) -> None:
+    """Add ``extra_body`` to a completion body, refusing any key the SDK already set.
+
+    Silently letting one side win would hide a bug either way: the caller's value lost,
+    or a named argument such as ``temperature=`` quietly overridden.
+
+    :param body: The body built from the named arguments. Changed in place.
+    :param extra_body: The caller's extra fields, or ``None``.
+    :raises AcruxCoreError: ``VALIDATION_ERROR`` naming the clashing key.
+    """
+    if not extra_body:
+        return
+    clashes = sorted(k for k in extra_body if k in body or k in _EXTRA_BODY_RESERVED)
+    if clashes:
+        raise AcruxCoreError(
+            f"acruxcore: extra_body may not set {', '.join(clashes)} — pass it as the named "
+            f"argument of the same name instead.",
+            VALIDATION_ERROR,
+        )
+    body.update(extra_body)
+
+
 def _read_usage(raw: Optional[Dict[str, Any]]) -> Optional[ChatUsage]:
     """Read a wire ``usage`` object into a :class:`ChatUsage`.
 
@@ -166,6 +197,27 @@ def _span_usage(usage: ChatUsage) -> SpanUsage:
     if cached is not None and (usage.prompt_tokens is None or cached <= usage.prompt_tokens):
         out["cachedTokens"] = cached
     return out
+
+
+def _byo_trace_name(trace_conf: Dict[str, Any]) -> str:
+    """Name for a trace a BYO call creates: the caller's, else the open step's, else
+    ``"chat"``. Only applied when the trace is new — an existing trace keeps its name."""
+    return trace_conf.get("name") or trace_conf.get("_default_name") or "chat"
+
+
+def _add_byo_trace_context(payload: TraceInput, trace_conf: Dict[str, Any]) -> TraceInput:
+    """Copy the trace-level fields of a ``trace={...}`` option onto a BYO report.
+
+    The gateway path sends these as ``x-trace-*`` headers; a BYO report is the only place
+    they can go, so leaving one out made ``tags`` filter BYO calls out (issue #616).
+    """
+    if trace_conf.get("session_id"):
+        payload["sessionId"] = trace_conf["session_id"]
+    if trace_conf.get("tags"):
+        payload["tags"] = list(trace_conf["tags"])
+    if trace_conf.get("metadata"):
+        payload["metadata"] = dict(trace_conf["metadata"])
+    return payload
 
 
 def _now_iso() -> str:
@@ -240,7 +292,8 @@ def _gateway_trace_headers(trace_conf: Dict[str, Any]) -> Dict[str, str]:
     Free-text values are percent-encoded because the server decodes them — a raw
     non-ASCII name in an HTTP header is a hard client-side failure.
 
-    :param trace_conf: The caller's ``trace`` dict. Unknown keys are ignored. The private
+    :param trace_conf: The caller's ``trace`` dict. Unknown keys are ignored.
+        ``parent_span_id`` nests the gateway's ``llm`` span under a span of yours. The private
         ``_default_name`` key is this SDK's own fallback name and travels on the weaker
         ``x-trace-name-if-unset`` channel, never as an instruction.
     :returns: The headers to merge into the gateway request; possibly empty.
@@ -259,6 +312,9 @@ def _gateway_trace_headers(trace_conf: Dict[str, Any]) -> Dict[str, str]:
     trace_id = trace_conf.get("trace_id")
     if trace_id:
         headers["x-trace-id"] = trace_id
+    parent_span_id = trace_conf.get("parent_span_id")
+    if parent_span_id:
+        headers["x-parent-span-id"] = parent_span_id
     session_id = trace_conf.get("session_id")
     if session_id:
         headers["x-session-id"] = session_id
@@ -510,6 +566,17 @@ class GatewayNamespace:
         """Sender the span queue drives. Failures propagate so the queue can warn and drop."""
         await self._post_traces(self._host._client, batch)
 
+    def _report(self, payload: TraceInput) -> None:
+        """Send one trace report in the background — or, when it belongs to the open
+        step's trace, hand it to that step, which sends it together with its own span.
+
+        Every span this namespace reports goes through here. A span whose parent is a
+        step that has not been sent yet would otherwise reach the server first and be
+        rejected as ``INVALID_SPAN_PARENT``.
+        """
+        if not route_report(payload, self._host._span_queue):
+            self._host._span_queue.enqueue(cast(Dict[str, Any], payload))
+
     # ── chat ───────────────────────────────────────────────────────────────
 
     async def chat(
@@ -530,6 +597,7 @@ class GatewayNamespace:
         prompt_version_id: Optional[str] = None,
         variables: Optional[Dict[str, Any]] = None,
         trace: Union[bool, Dict[str, Any], None] = None,
+        extra_body: Optional[Dict[str, Any]] = None,
     ) -> Union[ChatResult, "AsyncChatStream"]:
         """Call the gateway's ``POST /gateway/chat/completions`` once — or, when a
         BYO provider is configured, call that provider's ``base_url`` directly.
@@ -557,8 +625,19 @@ class GatewayNamespace:
             never seed one; alongside a version id they are lineage only and are not
             re-rendered. Without a version id, a gateway call instead uses them to fill
             ``{{ placeholders }}`` in the messages sent.
+        :param trace: ``False`` to report nothing, or a dict with any of ``name``,
+            ``trace_id``, ``parent_span_id``, ``session_id``, ``tags`` and ``metadata``.
+            ``parent_span_id`` nests this call's ``llm`` span under a span you reported.
+            Inside :meth:`~acruxcore.traces_api.TracesNamespace.step` the call joins the
+            step's trace as its child, unless the dict names another trace.
+        :param extra_body: Further OpenAI fields (``top_p``, ``seed``, ``stop``, …) added
+            to the request body on both paths. A key that a named argument already sets,
+            or ``model``/``messages``/``stream``, raises ``VALIDATION_ERROR``. The gateway
+            forwards only fields it knows and names the rest in its
+            ``x-gateway-params-ignored`` response header.
         """
         model = _require_model(model)
+        trace = join_step(trace, self._host._span_queue)
         _assert_raw_tool_defs(tools)
         provider_config = provider or self._host._provider_default
         body = self._build_chat_body(
@@ -566,7 +645,8 @@ class GatewayNamespace:
             prompt_version_id=None if provider_config is not None else prompt_version_id,
             variables=None if provider_config is not None else variables,
             gateway=None if provider_config is not None else gateway,
-            reasoning_effort=reasoning_effort,
+            reasoning_effort=reasoning_effort, extra_body=extra_body,
+            sdk_fields=_BYO_STREAM_FIELDS if stream and provider_config is not None else None,
         )
         if stream:
             if provider_config is not None:
@@ -600,13 +680,14 @@ class GatewayNamespace:
                 model, messages, tools=tools, tool_refs=tool_refs, tool_choice=tool_choice,
                 response_format=response_format,
                 temperature=temperature, max_tokens=max_tokens, reasoning_effort=reasoning_effort, provider_config=provider_config,
+                extra_body=extra_body,
             )
         else:
             result = await self._complete_once(
                 model, messages, tools=tools, tool_refs=tool_refs, tool_choice=tool_choice,
                 response_format=response_format,
                 temperature=temperature, max_tokens=max_tokens, reasoning_effort=reasoning_effort, extra_headers=trace_headers,
-                prompt_version_id=prompt_version_id, variables=variables, gateway=gateway,
+                prompt_version_id=prompt_version_id, variables=variables, gateway=gateway, extra_body=extra_body,
             )
 
         if report_span:
@@ -633,12 +714,13 @@ class GatewayNamespace:
                 span["promptVersionId"] = prompt_version_id
             if variables is not None:
                 span["variables"] = variables
-            payload: TraceInput = {"name": "chat", "spans": [span]}
+            if trace_conf.get("parent_span_id"):
+                span["parentSpanId"] = trace_conf["parent_span_id"]
+            # The caller's name, as the gateway path already honours it (issue #360).
+            payload: TraceInput = {"name": _byo_trace_name(trace_conf), "spans": [span]}
             if trace_id:
                 payload["traceId"] = trace_id
-            if trace_conf.get("session_id"):
-                payload["sessionId"] = trace_conf["session_id"]
-            self._host._span_queue.enqueue(payload)
+            self._report(_add_byo_trace_context(payload, trace_conf))
 
         return result
 
@@ -658,17 +740,19 @@ class GatewayNamespace:
         prompt_version_id: Optional[str] = None,
         variables: Optional[Dict[str, Any]] = None,
         trace: Union[bool, Dict[str, Any], None] = None,
+        extra_body: Optional[Dict[str, Any]] = None,
     ) -> "AsyncChatStream":
         """Stream a chat completion — the standalone streaming entry point.
 
-        Equivalent to ``chat(..., stream=True)`` but as a dedicated method.
+        Equivalent to ``chat(..., stream=True)`` but as a dedicated method; ``trace`` and
+        ``extra_body`` work as they do on :meth:`chat`.
         """
         return await self.chat(
             model, messages,
             tools=tools, tool_refs=tool_refs, tool_choice=tool_choice,
             response_format=response_format, temperature=temperature, max_tokens=max_tokens, reasoning_effort=reasoning_effort,
             stream=True, provider=provider, prompt_version_id=prompt_version_id,
-            variables=variables, trace=trace,
+            variables=variables, trace=trace, extra_body=extra_body,
         )  # type: ignore[return-value]
 
     def _build_chat_body(
@@ -686,8 +770,16 @@ class GatewayNamespace:
         variables: Optional[Dict[str, Any]] = None,
         gateway: Optional[GatewayControl] = None,
         reasoning_effort: Optional[str] = None,
+        extra_body: Optional[Dict[str, Any]] = None,
+        sdk_fields: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Build the JSON body for one completion.
+
+        :param extra_body: Caller-supplied OpenAI fields, added last; see
+            :func:`_merge_extra_body` for the keys it refuses.
+        :param sdk_fields: Fields this SDK adds on one path only (``stream_options`` on a
+            BYO stream). They go in before ``extra_body``, so a clash with them is refused
+            too, rather than the caller's value being replaced without a word.
 
         :param reasoning_effort: Sent as ``reasoning_effort`` on both paths — it is an
             OpenAI field, so a BYO provider is asked for it too.
@@ -729,6 +821,9 @@ class GatewayNamespace:
             body["stream"] = True
         if gateway:
             body["gateway"] = _gateway_control_body(gateway)
+        if sdk_fields:
+            body.update(sdk_fields)
+        _merge_extra_body(body, extra_body)
         return body
 
     async def _complete_once(
@@ -747,11 +842,12 @@ class GatewayNamespace:
         prompt_version_id: Optional[str] = None,
         variables: Optional[Dict[str, Any]] = None,
         gateway: Optional[GatewayControl] = None,
+        extra_body: Optional[Dict[str, Any]] = None,
     ) -> ChatResult:
         body = self._build_chat_body(
             model, messages, tools, tool_refs, tool_choice, response_format, temperature, max_tokens, False,
             prompt_version_id=prompt_version_id, variables=variables, gateway=gateway,
-            reasoning_effort=reasoning_effort,
+            reasoning_effort=reasoning_effort, extra_body=extra_body,
         )
         response = await self._host._request(
             "POST", "/gateway/chat/completions", body, "calling chat completions", extra_headers
@@ -783,6 +879,7 @@ class GatewayNamespace:
         max_tokens: Optional[int] = None,
         reasoning_effort: Optional[str] = None,
         provider_config: ProviderConfig,
+        extra_body: Optional[Dict[str, Any]] = None,
     ) -> ChatResult:
         if not provider_config.get("api_key"):
             raise AcruxCoreError(
@@ -797,7 +894,7 @@ class GatewayNamespace:
         _warn_if_cleartext_url(provider_config["base_url"], "provider.base_url")
         body = self._build_chat_body(
             model, messages, tools, tool_refs, tool_choice, response_format, temperature, max_tokens, False,
-            reasoning_effort=reasoning_effort,
+            reasoning_effort=reasoning_effort, extra_body=extra_body,
         )
         base_url = provider_config["base_url"].rstrip("/")
         url = f"{base_url}/chat/completions"
@@ -974,7 +1071,7 @@ class GatewayNamespace:
             "Authorization": f"Bearer {provider_config['api_key']}",
             "Content-Type": "application/json",
         }
-        stream_body = {**body, "stream_options": {"include_usage": True}}
+        stream_body = {**body, **_BYO_STREAM_FIELDS}
         content = json.dumps(stream_body).encode("utf-8")
         start_time = _now_iso()
 
@@ -986,91 +1083,106 @@ class GatewayNamespace:
 
         total_attempts = 1 + self._host._max_retries
         yielded_any = False
-        for attempt in range(total_attempts):
-            if attempt > 0:
-                await asyncio.sleep(self._host._retry_interval / 1000)
-            accumulated_content = ""
-            final_model = model
-            final_finish_reason = None
-            usage = None
-            tool_call_parts = {}
-            try:
-                async with self._host._client.stream("POST", url, headers=headers, content=content) as response:
-                    if response.status_code == 429 or response.status_code >= 500:
-                        if attempt < total_attempts - 1:
-                            await response.aread()
-                            continue
-                    if response.status_code >= 400:
-                        await response.aread()
-                        body = self._host._safe_json(response)
-                        raise AcruxCoreError(
-                            f"acruxcore: provider returned {response.status_code} streaming "
-                            f"chat completions{server_detail(body)}",
-                            PROVIDER_ERROR,
-                            response.status_code,
-                            body,
-                        )
-
-                    decoder = codecs.getincrementaldecoder("utf-8")()
-                    buffer = ""
-                    stream_done = False
-                    async for chunk in response.aiter_bytes():
-                        buffer += decoder.decode(chunk)
-                        while "\n\n" in buffer:
-                            frame, buffer = buffer.split("\n\n", 1)
-                            frame = frame.strip()
-                            if not frame.startswith("data:"):
+        stream_done = False
+        outcome = "failed"
+        try:
+            for attempt in range(total_attempts):
+                if attempt > 0:
+                    await asyncio.sleep(self._host._retry_interval / 1000)
+                accumulated_content = ""
+                final_model = model
+                final_finish_reason = None
+                usage = None
+                tool_call_parts = {}
+                try:
+                    async with self._host._client.stream("POST", url, headers=headers, content=content) as response:
+                        if response.status_code == 429 or response.status_code >= 500:
+                            if attempt < total_attempts - 1:
+                                await response.aread()
                                 continue
-                            payload = frame[len("data:"):].strip()
-                            if payload == "[DONE]":
-                                stream_done = True
-                                break
-                            parsed = json.loads(payload)
-                            final_model = parsed.get("model") or final_model
-                            if parsed.get("usage"):
-                                read = _read_usage(parsed["usage"])
-                                usage = _span_usage(read) if read is not None else None
-                            choices = parsed.get("choices") or []
-                            choice = choices[0] if choices else {}
-                            if choice.get("finish_reason"):
-                                final_finish_reason = choice["finish_reason"]
-                            delta = choice.get("delta") or {}
-                            if delta.get("content"):
-                                accumulated_content += delta["content"]
-                            for tc in (delta.get("tool_calls") or []):
-                                key = tc.get("index", 0)
-                                part = tool_call_parts.setdefault(key, {"id": "", "name": "", "arguments": ""})
-                                if tc.get("id"):
-                                    part["id"] = tc["id"]
-                                fn = tc.get("function") or {}
-                                if fn.get("name"):
-                                    part["name"] = fn["name"]
-                                if fn.get("arguments"):
-                                    part["arguments"] += fn["arguments"]
-                            yielded_any = True
-                            yield ChatChunk(
-                                id=parsed.get("id"), model=parsed.get("model"),
-                                delta=delta, finish_reason=choice.get("finish_reason"),
+                        if response.status_code >= 400:
+                            await response.aread()
+                            body = self._host._safe_json(response)
+                            raise AcruxCoreError(
+                                f"acruxcore: provider returned {response.status_code} streaming "
+                                f"chat completions{server_detail(body)}",
+                                PROVIDER_ERROR,
+                                response.status_code,
+                                body,
                             )
-                        if stream_done:
-                            break
-                    break
-            except httpx.TransportError as err:
-                if attempt < total_attempts - 1 and not yielded_any:
-                    continue
-                raise AcruxCoreError(
-                    f"acruxcore: network error streaming from provider — {err}", NETWORK_ERROR
-                )
 
-        state["start_time"] = start_time
-        state["content"] = accumulated_content
-        state["model"] = final_model
-        state["finish_reason"] = final_finish_reason
-        state["usage"] = usage
-        state["tool_calls"] = [
-            {"id": p["id"], "type": "function", "function": {"name": p["name"], "arguments": p["arguments"]}}
-            for _, p in sorted(tool_call_parts.items())
-        ]
+                        decoder = codecs.getincrementaldecoder("utf-8")()
+                        buffer = ""
+                        stream_done = False
+                        async for chunk in response.aiter_bytes():
+                            buffer += decoder.decode(chunk)
+                            while "\n\n" in buffer:
+                                frame, buffer = buffer.split("\n\n", 1)
+                                frame = frame.strip()
+                                if not frame.startswith("data:"):
+                                    continue
+                                payload = frame[len("data:"):].strip()
+                                if payload == "[DONE]":
+                                    stream_done = True
+                                    break
+                                parsed = json.loads(payload)
+                                final_model = parsed.get("model") or final_model
+                                if parsed.get("usage"):
+                                    read = _read_usage(parsed["usage"])
+                                    usage = _span_usage(read) if read is not None else None
+                                choices = parsed.get("choices") or []
+                                choice = choices[0] if choices else {}
+                                if choice.get("finish_reason"):
+                                    final_finish_reason = choice["finish_reason"]
+                                delta = choice.get("delta") or {}
+                                if delta.get("content"):
+                                    accumulated_content += delta["content"]
+                                for tc in (delta.get("tool_calls") or []):
+                                    key = tc.get("index", 0)
+                                    part = tool_call_parts.setdefault(key, {"id": "", "name": "", "arguments": ""})
+                                    if tc.get("id"):
+                                        part["id"] = tc["id"]
+                                    fn = tc.get("function") or {}
+                                    if fn.get("name"):
+                                        part["name"] = fn["name"]
+                                    if fn.get("arguments"):
+                                        part["arguments"] += fn["arguments"]
+                                yielded_any = True
+                                yield ChatChunk(
+                                    id=parsed.get("id"), model=parsed.get("model"),
+                                    delta=delta, finish_reason=choice.get("finish_reason"),
+                                )
+                            if stream_done:
+                                break
+                        break
+                except httpx.TransportError as err:
+                    if attempt < total_attempts - 1 and not yielded_any:
+                        continue
+                    raise AcruxCoreError(
+                        f"acruxcore: network error streaming from provider — {err}", NETWORK_ERROR
+                    )
+        except GeneratorExit:
+            # The caller stopped reading (`break`, then `aclose()`): the turn so far
+            # still deserves its span (issue #615).
+            outcome = "client_closed"
+            raise
+        else:
+            outcome = "done"
+        finally:
+            # Filled here, not after the loop: an early close leaves through this
+            # `finally` and nothing after it. A failed call stays unsettled and writes
+            # no span, as before.
+            state["start_time"] = start_time
+            state["content"] = accumulated_content
+            state["model"] = final_model
+            state["finish_reason"] = final_finish_reason
+            state["usage"] = usage
+            state["tool_calls"] = [
+                {"id": p["id"], "type": "function", "function": {"name": p["name"], "arguments": p["arguments"]}}
+                for _, p in sorted(tool_call_parts.items())
+            ]
+            state["settled"] = outcome != "failed"
+            state["client_closed"] = outcome == "client_closed" and not stream_done
 
     async def _stream_via_provider(
         self,
@@ -1085,25 +1197,30 @@ class GatewayNamespace:
         """Stream a BYO provider's ``/chat/completions`` directly, then file the span.
 
         The gateway is bypassed, so nothing server-side records this call — the client
-        writes the one ``llm`` span itself, once the stream has ended and the turn is
-        fully assembled.
+        writes the one ``llm`` span itself, once the stream has ended — or once the caller
+        stops reading it, with what arrived so far (issue #615).
         """
         state: Dict[str, Any] = {}
-        async for chunk in self._stream_round_via_provider(model, body, provider_config, state):
-            yield chunk
-
-        if trace_opt is not False:
-            trace_conf: Dict[str, Any] = trace_opt if isinstance(trace_opt, dict) else {}
-            span = self._byo_llm_span(
-                state, messages, provider_config, prompt_version_id, variables,
-                span_id=str(uuid.uuid4()),
-            )
-            trace_payload: TraceInput = {"name": "chat", "spans": [span]}
-            if trace_conf.get("trace_id"):
-                trace_payload["traceId"] = trace_conf["trace_id"]
-            if trace_conf.get("session_id"):
-                trace_payload["sessionId"] = trace_conf["session_id"]
-            self._host._span_queue.enqueue(trace_payload)
+        round_gen = self._stream_round_via_provider(model, body, provider_config, state)
+        try:
+            async for chunk in round_gen:
+                yield chunk
+        finally:
+            # `async for` does not close the inner generator when this one is closed, so
+            # close it here: its `finally` is what fills `state` (Python 3.9: no aclosing).
+            await round_gen.aclose()
+            if state.get("settled") and trace_opt is not False:
+                trace_conf: Dict[str, Any] = trace_opt if isinstance(trace_opt, dict) else {}
+                span = self._byo_llm_span(
+                    state, messages, provider_config, prompt_version_id, variables,
+                    span_id=str(uuid.uuid4()),
+                )
+                if trace_conf.get("parent_span_id"):
+                    span["parentSpanId"] = trace_conf["parent_span_id"]
+                trace_payload: TraceInput = {"name": _byo_trace_name(trace_conf), "spans": [span]}
+                if trace_conf.get("trace_id"):
+                    trace_payload["traceId"] = trace_conf["trace_id"]
+                self._report(_add_byo_trace_context(trace_payload, trace_conf))
 
     def _byo_llm_span(
         self,
@@ -1148,8 +1265,15 @@ class GatewayNamespace:
         }
         if state.get("usage") is not None:
             span["usage"] = state["usage"]
+        attributes: Dict[str, Any] = {}
         if state.get("finish_reason"):
-            span["attributes"] = {"finishReason": state["finish_reason"]}
+            attributes["finishReason"] = state["finish_reason"]
+        if state.get("client_closed"):
+            # The gateway path marks the same case ``clientAborted`` on its ledger row; the
+            # status stays ``ok``, as there, since nothing failed.
+            attributes["clientClosed"] = True
+        if attributes:
+            span["attributes"] = attributes
         if prompt_version_id:
             span["promptVersionId"] = prompt_version_id
         return span
@@ -1720,9 +1844,12 @@ class GatewayNamespace:
         # only when the trace has no real name yet. A caller's explicit `name` is an
         # instruction and still overwrites (issue #358, phase-3 FAQ Q33).
         trace_name: Optional[str] = trace_conf.get("name")
+        # Inside a step whose trace this loop reports to, the step's name is the default:
+        # whichever call creates the trace first names it, and that may be this loop.
+        default_name = step_trace_name(trace_conf.get("trace_id")) or "runToolLoop"
         # The SDK creates the trace itself on the BYO path, where no server-side default
         # applies, so its own payloads still need a concrete name.
-        payload_trace_name = trace_name or "runToolLoop"
+        payload_trace_name = trace_name or default_name
         session_id = trace_conf.get("session_id")
 
         convo: List[Message] = list(messages)
@@ -1740,7 +1867,7 @@ class GatewayNamespace:
                 if trace_enabled and provider_config is None:
                     extra_headers = _gateway_trace_headers(
                         {**trace_conf, "name": trace_name, "trace_id": trace_id,
-                         "_default_name": "runToolLoop"}
+                         "_default_name": default_name}
                     )
 
                 round_start_time = _now_iso()
@@ -1787,8 +1914,7 @@ class GatewayNamespace:
                     llm_trace_payload: TraceInput = {"name": payload_trace_name, "spans": [llm_span]}
                     if trace_id:
                         llm_trace_payload["traceId"] = trace_id
-                    if session_id:
-                        llm_trace_payload["sessionId"] = session_id
+                    _add_byo_trace_context(llm_trace_payload, trace_conf)
                     must_await_trace_open = i == 0 and any(
                         r.kind == "http" for r in routes.values()
                     )
@@ -1802,7 +1928,7 @@ class GatewayNamespace:
                                 stacklevel=2,
                             )
                     else:
-                        self._host._span_queue.enqueue(llm_trace_payload)
+                        self._report(llm_trace_payload)
 
                 calls = result.message.get("tool_calls") or []
                 if result.finish_reason != "tool_calls" or len(calls) == 0:
@@ -1840,7 +1966,7 @@ class GatewayNamespace:
                 convo = [*convo, result.message, *tool_msgs]
         finally:
             self._report_tool_spans(
-                trace_enabled, trace_id, payload_trace_name, session_id, tool_spans
+                trace_enabled, trace_id, payload_trace_name, trace_conf, tool_spans
             )
 
         return RunToolLoopResult(
@@ -1905,9 +2031,11 @@ class GatewayNamespace:
         # only when the trace has no real name yet. A caller's explicit `name` is an
         # instruction and still overwrites (issue #358, phase-3 FAQ Q33).
         trace_name: Optional[str] = trace_conf.get("name")
+        # As in the blocking loop: inside a step on this trace, the step's name.
+        default_name = step_trace_name(trace_conf.get("trace_id")) or "runToolLoop"
         # The SDK creates the trace itself on the BYO path, where no server-side default
         # applies, so its own payloads still need a concrete name.
-        payload_trace_name = trace_name or "runToolLoop"
+        payload_trace_name = trace_name or default_name
         session_id = trace_conf.get("session_id")
 
         convo: List[Message] = list(messages)
@@ -1922,7 +2050,7 @@ class GatewayNamespace:
         try:
             for i in range(max_iterations):
                 round_out: Dict[str, Any] = {}
-                async for event in self._stream_one_round(
+                round_events = self._stream_one_round(
                     model=model,
                     convo=convo,
                     round_index=i,
@@ -1944,8 +2072,14 @@ class GatewayNamespace:
                     session_id=session_id,
                     state=state,
                     out=round_out,
-                ):
-                    yield event
+                )
+                try:
+                    async for event in round_events:
+                        yield event
+                finally:
+                    # `async for` leaves an abandoned round open; closing it runs its
+                    # `finally`, which reports what the round received (issue #615).
+                    await round_events.aclose()
 
                 message: Message = round_out["message"]
                 calls: List[Dict[str, Any]] = list(message.get("tool_calls") or [])
@@ -2022,7 +2156,7 @@ class GatewayNamespace:
                 )
         finally:
             self._report_tool_spans(
-                trace_enabled, state["trace_id"], payload_trace_name, session_id, tool_spans
+                trace_enabled, state["trace_id"], payload_trace_name, trace_conf, tool_spans
             )
 
         assert gathered is not None  # every path above assigns it
@@ -2045,7 +2179,7 @@ class GatewayNamespace:
         shape_convo.append({"role": "user", "content": shape_nudge})
 
         shape_out: Dict[str, Any] = {}
-        async for event in self._stream_one_round(
+        round_events = self._stream_one_round(
             model=model,
             convo=shape_convo,
             round_index=gathered.iterations,
@@ -2067,8 +2201,14 @@ class GatewayNamespace:
             session_id=session_id,
             state=state,
             out=shape_out,
-        ):
-            yield event
+        )
+        try:
+            async for event in round_events:
+                yield event
+        finally:
+            # `async for` leaves an abandoned round open; closing it runs its
+            # `finally`, which reports what the round received (issue #615).
+            await round_events.aclose()
 
         shaped: Message = shape_out["message"]
         yield ToolLoopDoneEvent(
@@ -2161,34 +2301,37 @@ class GatewayNamespace:
 
         if provider_config is not None:
             provider_state: Dict[str, Any] = {}
-            async for chunk in self._stream_round_via_provider(
-                model, body, provider_config, provider_state
-            ):
-                text = take(chunk)
-                if text and emit_content:
-                    yield ToolLoopContentEvent(delta=text, round=round_index)
-
-            # No gateway on this path, so nothing server-side recorded the round — the
-            # client writes its `llm` span itself, exactly as the blocking BYO loop does.
-            if state.get("trace_id") is None:
-                state["trace_id"] = str(uuid.uuid4())
-            span_ref = str(uuid.uuid4())
-            if trace_enabled:
-                span = self._byo_llm_span(
-                    provider_state, convo, provider_config, prompt_version_id, variables,
-                    span_id=span_ref,
-                )
-                payload: TraceInput = {"name": payload_trace_name, "spans": [span]}
-                payload["traceId"] = state["trace_id"]
-                if session_id:
-                    payload["sessionId"] = session_id
-                self._host._span_queue.enqueue(payload)
+            round_gen = self._stream_round_via_provider(model, body, provider_config, provider_state)
+            try:
+                async for chunk in round_gen:
+                    text = take(chunk)
+                    if text and emit_content:
+                        yield ToolLoopContentEvent(delta=text, round=round_index)
+            finally:
+                # Closed here for the same reason as in `_stream_via_provider`.
+                await round_gen.aclose()
+                # No gateway on this path, so nothing server-side recorded the round — the
+                # client writes its `llm` span itself, exactly as the blocking BYO loop
+                # does. In a `finally` so a caller who stops reading mid-round still gets
+                # it (issue #615).
+                if provider_state.get("settled"):
+                    if state.get("trace_id") is None:
+                        state["trace_id"] = str(uuid.uuid4())
+                    span_ref = str(uuid.uuid4())
+                    if trace_enabled:
+                        span = self._byo_llm_span(
+                            provider_state, convo, provider_config, prompt_version_id, variables,
+                            span_id=span_ref,
+                        )
+                        payload: TraceInput = {"name": payload_trace_name, "spans": [span]}
+                        payload["traceId"] = state["trace_id"]
+                        self._report(_add_byo_trace_context(payload, trace_conf))
         else:
             extra_headers: Optional[Dict[str, str]] = None
             if trace_enabled:
                 extra_headers = _gateway_trace_headers(
                     {**trace_conf, "name": trace_name, "trace_id": state.get("trace_id"),
-                     "session_id": session_id, "_default_name": "runToolLoop"}
+                     "session_id": session_id, "_default_name": payload_trace_name}
                 )
 
             meta: Dict[str, GatewayCallMeta] = {}
@@ -2304,7 +2447,10 @@ class GatewayNamespace:
                 MISSING_DISPATCH,
             )
 
-        tool_span_id = f"tool-{round_index}-{call_index}"
+        # Unique per trace, not only per loop: two loops can report to one trace (two
+        # run_tool_loop calls inside one step), and the server rejects a whole report
+        # that repeats a spanId. The round and call stay readable in the prefix.
+        tool_span_id = f"tool-{round_index}-{call_index}-{uuid.uuid4().hex[:12]}"
         tool_start = _now_iso()
         attributes: Dict[str, Any] = {"arguments": args, "executorType": "client"}
         if route is not None and route.tool_version_id:
@@ -2405,7 +2551,7 @@ class GatewayNamespace:
         trace_enabled: bool,
         trace_id: Optional[str],
         name: str,
-        session_id: Optional[str],
+        trace_conf: Dict[str, Any],
         spans: List[IngestSpan],
     ) -> None:
         if not trace_enabled or len(spans) == 0:
@@ -2413,9 +2559,7 @@ class GatewayNamespace:
         payload: TraceInput = {"name": name, "spans": spans}
         if trace_id:
             payload["traceId"] = trace_id
-        if session_id:
-            payload["sessionId"] = session_id
-        self._host._span_queue.enqueue(payload)
+        self._report(_add_byo_trace_context(payload, trace_conf))
 
     # ── gateway meta ───────────────────────────────────────────────────────
 
@@ -2472,6 +2616,13 @@ class AsyncChatStream:
 
     async def __anext__(self) -> ChatChunk:
         return await self._gen.__anext__()
+
+    async def aclose(self) -> None:
+        """Stop reading early and release the underlying HTTP stream.
+
+        Only needed when abandoning a stream part-way — reading it to the end closes it.
+        """
+        await self._gen.aclose()
 
 
 class AsyncToolLoopStream:

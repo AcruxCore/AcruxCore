@@ -1,0 +1,20 @@
+meta {
+  name: Get Version By Alias
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v1/prompt-versions?name={{promptName}}&alias={{aliasName}}
+  body: none
+  auth: bearer
+}
+
+params:query {
+  name: {{promptName}}
+  alias: {{aliasName}}
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}

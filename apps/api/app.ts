@@ -16,7 +16,7 @@ import { toolSyncRouter } from './src/tools/sync';
 import { toolResolveRouter } from './src/tools/resolve';
 import { secretsRouter } from './src/secrets';
 import { versionsRouter } from './src/prompts/versions';
-import { aliasesRouter, renderRouter } from './src/prompts/aliases';
+import { aliasesRouter, renderRouter, versionByAliasRouter } from './src/prompts/aliases';
 import { toolBindingsRouter } from './src/prompts/tool-bindings';
 import { diffRouter } from './src/prompts/diff';
 import { exportRouter } from './src/prompts/export';
@@ -195,6 +195,8 @@ export function createApp(): express.Application {
   app.use('/api/v1', diffRouter);
   // Versions: POST/GET /api/v1/prompts/:id/versions[/:version_number]
   app.use('/api/v1', versionsRouter);
+  // Alias by prompt name, unrendered: GET /api/v1/prompt-versions?name=&alias=
+  app.use('/api/v1', versionByAliasRouter);
   // Export: GET /api/v1/prompts/:id/versions/:version_number/export
   app.use('/api/v1', exportRouter);
   // Aliases: GET /api/v1/prompts/:id/aliases, POST /api/v1/prompts/:id/aliases/:alias/promote

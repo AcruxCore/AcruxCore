@@ -8,6 +8,8 @@ import { validateAgainstSchema } from './result-schema';
 import { inferProviderName } from './provider';
 import { resolveResponseFormat } from './responseFormat';
 import type { GatewayNamespaceHost } from './host';
+import { joinStep, routeReport, stepTraceName } from './steps';
+import type { JoinedTrace } from './steps';
 import type {
   Message,
   TraceInput,
@@ -60,9 +62,59 @@ interface TraceHeaderConf {
    */
   defaultName?: string;
   traceId?: string;
+  /** Sent as `x-parent-span-id`: the gateway files its `llm` span under this span. */
+  parentSpanId?: string;
   sessionId?: string;
   tags?: string[];
   metadata?: Record<string, unknown>;
+}
+
+/** Body fields `extraBody` may never set, even when the call left them out: they decide
+ * what is being called, so a stray one would change the call's meaning, not tune it. */
+const EXTRA_BODY_RESERVED = new Set(['model', 'messages', 'stream']);
+
+/**
+ * Adds `extraBody` to a completion body, refusing any key the SDK already set.
+ *
+ * Silently letting one side win would hide a bug either way: the caller's value lost, or
+ * a named option such as `temperature` quietly overridden.
+ *
+ * @param body - The body built from the named options. Changed in place.
+ * @param extraBody - The caller's extra fields, if any.
+ * @throws {acruxcoreError} `VALIDATION_ERROR` naming the clashing keys.
+ */
+function mergeExtraBody(body: Record<string, unknown>, extraBody: Record<string, unknown> | undefined): void {
+  if (!extraBody) return;
+  const clashes = Object.keys(extraBody).filter((k) => k in body || EXTRA_BODY_RESERVED.has(k)).sort();
+  if (clashes.length) {
+    throw new acruxcoreError(
+      `acruxcore: extraBody may not set ${clashes.join(', ')} — pass it as the named option of the same name instead.`,
+      'VALIDATION_ERROR',
+    );
+  }
+  Object.assign(body, extraBody);
+}
+
+/**
+ * Name for a trace a BYO call creates: the caller's, else the open step's, else `'chat'`.
+ * Only applied when the trace is new — an existing trace keeps its name.
+ */
+function byoTraceName(conf: JoinedTrace): string {
+  return conf.name ?? conf.defaultName ?? 'chat';
+}
+
+/**
+ * The trace-level fields of a `trace: {...}` option that a BYO report carries.
+ *
+ * The gateway path sends these as `x-trace-*` headers; a BYO report is the only place
+ * they can go, so leaving one out made `tags` filter BYO calls out (issue #616).
+ */
+function byoTraceContext(conf: JoinedTrace): Pick<TraceInput, 'sessionId' | 'tags' | 'metadata'> {
+  return {
+    sessionId: conf.sessionId,
+    ...(conf.tags?.length ? { tags: conf.tags } : {}),
+    ...(conf.metadata && Object.keys(conf.metadata).length ? { metadata: conf.metadata } : {}),
+  };
 }
 
 /**
@@ -115,6 +167,7 @@ function gatewayTraceHeaders(conf: TraceHeaderConf): Record<string, string> {
         ? { 'x-trace-name-if-unset': encodeURIComponent(conf.defaultName) }
         : {}),
     ...(conf.traceId ? { 'x-trace-id': conf.traceId } : {}),
+    ...(conf.parentSpanId ? { 'x-parent-span-id': conf.parentSpanId } : {}),
     ...(conf.sessionId ? { 'x-session-id': conf.sessionId } : {}),
     ...(conf.tags?.length ? { 'x-trace-tags': conf.tags.join(', ') } : {}),
     ...(conf.metadata && Object.keys(conf.metadata).length
@@ -241,6 +294,11 @@ interface ByoStreamState {
   usage?: ChatUsage;
   finishReason?: string | null;
   toolCalls?: ToolCall[];
+  /** True once the turn is over without an error — read to the end or left early. Its
+   * span is written only then, so a failed call still writes none. */
+  settled?: boolean;
+  /** The caller stopped reading before the provider finished (issue #615). */
+  clientClosed?: boolean;
 }
 
 /** The OpenAI-shaped `usage` object, in either the gateway's flat form or a provider's nested one. */
@@ -376,10 +434,20 @@ export class GatewayNamespace {
     options.responseFormat = await resolveResponseFormat(options.responseFormat) as ChatOptions['responseFormat'];
     const model = requireModel(options.model);
     const providerConfig = options.provider ?? this.host.providerDefault;
+    // Inside `traces.step`, the call joins the step's trace as its child. A copy, so the
+    // caller's options object does not keep the step's ids for a later call.
+    options = { ...options, trace: joinStep(options.trace, this.host.spanQueue) };
+    // Built once up front so a bad `extraBody` is refused at the call, before a stream's
+    // first chunk is ever asked for.
+    this._buildChatBody(
+      options,
+      !providerConfig,
+      options.stream && providerConfig ? { stream_options: { include_usage: true } } : undefined,
+    );
 
     const traceOpt = options.trace ?? Boolean(providerConfig);
     const traceEnabled = traceOpt !== false;
-    const traceConf = typeof traceOpt === 'object' ? traceOpt : {};
+    const traceConf: JoinedTrace = typeof traceOpt === 'object' ? traceOpt : {};
 
     // Who writes the `llm` span depends on the path, not on whether tracing is on. On the
     // gateway path the gateway writes it server-side, so this SDK's only job is to forward
@@ -405,12 +473,14 @@ export class GatewayNamespace {
     if (reportSpan) {
       const spanId = result.gateway.spanRef ?? `chat-${randomUUID()}`;
       const traceId = traceConf.traceId ?? result.gateway.traceId ?? undefined;
-      this.host.spanQueue.enqueue({
+      this._report({
         traceId,
-        sessionId: traceConf.sessionId,
-        name: 'chat',
+        ...byoTraceContext(traceConf),
+        // The caller's name, as the gateway path already honours it (issue #360).
+        name: byoTraceName(traceConf),
         spans: [{
           spanId,
+          ...(traceConf.parentSpanId ? { parentSpanId: traceConf.parentSpanId } : {}),
           name: result.model,
           kind: 'llm',
           status: 'ok',
@@ -636,7 +706,11 @@ export class GatewayNamespace {
    * stranger a field it never asked for. On a BYO call the SDK writes the span itself and
    * stamps the lineage there instead, and there is no gateway to control.
    */
-  private _buildChatBody(options: ChatOptions, forGateway = false): Record<string, unknown> {
+  private _buildChatBody(
+    options: ChatOptions,
+    forGateway = false,
+    sdkFields?: Record<string, unknown>,
+  ): Record<string, unknown> {
     const body: Record<string, unknown> = { model: options.model, messages: options.messages };
     if (forGateway && options.promptVersionId) body['prompt_version_id'] = options.promptVersionId;
     // `!== undefined`, not truthiness: `{}` is sent deliberately. A prompt with no
@@ -656,6 +730,10 @@ export class GatewayNamespace {
     // Gateway-only, like `prompt_version_id` above: a BYO provider has no gateway
     // to control and never asked for this field.
     if (forGateway && options.gateway) body['gateway'] = options.gateway;
+    // Fields this SDK adds on a given path (`stream_options` on a BYO stream) go in
+    // before `extraBody`, so a clash with them is refused too rather than overwritten.
+    Object.assign(body, sdkFields);
+    mergeExtraBody(body, options.extraBody);
     return body;
   }
 
@@ -789,11 +867,15 @@ export class GatewayNamespace {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let ended = false;
 
     try {
       while (true) {
         const { value, done } = await reader.read();
-        if (done) break;
+        if (done) {
+          ended = true;
+          break;
+        }
         buffer += decoder.decode(value, { stream: true });
 
         let separatorIndex: number;
@@ -834,6 +916,10 @@ export class GatewayNamespace {
         }
       }
     } finally {
+      // A consumer that stops early (`break`) lands here with the body still open.
+      // Releasing the lock alone keeps the connection until garbage collection; cancel
+      // closes it now.
+      if (!ended) await reader.cancel().catch(() => undefined);
       reader.releaseLock();
     }
   }
@@ -865,7 +951,7 @@ export class GatewayNamespace {
 
     warnIfCleartextUrl(providerConfig.baseUrl, 'provider.baseUrl');
 
-    const body = { ...this._buildChatBody(options), stream_options: { include_usage: true } };
+    const body = this._buildChatBody(options, false, { stream_options: { include_usage: true } });
     const url = `${providerConfig.baseUrl.replace(/\/+$/, '')}/chat/completions`;
     const startTime = new Date().toISOString();
 
@@ -914,11 +1000,16 @@ export class GatewayNamespace {
     const toolCallParts = new Map<number, { id: string; name: string; arguments: string }>();
 
     let streamDone = false;
+    let ended = false;
+    let failed = false;
 
     try {
       while (!streamDone) {
         const { value, done } = await reader.read();
-        if (done) break;
+        if (done) {
+          ended = true;
+          break;
+        }
         buffer += decoder.decode(value, { stream: true });
 
         let separatorIndex: number;
@@ -961,18 +1052,27 @@ export class GatewayNamespace {
           };
         }
       }
+    } catch (err) {
+      failed = true;
+      throw err;
     } finally {
+      // Same as `_streamChat`: an early `break` must close the connection, not leave it
+      // to garbage collection.
+      if (!ended) await reader.cancel().catch(() => undefined);
       reader.releaseLock();
+      // Filled here, not after the loop: a consumer's `break` returns through this
+      // `finally` and nothing after it, and the turn so far still deserves its span.
+      state.startTime = startTime;
+      state.content = accumulatedContent;
+      state.model = finalModel;
+      state.usage = usage;
+      state.finishReason = finishReason;
+      state.toolCalls = [...toolCallParts.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([, p]) => ({ id: p.id, type: 'function' as const, function: { name: p.name, arguments: p.arguments } }));
+      state.settled = !failed;
+      state.clientClosed = !failed && !ended && !streamDone;
     }
-
-    state.startTime = startTime;
-    state.content = accumulatedContent;
-    state.model = finalModel;
-    state.usage = usage;
-    state.finishReason = finishReason;
-    state.toolCalls = [...toolCallParts.entries()]
-      .sort(([a], [b]) => a - b)
-      .map(([, p]) => ({ id: p.id, type: 'function' as const, function: { name: p.name, arguments: p.arguments } }));
   }
 
   /**
@@ -980,26 +1080,29 @@ export class GatewayNamespace {
    * files the one `llm` span for it.
    *
    * The gateway is bypassed, so nothing server-side records this call; the client writes
-   * the span itself once the stream has ended and the turn is fully assembled.
+   * the span itself once the stream has ended — or once the caller stops reading it, with
+   * what arrived so far (issue #615).
    */
   private async *_streamViaProvider(
     options: ChatOptions,
     providerConfig: import('./types').ProviderConfig,
   ): AsyncGenerator<ChatChunk> {
     const state: ByoStreamState = {};
-    yield* this._streamRoundViaProvider(options, providerConfig, state);
-
-    const traceOpt = options.trace ?? true;
-    if (traceOpt !== false) {
-      const traceConf = typeof traceOpt === 'object' ? traceOpt : {};
-      this.host.spanQueue.enqueue({
-        traceId: traceConf.traceId,
-        sessionId: traceConf.sessionId,
-        name: 'chat',
-        spans: [
-          this._byoLlmSpan(state, options.messages, providerConfig, lineageOf(options), randomUUID()),
-        ],
-      });
+    try {
+      yield* this._streamRoundViaProvider(options, providerConfig, state);
+    } finally {
+      const traceOpt = options.trace ?? true;
+      if (state.settled && traceOpt !== false) {
+        const traceConf: JoinedTrace = typeof traceOpt === 'object' ? traceOpt : {};
+        const span = this._byoLlmSpan(state, options.messages, providerConfig, lineageOf(options), randomUUID());
+        if (traceConf.parentSpanId) span.parentSpanId = traceConf.parentSpanId;
+        this._report({
+          traceId: traceConf.traceId,
+          ...byoTraceContext(traceConf),
+          name: byoTraceName(traceConf),
+          spans: [span],
+        });
+      }
     }
   }
 
@@ -1042,7 +1145,16 @@ export class GatewayNamespace {
         content: state.content ?? '',
         ...(toolCalls.length ? { tool_calls: toolCalls } : {}),
       },
-      ...(state.finishReason ? { attributes: { finishReason: state.finishReason } } : {}),
+      ...(state.finishReason || state.clientClosed
+        ? {
+            attributes: {
+              ...(state.finishReason ? { finishReason: state.finishReason } : {}),
+              // The gateway path marks the same case `clientAborted` on its ledger row;
+              // the status stays `ok`, as there, since nothing failed.
+              ...(state.clientClosed ? { clientClosed: true } : {}),
+            },
+          }
+        : {}),
     };
   }
 
@@ -1222,9 +1334,12 @@ export class GatewayNamespace {
     // trace has no real name yet. A caller's explicit `name` is an instruction and still
     // overwrites (issue #358, phase-3 FAQ Q33).
     const traceName = traceConf.name;
+    // Given a step's trace id, the step's name is the default: whichever call creates the
+    // trace first names it, and that may be this loop.
+    const defaultName = stepTraceName(traceConf.traceId) ?? 'runToolLoop';
     // The SDK creates the trace itself on the BYO path, where no server-side default
     // applies, so its own payloads still need a concrete name.
-    const payloadTraceName = traceName ?? 'runToolLoop';
+    const payloadTraceName = traceName ?? defaultName;
     const model = requireModel(options.model);
     const byoToolSchemas = providerConfig && ([...(options.toolDefs ?? []), ...inlinedSchemas].length > 0)
       ? [...(options.toolDefs ?? []), ...inlinedSchemas]
@@ -1242,7 +1357,7 @@ export class GatewayNamespace {
     try {
       for (let i = 0; i < max; i++) {
         const extraHeaders: Record<string, string> | undefined = traceEnabled && !providerConfig
-          ? gatewayTraceHeaders({ ...traceConf, name: traceName, defaultName: 'runToolLoop', traceId })
+          ? gatewayTraceHeaders({ ...traceConf, name: traceName, defaultName, traceId })
           : undefined;
 
         const roundStartTime = new Date().toISOString();
@@ -1299,7 +1414,7 @@ export class GatewayNamespace {
           const roundTrace: TraceInput = {
             traceId,
             name: payloadTraceName,
-            sessionId: traceConf.sessionId,
+            ...byoTraceContext(traceConf),
             spans: [llmSpan],
           };
           const mustAwaitTraceOpen = i === 0 && [...routes.values()].some((r) => r.kind === 'http');
@@ -1310,7 +1425,7 @@ export class GatewayNamespace {
               console.warn('[acruxcore] runToolLoop llm-span report failed — continuing without it', err instanceof Error ? err.message : err);
             }
           } else {
-            this.host.spanQueue.enqueue(roundTrace);
+            this._report(roundTrace);
           }
         }
 
@@ -1343,7 +1458,7 @@ export class GatewayNamespace {
         messages = [...messages, result.message, ...toolMsgs];
       }
     } finally {
-      this._reportToolSpans(traceEnabled, traceId, payloadTraceName, traceConf.sessionId, toolSpans);
+      this._reportToolSpans(traceEnabled, traceId, payloadTraceName, traceConf, toolSpans);
     }
     return { content: '', messages, iterations: max, stoppedAtLimit: true, traceId };
   }
@@ -1383,9 +1498,12 @@ export class GatewayNamespace {
     // trace has no real name yet. A caller's explicit `name` is an instruction and still
     // overwrites (issue #358, phase-3 FAQ Q33).
     const traceName = traceConf.name;
+    // Given a step's trace id, the step's name is the default: whichever call creates the
+    // trace first names it, and that may be this loop.
+    const defaultName = stepTraceName(traceConf.traceId) ?? 'runToolLoop';
     // The SDK creates the trace itself on the BYO path, where no server-side default
     // applies, so its own payloads still need a concrete name.
-    const payloadTraceName = traceName ?? 'runToolLoop';
+    const payloadTraceName = traceName ?? defaultName;
 
     let messages: Message[] = [...options.messages];
     const toolSpans: IngestSpan[] = [];
@@ -1410,6 +1528,7 @@ export class GatewayNamespace {
           traceEnabled,
           traceConf,
           traceName,
+          defaultName,
           payloadTraceName,
           state,
           out: round,
@@ -1501,7 +1620,7 @@ export class GatewayNamespace {
         ];
       }
     } finally {
-      this._reportToolSpans(traceEnabled, state.traceId, payloadTraceName, traceConf.sessionId, toolSpans);
+      this._reportToolSpans(traceEnabled, state.traceId, payloadTraceName, traceConf, toolSpans);
     }
 
     gathered ??= {
@@ -1537,6 +1656,7 @@ export class GatewayNamespace {
       traceEnabled,
       traceConf,
       traceName,
+      defaultName,
       payloadTraceName,
       state,
       out: shapeRound,
@@ -1575,6 +1695,7 @@ export class GatewayNamespace {
     traceEnabled: boolean;
     traceConf: TraceHeaderConf;
     traceName: string | undefined;
+    defaultName: string;
     payloadTraceName: string;
     state: { traceId?: string };
     out: StreamedRound;
@@ -1618,31 +1739,36 @@ export class GatewayNamespace {
 
     if (providerConfig) {
       const byoState: ByoStreamState = {};
-      for await (const chunk of this._streamRoundViaProvider(chatOptions, providerConfig, byoState)) {
-        const text = take(chunk);
-        if (text && emitContent) yield { type: 'content', delta: text, round: roundIndex };
-      }
-
-      // No gateway on this path, so nothing server-side recorded the round — the client
-      // writes its `llm` span itself, exactly as the blocking BYO loop does.
-      state.traceId ??= randomUUID();
-      out.spanRef = randomUUID();
-      if (traceEnabled) {
-        this.host.spanQueue.enqueue({
-          traceId: state.traceId,
-          sessionId: traceConf.sessionId,
-          name: args.payloadTraceName,
-          spans: [
-            this._byoLlmSpan(byoState, convo, providerConfig, lineageOf(options), out.spanRef),
-          ],
-        });
+      try {
+        for await (const chunk of this._streamRoundViaProvider(chatOptions, providerConfig, byoState)) {
+          const text = take(chunk);
+          if (text && emitContent) yield { type: 'content', delta: text, round: roundIndex };
+        }
+      } finally {
+        // No gateway on this path, so nothing server-side recorded the round — the client
+        // writes its `llm` span itself, exactly as the blocking BYO loop does. In a
+        // `finally` so a caller who stops reading mid-round still gets it (issue #615).
+        if (byoState.settled) {
+          state.traceId ??= randomUUID();
+          out.spanRef = randomUUID();
+          if (traceEnabled) {
+            this._report({
+              traceId: state.traceId,
+              name: args.payloadTraceName,
+              ...byoTraceContext(traceConf),
+              spans: [
+                this._byoLlmSpan(byoState, convo, providerConfig, lineageOf(options), out.spanRef),
+              ],
+            });
+          }
+        }
       }
     } else {
       const extraHeaders: Record<string, string> | undefined = traceEnabled
         ? gatewayTraceHeaders({
             ...traceConf,
             name: args.traceName,
-            defaultName: 'runToolLoop',
+            defaultName: args.defaultName,
             traceId: state.traceId,
           })
         : undefined;
@@ -1737,7 +1863,9 @@ export class GatewayNamespace {
       );
     }
 
-    const toolSpanId = `tool-${ctx.roundIndex}-${ctx.callIndex}`;
+    // The random suffix makes the id unique per trace, not only per loop: two loops on one
+    // trace both made `tool-0-0`, and the server keeps one span per id (PR #613 review).
+    const toolSpanId = `tool-${ctx.roundIndex}-${ctx.callIndex}-${randomUUID().replace(/-/g, '').slice(0, 12)}`;
     const toolStart = new Date().toISOString();
     const attributes: Record<string, unknown> = {
       arguments: args,
@@ -1821,10 +1949,22 @@ export class GatewayNamespace {
     traceEnabled: boolean,
     traceId: string | undefined,
     name: string,
-    sessionId: string | undefined,
+    traceConf: JoinedTrace,
     spans: IngestSpan[],
   ): void {
     if (!traceEnabled || spans.length === 0) return;
-    this.host.spanQueue.enqueue({ traceId, name, sessionId, spans });
+    this._report({ traceId, name, ...byoTraceContext(traceConf), spans });
+  }
+
+  /**
+   * @internal Sends one trace report in the background — or, when it belongs to a step
+   * that has not been sent yet, hands it to that step, which sends it with its own span.
+   *
+   * Every span this namespace reports goes through here. A span whose parent is a step
+   * not stored yet would otherwise reach the server first and be rejected as
+   * `INVALID_SPAN_PARENT`.
+   */
+  private _report(payload: TraceInput): void {
+    if (!routeReport(payload, this.host.spanQueue)) this.host.spanQueue.enqueue(payload);
   }
 }

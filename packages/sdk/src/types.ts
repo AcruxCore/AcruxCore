@@ -727,6 +727,12 @@ export interface ToolAnalyticsResult {
 /** Trace options shared by `chat()` and `runToolLoop()`. */
 export interface TraceOptions {
   traceId?: string;
+  /**
+   * Nests this call's `llm` span under a span you reported — sent as `x-parent-span-id`
+   * on the gateway path and as `parentSpanId` on a BYO span. Inside `traces.step` it is
+   * set to the open step for you.
+   */
+  parentSpanId?: string;
   sessionId?: string;
   name?: string;
   /** Tags attached to the trace. Union-merged on append. */
@@ -1007,6 +1013,14 @@ export interface ChatOptions {
   reasoningEffort?: ReasoningEffort;
   /** When true, `chat()` returns an async iterable of {@link ChatChunk} instead of a {@link ChatResult}. */
   stream?: boolean;
+  /**
+   * Further OpenAI fields (`top_p`, `seed`, `stop`, …) added to the request body, on the
+   * gateway and the BYO path alike. A key a named option already set, or `model`,
+   * `messages` or `stream`, is refused with `VALIDATION_ERROR` before anything is sent.
+   * The gateway forwards only fields it knows and names the rest in its
+   * `x-gateway-params-ignored` response header; a BYO provider receives every one.
+   */
+  extraBody?: Record<string, unknown>;
   /** Per-call BYO override; wins over the client's config.provider. */
   provider?: ProviderConfig;
   /**

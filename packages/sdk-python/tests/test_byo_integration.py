@@ -176,6 +176,7 @@ async def test_byo_trace_readback_one_llm_span(hub):
         provider=_BYO_PROVIDER,
     )
 
+    await hub.traces.flush()  # BYO spans are sent in the background
     trace = await hub.traces.get(result.gateway.trace_id)
     assert len(trace.spans) == 1
     assert trace.spans[0].kind == "llm"
@@ -194,6 +195,7 @@ async def test_byo_chained_trace_two_sibling_spans(hub):
         trace={"trace_id": first.gateway.trace_id},
     )
 
+    await hub.traces.flush()  # BYO spans are sent in the background
     trace = await hub.traces.get(first.gateway.trace_id)
     assert len(trace.spans) == 2
     assert all(span.parent_span_id is None for span in trace.spans)
@@ -202,20 +204,14 @@ async def test_byo_chained_trace_two_sibling_spans(hub):
 # --- gateway-path trace opt-in (final-review I1) ----------------------------
 
 
-async def test_gateway_trace_opt_in_writes_a_second_span_without_colliding(hub):
-    """`chat(trace=True)` on the GATEWAY path must actually write its span.
+async def test_gateway_trace_opt_in_records_the_call_once(hub):
+    """`chat(trace=True)` on the GATEWAY path leaves exactly the gateway's own span.
 
-    The span the gateway persists for a completion already occupies
-    `(traceId, spanRef)` — `spans` is unique on that pair with no upsert — so
-    re-using `result.gateway.span_ref` as the client-reported span id made the
-    ingest endpoint 500, and `chat()`'s best-effort catch swallowed it: the
-    documented opt-in recorded nothing, on every call. Only a test that goes
-    through the REAL ingest endpoint (real Postgres, real unique constraint) can
-    see that, which is why this case exists.
-
-    Two assertions, both needed: no best-effort warning was emitted (so the POST
-    really succeeded rather than being swallowed), and the trace holds both spans
-    — the gateway's own and the newly reported one, under distinct ids.
+    The gateway already writes an `llm` span for every completion it serves. The SDK
+    used to report a second one for the same call, which counted every model call
+    twice in span counts, token totals and cost (issue #360), so it now reports
+    nothing of its own on this path. Only the real ingest endpoint and a real
+    gateway can show both halves: no swallowed report failure, and one span.
     """
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
@@ -226,14 +222,10 @@ async def test_gateway_trace_opt_in_writes_a_second_span_without_colliding(hub):
     reports = [str(w.message) for w in caught if "trace report failed" in str(w.message)]
     assert reports == []
 
+    await hub.traces.flush()
     trace = await hub.traces.get(result.gateway.trace_id)
-    assert len(trace.spans) == 2
-    assert all(span.kind == "llm" for span in trace.spans)
-    span_ids = {span.span_id for span in trace.spans}
-    # The gateway's own span is still there under its own id, and the client's
-    # second span sits beside it under a freshly minted one.
-    assert result.gateway.span_ref in span_ids
-    assert any(span_id.startswith("chat-") for span_id in span_ids)
+    assert [span.kind for span in _flatten(trace.spans)] == ["llm"]
+    assert trace.spans[0].span_id == result.gateway.span_ref
 
 
 # --- BYO run_tool_loop span timing + ordering (final-review I2 / I5) ---------
@@ -264,6 +256,7 @@ async def test_byo_tool_loop_llm_spans_record_real_latency(hub):
         provider=_BYO_PROVIDER,
     )
 
+    await hub.traces.flush()  # BYO spans are sent in the background
     trace = await hub.traces.get(result.trace_id)
     llm_spans = [span for span in _flatten(trace.spans) if span.kind == "llm"]
     assert len(llm_spans) >= 1
@@ -299,6 +292,7 @@ async def test_byo_tool_loop_http_tool_span_nests_under_the_round_llm_span(hub, 
         provider=_BYO_PROVIDER,
     )
 
+    await hub.traces.flush()  # BYO spans are sent in the background
     trace = await hub.traces.get(result.trace_id)
     # The SDK named the trace, not the tool-execute endpoint.
     assert trace.trace.name == "runToolLoop"
@@ -347,6 +341,7 @@ async def test_byo_streaming_chat_accumulates_and_traces_one_llm_span(hub):
     assert len(content.strip()) > 0
     assert finish_reason == "stop"
 
+    await hub.traces.flush()  # BYO spans are sent in the background
     trace = await hub.traces.get(trace_id)
     assert len(trace.spans) == 1
     span = trace.spans[0]

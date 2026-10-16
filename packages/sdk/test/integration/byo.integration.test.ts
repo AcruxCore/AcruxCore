@@ -314,7 +314,7 @@ describeLive('BYO trace read-back', () => {
   // REAL ingest endpoint: the collision is a Postgres unique-constraint violation on
   // spans (traceId, spanRef), which the SDK's best-effort catch then swallows — so the
   // documented opt-in silently recorded nothing while 500ing the API on every call.
-  it('gateway path with trace: true records a SECOND span instead of colliding with the gateway own span', async () => {
+  it('gateway path with trace: true records the call once, as the gateway own span', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     try {
       const result = await hub.gateway.chat({
@@ -325,8 +325,9 @@ describeLive('BYO trace read-back', () => {
 
       expect(result.gateway.traceId).toBeTruthy();
 
-      // The report is backgrounded, so both the warning check and the read-back have to
-      // wait for the queue — a failure would otherwise be warned about after the assert.
+      // Any client report is backgrounded, so both the warning check and the read-back
+      // have to wait for the queue — a failure would otherwise be warned about after the
+      // assert.
       await hub.gateway.flush();
 
       // The best-effort trace report must not have failed.
@@ -335,12 +336,10 @@ describeLive('BYO trace read-back', () => {
 
       const trace = await hub.traces.get(result.gateway.traceId!);
       const llmSpans = flattenSpans(trace.spans).filter((s) => s.kind === 'llm');
-      // The gateway's own span for this completion + the client-reported one.
-      expect(llmSpans).toHaveLength(2);
-      // The client's span uses its own id, never the gateway's persisted spanRef.
-      expect(new Set(llmSpans.map((s) => s.spanId)).size).toBe(2);
-      expect(llmSpans.some((s) => s.spanId === result.gateway.spanRef)).toBe(true);
-      expect(llmSpans.some((s) => s.spanId.startsWith('chat-'))).toBe(true);
+      // On the gateway path the gateway writes the llm span; the SDK only forwards the
+      // trace headers. A second, client-reported span counted every call twice (#360).
+      expect(llmSpans).toHaveLength(1);
+      expect(llmSpans[0].spanId).toBe(result.gateway.spanRef);
     } finally {
       warn.mockRestore();
     }

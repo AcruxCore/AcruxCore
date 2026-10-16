@@ -18,6 +18,8 @@ Example::
 
 from . import tooling as acrux  # noqa: F401 — enables the `@acrux.tool` spelling
 from .client import AcruxCore
+from .steps import Step
+from .sync_client import AcruxCoreSync
 from .gateway_api import AsyncChatStream, AsyncToolLoopStream, GatewayNamespace
 from .tool_override import ToolOverrideResult, with_tool_override
 from .errors import (
@@ -151,6 +153,8 @@ __version__ = "0.17.0"
 
 __all__ = [
     "AcruxCore",
+    "AcruxCoreSync",
+    "Step",
     "AsyncChatStream",
     "AsyncToolLoopStream",
     "GatewayNamespace",

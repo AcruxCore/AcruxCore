@@ -159,8 +159,29 @@ called out in the week it ships and in the SDK release notes.
 - `GET /runs/:id/compare` returns the same, for two cells of one run or two runs on one dataset.
   [Guide →](/docs/guides/evaluate-a-prompt#see-which-examples-changed)
 
+#### Both SDKs: trace your own app's steps (next SDK release)
+
+- `traces.step` (both SDKs) and `traces.wrap` (Node) trace your code; model calls nest under it.
+- `AcruxCoreSync` gives the Python client blocking calls, for code that is not async.
+- `get_by_alias` / `getByAlias` read a template unrendered; `chat()` takes extra body fields.
+  [Reference →](/docs/sdk-reference/node#tracesstepname-options-fn)
+
+#### Both SDKs: traces no longer lose tool spans or a payload opt-out (next SDK release)
+
+- Two tool loops sent to one trace kept only the first loop's tool spans; both are stored now.
+- A queued `capturePayloads: false` report could be merged away, storing its payloads anyway.
+
+#### Both SDKs: BYO calls no longer go missing from traces (next SDK release)
+
+- A BYO call dropped `trace` tags and metadata, so filtering traces by tag missed it.
+- A BYO stream left early with `break` wrote no span; it now stores one marked `clientClosed`.
+
 ### Minor
 
+- **New endpoint** — `GET /prompt-versions?name=&alias=` returns the version an alias points at.
+  [Reference →](/api-reference/prompts/aliases#get-apiv1prompt-versionsnamealias)
+- **Fixed** — a BYO call's trace was always named `chat`; both SDKs now use the trace `name` you pass.
+- **Fixed** — leaving a Node SDK stream early with `break` now closes its connection at once.
 - **Fixed** — a run failed while its last judge call was being retried; it now waits up to 30 min.
 - **Fixed** — a traced span sent without `totalTokens` now counts prompt + completion, not 0.
 - **Fixed** — dashboard latency under one second could show as `980.0999999999999ms`.

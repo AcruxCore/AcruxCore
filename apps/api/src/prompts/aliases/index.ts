@@ -1,6 +1,6 @@
 export { AliasesService } from './aliases.service';
 export { AliasesRepository } from './aliases.repository';
-export { aliasesRouter, renderRouter } from './aliases.router';
+export { aliasesRouter, renderRouter, versionByAliasRouter } from './aliases.router';
 export type {
   AliasDetail,
   PromptAliasRow,

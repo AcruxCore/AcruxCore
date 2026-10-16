@@ -27,6 +27,14 @@ export const RenderBodySchema = z.object({
 
 export type RenderDto = z.infer<typeof RenderBodySchema>;
 
+/** Validated query for GET /prompt-versions?name=&alias= */
+export const VersionByAliasQuerySchema = z.object({
+  name: z.string({ required_error: 'name is required' }).min(1, 'name is required'),
+  alias: z.string({ required_error: 'alias is required' }).min(1, 'alias is required'),
+});
+
+export type VersionByAliasQuery = z.infer<typeof VersionByAliasQuerySchema>;
+
 // ── Response types ────────────────────────────────────────────────────────────
 
 /** Shape of an alias in list and promote responses, joining versionNumber from prompt_versions. */

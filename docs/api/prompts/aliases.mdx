@@ -331,3 +331,63 @@ Response (status 200) — v2 content rendered:
 ```json
 {"error":{"code":"NOT_FOUND","message":"Prompt or alias not found"}}
 ```
+
+---
+
+### GET /api/v1/prompt-versions?name=&alias=
+
+Returns the version an alias points at, found by the prompt's **name**, with its
+template unrendered: `messages` keep their `{{ placeholders }}`. Use it when your app
+renders templates itself. Use [render](#post-apiv1promptsrender) when the
+server should fill them in. The body has the same shape as
+[GET /prompts/:id/versions/:n](./versions). Both query parameters are required, and the
+name must match exactly. Any role can call it, with a session or an API key.
+
+```bash
+curl "$ACRUXCORE_BASE_URL/prompt-versions?name=e2e-review2-triage&alias=production" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+Response (status 200):
+
+```json
+{
+  "id": "79bdae37-3b84-4980-bac7-b1455886e0b4",
+  "promptId": "9fa9726d-1d42-4bb5-8230-d7c5e6764089",
+  "versionNumber": 1,
+  "messages": [
+    {
+      "role": "system",
+      "content": "Triage {{ ticket }}"
+    }
+  ],
+  "variables": [
+    "ticket"
+  ],
+  "createdBy": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+  "createdAt": "2026-10-16T20:51:49.093Z",
+  "model": null
+}
+```
+
+404 — no prompt of that name in your team, or the prompt has no such alias:
+
+```bash
+curl "$ACRUXCORE_BASE_URL/prompt-versions?name=e2e-review2-triage&alias=canary" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{"error":{"code":"NOT_FOUND","message":"Prompt or alias not found"}}
+```
+
+400 — a parameter is missing:
+
+```bash
+curl "$ACRUXCORE_BASE_URL/prompt-versions?name=e2e-review2-triage" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"alias is required"}}
+```
