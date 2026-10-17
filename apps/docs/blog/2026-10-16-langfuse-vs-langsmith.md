@@ -5,9 +5,11 @@ slug: langfuse-vs-langsmith
 date: 2026-10-16
 authors: [acrux]
 tags: [llmops-comparison, prompt-management, llm-tracing]
-image: /img/social-card.png
+image: /img/blog/langfuse-vs-langsmith/header.webp
 keywords: [langfuse vs langsmith, langsmith vs langfuse, langfuse or langsmith, langsmith without langchain, langfuse pricing, langsmith pricing, llm observability comparison, prompt management, llm evaluation]
 ---
+
+![Langfuse vs LangSmith, one app tested on both. Langfuse: open core and free to self-host, draft-safe prompt reads, no gateway. LangSmith: closed with Enterprise-only self-hosting, a changed-score filter, a gateway in beta](/img/blog/langfuse-vs-langsmith/header.webp)
 
 This post compares Langfuse and LangSmith on the things a developer checks before choosing one.
 We also ran one app on both hosted platforms, with the same code, data, prompts and model, and
@@ -125,6 +127,8 @@ The app answers in four steps:
 3. **Price** adds up the extra work. This step is plain Python, with no model call.
 4. **Reply** writes the email to the client.
 
+![The app in four steps: a client email goes through extract, classify, price and reply. Classify sorts each request as covered, priced extra, needs estimate or unclear. Price is plain Python with no model call](/img/blog/langfuse-vs-langsmith/app-four-steps.webp)
+
 ### Why this app
 
 We picked this app because each feature in the comparison has a real job in it:
@@ -210,6 +214,8 @@ We picked this app because each feature in the comparison has a real job in it:
 | Roll back to the previous version | 4 clicks | 3 clicks, from a list of past commits |
 | History of promotions | Not shown | Rollback list of every commit the environment pointed to |
 | SDK cache before a promotion reaches the app | 60 seconds | 5 minutes |
+
+![Reading a prompt with no label: Langfuse returns the production version; LangSmith returns the newest commit, so code must ask for name:production](/img/blog/langfuse-vs-langsmith/prompt-read-no-label.webp)
 
 - After we pushed a draft v2, `pull_prompt_commit("scope-extract")` returned the draft. Code on
   LangSmith must ask for `"scope-extract:production"`.

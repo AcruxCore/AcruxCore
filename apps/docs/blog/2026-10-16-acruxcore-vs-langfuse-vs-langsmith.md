@@ -5,9 +5,11 @@ slug: acruxcore-vs-langfuse-vs-langsmith
 date: 2026-10-16
 authors: [acrux]
 tags: [llmops-comparison, prompt-management, llm-tracing]
-image: /img/social-card.png
+image: /img/blog/acruxcore-vs-langfuse-vs-langsmith/header.webp
 keywords: [acruxcore vs langfuse vs langsmith, llm observability comparison, prompt management, llm evaluation, llm tracing]
 ---
+
+![AcruxCore vs Langfuse vs LangSmith, one app tested on all three. AcruxCore: open source with every feature, gateway built in, no review queue. Langfuse: open core with a big community, review queue, no gateway. LangSmith: closed platform, review queue, Go and Java SDKs](/img/blog/acruxcore-vs-langfuse-vs-langsmith/header.webp)
 
 This post compares AcruxCore, Langfuse and LangSmith on the things a developer checks before
 choosing one. We also ran one app on all three platforms, with the same code, data, prompts and
@@ -123,6 +125,10 @@ everything else on 17 October 2026.
 
 ## Which one to choose
 
+Five features separate the three.
+
+![Feature grid. Gateway: AcruxCore yes, Langfuse no, LangSmith beta. Review queue: AcruxCore no, Langfuse and LangSmith yes. Changed-score filter: AcruxCore and LangSmith yes, Langfuse no. Free self-host with all features: AcruxCore yes, Langfuse core only, LangSmith no. SSO: AcruxCore no, Langfuse paid add-on, LangSmith Enterprise](/img/blog/acruxcore-vs-langfuse-vs-langsmith/who-has-what.webp)
+
 - **AcruxCore** if you want a free hosted service or a free self-host with every feature,
   including a gateway and an audit log, and you can work without a review queue or SSO.
 - **Langfuse** if you want an open-source platform with a large community, a review queue and a
@@ -143,6 +149,8 @@ everything else on 17 October 2026.
   AcruxCore on its hosted service at acruxcore.com.
 - **The AcruxCore leg:** a clean environment with Python 3.12, `acruxcore` 0.18.0, `openai` 2.48.0,
   `httpx` and `python-dotenv`.
+
+![The app runs client email through extract, classify, price and reply. The same code, data, prompts and model go to AcruxCore, Langfuse and LangSmith](/img/blog/acruxcore-vs-langfuse-vs-langsmith/one-app-three-platforms.webp)
 
 ## Tracing
 

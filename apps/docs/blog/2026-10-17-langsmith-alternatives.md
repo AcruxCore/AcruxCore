@@ -6,9 +6,11 @@ slug: langsmith-alternatives
 date: 2026-10-17
 authors: [acrux]
 tags: [llmops-comparison, llm-tracing, prompt-management]
-image: /img/social-card.png
+image: /img/blog/langsmith-alternatives/01-header.webp
 keywords: [langsmith alternatives, alternatives to langsmith, best langsmith alternatives, langsmith competitors, open source langsmith alternative, self-hosted langsmith alternatives, best langsmith alternatives for startups, best free langsmith alternative]
 ---
+
+![Eight LangSmith alternatives in a grid, each with what it is best for, coloured by license: Langfuse, AcruxCore, Opik, MLflow and Laminar open source, Arize Phoenix source-available, Braintrust and W&B Weave closed source](/img/blog/langsmith-alternatives/01-header.webp)
 
 This post compares eight LangSmith alternatives on license, self-hosting, price and features.
 For each alternative to LangSmith, it lists what the tool adds and what it lacks.
@@ -56,6 +58,8 @@ step inside a trace. Opik, Phoenix and Braintrust count spans or gigabytes, so t
 are not directly comparable with LangSmith's 5,000 traces. **Closed source** means the vendor
 publishes no server code.
 
+![Three columns. Free with no ClickHouse: AcruxCore, MLflow, Arize Phoenix. Free but runs ClickHouse: Langfuse, Opik, Laminar. Needs a paid license: LangSmith, Braintrust, W&B Weave](/img/blog/langsmith-alternatives/03-selfhost.webp)
+
 ## Why teams look for a LangSmith alternative
 
 - **Every seat costs money.** The Plus plan costs $39 per seat a month. Three people pay $117 a
@@ -70,6 +74,8 @@ publishes no server code.
 
 LangSmith does not need LangChain for tracing. Its `traceable` decorator and its OpenTelemetry
 endpoint work with any code.
+
+![Four reasons teams look past LangSmith: per-seat price, base traces kept 14 days, self-hosting only on Enterprise, and a closed server; plus one point in its favour: it does not need LangChain](/img/blog/langsmith-alternatives/02-why.webp)
 
 Sources: LangSmith [pricing](https://www.langchain.com/pricing),
 [billing](https://docs.langchain.com/langsmith/billing),
@@ -392,6 +398,10 @@ Older lists of LangSmith alternatives still include these five tools. Their stat
   closed source. ([source](https://www.splunk.com/en_us/about-splunk/acquisitions/galileo.html))
 
 ## Which LangSmith alternative should you pick?
+
+Start at the top and stop at the first question you answer yes to.
+
+![Decision flow: self-host without ClickHouse leads to AcruxCore, MLflow or Phoenix; otherwise the biggest open community leads to Langfuse; cheapest paid cloud leads to Opik; evals first and hosted leads to Braintrust](/img/blog/langsmith-alternatives/04-decision.webp)
 
 ### Best LangSmith alternative for a startup
 

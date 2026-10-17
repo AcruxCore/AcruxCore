@@ -6,9 +6,11 @@ slug: langfuse-alternatives
 date: 2026-10-17
 authors: [acrux]
 tags: [llmops-comparison, llm-tracing, prompt-management]
-image: /img/social-card.png
+image: /img/blog/langfuse-alternatives/01-header.webp
 keywords: [langfuse alternatives, alternatives to langfuse, best langfuse alternatives, best langfuse alternatives for startups, self-hosted langfuse alternatives, cheaper alternatives to langfuse, langfuse competitors, open source langfuse alternatives]
 ---
+
+![Eight Langfuse alternatives in a grid, each with what it is best for, coloured by license: AcruxCore, MLflow, OpenLIT, Laminar and Opik open source, Arize Phoenix source-available, LangSmith and Braintrust closed source](/img/blog/langfuse-alternatives/01-header.webp)
 
 This post compares eight alternatives to Langfuse on self-hosting effort, license, price and the
 features that need an enterprise plan. For each Langfuse alternative, it lists what the tool adds
@@ -58,6 +60,8 @@ A **unit** on Langfuse is one trace, one step inside a trace, or one score. A **
 step inside a trace. "Data stores" counts databases, caches, queues and file stores, not the
 application containers. **Closed source** means the vendor publishes no server code.
 
+![Two columns. No ClickHouse: AcruxCore on Postgres and Redis, MLflow on SQLite, Arize Phoenix on SQLite or Postgres. Runs ClickHouse: Langfuse, Opik, Laminar and OpenLIT, each with its other data stores](/img/blog/langfuse-alternatives/03-selfhost.webp)
+
 ## Why look for alternatives to Langfuse?
 
 - **Self-hosting runs four data stores.** A Langfuse install runs Postgres, ClickHouse, Redis
@@ -72,6 +76,8 @@ application containers. **Closed source** means the vendor publishes no server c
   included 100,000.
 - **ClickHouse owns Langfuse.** ClickHouse acquired Langfuse in January 2026. The Langfuse core
   stays MIT, and Langfuse Cloud stays a product separate from ClickHouse Cloud.
+
+![Five reasons teams look past Langfuse: four data stores, features behind an enterprise license, no gateway, every step billed, and a new owner, ClickHouse](/img/blog/langfuse-alternatives/02-why.webp)
 
 Sources: Langfuse [license](https://github.com/langfuse/langfuse/blob/main/LICENSE),
 [compose file](https://github.com/langfuse/langfuse/blob/main/docker-compose.yml),
@@ -401,6 +407,10 @@ enterprise contract.
 ([source](https://pydantic.dev/pricing))
 
 ## Which Langfuse alternative should you pick?
+
+Start at the top and stop at the first question you answer yes to.
+
+![Decision flow: self-host without ClickHouse leads to AcruxCore, MLflow or Phoenix; otherwise cheapest paid cloud leads to Opik; built on LangChain leads to LangSmith; browser agents lead to Laminar](/img/blog/langfuse-alternatives/04-decision.webp)
 
 ### Best Langfuse alternative for a startup
 
