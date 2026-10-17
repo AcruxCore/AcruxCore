@@ -6,7 +6,7 @@ date: 2026-10-16
 authors: [acrux]
 tags: [llmops-comparison, prompt-management, llm-tracing]
 image: /img/social-card.png
-keywords: [acruxcore vs langfuse vs langsmith, langfuse alternative, langsmith alternative, llm observability comparison, prompt management, llm evaluation, llm tracing]
+keywords: [acruxcore vs langfuse vs langsmith, llm observability comparison, prompt management, llm evaluation, llm tracing]
 ---
 
 This post compares AcruxCore, Langfuse and LangSmith on the things a developer checks before
@@ -328,3 +328,5 @@ read the numbers back through each platform's API.
   output of every step.
 - [The Langfuse and LangSmith legs](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/langfuse-vs-langsmith),
   with their own run log.
+- One platform at a time: the [Langfuse alternative](/blog/acruxcore-vs-langfuse) post and the
+  [LangSmith alternative](/blog/acrux-core-vs-langsmith) post.

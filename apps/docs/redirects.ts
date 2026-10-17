@@ -2,7 +2,7 @@
  * One retired URL and the page that now answers it.
  */
 export interface RedirectEntry {
-  /** Site-relative path that no longer has a page, e.g. `/blog/acruxcore-vs-langfuse`. */
+  /** Site-relative path that no longer has a page, e.g. `/blog/tags/langfuse`. */
   from: string;
   /** Site-relative path of a page that exists in the build. */
   to: string;
@@ -37,10 +37,6 @@ export const REDIRECTS: readonly RedirectEntry[] = [
     from: '/docs/guides/alias-and-track-usage-of-tools-in-the-catalog',
     to: '/docs/guides/version-and-track-a-tool',
   },
-  // The two single-competitor posts were replaced by one post that runs the
-  // same app on all three platforms. Syndicated copies link the old URLs.
-  { from: '/blog/acrux-core-vs-langsmith', to: '/blog/acruxcore-vs-langfuse-vs-langsmith' },
-  { from: '/blog/acruxcore-vs-langfuse', to: '/blog/acruxcore-vs-langfuse-vs-langsmith' },
   // Tags removed from blog/tags.yml as thin pages. Search Console still
   // showed them in results, so each points at the page that now holds
   // its intent: a competitor tag goes to that competitor's comparison
@@ -56,8 +52,8 @@ export const REDIRECTS: readonly RedirectEntry[] = [
     ['tracing', '/blog/tags/llm-tracing'],
     ['tools', '/blog/tags/llm-tracing'],
     ['sdk', '/blog/tool-agent-sdk-langchain-vs-acruxcore'],
-    ['langsmith', '/blog/acruxcore-vs-langfuse-vs-langsmith'],
-    ['langfuse', '/blog/acruxcore-vs-langfuse-vs-langsmith'],
+    ['langsmith', '/blog/acrux-core-vs-langsmith'],
+    ['langfuse', '/blog/acruxcore-vs-langfuse'],
     ['helicone', '/blog/acruxcore-vs-helicone'],
     ['opik', '/blog/acruxcore-vs-opik'],
     ['phoenix', '/blog/acruxcore-vs-phoenix'],

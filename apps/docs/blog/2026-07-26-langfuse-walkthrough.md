@@ -220,7 +220,10 @@ Both are open source, so this comes down to shape, not access.
 | Evaluation | Session/user badges on the trace header; datasets built manually or via API | Datasets built from real production feedback (thumbs up/down on traces), typed by hand, or imported from a CSV/JSON file |
 | Hosting | Larger, more established self-hosting community | Single Postgres + Node stack — no separate OTel collector or ingestion service |
 
-The same app is built and measured on AcruxCore, Langfuse and LangSmith in
+Want the deep dive — the same prompt run for real on both platforms, screenshotted
+side by side? Read the
+[full Langfuse vs AcruxCore comparison](/blog/acruxcore-vs-langfuse). The same app is built
+and measured on AcruxCore, Langfuse and LangSmith in
 [AcruxCore vs Langfuse vs LangSmith](/blog/acruxcore-vs-langfuse-vs-langsmith).
 
 Want to see the same loop on AcruxCore? The

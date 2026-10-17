@@ -207,7 +207,7 @@ called out in the week it ships and in the SDK release notes.
 - **Fixed** — the no-code tool-agent tutorial's SDK tabs for secrets called a method no SDK has.
 - **Fixed** — the LangChain alternative post's AcruxCore code and its two scripts now run.
 - **New post** — [AcruxCore vs Langfuse vs LangSmith: one app tested end to end on all three](/blog/acruxcore-vs-langfuse-vs-langsmith).
-- **Removed** — the AcruxCore vs Langfuse and AcruxCore vs LangSmith posts; both URLs open the new post.
+- **Restored** — [AcruxCore vs Langfuse](/blog/acruxcore-vs-langfuse) and [AcruxCore vs LangSmith](/blog/acrux-core-vs-langsmith) are back at their own URLs.
 - Retired docs, blog and tag URLs now return a permanent 301 redirect to the page that replaced them.
 - The [Press page](https://acruxcore.com/press) adds an AI Agents Directory badge.
 

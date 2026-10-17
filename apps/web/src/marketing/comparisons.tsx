@@ -149,7 +149,7 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     slug: 'langfuse',
     name: 'Langfuse',
     tagline: 'OpenTelemetry-based tracing and prompt management, with an organization layer above projects.',
-    postHref: `${DOCS_URL}/blog/acruxcore-vs-langfuse-vs-langsmith`,
+    postHref: `${DOCS_URL}/blog/acruxcore-vs-langfuse`,
     githubHref: 'https://github.com/langfuse/langfuse',
     checkedOn: '2026-08-06',
     bestFor:

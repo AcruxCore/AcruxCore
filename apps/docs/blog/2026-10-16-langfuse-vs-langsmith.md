@@ -343,3 +343,5 @@ same 10 minutes.
   commands, and `RUNLOG.md` with the raw output of every step.
 - Both platforms against AcruxCore, on the same app:
   [AcruxCore vs Langfuse vs LangSmith](/blog/acruxcore-vs-langfuse-vs-langsmith).
+- Each platform against AcruxCore: [AcruxCore vs Langfuse](/blog/acruxcore-vs-langfuse) and
+  [AcruxCore vs LangSmith](/blog/acrux-core-vs-langsmith).
