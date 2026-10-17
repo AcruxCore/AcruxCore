@@ -1197,6 +1197,7 @@ paired comparison against AcruxCore using the same fixture prompt each time:
 - [AcruxCore vs Langfuse vs LangSmith](/blog/acruxcore-vs-langfuse-vs-langsmith) — the same app built and measured on all three.
 - [8 LangSmith alternatives](/blog/langsmith-alternatives) — license, self-hosting, price and features for eight tools, starting from LangSmith.
 - [8 Langfuse alternatives](/blog/langfuse-alternatives) — the same comparison, starting from Langfuse.
+- [Self-hosting LLM observability: seven open-source tools measured](/blog/self-hosting-llm-observability) — memory, disk and trace storage for seven self-hosted stacks on one machine.
 
 And for the full license, pricing, team-structure, security, and community picture across the
 six self-hostable competitors next to AcruxCore, see the [compare page](https://acruxcore.com/compare).

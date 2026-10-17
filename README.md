@@ -112,6 +112,7 @@ Two Compose files, for two different jobs:
 cp .env.docker.example .env
 openssl rand -base64 32   # → paste as GATEWAY_ENCRYPTION_KEY in .env
 # set DATABASE_URL, DIRECT_URL and the other required secrets in .env
+docker network create mynetwork   # the stack joins this shared network; Compose won't create it
 docker compose up --build
 ```
 

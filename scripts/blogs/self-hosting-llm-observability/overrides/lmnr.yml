@@ -1,0 +1,4 @@
+# Repo's default (lite) compose with its committed .env; app-server host port moved (8000 is taken here).
+services:
+  clickhouse:
+    container_name: !reset null

@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:1200px; height:630px; background:#0b0e14; overflow:hidden;
+    font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; color:#e6eaf0; }
+  .card { position:relative; width:1200px; height:630px; padding:50px 60px 40px; display:flex; flex-direction:column; }
+  .glow { position:absolute; inset:0; pointer-events:none;
+    background:radial-gradient(ellipse 620px 420px at 85% 85%, rgba(96,165,250,0.13), transparent 65%); }
+  .eyebrow { font-size:17px; font-weight:700; letter-spacing:0.14em; color:#8b94a3; text-transform:uppercase; position:relative; }
+  .headline { margin-top:12px; font-size:44px; line-height:1.12; font-weight:800; letter-spacing:-0.02em; max-width:1000px; position:relative; }
+  .sub { margin-top:14px; font-size:19px; color:#9aa3b2; position:relative; }
+  .chart { margin-top:26px; flex:1; display:flex; flex-direction:column; justify-content:space-between; position:relative; }
+  .row { display:grid; grid-template-columns:130px 1fr 120px; align-items:center; gap:18px; }
+  .name { font-size:21px; font-weight:700; text-align:right; color:#d5dbe3; }
+  .track { height:26px; background:#151a21; border-radius:6px; overflow:hidden; }
+  .bar { height:100%; background:#60a5fa; border-radius:6px; }
+  .val { font-size:21px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .val small { font-size:15px; color:#8b94a3; font-weight:600; margin-left:4px; }
+  .foot { margin-top:22px; font-size:15px; color:#6f7886; position:relative; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="glow"></div>
+  <div class="eyebrow">Self-hosting, measured</div>
+  <div class="headline">Seven open-source LLM observability tools, self&#8209;hosted on one machine</div>
+  <div class="sub">Memory each official setup holds while idle, before a single trace arrives</div>
+  <div class="chart">
+    <div class="row"><div class="name">AcruxCore</div><div class="track"><div class="bar" style="width:10.6%"></div></div><div class="val">0.39<small>GiB</small></div></div>
+    <div class="row"><div class="name">Phoenix</div><div class="track"><div class="bar" style="width:12.7%"></div></div><div class="val">0.47<small>GiB</small></div></div>
+    <div class="row"><div class="name">Laminar</div><div class="track"><div class="bar" style="width:30.1%"></div></div><div class="val">1.11<small>GiB</small></div></div>
+    <div class="row"><div class="name">MLflow</div><div class="track"><div class="bar" style="width:63.1%"></div></div><div class="val">2.33<small>GiB</small></div></div>
+    <div class="row"><div class="name">Langfuse</div><div class="track"><div class="bar" style="width:70.5%"></div></div><div class="val">2.60<small>GiB</small></div></div>
+    <div class="row"><div class="name">Agenta</div><div class="track"><div class="bar" style="width:71.0%"></div></div><div class="val">2.62<small>GiB</small></div></div>
+    <div class="row"><div class="name">Opik</div><div class="track"><div class="bar" style="width:100%"></div></div><div class="val">3.69<small>GiB</small></div></div>
+  </div>
+  <div class="foot">Same workstation, one stack at a time, 10–17 October 2026 · median of 12 docker stats readings after 5 minutes idle</div>
+</div>
+</body>
+</html>

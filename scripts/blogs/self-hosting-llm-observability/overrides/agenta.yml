@@ -1,0 +1,11 @@
+# Agenta self-host quick start: hosting/docker-compose/oss/docker-compose.gh.yml with
+# --profile with-web --profile with-traefik and env.oss.gh.example (see overrides/agenta.env).
+# Only change here: loopback host ports removed, since 5432 is taken on this host.
+services:
+  postgres:
+    ports: !reset []
+  seaweedfs:
+    ports: !reset []
+  traefik:
+    ports: !override
+      - "28080:80"

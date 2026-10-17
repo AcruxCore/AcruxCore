@@ -58,6 +58,9 @@ step inside a trace. Opik, Phoenix and Braintrust count spans or gigabytes, so t
 are not directly comparable with LangSmith's 5,000 traces. **Closed source** means the vendor
 publishes no server code.
 
+If you want the self-hostable tools at a glance, the [comparison page](https://acruxcore.com/compare) puts AcruxCore next
+to six self-hostable platforms, feature by feature.
+
 ![Three columns. Free with no ClickHouse: AcruxCore, MLflow, Arize Phoenix. Free but runs ClickHouse: Langfuse, Opik, Laminar. Needs a paid license: LangSmith, Braintrust, W&B Weave](/img/blog/langsmith-alternatives/03-selfhost.webp)
 
 ## Why teams look for a LangSmith alternative
@@ -467,5 +470,7 @@ to tracing, prompts and evals. Opik adds automatic prompt optimization.
 - [8 best Langfuse alternatives for startups](/blog/langfuse-alternatives): the same comparison,
   starting from Langfuse.
 - [Quickstart](/docs/getting-started/quickstart): sign up for AcruxCore and send a first trace.
+- [Self-hosting LLM observability: seven open-source tools measured](/blog/self-hosting-llm-observability):
+  memory, disk and trace storage for seven self-hosted stacks on one machine.
 - [Self-hosting AcruxCore](https://github.com/AcruxCore/AcruxCore#-self-hosting): the
   `docker compose` setup.

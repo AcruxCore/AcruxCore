@@ -1,0 +1,28 @@
+# The documented `docker run` for helicone/helicone-all-in-one, written as compose so it is
+# measured like the others. Volumes are the ones the docs say to mount for persistence;
+# host ports moved (3000/8585 are taken here) and the URL variables set to match.
+# Workaround 1 (not in the docs): ClickHouse migrations block on a y/N prompt; run by hand with
+#   docker exec <c> python3 /app/clickhouse/ch_hcone.py --upgrade --skip-confirmation --no-password --host localhost --port 8123
+services:
+  helicone:
+    image: helicone/helicone-all-in-one:${HELICONE_TAG:-latest}
+    ports:
+      - "43001:3000"
+      - "48585:8585"
+      - "49080:9080"
+    environment:
+      SITE_URL: http://localhost:43001
+      BETTER_AUTH_URL: http://localhost:43001
+      NEXT_PUBLIC_APP_URL: http://localhost:43001
+      NEXT_PUBLIC_HELICONE_JAWN_SERVICE: http://localhost:48585
+      S3_ENDPOINT: http://localhost:49080
+      # Workaround 2 (not in the docs): without it every log call fails with "Region is missing".
+      S3_REGION: us-east-1
+    volumes:
+      - helicone-postgres:/var/lib/postgresql/data
+      - helicone-clickhouse:/var/lib/clickhouse
+      - helicone-minio:/data
+volumes:
+  helicone-postgres:
+  helicone-clickhouse:
+  helicone-minio:

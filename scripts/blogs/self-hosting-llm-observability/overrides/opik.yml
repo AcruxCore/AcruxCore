@@ -1,0 +1,5 @@
+# Same files and profile as ./opik.sh (default = full Opik); only the frontend's host port moved (5173 is taken here).
+services:
+  frontend:
+    ports: !override
+      - "45173:5173"

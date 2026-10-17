@@ -213,6 +213,8 @@ called out in the week it ships and in the SDK release notes.
 - **Restored** — [AcruxCore vs Langfuse](/blog/acruxcore-vs-langfuse) and [AcruxCore vs LangSmith](/blog/acrux-core-vs-langsmith) are back at their own URLs.
 - Retired docs, blog and tag URLs now return a permanent 301 redirect to the page that replaced them.
 - The [Press page](https://acruxcore.com/press) adds an AI Agents Directory badge.
+- **Fixed** — the README's production self-host steps left out creating the `mynetwork` network.
+- **New post** — [Self-hosting LLM observability: seven open-source tools measured](/blog/self-hosting-llm-observability).
 
 ---
 

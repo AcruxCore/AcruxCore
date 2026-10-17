@@ -1,0 +1,4 @@
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+{"traces": 1000, "spans": 3000, "seconds": 0.2}

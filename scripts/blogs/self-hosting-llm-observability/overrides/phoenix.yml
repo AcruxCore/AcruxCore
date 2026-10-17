@@ -1,0 +1,9 @@
+# Published image instead of a source build (as the self-hosting docs show), pinned; host ports moved.
+services:
+  phoenix:
+    build: !reset null
+    image: arizephoenix/phoenix:version-20.20.0
+    ports: !override
+      - "46006:6006"
+  db:
+    ports: !reset []

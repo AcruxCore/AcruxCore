@@ -353,3 +353,7 @@ same 10 minutes.
   [AcruxCore vs LangSmith](/blog/acrux-core-vs-langsmith).
 - More tools compared: [9 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison),
   [8 LangSmith alternatives](/blog/langsmith-alternatives) and [8 Langfuse alternatives](/blog/langfuse-alternatives).
+- What self-hosting Langfuse takes next to six other self-hosted tools:
+  [Self-hosting LLM observability: seven open-source tools measured](/blog/self-hosting-llm-observability).
+- At a glance: the [comparison page](https://acruxcore.com/compare) puts AcruxCore next to Langfuse and five other
+  self-hostable platforms, feature by feature.

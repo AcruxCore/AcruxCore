@@ -1,0 +1,17 @@
+# Repo's quickstart compose (docker-compose.local.yml) with the published images.
+# Fixed container names dropped and host ports moved, so it can run beside another copy.
+services:
+  postgres:
+    container_name: !reset null
+  redis:
+    container_name: !reset null
+  api:
+    container_name: !reset null
+    ports: !override
+      - "43001:3001"
+  worker:
+    container_name: !reset null
+  web:
+    container_name: !reset null
+    ports: !override
+      - "48080:80"

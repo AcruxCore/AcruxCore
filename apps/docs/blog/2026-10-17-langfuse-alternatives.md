@@ -60,6 +60,9 @@ A **unit** on Langfuse is one trace, one step inside a trace, or one score. A **
 step inside a trace. "Data stores" counts databases, caches, queues and file stores, not the
 application containers. **Closed source** means the vendor publishes no server code.
 
+If you want the self-hostable tools at a glance, the [comparison page](https://acruxcore.com/compare) puts AcruxCore
+next to Langfuse and five other self-hostable platforms, feature by feature.
+
 ![Two columns. No ClickHouse: AcruxCore on Postgres and Redis, MLflow on SQLite, Arize Phoenix on SQLite or Postgres. Runs ClickHouse: Langfuse, Opik, Laminar and OpenLIT, each with its other data stores](/img/blog/langfuse-alternatives/03-selfhost.webp)
 
 ## Why look for alternatives to Langfuse?
@@ -497,5 +500,7 @@ beta, and Braintrust has a hosted one in preview.
   step by step.
 - [8 LangSmith alternatives for startups](/blog/langsmith-alternatives): the same comparison,
   starting from LangSmith.
+- [Self-hosting LLM observability: seven open-source tools measured](/blog/self-hosting-llm-observability):
+  memory, disk and trace storage for Langfuse, AcruxCore and five more stacks on one machine.
 - [Self-hosting AcruxCore](https://github.com/AcruxCore/AcruxCore#-self-hosting): the
   `docker compose` setup.

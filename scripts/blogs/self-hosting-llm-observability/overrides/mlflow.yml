@@ -1,0 +1,13 @@
+# Repo's docker-compose/ setup with .env.dev.example (version pinned, port moved).
+# Fixed container_name values removed: "storage" clashes with a container already on this host.
+services:
+  postgres:
+    container_name: !reset null
+    ports: !reset []
+  storage:
+    container_name: !reset null
+    ports: !reset []
+  create-bucket:
+    container_name: !reset null
+  mlflow:
+    container_name: !reset null

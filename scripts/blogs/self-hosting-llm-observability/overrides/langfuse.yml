@@ -1,0 +1,33 @@
+# Pinned to the latest release; host ports moved; headless init so a project + API keys exist.
+services:
+  langfuse-worker:
+    image: docker.langfuse.com/langfuse/langfuse-worker:4.56.0
+    ports: !override
+      - 127.0.0.1:43030:3030
+    environment:
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://localhost:49090
+  langfuse-web:
+    image: docker.langfuse.com/langfuse/langfuse:4.56.0
+    ports: !override
+      - 43000:3000
+    environment:
+      NEXTAUTH_URL: http://localhost:43000
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://localhost:49090
+      LANGFUSE_INIT_ORG_ID: bench-org
+      LANGFUSE_INIT_ORG_NAME: bench
+      LANGFUSE_INIT_PROJECT_ID: bench-project
+      LANGFUSE_INIT_PROJECT_NAME: bench
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: pk-lf-bench
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: sk-lf-bench
+      LANGFUSE_INIT_USER_EMAIL: bench@example.com
+      LANGFUSE_INIT_USER_NAME: bench
+      LANGFUSE_INIT_USER_PASSWORD: bench-password-123
+  clickhouse:
+    ports: !reset []
+  minio:
+    ports: !override
+      - 49090:9000
+  redis:
+    ports: !reset []
+  postgres:
+    ports: !reset []
