@@ -2,6 +2,7 @@ import nodePath from 'node:path';
 import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
+import {REDIRECTS} from './redirects';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -379,51 +380,13 @@ const config: Config = {
     ],
     [
       '@docusaurus/plugin-client-redirects',
-      {
-        // A guide that merges into another keeps its old URL working. These pages
-        // are linked from published articles and notebooks we cannot edit, so a
-        // 404 would strand a real reader. The plugin emits a static HTML page per
-        // entry, so a crawler follows it too.
-        redirects: [
-          { from: '/docs/guides/build-and-attach-a-tool', to: '/docs/guides/create-a-tool' },
-          {
-            from: '/docs/guides/define-a-tool-in-code-or-in-the-catalog',
-            to: '/docs/guides/create-a-tool',
-          },
-          {
-            from: '/docs/guides/manage-a-tools-lifecycle-via-the-sdk',
-            to: '/docs/guides/version-and-track-a-tool',
-          },
-          {
-            from: '/docs/guides/alias-and-track-usage-of-tools-in-the-catalog',
-            to: '/docs/guides/version-and-track-a-tool',
-          },
-          // Tags removed from blog/tags.yml as thin pages. Search Console still
-          // showed them in results, so each points at the page that now holds
-          // its intent: a competitor tag goes to that competitor's comparison
-          // post (the page the tag used to compete with), a topic tag to the
-          // closest of the five tags that remain.
-          ...[
-            ['comparison', '/blog/tags/llmops-comparison'],
-            ['walkthrough', '/blog/tags/llmops-comparison'],
-            ['llm-ops', '/blog'],
-            ['gateway', '/blog/tags/llm-gateway'],
-            ['byok', '/blog/tags/llm-gateway'],
-            ['performance', '/blog/tags/llm-latency'],
-            ['tracing', '/blog/tags/llm-tracing'],
-            ['tools', '/blog/tags/llm-tracing'],
-            ['sdk', '/blog/tool-agent-sdk-langchain-vs-acruxcore'],
-            ['langsmith', '/blog/acrux-core-vs-langsmith'],
-            ['langfuse', '/blog/acruxcore-vs-langfuse'],
-            ['helicone', '/blog/acruxcore-vs-helicone'],
-            ['opik', '/blog/acruxcore-vs-opik'],
-            ['phoenix', '/blog/acruxcore-vs-phoenix'],
-            ['mlflow', '/blog/acruxcore-vs-mlflow'],
-            ['promptlayer', '/blog/promptlayer-hands-on-walkthrough'],
-          ].map(([tag, to]) => ({ from: `/blog/tags/${tag}`, to })),
-        ],
-      },
+      // Meta-refresh fallback pages; see redirects.ts for why the same list
+      // also feeds the Cloudflare `_redirects` plugin below.
+      {redirects: [...REDIRECTS]},
     ],
+    // Writes `_redirects` so Cloudflare Pages serves a real 301 for every
+    // retired URL in redirects.ts.
+    ['./plugins/cloudflare-redirects.ts', {redirects: REDIRECTS}],
     // Emits /llms.txt after the build — a Markdown index of every page, written
     // for the AI crawlers that reach the docs through an answer engine rather
     // than through search. Generated from each page's own front matter so it

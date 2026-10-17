@@ -341,5 +341,5 @@ same 10 minutes.
 - [The scripts folder on GitHub](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/langfuse-vs-langsmith):
   the agent, both platform scripts, the dataset, both prompt versions, a README with the
   commands, and `RUNLOG.md` with the raw output of every step.
-- Each platform against AcruxCore: [AcruxCore vs Langfuse](/blog/acruxcore-vs-langfuse) and
-  [AcruxCore vs LangSmith](/blog/acrux-core-vs-langsmith).
+- Both platforms against AcruxCore, on the same app:
+  [AcruxCore vs Langfuse vs LangSmith](/blog/acruxcore-vs-langfuse-vs-langsmith).
