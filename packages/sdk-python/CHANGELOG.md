@@ -12,6 +12,8 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+## 0.18.0 — 2026-10-17
+
 ### Added
 
 - `traces.analytics()` returns `cost_per_trace` (a `CostPerTrace` with `p50` and `p99`), the median

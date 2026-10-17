@@ -58,7 +58,7 @@ def get_weather_local(city: str) -> dict[str, Any]:
 
 async def main() -> None:
     async with AcruxCore(api_key=os.environ["ACRUXCORE_API_KEY"], base_url=BASE_URL) as client:
-        result = await client.run_tool_loop(
+        result = await client.gateway.run_tool_loop(
             model=MODEL_ACRUXCORE,
             messages=build_messages(),
             # One argument replaces the register-then-reference dance: the loop syncs

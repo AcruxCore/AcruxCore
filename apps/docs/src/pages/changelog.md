@@ -159,7 +159,7 @@ called out in the week it ships and in the SDK release notes.
 - `GET /runs/:id/compare` returns the same, for two cells of one run or two runs on one dataset.
   [Guide →](/docs/guides/evaluate-a-prompt#see-which-examples-changed)
 
-#### Both SDKs: trace your own app's steps (next SDK release)
+#### SDKs 0.18.0: trace your own app's steps
 
 - `traces.step` (both SDKs) and `traces.wrap` (Node) trace your code; model calls nest under it.
 - `AcruxCoreSync` gives the Python client blocking calls, for code that is not async.
@@ -203,6 +203,9 @@ called out in the week it ships and in the SDK release notes.
 - The run report shows a baseline as "v1 (production)"; the report API returns `versionNumber`.
 - **Fixed** — the prompt Diff tab cut off long lines; they now wrap, so a changed rule is readable.
 - **Fixed** — a prompt's Audit tab now shows which version an alias moved from and to.
+- **Fixed** — the Tag and filter traces guide's SDK snippets failed on their first line; they now run.
+- **Fixed** — the no-code tool-agent tutorial's SDK tabs for secrets called a method no SDK has.
+- **Fixed** — the LangChain alternative post's AcruxCore code and its two scripts now run.
 - **New post** — [AcruxCore vs Langfuse vs LangSmith: one app tested end to end on all three](/blog/acruxcore-vs-langfuse-vs-langsmith).
 
 ---

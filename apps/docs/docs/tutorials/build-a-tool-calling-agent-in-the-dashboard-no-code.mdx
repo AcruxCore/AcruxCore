@@ -179,24 +179,40 @@ curl -X POST "$ACRUXCORE_BASE_URL/secrets" \
 ```
 
 </TabItem>
-<TabItem value="python-sdk" label="Python (SDK)">
+<TabItem value="python-sdk" label="Python">
+
+The SDKs have no secrets call yet, so this step calls the REST endpoint directly.
 
 ```python
-from acruxcore import AcruxCore
+import os
 
-async with AcruxCore() as hub:
-    secret = await hub.secrets.create(name="TMDB_KEY", value="<your tmdb key>")
-    print(f"secret_id={secret.id}")
+import httpx
+
+resp = httpx.post(
+    f"{os.environ['ACRUXCORE_BASE_URL']}/secrets",
+    headers={"Authorization": f"Bearer {os.environ['ACRUXCORE_API_KEY']}"},
+    json={"name": "TMDB_KEY", "value": "<your tmdb key>"},
+)
+resp.raise_for_status()
+print(f"secret_id={resp.json()['id']}")
 ```
 
 </TabItem>
-<TabItem value="node-sdk" label="Node (SDK)">
+<TabItem value="node-sdk" label="Node">
+
+The SDKs have no secrets call yet, so this step calls the REST endpoint directly.
 
 ```typescript
-import { acruxcore } from '@acruxcoreai/sdk';
-
-const hub = new acruxcore({ apiKey: process.env.ACRUXCORE_API_KEY });
-const secret = await hub.secrets.create({ name: 'TMDB_KEY', value: '<your tmdb key>' });
+const res = await fetch(`${process.env.ACRUXCORE_BASE_URL}/secrets`, {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${process.env.ACRUXCORE_API_KEY}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ name: 'TMDB_KEY', value: '<your tmdb key>' }),
+});
+if (!res.ok) throw new Error(`POST /secrets failed: ${res.status}`);
+const secret = await res.json();
 console.log(`secret_id=${secret.id}`);
 ```
 

@@ -64,7 +64,7 @@ from acruxcore import AcruxCore
 
 client = AcruxCore()
 
-result = await client.chat(
+result = await client.gateway.chat(
     "support-model",
     [{"role": "user", "content": "Hello"}],
     trace={
@@ -81,11 +81,11 @@ The SDK forwards `tags` and `metadata` as gateway headers automatically.
 Pass them in the trace options on any `chat()` or `runToolLoop()` call:
 
 ```typescript
-import { AcruxCore } from "@acruxcoreai/sdk";
+import AcruxCore from "@acruxcoreai/sdk";
 
 const client = new AcruxCore();
 
-const result = await client.chat({
+const result = await client.gateway.chat({
   model: "support-model",
   messages: [{ role: "user", content: "Hello" }],
   trace: {
@@ -485,7 +485,7 @@ each trace keeps its own tags and metadata but groups under the one session.
 Pass `session_id` in the trace options alongside your tags and metadata:
 
 ```python
-result = await client.chat(
+result = await client.gateway.chat(
     "support-model",
     [{"role": "user", "content": "Hello"}],
     trace={
@@ -504,7 +504,7 @@ loop inherits the session.
 Pass `sessionId` in the trace options alongside your tags and metadata:
 
 ```typescript
-const result = await client.chat({
+const result = await client.gateway.chat({
   model: "support-model",
   messages: [{ role: "user", content: "Hello" }],
   trace: {

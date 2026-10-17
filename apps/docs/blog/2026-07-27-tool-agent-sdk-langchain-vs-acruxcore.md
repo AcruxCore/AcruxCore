@@ -82,7 +82,7 @@ def get_weather_local(city: str) -> dict:
 
 
 async with AcruxCore() as client:
-    result = await client.run_tool_loop(
+    result = await client.gateway.run_tool_loop(
         model="gpt-4o-mini",
         messages=build_messages(),
         tools=[get_weather_local],
@@ -337,7 +337,7 @@ def get_weather_local(city: str) -> dict[str, Any]:
 
 async def main() -> None:
     async with AcruxCore(api_key=os.environ["ACRUXCORE_API_KEY"], base_url=BASE_URL) as client:
-        result = await client.run_tool_loop(
+        result = await client.gateway.run_tool_loop(
             model=MODEL_ACRUXCORE,
             messages=build_messages(),
             # One argument replaces the register-then-reference dance: the loop syncs
@@ -570,7 +570,7 @@ def get_weather_standalone(city: str) -> dict:
 
 async def main() -> None:
     async with AcruxCore(api_key=API_KEY, base_url=BASE_URL) as client:
-        result = await client.run_tool_loop(
+        result = await client.gateway.run_tool_loop(
             model=MODEL,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},

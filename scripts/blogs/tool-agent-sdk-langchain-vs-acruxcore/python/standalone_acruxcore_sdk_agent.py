@@ -55,7 +55,7 @@ def get_weather_standalone(city: str) -> dict:
 
 async def main() -> None:
     async with AcruxCore(api_key=API_KEY, base_url=BASE_URL) as client:
-        result = await client.run_tool_loop(
+        result = await client.gateway.run_tool_loop(
             model=MODEL,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
