@@ -29,7 +29,7 @@ const BADGE_HEIGHT = 64;
 /**
  * Directories that list AcruxCore. Add one once its listing is live, or earlier
  * when the directory only publishes the listing after its crawler finds the badge
- * (AI Agents Directory and Good AI Tools work that way).
+ * (AI Agents Directory works that way).
  */
 const BADGES: DirectoryBadge[] = [
   {
@@ -58,14 +58,6 @@ const BADGES: DirectoryBadge[] = [
     title: 'Discover AcruxCore on AI Agents Directory',
     width: 200,
     height: 50,
-  },
-  {
-    name: 'Good AI Tools',
-    href: 'https://goodaitools.com/ai/acruxcore',
-    imgSrc: 'https://goodaitools.com/assets/images/badge-dark.png',
-    alt: 'Good AI Tools',
-    width: 207,
-    height: 54,
   },
 ];
 

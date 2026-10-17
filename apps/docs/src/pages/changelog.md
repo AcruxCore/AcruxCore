@@ -209,7 +209,7 @@ called out in the week it ships and in the SDK release notes.
 - **New post** — [AcruxCore vs Langfuse vs LangSmith: one app tested end to end on all three](/blog/acruxcore-vs-langfuse-vs-langsmith).
 - **Removed** — the AcruxCore vs Langfuse and AcruxCore vs LangSmith posts; both URLs open the new post.
 - Retired docs, blog and tag URLs now return a permanent 301 redirect to the page that replaced them.
-- The [Press page](https://acruxcore.com/press) adds AI Agents Directory and Good AI Tools badges.
+- The [Press page](https://acruxcore.com/press) adds an AI Agents Directory badge.
 
 ---
 
