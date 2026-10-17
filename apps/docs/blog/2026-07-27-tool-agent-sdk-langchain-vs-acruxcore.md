@@ -1,20 +1,18 @@
 ---
-title: "LangChain alternative: the same tool-calling agent, built twice"
-description: A LangChain alternative for tool-calling agents, tested. We rewrote the same agent with LangChain's create_agent and the AcruxCore SDK's run_tool_loop, ran both live, and compared the code and traces.
+title: "AcruxCore vs LangChain: the same tool-calling agent, built twice"
+description: "AcruxCore vs LangChain for tool-calling agents, tested. We rewrote the same agent with LangChain's create_agent and the AcruxCore SDK's run_tool_loop, ran both live, and compared the code and traces."
 slug: tool-agent-sdk-langchain-vs-acruxcore
 authors: [acrux]
 tags: [llmops-comparison, llm-tracing]
 image: /img/social-card.png
-keywords: [langchain alternative, langchain alternatives, langchain create_agent, langchain vs acruxcore sdk, run_tool_loop, agent sdk comparison, langchain tool tracing, python llm agent sdk]
+keywords: [AcruxCore vs langchain, langchain create_agent, langchain vs acruxcore sdk, run_tool_loop, agent sdk comparison, langchain tool tracing, python llm agent sdk]
 ---
 
-In the [previous post](/blog/tool-calling-traces-langsmith-vs-acruxcore) we wrote the same
-tool-calling agent against a raw OpenAI-compatible client on both platforms and hand-rolled
-the loop. AcruxCore needed **105 lines** to LangSmith's **63** — we lost that one, and said so.
+The [previous post](/blog/tool-calling-traces-langsmith-vs-acruxcore) compares how
+LangSmith and AcruxCore trace the same tool-calling agent.
 
-This post is the other half: what happens when you use each platform's own abstraction
-instead of writing the loop yourself. LangChain's `create_agent` against the AcruxCore
-SDK's `run_tool_loop`. Same tool, same question, same model (`openai/gpt-4o-mini` via
+This post compares the code you write when the tool is a function in your own app.
+LangChain's `create_agent` runs against the AcruxCore SDK's `run_tool_loop`. Same tool, same question, same model (`openai/gpt-4o-mini` via
 OpenRouter), both run live.
 
 <!-- truncate -->

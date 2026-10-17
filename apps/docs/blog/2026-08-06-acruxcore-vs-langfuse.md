@@ -1,11 +1,11 @@
 ---
-title: "Langfuse alternative: org hierarchy vs a flat team"
-description: A Langfuse alternative tested hands-on — the same prompt rebuilt and run on both, with real screenshots, an SDK trace and a measured latency benchmark.
+title: "AcruxCore vs Langfuse: org hierarchy vs a flat team"
+description: "AcruxCore vs Langfuse tested hands-on — the same prompt rebuilt and run on both, with real screenshots, an SDK trace and a measured latency benchmark."
 slug: acruxcore-vs-langfuse
 authors: [acrux]
 tags: [llmops-comparison, prompt-management, llm-tracing]
 image: /img/social-card.png
-keywords: [langfuse alternative, langfuse alternatives, open source langfuse alternative, langfuse vs AcruxCore, llm ops comparison, prompt versioning, ai gateway, llm tracing]
+keywords: [AcruxCore vs langfuse, langfuse vs AcruxCore, llm ops comparison, prompt versioning, ai gateway, llm tracing]
 ---
 
 Langfuse is the LLM-ops platform we get compared to most often, and it deserves a real
@@ -356,3 +356,9 @@ builds one app on all three and measures it.
 
 Want to run this yourself? The [Quickstart](/docs/getting-started/quickstart) gets you
 from sign-up to a traced, gateway-routed call in about ten minutes.
+
+To compare more than two tools, [8 best Langfuse alternatives for startups](/blog/langfuse-alternatives)
+covers MLflow, OpenLIT, Laminar, Opik, Arize Phoenix, LangSmith and Braintrust as well.
+
+To compare Langfuse and LangSmith with each other, [Langfuse vs LangSmith](/blog/langfuse-vs-langsmith)
+runs one app end to end on both.

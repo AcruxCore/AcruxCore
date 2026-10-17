@@ -1,11 +1,11 @@
 ---
-title: "Arize Phoenix alternative: OTel tracing vs a gateway"
-description: An Arize Phoenix alternative tested hands-on — one prompt rebuilt on Phoenix and AcruxCore, with real screenshots, an SDK trace and a latency benchmark.
+title: "AcruxCore vs Arize Phoenix: OTel tracing vs a gateway"
+description: "AcruxCore vs Arize Phoenix tested hands-on — one prompt rebuilt on Phoenix and AcruxCore, with real screenshots, an SDK trace and a latency benchmark."
 slug: acruxcore-vs-phoenix
 authors: [acrux]
 tags: [llmops-comparison, llm-tracing]
 image: /img/social-card.png
-keywords: [arize phoenix alternative, phoenix alternative, arize phoenix alternatives, phoenix vs AcruxCore, llm ops comparison, prompt versioning, ai gateway, llm tracing, openinference]
+keywords: [AcruxCore vs arize phoenix, phoenix vs AcruxCore, llm ops comparison, prompt versioning, ai gateway, llm tracing, openinference]
 ---
 
 Arize Phoenix is the OTel-native tracing-and-eval project a lot of teams reach for
@@ -369,6 +369,9 @@ measured (**How tools are handled** above), and its local OSS install has no tea
 role, or audit concept whatsoever. AcruxCore does all three natively, in one
 integrated flow. See the full picture, including license, pricing, and team structure,
 on the [compare page](https://acruxcore.com/compare).
+
+To compare more tools, see [9 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison),
+[8 LangSmith alternatives](/blog/langsmith-alternatives) and [8 Langfuse alternatives](/blog/langfuse-alternatives).
 
 Want to run this yourself? The [Quickstart](/docs/getting-started/quickstart) gets you
 from sign-up to a traced, gateway-routed call in about ten minutes.

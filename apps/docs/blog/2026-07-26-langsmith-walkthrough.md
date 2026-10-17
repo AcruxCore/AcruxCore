@@ -202,6 +202,10 @@ dataset Experiments — works as expected.
 | Evaluation | Rich, mature evaluation suite with many built-in evaluators and a Pairwise Experiments UI | Datasets built from real production feedback, typed by hand, or imported from a CSV/JSON file |
 | Hosting & pricing | Self-hosting is an enterprise add-on | Open source and self-hostable by default |
 
+[Langfuse vs LangSmith](/blog/langfuse-vs-langsmith) runs one app end to end on LangSmith and
+Langfuse. [AcruxCore vs Langfuse vs LangSmith](/blog/acruxcore-vs-langfuse-vs-langsmith) builds
+the same app on all three platforms and measures each step.
+
 Want to see the same loop on AcruxCore? The
 [Quickstart](/docs/getting-started/quickstart) gets you from sign-up to a traced,
 gateway-routed call in about ten minutes.

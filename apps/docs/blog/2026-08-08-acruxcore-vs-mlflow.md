@@ -1,12 +1,12 @@
 ---
-title: "MLflow alternative: two gateways, one with guardrails"
-description: An MLflow alternative for LLM work, measured. We timed the same prompt through both gateways. MLflow's gateway added +135 to +225 ms, and ours added +21 to +43 ms.
+title: "AcruxCore vs MLflow: two gateways, one with guardrails"
+description: "AcruxCore vs MLflow for LLM work, measured. We timed the same prompt through both gateways. MLflow's gateway added +135 to +225 ms, and ours added +21 to +43 ms."
 slug: acruxcore-vs-mlflow
 date: 2026-08-11
 authors: [acrux]
 tags: [llmops-comparison, llm-gateway, prompt-management]
 image: /img/social-card.png
-keywords: [mlflow alternative, mlflow alternatives, mlflow ai gateway alternative, mlflow vs AcruxCore, llm ops comparison, ai gateway, prompt registry, mlflow tracing, mlflow guardrails]
+keywords: [AcruxCore vs mlflow, mlflow vs AcruxCore, llm ops comparison, ai gateway, prompt registry, mlflow tracing, mlflow guardrails]
 ---
 
 MLflow is the open-source ML/GenAI platform originally built at Databricks, and by far
@@ -438,6 +438,9 @@ inline where MLflow makes you dashboard-hunt for cost or make a second SDK call 
 lineage (**Sending a live call** and **Tracing & observability** above). See the full
 picture, including license, pricing, and team structure, on the [compare
 page](https://acruxcore.com/compare).
+
+To compare more tools, see [9 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison),
+[8 LangSmith alternatives](/blog/langsmith-alternatives) and [8 Langfuse alternatives](/blog/langfuse-alternatives).
 
 Want to run this yourself? The
 [Quickstart](/docs/getting-started/quickstart) gets you from sign-up to a traced,

@@ -62,12 +62,16 @@ as a matched, paired comparison directly against AcruxCore, using a second fixtu
 - [Hands-on with Langfuse](/blog/langfuse-hands-on-walkthrough)
 - [A hands-on walkthrough of PromptLayer](/blog/promptlayer-hands-on-walkthrough)
 - [A hands-on walkthrough of AcruxCore](/blog/acruxcore-hands-on-walkthrough)
-- [Arize Phoenix alternative](/blog/acruxcore-vs-phoenix)
-- [Opik alternative](/blog/acruxcore-vs-opik)
-- [MLflow alternative](/blog/acruxcore-vs-mlflow)
-- [Helicone alternative](/blog/acruxcore-vs-helicone)
-- [Laminar alternative](/blog/acruxcore-vs-laminar)
-- [Braintrust alternative](/blog/acruxcore-vs-braintrust)
+- [AcruxCore vs Arize Phoenix](/blog/acruxcore-vs-phoenix)
+- [AcruxCore vs Opik](/blog/acruxcore-vs-opik)
+- [AcruxCore vs MLflow](/blog/acruxcore-vs-mlflow)
+- [AcruxCore vs Helicone](/blog/acruxcore-vs-helicone)
+- [AcruxCore vs Laminar](/blog/acruxcore-vs-laminar)
+- [AcruxCore vs Braintrust](/blog/acruxcore-vs-braintrust)
+
+Two later posts build one app on the hosted platforms and measure each step:
+[Langfuse vs LangSmith](/blog/langfuse-vs-langsmith) and
+[AcruxCore vs Langfuse vs LangSmith](/blog/acruxcore-vs-langfuse-vs-langsmith).
 
 This post is the synthesis: what's actually different, what's genuinely unique to one
 platform, and an honest read on where AcruxCore stands next to the other eight.
@@ -1184,11 +1188,15 @@ paired comparison against AcruxCore using the same fixture prompt each time:
 - [Hands-on with LangSmith](/blog/langsmith-hands-on-walkthrough)
 - [Hands-on with Langfuse](/blog/langfuse-hands-on-walkthrough)
 - [A hands-on walkthrough of PromptLayer](/blog/promptlayer-hands-on-walkthrough)
-- [Arize Phoenix alternative](/blog/acruxcore-vs-phoenix) — OpenTelemetry tracing depth against a request-path gateway.
-- [Opik alternative](/blog/acruxcore-vs-opik) — guardrails, PII, and online evaluation against a working Tool Catalog.
-- [MLflow alternative](/blog/acruxcore-vs-mlflow) — the closest structural match of any competitor here; its gateway measured about 5× our overhead.
-- [Helicone alternative](/blog/acruxcore-vs-helicone) — two request-path proxies, and the real self-hosted bugs we hit around one of them.
-- [Laminar alternative](/blog/acruxcore-vs-laminar) — SQL over agent spans and a custom dashboard builder against prompt versioning and a request-path gateway.
+- [AcruxCore vs Arize Phoenix](/blog/acruxcore-vs-phoenix) — OpenTelemetry tracing depth against a request-path gateway.
+- [AcruxCore vs Opik](/blog/acruxcore-vs-opik) — guardrails, PII, and online evaluation against a working Tool Catalog.
+- [AcruxCore vs MLflow](/blog/acruxcore-vs-mlflow) — the closest structural match of any competitor here; its gateway measured about 5× our overhead.
+- [AcruxCore vs Helicone](/blog/acruxcore-vs-helicone) — two request-path proxies, and the real self-hosted bugs we hit around one of them.
+- [AcruxCore vs Laminar](/blog/acruxcore-vs-laminar) — SQL over agent spans and a custom dashboard builder against prompt versioning and a request-path gateway.
+- [Langfuse vs LangSmith](/blog/langfuse-vs-langsmith) — one app run end to end on both hosted platforms.
+- [AcruxCore vs Langfuse vs LangSmith](/blog/acruxcore-vs-langfuse-vs-langsmith) — the same app built and measured on all three.
+- [8 LangSmith alternatives](/blog/langsmith-alternatives) — license, self-hosting, price and features for eight tools, starting from LangSmith.
+- [8 Langfuse alternatives](/blog/langfuse-alternatives) — the same comparison, starting from Langfuse.
 
 And for the full license, pricing, team-structure, security, and community picture across the
 six self-hostable competitors next to AcruxCore, see the [compare page](https://acruxcore.com/compare).

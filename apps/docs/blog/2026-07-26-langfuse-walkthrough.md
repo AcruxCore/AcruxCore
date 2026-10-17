@@ -225,6 +225,7 @@ side by side? Read the
 [full Langfuse vs AcruxCore comparison](/blog/acruxcore-vs-langfuse). The same app is built
 and measured on AcruxCore, Langfuse and LangSmith in
 [AcruxCore vs Langfuse vs LangSmith](/blog/acruxcore-vs-langfuse-vs-langsmith).
+[Langfuse vs LangSmith](/blog/langfuse-vs-langsmith) compares the two hosted platforms on one app.
 
 Want to see the same loop on AcruxCore? The
 [Quickstart](/docs/getting-started/quickstart) gets you from sign-up to a traced,

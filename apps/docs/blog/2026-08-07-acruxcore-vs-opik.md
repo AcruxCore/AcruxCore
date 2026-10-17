@@ -1,11 +1,11 @@
 ---
-title: "Opik alternative: guardrails, PII and online evaluation"
-description: An Opik alternative tested hands-on — one prompt rebuilt on self-hosted Opik and AcruxCore, with real screenshots, an SDK trace and a latency benchmark.
+title: "AcruxCore vs Opik: guardrails, PII and online evaluation"
+description: "AcruxCore vs Opik tested hands-on — one prompt rebuilt on self-hosted Opik and AcruxCore, with real screenshots, an SDK trace and a latency benchmark."
 slug: acruxcore-vs-opik
 authors: [acrux]
 tags: [llmops-comparison, prompt-management, llm-tracing]
 image: /img/social-card.png
-keywords: [opik alternative, opik alternatives, comet opik alternative, opik vs AcruxCore, llm ops comparison, prompt versioning, ai gateway, llm tracing]
+keywords: [AcruxCore vs opik, opik vs AcruxCore, llm ops comparison, prompt versioning, ai gateway, llm tracing]
 ---
 
 Opik is Comet's open-source LLM-ops platform, and unlike some competitors we've covered
@@ -393,6 +393,9 @@ above), and its Playground doesn't produce a trace, only a wrapped SDK call does
 (**Tracing & observability** above). AcruxCore's gateway, tool catalog, and
 feedback-driven datasets stay in one integrated flow. See the full picture, including
 license, pricing, and team structure, on the [compare page](https://acruxcore.com/compare).
+
+To compare more tools, see [9 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison),
+[8 LangSmith alternatives](/blog/langsmith-alternatives) and [8 Langfuse alternatives](/blog/langfuse-alternatives).
 
 Want to run this yourself? The [Quickstart](/docs/getting-started/quickstart) gets you
 from sign-up to a traced, gateway-routed call in about ten minutes.

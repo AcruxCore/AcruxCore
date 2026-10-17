@@ -328,5 +328,7 @@ read the numbers back through each platform's API.
   output of every step.
 - [The Langfuse and LangSmith legs](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/langfuse-vs-langsmith),
   with their own run log.
-- One platform at a time: the [Langfuse alternative](/blog/acruxcore-vs-langfuse) post and the
-  [LangSmith alternative](/blog/acrux-core-vs-langsmith) post.
+- One platform at a time: [AcruxCore vs Langfuse](/blog/acruxcore-vs-langfuse) and
+  [AcruxCore vs LangSmith](/blog/acrux-core-vs-langsmith).
+- More tools compared: [9 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison),
+  [8 LangSmith alternatives](/blog/langsmith-alternatives) and [8 Langfuse alternatives](/blog/langfuse-alternatives).

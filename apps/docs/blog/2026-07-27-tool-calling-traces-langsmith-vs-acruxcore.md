@@ -1,44 +1,44 @@
 ---
 title: "Tool-call traces: LangSmith vs AcruxCore"
-description: We built the same weather tool twice — a traced Python function on LangSmith, a versioned Tool Catalog entry on AcruxCore — ran both live, and counted the code.
+description: We built the same weather agent twice, with a traced Python function on LangSmith and a catalog tool bound to a prompt on AcruxCore, ran both live, and compared the traces and the code.
 slug: tool-calling-traces-langsmith-vs-acruxcore
 authors: [acrux]
 tags: [llmops-comparison, llm-tracing]
 image: /img/social-card.png
-keywords: [langsmith tool calling, tool call tracing, langsmith vs acruxcore, tool catalog, llm tool observability, streaming tool calls]
+keywords: [langsmith tool calling, tool call tracing, langsmith vs acruxcore, tool catalog, llm tool observability, streaming tool calls, run_prompt_with_tools]
 ---
 
-A tool call is where an agent stops being a text generator and starts touching the world.
-It is also where tracing earns its keep: when an agent gives a wrong answer, the question
-is almost never "what did the model say" — it is "what did the tool return, and how long
-did it take".
+A tool call is the point where an agent stops producing text and calls code or an API.
+When an agent gives a wrong answer, the first question is usually what the tool returned
+and how long it took. A trace of the run has to answer that.
 
-So we built the same tool twice and ran it for real. Same tool, same question, same model
-(`openai/gpt-4o-mini` through OpenRouter on both sides, so nothing hides behind a model
-difference). One run traced by **LangSmith**, one by **AcruxCore**. Then we did it again
-with streaming, which is where we found a bug in our own product.
+We built the same agent twice and ran both live. The two agents use the same tool, the same
+question and the same model: `openai/gpt-4o-mini` through OpenRouter. **LangSmith** traces one run
+and **AcruxCore** traces the other. Then we ran both again with streaming.
 
-Every number and every output below comes from a run we actually executed, and
-[all three scripts are at the end of the post](/blog/tool-calling-traces-langsmith-vs-acruxcore#run-it-yourself-the-complete-scripts)
+Every number and every output below comes from those runs. The scripts for both platforms
+are [at the end of the post](/blog/tool-calling-traces-langsmith-vs-acruxcore#run-it-yourself-the-complete-scripts)
 in full.
 
 <!-- truncate -->
 
 ## The tool
 
-`get_weather(city)` over the public wttr.in endpoint, trimmed down to five fields — because
-the raw response is a 39KB forecast blob and no model needs that:
+`get_weather(city)` calls the public wttr.in endpoint. The raw response is a 39KB forecast,
+so the tool trims it to five fields before the model sees it:
 
 ```json
-{"location":"Rehmanpura","temp_c":38,"feels_like_c":33,"condition":"Sunny","humidity_pct":38}
+{"location":"Rehmanpura","temp_c":26,"feels_like_c":25,"condition":"Clear ","humidity_pct":34}
 ```
 
-Both legs import one shared module for the loop and the question, so the only differences
-between them are where the LLM call goes and how the run is traced.
+The LangSmith scripts and the AcruxCore scripts import one shared module. The module holds
+the tool, the system prompt and the question. So the two platforms' scripts differ only in
+where each piece is stored and how the run is traced.
 
 ## LangSmith: the tool is a decorated function
 
-On LangSmith a tool is a Python function you own. Tracing is two imports and two decorators:
+On LangSmith, a tool is a Python function in your code. Tracing it takes two imports and
+two decorators:
 
 ```python
 client = wrap_openai(OpenAI(api_key=..., base_url="https://openrouter.ai/api/v1"))
@@ -52,297 +52,285 @@ def run_agent() -> dict:
     ...
 ```
 
-`wrap_openai` turns every completion into an `llm` span with token counts. `@traceable`
-turns the tool into a `tool` span. That is the entire instrumentation, and it is genuinely
-pleasant — you add tracing to code you already wrote without restructuring it.
+`wrap_openai` records every completion as an `llm` run with token counts. `@traceable`
+records the tool as a `tool` run. You add both to code you already have, and nothing else
+in that code changes. The loop that calls the model, runs the tool and calls the model
+again is yours to write.
 
-The resulting trace, from a real run:
+The trace from the run:
 
 ```
-weather-tool-agent          3.72s   376 tokens
-├─ ChatOpenAI               1.83s   145
-├─ get_weather              0.60s
-└─ ChatOpenAI               1.28s   231
+weather-tool-agent          3.28s   377 tokens
+├─ ChatOpenAI               1.45s   145
+├─ get_weather              0.52s
+└─ ChatOpenAI               1.23s   232
 ```
 
-## AcruxCore: the tool is a catalog artifact, declared in code
+## AcruxCore: the tool and the prompt are stored on the platform
 
-There are two ways a tool gets into AcruxCore, and the choice follows from one question:
-**who runs the tool body?** A function in your own code gets an `@acrux.tool` decorator and
-runs in your process. An HTTP request to some API gets an `http` executor and the platform
-runs it. Either way you end up with the same artifact — a versioned catalog entry with
-`production`/`staging` aliases — and neither needs a setup step before the script runs.
+On AcruxCore, three things that the LangSmith script keeps in Python files are stored on the
+platform instead:
 
-This leg uses the second, because the whole point of it is that the platform makes the
-outbound call.
+- **The tool** is an entry in the Tool Catalog. Each version holds the schema the model
+  reads and an executor that says who runs the tool.
+- **The prompt** is a versioned prompt. Each version holds the messages and the model it
+  runs on.
+- **The binding** attaches the tool to the prompt. When the prompt runs, the model can call
+  every tool bound to it.
 
-### What an `http` executor actually is
+The agent then asks for the prompt by name and runs it.
 
-It is a **recipe for one HTTP request**, stored on the tool version. Not your code running
-somewhere else — there is no code of yours involved at all. It holds four things:
+### The tool: an `http` executor
 
-- a **method and URL**, where `{{arg.NAME}}` is filled in from the arguments the model
-  produced and `{{secret.NAME}}` from a secret you stored on the team;
-- **headers** and **query params**, with the same templating, which is how an API key gets
-  attached without ever being in your repo;
-- an optional **request transform** — JavaScript that reshapes the arguments into a request
-  body;
-- an optional **response transform** — JavaScript that reshapes what came back before the
-  model sees it.
+An executor says who runs the tool body. A `client` executor means your own process runs a
+function. An `http` executor means the platform makes an HTTP request for you. This post uses
+`http`, so no tool code runs in the agent's process at all.
 
-Both transforms run server-side in a locked-down isolate: no network, no filesystem, a
-one-second budget. They can reshape JSON around a call; they cannot *be* the tool.
+An `http` executor is a description of one HTTP request, stored on the tool version. It holds
+four things:
 
-So where LangSmith's version has a function body, this one has a target URL and a response
-transform the platform will run:
+- a **method and URL**. `{{arg.NAME}}` is filled in from the arguments the model produced,
+  and `{{secret.NAME}}` from a secret stored on your team;
+- **headers** and **query params**, with the same placeholders, so an API key never sits in
+  your repo;
+- an optional **request transform**, JavaScript that builds the request body from the
+  arguments;
+- an optional **response transform**, JavaScript that reshapes the reply before the model
+  sees it.
+
+Both transforms run on the server in an isolated sandbox. The sandbox has no network and no
+filesystem, and a transform gets one second. So a transform can reshape JSON, but it cannot
+make a call of its own.
+
+Where the LangSmith script has a function body, the AcruxCore tool has a URL and a response
+transform. You fill them in on the tool's **New version** form in the dashboard, and no code
+of yours holds them:
+
+![The get_weather version's http executor in the dashboard: method GET, a URL with an arg placeholder, the format query param, and the response transform](/img/blog/tool-comparison/01-http-executor.png)
+
+### The setup: once per team
+
+The tool, the prompt and the binding are created once, in the dashboard. If you would rather
+keep them in code, `setup_acruxcore.py` makes the same calls. It sends the executor from the
+form above as a Python dict, and these are its main lines:
 
 ```python
-WEATHER_HTTP_EXECUTOR = {
-    "type": "http",
-    "url": "https://wttr.in/{{arg.city}}",       # {{arg.NAME}} interpolates the model's args
-    "method": "GET",
-    "query": [{"name": "format", "value": "j1"}],
-    # Trims wttr.in's ~39KB forecast to the same five fields. Runs server-side in a
-    # locked-down isolate: no network, no filesystem, 1s budget.
-    "responseTransform": (
-        "function transform(input) {"
-        " const c = input.body.current_condition[0];"
-        " return { location: input.body.nearest_area[0].areaName[0].value,"
-        "          temp_c: Number(c.temp_C), feels_like_c: Number(c.FeelsLikeC),"
-        "          condition: c.weatherDesc[0].value,"
-        "          humidity_pct: Number(c.humidity) };"
-        " }"
-    ),
-}
+tool_id = (await hub.tools.create(name="get_weather")).id
+await hub.tools.commit_version(tool_id, parameters_schema=..., executor=WEATHER_HTTP_EXECUTOR,
+                               description=...)
+
+prompt_id = (await hub.prompts.create(name="weather-advisor")).id
+await hub.prompts.commit_version(prompt_id, model="gpt-4o-mini", messages=[
+    {"role": "system", "content": SYSTEM_PROMPT},
+    {"role": "user", "content": "Should I go for a run in {{ city }} this evening?"},
+])
+
+await hub.prompts.set_tool_binding(prompt_id, tool_id, tool_alias="production")
 ```
 
-Getting that into the catalog is one call:
+`gpt-4o-mini` here is a model registered in the gateway, and it points at
+`openai/gpt-4o-mini` on OpenRouter. The binding follows the tool's own `production` alias,
+so the prompt runs whichever tool version that alias points at. The prompt's **Tools** tab
+shows the binding:
+
+![The weather-advisor prompt's Tools tab: get_weather is bound by default and follows the tool's production alias, v1](/img/blog/tool-comparison/05-prompt-tool-binding.png)
+
+### The agent: a render and one call
+
+With the setup done, the agent script is two calls:
 
 ```python
-catalog = session.post(f"{BASE_URL}/tools/sync", json={
-    "name": "get_weather", "description": ...,
-    "parametersSchema": ..., "executor": WEATHER_HTTP_EXECUTOR,
-}).json()   # → {"toolId", "versionNumber", "committed", "alias"}
+async with AcruxCore(api_key=os.environ["ACRUXCORE_API_KEY"], base_url=BASE_URL) as hub:
+    rendered = await hub.prompts.render("weather-advisor", "production", {"city": "Lahore"})
+    result = await hub.gateway.run_prompt_with_tools(
+        rendered, trace={"name": "weather-tool-agent"}
+    )
 ```
 
-`POST /tools/sync` is create-or-commit-or-nothing: it creates the tool when the name is new,
-commits a version only when the submitted spec differs from the live one, and moves the alias
-when it commits. So re-running the script makes one request and changes nothing — which is
-what makes it safe at the top of a script rather than a one-off setup step you do in a
-terminal and then forget to count.
+The render returns the filled-in messages, the bound model, the bound tools and the id of
+the prompt version. `run_prompt_with_tools` reads all four from it and runs the loop. The
+script has no tool schema, no system prompt, no model name and no trace id.
 
-Once it has run, the same executor is what the dashboard shows for that version — the
-dictionary above and this form are the same object:
+When the model asks for `get_weather`, three steps follow:
 
-![The get_weather version http executor in the dashboard: method GET, a URL with an arg placeholder, and a query param](/img/blog/tool-comparison/01-http-executor.png)
+1. **The SDK** sees that the tool's version has an `http` executor. It posts the model's
+   arguments to `POST /tools/:id/execute`, with the current trace id.
+2. **The platform** fills in the URL, calls wttr.in, runs the response transform, writes a
+   `tool` span and returns the trimmed result.
+3. **The SDK** adds the result to the conversation as a `role: tool` message and calls the
+   model again.
 
-![The same version response transform: the JavaScript that trims the wttr.in payload server-side](/img/blog/tool-comparison/02-response-transform.png)
+In the LangSmith script, step 2 is a function call inside your own process.
 
-You can author a tool this way instead of posting it — the fields are the same either way,
-which is why a tool created by a script stays editable by a teammate who has never opened the
-repo.
+### The trace
 
-The script then reads the live schema back out by name, rather than sending the model the
-literal it just posted:
+The trace from the run:
+
+```
+weather-tool-agent          3 spans   381 tokens   $0.0000846
+├─ llm  gpt-4o-mini           1.62s    145
+│   └─ tool get_weather         705ms        ← run by the platform
+└─ llm  gpt-4o-mini           1.40s    236
+```
+
+The tool span records who ran the tool and which version ran:
+
+![The tool span expanded: executorType http, httpStatus 200, the tool version id, transformApplied true, and the input and output](/img/blog/tool-comparison/03-http-tool-span.png)
+
+`executorType: http` says the platform made the call. `transformApplied: true` says the reply
+was trimmed on the server before the model saw it. `toolVersionId` names the exact tool
+version that ran. Months later, the trace of a bad answer still says which definition of the
+tool produced it.
+
+Each `llm` span holds the id of the prompt version it ran and the variables the prompt was
+rendered from, here `{"city": "Lahore"}`:
+
+![The first llm span expanded: model openai/gpt-4o-mini, cost $0.0000289, and a link to every trace of this prompt version](/img/blog/tool-comparison/06-llm-span-prompt-version.png)
+
+The link **View traces for this prompt version** lists every run of that version. In the
+LangSmith script, the prompt is a string in a Python file, so its trace has no prompt version
+to link to.
+
+The 705ms is not a speed result. The API and the client ran on the same machine, so the
+number only shows that wttr.in answered.
+
+### Changing a piece without changing the agent
+
+The agent script names only the prompt and its alias. A change to any of the three stored
+pieces reaches it without an edit or a redeploy:
+
+- Commit a new tool version and move the tool's `production` alias, and the next render
+  binds the new version.
+- Commit a new prompt version and move the prompt's `production` alias, and the next render
+  returns the new messages and model.
+- Bind a second tool to the prompt, and the next render includes it.
+
+The SDK caches a render for 60 seconds by default, so a change reaches a running agent
+within that time.
+
+If the tool body is a function in your own code, its version gets a `client` executor
+instead. You pass the function by the tool's name, and the SDK runs it:
 
 ```python
-resolved = session.post(f"{BASE_URL}/tools/resolve",
-                        json={"refs": [{"name": "get_weather"}]}).json()["data"][0]
-tool_schema = {"type": "function", "function": resolved["function"]}
+result = await hub.gateway.run_prompt_with_tools(
+    rendered, client_tools={"get_weather": get_weather}
+)
 ```
 
-That round-trip looks redundant in a script that owns both ends, and it is the point of the
-catalog: `POST /tools/resolve` returns whatever version the alias points at right now, as an
-OpenAI-shaped function definition, plus whether the platform can run it
-(`executorType: "http"` here). Promote a new version from the dashboard and the running agent
-picks it up on its next call, with no redeploy.
-
-Then, when the model asks for the tool, the split of work is:
-
-1. **You** post the model's arguments to `POST /tools/:id/execute`.
-2. **The platform** fills the URL template, makes the request to wttr.in, runs the response
-   transform, records a `tool` span, and returns the trimmed result.
-3. **You** append that result as a `role: tool` message and call the model again.
-
-Step 2 is the whole difference from the LangSmith leg, where step 2 is a local function call.
-
-The client-side tracing code for this is: none. There is no tracing SDK, no decorator, no
-span object. There is one header:
-
-```python
-extra_headers = {"x-trace-id": TRACE_ID, "x-trace-name": quote("weather-tool-agent")}
-```
-
-and one field on the execute call:
-
-```python
-{"arguments": {"city": "Lahore"}, "traceContext": {"traceId": TRACE_ID, "parentSpanId": llm_span_id}}
-```
-
-The trace from the real run:
-
-```
-weather-tool-agent          3 spans   383 tokens
-├─ llm  (openai/gpt-4o-mini)  1.41s   137
-│   └─ tool get_weather        721ms         ← executed by the platform
-└─ llm  (openai/gpt-4o-mini)  1.09s   246
-```
-
-The tool span is where the difference shows up, and it is not the timing:
-
-![The tool span expanded, showing executorType http, the tool version id, and transformApplied](/img/blog/tool-comparison/03-http-tool-span.png)
-
-`executorType: http` says the platform made the call; `transformApplied: true` says the
-response was trimmed server-side before the model saw it; and `toolVersionId` names the exact
-version that ran. That last one is what a decorated local function cannot tell you — six
-months later, a trace from a bad answer still says which definition of the tool produced it.
-
-The timing is not the argument. A hosted gateway sitting next to your provider can be faster
-than a laptop in another country, but this run had the API and the client on the same machine,
-so 721ms is evidence of nothing except that wttr.in was reachable.
+The tool span then says `executorType: client`, and it still names the tool version.
+[Call a prompt's tools from the SDK](/docs/guides/call-a-prompts-tools-from-the-sdk) covers
+both executors.
 
 ## Counting the code
 
-One rule for this to mean anything: **each script must run on its own**, with no setup done
-beforehand in a terminal. The LangSmith scripts pass that trivially — the tool is a function
-in the file. The AcruxCore scripts have to register their tool in the catalog first, so
-that registration is in the code too, and it counts.
-
-Lines of real code, excluding docstrings, comments, and blank lines:
+Lines of code, without docstrings, comments and blank lines:
 
 | | LangSmith | AcruxCore |
 |---|---|---|
-| Non-streaming agent | **63** | **105** |
-| Streaming agent | **83** | **113** |
-| Shared registration helper | — | **none** |
+| Agent | **65** | **19** |
+| Streaming agent | **70** | **25** |
+| One-time setup | none | **45**, or none if you use the dashboard |
 
-**AcruxCore is more code in every mode**, and that is the honest total — there is no helper
-hiding off-page. The extra ~40 lines are three things the LangSmith leg does not do: post the
-tool spec, resolve the live version back, and call `POST /tools/:id/execute` with a trace
-context instead of calling a local function.
+Add the setup to the AcruxCore agent, and the two platforms are close: 65 lines on LangSmith
+and 64 on AcruxCore. On LangSmith, the loop, the tracing and the tool are in every agent
+script. On AcruxCore, the setup runs once per team, and each agent script holds a render
+and one call.
 
-The shared module is excluded because both legs import it, and its two one-sided parts are
-about the same size: the `get_weather` function the LangSmith leg calls, and the `http`
-executor dictionary the AcruxCore leg posts. Read all three files in the toggles at the end
-and check the count yourself.
+The shared module is not counted, because scripts on both platforms import it. Three parts
+of the module are used by one platform only. The `get_weather` function is used only by the
+LangSmith scripts, and the `http` executor only by the AcruxCore setup. The streaming
+accumulator is used only by the LangSmith streaming script. It adds 41 lines that the 70 in
+the table do not include. All six files are in the toggles at the end, so you can check the
+counts.
 
-Two of those three are per-tool, not per-agent, and the third disappears entirely if you use
-the SDK instead of a raw client. The [SDK comparison](/blog/tool-agent-sdk-langchain-vs-acruxcore)
-measures that: `run_tool_loop` takes the same agent to **36 lines against LangChain's 50**.
-This post is the hand-rolled floor, not the recommended path.
+The [SDK comparison](/blog/tool-agent-sdk-langchain-vs-acruxcore) builds the same agent with
+LangChain's `create_agent` and with the AcruxCore SDK's `run_tool_loop`.
 
-What AcruxCore buys with those lines is a different ownership model. The LangSmith tool is
-a function in one file in one language. The catalog tool is a versioned artifact with
-aliases, promotion, server-side execution, and per-version analytics, usable from any
-language that can make an HTTP request. Whether that trade is worth it depends entirely on
-whether more than one service calls the tool.
+## Streaming tool calls
 
-## Streaming, and a bug in our own product
+A streamed tool call arrives in pieces. The id and the function name come in one frame, and
+the JSON arguments come a few characters at a time. A loop has to put the pieces back
+together before it can run the tool.
 
-Streaming is where tool calling stops being tidy. A streamed tool call arrives in pieces:
-the id and function name in one frame, then the JSON arguments a few characters at a time.
-Nothing reassembles that for you on **either** platform — we wrote a 28-line accumulator
-and both legs import it. If you are writing a streaming agent, budget for this.
+On LangSmith, that is the caller's job. `wrap_openai` traces the stream, but it does not
+hand an assembled tool call back to your code. The LangSmith streaming script joins the
+pieces with a 41-line accumulator and rebuilds the assistant message before it runs the
+tool. LangSmith recorded the streamed agent as 4 runs and 370 tokens, the same shape as
+without streaming.
 
-Then we ran the streaming AcruxCore leg and the trace was not there.
+On AcruxCore, streaming is one argument on the same call:
 
-```
-# streamed call, x-trace-id supplied, HTTP 200, content streamed fine
-GET /api/v1/traces/33b90f57-…  →  {"error":{"code":"NOT_FOUND"}}
-GET /gateway/usage             →  7 requests today   ← every streamed call billed
-```
-
-A `stream: true` gateway completion was writing its usage and billing row but **no trace
-and no span at all**. The cause was one missing call: `recordGatewaySpan` ran in the
-non-streaming `complete()` path and nowhere in the streaming `finalize()` path.
-
-It cascaded, too. Tool execution only joined a caller-supplied trace id if that trace
-*already existed*, so with the llm span missing, the tool span was filed into its own
-orphan trace named `tool:get_weather` — disconnected from the run it belonged to. And
-streamed responses never returned `x-gateway-span-id`, so even a correct trace could not
-have been nested under the streamed turn.
-
-Three fixes, all shipped in this release:
-
-1. The streaming path now writes its `llm` span from `finalize`, where usage and cost are
-   already known, and reassembles the streamed `tool_calls` so the span payload is not
-   empty for a tool-calling turn.
-2. `x-gateway-trace-id` and `x-gateway-span-id` are minted before the first chunk and
-   flushed with the response headers, so a client loop can nest spans under a streamed turn.
-3. `POST /tools/:id/execute` now *creates* a caller-supplied trace id when no such trace
-   exists — the same contract `POST /traces` already had — while still refusing another
-   team's id.
-
-### Verified in production
-
-We deployed the fix and re-ran the identical streaming script against production. The same
-run that produced nothing now produces a trace:
-
-```
-weather-tool-agent-stream     3 spans   354 tokens   status ok
-├─ llm  (gpt-4o-mini)         788ms    128
-├─ tool get_weather            38ms
-└─ llm  (gpt-4o-mini)         1124ms   226
+```python
+events = await hub.gateway.run_prompt_with_tools(rendered, stream=True)
+async for event in events:
+    if event.type == "content":
+        print(event.delta, end="", flush=True)
+    elif event.type == "tool_call":
+        print(f"[calling {event.name}({event.arguments})]")
 ```
 
-And the first turn's span payload now carries the tool call that the stream delivered a few
-characters at a time:
+The SDK joins the pieces of the tool call, runs the tool and starts the next round. The
+caller receives four kinds of typed events: `content`, `tool_call`, `tool_result` and `done`. The output of
+the streamed run:
+
+```
+[calling get_weather({'city': 'Lahore'})]
+[get_weather returned {'location': 'Rehmanpura', 'temp_c': 26, 'feels_like_c': 25, 'condition': 'Clear ', 'humidity_pct': 34}]
+The temperature in Lahore is currently 26°C and feels like 25°C with clear conditions. It would be comfortable for a run this evening. Enjoy your workout!
+```
+
+The streamed run produces the same trace as the run without streaming:
+
+```
+weather-tool-agent-stream     3 spans   370 tokens   status ok
+├─ llm  gpt-4o-mini           1.85s    145
+│   └─ tool get_weather         701ms
+└─ llm  gpt-4o-mini           1.59s    225
+```
+
+The gateway also joins the pieces before it writes the `llm` span. So the first round's span
+holds the whole call, although the stream delivered the arguments in pieces:
 
 ```json
 {"finish_reason": "tool_calls",
- "tool_calls": [{"id":"call_tg7xNQitgMlyknkXoRQwpSoD","type":"function",
+ "tool_calls": [{"id":"call_M3O6stziKo3NVWoAe01dc7FN","type":"function",
                  "function":{"name":"get_weather","arguments":"{\"city\":\"Lahore\"}"}}]}
 ```
 
-The quickest way to check whether a build has the fix is the response headers: a streamed
-completion returns `x-gateway-trace-id` and `x-gateway-span-id` only on the new code.
+## Cost
 
-LangSmith, for its part, traced the streamed run correctly first time: 4 spans, 387 tokens,
-same shape as the non-streamed one. Credit where it is due.
+Both platforms priced every call. LangSmith priced its run at $0.0000822, and AcruxCore
+priced its run at $0.0000846. The two runs used 377 and 381 tokens.
 
-:::warning[The honest lesson]
-We shipped an observability product that could not observe streaming traffic, and the
-billing row kept working, so nothing looked broken. If you run an LLM platform, test your
-tracing on the streaming path specifically — it is the default for every chat UI, and a
-passing non-streaming test suite tells you nothing about it.
-:::
-
-## Costing a model an aggregator renamed
-
-Neither platform priced the first runs we did: LangSmith stored `total_cost: null` and Acrux
-Core stored `costUsd: null`, because the model id in the payload was `openai/gpt-4o-mini` — an
-OpenRouter-prefixed name that neither price table recognises, even though OpenRouter itself
-reported the cost in its usage payload.
-
-AcruxCore prices it now, as the `$0.0000854` in the screenshot above shows, and the reason is
-worth knowing: the price lives on the **model you registered in the gateway**, not on the id
-the provider returns. You register `gpt-4o-mini` once, with its per-million rates and the
-upstream id to call, and every request that names it is priced — whatever the aggregator calls
-it upstream. If you route through an aggregator, check where your platform gets prices from,
-because matching on the returned id fails exactly when a rename happens.
+AcruxCore takes the price from the model you register in the gateway, not from the model id
+the provider returns. Here `gpt-4o-mini` is registered with `openai/gpt-4o-mini` as the
+upstream id. Its rates are $0.15 per million input tokens and $0.60 per million output
+tokens, and every request that names it is priced at those rates.
 
 ## Run it yourself: the complete scripts
 
-Three files, exactly as executed. The shared module holds the tool and the loop helpers so the
-two legs differ only in where the LLM call goes and how the run is traced; each agent script
-then runs on its own with no setup beforehand. The streaming variants are the same shape with
-the accumulator wired in.
+Six files, exactly as executed. The shared module holds the code that the other scripts
+import. Run `setup_acruxcore.py` once before the AcruxCore agents, or create the same tool,
+prompt and binding in the dashboard. The scripts are in the repo under
+`scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/` and `scripts/blogs/shared/`.
 
 ```bash
-pip install openai requests langsmith
-export OPENROUTER_API_KEY=sk-or-v1-...     # both legs use the same model, through OpenRouter
-export LANGSMITH_API_KEY=lsv2_pt_...       # LangSmith leg
-export ACRUXCORE_API_KEY=acx_sk_...        # AcruxCore leg: catalog + tool execute
-export ACRUXCORE_GATEWAY_KEY=agh_sk_...    # AcruxCore leg: gateway completions
+pip install acruxcore openai requests langsmith
+export OPENROUTER_API_KEY=sk-or-v1-...     # LangSmith scripts: the model, via OpenRouter
+export LANGSMITH_API_KEY=lsv2_pt_...       # LangSmith scripts: tracing
+export ACRUXCORE_API_KEY=acx_sk_...        # AcruxCore scripts: all calls
 ```
 
+On AcruxCore, register `gpt-4o-mini` under **Gateway → Models** first, pointing at
+`openai/gpt-4o-mini` on an OpenRouter credential.
+
 <details>
-<summary><strong>weather_tool_shared.py</strong> — the tool, the loop helpers and the streaming accumulator — imported by both legs (119 lines of code)</summary>
+<summary><strong>weather_tool_shared.py</strong>: the tool, the system prompt, the question and the streaming accumulator, imported by both legs (119 lines of code)</summary>
 
 ```python title="weather_tool_shared.py"
 """The one tool and the one agent loop that both platform demos share.
 
-`tool_agent_langsmith.py` and `tool_agent_acruxcore.py` (in `scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/python/`) both
+`tool_agent_langsmith.py` and `tool_agent_acruxcore.py` (in scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/python/) both
 import from here, so the two runs differ ONLY in where the LLM call goes and
 how the run is traced — never in what the tool does or how the loop is shaped.
 
@@ -543,7 +531,7 @@ def tool_result_message(tool_call_id: str, result: dict[str, Any]) -> dict[str, 
 </details>
 
 <details>
-<summary><strong>tool_agent_langsmith.py</strong> — the LangSmith leg (63 lines of code)</summary>
+<summary><strong>tool_agent_langsmith.py</strong>: the LangSmith leg (65 lines of code)</summary>
 
 ```python title="tool_agent_langsmith.py"
 """Leg 1 of 2: run the shared get_weather agent and trace it to LangSmith.
@@ -570,6 +558,9 @@ from langsmith.run_helpers import get_current_run_tree
 from langsmith.wrappers import wrap_openai
 from openai import OpenAI
 
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 from weather_tool_shared import (
     MODEL_OPENROUTER,
     WEATHER_TOOL_SCHEMA,
@@ -658,215 +649,325 @@ if __name__ == "__main__":
 </details>
 
 <details>
-<summary><strong>tool_agent_acruxcore.py</strong> — the AcruxCore leg (105 lines of code)</summary>
+<summary><strong>tool_agent_langsmith_stream.py</strong>: the LangSmith leg, streaming (70 lines of code)</summary>
 
-```python title="tool_agent_acruxcore.py"
-"""Leg 2 of 2: run the same get_weather agent through AcruxCore.
+```python title="tool_agent_langsmith_stream.py"
+"""Streaming variant of the LangSmith leg.
 
-Two things move off the client compared to the LangSmith leg:
-
-1. The tool is not a local function. It lives in the Tool Catalog as a versioned
-   `http` executor, so this script fetches its JSON Schema from the catalog
-   instead of declaring one, and calls `POST /tools/:id/execute` to run it.
-2. Nothing here creates a span. The gateway writes the `llm` spans and the tool
-   executor writes the `tool` span; the client only threads one `x-trace-id`
-   through both so they land in the same trace.
+Same agent as `tool_agent_langsmith.py`, with `stream=True` on every completion.
+A streamed tool call arrives in pieces, so the loop folds the deltas together with
+the shared `ToolCallAccumulator` and rebuilds the assistant turn before running the
+tool.
 
 Run:
-  export ACRUXCORE_API_KEY=acx_sk_...        # catalog reads + tool execute
-  export ACRUXCORE_GATEWAY_KEY=agh_sk_...    # gateway completions
-  python scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/python/tool_agent_acruxcore.py
+  export LANGSMITH_API_KEY=lsv2_pt_...
+  export OPENROUTER_API_KEY=sk-or-v1-...
+  python scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/python/tool_agent_langsmith_stream.py
 
-Needs: pip install openai requests
+Needs: pip install openai requests langsmith
 """
 
 import json
 import os
 import sys
-import uuid
-from typing import Any
-from urllib.parse import quote
+from pathlib import Path
 
-import requests
+from langsmith import traceable
+from langsmith.run_helpers import get_current_run_tree
+from langsmith.wrappers import wrap_openai
 from openai import OpenAI
 
-from weather_tool_shared import (
-    MODEL_ACRUXCORE,
-    WEATHER_HTTP_EXECUTOR,
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
+from weather_tool_shared import (  # noqa: E402
+    MODEL_OPENROUTER,
     WEATHER_TOOL_SCHEMA,
+    ToolCallAccumulator,
+    assistant_tool_call_message,
     build_messages,
+    get_weather,
     tool_result_message,
 )
 
-BASE_URL = os.environ.get("ACRUXCORE_BASE_URL", "https://acruxcore.com/api/v1")
-TRACE_NAME = "weather-tool-agent"
+PROJECT = "weather-tool-agent"
 
-API_KEY = os.environ.get("ACRUXCORE_API_KEY")
-GATEWAY_KEY = os.environ.get("ACRUXCORE_GATEWAY_KEY")
-if not API_KEY:
-    sys.exit("ACRUXCORE_API_KEY is not set")
-if not GATEWAY_KEY:
-    sys.exit("ACRUXCORE_GATEWAY_KEY is not set")
+os.environ["LANGCHAIN_TRACING_V2"] = "true"
+os.environ["LANGCHAIN_PROJECT"] = PROJECT
+os.environ["LANGSMITH_PROJECT"] = PROJECT
 
-# One trace id, minted here, carried by every call below. This is the whole
-# correlation mechanism — there is no tracing SDK in this script.
-TRACE_ID = str(uuid.uuid4())
+if not os.environ.get("LANGSMITH_API_KEY"):
+    sys.exit("LANGSMITH_API_KEY is not set")
+if not os.environ.get("OPENROUTER_API_KEY"):
+    sys.exit("OPENROUTER_API_KEY is not set")
 
-client = OpenAI(api_key=GATEWAY_KEY, base_url=f"{BASE_URL}/gateway")
-session = requests.Session()
-session.headers["Authorization"] = f"Bearer {API_KEY}"
-
-
-def register_tool() -> dict[str, Any]:
-    """Define the tool here and reconcile the catalog with it, in one request.
-
-    This is the AcruxCore equivalent of writing `get_weather` in the LangSmith
-    example: the whole tool — arguments, target URL, response trimming — is
-    declared in `weather_tool_shared` and committed from code, so this script
-    needs no prior setup.
-
-    `POST /tools/sync` is create-or-commit-or-nothing: it creates the tool if the
-    name is new, commits a version only when the submitted spec differs from the
-    live one, and moves the alias when it commits. So re-running this script with an
-    unchanged spec makes one request and changes nothing.
-
-    An `http` executor cannot come from `@acrux.tool` — a decorator describes a
-    Python function, not a declarative request/response mapping — so this leg still
-    posts the spec itself. That is the one registration case the decorator does not
-    replace.
-    """
-    fn = WEATHER_TOOL_SCHEMA["function"]
-    res = session.post(
-        f"{BASE_URL}/tools/sync",
-        json={
-            "name": fn["name"],
-            "description": fn["description"],
-            "parametersSchema": fn["parameters"],
-            # `http`: the platform performs the request and the trimming itself.
-            "executor": WEATHER_HTTP_EXECUTOR,
-            "source": "api",
-        },
-        timeout=30,
+client = wrap_openai(
+    OpenAI(
+        api_key=os.environ["OPENROUTER_API_KEY"],
+        base_url="https://openrouter.ai/api/v1",
     )
-    res.raise_for_status()
-    return res.json()
+)
 
 
-def execute_tool(tool_id: str, arguments: dict[str, Any], parent_span_id: str | None) -> dict[str, Any]:
-    """Run the catalog tool server-side, inside the current trace.
-
-    `traceContext` is the only tracing code in this file: it tells the platform
-    which trace (and which parent span) to file the `tool` span under. The span
-    itself — timing, arguments, result, tool version — is written by the platform.
-    """
-    body: dict[str, Any] = {
-        "arguments": arguments,
-        "traceContext": {"traceId": TRACE_ID},
-    }
-    if parent_span_id:
-        body["traceContext"]["parentSpanId"] = parent_span_id
-
-    res = session.post(f"{BASE_URL}/tools/{tool_id}/execute", json=body, timeout=40)
-    res.raise_for_status()
-    return res.json()
+@traceable(run_type="tool", name="get_weather")
+def traced_get_weather(city: str) -> dict:
+    """The shared tool, recorded by LangSmith as a `tool` span."""
+    return get_weather(city)
 
 
-def gateway_headers() -> dict[str, str]:
-    """Trace context for a gateway completion.
-
-    `x-trace-name` is free text, so it is percent-encoded — HTTP header values
-    must be ISO-8859-1 and the API decodes it back on arrival.
-    """
-    return {
-        "x-trace-id": TRACE_ID,
-        "x-trace-name": quote(TRACE_NAME),
-        "x-capture-payloads": "true",
-    }
-
-
-def resolve_tool(name: str) -> dict[str, Any]:
-    """Read the live schema back out of the catalog, by name.
-
-    The point of the catalog is that it — not this file — is the source of truth for
-    what the model is told. `POST /tools/resolve` returns the version the alias
-    currently points at, as an OpenAI-shaped function definition, plus whether the
-    platform can run it (`executorType: "http"` here).
-    """
-    res = session.post(f"{BASE_URL}/tools/resolve", json={"refs": [{"name": name}]}, timeout=20)
-    res.raise_for_status()
-    return res.json()["data"][0]
-
-
-def run_agent() -> dict[str, Any]:
-    """Same loop as the LangSmith leg, against a catalog-registered tool."""
-    catalog = register_tool()
-    resolved = resolve_tool(WEATHER_TOOL_SCHEMA["function"]["name"])
-    tool_schema = {"type": "function", "function": resolved["function"]}
+@traceable(run_type="chain", name="weather-tool-agent-stream")
+def run_agent() -> dict:
+    """Drive the streamed tool-calling loop until the model answers without a tool call."""
     messages = build_messages()
-    tool_calls_made = []
 
     for _ in range(4):
-        # with_raw_response is used only to read x-gateway-span-id back, so the
-        # tool span can be parented under the llm turn that requested it.
-        raw = client.chat.completions.with_raw_response.create(
-            model=MODEL_ACRUXCORE,
+        stream = client.chat.completions.create(
+            model=MODEL_OPENROUTER,
             messages=messages,
-            tools=[tool_schema],
-            extra_headers=gateway_headers(),
+            tools=[WEATHER_TOOL_SCHEMA],
+            stream=True,
+            # Without this, a streamed completion reports no token usage.
+            stream_options={"include_usage": True},
         )
-        llm_span_id = raw.headers.get("x-gateway-span-id")
-        choice = raw.parse().choices[0].message
-        messages.append(choice.model_dump(exclude_none=True))
+        acc = ToolCallAccumulator()
+        text = ""
+        for chunk in stream:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+            if delta.content:
+                print(delta.content, end="", flush=True)
+                text += delta.content
+            acc.add(delta.tool_calls)
 
-        if not choice.tool_calls:
-            return {
-                "answer": choice.content,
-                "tool_calls": tool_calls_made,
-                "trace_id": TRACE_ID,
-                "tool_version_used": catalog["versionNumber"],
-                "tool_version_committed_now": catalog["committed"],
-                "executor_type": resolved["executorType"],
-            }
+        calls = acc.finish()
+        if not calls:
+            run = get_current_run_tree()
+            return {"answer": text, "trace_id": str(run.trace_id) if run else None}
 
-        for call in choice.tool_calls:
-            args = json.loads(call.function.arguments)
-            executed = execute_tool(catalog["toolId"], args, llm_span_id)
-            tool_calls_made.append(
-                {
-                    "name": call.function.name,
-                    "args": args,
-                    "result": executed["result"],
-                    "server_latency_ms": executed["latencyMs"],
-                    "tool_version_id": executed["toolVersionId"],
-                }
-            )
-            messages.append(tool_result_message(call.id, executed["result"]))
+        messages.append(assistant_tool_call_message(calls))
+        for call in calls:
+            print(f"[calling {call['name']}({call['arguments']})]")
+            result = traced_get_weather(**call["arguments"])
+            messages.append(tool_result_message(call["id"], result))
 
     raise RuntimeError("agent did not converge within the turn budget")
 
 
 if __name__ == "__main__":
     out = run_agent()
-    print(json.dumps(out, indent=2))
-    print(f"\nAcruxCore trace: {BASE_URL.replace('/api/v1', '')}/traces/{out['trace_id']}")
+    print(f"\n\nLangSmith project: {PROJECT}")
+    print(f"trace id: {out['trace_id']}")
 ```
 
 </details>
 
-## Where this leaves things
+<details>
+<summary><strong>setup_acruxcore.py</strong>: the one-time AcruxCore setup: tool, prompt and binding (45 lines of code)</summary>
 
-If your tool is a Python function in one service and you want tracing today, LangSmith is
-less code and less thinking. If the same tool is called by several services, or you need to
-change what it does without redeploying the caller, a versioned catalog with server-side
-execution is a better fit — and the span telling you which version ran is worth more than
-the lines it costs.
+```python title="setup_acruxcore.py"
+"""One-time setup for the AcruxCore leg: the tool, the prompt, and the binding.
 
-We would rather publish the run that found a bug in our own gateway than the one that made
-us look good. The three scripts are above in full — run them against your own keys and see.
+This is the work the dashboard does when someone fills in the forms, written as code
+so the comparison counts it. It runs once per team. The agent scripts never repeat it.
 
-The [SDK-level comparison](/blog/tool-agent-sdk-langchain-vs-acruxcore) — LangChain's
-`create_agent` against the AcruxCore SDK's `run_tool_loop` — measures the same thing one
-layer up, where the loop and the registration stop being your problem.
+1. Creates the `get_weather` tool and commits version 1 with an `http` executor.
+   The platform runs that version: it calls wttr.in and trims the reply itself.
+2. Creates the `weather-advisor` prompt and commits version 1, bound to the gateway
+   model `gpt-4o-mini`.
+3. Binds the tool to the prompt, following the tool's `production` alias.
 
-And if you want the step-by-step version of getting a tool into the catalog rather than a
-comparison, that is [Create a tool](/docs/guides/create-a-tool).
+Find-or-create throughout, so a second run changes nothing.
+
+Run:
+  export ACRUXCORE_API_KEY=acx_sk_...
+  python scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/python/setup_acruxcore.py
+
+Needs: pip install acruxcore requests
+"""
+
+import asyncio
+import os
+import sys
+from pathlib import Path
+
+from acruxcore import AcruxCore
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
+from weather_tool_shared import (  # noqa: E402
+    MODEL_ACRUXCORE,
+    SYSTEM_PROMPT,
+    WEATHER_HTTP_EXECUTOR,
+    WEATHER_TOOL_SCHEMA,
+)
+
+BASE_URL = os.environ.get("ACRUXCORE_BASE_URL", "https://acruxcore.com/api/v1")
+PROMPT_NAME = "weather-advisor"
+
+if not os.environ.get("ACRUXCORE_API_KEY"):
+    sys.exit("ACRUXCORE_API_KEY is not set")
+
+
+async def main() -> None:
+    async with AcruxCore(api_key=os.environ["ACRUXCORE_API_KEY"], base_url=BASE_URL) as hub:
+        fn = WEATHER_TOOL_SCHEMA["function"]
+        found = [t for t in (await hub.tools.list(search=fn["name"])).data if t.name == fn["name"]]
+        if found:
+            tool_id = found[0].id
+        else:
+            # Two calls: the tool holds the name, each version holds the schema and executor.
+            tool_id = (await hub.tools.create(name=fn["name"])).id
+            await hub.tools.commit_version(
+                tool_id,
+                parameters_schema=fn["parameters"],
+                executor=WEATHER_HTTP_EXECUTOR,
+                description=fn["description"],
+            )
+
+        found = [p for p in (await hub.prompts.list(search=PROMPT_NAME)).data if p.name == PROMPT_NAME]
+        prompt_id = found[0].id if found else (await hub.prompts.create(name=PROMPT_NAME)).id
+        if (await hub.prompts.list_versions(prompt_id)).total == 0:
+            await hub.prompts.commit_version(
+                prompt_id,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": "Should I go for a run in {{ city }} this evening?"},
+                ],
+                model=MODEL_ACRUXCORE,
+            )
+
+        # The default binding, so every alias of the prompt calls the tool's production version.
+        await hub.prompts.set_tool_binding(prompt_id, tool_id, tool_alias="production")
+        print(f"tool {fn['name']} ({tool_id}) is bound to prompt {PROMPT_NAME} ({prompt_id})")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+</details>
+
+<details>
+<summary><strong>tool_agent_acruxcore.py</strong>: the AcruxCore leg (19 lines of code)</summary>
+
+```python title="tool_agent_acruxcore.py"
+"""Leg 2 of 2: run the same get_weather agent through AcruxCore.
+
+Compared to the LangSmith leg, three things are not in this file:
+
+1. The tool. It is a version in the Tool Catalog with an `http` executor, so the
+   platform makes the request to wttr.in and trims the reply.
+2. The prompt and the model. They are a version of the `weather-advisor` prompt, and
+   the tool is bound to that prompt. `setup_acruxcore.py` creates all three once.
+3. The tracing. The gateway writes the `llm` spans and the platform writes the `tool`
+   span. The SDK puts them in one trace.
+
+What is left is a render and one call.
+
+Run:
+  export ACRUXCORE_API_KEY=acx_sk_...
+  python scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/python/setup_acruxcore.py   # once
+  python scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/python/tool_agent_acruxcore.py
+
+Needs: pip install acruxcore
+"""
+
+import asyncio
+import json
+import os
+import sys
+
+from acruxcore import AcruxCore
+
+BASE_URL = os.environ.get("ACRUXCORE_BASE_URL", "https://acruxcore.com/api/v1")
+
+if not os.environ.get("ACRUXCORE_API_KEY"):
+    sys.exit("ACRUXCORE_API_KEY is not set")
+
+
+async def main() -> None:
+    async with AcruxCore(api_key=os.environ["ACRUXCORE_API_KEY"], base_url=BASE_URL) as hub:
+        # One render returns the messages, the bound model, the bound tools and the
+        # prompt version id. run_prompt_with_tools reads all of them from it.
+        rendered = await hub.prompts.render("weather-advisor", "production", {"city": "Lahore"})
+        result = await hub.gateway.run_prompt_with_tools(
+            rendered, trace={"name": "weather-tool-agent"}
+        )
+
+    print(json.dumps({"answer": result.content, "iterations": result.iterations,
+                      "trace_id": result.trace_id}, indent=2))
+    print(f"\nAcruxCore trace: {BASE_URL.replace('/api/v1', '')}/traces/{result.trace_id}")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+</details>
+
+<details>
+<summary><strong>tool_agent_acruxcore_stream.py</strong>: the AcruxCore leg, streaming (25 lines of code)</summary>
+
+```python title="tool_agent_acruxcore_stream.py"
+"""Streaming variant of the AcruxCore leg.
+
+The same render and the same call as `tool_agent_acruxcore.py`, with `stream=True`.
+The SDK assembles the streamed tool call, runs the tool and starts the next round.
+The caller receives typed events: `content`, `tool_call`, `tool_result` and `done`.
+
+Run:
+  export ACRUXCORE_API_KEY=acx_sk_...
+  python scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/python/setup_acruxcore.py   # once
+  python scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/python/tool_agent_acruxcore_stream.py
+
+Needs: pip install acruxcore
+"""
+
+import asyncio
+import os
+import sys
+
+from acruxcore import AcruxCore
+
+BASE_URL = os.environ.get("ACRUXCORE_BASE_URL", "https://acruxcore.com/api/v1")
+
+if not os.environ.get("ACRUXCORE_API_KEY"):
+    sys.exit("ACRUXCORE_API_KEY is not set")
+
+
+async def main() -> None:
+    async with AcruxCore(api_key=os.environ["ACRUXCORE_API_KEY"], base_url=BASE_URL) as hub:
+        rendered = await hub.prompts.render("weather-advisor", "production", {"city": "Lahore"})
+        events = await hub.gateway.run_prompt_with_tools(
+            rendered, stream=True, trace={"name": "weather-tool-agent-stream"}
+        )
+        async for event in events:
+            if event.type == "content":
+                print(event.delta, end="", flush=True)
+            elif event.type == "tool_call":
+                print(f"[calling {event.name}({event.arguments})]")
+            elif event.type == "tool_result":
+                print(f"[{event.name} returned {event.result}]")
+            elif event.type == "done":
+                trace_id = event.result.trace_id
+
+    print(f"\n\nAcruxCore trace: {BASE_URL.replace('/api/v1', '')}/traces/{trace_id}")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+</details>
+
+## Where to read next
+
+The [SDK comparison](/blog/tool-agent-sdk-langchain-vs-acruxcore) builds the same agent with
+LangChain's `create_agent` and with the AcruxCore SDK.
+
+[AcruxCore vs Langfuse vs LangSmith](/blog/acruxcore-vs-langfuse-vs-langsmith) builds one app
+on all three platforms and compares prompts, evaluations and price as well as tool calls.
+[Langfuse vs LangSmith](/blog/langfuse-vs-langsmith) compares the two hosted platforms on the
+same app.
+
+[Create a tool](/docs/guides/create-a-tool) and
+[Call a prompt's tools from the SDK](/docs/guides/call-a-prompts-tools-from-the-sdk) show
+each AcruxCore step from this post in more detail.

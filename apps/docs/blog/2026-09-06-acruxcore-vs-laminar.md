@@ -1,12 +1,12 @@
 ---
-title: "Laminar alternative: SQL over traces vs a prompt gateway"
-description: A Laminar alternative tested hands-on — one example on self-hosted Laminar and AcruxCore, with real screenshots from both and a 100-round latency benchmark.
+title: "AcruxCore vs Laminar: SQL over traces vs a prompt gateway"
+description: "AcruxCore vs Laminar tested hands-on — one example on self-hosted Laminar and AcruxCore, with real screenshots from both and a 100-round latency benchmark."
 slug: acruxcore-vs-laminar
 date: 2026-09-06
 authors: [acrux]
 tags: [llmops-comparison, llm-tracing, llm-latency]
 image: /img/social-card.png
-keywords: [laminar alternative, laminar alternatives, lmnr alternative, laminar vs AcruxCore, open source laminar alternative, llm ops comparison, agent observability, sql over traces, opentelemetry llm tracing]
+keywords: [AcruxCore vs laminar, laminar vs AcruxCore, llm ops comparison, agent observability, sql over traces, opentelemetry llm tracing]
 ---
 
 Laminar (`lmnr`) is a Y Combinator S24 project that calls itself observability **purpose-built
@@ -434,5 +434,8 @@ point your client at our gateway, keep Laminar's SDK instrumenting the run.
 
 Licence, pricing, team model, security and community stats for both — with a source link and a
 checked-on date for every fact — are on the [compare page](https://acruxcore.com/compare).
+
+To compare more tools, see [9 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison),
+[8 LangSmith alternatives](/blog/langsmith-alternatives) and [8 Langfuse alternatives](/blog/langfuse-alternatives).
 
 Start here if you want to try the other side: [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart).

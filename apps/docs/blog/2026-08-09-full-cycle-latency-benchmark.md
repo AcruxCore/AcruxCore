@@ -310,3 +310,5 @@ in the same folder — point it at any run's `results.json` to regenerate them.
 For the narrower question of what AcruxCore's own gateway costs against a BYO
 call on the same machine, see
 [how much overhead does an LLM gateway add?](/blog/llm-gateway-overhead)
+
+For license, price and features of the same tools, see [9 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison).

@@ -1,11 +1,11 @@
 ---
-title: "LangSmith alternative: prompts, gateway and tracing"
-description: A LangSmith alternative compared feature by feature — prompt versioning, a request-path gateway, tracing, tools and evals, open source and self-hostable.
+title: "AcruxCore vs LangSmith: prompts, gateway and tracing"
+description: "AcruxCore vs LangSmith compared feature by feature — prompt versioning, a request-path gateway, tracing, tools and evals, open source and self-hostable."
 slug: acrux-core-vs-langsmith
 authors: [acrux]
 tags: [llmops-comparison, prompt-management, llm-tracing]
 image: /img/social-card.png
-keywords: [langsmith alternative, langsmith alternatives, open source langsmith alternative, AcruxCore vs langsmith, llm ops, prompt management, ai gateway, llm tracing]
+keywords: [AcruxCore vs langsmith, llm ops, prompt management, ai gateway, llm tracing]
 ---
 
 If you're building on LLMs, you eventually need four things: prompts you can change
@@ -125,3 +125,9 @@ calls, real traces — read our
 which also covers two platforms this post doesn't: Langfuse and PromptLayer. For one app
 built and measured on AcruxCore, Langfuse and LangSmith, read
 [AcruxCore vs Langfuse vs LangSmith](/blog/acruxcore-vs-langfuse-vs-langsmith).
+
+To compare more than two tools, [8 LangSmith alternatives for startups](/blog/langsmith-alternatives)
+covers Langfuse, Opik, MLflow, Laminar, Arize Phoenix, Braintrust and W&B Weave as well.
+
+To compare Langfuse and LangSmith with each other, [Langfuse vs LangSmith](/blog/langfuse-vs-langsmith)
+runs one app end to end on both.

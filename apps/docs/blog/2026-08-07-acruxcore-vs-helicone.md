@@ -1,11 +1,11 @@
 ---
-title: "Helicone alternative: two request-path proxies, measured"
-description: Weighing a Helicone alternative? Both sit in the request path. We rebuilt one prompt on each, and timed 300 benchmark rounds through both gateways.
+title: "AcruxCore vs Helicone: two request-path proxies, measured"
+description: "AcruxCore vs Helicone: both sit in the request path. We rebuilt one prompt on each, and timed 300 benchmark rounds through both gateways."
 slug: acruxcore-vs-helicone
 authors: [acrux]
 tags: [llmops-comparison, llm-gateway, llm-tracing]
 image: /img/social-card.png
-keywords: [helicone alternative, helicone alternatives, open source helicone alternative, helicone vs AcruxCore, llm ops comparison, ai gateway, llm proxy, prompt versioning, llm tracing]
+keywords: [AcruxCore vs helicone, helicone vs AcruxCore, llm ops comparison, ai gateway, llm proxy, prompt versioning, llm tracing]
 ---
 
 Helicone is a proxy-first LLM observability tool — you point your API base URL at it and
@@ -385,6 +385,8 @@ the constraint to plan around. AcruxCore's equivalent paths (**Sending a live ca
 **Tracing & observability**, **Latency overhead** above) all worked too. See the full
 picture, including license, pricing, and team structure, on the
 [compare page](https://acruxcore.com/compare).
+
+To compare more tools, see [9 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison).
 
 Want to run this yourself? The [Quickstart](/docs/getting-started/quickstart) gets you
 from sign-up to a traced, gateway-routed call in about ten minutes.

@@ -196,8 +196,10 @@ called out in the week it ships and in the SDK release notes.
 - The run report names the judge model that graded it; the report API returns it as `judge`.
 - **New guide** — [Write a custom judge prompt](/docs/guides/write-a-custom-judge-prompt).
 - **Fixed** — the Evaluation code sample on acruxcore.com left out the required `judge_model`.
-- Blog titles and descriptions now name the search term first, such as "LangChain alternative".
+- Head-to-head blog posts are now titled "AcruxCore vs X", such as "AcruxCore vs LangChain".
 - **New post** — [Langfuse vs LangSmith: one app tested end to end on both](/blog/langfuse-vs-langsmith).
+- **New posts** — [8 LangSmith alternatives](/blog/langsmith-alternatives) and [8 Langfuse alternatives](/blog/langfuse-alternatives).
+- [Tool-call traces: LangSmith vs AcruxCore](/blog/tool-calling-traces-langsmith-vs-acruxcore) re-run on today's SDK.
 - **Fixed** — the New dataset dialog said examples are added by hand; it now mentions file import.
 - The Models page warns when a model lacks a price: its calls count as $0 in Usage and budgets.
 - The run report shows a baseline as "v1 (production)"; the report API returns `versionNumber`.
