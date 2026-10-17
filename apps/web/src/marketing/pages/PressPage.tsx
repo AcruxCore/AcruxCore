@@ -18,11 +18,18 @@ interface DirectoryBadge {
   title?: string;
   /** Extra attributes from the snippet that the directory's crawler looks for. */
   dataAttrs?: Record<string, string>;
+  /** Intrinsic image size in pixels, so the badge keeps its own aspect ratio. */
+  width: number;
+  height: number;
 }
 
+/** Every badge renders at this height; the width follows each image's own ratio. */
+const BADGE_HEIGHT = 64;
+
 /**
- * Directories that list AcruxCore. Add one only once its listing is live. Every
- * badge image is 3:1, so they share one rendered size.
+ * Directories that list AcruxCore. Add one once its listing is live, or earlier
+ * when the directory only publishes the listing after its crawler finds the badge
+ * (AI Agents Directory and Good AI Tools work that way).
  */
 const BADGES: DirectoryBadge[] = [
   {
@@ -32,12 +39,33 @@ const BADGES: DirectoryBadge[] = [
     alt: 'Featured on Neura Market',
     title: 'Featured on Neura Market — the AI tools & companies directory',
     dataAttrs: { 'data-neura-market-badge': 'tool' },
+    width: 240,
+    height: 80,
   },
   {
     name: 'SaaSHub',
     href: 'https://www.saashub.com/acrux-core?utm_source=badge&utm_campaign=badge&utm_content=acrux-core&badge_variant=color&badge_kind=approved',
     imgSrc: 'https://cdn-b.saashub.com/img/badges/approved-color.png?v=1',
     alt: 'Acrux Core badge',
+    width: 240,
+    height: 80,
+  },
+  {
+    name: 'AI Agents Directory',
+    href: 'https://aiagentsdirectory.com/agent/acruxcore',
+    imgSrc: 'https://aiagentsdirectory.com/featured-badge.svg?v=2024',
+    alt: 'AcruxCore - Featured on AI Agents Directory',
+    title: 'Discover AcruxCore on AI Agents Directory',
+    width: 200,
+    height: 50,
+  },
+  {
+    name: 'Good AI Tools',
+    href: 'https://goodaitools.com/ai/acruxcore',
+    imgSrc: 'https://goodaitools.com/assets/images/badge-dark.png',
+    alt: 'Good AI Tools',
+    width: 207,
+    height: 54,
   },
 ];
 
@@ -60,7 +88,7 @@ export function PressPage(): ReactNode {
       />
       <ul
         style={cssToStyle(
-          'list-style:none;margin:0 0 clamp(40px,6vw,64px);padding:0;display:flex;flex-wrap:wrap;gap:16px;',
+          'list-style:none;margin:0 0 clamp(40px,6vw,64px);padding:0;display:flex;flex-wrap:wrap;align-items:center;gap:16px;',
         )}
       >
         {BADGES.map((b) => (
@@ -76,8 +104,8 @@ export function PressPage(): ReactNode {
               <img
                 src={b.imgSrc}
                 alt={b.alt}
-                width={240}
-                height={80}
+                width={Math.round((b.width * BADGE_HEIGHT) / b.height)}
+                height={BADGE_HEIGHT}
                 loading="lazy"
                 style={cssToStyle('max-width:100%;height:auto;border-radius:8px;')}
               />
