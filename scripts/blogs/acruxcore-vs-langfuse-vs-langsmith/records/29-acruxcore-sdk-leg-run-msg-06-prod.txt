@@ -1,0 +1,40 @@
+# SDK leg, run --id msg-06, on acruxcore.com (2026-10-17 06:20Z)
+# acruxcore 0.18.0 from PyPI, clean Python 3.12 venv, after release #614 deployed
+
+## pip freeze
+acruxcore==0.18.0
+annotated-types==0.8.0
+anyio==4.15.1
+certifi==2026.7.22
+charset-normalizer==3.5.2
+distro==1.9.0
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.20
+jiter==0.17.0
+openai==2.48.0
+pydantic==2.14.1
+pydantic-core==2.50.1
+python-dotenv==1.2.4
+requests==2.34.2
+sniffio==1.3.1
+tqdm==4.70.1
+typing-extensions==4.16.0
+typing-inspection==0.4.4
+urllib3==2.8.0
+
+## run output: 10.4 s, total 550, trace aa746beb-7c75-490d-b6e3-cc8f6fc1a455
+
+## stored trace (GET /traces/:id)
+spanCount 10 totalTokens 2132 totalCostUsd 0.00284524
+chain scope-check
+  chain extract
+    llm glm-5.3 prompt=85 completion=24 cached=None cost=0.0002246 promptVersion=yes
+  chain classify
+    llm glm-5.3 prompt=740 completion=49 cached=None cost=0.0012516 promptVersion=yes
+  chain classify
+    llm glm-5.3 prompt=739 completion=52 cached=704 cost=0.00046084 promptVersion=yes
+  tool price
+  chain reply
+    llm glm-5.3 prompt=347 completion=96 cached=None cost=0.0009082 promptVersion=yes

@@ -321,6 +321,22 @@ the SDK itself (bring your own key), as in the other two legs.
   The local team has no price for `glm-5.3`, so the trace shows no cost. A run on acruxcore.com
   was not made: the SDK is not published, and the hosted API has not had the release yet.
 
-The post now shows the SDK leg (15 lines). Before it goes live: publish the SDK, release the
-API to acruxcore.com, then run this leg there with `pip install acruxcore` (`run --id msg-06` and
-a check that its trace matches step 1), and add the installed version to the environment line.
+The post now shows the SDK leg (15 lines).
+
+## SDK leg on acruxcore.com (2026-10-17, 06:20Z)
+
+`acruxcore` 0.18.0 was published to PyPI, and release #614 put the matching API on
+acruxcore.com. The leg then ran there from a clean Python 3.12 venv with the PyPI package and no
+`PYTHONPATH` (`records/29-…`, pip freeze included). The owner ran the command, because the
+permission check refused the agent's own production run.
+
+- `run --id msg-06`: 10.4 s, total $550, both items right.
+- Trace `aa746beb-7c75-490d-b6e3-cc8f6fc1a455`: 10 spans, the same tree as step 1, 2,132
+  tokens, $0.00284524. Every `llm` span carries its prompt version id and the provider
+  `api.z.ai`.
+- Each span's cost equals its tokens at $1.40 / $0.26 / $4.40 per 1M. Only the second classify
+  call hit z.ai's prompt cache (704 of 739 input tokens). A single cold run gets fewer cache hits
+  than the 30-message runs, so this trace costs more than step 1's ($0.00185).
+- Screenshots 11 and 12 replace `acx-trace-tree.jpg` and `acx-llm-span-prompt-link.jpg` in the
+  post. The environment line now names `acruxcore` 0.18.0.
+

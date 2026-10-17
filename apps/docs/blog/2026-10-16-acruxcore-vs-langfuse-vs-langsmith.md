@@ -141,7 +141,7 @@ everything else on 17 October 2026.
   `reasoning_effort="low"`, straight from the app.
 - **The platforms:** Langfuse and LangSmith on their hosted EU regions, on the free plans.
   AcruxCore on its hosted service at acruxcore.com.
-- **The AcruxCore leg:** a clean environment with Python 3.12, `acruxcore`, `openai` 2.48.0,
+- **The AcruxCore leg:** a clean environment with Python 3.12, `acruxcore` 0.18.0, `openai` 2.48.0,
   `httpx` and `python-dotenv`.
 
 ## Tracing
@@ -195,9 +195,9 @@ def make_app(alias: str = "production", only: set[str] | None = None):
 All three platforms stored the same tree: the agent, `scope-check`, at the root, one span per step, one model
 call inside each step, and the price step marked as a tool.
 
-![AcruxCore trace for one message: scope-check at the root, with extract, classify once for each of the two requests, a price tool and reply, each step holding a glm-5.3 LLM span, and 2,139 tokens and $0.00185 in the header](/img/blog/acruxcore-vs-langfuse-vs-langsmith/acx-trace-tree.jpg)
+![AcruxCore trace for one message: scope-check at the root, with extract, classify once for each of the two requests, a price tool and reply, each step holding a glm-5.3 LLM span, and 2,132 tokens and $0.00285 in the header](/img/blog/acruxcore-vs-langfuse-vs-langsmith/acx-trace-tree.jpg)
 
-![AcruxCore LLM span panel showing model glm-5.3, 108 tokens of which 64 cached prompt tokens, cost $0.000147, latency 1.35 s, and the links View traces for this prompt version and Open in Playground](/img/blog/acruxcore-vs-langfuse-vs-langsmith/acx-llm-span-prompt-link.jpg)
+![AcruxCore LLM span panel showing model glm-5.3, provider api.z.ai, 791 tokens of which 704 cached prompt tokens, cost $0.000461, latency 1.93 s, and the links View traces for this prompt version and Open in Playground](/img/blog/acruxcore-vs-langfuse-vs-langsmith/acx-llm-span-prompt-link.jpg)
 
 The AcruxCore gateway is an OpenAI-compatible endpoint in the request path:
 

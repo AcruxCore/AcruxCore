@@ -3,8 +3,7 @@
 The SDK calls z.ai itself (bring your own key, the same position as the other two legs) and
 reports each model call under the step it ran in.
 
-Needs an acruxcore release newer than 0.17.0 (it uses AcruxCoreSync, traces.step and
-prompts.get_by_alias). Until that release is on PyPI, point PYTHONPATH at packages/sdk-python/src.
+Needs acruxcore 0.18.0 or newer (it uses AcruxCoreSync, traces.step and prompts.get_by_alias).
 
     pip install acruxcore openai httpx python-dotenv
     python acruxcore_sdk_leg.py run --id msg-06
