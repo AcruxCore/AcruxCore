@@ -311,4 +311,4 @@ For the narrower question of what AcruxCore's own gateway costs against a BYO
 call on the same machine, see
 [how much overhead does an LLM gateway add?](/blog/llm-gateway-overhead)
 
-For license, price and features of the same tools, see [9 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison).
+For license, price and features of the same tools, see [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison).

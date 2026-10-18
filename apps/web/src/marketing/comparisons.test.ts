@@ -58,12 +58,12 @@ describe('comparison data', () => {
     }
   });
 
-  // Every competitor here ships an MCP server, so the row can only ever compare what
-  // the servers do. A win is recorded only where ours covers everything theirs does;
+  // Every competitor here ships an MCP server (Agenta's searches only its docs), so the
+  // row can only ever compare what the servers do. A win is recorded only where ours covers everything theirs does;
   // Langfuse's and Phoenix's servers have tools ours lacks, so those are differences.
   it('scores the MCP server row only where AcruxCore covers every capability', () => {
     const winners = COMPARISON_LIST.filter((c) => c.mcpServer.acruxWins).map((c) => c.slug);
-    expect(winners.sort()).toEqual(['helicone', 'laminar', 'mlflow', 'opik']);
+    expect(winners.sort()).toEqual(['agenta', 'helicone', 'laminar', 'mlflow', 'opik']);
     for (const competitor of COMPARISON_LIST) {
       expect(competitor.mcpServer.competitorWins, competitor.name).toBeUndefined();
       expect(competitor.mcpServer.source, `${competitor.name} MCP fact has no source`).toBeDefined();

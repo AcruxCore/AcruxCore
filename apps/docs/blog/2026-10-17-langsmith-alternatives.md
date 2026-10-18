@@ -478,7 +478,7 @@ to tracing, prompts and evals. Opik adds automatic prompt optimization.
 ## Related posts
 
 - [Langfuse vs LangSmith](/blog/langfuse-vs-langsmith): one app run end to end on both.
-- [9 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison): nine tools tested hands-on, with
+- [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison): ten tools tested hands-on, with
   screenshots of each.
 - [AcruxCore vs Langfuse vs LangSmith](/blog/acruxcore-vs-langfuse-vs-langsmith): the same app
   run on all three.

@@ -6,7 +6,7 @@ import { ACRUX_CORE, PLATFORMS_BY_COMMUNITY, type Comparison } from '../comparis
 
 /**
  * `/best-open-source-llmops-platforms` — a category page answering the query
- * "which open-source LLMOps platform should I use", for the seven platforms we
+ * "which open-source LLMOps platform should I use", for the eight platforms we
  * have actually run.
  *
  * **Why this exists next to `/compare`.** The matrix is built to be checked: it
@@ -33,8 +33,8 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
     <MarketingShell>
       <ContentHeader
         eyebrow="Comparison"
-        title="7 best open-source LLMOps and observability platforms in 2026"
-        lead="We compared seven open-source and source-available platforms for prompt management, LLM gateways, tracing, and evaluation. We self-hosted each one and ran the same prompt through it. This page shows how each one handles prompts, tools, teams, audit logs, and licensing."
+        title="8 best open-source LLMOps and observability platforms in 2026"
+        lead="We compared eight open-source and source-available platforms for prompt management, LLM gateways, tracing, and evaluation. We self-hosted each one and ran the same prompt through it. This page shows how each one handles prompts, tools, teams, audit logs, and licensing."
         docTitle="Best open-source LLMOps platforms in 2026 — AcruxCore"
       />
 
@@ -52,7 +52,8 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
           call reaches the provider. An observability tool{' '}
           <strong>records the calls your own client already makes</strong>, so you can trace and
           evaluate them afterwards. AcruxCore, MLflow, and Helicone are both. Langfuse, Phoenix,
-          Opik, and Laminar only observe.
+          Opik, and Laminar only observe. Agenta can call the model for a stored prompt, but it
+          does not cap spending or cache a response.
         </p>
         <p className="acx-prose" style={cssToStyle('margin:0;')}>
           AcruxCore is the only platform in this comparison where you{' '}
@@ -68,7 +69,8 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
           has a prompt registry, tracing, and a gateway, and many teams already run it for
           classic ML. <strong>Opik</strong> is built around datasets, experiments, and online
           scoring rules. <strong>Laminar</strong> traces agent runs, with SQL over spans and
-          three workspace roles. AcruxCore has the smallest community here, a single team layer with
+          three workspace roles. <strong>Agenta</strong> has 15 built-in evaluator types,
+          annotation queues, and an agent builder. AcruxCore has the smallest community here, a single team layer with
           no organization above it, and one role per member.
         </p>
       </section>
@@ -104,7 +106,7 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
             'font-size:clamp(22px,2.6vw,28px);line-height:1.15;letter-spacing:-.02em;font-weight:700;margin:12px 0 10px;',
           )}
         >
-          Seven LLMOps platforms compared
+          Eight LLMOps platforms compared
         </h2>
         <p className="acx-prose" style={cssToStyle('margin:0 0 24px;color:var(--muted);')}>
           Competitors are listed by community size, with AcruxCore last. The order is not a
@@ -130,7 +132,7 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
         </h2>
         <div className="acx-prose">
           <p style={cssToStyle('margin:0 0 12px;')}>
-            We tested the same example prompt across all seven platforms, including AcruxCore, and
+            We tested the same example prompt across all eight platforms, including AcruxCore, and
             self-hosted each where supported. The linked reviews include screenshots from these
             hands-on tests.
           </p>
@@ -166,7 +168,7 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
           The <Link to="/compare">comparison matrix</Link> puts every platform side by side, row
           by row, with a source for each cell. The{' '}
           <a href={`${DOCS_URL}/blog/hands-on-llm-ops-comparison`} target="_blank" rel="noreferrer">
-            hands-on review of nine platforms
+            hands-on review of ten platforms
           </a>{' '}
           has the screenshots from each test. The <Link to="/faq">FAQ</Link> says which teams
           AcruxCore fits and which should pick something else.
@@ -181,42 +183,42 @@ export const DECISION_POINTS: { question: string; answer: string }[] = [
   {
     question: 'Do you need an LLM gateway, observability, or both?',
     answer:
-      'An LLM gateway controls requests before they reach a provider. An observability tool records traces so you can inspect what happened. AcruxCore, MLflow’s gateway, and Helicone sit in the request path and act as a proxy. There they can route a call, cache it, check a budget, and hold the provider key. Langfuse, Phoenix, Opik, and Laminar collect traces without sitting in the request path, so they add no proxy.',
+      'An LLM gateway controls requests before they reach a provider. An observability tool records traces so you can inspect what happened. AcruxCore, MLflow’s gateway, and Helicone sit in the request path and act as a proxy. There they can route a call, cache it, check a budget, and hold the provider key. Langfuse, Phoenix, Opik, and Laminar collect traces without sitting in the request path, so they add no proxy. Agenta calls the model for a stored prompt through its invoke endpoint, but that endpoint has no budget check or cache.',
   },
   {
     question: 'Can you add and version the tools a model calls without deploying code?',
     answer:
-      'In AcruxCore you define a tool once, keep every version of it, and the gateway runs it when the model calls it. So the tool the model sees and the code that ran are always the same version. You can add a tool, change it, or roll it back without deploying application code. No other platform in this comparison keeps versions of a tool and also runs it. Langfuse saves a tool schema in its playground, but does not version it or run it. Laminar stores tool schemas inside playground entries. Phoenix, Opik, and Helicone have no tool catalog. MLflow catalogs whole MCP servers rather than individual tools. In the MLflow workflow we tested, a single tool had no version history, and nothing ran the call.',
+      'In AcruxCore you define a tool once, keep every version of it, and the gateway runs it when the model calls it. So the tool the model sees and the code that ran are always the same version. You can add a tool, change it, or roll it back without deploying application code. No other platform in this comparison keeps versions of a tool and also runs it. Langfuse saves a tool schema in its playground, but does not version it or run it. Laminar stores tool schemas inside playground entries. Agenta runs third-party actions from Composio, but you cannot add your own tool to its catalog. Phoenix, Opik, and Helicone have no tool catalog. MLflow catalogs whole MCP servers rather than individual tools. In the MLflow workflow we tested, a single tool had no version history, and nothing ran the call.',
   },
   {
     question: 'What can an AI assistant do with your prompts over MCP?',
     answer:
-      'Every platform here has an MCP server, so an assistant such as Claude Code can read traces from any of them. AcruxCore’s server can commit a prompt version, promote it, run it through AcruxCore’s gateway, and read the resulting trace. No other MCP server in this comparison runs a stored prompt through a gateway. Langfuse and Phoenix can create prompts and point a label or tag at a new version, and Opik can save a prompt version. Helicone’s server sends chat messages that you write through Helicone’s gateway, but it cannot send a stored prompt. MLflow’s and Laminar’s servers have no prompt tools. Langfuse’s server also has tools for datasets, scores, annotation queues, and dashboards. Phoenix’s hosted server can call every endpoint of the Phoenix REST API, and it also has SQL analytics and GraphQL tools.',
+      'Every platform here has an MCP server. Agenta’s only searches Agenta’s documentation, and an assistant such as Claude Code can read traces through each of the others. AcruxCore’s server can commit a prompt version, promote it, run it through AcruxCore’s gateway, and read the resulting trace. No other MCP server in this comparison runs a stored prompt through a gateway. Langfuse and Phoenix can create prompts and point a label or tag at a new version, and Opik can save a prompt version. Helicone’s server sends chat messages that you write through Helicone’s gateway, but it cannot send a stored prompt. MLflow’s and Laminar’s servers have no prompt tools. Langfuse’s server also has tools for datasets, scores, annotation queues, and dashboards. Phoenix’s hosted server can call every endpoint of the Phoenix REST API, and it also has SQL analytics and GraphQL tools.',
   },
   {
     question: 'Can you update prompts without deploying code?',
     answer:
-      'Every platform here except Laminar has a prompt registry, so you can change a prompt without redeploying code. The registries differ in templating. AcruxCore and MLflow support Jinja2 conditionals and loops, so a prompt can branch on its inputs. Langfuse, Phoenix, Opik, and Helicone substitute variables only, and any branching logic stays in your application code. Laminar’s playground had no prompt versions, aliases, or variables.',
+      'Every platform here except Laminar has a prompt registry, so you can change a prompt without redeploying code. The registries differ in templating. AcruxCore, MLflow, and Agenta support Jinja2 conditionals and loops, so a prompt can branch on its inputs. Langfuse, Phoenix, Opik, and Helicone substitute variables only, and any branching logic stays in your application code. Laminar’s playground had no prompt versions, aliases, or variables.',
   },
   {
     question: 'What team structure and permissions do you need?',
     answer:
-      'AcruxCore has members, invites, and roles inside a single team, with nothing above it, and one role per member. In the self-hosted versions we tested, Langfuse and Laminar had an organization or workspace layer above projects. Laminar had three workspace roles. Phoenix, Opik, and MLflow had no team, member, or invite management, and MLflow had no login screen. Helicone had one organization tier and no role field in its invite dialog.',
+      'AcruxCore has members, invites, and roles inside a single team, with nothing above it, and one role per member. In the self-hosted versions we tested, Langfuse and Laminar had an organization or workspace layer above projects. Laminar had three workspace roles. Agenta had organizations, workspaces, and projects, with six roles. Phoenix, Opik, and MLflow had no team, member, or invite management, and MLflow had no login screen. Helicone had one organization tier and no role field in its invite dialog.',
   },
   {
     question: 'Can you see who changed what and when, and does it cost extra?',
     answer:
-      'Yes, in AcruxCore, and it costs nothing extra. Every prompt and every tool keeps its own change history. Owners and admins also see one audit trail for the whole team in the dashboard. That trail records 39 event types across eight areas: prompts, tools, members and invites, API keys, gateway credentials and budgets, secrets, evaluations, and trace settings. You can filter the trail by area, by one event type, or by person. Entries stay in the trail after the person who made them leaves the team, so you can still filter by that person. The trail is on by default, whether hosted or self-hosted, with nothing to pay and nothing to switch on. Of the other six platforms, Langfuse is the only one where we found an audit log, and that log needs the top paid plan even if you self-host. For Phoenix, Opik, Helicone, MLflow and Laminar we found no activity audit option in the platform.',
+      'Yes, in AcruxCore, and it costs nothing extra. Every prompt and every tool keeps its own change history. Owners and admins also see one audit trail for the whole team in the dashboard. That trail records 39 event types across eight areas: prompts, tools, members and invites, API keys, gateway credentials and budgets, secrets, evaluations, and trace settings. You can filter the trail by area, by one event type, or by person. Entries stay in the trail after the person who made them leaves the team, so you can still filter by that person. The trail is on by default, whether hosted or self-hosted, with nothing to pay and nothing to switch on. Of the other seven platforms, Langfuse and Agenta are the only ones where we found an audit log. Both put it on their Enterprise plan, even if you self-host. For Phoenix, Opik, Helicone, MLflow and Laminar we found no activity audit option in the platform.',
   },
   {
     question: 'How do you turn feedback into better prompts?',
     answer:
-      'AcruxCore labels end-user feedback and developer notes separately, and both can be added to a dataset of test cases. Experiments run those cases against different prompt versions and models so you can compare the results. Automated rules score live traffic as it arrives. The optimizer uses a large language model to propose rewrites and tests them on the same cases as your production prompt. You can edit the prompt that instructs the optimizer, so the rewrites follow your own rules for a good prompt. Promoting a better rewrite creates a numbered version and moves the alias, so your app picks it up without a deployment. Opik and MLflow also have optimizers, with more algorithms than AcruxCore. Both run from the SDK only and cannot be started from the UI. Langfuse, Phoenix, and Helicone have no optimizer in the product, and Laminar has no stored prompt to optimize.',
+      'AcruxCore labels end-user feedback and developer notes separately, and both can be added to a dataset of test cases. Experiments run those cases against different prompt versions and models so you can compare the results. Automated rules score live traffic as it arrives. The optimizer uses a large language model to propose rewrites and tests them on the same cases as your production prompt. You can edit the prompt that instructs the optimizer, so the rewrites follow your own rules for a good prompt. Promoting a better rewrite creates a numbered version and moves the alias, so your app picks it up without a deployment. Opik and MLflow also have optimizers, with more algorithms than AcruxCore. Both run from the SDK only and cannot be started from the UI. Langfuse, Phoenix, Helicone, and Agenta have no optimizer in the product, and Laminar has no stored prompt to optimize.',
   },
   {
     question: 'What does the license include?',
     answer:
-      'Opik, Helicone, MLflow, Laminar, and AcruxCore are Apache 2.0, with no folder under a separate paid license. Langfuse has an MIT-licensed core and one folder under an enterprise license. Its audit log needs the top paid plan even if you self-host. Phoenix uses Elastic License 2.0, which is source-available rather than OSI-approved open source.',
+      'Opik, Helicone, MLflow, Laminar, and AcruxCore are Apache 2.0, with no folder under a separate paid license. Langfuse and Agenta have an MIT-licensed core and one folder under a separate license. Both put their audit log on the Enterprise plan, even if you self-host. Phoenix uses Elastic License 2.0, which is source-available rather than OSI-approved open source.',
   },
 ];
 
@@ -392,7 +394,7 @@ function PlatformCard({ platform }: { platform: Comparison }): ReactNode {
  * claim than a row win, because Langfuse's and Phoenix's servers have tools ours lacks.
  */
 const UNIQUE_IN_COMPARISON =
-  'Tools are defined and versioned in AcruxCore, and the gateway runs them when the model calls them. Every other platform here either has no tool catalog, stores a tool schema that nothing runs, or catalogs whole MCP servers instead of tools. AcruxCore\'s MCP server is the only one here that runs a stored, versioned prompt through a gateway. The same server can also commit a new prompt version, promote it to an alias, and read the trace of each run.';
+  'Tools are defined and versioned in AcruxCore, and the gateway runs them when the model calls them. Every other platform here either has no tool catalog, stores a tool schema that nothing runs, catalogs whole MCP servers instead of tools, or runs third-party actions that you cannot version. AcruxCore\'s MCP server is the only one here that runs a stored, versioned prompt through a gateway. The same server can also commit a new prompt version, promote it to an alias, and read the trace of each run.';
 function AcruxCoreCard(): ReactNode {
   return (
     <article style={cssToStyle(cardStyle)}>

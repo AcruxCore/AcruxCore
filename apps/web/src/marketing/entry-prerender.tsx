@@ -211,7 +211,7 @@ export const ROUTES: PrerenderRoute[] = [
     out: 'compare/index.html',
     title: 'LLM Observability Tools Compared (2026) | AcruxCore',
     description:
-      'AcruxCore vs Langfuse, Phoenix, Opik, Helicone, MLflow and Laminar on license, self-hosting, pricing, team structure and community — sourced and dated.',
+      'AcruxCore vs Langfuse, Phoenix, Opik, Helicone, MLflow, Laminar and Agenta on license, self-hosting, pricing, team structure and community, sourced and dated.',
     component: ComparePage,
     sourceFiles: ['src/marketing/pages/ComparePage.tsx', 'src/marketing/comparisons.tsx'],
     priority: 0.8,
@@ -222,7 +222,7 @@ export const ROUTES: PrerenderRoute[] = [
     out: 'faq/index.html',
     title: 'AcruxCore FAQ — how it compares, and where it does not fit',
     description:
-      'Straight answers on what AcruxCore does, how it compares to Langfuse, Phoenix, Opik, Helicone, MLflow and Laminar, and where another tool fits better.',
+      'Straight answers on what AcruxCore does, how it compares to Langfuse, Phoenix, Opik, Helicone, MLflow, Laminar and Agenta, and where another tool fits better.',
     component: FaqPage,
     sourceFiles: ['src/marketing/pages/FaqPage.tsx', 'src/marketing/faq.tsx'],
     priority: 0.8,
@@ -234,7 +234,7 @@ export const ROUTES: PrerenderRoute[] = [
     out: 'best-open-source-llmops-platforms/index.html',
     title: 'Best Open-Source LLMOps Platforms in 2026 | AcruxCore',
     description:
-      'Seven open-source LLMOps platforms compared — Langfuse, MLflow, Opik, Phoenix, Helicone, Laminar and AcruxCore — each self-hosted and run for real.',
+      'Eight open-source LLMOps platforms compared: Langfuse, MLflow, Opik, Phoenix, Helicone, Agenta, Laminar and AcruxCore, each self-hosted and run for real.',
     component: BestLlmOpsPlatformsPage,
     sourceFiles: [
       'src/marketing/pages/BestLlmOpsPlatformsPage.tsx',

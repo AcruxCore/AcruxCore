@@ -45,9 +45,9 @@ interface Section {
 const SUMMARIES: Record<string, string> = {
   '/': 'What AcruxCore is: prompt versioning, an OpenAI-compatible gateway, tracing, a tool catalog, evaluation, an audit trail and an MCP server, in one self-hostable platform.',
   '/best-open-source-llmops-platforms':
-    'Seven open-source LLMOps platforms compared on licence, self-hosting, request-path control, prompt management and community size, with what each one is best for and where it falls short.',
+    'Eight open-source LLMOps platforms compared on licence, self-hosting, request-path control, prompt management and community size, with what each one is best for and where it falls short.',
   '/compare':
-    'The row-by-row matrix: AcruxCore against Langfuse, Phoenix, Opik, Helicone, MLflow and Laminar, every fact carrying a source link and the date it was checked.',
+    'The row-by-row matrix: AcruxCore against Langfuse, Phoenix, Opik, Helicone, MLflow, Laminar and Agenta, every fact carrying a source link and the date it was checked.',
   '/faq':
     'Direct answers on what AcruxCore does, the measured latency cost of a gateway in the request path, and the cases where a different tool is the better choice.',
   '/pricing':
@@ -227,10 +227,10 @@ export function buildLlmsTxt(routes: readonly PrerenderRoute[], origin: string):
     'Audit trail: on by default on every plan and when self-hosted, covering the whole team',
     'rather than one prompt at a time — API keys, members, roles, invites, provider',
     'credentials, virtual keys, budgets, gateway models, secrets, trace settings, prompts and',
-    'tools, filtered by area, event or person. Of the seven platforms in our hands-on',
+    'tools, filtered by area, event or person. Of the eight platforms in our hands-on',
     'comparison this is the only audit trail that needs no paid plan: Langfuse has one behind',
-    'its $2,499/mo Enterprise tier, and we found none in Phoenix, Opik, Helicone, MLflow or',
-    'Laminar. An audit event is a change a person made, which is a different record from a',
+    'its $2,499/mo Enterprise tier, Agenta has one on its Enterprise plan, and we found none in',
+    'Phoenix, Opik, Helicone, MLflow or Laminar. An audit event is a change a person made, which is a different record from a',
     'trace of the traffic an application sent.',
     'Limitations: a single flat team with no organisation layer above it, one role per member,',
     'and a young project — a few dozen GitHub stars against tens of thousands for the largest',

@@ -387,7 +387,7 @@ the constraint to plan around. AcruxCore's equivalent paths (**Sending a live ca
 picture, including license, pricing, and team structure, on the
 [compare page](https://acruxcore.com/compare).
 
-To compare more tools, see [9 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison).
+To compare more tools, see [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison).
 
 Want to run this yourself? The [Quickstart](/docs/getting-started/quickstart) gets you
 from sign-up to a traced, gateway-routed call in about ten minutes.

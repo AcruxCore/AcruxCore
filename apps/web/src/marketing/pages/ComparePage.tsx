@@ -57,9 +57,9 @@ const VERDICTS: Record<Verdict, { label: string; color: string; icon: ReactNode 
 
 /**
  * The verdict for a whole row, shown once on the AcruxCore cell — set only when every
- * competitor lands the same way. A verdict that holds against all six is a statement
- * about the row, so it is made once; repeating "Our edge" in all six competitor
- * columns said the same thing six times and drowned out the rows that differ.
+ * competitor lands the same way. A verdict that holds against all seven is a statement
+ * about the row, so it is made once; repeating "Our edge" in all seven competitor
+ * columns said the same thing seven times and drowned out the rows that differ.
  *
  * @returns The row-level verdict, or `undefined` when the competitors disagree — in
  *   which case each competitor column speaks for itself via {@link cellVerdict}.
@@ -90,7 +90,7 @@ function cellVerdict(fact: Fact, row: Verdict | undefined): Verdict | undefined 
  * A cell's fact plus an optional source link and verdict pill. The verdict is passed
  * in rather than read off the fact, because it depends on the whole row: the AcruxCore
  * column shares one `Fact` across every competitor, so its pill can only be decided by
- * looking at all six at once (see {@link rowVerdict}).
+ * looking at all seven at once (see {@link rowVerdict}).
  *
  * The pill stays last, under the fact, and is found by its glyph rather than by its
  * position. Two rejected alternatives, both tried: putting it first pushes that one
@@ -176,7 +176,7 @@ const TH_BASE =
 const TD_BASE = 'padding:14px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top;min-width:172px;';
 
 /**
- * The wash behind the AcruxCore column. Six competitor columns sit to its right and the
+ * The wash behind the AcruxCore column. Seven competitor columns sit to its right and the
  * table scrolls sideways, so without it the one column every row is measured against is
  * found by counting from the left edge on every row. It is mixed into `--surface` rather
  * than laid over it as a transparent tint because the header cells are `position:sticky`
@@ -215,7 +215,7 @@ export function ComparePage(): ReactNode {
             'font-size:clamp(30px,4.4vw,48px);line-height:1.05;letter-spacing:-.026em;font-weight:700;margin:0 0 18px;max-width:22ch;text-wrap:balance;',
           )}
         >
-          AcruxCore next to six open-source alternatives.
+          AcruxCore next to seven open-source alternatives.
         </h1>
         <p
           style={cssToStyle(
@@ -232,7 +232,7 @@ export function ComparePage(): ReactNode {
 
       <section className="acx-compare-matrix" style={cssToStyle('padding:0 0 clamp(40px,6vw,64px);')}>
         <p className="acx-compare-hint" style={cssToStyle('font-size:12.5px;color:var(--faint);margin:0 4px 10px;')}>
-          Scroll right to see all six competitors →
+          Scroll right to see all seven competitors →
         </p>
         <div style={cssToStyle('overflow-x:auto;border:1px solid var(--line);border-radius:14px;')}>
           <table style={cssToStyle('width:100%;border-collapse:collapse;background:var(--surface);')}>

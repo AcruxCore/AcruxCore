@@ -168,25 +168,25 @@ export const FAQ_GROUPS: FaqGroup[] = [
     title: 'LLMOps platform comparisons',
     items: [
       {
-        question: 'How does AcruxCore compare with Langfuse, Phoenix, Opik, Helicone, MLflow, and Laminar?',
+        question: 'How does AcruxCore compare with Langfuse, Phoenix, Opik, Helicone, MLflow, Laminar, and Agenta?',
         answer: [
           [
-            'AcruxCore combines an LLM gateway with prompt management, tracing, and evaluation. The gateway applies routing, caching, budgets, and virtual keys before calls reach the provider. Helicone and MLflow also have gateways. Langfuse, Phoenix, Opik, and Laminar have no gateway, and collect traces from the calls your application makes.',
+            'AcruxCore combines an LLM gateway with prompt management, tracing, and evaluation. The gateway applies routing, caching, budgets, and virtual keys before calls reach the provider. Helicone and MLflow also have gateways. Agenta can call the model for a stored prompt, but with no budgets, cache, or virtual keys. Langfuse, Phoenix, Opik, and Laminar have no gateway, and collect traces from the calls your application makes.',
           ],
           [
             'AcruxCore versions prompts and tools in the same place. The gateway runs those tools, and tracing records each model call. AcruxCore is also the only one of these platforms with an audit trail that costs nothing extra.',
           ],
           [
-            'All seven platforms have an MCP server. AcruxCore’s ',
+            'All eight platforms have an MCP server, though Agenta’s only searches its documentation. AcruxCore’s ',
             { text: 'MCP server', href: `${DOCS_URL}/docs/guides/connect-an-mcp-client` },
             ' is the only one of them that runs a stored, versioned prompt through a gateway.',
           ],
           [
             'The ',
             { text: 'comparison matrix', to: '/compare' },
-            ' puts the seven platforms side by side on eleven criteria, with a source for each cell. The ',
-            { text: 'hands-on test of nine platforms', href: COMPARE_POST },
-            ' covers these seven, plus LangSmith and PromptLayer, in more detail.',
+            ' puts the eight platforms side by side on eleven criteria, with a source for each cell. The ',
+            { text: 'hands-on test of ten platforms', href: COMPARE_POST },
+            ' covers all of them, plus LangSmith and PromptLayer, in more detail.',
           ],
         ],
       },
@@ -199,7 +199,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
           [
             'The ',
             { text: 'versioned tool catalog', href: `${DOCS_URL}/docs/guides/create-a-tool` },
-            ' stores each tool with its version history, and the gateway runs the tool when a model calls it. No other platform in our comparison keeps versions of a tool and also runs it. Langfuse and Laminar store a tool schema inside a playground, and nothing runs it. Phoenix, Opik, and Helicone have no tool catalog. MLflow catalogs whole MCP servers, each a bundle of tools, rather than single tools.',
+            ' stores each tool with its version history, and the gateway runs the tool when a model calls it. No other platform in our comparison keeps versions of a tool and also runs it. Langfuse and Laminar store a tool schema inside a playground, and nothing runs it. Agenta runs third-party actions from Composio, but you cannot add your own tool to its catalog. Phoenix, Opik, and Helicone have no tool catalog. MLflow catalogs whole MCP servers, each a bundle of tools, rather than single tools.',
           ],
           [
             'Tools can connect to HTTP endpoints that the gateway calls for you. Add an existing endpoint as a tool without redeploying your application.',
@@ -212,7 +212,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
           [
             'AcruxCore also supports ',
             { text: 'prompt templates with conditional logic', href: `${DOCS_URL}/docs/guides/use-conditional-logic-in-prompt-templates` },
-            '. Jinja2 if statements and for loops keep the branching inside the template. MLflow also supports conditions and loops. Langfuse, Phoenix, Opik, Helicone, and Laminar only substitute variables.',
+            '. Jinja2 if statements and for loops keep the branching inside the template. MLflow and Agenta also render conditions and loops. Langfuse, Phoenix, Opik, Helicone, and Laminar only substitute variables.',
           ],
           [
             'The prompt optimizer drafts rewrites and evaluates them against the same test cases as your production prompt. You choose which candidate to promote as a new version. ',
@@ -244,7 +244,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
             'The team-wide trail holds 39 event types across multiple areas. The areas are API keys, members and roles, invites, provider connections, virtual keys, budgets, gateway models, secrets, trace settings, datasets and evaluation rules, and prompt and tool changes. You can filter the trail by area, by one event type, or by person. Entries stay in the trail after the person who made them leaves the team.',
           ],
           [
-            'Langfuse has an audit log, but it needs the Enterprise plan at $2,499 a month, even if you self-host. In Phoenix, Opik, Helicone, MLflow, and Laminar we found no audit log in the settings pages we opened.',
+            'Langfuse has an audit log, but it needs the Enterprise plan at $2,499 a month, even if you self-host. Agenta also puts audit logs on its Enterprise plan, for its cloud and for self-hosting. In Phoenix, Opik, Helicone, MLflow, and Laminar we found no audit log in the settings pages we opened.',
           ],
           [
             'The ',
@@ -274,7 +274,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: 'When should I consider an AcruxCore alternative?',
         answer: [
           [
-            'Pick something else if you need an organization or workspace above teams, or content filtering in the gateway. Also pick something else if you need more than one role per member, or a larger community. Langfuse has an organization above its projects, and Laminar has a workspace above its projects. AcruxCore has one team with nothing above it.',
+            'Pick something else if you need an organization or workspace above teams, or content filtering in the gateway. Also pick something else if you need more than one role per member, or a larger community. Langfuse has an organization above its projects, and Laminar has a workspace above its projects. Agenta has organizations, workspaces, and projects. AcruxCore has one team with nothing above it.',
           ],
           [
             'MLflow’s gateway can block content and personal data at each endpoint. AcruxCore has no such filter. AcruxCore also gives each member exactly one role at a time.',
@@ -309,7 +309,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
             'AcruxCore uses Apache 2.0 for the whole platform, with no folder under a separate paid license.',
           ],
           [
-            'Opik, Helicone, MLflow, and Laminar use Apache 2.0 on the same terms. Langfuse is MIT at its core, and some features sit in a folder under an enterprise license. Phoenix uses the Elastic License 2.0, a source-available license that the Open Source Initiative has not approved.',
+            'Opik, Helicone, MLflow, and Laminar use Apache 2.0 on the same terms. Langfuse and Agenta are MIT at their core, and some features sit in a folder under a separate license. Phoenix uses the Elastic License 2.0, a source-available license that the Open Source Initiative has not approved.',
           ],
         ],
       },

@@ -440,7 +440,7 @@ lineage (**Sending a live call** and **Tracing & observability** above). See the
 picture, including license, pricing, and team structure, on the [compare
 page](https://acruxcore.com/compare).
 
-To compare more tools, see [9 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison),
+To compare more tools, see [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison),
 [8 LangSmith alternatives](/blog/langsmith-alternatives) and [8 Langfuse alternatives](/blog/langfuse-alternatives).
 
 Want to run this yourself? The

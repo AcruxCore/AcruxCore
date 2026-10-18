@@ -442,7 +442,7 @@ point your client at our gateway, keep Laminar's SDK instrumenting the run.
 Licence, pricing, team model, security and community stats for both — with a source link and a
 checked-on date for every fact — are on the [compare page](https://acruxcore.com/compare).
 
-To compare more tools, see [9 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison),
+To compare more tools, see [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison),
 [8 LangSmith alternatives](/blog/langsmith-alternatives) and [8 Langfuse alternatives](/blog/langfuse-alternatives).
 
 Start here if you want to try the other side: [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart).

@@ -84,12 +84,12 @@ export function FaqPage(): ReactNode {
           Where to look next
         </h2>
         <p className="acx-prose" style={cssToStyle('margin:0;')}>
-          The <Link to="/compare">comparison matrix</Link> puts the seven platforms side by side with
+          The <Link to="/compare">comparison matrix</Link> puts the eight platforms side by side with
           a source for each cell. The{' '}
           <a href={`${DOCS_URL}/blog/hands-on-llm-ops-comparison`} target="_blank" rel="noreferrer">
-            hands-on test of nine platforms
+            hands-on test of ten platforms
           </a>{' '}
-          covers these seven, plus LangSmith and PromptLayer, in more detail. The{' '}
+          covers these eight, plus LangSmith and PromptLayer, in more detail. The{' '}
           <Link to="/contact">contact page</Link> reaches the AcruxCore team.
         </p>
       </section>

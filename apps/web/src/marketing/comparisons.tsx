@@ -2,11 +2,11 @@ import { DOCS_URL, GITHUB_URL } from './marketing-chrome';
 
 /**
  * The competitors with a row on `/compare` and a matched-example blog post. Kept
- * in sync with the six `acruxcore-vs-<slug>` posts and the
+ * in sync with the seven `acruxcore-vs-<slug>` posts and the
  * `comparing-open-source-alternatives` skill's competitor set (see
  * cross-cutting-faq: LangWatch and LiteLLM dropped).
  */
-export type CompetitorSlug = 'langfuse' | 'phoenix' | 'opik' | 'helicone' | 'mlflow' | 'laminar';
+export type CompetitorSlug = 'langfuse' | 'phoenix' | 'opik' | 'helicone' | 'mlflow' | 'laminar' | 'agenta';
 
 /** Where a fact came from, so a reader can check it themselves. */
 export interface Source {
@@ -17,7 +17,7 @@ export interface Source {
 /**
  * One fact in a comparison row, with its source and which side (if either) it
  * clearly favors. All three flags live on the competitor's own `Fact` object — there
- * is one shared `ACRUX_CORE` record reused across all six competitors, so it has no
+ * is one shared `ACRUX_CORE` record reused across all seven competitors, so it has no
  * per-competitor notion of "wins"; the competitor's object is what varies row by
  * row and comparison by comparison, so that is where every verdict gets recorded.
  *
@@ -80,7 +80,8 @@ export interface Comparison {
   promptOptimizer: Fact;
   /**
    * What the platform's own MCP server lets an AI assistant do. Every competitor here
-   * has one, so this row compares capabilities, never presence. `acruxWins` is set only
+   * has one (Agenta's only searches its docs), so this row compares capabilities, never
+   * presence. `acruxWins` is set only
    * where AcruxCore's server covers everything the competitor's does and more; a
    * competitor whose server has tools ours lacks gets no flag. Tool counts are stated as
    * facts, never used as the score.
@@ -100,9 +101,9 @@ export const ACRUX_CORE = {
   tagline:
     'A gateway in the request path, and tools that are defined, versioned, and run in the same place.',
   bestFor:
-    'Teams that want prompts, gateway, tracing, and tools in one self-hosted product. Prompts are versioned, and the gateway sits in the request path. Tools are defined and versioned in AcruxCore, and the gateway runs them. From an MCP client such as Claude Code, you can commit a prompt version, promote it, run it through AcruxCore\'s gateway, and read the resulting trace. Feedback from users and notes from developers become a dataset of test cases. Standing rules score live traffic against that dataset. The optimizer proposes rewrites, and you promote a rewrite as a normal prompt version. Every change anyone makes is recorded with their name, whether you use the hosted product or self-host it. Langfuse is the only other platform here where we found an audit trail, and it needs a paid plan.',
+    'Teams that want prompts, gateway, tracing, and tools in one self-hosted product. Prompts are versioned, and the gateway sits in the request path. Tools are defined and versioned in AcruxCore, and the gateway runs them. From an MCP client such as Claude Code, you can commit a prompt version, promote it, run it through AcruxCore\'s gateway, and read the resulting trace. Feedback from users and notes from developers become a dataset of test cases. Standing rules score live traffic against that dataset. The optimizer proposes rewrites, and you promote a rewrite as a normal prompt version. Every change anyone makes is recorded with their name, whether you use the hosted product or self-host it. Langfuse and Agenta are the only other platforms here with an audit trail, and both put it on their Enterprise plan.',
   limitations:
-    'One team with no organization layer, and one role per member. No content or PII guardrails in the request path. Only the local MCP server has a read-only mode, not the hosted one. A smaller community than any of the six competitors here.',
+    'One team with no organization layer, and one role per member. No content or PII guardrails in the request path. Only the local MCP server has a read-only mode, not the hosted one. A smaller community than any of the seven competitors here.',
   license: {
     value: 'Apache License 2.0, permissive and OSI-approved. No part of the repository is under a different license.',
     source: { label: 'LICENSE', href: `${GITHUB_URL}/blob/main/LICENSE` },
@@ -157,7 +158,7 @@ export const ACRUX_CORE = {
   },
 } as const;
 
-/** The six competitors with a published comparison, in the order they appear on `/compare`. */
+/** The seven competitors with a published comparison, in the order they appear on `/compare`. */
 export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
   langfuse: {
     slug: 'langfuse',
@@ -481,7 +482,7 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     bestFor:
       'Observability for agent runs, with SQL over spans, an LLM-watched Signals engine, and PII redaction. It has a workspace layer above projects, and three roles.',
     limitations:
-      'No prompt registry, so there is nothing to version or template. Nothing in the request path. The lite self-host stack switches Signals off and does not create the span index. The smallest community of the six competitors.',
+      'No prompt registry, so there is nothing to version or template. Nothing in the request path. The lite self-host stack switches Signals off and does not create the span index. The smallest community of the seven competitors.',
     license: {
       value: 'Apache License 2.0. At the commit we checked, no part of the repository was under a different license. The same terms as AcruxCore.',
       source: { label: 'LICENSE', href: 'https://github.com/lmnr-ai/lmnr/blob/main/LICENSE.md' },
@@ -531,6 +532,77 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     communityNote:
       'Y Combinator S24. On the date we checked it had 29 contributors and release v0.2.3. It ships a PII redaction toggle and an LLM-watched Signals engine. AcruxCore has no equivalent of either.',
   },
+
+  agenta: {
+    slug: 'agenta',
+    name: 'Agenta',
+    tagline: 'A workspace for building agents by chatting, with a prompt registry, evaluation, and tracing behind it.',
+    postHref: `${DOCS_URL}/blog/acruxcore-vs-agenta`,
+    githubHref: 'https://github.com/Agenta-AI/agenta',
+    checkedOn: '2026-10-18',
+    bestFor:
+      'Evaluation with people and rules in the loop: 15 built-in evaluator types, human and live evaluations, and annotation queues. It has roles at organization, workspace, and project level in the open-source version.',
+    limitations:
+      'No spend cap, response cache, or virtual keys on its invoke endpoint. You cannot define your own tool and keep versions of it. A Jinja2 variable that appears only inside {% if %} or {% for %} gets no input field in the editor. Audit logs need the Enterprise plan, and the ee/ folder is under a separate license.',
+    license: {
+      value:
+        'MIT, except for the ee/ folder. A separate license covers that folder, so the features in it are not MIT. AcruxCore has no such folder.',
+      source: { label: 'LICENSE', href: 'https://github.com/Agenta-AI/agenta/blob/main/LICENSE' },
+      acruxWins: true,
+    },
+    selfHost: {
+      value: 'docker compose up, after you copy the example env file. The stack runs 14 containers.',
+      source: { label: 'Self-host quick start', href: 'https://agenta.ai/docs/self-host/quick-start' },
+      tie: true,
+    },
+    gateway: {
+      value:
+        'Partly. The invoke endpoint renders a stored prompt and calls the model, so those calls pass through Agenta. It has no spend cap, response cache, or virtual keys. A call from your own code goes straight to the provider, and the SDK traces it.',
+      acruxWins: true,
+    },
+    toolCatalog: {
+      value:
+        'A catalog of third-party actions from Composio, which Agenta runs for its agents once you set a Composio API key. You cannot add your own tool to it or keep versions of a tool. A prompt carries its own tool schemas.',
+      acruxWins: true,
+    },
+    teamStructure: {
+      value: 'Three levels: organization, workspace, and project. Members are managed on the organization.',
+      competitorWins: true,
+    },
+    pricingSummary: {
+      value: 'The open-source version is free. Agenta Cloud costs $0, $29, or $299 a month, and Enterprise is priced on request.',
+      source: { label: 'agenta.ai/pricing', href: 'https://agenta.ai/pricing' },
+    },
+    rbac: {
+      value:
+        'Six roles in the open-source version: owner, admin, developer, editor, annotator, and viewer. On Agenta Cloud, roles come with the $299/mo Business plan.',
+      source: { label: 'Roles and permissions', href: 'https://agenta.ai/docs/administration/access-control/rbac' },
+      competitorWins: true,
+    },
+    auditLog: {
+      value: 'Audit logs are on the Enterprise plan, for Agenta Cloud and for self-hosting.',
+      source: { label: 'agenta.ai/pricing', href: 'https://agenta.ai/pricing' },
+      acruxWins: true,
+    },
+    promptTemplating: {
+      value:
+        'Full Jinja2 when you choose the Jinja2 syntax. A variable that appeared only inside {% if %} or {% for %} got no input field in the editor. The invoke endpoint rejected that variable until we edited the input list by hand.',
+      acruxWins: true,
+    },
+    promptOptimizer: {
+      value:
+        'No optimizer that rewrites a prompt from evaluation results. Agenta\'s agents can update their own instructions from feedback in chat.',
+      acruxWins: true,
+    },
+    mcpServer: {
+      value:
+        'Agenta\'s MCP server has 3 tools, and all of them search Agenta\'s documentation. No tool reads or changes your prompts, traces or evaluations.',
+      source: { label: 'Agenta MCP server', href: 'https://agenta.ai/docs/misc/mcp-server' },
+      acruxWins: true,
+      checkedOn: '2026-10-18',
+    },
+    communityStars: '4,843',
+  },
 };
 
 /** The competitors as an ordered array — matches the order they appear on `/compare`. */
@@ -541,10 +613,11 @@ export const COMPARISON_LIST: Comparison[] = [
   COMPARISONS.helicone,
   COMPARISONS.mlflow,
   COMPARISONS.laminar,
+  COMPARISONS.agenta,
 ];
 
 /**
- * The seven platforms on `/best-open-source-llmops-platforms`, ordered by the
+ * The eight platforms on `/best-open-source-llmops-platforms`, ordered by the
  * size of the project around them — largest community first, AcruxCore last.
  *
  * Community size rather than a scoreline, because the page's own answer is that

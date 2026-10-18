@@ -999,18 +999,21 @@ export const MARKETING_CSS = `
 }
 
 /* ── /compare matrix ── */
-/* A label column plus six 172px-minimum columns needs ~1235px, and the shell measure
-   caps at 1160px — so the table was stuck in a permanent cramped scroll, and zooming
-   out never helped, because the extra viewport width stopped at the cap and never
-   reached the table. From 1300px up the matrix breaks out of the measure and centres
-   on the viewport instead, which is the first width where all six columns fit.
+/* A label column plus eight 172px-minimum columns (AcruxCore and seven competitors)
+   needs ~1650px, and the shell measure caps at 1160px — so the table was stuck in a
+   permanent cramped scroll, and zooming out never helped, because the extra viewport
+   width stopped at the cap and never reached the table. From 1300px up the matrix
+   breaks out of the measure and centres on the viewport instead. All eight columns fit
+   from 1700px, so the scroll hint stays visible until then.
 
    The 50% resolves against the shell's content box, which is itself centred, so
    centring on it centres on the viewport. This is deliberately scoped to the one
    breakpoint that needs it: below 1300px the table keeps the normal measure and
    scrolls, and stays aligned with the rest of the page. */
 @media (min-width:1300px){
-  .acx-compare-matrix{width:min(1560px,calc(100vw - 48px));margin-left:calc(50% - min(780px,50vw - 24px));}
+  .acx-compare-matrix{width:min(1700px,calc(100vw - 48px));margin-left:calc(50% - min(850px,50vw - 24px));}
+}
+@media (min-width:1700px){
   /* Nothing to scroll to at this width, so the hint above the table would be a lie. */
   .acx-compare-hint{display:none !important;}
 }

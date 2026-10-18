@@ -1,24 +1,26 @@
 ---
-title: "9 LLM Observability Tools Tested Hands-On (2026)"
-description: We hands-on tested 9 LLM observability tools — Langfuse, Opik, MLflow, Laminar and more — comparing tracing, evals and measured latency, with screenshots of each.
+title: "10 LLM Observability Tools Tested Hands-On (2026)"
+description: We tested 10 LLM observability tools hands-on, including Langfuse, Opik, MLflow, Laminar and Agenta. We compare tracing, evals and measured latency, with screenshots.
 slug: hands-on-llm-ops-comparison
 authors: [acrux]
 tags: [llmops-comparison, prompt-management, llm-tracing]
 image: /img/social-card.png
-keywords: [llm observability tools, ai observability, llm monitoring, ai agent observability, langsmith alternatives, langfuse alternatives, promptlayer alternatives, arize phoenix alternatives, opik alternatives, mlflow alternatives, helicone alternatives, laminar alternatives, open source llm observability, llm ops comparison, prompt management comparison, llm tracing comparison, llm evaluation comparison]
+keywords: [llm observability tools, ai observability, llm monitoring, ai agent observability, langsmith alternatives, langfuse alternatives, promptlayer alternatives, arize phoenix alternatives, opik alternatives, mlflow alternatives, helicone alternatives, laminar alternatives, agenta alternatives, open source llm observability, llm ops comparison, prompt management comparison, llm tracing comparison, llm evaluation comparison]
 ---
 
 Most comparisons of the best LLM observability tools are written from docs and marketing pages. We didn't do that here.
-We ran nine LLM-ops platforms ourselves — **LangSmith**, **Langfuse**, **PromptLayer**,
-**Arize Phoenix**, **Opik**, **MLflow**, **Helicone**, and **Laminar**, plus our own
+We ran ten LLM-ops platforms ourselves — **LangSmith**, **Langfuse**, **PromptLayer**,
+**Arize Phoenix**, **Opik**, **MLflow**, **Helicone**, **Laminar**, and **Agenta**, plus our own
 **AcruxCore** as the baseline — and did the same thing on each one: create a prompt, version
 it, run it live with a real model key, inspect the resulting trace, and try to build an eval.
 Then we wrote a small script against each platform's own SDK and ran that too, and timed every
 one of them against a direct call to the provider.
 
-Tracing and monitoring — what most people mean by "LLM observability tools" — is only one
-of nine angles below; prompt management, evals, guardrails, and tool-calling get the same
-hands-on treatment.
+Most people who search for LLM observability tools want tracing and monitoring, and one section
+below covers both. Prompt management, evals, guardrails, and tool calling get their own
+sections too. For open source LLM observability tools that you can self-host,
+[a separate post](/blog/self-hosting-llm-observability) measures the memory and disk use of
+seven open source observability tools on one machine.
 
 <!-- truncate -->
 
@@ -27,23 +29,35 @@ hands-on treatment.
   span-based tracing.
 - **Ahead** on three things: a feedback→prompt loop you run from the dashboard (**Improve from
   feedback**) — Opik and MLflow have real optimizers too, both SDK-only — tools as
-  versioned+measured objects (**Tool Catalog**), and being one of only three platforms genuinely
-  **in** the request path, where it is also the cheapest, at +4 to +51 ms against MLflow's
-  gateway at +135 to +225 ms.
-- **Behind** on three things: no guardrails or spend controls (Opik, MLflow, and Helicone all
-  have real ones), no pairwise experiments or arbitrary-code scorers, and
+  versioned+measured objects (**Tool Catalog**), and a gateway **in** the request path that
+  can refuse a call over budget. Measured against the same OpenAI baseline, it adds +4 to +51 ms
+  and MLflow's gateway adds +135 to +225 ms.
+- **Behind** on three things: no content guardrails (Opik and MLflow have real ones), no
+  pairwise experiments and no library of rule evaluators on the server (Agenta ships 15
+  evaluator types), and
   no way to ask an arbitrary question of your own trace data (Laminar has a real SQL editor
   and a composable dashboard builder).
 - Full reasoning: [Where AcruxCore stands](#where-acruxcore-stands).
 :::
 
+## What is LLM observability?
+
+LLM observability means recording what your model calls do, so you can debug and improve
+them. Other names for the same category are AI observability tools and LLM tracking tools. An LLM observability tool records each call as a trace: the prompt, the response, the
+tokens, the cost and the latency. For an agent, one trace holds every step of a run. Each
+model call and each tool call is a span, a timed record of one step, and the spans sit inside
+one parent span for the whole run. Most tools in this category also store prompt versions,
+run evaluations, and collect user feedback. This post tests tracing, prompt versions,
+evaluations and feedback on each platform.
+
 ## Contents
 
-- [At a glance](#at-a-glance) — the summary table, all nine platforms
+- [What is LLM observability?](#what-is-llm-observability)
+- [At a glance](#at-a-glance) — the summary table, all ten platforms
 - [Prompt management](#prompt-management)
-- [Tracing and observability](#tracing-and-observability)
+- [LLM tracing and monitoring](#llm-tracing-and-monitoring)
   - [Where the platform sits — in the request path, or beside it](#where-the-platform-sits--in-the-request-path-or-beside-it)
-  - [Latency overhead — measured](#latency-overhead--measured-on-six-of-the-nine)
+  - [Latency overhead — measured](#latency-overhead--measured-on-seven-of-the-ten)
 - [Evaluation](#evaluation)
 - [Guardrails and spend controls](#guardrails-and-spend-controls)
 - [From feedback to a fixed prompt](#from-feedback-to-a-fixed-prompt)
@@ -54,9 +68,10 @@ hands-on treatment.
 - [Where AcruxCore stands](#where-acruxcore-stands) — the verdict
 
 Each platform gets its own detailed, screenshot-backed post — that's where the evidence
-lives. The first three got a full hands-on walkthrough of their own; the last five were run
-as a matched, paired comparison directly against AcruxCore, using a second fixture prompt
-(`vip-support-triage`) built specifically for that side-by-side format:
+lives. LangSmith, Langfuse and PromptLayer each got a full hands-on walkthrough of their own.
+Phoenix, Opik, MLflow, Helicone, Laminar and Agenta were each run as a matched, paired
+comparison directly against AcruxCore, using a second fixture prompt (`vip-support-triage`)
+built for that side-by-side format:
 
 - [Hands-on with LangSmith](/blog/langsmith-hands-on-walkthrough)
 - [Hands-on with Langfuse](/blog/langfuse-hands-on-walkthrough)
@@ -67,6 +82,7 @@ as a matched, paired comparison directly against AcruxCore, using a second fixtu
 - [AcruxCore vs MLflow](/blog/acruxcore-vs-mlflow)
 - [AcruxCore vs Helicone](/blog/acruxcore-vs-helicone)
 - [AcruxCore vs Laminar](/blog/acruxcore-vs-laminar)
+- [AcruxCore vs Agenta](/blog/acruxcore-vs-agenta)
 - [AcruxCore vs Braintrust](/blog/acruxcore-vs-braintrust)
 
 Two later posts build one app on the hosted platforms and measure each step:
@@ -74,39 +90,44 @@ Two later posts build one app on the hosted platforms and measure each step:
 [AcruxCore vs Langfuse vs LangSmith](/blog/acruxcore-vs-langfuse-vs-langsmith).
 
 This post is the synthesis: what's actually different, what's genuinely unique to one
-platform, and an honest read on where AcruxCore stands next to the other eight.
+platform, and an honest read on where AcruxCore stands next to the other nine.
+
+Datadog LLM Observability and W&B Weave are not in this comparison, because we have not run
+either one hands-on.
 
 :::note[Two fixtures, one honest seam]
 LangSmith, Langfuse, and PromptLayer ran against AcruxCore in one pass on the original
-`support-triage` prompt. Phoenix, Opik, MLflow, Helicone, and Laminar came later, each
+`support-triage` prompt. Phoenix, Opik, MLflow, Helicone, Laminar, and Agenta came later, each
 compared one-on-one against AcruxCore on a second fixture, `vip-support-triage`. The two
-groups were never run against *each other* — treat any row spanning all nine as two passes
+groups were never run against *each other* — treat any row spanning all ten as two passes
 stitched together, not one race. The one exception is
-[latency](#latency-overhead--measured-on-six-of-the-nine): every measured number there comes from the
-second group's runs, all against the same baseline, so those *are* comparable.
+[latency](#latency-overhead--measured-on-seven-of-the-ten): the main table there comes from the
+second group's runs, all against the same OpenAI baseline, so the numbers in that table *are*
+comparable. Agenta's benchmark ended at OpenRouter instead of `api.openai.com`. A different
+provider gives a different baseline, so Agenta's numbers sit in a separate table.
 :::
 
 ## At a glance
 
-The sections below go deep on each dimension with screenshots. If you just want the summary
-— the first four columns are one interleaved run, the next four are each a separate
-one-on-one pass against AcruxCore (see the note above), so read across a row as "how does
-each platform compare to AcruxCore," not as one single eight-way race:
+The sections below go deep on each dimension with screenshots. LangSmith, Langfuse and
+PromptLayer come from one interleaved run with AcruxCore. Phoenix, Opik, MLflow, Helicone,
+Laminar and Agenta each come from a separate one-on-one pass against AcruxCore (see the note above). So read across a row as "how
+does each platform compare to AcruxCore," not as one ten-way race:
 
-| Dimension | LangSmith | Langfuse | PromptLayer | Phoenix | Opik | MLflow | Helicone | Laminar | AcruxCore |
-|---|---|---|---|---|---|---|---|---|---|
-| Prompt versioning | Git-like commits + Environments | Immutable versions + labels | Immutable versions + Release Labels + inline diff | Mustache sections (one construct for if *and* for) + real Diff view + tags | Flat `{{variable}}` only + real Diff view + Deploy-to labels | Full Jinja2 `{% if %}`/`{% for %}`, SDK-only creation + real diff + aliases | Flat `{{ hc:var:type }}` only; one version on this run, diff not reached | **No prompt registry at all** — one mutable playground row, overwritten on edit, no variables | Immutable versions + Aliases + Diff tab |
-| Tracing | Span-based (SDK-wrapped) | Span-based (SDK-wrapped) | Flat Request Log by default; Traces are separate and opt-in | Single rich span, OTel semantic conventions; Playground relays via GraphQL, not a real call | Span tree via `track_openai()`; confirmed the Playground alone produces no trace | Single span, automatic; prompt-version link needs a separate explicit SDK call | Not reached this run — manual-log endpoint 500'd on a missing self-host env var | OTel-native nested span tree; tree, transcript and cost-heatmap views; 15+ framework integrations | Span-based (gateway auto-traces every call) |
-| Where the platform sits | Beside the request path | Beside the request path | Beside the request path | Beside — Playground proxies via GraphQL, SDK calls go direct | Beside — ingests a trace after your own call | **In** the request path — a real AI Gateway | **In** the request path — its gateway served 300/300 rounds on a native OpenAI key, but forwards without logging until an org key is set | Beside — deliberately; we read its server routes and it has no inbound proxy at all | **In** the request path — every call routes through it |
-| Guardrails / spend controls | None found | None found | None found | None found | Topic + PII guardrails, per project | Safety + PII + custom guardrails, and spend Budgets, per gateway endpoint | Rate Limit Rules (not content-inspecting); no PII/safety guardrail found | PII redaction on ingested spans; no spend control is possible from beside the path | Spend caps and RPM/TPM limits enforced pre-call; no content guardrail |
-| Evaluation | Datasets + Experiments, hand-authored examples | Datasets + Experiments, hand-authored examples | A/B test on live traffic + ad-hoc model-comparison grid | Dataset from a trace span + LLM/Code evaluator split; a templated-prompt experiment failed on a variable-shape mismatch | Dataset from any trace + inline creation; UI experiments defer to the SDK; plus dedicated Test suites | Built-in LLM-as-judge + custom code judges; hit a real dataset-list-page bug | Datasets curated from Request rows; none existed since no call was ever logged this run | Code-first: your data, your executor, your scorer functions, run locally or in CI; datasets one click from a span; plus labeling queues | Datasets from feedback, typed by hand, or imported from a CSV/JSON file; plus rule-based online evaluation — a judge scoring every matching live trace |
-| Feedback → Playground → save loop | Feedback + Dataset + Annotation Queue exist, but no trace → Playground jump | Full loop: trace → Playground (pre-loaded) → Save as prompt | Full loop: Request → Playground (pre-loaded) → Save Template | Not run as this exact loop — see [Phoenix vs AcruxCore](/blog/acruxcore-vs-phoenix) | Not run as this exact loop — see [Opik vs AcruxCore](/blog/acruxcore-vs-opik) | Not run as this exact loop — see [MLflow vs AcruxCore](/blog/acruxcore-vs-mlflow) | Not run as this exact loop — see [Helicone vs AcruxCore](/blog/acruxcore-vs-helicone) | Trace → playground exists ("Experiment in playground"), but there is no prompt version to save back into | Full loop, plus an automated version: feedback → drafted candidates → judged run → Promote to production |
-| Automatic prompt optimizer † | Polly's **Optimize prompt** rewrites the prompt conversationally in the Playground — no dataset, no scored candidates | None in the product — an Agent Skill for Claude Code edits prompts through the API from your editor | None found — A/B tests and eval pipelines score versions you wrote yourself | Arize's Prompt Learning does rewrite from eval results, but it is a separate clone-and-run repo, not part of the Phoenix app | **Opik Agent Optimizer** — MetaPrompt, GEPA, evolutionary and few-shot Bayesian search, SDK-driven, runs logged back to the UI | **`optimize_prompts()`** (experimental) — DSPy MIPROv2 or GEPA against a dataset, winner registered as a new prompt version; SDK-only | "Auto-Improve" was a single-pass rewrite in the prompt editor deprecated on 20 August 2025; nothing replaced it | No prompt registry, so there is nothing for an optimizer to rewrite | **Improve from feedback** — failing cases draft candidates, each judged against production across a model grid, promote from the report; started in the dashboard |
-| Tool calling | Shows up as spans only; no catalog | Playground-scoped tool schema; no catalog | Per-request tool-call count; no catalog | Ad-hoc JSON Schema per Playground prompt; nothing executes or gets measured | No tool-catalog concept at all; its "Agent playground" needs a live process wired in by code | MCP Registry — catalogs external MCP *servers* by manifest, doesn't execute an individual tool | No tool-catalog concept found in any nav section checked | Tool schema is a JSONB field on a playground row; tool calls show as spans; nothing executes | Dedicated versioned Tool Catalog + a Tool analytics page |
-| Developer experience | `wrap_openai` + `@traceable` around your own OpenAI call | Drop-in OpenAI wrapper, built on OpenTelemetry | `pl_client.openai` wrapper around your own OpenAI call | `register()` + `OpenAIInstrumentor()`; no server-side render call, so template logic gets hand-duplicated in Python | `track_openai()` wraps a client you already own; trace appears once it's called | `load_prompt()` + `start_span()` + a separate `link_prompt_versions_to_trace()` call | No stored-prompt SDK call; a direct provider call plus a manual log() call that 500'd this run | One `Laminar.initialize()` auto-instruments your client; a CLI queries your own traces in SQL | `hub.prompts.render` + `hub.gateway.chat` — no direct call to a provider at all, Node and Python |
-| Measured overhead | Not benchmarked in this series | −22 ms in the six-platform full-cycle run, CI crosses zero | Not benchmarked in this series | −14 to +21 ms over 3 runs, CI crosses zero | +2 to +22 ms over 3 runs, CI crosses zero | **+135 to +225 ms** over 3 runs — never crosses zero | −15 to +3 ms over 3 runs, but forwarding only, nothing logged | −8 to +18 ms over 3 runs, CI crosses zero | +4 to +51 ms over all 15 runs — see [Latency overhead](#latency-overhead--measured-on-six-of-the-nine) below |
-| Audit trail | Not checked in this series | Present in the UI, gated behind the Enterprise plan ($2,499/mo — on hosted Langfuse too) | Not checked in this series | Not found in any settings page checked | Not found anywhere in the settings pages checked | Not found — Settings has only General, LLM Connections, and Webhooks | Not found in the settings pages checked | Not found in any project or workspace settings page checked | Team-wide trail, on by default — 34 event types, filtered by area, event or person |
-| Pricing (what we actually saw) | Not verified hands-on | Not verified hands-on | Team Trial plan with visible quotas | See [compare page](https://acruxcore.com/compare) | See [compare page](https://acruxcore.com/compare) | See [compare page](https://acruxcore.com/compare) | See [compare page](https://acruxcore.com/compare) | See [compare page](https://acruxcore.com/compare) | Open source, free during public beta — no trial, no quota |
+| Dimension | LangSmith | Langfuse | PromptLayer | Phoenix | Opik | MLflow | Helicone | Laminar | Agenta | AcruxCore |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Prompt versioning | Git-like commits + Environments | Immutable versions + labels | Immutable versions + Release Labels + inline diff | Mustache sections (one construct for if *and* for) + real Diff view + tags | Flat `{{variable}}` only + real Diff view + Deploy-to labels | Full Jinja2 `{% if %}`/`{% for %}`, SDK-only creation + real diff + aliases | Flat `{{ hc:var:type }}` only; one version on this run, diff not reached | **No prompt registry at all** — one mutable playground row, overwritten on edit, no variables | Versions inside variants + three environments + JSON diff; Jinja2 `{% if %}`/`{% for %}` render, but a variable that appears only inside them gets no input field | Immutable versions + Aliases + Diff tab |
+| Tracing | Span-based (SDK-wrapped) | Span-based (SDK-wrapped) | Flat Request Log by default; Traces are separate and opt-in | Single rich span, OTel semantic conventions; Playground relays via GraphQL, not a real call | Span tree via `track_openai()`; confirmed the Playground alone produces no trace | Single span, automatic; prompt-version link needs a separate explicit SDK call | Not reached this run — manual-log endpoint 500'd on a missing self-host env var | OTel-native nested span tree; tree, transcript and cost-heatmap views; 15+ framework integrations | Span tree, automatic for its invoke endpoint; SDK calls need OpenTelemetry setup and a `store_refs()` call for the prompt link | Span-based (gateway auto-traces every call) |
+| Where the platform sits | Beside the request path | Beside the request path | Beside the request path | Beside — Playground proxies via GraphQL, SDK calls go direct | Beside — ingests a trace after your own call | **In** the request path — a real AI Gateway | **In** the request path — its gateway served 300/300 rounds on a native OpenAI key, but forwards without logging until an org key is set | Beside — deliberately; we read its server routes and it has no inbound proxy at all | **In** the path for its invoke endpoint (stored prompt → model); beside it for SDK-traced calls | **In** the request path — every call routes through it |
+| Guardrails / spend controls | None found | None found | None found | None found | Topic + PII guardrails, per project | Safety + PII + custom guardrails, and spend Budgets, per gateway endpoint | Rate Limit Rules (not content-inspecting); no PII/safety guardrail found | PII redaction on ingested spans; no spend control is possible from beside the path | None found — no spend cap, per-key rate limit or cache on invoke, and no content guardrail in its source | Spend caps and RPM/TPM limits enforced pre-call; no content guardrail |
+| Evaluation | Datasets + Experiments, hand-authored examples | Datasets + Experiments, hand-authored examples | A/B test on live traffic + ad-hoc model-comparison grid | Dataset from a trace span + LLM/Code evaluator split; a templated-prompt experiment failed on a variable-shape mismatch | Dataset from any trace + inline creation; UI experiments defer to the SDK; plus dedicated Test suites | Built-in LLM-as-judge + custom code judges; hit a real dataset-list-page bug | Datasets curated from Request rows; none existed since no call was ever logged this run | Code-first: your data, your executor, your scorer functions, run locally or in CI; datasets one click from a span; plus labeling queues | 15 built-in evaluator types set up in the UI (rules, code, webhook, LLM judge); auto, human, live and SDK evaluations; annotation queues | Datasets from feedback, typed by hand, or imported from a CSV/JSON file; plus rule-based online evaluation — a judge scoring every matching live trace |
+| Feedback → Playground → save loop | Feedback + Dataset + Annotation Queue exist, but no trace → Playground jump | Full loop: trace → Playground (pre-loaded) → Save as prompt | Full loop: Request → Playground (pre-loaded) → Save Template | Not run as this exact loop — see [Phoenix vs AcruxCore](/blog/acruxcore-vs-phoenix) | Not run as this exact loop — see [Opik vs AcruxCore](/blog/acruxcore-vs-opik) | Not run as this exact loop — see [MLflow vs AcruxCore](/blog/acruxcore-vs-mlflow) | Not run as this exact loop — see [Helicone vs AcruxCore](/blog/acruxcore-vs-helicone) | Trace → playground exists ("Experiment in playground"), but there is no prompt version to save back into | Not run as this exact loop — a trace has Playground, Add to testset and Annotate buttons; see [Agenta vs AcruxCore](/blog/acruxcore-vs-agenta) | Full loop, plus an automated version: feedback → drafted candidates → judged run → Promote to production |
+| Automatic prompt optimizer † | Polly's **Optimize prompt** rewrites the prompt conversationally in the Playground — no dataset, no scored candidates | None in the product — an Agent Skill for Claude Code edits prompts through the API from your editor | None found — A/B tests and eval pipelines score versions you wrote yourself | Arize's Prompt Learning does rewrite from eval results, but it is a separate clone-and-run repo, not part of the Phoenix app | **Opik Agent Optimizer** — MetaPrompt, GEPA, evolutionary and few-shot Bayesian search, SDK-driven, runs logged back to the UI | **`optimize_prompts()`** (experimental) — DSPy MIPROv2 or GEPA against a dataset, winner registered as a new prompt version; SDK-only | "Auto-Improve" was a single-pass rewrite in the prompt editor deprecated on 20 August 2025; nothing replaced it | No prompt registry, so there is nothing for an optimizer to rewrite | Not checked — this row comes from the 10 September 2026 docs check, before Agenta was added | **Improve from feedback** — failing cases draft candidates, each judged against production across a model grid, promote from the report; started in the dashboard |
+| Tool calling | Shows up as spans only; no catalog | Playground-scoped tool schema; no catalog | Per-request tool-call count; no catalog | Ad-hoc JSON Schema per Playground prompt; nothing executes or gets measured | No tool-catalog concept at all; its "Agent playground" needs a live process wired in by code | MCP Registry — catalogs external MCP *servers* by manifest, doesn't execute an individual tool | No tool-catalog concept found in any nav section checked | Tool schema is a JSONB field on a playground row; tool calls show as spans; nothing executes | Tool schemas typed per prompt; Composio actions and MCP servers for agents; no catalog of your own tools | Dedicated versioned Tool Catalog + a Tool analytics page |
+| Developer experience | `wrap_openai` + `@traceable` around your own OpenAI call | Drop-in OpenAI wrapper, built on OpenTelemetry | `pl_client.openai` wrapper around your own OpenAI call | `register()` + `OpenAIInstrumentor()`; no server-side render call, so template logic gets hand-duplicated in Python | `track_openai()` wraps a client you already own; trace appears once it's called | `load_prompt()` + `start_span()` + a separate `link_prompt_versions_to_trace()` call | No stored-prompt SDK call; a direct provider call plus a manual log() call that 500'd this run | One `Laminar.initialize()` auto-instruments your client; a CLI queries your own traces in SQL | `ag.init()` + `OpenAIInstrumentor()` + `@ag.instrument()` + `store_refs()` around your own call, or one invoke call for a stored prompt | `hub.prompts.render` + `hub.gateway.chat` — no direct call to a provider at all, Node and Python |
+| Measured overhead | Not benchmarked in this series | −22 ms in the six-platform full-cycle run, CI crosses zero | Not benchmarked in this series | −14 to +21 ms over 3 runs, CI crosses zero | +2 to +22 ms over 3 runs, CI crosses zero | **+135 to +225 ms** over 3 runs — never crosses zero | −15 to +3 ms over 3 runs, but forwarding only, nothing logged | −8 to +18 ms over 3 runs, CI crosses zero | Invoke −107 to +160 ms over 3 runs, on an OpenRouter baseline; CI crosses zero in every run | +4 to +51 ms over all 15 runs — see [Latency overhead](#latency-overhead--measured-on-seven-of-the-ten) below |
+| Audit trail | Not checked in this series | Present in the UI, gated behind the Enterprise plan ($2,499/mo — on hosted Langfuse too) | Not checked in this series | Not found in any settings page checked | Not found anywhere in the settings pages checked | Not found — Settings has only General, LLM Connections, and Webhooks | Not found in the settings pages checked | Not found in any project or workspace settings page checked | Enterprise plan only, on Agenta Cloud and self-hosted | Team-wide trail, on by default — 34 event types, filtered by area, event or person |
+| Pricing (what we actually saw) | Not verified hands-on | Not verified hands-on | Team Trial plan with visible quotas | See [compare page](https://acruxcore.com/compare) | See [compare page](https://acruxcore.com/compare) | See [compare page](https://acruxcore.com/compare) | See [compare page](https://acruxcore.com/compare) | See [compare page](https://acruxcore.com/compare) | See [compare page](https://acruxcore.com/compare) | Open source, free during public beta — no trial, no quota |
 
 † The prompt-optimizer row is the one row here **not** run hands-on. It was checked against each
 platform's own docs and source on 10 September 2026, after this comparison was published, because
@@ -114,18 +135,19 @@ the original pass asked readers to tell us if a feedback-triggered rewrite loop 
 and on two platforms it does. Every other row is something we drove ourselves.
 
 License, team structure, security, and community stats for Langfuse, Phoenix, Opik, MLflow,
-Helicone, and Laminar live on the [compare page](https://acruxcore.com/compare) rather than repeated here
-— they're tables there too, so a price or license change is one edit instead of six. The audit-trail row
+Helicone, Laminar, and Agenta live on the [compare page](https://acruxcore.com/compare) rather than repeated here
+— they're tables there too, so a price or license change is one edit instead of seven. The audit-trail row
 above is the short version of the one there, which carries each fact's source and the date it was checked.
 
 ## Prompt management
 
 :::info[Quick take]
-MLflow ties AcruxCore on real conditional templating; six platforms flatten `if`/`for` logic
-into plain text before saving; Laminar has no prompt registry at all.
+MLflow ties AcruxCore on real conditional templating. Agenta renders the same Jinja2 tags, but
+its editor misses the variables used inside them. Six platforms flatten `if`/`for` logic into
+plain text before saving, and Laminar has no prompt registry at all.
 :::
 
-Eight of the nine tools landed on the same underlying idea — **immutable versions plus a
+Nine of the ten tools landed on the same underlying idea — **immutable versions plus a
 movable pointer** — just with wildly different amounts of real templating logic and ceremony
 around it. Laminar is the one that doesn't, and deliberately: it has no prompts table in its
 schema, only `playgrounds`, one mutable row of messages per playground.
@@ -140,6 +162,7 @@ schema, only `playgrounds`, one mutable row of messages per playground.
 | MLflow | Full **Jinja2** — `{% if %}`/`{% for %}` both real, registered verbatim, no flattening needed | `@production`/`@staging` **SDK aliases** | Yes — real word-level diff |
 | Helicone | Flat `{{ hc:var:type }}` only | `production` auto-applied to v1 | Not reached — only one version ever existed on this run |
 | Laminar | **None** — no prompt registry, and no variables in prompts at all | None | None — editing the playground row overwrites it |
+| Agenta | Full **Jinja2** rendered, but the editor's variable list missed `is_vip` and `tickets` | Three **environments** (production/staging/development), deployed from the commit dialog | Yes — in the commit dialog, plus a JSON diff of the whole config |
 | AcruxCore | Real **nunjucks** `{% if %}`/`{% for %}`, rendered server-side | **Aliases** (`production`/`staging`) | Yes — dedicated Diff tab on the prompt page |
 
 Ranked by how much real conditional logic survives:
@@ -149,24 +172,29 @@ Ranked by how much real conditional logic survives:
    matching AcruxCore's own nunjucks logic feature for feature.
 2. **Langfuse and AcruxCore** — real production conditionals (Jinja-style / nunjucks), one
    rung below MLflow.
-3. **Phoenix** — a real but different construct: Mustache sections do double duty as both
+3. **Agenta** — renders both tags, but its editor builds the variable list wrong. The list
+   held `company` and the loop variable `ticket`, and missed `is_vip` and `tickets`, which
+   appear only inside the tags. The playground had no field for them, so both `{% else %}`
+   branches ran. The invoke endpoint returned HTTP 400 until we edited `input_keys` by hand.
+4. **Phoenix** — a real but different construct: Mustache sections do double duty as both
    `if` and `for`.
-4. **Opik, Helicone, LangSmith, PromptLayer** — flat substitution only. The VIP branch and
+5. **Opik, Helicone, LangSmith, PromptLayer** — flat substitution only. The VIP branch and
    the ticket list had to be flattened into plain text before saving.
-5. **Laminar** — no prompt registry to flatten *into*. The fixture had to be flattened by
+6. **Laminar** — no prompt registry to flatten *into*. The fixture had to be flattened by
    hand and then inlined in the script itself, because there is nothing on the platform to
    fetch a prompt from. We checked the database schema, not just the sidebar, to be sure.
 
 On promotion: we actually clicked "promote" and watched the label move on AcruxCore
 (`production` v1 → v2), PromptLayer (Release Label), Phoenix and Opik (their own tag/deploy
-controls), and MLflow (`@production`/`@staging` via SDK call). LangSmith's Environments
+controls), MLflow (`@production`/`@staging` via SDK call), and Agenta (a deploy menu in the
+commit dialog). LangSmith's Environments
 feature exists but had nothing deployed on our test account, so we saw the UI, not a live
 promotion. Helicone never got this far on this run — the Playground's live-call step failed
 before a second version could even be created (see **Tracing and observability** below).
 Laminar has nothing to promote: with no versions there is no pointer to move.
 
 <details>
-<summary>See the actual screens: prompt versioning on eight platforms (Laminar has no prompt registry)</summary>
+<summary>See the actual screens: prompt versioning on nine platforms (Laminar has no prompt registry)</summary>
 
 **LangSmith** — commit history with a hash per save, model config attached to the prompt:
 
@@ -200,6 +228,11 @@ Laminar has nothing to promote: with no versions there is no pointer to move.
 
 ![Helicone's Playground with the recreated vip-support-triage system message, showing the flat {{ hc:company:string }} variable syntax and the Save Prompt dialog with our commit message about flattening the nunjucks logic](/img/comparison/helicone/hl-01-prompt-editor.png)
 
+**Agenta** — the variable panel that missed `is_vip` and `tickets`, and the commit dialog with its diff and deploy menu:
+
+![Agenta's prompt editor with the vip-support-triage system message in Jinja2, and a variable panel that lists only company and a ticket object with id and title](/img/comparison/agenta/ag-01-jinja-variables.png)
+![Agenta's commit dialog for vip-support-triage: a What's changing panel with Model and Instructions (+3 / −3), a New version tab that saves as version 2, and a Deploy to menu with production, staging and development checkboxes](/img/comparison/agenta/ag-03-commit-and-deploy.png)
+
 **AcruxCore** — the prompt editor, the Versions tab after promoting `production` to v2, and the Diff tab:
 
 ![AcruxCore prompt editor showing version tabs including Editor, Preview, Versions, Diff, Audit](/img/tutorials/acruxcore-walkthrough/02-prompt-editor.png)
@@ -208,18 +241,22 @@ Laminar has nothing to promote: with no versions there is no pointer to move.
 
 </details>
 
-## Tracing and observability
+<a id="tracing-and-observability"></a>
+
+## LLM tracing and monitoring
 
 :::info[Quick take]
-6 platforms trace by default, 3 don't — and on 2 of those 6, clicking the Playground
-doesn't produce a trace at all. Laminar's is the richest of the nine.
+7 platforms trace by default, 3 don't — and on 2 of those 7, clicking the Playground
+doesn't produce a trace at all. Laminar's is the richest of the ten.
 :::
 
-This is where the nine LLM observability tools split into two real camps, not just
-cosmetic differences.
+LLM tracing records each model call as a trace. LLM monitoring tools watch those traces over
+time for cost, latency and errors. This section shows how each tool records a call, whether
+your call passes through the tool on its way to the model, and how much latency the tool
+adds. On tracing, the ten tools split into the two groups below.
 
 **Span-based, multi-step tracing is the default** on LangSmith, Langfuse, Phoenix, MLflow,
-Laminar, and AcruxCore — each shows a tree or a rich single span, not just a flat call
+Laminar, Agenta, and AcruxCore — each shows a tree or a rich single span, not just a flat call
 record:
 
 - **LangSmith** — a real trace showed a parent run containing a tool-call span and a
@@ -232,12 +269,16 @@ record:
 - **MLflow** — every Gateway call traces automatically, but linking it back to the prompt
   version that produced it needs a separate, easy-to-forget `link_prompt_versions_to_trace()`
   call. AcruxCore attaches that link at render time, with nothing extra to call.
-- **Laminar** — the deepest of the nine, and the one this whole category is built around.
+- **Laminar** — the deepest of the ten, and the one this whole category is built around.
   `Laminar.initialize()` patches your client through OpenTelemetry and an `@observe()`
   decorator nests the model call under a parent span, so the *shape* of an agent run lands in
   the trace, not just the call. It ships tree, transcript, and cost-heatmap views, and
   auto-instruments 15+ agent frameworks (Browser Use, Stagehand, Mastra, Pydantic AI) from
   one line.
+- **Agenta** — a call through its invoke endpoint traces itself, as a `chat_v0` span over a
+  `litellm_client` child. A call from your own code needs `ag.init()`, an OpenTelemetry
+  instrumentor and a decorator. The SDK trace links to the prompt only after a
+  `ag.tracing.store_refs()` call; without it, the trace page showed "No references found".
 - **AcruxCore** — every gateway call is auto-traced as a span the moment it's routed
   through, with the SDK's `trace()` available to wrap additional steps into the same tree.
 
@@ -254,6 +295,13 @@ record:
   `S3_REGION` environment variable in the self-hosted `docker-compose` — a real,
   reproducible bug, not a design choice.
 
+**AI agent observability** needs one more thing from a tracer: one agent run should land as one
+trace, with each model call and tool call nested inside it. Of the agent observability tools
+here, LangSmith showed a tool-call span next to an LLM span under one parent run. Laminar's `@observe()` decorator nests the steps of
+an agent run under a parent span. When the AcruxCore SDK runs the calls between the model and
+your tools, it writes one trace that holds every model call and every tool call. Langfuse and AcruxCore also group traces by a
+session id, so a multi-turn conversation reads as one thread.
+
 **A related surprise: running the Playground does not create a trace at all on either
 Langfuse or Opik.** We confirmed zero new rows in each platform's tracing view immediately
 after a successful Playground run — only real SDK/API-instrumented calls show up there. If
@@ -262,8 +310,8 @@ you're evaluating either by clicking around its Playground, you can easily concl
 
 **Why AcruxCore needs no tracing setup step:** the gateway sits **in** the request path —
 your call physically routes through AcruxCore's servers, so it's traced by construction, the
-same reason MLflow's Gateway calls trace automatically too. LangSmith, Langfuse, Phoenix,
-Opik, and Laminar instead trace by having their SDK wrap or observe a call you still make
+same reason MLflow's Gateway calls and Agenta's invoke calls trace automatically too. LangSmith,
+Langfuse, Phoenix, Opik, Laminar, and Agenta's SDK instead trace by having their SDK wrap or observe a call you still make
 directly to the provider. Neither approach is strictly "better", and Laminar is the clearest illustration of why: a
 span produced inside your own process sees everything your code does — retries, tool loops,
 framework internals, a whole agent — while a span produced by the gateway always exists and
@@ -272,7 +320,7 @@ gateway. More on this split, and where Helicone
 fits into it, right below.
 
 <details>
-<summary>See the actual screens: trace views on all nine platforms (Helicone never produced one)</summary>
+<summary>See the actual screens: trace views on all ten platforms (Helicone never produced one)</summary>
 
 **LangSmith** — a real span tree from a live run: parent chain, prompt-template spans, and the model call, with real latency and token count:
 
@@ -303,6 +351,10 @@ fits into it, right below.
 
 ![Laminar span detail: a tree with vip_support_triage above an openai.chat child, and a right panel showing System, User and Assistant messages with 158 tokens and $0.0001](/img/comparison/laminar/lm-04-span-llm-messages.png)
 
+**Agenta** — an invoke call traced automatically, with Playground, Add to testset and Annotate buttons on the trace:
+
+![Agenta trace of an invoke call: a chat_v0 workflow span over a litellm_client child, 1.77 s, $0.000044, 152 tokens, with the is_vip, company, tickets and customer_message inputs, the assistant reply citing ticket #4821, and Playground, Add to testset and Annotate buttons](/img/comparison/agenta/ag-07-invoke-trace.png)
+
 **Helicone** — the Requests page never populated on this run, because the logging call it depends on failed:
 
 ![Helicone's Requests page still showing only its static "Integrate to see your requests" preview data — our real OpenRouter calls never appear because the log call failed](/img/comparison/helicone/hl-06-datasets-empty.png)
@@ -324,10 +376,11 @@ fits into it, right below.
 | MLflow | Single span per Gateway call | Yes, automatically | Requires a separate `link_prompt_versions_to_trace()` call |
 | Helicone | Not reached — logging call 500'd | No — Playground `Run` 401'd | Not reached |
 | Laminar | Nested span tree, arbitrary depth; tree, transcript and cost-heatmap views | Not checked this run — the playground opens *from* a span, not the reverse | No prompt registry to link to |
+| Agenta | Span tree (`chat_v0` → `litellm_client` for invoke) | Not checked this run | Automatic for invoke; a `store_refs()` call for SDK traces |
 | AcruxCore | Single span per gateway call | Yes, automatically | Automatic — attached at render time |
 
 The obvious follow-up question is whether sitting in the request path costs you latency —
-covered next, and measured on six of the nine further down.
+covered next, and measured on seven of the ten further down.
 
 ### Where the platform sits — in the request path, or beside it
 
@@ -339,8 +392,10 @@ calls the provider directly, and each platform's SDK observes or a manual log ca
 after the fact. MLflow, Helicone, and AcruxCore are genuinely "in the path": you call a named
 gateway endpoint, and it's the one that calls the provider. That structural similarity makes
 MLflow the closest match to AcruxCore's own architecture of any competitor in this series.
+Agenta sits in the path for one kind of call and beside it for another. Its invoke endpoint
+renders a stored prompt and calls the model. Its SDK traces a call that your own code makes.
 
-Laminar is the most deliberate "beside" of the nine, and worth reading as a design position
+Laminar is the most deliberate "beside" of the ten, and worth reading as a design position
 rather than a missing feature. We checked its server's routes directly: the only
 `/chat/completions` handling anywhere in the codebase is its own *outbound* client for its AI
 features, not an inbound proxy. That buys real things — any provider works immediately, there
@@ -356,17 +411,24 @@ route returning a flat `501 Not implemented`; and until an organization API key 
 gateway forwards the call without logging it, which is why its trace pipeline never populated
 here. Those are bugs and configuration gaps on this build, not evidence against the design.
 
+Agenta's invoke endpoint is in the path, but it checks no budget, rate limit or cache before
+it calls the model. We
+searched Agenta's source for a spend cap, a response cache and virtual keys, and the invoke
+service has none of them. In Agenta, each prompt can set fallback models and a retry policy. Agenta also
+has a separate LLM gateway, whose purpose is to keep provider keys out of the agent sandbox,
+and it is off by default.
+
 Being "in the path" isn't automatically better — it's a different trade. It buys routing,
 caching, and budget enforcement before the provider is ever called, at the cost of one more
 hop and one more thing that has to work; sitting "beside" the path costs nothing extra but
 means tracing depends on remembering to instrument every call site.
 
-| Feature | Phoenix | Opik | MLflow | Helicone | Laminar |
-|---|---|---|---|---|---|
-| Where it sits | Beside — Playground proxies via GraphQL, SDK calls go direct | Beside — ingests a trace after your own call | **In** the path — a named Gateway endpoint | **In** the path — its gateway forwarded 300/300 rounds | Beside, by design — no inbound proxy exists in its codebase |
-| BYOK, caching, budgets | Not applicable | Not applicable | Real Gateway usage tracking, guardrails, and Budgets per endpoint | Documented cache/rate-limit headers; non-native BYOK routing 501'd/misrouted | Not applicable — nothing to act on before the call |
+| Feature | Phoenix | Opik | MLflow | Helicone | Laminar | Agenta |
+|---|---|---|---|---|---|---|
+| Where it sits | Beside — Playground proxies via GraphQL, SDK calls go direct | Beside — ingests a trace after your own call | **In** the path — a named Gateway endpoint | **In** the path — its gateway forwarded 300/300 rounds | Beside, by design — no inbound proxy exists in its codebase | **In** the path for invoke; beside it for SDK-traced calls |
+| BYOK, caching, budgets | Not applicable | Not applicable | Real Gateway usage tracking, guardrails, and Budgets per endpoint | Documented cache/rate-limit headers; non-native BYOK routing 501'd/misrouted | Not applicable — nothing to act on before the call | Provider keys per project; fallback models per prompt; no cache or spend cap on invoke |
 
-### Latency overhead — measured on six of the nine
+### Latency overhead — measured on seven of the ten
 
 AcruxCore's own dedicated [gateway-overhead post](/blog/llm-gateway-overhead) measured its
 software cost against a direct OpenAI call in isolation: about **42 ms**, with the rest of
@@ -398,6 +460,20 @@ the [six-platform run](/blog/full-cycle-latency-benchmark) linked below, at −2
 confidence interval of [−95, +84] — but that run measures the **full cycle**, a prompt fetch
 plus the completion, where this table measures the completion alone. The two are not directly
 comparable, which is why Langfuse has no row above rather than a borrowed one.
+
+Agenta's benchmark is reported separately, because every leg of it ends at OpenRouter
+instead of `api.openai.com`. The direct-call median on OpenRouter was between 1,018 and
+1,166 ms, and the run-to-run spread was several hundred milliseconds. Over three 100-round runs:
+
+| Path (OpenRouter baseline) | Gap vs. baseline, across 3 runs | Distinguishable from zero? |
+|---|---|---|
+| Agenta traced SDK | −138 to +207 ms | No — in none of 3 runs |
+| Agenta invoke | −107 to +160 ms | No — in none of 3 runs |
+| AcruxCore gateway | +27 to +293 ms | No — in none of 3 runs |
+
+On this baseline, the benchmark could not separate any path from a direct call. The full
+table, with the intervals for each run, is in
+[AcruxCore vs Agenta](/blog/acruxcore-vs-agenta#latency-overhead-measured).
 
 Three things in that table are worth saying plainly.
 
@@ -432,8 +508,9 @@ Phoenix in one interleaved run against AcruxCore's gateway and gateway-free BYOK
 
 :::info[Quick take]
 LangSmith, Langfuse, Phoenix, Opik, and Laminar all let a fresh account build a dataset in
-minutes (hand-authored or one-click from a trace). AcruxCore builds datasets from real
-feedback, from rows typed by hand, or from an imported CSV or JSON file.
+minutes (hand-authored or one-click from a trace). Agenta has the most built-in evaluator
+types here, 15, all set up in the UI. AcruxCore builds datasets from real feedback, from rows
+typed by hand, or from an imported CSV or JSON file.
 :::
 
 LangSmith, Langfuse, Phoenix, and Opik are the most mature here, and we have real numbers
@@ -483,6 +560,13 @@ place from the opposite direction — code first, nothing defined in the UI at a
   straightforward: Laminar's scorers are arbitrary Python and can assert anything, but
   somebody has to run them; ours run themselves against live traffic, but they are LLM judges
   producing a sampled numeric score, not arbitrary assertions.
+- **Agenta** has the largest built-in evaluator library in this post. Its source defines 15
+  types: eleven rules that need no model (exact match, regex, JSON diff, Levenshtein distance
+  and others), semantic similarity, a webhook that sends the output to your URL, custom code
+  that runs inside Agenta, and an LLM judge. We built a judge in the UI and ran an auto
+  evaluation of one prompt version over a three-row test set. The run finished in 2.37 seconds
+  with a judge score of 66.67%. Agenta also offers human, live and SDK evaluations, and
+  annotation queues.
 - **Helicone**'s dataset path never got evidence on this run: its Datasets page curates rows
   from the Requests table, and since no call of ours ever successfully logged (see
   **Tracing and observability** above), there was nothing to curate.
@@ -496,7 +580,7 @@ place from the opposite direction — code first, nothing defined in the UI at a
   as Opik's Online evaluation above.
 
 <details>
-<summary>See the actual screens: evaluation on all nine platforms (Helicone had nothing to show)</summary>
+<summary>See the actual screens: evaluation on all ten platforms (Helicone had nothing to show)</summary>
 
 **LangSmith** — a real Experiment run: 5 rows scored by a Correctness evaluator:
 
@@ -530,6 +614,11 @@ place from the opposite direction — code first, nothing defined in the UI at a
 
 ![Laminar evaluation results for vip-triage-v1: average scores of 1 for both evaluators, three scored rows, and a trace tree with executor and evaluator spans](/img/comparison/laminar/lm-10-evaluation-run.png)
 
+**Agenta** — the LLM judge editor with its test panel, and the finished auto evaluation:
+
+![Agenta's New Evaluator drawer for an LLM-as-a-judge, with a system prompt about grading model outputs, a user message with {{inputs}} and {{outputs}}, the model set to OpenAI GPT-4o-mini, and an empty Test Evaluator panel on the right](/img/comparison/agenta/ag-08-judge-editor.png)
+![Agenta evaluation run overview for default-v4-vip-triage-cases: status Success, cost US$0.00, duration 2.37 s, 261 tokens, and a triage-judge score of 66.67%, with a radar chart of score, cost and duration](/img/comparison/agenta/ag-09-eval-run.png)
+
 **AcruxCore** — selecting a real feedback row, then the resulting dataset it built:
 
 ![AcruxCore Feedback page with one real feedback row checked, showing 1 feedback row selected and a Create dataset button](/img/tutorials/acruxcore-walkthrough/08-feedback-selected.png)
@@ -546,10 +635,11 @@ its gateway, but has no content guardrail.
 :::
 
 Two different dimensions sit behind this heading. Nothing on LangSmith, Langfuse,
-PromptLayer, Phoenix, Laminar, or AcruxCore inspects a call's input or output and *stops* it
+PromptLayer, Phoenix, Laminar, Agenta, or AcruxCore inspects a call's input or output and *stops* it
 for restricted content. Enforcing a spending cap is a separate question, and one only a
 platform in the request path can answer at all — MLflow and AcruxCore both do; the
-observability-first platforms have no call left to stop.
+observability-first platforms have no call left to stop. Agenta's invoke endpoint is in the
+path, but Agenta's source has no spend cap or per-key rate limit for invoke calls.
 
 **Opik** has a "Set a guardrail" panel, configurable per project: a **Topic guardrail**
 (a sensitivity slider plus a restricted-topics list) and a **PII guardrail** that flags
@@ -585,11 +675,11 @@ of this run weren't.
 
 </details>
 
-| Feature | Opik | MLflow | Helicone | Laminar | AcruxCore |
-|---|---|---|---|---|---|
-| Content guardrails | Topic + PII, per project | Safety + PII + custom, per Gateway endpoint | Not found | Not on the call — PII redaction on stored spans only | None |
-| Spend enforcement | Not found | Real Budgets: reset period, on-exceeded action, spend tracking | Not found (cost is visible, not capped) | Structurally impossible from beside the path | Cap per team or virtual key, `402` before the provider call |
-| Rate limiting | Not found | Not found | Real Rate Limit Rules, segmented per end user | Not applicable | Per-virtual-key RPM/TPM, `429` before the provider call |
+| Feature | Opik | MLflow | Helicone | Laminar | Agenta | AcruxCore |
+|---|---|---|---|---|---|---|
+| Content guardrails | Topic + PII, per project | Safety + PII + custom, per Gateway endpoint | Not found | Not on the call — PII redaction on stored spans only | Not found in its source | None |
+| Spend enforcement | Not found | Real Budgets: reset period, on-exceeded action, spend tracking | Not found (cost is visible, not capped) | Structurally impossible from beside the path | Not found on invoke (cost is visible, not capped) | Cap per team or virtual key, `402` before the provider call |
+| Rate limiting | Not found | Not found | Real Rate Limit Rules, segmented per end user | Not applicable | Limits on Agenta's own API, not per key on model calls | Per-virtual-key RPM/TPM, `429` before the provider call |
 
 Content guardrails are the row with no AcruxCore answer today — a real gap next to Opik and
 MLflow, not a rebuttal to the request-path or tool-catalog advantages the rest of this post
@@ -673,9 +763,11 @@ and duration for each one:
 
 </details>
 
-This exact trace → Playground → save loop wasn't re-run on Phoenix, Opik, MLflow, or
-Helicone — their comparisons instead tested dataset-from-trace (see **Evaluation** above),
-which is the closest equivalent step each of those posts actually drove hands-on.
+This exact trace → Playground → save loop wasn't re-run on Phoenix, Opik, MLflow, Helicone,
+or Agenta — their comparisons instead tested dataset-from-trace or evaluation (see
+**Evaluation** above). That was the closest step each of those comparison posts ran
+hands-on. An Agenta trace does have a **Playground** button, beside **Add to testset** and
+**Annotate**, but we did not follow it through to a saved version.
 
 **On two of them, an automated rewrite loop does exist**, and this is the correction to the
 question this section originally left open. **Opik** ships the Opik Agent Optimizer, an
@@ -705,18 +797,20 @@ gets pushed into a named queue where a reviewer works items one at a time agains
 annotation schema, then pushes the labelled result into a dataset. AcruxCore has trace
 feedback but no queue — no reviewer assignment, no next-unlabelled-item workflow, no rubric,
 no completion tracking. Those are two different answers to "a human looked at this and had an
-opinion", and Laminar's is the more organised one.
+opinion", and Laminar's is the more organised one. Agenta also has annotation queues. A
+reviewer opens a trace from the queue, answers the questions the queue defines, and moves to
+the next trace.
 
 ## Developer experience
 
 :::info[Quick take]
-6 of 8 competitors wrap a provider call you still make yourself. MLflow is a gateway your
-call always routes through. AcruxCore is a gateway too, but optional — a gateway-free BYOK
+7 of 9 competitors wrap a provider call you still make yourself. MLflow is a gateway your
+call always routes through, and Agenta also offers an invoke endpoint for a stored prompt. AcruxCore is a gateway too, but optional — a gateway-free BYOK
 mode lets your code call the provider directly when you want that. Laminar's onboarding is
 the only one aimed at a coding agent rather than at you.
 :::
 
-Six of the eight competitors follow the same basic shape: **you call the model provider
+Seven of the nine competitors follow the same basic shape: **you call the model provider
 yourself, and the platform's SDK wraps or observes that call.**
 
 ```python
@@ -748,6 +842,18 @@ Laminar.initialize(project_api_key=os.environ["LMNR_PROJECT_API_KEY"], base_url=
 @observe(name="vip_support_triage")
 def triage(message: str) -> str:
     return client.chat.completions.create(model="gpt-4o-mini", messages=[...]).choices[0].message.content
+
+# Agenta — instrument once, decorate, then link the trace to the prompt by hand
+ag.init()
+OpenAIInstrumentor().instrument()
+
+@ag.instrument()
+def triage(variables: dict) -> str:
+    config = ag.ConfigManager.get_from_registry(app_slug=APP_SLUG, environment_slug="production")
+    prompt = PromptTemplate(**config["prompt"]).format(**variables)
+    response = client.chat.completions.create(**prompt.to_openai_kwargs())
+    ag.tracing.store_refs({"application.slug": APP_SLUG, "environment.slug": "production"})
+    return response.choices[0].message.content
 ```
 
 - Each of the first three took under 10 lines to get a real, traced (or logged) call
@@ -758,7 +864,7 @@ def triage(message: str) -> str:
   until we added one.
 - None of the three ship a trial model key or built-in provider access.
 
-**Laminar's onboarding is the most coding-agent-first of the nine**, and it is a genuinely
+**Laminar's onboarding is the most coding-agent-first of the ten**, and it is a genuinely
 different idea about who reads the docs. Its empty traces page hands you a prompt to paste
 into your coding agent; `npx lmnr-cli setup` authenticates, writes a project key to `.env`,
 and installs a "Laminar skill"; and the CLI can query your traces in SQL, so the agent can
@@ -792,7 +898,7 @@ res = requests.post("https://openrouter.ai/api/v1/chat/completions", ..., json=b
 log_res = requests.post(f"{HELICONE_BASE_URL}/v1/trace/custom/log", ..., json=log_body)
 ```
 
-AcruxCore's SDK looks different from all seven because the gateway is in the path, not just
+AcruxCore's SDK looks different from all of these because the gateway is in the path, not just
 watching — and it ships as both a Node and a Python package, so we ran the same call both
 ways:
 
@@ -815,13 +921,14 @@ account we used already had a provider key configured from earlier work, so we d
 personally hit a BYOK wall on AcruxCore in this session — but to be clear, AcruxCore's
 gateway is BYOK too; this account just happened to already be set up.
 
-Every script from this section, plus the five latency benchmarks they feed, is committed and
+Every script from this section, plus the six latency benchmarks they feed, is committed and
 runnable — see the full source for
 [Phoenix](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/phoenix-vs-acruxcore/python/px_trace_run.py),
 [Opik](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/opik-vs-acruxcore/python/op_trace_run.py),
 [MLflow](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/mlflow-vs-acruxcore/python/mlflow_gateway_run.py),
-[Helicone](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/helicone-vs-acruxcore/python/hl_trace_run.py), and
-[Laminar](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/laminar-vs-acruxcore/python/lm_trace_run.py).
+[Helicone](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/helicone-vs-acruxcore/python/hl_trace_run.py),
+[Laminar](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/laminar-vs-acruxcore/python/lm_trace_run.py), and
+[Agenta](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/agenta-vs-acruxcore/python/ag_trace_run.py).
 
 <details>
 <summary>See the actual screens: the trace each platform's SDK script produced</summary>
@@ -858,6 +965,10 @@ runnable — see the full source for
 
 ![Laminar onboarding: a grid of integrations including Vercel AI SDK, Claude Agent SDK, OpenAI Agents SDK, Browser Use and Stagehand, beside a "Get started in one prompt" panel for a coding agent](/img/comparison/laminar/lm-01-onboarding-integrations.png)
 
+**Agenta** — the decorated `triage` span over an `openai.chat` child, with the template variables as inputs:
+
+![Agenta trace produced by the SDK script: a triage workflow span over an openai.chat child, 2.67 s, $0.000053, 166 tokens, with is_vip, company, tickets and customer_message as inputs and the model's reply as output](/img/comparison/agenta/ag-13-sdk-trace.png)
+
 **AcruxCore** — `hub.prompts.render` + `hub.gateway.chat`, one gateway hop, no OpenAI client at all:
 
 ![AcruxCore trace detail for a script-generated call, showing the expanded LLM span with Model, Provider, Tokens, Latency, and the real request/response JSON](/img/tutorials/comparison/acx-sdk-trace.png)
@@ -875,7 +986,7 @@ call as a trace span or a per-session schema; MLflow catalogs external MCP serve
 of individual tools.
 :::
 
-Across all nine platforms, only one treats a tool as a governed object the way it treats a
+Across all ten platforms, only one treats a tool as a governed object the way it treats a
 prompt — the rest can *show* a tool call somewhere, or catalog something adjacent to a tool,
 but nothing else versions, executes, and measures an individual tool the way AcruxCore does.
 
@@ -907,6 +1018,11 @@ but nothing else versions, executes, and measures an individual tool the way Acr
   no tool catalog page, no version history for a tool, and nothing in Laminar executes one —
   your agent does, and Laminar watches. That is exactly consistent with sitting beside the
   request path.
+- **Agenta** — two kinds of tool, neither of them your own versioned tool. A prompt can carry
+  tool schemas, typed in the playground and saved with the prompt version. Agents get a
+  catalog of third-party actions from Composio, plus MCP servers you connect by URL, and
+  Agenta runs those actions on its server. On a self-hosted install the Composio catalog
+  returns HTTP 503 until you set a Composio API key.
 - **MLflow** — the one genuine exception, and it answers a different question than
   AcruxCore does. Its **MCP Registry** (Beta) catalogs external
   [Model Context Protocol](https://modelcontextprotocol.io/) *servers* — paste a
@@ -926,7 +1042,7 @@ but nothing else versions, executes, and measures an individual tool the way Acr
   or (MLflow) a discovery catalog of external servers.
 
 <details>
-<summary>See the actual screens: tools on all nine platforms (Helicone and Laminar had no tool page to show)</summary>
+<summary>See the actual screens: tools on the platforms that have a tool page (Helicone, Laminar and Agenta are not shown)</summary>
 
 **LangSmith** — a tool call only ever shows up as a span inside a trace:
 
@@ -964,7 +1080,7 @@ but nothing else versions, executes, and measures an individual tool the way Acr
 
 :::info[Quick take]
 No hands-on pricing audit for LangSmith/Langfuse/PromptLayer here — the dated, sourced numbers
-for Langfuse/Phoenix/Opik/MLflow/Helicone/Laminar live on the [compare page](https://acruxcore.com/compare).
+for Langfuse/Phoenix/Opik/MLflow/Helicone/Laminar/Agenta live on the [compare page](https://acruxcore.com/compare).
 :::
 
 We didn't do a full plan-by-plan pricing audit as part of this hands-on pass — plan
@@ -979,10 +1095,10 @@ LangSmith or Langfuse hands-on, so we're deliberately not guessing at them here.
 source under Apache 2.0 and self-hostable, and free to use during the public beta — no
 trial clock, no seat count, no usage quota to run into.
 
-For Phoenix, Opik, MLflow, Helicone, and Laminar, we did do that plan-by-plan audit — as its
+For Phoenix, Opik, MLflow, Helicone, Laminar, and Agenta, we did do that plan-by-plan audit — as its
 own dated, sourced table rather than prose here, since a pricing or license change is then one
-edit instead of six. See license, self-hosting, team structure, security, and community
-stats (stars, contributors, latest release) for those five and for Langfuse, next to
+edit instead of seven. See license, self-hosting, team structure, security, and community
+stats (stars, contributors, latest release) for those six and for Langfuse, next to
 AcruxCore, on the [compare page](https://acruxcore.com/compare).
 
 ## What's unique to one platform
@@ -1068,22 +1184,33 @@ platform does, not just a different button for the same idea.
   a recording.
 - **Slack alert delivery**; AcruxCore's only notification channel is email.
 
+**Agenta**
+- **15 built-in evaluator types set up in the UI**, including a webhook evaluator that sends
+  each output to your own URL for a score.
+- **An agent builder** — describe an agent in plain language or start from one of 29
+  templates; agents run on a schedule or an event and can answer in Slack.
+- **Webhooks on deploy** — a deployed configuration can post to your URL with an HMAC
+  signature or start a GitHub Actions workflow.
+- **Variants** — several branches of one prompt side by side, each with its own versions.
+
 **AcruxCore**
 - **Stored-prompt gateway calls** — send a prompt name + alias, and the gateway renders
-  and routes it in one request, with no client-side templating step at all.
+  and routes it in one request, with no client-side templating step at all. Agenta's invoke
+  endpoint also serves a stored prompt in one call. AcruxCore's stored-prompt call also goes
+  through its budget, rate-limit and cache checks.
 - **Feedback-driven datasets** — eval data can come from real thumbs-up/down on production
   traces, alongside typed or imported test sets.
 - **Gateway-as-tracing-source** — every call is traced automatically because it physically
   routes through the gateway, not because an SDK wrapper is watching it.
 - **Improve from feedback** — an automated loop that turns selected feedback rows into
   drafted prompt rewrites, runs the current production version and every candidate through
-  an LLM judge, and lets you promote the winner in one click. None of the other eight
+  an LLM judge, and lets you promote the winner in one click. None of the other nine
   connect feedback to a rewrite-and-promote path this directly.
 - **A first-class, versioned Tool Catalog** with its own analytics page (call volume, error
-  rate, latency per tool) — the other eight only expose tool calls as trace spans, per-session
-  schema attachments, a JSONB field on a playground row, or (MLflow's MCP Registry) a catalog
-  of external servers rather than individual tools; none execute and measure a tool call the
-  way this does.
+  rate, latency per tool). The other nine expose tool calls as trace spans, per-session
+  schema attachments, a JSONB field on a playground row, a catalog of external MCP servers
+  (MLflow), or a catalog of third-party actions (Agenta's Composio actions). None of them
+  versions your own tool, runs it, and measures each call.
 - **Gateway response caching** — cacheable calls can be served straight from the gateway.
   Helicone documents the identical idea (`Helicone-Cache-Enabled`) since it's also in the
   request path by design, but we never got a cached call to complete on this self-hosted
@@ -1106,7 +1233,7 @@ platform does, not just a different button for the same idea.
   cost-heatmap views, and 15+ framework integrations are the deepest here.
 
 **Ahead:** three genuine structural advantages, not just UI polish, held up across all
-eight competitors:
+nine competitors:
 
 1. The feedback → Playground → save loop that Langfuse and PromptLayer both have (and
    LangSmith doesn't) is fully present in AcruxCore too — plus an automated version of it in
@@ -1119,35 +1246,37 @@ eight competitors:
    result back into.
 2. The **Tool Catalog** treats tools as versioned, aliased, analytics-backed objects that
    actually execute and get measured, while every other platform here only ever shows a
-   tool call as a trace span, a one-off Playground schema, or (MLflow's MCP Registry) a
-   catalog of external servers rather than individual tools.
+   tool call as a trace span, a one-off Playground schema, a catalog of external MCP servers
+   (MLflow), or a catalog of third-party actions (Agenta).
 3. Being genuinely **in the request path** turns tracing, cost, and caching into a side
-   effect of the call itself rather than a separate instrumentation step — a design AcruxCore
-   shares with only two of the eight competitors (MLflow and Helicone), and one where
-   AcruxCore's is both the cheapest of the three when measured (+4 to +51 ms against MLflow's
-   +135 to +225 ms) and the only one that wrote a trace on every single round.
+   effect of the call itself rather than a separate instrumentation step. MLflow and Helicone
+   share that design, and Agenta's invoke endpoint is in the path too but has no budget or
+   cache. On the OpenAI baseline AcruxCore's gateway was the cheaper of the two gateways doing
+   comparable work (+4 to +51 ms against MLflow's +135 to +225 ms), and the only one that
+   wrote a trace on every single round.
 
 **Also ahead, on narrower evidence:** a **team-wide audit trail** — every recorded change to API
 keys, members, gateway credentials, secrets, prompts and tools, filterable by area, by a single event,
 or by the person who did it, and readable by an owner or admin from the day a workspace exists. This is
-scoped more tightly than the three above and we won't inflate it: it holds against the six
-self-hostable platforms on the [compare page](https://acruxcore.com/compare), where five had no audit
-log we could find in any settings page and Langfuse's is real but gated behind the $2,499/mo Enterprise
-plan — on hosted Langfuse too, not only self-host. LangSmith and PromptLayer were never checked for it
-in this series, so read that row as six platforms, not eight. What ours does not do yet is export or
+scoped more tightly than the three above and we won't inflate it: it holds against the seven
+self-hostable platforms on the [compare page](https://acruxcore.com/compare). Five of them had no audit
+log we could find in any settings page. Langfuse's is real but gated behind the $2,499/mo Enterprise
+plan, on hosted Langfuse too. Agenta's is also Enterprise only, on Agenta Cloud and self-hosted.
+LangSmith and PromptLayer were never checked for it in this series, so read that row as seven
+platforms, not nine. What ours does not do yet is export or
 expire: there is no CSV or JSON download, and no retention window to configure. See
 [Read the team audit trail](/docs/guides/read-the-team-audit-trail).
 
 **Behind:** three real gaps stand out now — the third is one that Laminar exposed as a whole
 missing category:
 
-1. **Guardrails and spend controls** — Opik's Topic/PII guardrails, MLflow's Safety/PII
-   guardrails plus enforced spend Budgets, and Helicone's Rate Limit Rules are all real,
-   working features that AcruxCore has no answer for today; see
+1. **Content guardrails** — Opik's Topic/PII guardrails and MLflow's Safety/PII guardrails
+   are real, working features that AcruxCore has no answer for today; see
    **Guardrails and spend controls** above.
 2. **Evaluation tooling** — LangSmith's Pairwise Experiments, PromptLayer's ad-hoc
-   model-comparison grid, Opik's dedicated Test suites, and Laminar's arbitrary-code scorers
-   are all things AcruxCore doesn't have an equivalent for today.
+   model-comparison grid, Opik's dedicated Test suites, Laminar's arbitrary-code scorers, and
+   Agenta's 15 built-in evaluator types are all things AcruxCore doesn't have an equivalent
+   for today.
 3. **Asking your own trace data a question** — this is the gap Laminar made obvious, and it
    is a category rather than a feature. Laminar ships SQL over its span store, with saved
    queries, CSV export, and AI-written queries, plus a drag-and-drop dashboard builder where
@@ -1155,7 +1284,9 @@ missing category:
    one of `day`, `model`, `session`, or `prompt_version` and renders a fixed set of tiles.
    The state lives in the URL, so a view is shareable as a link — but you cannot compose one,
    and there is no way to ask an arbitrary question at all. Laminar's labeling queues and its
-   browser-agent session recording are two more things we have no answer for.
+   browser-agent session recording are two more things we have no answer for. Agenta's
+   annotation queues work like Laminar's labeling queues: a reviewer goes through traces one
+   at a time and answers a fixed set of questions.
 
 **Worth adopting:**
 - Laminar's SQL-over-spans editor is the single feature from this whole series we most wish
@@ -1166,25 +1297,25 @@ missing category:
 - Opik's or MLflow's guardrails (a Topic/PII check on input or output) would close the
   largest *capability* gap this expanded comparison surfaced — AcruxCore has no
   content-inspection layer at all today.
-- MLflow's enforced spend Budgets, once AcruxCore's cost tracking has customers who'd
-  actually want a hard cap rather than just visibility.
 - A lightweight, no-dataset-required comparison tool (PromptLayer's Model comparison) would
   remove the "nothing to evaluate yet" wall for brand-new AcruxCore accounts, without
   displacing the feedback-driven dataset model as the deeper, long-term path.
+- A library of rule evaluators on the server (Agenta's exact match, regex, JSON diff and
+  others), so a check that needs no model can run without the SDK.
 - A pairwise run-comparison view (LangSmith), once AcruxCore accounts typically have more
   than one experiment run to compare.
 - Langfuse's session/user badges directly on the trace header are a small but genuinely
   nice affordance — AcruxCore supports session grouping, but we didn't verify a
   one-click badge-to-filter interaction as smooth as Langfuse's in this pass.
 
-Nothing here suggests AcruxCore needs a different architecture — being in the request path is
-a real structural advantage shared with only MLflow and Helicone, and the measured numbers say
-ours is the cheapest of the three by a wide margin. The three real gaps — guardrails and spend
-controls, evaluation ergonomics for a brand-new account, and composable querying of your own
-trace data — are product features to build, not a redesign.
+Nothing here suggests AcruxCore needs a different architecture. Being in the request path is
+a real structural advantage shared with MLflow, Helicone and Agenta's invoke endpoint. On the
+OpenAI baseline, AcruxCore's gateway costs a fraction of MLflow's. The three real gaps — content
+guardrails, evaluation tooling, and composable querying of your own trace data — are product
+features to build, not a redesign.
 
-Want the deepest look at any one of these eight, run as a real matched example rather than a
-synthesis? Four got a full hands-on walkthrough of their own, and five got a dedicated
+Want the deepest look at any one of these nine, run as a real matched example rather than a
+synthesis? Three got a full hands-on walkthrough of their own, and six got a dedicated
 paired comparison against AcruxCore using the same fixture prompt each time:
 
 - [Hands-on with LangSmith](/blog/langsmith-hands-on-walkthrough)
@@ -1195,6 +1326,7 @@ paired comparison against AcruxCore using the same fixture prompt each time:
 - [AcruxCore vs MLflow](/blog/acruxcore-vs-mlflow) — the closest structural match of any competitor here; its gateway measured about 5× our overhead.
 - [AcruxCore vs Helicone](/blog/acruxcore-vs-helicone) — two request-path proxies, and the real self-hosted bugs we hit around one of them.
 - [AcruxCore vs Laminar](/blog/acruxcore-vs-laminar) — SQL over agent spans and a custom dashboard builder against prompt versioning and a request-path gateway.
+- [AcruxCore vs Agenta](/blog/acruxcore-vs-agenta) — 15 built-in evaluator types and annotation queues against a request-path gateway and versioned tools.
 - [Langfuse vs LangSmith](/blog/langfuse-vs-langsmith) — one app run end to end on both hosted platforms.
 - [AcruxCore vs Langfuse vs LangSmith](/blog/acruxcore-vs-langfuse-vs-langsmith) — the same app built and measured on all three.
 - [8 LangSmith alternatives](/blog/langsmith-alternatives) — license, self-hosting, price and features for eight tools, starting from LangSmith.
@@ -1202,7 +1334,7 @@ paired comparison against AcruxCore using the same fixture prompt each time:
 - [Self-hosting LLM observability: seven open-source tools measured](/blog/self-hosting-llm-observability) — memory, disk and trace storage for seven self-hosted stacks on one machine.
 
 And for the full license, pricing, team-structure, security, and community picture across the
-six self-hostable competitors next to AcruxCore, see the [compare page](https://acruxcore.com/compare).
+seven self-hostable competitors next to AcruxCore, see the [compare page](https://acruxcore.com/compare).
 
 Want to see it for yourself? The [Quickstart](/docs/getting-started/quickstart)
 gets you from sign-up to a traced, gateway-routed call in about ten minutes.
