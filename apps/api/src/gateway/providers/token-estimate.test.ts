@@ -43,8 +43,9 @@ describe('estimateTokens', () => {
 
     expect(n).toBeGreaterThan(0);
     // Before the fix this input took minutes. The bound is generous so the test cannot
-    // flake on a loaded machine while still failing loudly if the guard is removed.
-    expect(elapsed).toBeLessThan(1000);
+    // flake on a loaded machine (a busy CI runner measured 1.27s against an old 1s bound)
+    // while still failing loudly if the guard is removed.
+    expect(elapsed).toBeLessThan(3000);
   });
 
   it('stays fast when many pieces sit just under the per-piece cap', () => {
@@ -58,7 +59,7 @@ describe('estimateTokens', () => {
     const elapsed = Date.now() - started;
 
     expect(n).toBeGreaterThan(0);
-    expect(elapsed).toBeLessThan(1000);
+    expect(elapsed).toBeLessThan(3000);
   });
 
   // The guards must not change the answer for text that was never slow, or every budget

@@ -21,6 +21,20 @@ function syncBody(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/**
+ * Polls `audit_log` until `count` rows of `event` exist or the deadline passes.
+ * The sync service writes audit rows fire-and-forget after the response is sent, so a
+ * single read right after the request races the insert on a slow CI runner.
+ */
+async function waitForAudit(event: 'tool_version_superseded', count: number, timeoutMs = 3000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const rows = await prisma.auditLog.findMany({ where: { event } });
+    if (rows.length >= count || Date.now() > deadline) return rows;
+    await new Promise((r) => setTimeout(r, 25));
+  }
+}
+
 beforeEach(async () => {
   await prisma.$executeRaw`TRUNCATE TABLE tool_aliases, tool_versions, tools, prompt_aliases, prompt_versions, audit_log, prompts, api_keys, team_members, teams, users RESTART IDENTITY CASCADE`;
 });
@@ -148,7 +162,7 @@ describe('POST /tools/sync', () => {
 
     expect(res.body.committed).toBe(true);
     expect(res.body.supersededSource).toBe('dashboard');
-    const audits = await prisma.auditLog.findMany({ where: { event: 'tool_version_superseded' } });
+    const audits = await waitForAudit('tool_version_superseded', 1);
     expect(audits).toHaveLength(1);
     expect(audits[0]!.metadata).toMatchObject({
       toolId: created.body.id,
