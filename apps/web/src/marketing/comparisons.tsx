@@ -145,7 +145,7 @@ export const ACRUX_CORE = {
   },
   promptOptimizer: {
     value:
-      'Built into the dashboard. The optimizer drafts candidate rewrites from the test cases that an eval run got wrong, and from the feedback that your LLM judge left. Every candidate is scored against the prompt you run today, across several models at once. The scores come back in one report, and you promote the winner from that report.',
+      'Built into the dashboard. The optimizer rewrites a prompt from failed test cases and judge feedback, scores each rewrite on several models, and you promote the winner.',
     source: { label: 'Improve a prompt from feedback', href: `${DOCS_URL}/docs/guides/improve-a-prompt-from-feedback` },
     checkedOn: '2026-09-10',
   },
@@ -212,14 +212,14 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     },
     promptOptimizer: {
       value:
-        'No optimizer in the product. The nearest thing is an Agent Skill that runs in Claude Code, reads trace feedback, and edits the prompt through Langfuse\'s API. The rewriting happens in your editor, not in Langfuse.',
+        'No optimizer in the product. An Agent Skill in Claude Code reads trace feedback and edits the prompt through Langfuse\'s API.',
       source: { label: 'Prompt improvement with Agent Skills', href: 'https://langfuse.com/blog/2026-02-16-prompt-improvement-claude-skills' },
       acruxWins: true,
       checkedOn: '2026-09-10',
     },
     mcpServer: {
       value:
-        'Langfuse\'s hosted server has about 83 tools for prompts, datasets, scores, annotation queues, and dashboards. The tools create prompts and move their labels, but none runs a stored prompt.',
+        'Langfuse\'s hosted server has 90 tools for prompts, datasets, scores, annotation queues, and dashboards. Sixteen of those tools are off by default, including the trace tools. A feature flag or a project setting turns those 16 tools on. Some tools create prompts and move prompt labels, but no tool runs a stored prompt.',
       source: { label: 'Langfuse MCP server', href: 'https://langfuse.com/docs/api-and-data-platform/features/mcp-server' },
       checkedOn: '2026-10-18',
     },
@@ -273,14 +273,14 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     },
     promptOptimizer: {
       value:
-        'Arize\'s Prompt Learning optimizer does rewrite a prompt from eval results. It sits in a separate research repository that you must clone to install. The optimizer is not on PyPI and not part of the Phoenix app, and Arize documents it as a tutorial rather than a feature.',
+        'Arize\'s Prompt Learning optimizer rewrites a prompt from eval results. The optimizer sits in a separate research repo that you clone, not on PyPI or in the Phoenix app.',
       source: { label: 'Arize-ai/prompt-learning', href: 'https://github.com/Arize-ai/prompt-learning' },
       acruxWins: true,
       checkedOn: '2026-09-10',
     },
     mcpServer: {
       value:
-        'Phoenix has a local server with 27 tools that create prompts, tag versions, and read traces. Phoenix\'s hosted server turns every REST route into a tool and adds SQL analytics and GraphQL. A flag makes the hosted server read-only. We found no tool on either server that runs a stored prompt.',
+        'Phoenix\'s local server has 27 tools for prompts and traces. The hosted server can call any REST endpoint, including chat completions, and can be set read-only. No tool runs a stored prompt.',
       source: { label: 'Phoenix MCP server source', href: 'https://github.com/Arize-ai/phoenix/blob/main/src/phoenix/server/mcp_server.py' },
       checkedOn: '2026-10-18',
     },
@@ -334,13 +334,13 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     },
     promptOptimizer: {
       value:
-        'Opik Agent Optimizer is Apache 2.0 and rewrites a prompt against a dataset and a metric. It has more algorithms than AcruxCore: MetaPrompt, GEPA, evolutionary, and few-shot Bayesian optimizers. It optimizes MCP tool signatures too. You drive it from the SDK, and a run is logged back to the UI but cannot be started there.',
+        'Opik Agent Optimizer (Apache 2.0) rewrites a prompt against a dataset and a metric, with more algorithms than AcruxCore, including GEPA. You start a run from the SDK, not the UI.',
       source: { label: 'Opik Agent Optimizer', href: 'https://github.com/comet-ml/opik/blob/main/sdks/opik_optimizer/README.md' },
       checkedOn: '2026-09-10',
     },
     mcpServer: {
       value:
-        'Opik has a hosted server and a Beta local one, each with 5 tools. The tools save prompt versions and read traces and experiments, but cannot move a prompt label or run a stored prompt.',
+        'Opik has a hosted server and a local server, and both run the same 5 tools from one codebase. The 5 tools save prompt versions and read traces and experiments, but cannot move a prompt label or run a stored prompt.',
       source: { label: 'comet-ml/opik-mcp', href: 'https://github.com/comet-ml/opik-mcp' },
       acruxWins: true,
       checkedOn: '2026-10-18',
@@ -394,7 +394,7 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     },
     promptOptimizer: {
       value:
-        'Helicone\'s only optimizer was "Auto-Improve", a single-pass rewrite with no dataset and no scoring. It sat in the prompt editor that Helicone deprecated on 20 August 2025. Helicone\'s current prompts feature has no optimizer.',
+        'No optimizer. Helicone\'s old Auto-Improve rewrote a prompt once, with no dataset or scoring, and was deprecated with the prompt editor on 20 August 2025.',
       source: { label: 'Prompt editor (deprecated)', href: 'https://docs.helicone.ai/features/prompts-legacy/editor' },
       acruxWins: true,
       checkedOn: '2026-09-10',
@@ -457,7 +457,7 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     },
     promptOptimizer: {
       value:
-        'mlflow.genai.optimize_prompts() is experimental. It runs DSPy MIPROv2 or GEPA against a dataset, then registers the rewritten template as a new prompt version. DSPy MIPROv2 and GEPA are published research algorithms that AcruxCore does not implement. You can start a run from the SDK only, not from the UI.',
+        'mlflow.genai.optimize_prompts() is experimental. It runs DSPy MIPROv2 or GEPA against a dataset and saves the rewrite as a new prompt version. You start a run from the SDK only, not the UI.',
       source: { label: 'Optimize prompts', href: 'https://mlflow.org/docs/latest/genai/prompt-registry/optimize-prompts/' },
       checkedOn: '2026-09-10',
     },

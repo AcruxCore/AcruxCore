@@ -188,6 +188,7 @@ called out in the week it ships and in the SDK release notes.
 
 - New [MCP server](https://acruxcore.com/features/mcp) feature page, linked from the homepage.
 - [Compare](https://acruxcore.com/compare) and the comparison posts have an MCP server row, with a source for each cell.
+- **Fixed** — the Compare MCP row now matches the Langfuse, Phoenix and Opik server source.
 - **New endpoint** — `GET /prompt-versions?name=&alias=` returns the version an alias points at.
   [Reference →](/api-reference/prompts/aliases#get-apiv1prompt-versionsnamealias)
 - **Fixed** — a BYO call's trace was always named `chat`; both SDKs now use the trace `name` you pass.
