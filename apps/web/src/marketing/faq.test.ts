@@ -129,6 +129,18 @@ describe('FAQ content', () => {
     expect(text).not.toMatch(/every plan/);
   });
 
+  // Every platform in the comparison has an MCP server, so the claim must stay the
+  // narrow one — running a stored prompt through the platform's own gateway — and
+  // never slide into "the others have no MCP server".
+  it('describes the MCP server by what it runs, never by the others lacking one', () => {
+    const text = FAQ_GROUPS.flatMap((group) => group.items)
+      .map((item) => answerToPlainText(item.answer))
+      .join(' ');
+    expect(text).toMatch(/MCP server/);
+    expect(text).toMatch(/only one of them that runs a stored, versioned prompt through a gateway/);
+    expect(text).not.toMatch(/only (platform|one) with an MCP server|no MCP server/i);
+  });
+
   // A trace and an audit event are the two records this product keeps, and
   // conflating them is the mistake both readers and answer engines make. The
   // page is the only public surface that separates them in a reader's words.

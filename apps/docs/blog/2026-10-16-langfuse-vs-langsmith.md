@@ -32,6 +32,7 @@ against a signed project scope, prices the extra work, and writes a reply.
 | Accepts traces from any OpenTelemetry exporter | Yes | Yes |
 | Framework integrations | OpenAI Agents SDK, LangChain, LlamaIndex, CrewAI, Vercel AI SDK | OpenAI Agents SDK, LangChain, CrewAI, Vercel AI SDK |
 | Gateway: your model calls pass through it | No | Yes, in beta: routing, spend and rate limits |
+| MCP server for coding assistants | Yes: prompts, traces, datasets, scores, review queues | Yes: prompts, traces, deployments, sandboxes |
 | Review queue for people | Yes | Yes |
 | Alerts | Cost, latency, scores; Slack, webhook | Cost, errors, latency, feedback; Slack, PagerDuty, webhook |
 | SSO | Pro plan with the Teams add-on ($300 a month), or Enterprise | Enterprise |
@@ -45,8 +46,10 @@ and [alerts](https://langfuse.com/docs/observability/features/alerts) pages; the
 [pricing](https://www.langchain.com/pricing), [self-hosting](https://docs.langchain.com/langsmith/self-hosted),
 [regions](https://docs.langchain.com/langsmith/regions-faq),
 [gateway](https://docs.langchain.com/langsmith/llm-gateway) and
-[alerts](https://docs.langchain.com/langsmith/alerts) pages. Prices were read on 16 October 2026,
-and everything else on 17 October 2026.
+[alerts](https://docs.langchain.com/langsmith/alerts) pages; and the
+[Langfuse MCP](https://langfuse.com/docs/api-and-data-platform/features/mcp-server) and
+[LangSmith MCP](https://docs.langchain.com/langsmith/langsmith-remote-mcp) pages. Prices were read on
+16 October 2026, the MCP pages on 18 October 2026, and everything else on 17 October 2026.
 
 ## Langfuse
 

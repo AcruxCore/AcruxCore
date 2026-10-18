@@ -43,7 +43,7 @@ export interface PrerenderRoute {
    *
    * `scripts/prerender.mjs` takes the **newest** change date across them as the
    * page's sitemap `<lastmod>`. A list rather than a single file because most
-   * pages here render copy that does not live in their own component: all six
+   * pages here render copy that does not live in their own component: all seven
    * pillar pages are `features.tsx` poured into `FeaturePage.tsx`, the landing
    * page's pillar grid comes from `features.tsx` too, and `/compare` renders
    * `comparisons.tsx`. Naming only the component meant editing the copy moved

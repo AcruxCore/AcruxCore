@@ -109,6 +109,9 @@ export const DOCS = {
   auditApi: `${DOCS_URL}/api-reference/audit`,
   auditTrail: `${DOCS_URL}/docs/guides/read-the-team-audit-trail`,
   teamRoles: `${DOCS_URL}/docs/guides/manage-team-roles-and-permissions`,
+  /** The MCP pillar: the setup guide and the hosted endpoint's reference page. */
+  mcpGuide: `${DOCS_URL}/docs/guides/connect-an-mcp-client`,
+  mcpApi: `${DOCS_URL}/api-reference/mcp`,
 } as const;
 
 /**
@@ -501,6 +504,7 @@ const FOOTER_COLS: { title: string; links: FooterLink[] }[] = [
       { label: 'Tools', to: '/features/tools' },
       { label: 'Evaluation', to: '/features/evaluation' },
       { label: 'Audit', to: '/features/audit' },
+      { label: 'MCP server', to: '/features/mcp' },
       { label: 'Pricing', to: '/pricing' },
       { label: 'Compare', to: '/compare' },
       { label: 'Best LLMOps platforms', to: '/best-open-source-llmops-platforms' },
@@ -978,6 +982,20 @@ export const MARKETING_CSS = `
   /* The brand is an SVG lockup, so it shrinks by height rather than font-size. */
   .acx-landing .acx-nav-wordmark{height:20px !important;}
   .acx-landing .acx-nav-cta{height:32px !important;padding:0 11px !important;font-size:12.5px !important;}
+}
+
+/* ── landing pillar grid ── */
+/* Seven pillars. An auto-fit grid put them 3 + 3 + 1 on a laptop, with the last card
+   alone on its row. Fixed column counts give 4 + 3 on desktop, and on a tablet the odd
+   last card spans both columns. One column on phones. */
+.acx-landing .acx-pillar-grid{display:grid;gap:16px;grid-template-columns:1fr;}
+@media (min-width:640px){
+  .acx-landing .acx-pillar-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .acx-landing .acx-pillar-grid > :last-child:nth-child(odd){grid-column:1 / -1;}
+}
+@media (min-width:1024px){
+  .acx-landing .acx-pillar-grid{grid-template-columns:repeat(4,minmax(0,1fr));}
+  .acx-landing .acx-pillar-grid > :last-child:nth-child(odd){grid-column:auto;}
 }
 
 /* ── /compare matrix ── */

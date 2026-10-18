@@ -60,7 +60,10 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
           Each tool has its own version history, so you can add, change, or roll back a tool
           without deploying application code. AcruxCore is also the only platform here whose{' '}
           <strong>audit trail needs no paid plan</strong>. Hosted or self-hosted, every change
-          anyone makes is recorded with their name. <strong>Langfuse</strong> has the
+          anyone makes is recorded with their name. Every platform here has an MCP server, and
+          AcruxCore&rsquo;s is the only one that{' '}
+          <strong>runs a stored, versioned prompt through a gateway</strong>.{' '}
+          <strong>Langfuse</strong> has the
           largest community and an organization layer above projects. <strong>MLflow</strong>{' '}
           has a prompt registry, tracing, and a gateway, and many teams already run it for
           classic ML. <strong>Opik</strong> is built around datasets, experiments, and online
@@ -77,7 +80,7 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
             'font-size:clamp(22px,2.6vw,28px);line-height:1.15;letter-spacing:-.02em;font-weight:700;margin:12px 0 16px;',
           )}
         >
-          How to choose: seven questions
+          How to choose: eight questions
         </h2>
         <div className="acx-prose">
           {DECISION_POINTS.map((point) => (
@@ -184,6 +187,11 @@ export const DECISION_POINTS: { question: string; answer: string }[] = [
     question: 'Can you add and version the tools a model calls without deploying code?',
     answer:
       'In AcruxCore you define a tool once, keep every version of it, and the gateway runs it when the model calls it. So the tool the model sees and the code that ran are always the same version. You can add a tool, change it, or roll it back without deploying application code. No other platform in this comparison keeps versions of a tool and also runs it. Langfuse saves a tool schema in its playground, but does not version it or run it. Laminar stores tool schemas inside playground entries. Phoenix, Opik, and Helicone have no tool catalog. MLflow catalogs whole MCP servers rather than individual tools. In the MLflow workflow we tested, a single tool had no version history, and nothing ran the call.',
+  },
+  {
+    question: 'What can an AI assistant do with your prompts over MCP?',
+    answer:
+      'Every platform here has an MCP server, so an assistant such as Claude Code can read traces from any of them. AcruxCore’s server can commit a prompt version, promote it, run it through AcruxCore’s gateway, and read the resulting trace. No other MCP server in this comparison runs a stored prompt through a gateway. Langfuse and Phoenix can create prompts and point a label or tag at a new version, and Opik can save a prompt version. Helicone’s server sends chat messages that you write through Helicone’s gateway, but it cannot send a stored prompt. MLflow’s and Laminar’s servers have no prompt tools. Langfuse’s server also has tools for datasets, scores, annotation queues, and dashboards. Phoenix’s hosted server makes every REST route a tool and adds SQL analytics and GraphQL.',
   },
   {
     question: 'Can you update prompts without deploying code?',
@@ -379,9 +387,12 @@ function PlatformCard({ platform }: { platform: Comparison }): ReactNode {
  * comparison", is the tool-catalog row, because it is the only row AcruxCore
  * wins against all six in `comparisons.tsx` (owner instruction, 2026-09-09).
  * `comparisons.test.ts` fails the moment a competitor's row stops saying so.
+ * The second paragraph is the one MCP capability no other server here has: running
+ * a stored, versioned prompt through the platform's own gateway. It is a narrower
+ * claim than a row win, because Langfuse's and Phoenix's servers have tools ours lacks.
  */
 const UNIQUE_IN_COMPARISON =
-  'Tools are defined and versioned in AcruxCore, and the gateway runs them when the model calls them. Every other platform here either has no tool catalog, stores a tool schema that nothing runs, or catalogs whole MCP servers instead of tools.';
+  'Tools are defined and versioned in AcruxCore, and the gateway runs them when the model calls them. Every other platform here either has no tool catalog, stores a tool schema that nothing runs, or catalogs whole MCP servers instead of tools. AcruxCore\'s MCP server is the only one here that runs a stored, versioned prompt through a gateway. The same server can also commit a new prompt version, promote it to an alias, and read the trace of each run.';
 function AcruxCoreCard(): ReactNode {
   return (
     <article style={cssToStyle(cardStyle)}>

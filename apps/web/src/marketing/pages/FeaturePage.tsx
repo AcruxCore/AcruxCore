@@ -175,10 +175,21 @@ function DeepDive({ section }: { section: FeatureSection }): ReactNode {
   );
 }
 
+/** Number words for the "other pillars" heading, which counts the list it heads. */
+const COUNT_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+
+/**
+ * Spell out a small count, so the heading reads "the other six" rather than a
+ * hard-coded number that goes stale the next time a pillar is added.
+ */
+function countWord(n: number): string {
+  return COUNT_WORDS[n] ?? String(n);
+}
+
 /**
  * One public page per platform pillar, at `/features/<slug>`.
  *
- * A single layout driven entirely by a {@link Feature} record, so all six pages
+ * A single layout driven entirely by a {@link Feature} record, so all seven pages
  * stay structurally identical and adding a pillar means adding data, not markup.
  * Replaces the old footer links that all pointed at the same `/#pillars` anchor.
  *
@@ -340,10 +351,11 @@ export function FeaturePage({ feature }: { feature: Feature }): ReactNode {
       <section style={cssToStyle('padding:clamp(40px,6vw,72px) 0 clamp(20px,3vw,32px);border-top:1px solid var(--line-soft);')}>
         <SectionHead
           eyebrow="The rest of the platform"
-          title="It composes with the other five."
+          title={`It composes with the other ${countWord(others.length)}.`}
           lead="Each piece works on its own, and they get better together — a trace links back to a prompt version, a dataset is built from feedback."
         />
-        <div style={cssToStyle('display:grid;grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr));gap:14px;')}>
+        {/* A 300px floor lays the six other pillars out 3 + 3 at desktop. */}
+        <div style={cssToStyle('display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:14px;')}>
           {others.map((f) => (
             <Link
               key={f.slug}

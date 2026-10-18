@@ -177,9 +177,14 @@ export const FAQ_GROUPS: FaqGroup[] = [
             'AcruxCore versions prompts and tools in the same place. The gateway runs those tools, and tracing records each model call. AcruxCore is also the only one of these platforms with an audit trail that costs nothing extra.',
           ],
           [
+            'All seven platforms have an MCP server. AcruxCore’s ',
+            { text: 'MCP server', href: `${DOCS_URL}/docs/guides/connect-an-mcp-client` },
+            ' is the only one of them that runs a stored, versioned prompt through a gateway.',
+          ],
+          [
             'The ',
             { text: 'comparison matrix', to: '/compare' },
-            ' puts the seven platforms side by side on ten criteria, with a source for each cell. The ',
+            ' puts the seven platforms side by side on eleven criteria, with a source for each cell. The ',
             { text: 'hands-on test of nine platforms', href: COMPARE_POST },
             ' covers these seven, plus LangSmith and PromptLayer, in more detail.',
           ],
@@ -198,6 +203,11 @@ export const FAQ_GROUPS: FaqGroup[] = [
           ],
           [
             'Tools can connect to HTTP endpoints that the gateway calls for you. Add an existing endpoint as a tool without redeploying your application.',
+          ],
+          [
+            'The ',
+            { text: 'MCP server', href: `${DOCS_URL}/docs/guides/connect-an-mcp-client` },
+            ' lets an assistant such as Claude Code commit a prompt version, promote it, run it through AcruxCore’s gateway, and read the resulting trace.',
           ],
           [
             'AcruxCore also supports ',

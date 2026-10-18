@@ -1,0 +1,41 @@
+meta {
+  name: Call Tool - list_prompts
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/mcp
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+  Accept: application/json, text/event-stream
+  MCP-Protocol-Version: 2025-06-18
+}
+
+body:json {
+  {
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "tools/call",
+    "params": {
+      "name": "list_prompts",
+      "arguments": { "limit": 2 }
+    }
+  }
+}
+
+docs {
+  Every tool result is one text block: a summary line, a blank line, then the JSON.
+
+  A tool that FAILS still returns HTTP 200 and a successful JSON-RPC result — the
+  failure is `isError: true` inside it, which is how MCP reports tool errors so the
+  calling model can read them. Don't treat a 200 here as proof the tool worked.
+}

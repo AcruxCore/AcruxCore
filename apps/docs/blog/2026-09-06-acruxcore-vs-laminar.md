@@ -47,6 +47,7 @@ rather than here.
 | How tools are handled | Tool schemas are a JSONB field on a playground row; tool calls show up as spans | Versioned Tool Catalog that the gateway actually executes, with its own analytics | AcruxCore |
 | Evaluation and datasets | Code-first: your data, your executor, your scorers, run locally or in CI | Server-side runs, LLM judges, plus sampled rules that score live production spans | Depends |
 | SDK and developer experience | One line auto-instruments your client; a CLI and skill onboard a coding agent | Fetch a stored prompt and send it through the gateway with no tracing code, or one `register()` call to instrument a framework | Depends |
+| MCP server | [Hosted, three read-only tools](https://laminar.sh/docs/platform/mcp): run SQL over spans, fetch one trace's context, ask a built-in agent | [Hosted or local](/docs/guides/connect-an-mcp-client): read and commit prompts, promote an alias, run a stored prompt, read traces, run experiments | AcruxCore |
 
 Full breakdown, screenshots, and the verdict below.
 
@@ -344,8 +345,14 @@ and
 | Lines to start tracing | One `initialize()` | Zero for a gateway call, one `register()` for a framework |
 | Framework auto-instrumentation | 15+ frameworks | 5 — OpenAI, OpenAI Agents SDK, CrewAI, LangChain, LlamaIndex |
 | CLI | Yes, including SQL over traces | No |
-| MCP access for a coding agent | Yes | Not shipped today |
+| MCP access for a coding agent | Yes, read-only | Yes, reads and writes |
 | Fetch a stored prompt at runtime | No prompts to fetch | Yes |
+
+Both MCP servers let a coding agent read your traces. Through Laminar's server, a coding agent can
+also run SQL over your spans. AcruxCore's server has no SQL tool. Through AcruxCore's server, a
+coding agent can commit a prompt version, promote an alias and run the stored prompt through the
+gateway. Laminar's server is read-only, so a coding agent cannot change anything in Laminar through
+it.
 
 ## What Laminar does that AcruxCore doesn't
 
@@ -378,8 +385,8 @@ end-to-end result we could not confirm.
 
 **The debugger.** `LMNR_DEBUG=1` lets a coding agent run your agent, read the resulting trace,
 change the code and re-run with cached state — the iteration loop owned by the agent rather than
-by you. AcruxCore has nothing equivalent, and our own MCP server is unmerged and unpublished, so
-today the answer is simply no.
+by you. AcruxCore has nothing equivalent. AcruxCore's MCP server lets a coding agent read a trace
+and run a stored prompt, but that server cannot re-run your agent with cached state.
 
 ![Laminar debugger sessions page explaining the LMNR_DEBUG=1 loop where a coding agent runs, inspects and re-runs your agent with cached state](/img/comparison/laminar/lm-13-debugger.png)
 

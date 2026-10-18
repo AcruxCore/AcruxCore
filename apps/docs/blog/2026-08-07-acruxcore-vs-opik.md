@@ -43,6 +43,7 @@ always tables, and a price change there is one edit instead of three.
 | SDK trace capture | Wrap a client with `track_openai()` | Automatic side effect of the gateway call | AcruxCore |
 | Measured overhead | +2 to +22 ms across three 100-round runs | +9 to +31 ms across the same three runs | Opik, barely |
 | Time-to-first-trace | Only via the SDK path, after wrapping a client | Zero code, first call | AcruxCore |
+| MCP server | [Hosted, or a local program still in Beta](https://www.comet.com/docs/opik/mcp-server): read traces and prompts, save a prompt version | [Hosted or local](/docs/guides/connect-an-mcp-client): also promote an alias, run a stored prompt through the gateway, run experiments | AcruxCore |
 
 License, pricing, team structure, security, and community stats: see
 [AcruxCore vs Opik on the compare page](https://acruxcore.com/compare).

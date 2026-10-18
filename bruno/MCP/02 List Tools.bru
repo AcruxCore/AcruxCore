@@ -1,0 +1,36 @@
+meta {
+  name: List Tools
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/mcp
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+  Accept: application/json, text/event-stream
+  MCP-Protocol-Version: 2025-06-18
+}
+
+body:json {
+  {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/list",
+    "params": {}
+  }
+}
+
+docs {
+  Returns 28 tools, each with a description, a JSON Schema for its arguments and a
+  readOnlyHint annotation. MCP-Protocol-Version is required on everything after
+  initialize.
+}

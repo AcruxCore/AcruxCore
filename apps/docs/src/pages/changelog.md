@@ -27,6 +27,14 @@ called out in the week it ships and in the SDK release notes.
 
 ### Major
 
+#### Connect an AI assistant with the Model Context Protocol
+
+- `POST /api/v1/mcp` hosts an MCP server — 28 tools over prompts, gateway, traces, evals.
+  [Reference →](/api-reference/mcp)
+- `npx @acruxcoreai/mcp-server` runs the same server over stdio, with `--read-only`.
+  [Guide →](/docs/guides/connect-an-mcp-client)
+- Registry prompts appear as MCP prompts, resolved at their alias, variables as arguments.
+
 #### Unnamed gateway calls are named by their model in traces
 
 - A gateway call sent without a span name now takes the requested model as its span name.
@@ -178,6 +186,8 @@ called out in the week it ships and in the SDK release notes.
 
 ### Minor
 
+- New [MCP server](https://acruxcore.com/features/mcp) feature page, linked from the homepage.
+- [Compare](https://acruxcore.com/compare) and the comparison posts have an MCP server row, with a source for each cell.
 - **New endpoint** — `GET /prompt-versions?name=&alias=` returns the version an alias points at.
   [Reference →](/api-reference/prompts/aliases#get-apiv1prompt-versionsnamealias)
 - **Fixed** — a BYO call's trace was always named `chat`; both SDKs now use the trace `name` you pass.
@@ -836,6 +846,7 @@ called out in the week it ships and in the SDK release notes.
 - Sessions can be searched by id from the page itself, not only by editing the URL.
 - **Fixed** — the Evaluations → Runs tab was headed "Datasets" and described the wrong page.
 - **Fixed** — a custom provider base URL dropped every upstream response header.
+- **Fixed** — two links in the SDK reference pointed at an anchor that no longer existed.
 
 ---
 

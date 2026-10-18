@@ -19,6 +19,9 @@ results in the **web app**. Your running application talks to AcruxCore through 
 [`@acruxcoreai/sdk`](https://www.npmjs.com/package/@acruxcoreai/sdk) for Node and
 [`acruxcore`](https://pypi.org/project/acruxcore/) for Python. The two SDKs have
 the same feature set, so every feature in these docs works in Node and in Python.
+An AI assistant such as Claude Code connects through the AcruxCore **MCP server**.
+You can then ask the assistant to list prompts, commit a version, or read a trace. See
+[Connect Claude to AcruxCore with MCP](../guides/connect-an-mcp-client).
 
 ## The six building blocks
 

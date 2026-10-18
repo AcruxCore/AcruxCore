@@ -162,6 +162,7 @@ const ROWS: MatrixRow[] = [
   { label: 'Self-hosting', acrux: ACRUX_CORE.selfHost, competitor: (c) => c.selfHost },
   { label: 'Gateway', acrux: ACRUX_CORE.gateway, competitor: (c) => c.gateway },
   { label: 'Tool catalog', acrux: ACRUX_CORE.toolCatalog, competitor: (c) => c.toolCatalog },
+  { label: 'MCP server', acrux: ACRUX_CORE.mcpServer, competitor: (c) => c.mcpServer },
   { label: 'Team & org structure', acrux: ACRUX_CORE.teamStructure, competitor: (c) => c.teamStructure },
   { label: 'Pricing', acrux: ACRUX_CORE.pricing, competitor: (c) => c.pricingSummary },
   { label: 'RBAC', acrux: ACRUX_CORE.rbac, competitor: (c) => c.rbac },

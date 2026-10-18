@@ -35,6 +35,9 @@ COPY apps/web/package.json apps/web/
 COPY apps/worker/package.json apps/worker/
 COPY apps/docs/package.json apps/docs/
 COPY packages/sdk/package.json packages/sdk/
+# The API imports @acruxcoreai/mcp-server for its hosted /api/v1/mcp endpoint, so the
+# workspace has to exist at install time or `npm ci` resolves it from the registry.
+COPY packages/mcp-server/package.json packages/mcp-server/
 
 RUN npm ci
 

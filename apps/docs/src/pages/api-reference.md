@@ -48,3 +48,8 @@ All routes are under `/api/v1` and authenticate with a Bearer API key:
 ## Evaluation
 
 - [Datasets](/api-reference/datasets) · [Experiments](/api-reference/experiments) · [Optimize](/api-reference/optimize)
+
+## MCP
+
+- [MCP endpoint](/api-reference/mcp) — connect a Model Context Protocol client over Streamable HTTP
+- [Connect Claude to AcruxCore with MCP](/docs/guides/connect-an-mcp-client) — the step-by-step guide

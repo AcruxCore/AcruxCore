@@ -1,0 +1,50 @@
+meta {
+  name: Call Tool - run_prompt
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/v1/mcp
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+  Accept: application/json, text/event-stream
+  MCP-Protocol-Version: 2025-06-18
+}
+
+body:json {
+  {
+    "jsonrpc": "2.0",
+    "id": 4,
+    "method": "tools/call",
+    "params": {
+      "name": "run_prompt",
+      "arguments": {
+        "prompt": "support-reply",
+        "variables": { "message": "My order has not arrived." },
+        "model": "gpt-4o-mini",
+        "max_tokens": 80,
+        "trace_name": "bruno-mcp-check"
+      }
+    }
+  }
+}
+
+docs {
+  Renders the stored prompt at its production alias, attaches the tools bound to that
+  alias, calls the provider and records a trace. `prompt` takes the name or the UUID.
+
+  The payload's `gateway` block carries the x-gateway-* headers, including `trace-id` —
+  feed that into the get_trace call to see the run.
+
+  Omitting `model` only works when the prompt version has a bound default model;
+  otherwise the API answers VALIDATION_ERROR "model is required".
+}

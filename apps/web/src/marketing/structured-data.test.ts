@@ -74,6 +74,14 @@ describe('index.html structured data', () => {
     expect(features?.some((entry) => /audit/i.test(entry))).toBe(true);
     expect(features?.some((entry) => /every plan/i.test(entry))).toBe(true);
   });
+
+  // Every pillar page should have a featureList row, so the JSON-LD and the
+  // pillar grid describe the same product.
+  it('lists the MCP server among the SoftwareApplication features', () => {
+    const app = structuredData().find((block) => block['@type'] === 'SoftwareApplication');
+    const features = app?.featureList as string[] | undefined;
+    expect(features?.some((entry) => /^MCP server\b/.test(entry))).toBe(true);
+  });
 });
 
 /**

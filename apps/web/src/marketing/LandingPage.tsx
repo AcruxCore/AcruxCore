@@ -58,7 +58,7 @@ type CodeTab = 'ts' | 'py' | 'curl';
 const AT_A_GLANCE: { label: string; value: ReactNode }[] = [
   {
     label: 'Category',
-    value: 'LLMOps platform — prompts, gateway, tracing, tools, evaluation, audit trail',
+    value: 'LLMOps platform — prompts, gateway, tracing, tools, evaluation, audit trail, MCP server',
   },
   {
     label: 'Licence',
@@ -355,14 +355,15 @@ export function LandingPage(): ReactNode {
                 'font-size:clamp(26px,3.4vw,40px);line-height:1.1;letter-spacing:-.02em;font-weight:700;margin:0 0 14px;',
               )}
             >
-              Six parts of the LLM stack, one control plane.
+              Seven parts of the platform, one control plane.
             </h2>
             <p style={cssToStyle('font-size:16.5px;line-height:1.6;color:var(--muted);margin:0;text-wrap:pretty;')}>
               Each piece works on its own and composes with the rest. Adopt what you need, no rip-and-replace —
               prompts, tracing and tools do not need your traffic routed through us at all.
             </p>
           </div>
-          <div style={cssToStyle('display:grid;grid-template-columns:repeat(auto-fit,minmax(min(268px,100%),1fr));gap:16px;')}>
+          {/* Column counts live in .acx-pillar-grid (MARKETING_CSS), not inline. */}
+          <div className="acx-pillar-grid">
             {FEATURE_LIST.map((f) => (
               <Link
                 key={f.slug}
@@ -390,7 +391,8 @@ export function LandingPage(): ReactNode {
                     'margin-top:auto;display:inline-flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;color:var(--accent);',
                   )}
                 >
-                  Explore {f.name.toLowerCase()}
+                  {/* Lower-case the first letter only, and not in an acronym: "MCP server" stays as it is. */}
+                  Explore {f.name.replace(/^[A-Z](?![A-Z])/, (c) => c.toLowerCase())}
                   <Ic size={14} sw={2.2}>
                     <path d="m9 6 6 6-6 6" />
                   </Ic>

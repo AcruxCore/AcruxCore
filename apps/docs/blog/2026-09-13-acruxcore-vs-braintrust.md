@@ -47,6 +47,7 @@ Licence, self-hosting, plans and access control are in this post, not on the
 | Where the platform sits | An AI proxy you can opt into, and an ingest path that works without the proxy | Always in the request path, so routing, caching, budgets and virtual keys apply before the provider | Depends |
 | SDK and developer experience | `braintrust push` bundles and uploads code; `braintrust eval` runs experiments; two SDKs disagree on templating | Fetch a stored prompt and send it through the gateway with no tracing code | Depends |
 | Querying your own data | A SQL sandbox over experiments, logs and datasets | Fixed analytics pages, no query editor | Braintrust |
+| MCP server | [Hosted only](https://www.braintrust.dev/docs/reference/mcp): SQL queries over your data, create a prompt, run an eval | [Hosted or local](/docs/guides/connect-an-mcp-client): commit and promote prompts, run a stored prompt through the gateway, run experiments | Depends |
 | Spend and rate controls | Spend alerts on the invoice, informational only; the proxy caches and load balances | Budgets that refuse the call at the cap, plus per-key RPM and TPM limits | AcruxCore |
 | Self-hosting | Enterprise plan only; the Docker data plane runs but cannot be connected | Apache 2.0, `docker compose up` | AcruxCore |
 
@@ -489,9 +490,10 @@ show a diff, ask before applying. AcruxCore has nothing that works that way.
 ### And several more, not driven here
 
 Their project sidebar also carries Patterns, Topics, a human Review queue, Automations, Remote
-evals, Preprocessors, Span iframes and a project-level MCP page. AcruxCore has no equivalent for
-any of them except Automations, which overlaps our online evaluation rules. All eight are listed
-rather than described, because none of them was driven hands-on for this post.
+evals, Preprocessors, Span iframes and a project-level MCP page. AcruxCore has an equivalent for
+two of the eight. Automations overlaps our online evaluation rules, and AcruxCore has its own MCP
+server. AcruxCore has nothing for the other six. All eight are listed rather than described, because none of them was driven hands-on for
+this post.
 
 ## What AcruxCore does that Braintrust doesn't
 

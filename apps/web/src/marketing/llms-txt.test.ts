@@ -80,6 +80,7 @@ describe('buildLlmsTxt', () => {
   it('lists every /features page under one heading', () => {
     const featurePaths = ROUTES.map((r) => r.path).filter((p) => p.startsWith('/features/'));
     expect(featurePaths).toContain('/features/audit');
+    expect(featurePaths).toContain('/features/mcp');
     const section = output.split('## What the platform does')[1]?.split('\n## ')[0] ?? '';
     for (const path of featurePaths) {
       expect(section, `${path} is not under "What the platform does"`).toContain(

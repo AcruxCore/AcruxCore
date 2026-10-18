@@ -50,6 +50,7 @@ price change there is one edit instead of three.
 | Measured overhead | +135 to +225 ms across three 100-round runs, never crossing zero | +21 to +43 ms across the same three runs | AcruxCore |
 | Guardrails | Safety + PII detection + custom, per gateway endpoint | None | MLflow |
 | Spend controls | Budget policy per endpoint — reset period, on-exceeded action | Spend cap per team or virtual key, enforced before the provider call, plus RPM/TPM limits | Tie |
+| MCP server | [Local program, still experimental](https://mlflow.org/docs/latest/genai/mcp/): tools for traces, scorers, experiments and runs, none for prompts | [Hosted or local](/docs/guides/connect-an-mcp-client): commit, promote and run stored prompts, read traces, run experiments | AcruxCore |
 
 License, pricing, team structure, security, and community stats: see
 [AcruxCore vs MLflow on the compare page](https://acruxcore.com/compare).
@@ -399,7 +400,7 @@ your own experiments, traces, and evaluations, plus a one-click "Detect Issues" 
 on the experiment overview that uses AI to flag latency and correctness problems across
 recent traces. AcruxCore has no in-product assistant or automated issue detection.
 
-AcruxCore has no equivalent to any of the three — no guardrails, no MCP server catalog,
+AcruxCore has no equivalent to any of the three — no guardrails, no catalog of external MCP servers,
 and no in-product AI assistant.
 
 ## Is AcruxCore an MLflow alternative?
@@ -422,7 +423,7 @@ spend caps and rate limits, but no content guardrail at all.
 | | MLflow | AcruxCore |
 |---|---|---|
 | Strongest at | Guardrails and PII detection, full Jinja2 prompt logic, a genuinely request-path gateway, LLM-as-judge evaluation | Cost shown on every call, automatic prompt-version lineage, a tool catalog that actually executes and measures calls |
-| Weakest at | No cost on individual traces, prompt-version linking needs a separate call, a real dataset-list UI bug hit hands-on | No guardrails, no MCP server registry |
+| Weakest at | No cost on individual traces, prompt-version linking needs a separate call, a real dataset-list UI bug hit hands-on | No guardrails, no registry of external MCP servers |
 | Pick it if | You want guardrails and full templating logic layered onto a platform that's also a serious classical-ML tracker | You want the provider call itself — gateway, cost, tools, prompt lineage — traced for free, with nothing bolted on after the fact |
 
 This is the closest structural match to AcruxCore of any competitor we've compared:

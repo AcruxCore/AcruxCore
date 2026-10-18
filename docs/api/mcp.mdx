@@ -1,0 +1,322 @@
+---
+sidebar_position: 2.5
+title: "MCP Endpoint"
+description: "Connect any Model Context Protocol client to AcruxCore over Streamable HTTP, with no install."
+---
+
+# MCP Endpoint
+
+`POST /api/v1/mcp` speaks the [Model Context Protocol](https://modelcontextprotocol.io)
+over its Streamable HTTP transport. An MCP client that supports remote servers can point
+at it directly and get the whole platform as tools — prompts, the tool catalog, the
+gateway, traces and evaluations — without installing anything.
+
+All examples below were verified with real curl output against a running server.
+
+:::note[Authentication is the same bearer key as everywhere else]
+Send `Authorization: Bearer acx_sk_…`. Create the key in the dashboard under
+**Settings → API keys**. A session cookie is deliberately **not** accepted here — see
+[Authentication](/api-reference/authentication).
+:::
+
+## Transport rules
+
+- **`POST` only.** `GET` and `DELETE` return `405`. The endpoint is stateless: every
+  request builds its own server, so there is no session to delete and no
+  server-initiated stream to open.
+- Send `Accept: application/json, text/event-stream` — the transport requires it.
+- Send `MCP-Protocol-Version: <version>` on every request after `initialize`.
+- Responses come back as plain JSON, not SSE frames.
+
+Because it is stateless there is no `Mcp-Session-Id`: any instance behind the load
+balancer can answer any request, and a deploy never breaks a client's connection.
+
+---
+
+### initialize
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/mcp \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"1.0"}}}'
+```
+
+Response (status 200) — `instructions` explains the prompt/version/alias model to the
+client's model, so it does not have to infer it from the tool names:
+
+```json
+{
+  "result": {
+    "protocolVersion": "2025-06-18",
+    "capabilities": {
+      "tools": { "listChanged": true },
+      "prompts": { "listChanged": false },
+      "resources": { "listChanged": true }
+    },
+    "serverInfo": { "name": "acruxcore", "title": "AcruxCore", "version": "0.1.0" },
+    "instructions": "AcruxCore is an LLM-ops platform: a prompt registry, a versioned tool catalog, an AI gateway, tracing, and evaluation.\n\nThree ideas explain almost every tool here:\n- A **prompt** is a named container. It holds no messages itself.\n- A **version** is an immutable commit of that prompt's messages. Version numbers are sequential.\n- An **alias** (\"production\", \"staging\", anything else) is a moving pointer at one version.\n\nCommitting a version never moves an alias — promote_prompt_alias is what ships a change, and promoting an earlier version is how a rollback happens.\n\nRegistry prompts are also exposed through MCP's prompts primitive, so they can be used directly as templates. Tools that take a prompt or a catalog tool accept a name or a UUID."
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}
+```
+
+---
+
+### tools/list
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/mcp \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-06-18" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+```
+
+Response (status 200) — 28 tools; names only, each entry also carries a description,
+a JSON Schema for its arguments, and a `readOnlyHint` annotation:
+
+```json
+["list_prompts", "get_prompt", "render_prompt", "diff_prompt_versions", "create_prompt",
+ "commit_prompt_version", "promote_prompt_alias", "run_prompt", "chat_completion",
+ "list_models", "get_gateway_usage", "list_catalog_tools", "get_catalog_tool",
+ "sync_catalog_tool", "execute_catalog_tool", "search_traces", "get_trace",
+ "get_trace_analytics", "list_sessions", "get_session", "submit_trace_feedback",
+ "list_datasets", "get_dataset", "create_dataset", "add_dataset_example",
+ "run_experiment", "list_experiment_runs", "get_experiment_run"]
+```
+
+---
+
+### tools/call — reading
+
+Every result is one text block: a summary line, then the JSON payload.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/mcp \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-06-18" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_prompts","arguments":{"limit":2}}}'
+```
+
+Response (status 200):
+
+```json
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Showing 2 of 23 prompts (page 1).\n\n{\n  \"data\": [\n    {\n      \"id\": \"5e9d7286-0113-46bb-b211-429c0eb9309f\",\n      \"name\": \"del-demo-prompt\",\n      \"description\": null,\n      \"createdAt\": \"2026-09-06T12:23:53.397Z\"\n    },\n    {\n      \"id\": \"a290cf2f-a724-4389-8bea-da8b53229e00\",\n      \"name\": \"support-reply\",\n      \"description\": \"Draft the reply a support agent sends to an inbound customer message.\",\n      \"createdAt\": \"2026-09-06T11:10:02.034Z\"\n    }\n  ],\n  \"total\": 23,\n  \"page\": 1,\n  \"limit\": 2\n}"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 3
+}
+```
+
+---
+
+### tools/call — running a stored prompt
+
+`run_prompt` renders a prompt at an alias, attaches the tools bound to that alias, calls
+the provider, prices the call and records a trace. `prompt` takes the name or the UUID.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/mcp \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-06-18" \
+  -d '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"run_prompt","arguments":{"prompt":"support-reply","variables":{"message":"My order has not arrived."},"model":"gpt-4o-mini","max_tokens":80,"trace_name":"mcp-doc-verification"}}}'
+```
+
+Response (status 200) — the text block, unescaped for readability:
+
+```text
+Ran "support-reply"@production on gpt-4o-mini-2024-07-18 for $0.000042. Reply: You're
+experiencing an issue with your order not arriving. …
+
+{
+  "completion": {
+    "id": "chatcmpl-ELB3Pl43lsZi6sDATLeWsOsN7SvUY",
+    "model": "gpt-4o-mini-2024-07-18",
+    "object": "chat.completion",
+    "created": 1788716087,
+    "choices": [ { "index": 0, "message": { "role": "assistant", "content": "…" }, "finish_reason": "stop" } ],
+    "usage": { "prompt_tokens": 92, "completion_tokens": 47, "total_tokens": 139 }
+  },
+  "gateway": {
+    "request-id": "d619b108-4a8b-4d93-adb6-05c1c9a14361",
+    "provider": "openai",
+    "model": "gpt-4o-mini-2024-07-18",
+    "cost-usd": "0.000042",
+    "cache": "miss",
+    "trace-id": "578724bc-7521-423b-a90d-0f13c9dd1ac0",
+    "span-id": "93e8d920-2867-4b71-8ebb-4dafc661f30f"
+  }
+}
+```
+
+The `gateway` block is the `x-gateway-*` response headers. `trace-id` is the point of it:
+feed it straight back into `get_trace`.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/mcp \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-06-18" \
+  -d '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"get_trace","arguments":{"trace_id":"578724bc-7521-423b-a90d-0f13c9dd1ac0","include_payloads":false}}}'
+```
+
+Response (status 200), text block unescaped:
+
+```text
+Trace "mcp-doc-verification" — status ok, 1 span(s), 139 tokens, $0.000042.
+
+{
+  "trace": {
+    "id": "578724bc-7521-423b-a90d-0f13c9dd1ac0",
+    "name": "mcp-doc-verification",
+    "sessionId": null,
+    "status": "ok",
+    "startedAt": "2026-09-06T17:34:47.062Z",
+    "endedAt": "2026-09-06T17:34:48.539Z",
+    "spanCount": 1,
+    "totalCostUsd": 0.000042,
+    "totalTokens": 139,
+    "tags": [],
+    "metadata": {}
+  },
+  "spans": [ … ]
+}
+```
+
+---
+
+### prompts/list — the registry as MCP prompts
+
+Every prompt in the team's registry is also an MCP prompt, resolved at the `production`
+alias, with the version's template variables as arguments.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/mcp \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-06-18" \
+  -d '{"jsonrpc":"2.0","id":4,"method":"prompts/list","params":{}}'
+```
+
+Response (status 200), first two entries:
+
+```json
+{
+  "result": {
+    "prompts": [
+      {
+        "name": "del-demo-prompt",
+        "title": "del-demo-prompt",
+        "description": "AcruxCore registry prompt (alias \"production\", version 1)",
+        "arguments": [
+          { "name": "name", "description": "Template variable \"name\".", "required": true }
+        ]
+      },
+      {
+        "name": "support-reply",
+        "title": "support-reply",
+        "description": "Draft the reply a support agent sends to an inbound customer message. (alias \"production\", version 2)",
+        "arguments": [
+          { "name": "message", "description": "Template variable \"message\".", "required": true }
+        ]
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 4
+}
+```
+
+`prompts/get` renders one, and returns the messages. MCP's message role is `user` or
+`assistant` only — there is no system role in the protocol — so a template's system
+message comes back as the leading `user` message with its text unchanged.
+
+A registry of more than 25 prompts is paged: the result carries `nextCursor`, which goes
+back as `params.cursor`.
+
+---
+
+### Resources
+
+Two resource templates are registered:
+
+| URI template | Content |
+|---|---|
+| `acruxcore://prompts/{name}/{alias}` | The raw, unrendered template of the version an alias points at, with its variables and bound default model. |
+| `acruxcore://traces/{traceId}` | One trace with its full span tree. |
+
+`resources/list` enumerates one entry per registry prompt at the default alias. Traces
+are deliberately not enumerated — a team accumulates them without limit — so find one
+with `search_traces` and address it by id.
+
+---
+
+### Error responses
+
+No `Authorization` header (status 401):
+
+```json
+{ "error": { "code": "UNAUTHORIZED", "message": "API key required." } }
+```
+
+`GET` or `DELETE` (status 405):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "error": { "code": -32000, "message": "Method not allowed. This MCP endpoint is stateless — use POST." },
+  "id": null
+}
+```
+
+A tool that fails comes back as a **successful** JSON-RPC response carrying
+`isError: true`, which is how MCP reports tool failures — the calling model sees the
+error and can act on it. The AcruxCore error code and message are passed through intact:
+
+```json
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "AcruxCore API error (VALIDATION_ERROR)\nRequest: POST /gateway/chat/completions\nStatus: 400\nMessage: model is required"
+      }
+    ],
+    "isError": true
+  },
+  "jsonrpc": "2.0",
+  "id": 5
+}
+```
+
+---
+
+### Local alternative
+
+Clients that only speak stdio can run the same server locally:
+
+```bash
+npx -y @acruxcoreai/mcp-server
+```
+
+with `ACRUXCORE_API_KEY` and `ACRUXCORE_BASE_URL` in the environment. The stdio package
+adds two options the hosted endpoint has no way to express: `--toolsets` to narrow the
+surface, and `--read-only` to drop every mutating tool from the listing. See
+[Connect an MCP client](/docs/guides/connect-an-mcp-client).

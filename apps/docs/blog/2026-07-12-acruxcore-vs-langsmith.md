@@ -100,6 +100,15 @@ Both support datasets and experiments.
 LangSmith's eval tooling is broader today; AcruxCore's angle is tight coupling
 between the feedback you already collect and the datasets you evaluate against.
 
+## MCP server
+
+- **AcruxCore** has an [MCP server](/docs/guides/connect-an-mcp-client), as a hosted endpoint or a local program.
+  Through that server, a coding assistant can commit a prompt version, promote an alias, run the
+  stored prompt through the gateway, read traces and run experiments.
+- **LangSmith** has a [remote MCP server](https://docs.langchain.com/langsmith/langsmith-remote-mcp)
+  on its API. The server has tools for prompt commits and tags, runs (LangSmith's traces),
+  insights, deployments and sandboxes.
+
 ## Hosting
 
 - **AcruxCore** is **open source** and **self-hostable** — a standard

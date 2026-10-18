@@ -2,12 +2,12 @@ import { type ReactNode } from 'react';
 import { Ic, DOCS, API_BASE_URL, type CodeVariant } from './marketing-chrome';
 
 /**
- * The six platform pillars, each with its own public page at
+ * The seven platform pillars, each with its own public page at
  * `/features/<slug>`. The landing page's pillar grid, the footer Product column,
  * the router, and the prerender manifest are all driven from this one list, so a
  * new pillar cannot appear in one place and be missing from another.
  */
-export type FeatureSlug = 'prompts' | 'gateway' | 'tracing' | 'tools' | 'evaluation' | 'audit';
+export type FeatureSlug = 'prompts' | 'gateway' | 'tracing' | 'tools' | 'evaluation' | 'audit' | 'mcp';
 
 /** One capability card on a feature page. */
 interface Capability {
@@ -354,6 +354,47 @@ ${cm('# → total follows the filter, not the page')}
 ${cm('# everyone who appears in the trail')}
 ${fn('curl')} ${st('"$ACRUX/teams/$TEAM/audit/actors"')} \\
   -H ${st('"Cookie: $SESSION"')}`;
+
+// The three ways in, one per tab: Claude Code's own command (hosted first,
+// because it installs nothing), the `mcpServers` JSON that Claude Desktop,
+// Cursor and most other clients read, and the raw JSON-RPC call that checks a
+// key before any client is set up. The hosted endpoint is stateless, so
+// `tools/list` needs no `initialize` call before it.
+const MCP_CODE_CLI = `${cm('# hosted: nothing to install')}
+${fn('claude')} mcp add --transport http acruxcore \\
+  https://api.acruxcore.com/api/v1/mcp \\
+  --header ${st('"Authorization: Bearer $API_KEY"')}
+
+${cm('# or local, over stdio (Node 20)')}
+${fn('claude')} mcp add acruxcore \\
+  -e ACRUXCORE_API_KEY=$API_KEY \\
+  -- npx -y @acruxcoreai/mcp-server --read-only
+
+${cm('# --read-only: 17 tools that only read')}`;
+
+const MCP_CODE_JSON = `{
+  ${st('"mcpServers"')}: {
+    ${st('"acruxcore"')}: {
+      ${st('"command"')}: ${st('"npx"')},
+      ${st('"args"')}: [${st('"-y"')}, ${st('"@acruxcoreai/mcp-server"')}],
+      ${st('"env"')}: {
+        ${st('"ACRUXCORE_API_KEY"')}: ${st('"acx_sk_…"')}
+      }
+    }
+  }
+}`;
+
+const MCP_CODE_CURL = `${cm('# ACRUX=' + API_BASE_URL)}
+${fn('curl')} -X POST $ACRUX/mcp \\
+  -H ${st('"Authorization: Bearer $API_KEY"')} \\
+  -H ${st('"Content-Type: application/json"')} \\
+  -H ${st('"Accept: application/json, text/event-stream"')} \\
+  -H ${st('"MCP-Protocol-Version: 2025-06-18"')} \\
+  -d ${st(`'{"jsonrpc":"2.0","id":1,
+       "method":"tools/list","params":{}}'`)}
+
+${cm('# → 28 tools, each with a description,')}
+${cm('# an argument schema and readOnlyHint')}`;
 
 /** The pillar definitions, in the order they appear everywhere on the site. */
 export const FEATURES: Record<FeatureSlug, Feature> = {
@@ -1123,6 +1164,141 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
       body: 'Open Team → Audit trail and filter it down to the change you are looking for. Nothing to switch on: every action your team has already taken is recorded.',
     },
   },
+  mcp: {
+    slug: 'mcp',
+    name: 'MCP server',
+    primaryQuery: 'MCP server for prompt management',
+    summary:
+      'An MCP server for prompt management. Claude Code, Claude Desktop, Cursor and other MCP clients can list, version, promote and run your prompts.',
+    eyebrow: 'Model Context Protocol',
+    title: 'An MCP server for prompt management and tracing.',
+    lead: 'Connect Claude Code, Claude Desktop, Cursor or any other MCP client to your AcruxCore team. The assistant gets 28 tools for prompts, the gateway, the tool catalog, traces and evaluations. You ask in plain language, and the assistant picks the tool.',
+    metaTitle: 'MCP server for prompt management — AcruxCore',
+    metaDescription:
+      'An MCP server for prompt management: Claude Code, Cursor and other MCP clients version, promote and run your prompts, then read the trace of each run.',
+    icon: (
+      <Ic>
+        <path d="M9 3v5" />
+        <path d="M15 3v5" />
+        <path d="M6 8h12v3a6 6 0 0 1-12 0V8Z" />
+        <path d="M12 17v4" />
+      </Ic>
+    ),
+    capabilitiesTitle: 'Two ways to connect, 28 tools, slash commands and a read-only mode.',
+    capabilities: [
+      {
+        title: 'Hosted or local',
+        body: 'The hosted endpoint at /api/v1/mcp uses Streamable HTTP, so you install nothing. The local server is a Node 20 program that runs on your machine over stdio.',
+      },
+      {
+        title: '28 tools in five toolsets',
+        body: 'The toolsets are prompts, gateway, tools, traces and evaluations. Each tool comes with a name, a description and its arguments, and the assistant reads them to choose a tool for your request.',
+      },
+      {
+        title: 'Prompts as slash commands',
+        body: 'Each prompt you store in AcruxCore is also offered as an MCP prompt template, using the version that production points at. In Claude Code, the prompt support-reply becomes the slash command /mcp__acruxcore__support-reply.',
+      },
+      {
+        title: 'A read-only mode',
+        body: 'Start the local server with --read-only and it registers 17 tools. The assistant can list, read, render and diff, but it cannot create, commit, promote or run anything.',
+      },
+    ],
+    code: [
+      { id: 'cli', filename: 'terminal.sh', label: 'CLI', lang: 'Claude Code', html: MCP_CODE_CLI },
+      { id: 'json', filename: 'mcp.json', label: 'JSON', lang: 'Claude Desktop and Cursor config', html: MCP_CODE_JSON },
+      { id: 'curl', filename: 'tools-list.sh', label: 'CURL', lang: 'curl', html: MCP_CODE_CURL },
+    ],
+    sections: [
+      {
+        eyebrow: 'A real session',
+        title: 'One message, six tool calls.',
+        lead: 'In one message, we asked Claude Code to commit version 2 of a prompt, compare version 2 with version 1, promote version 2 to production, run the prompt and open the trace of the run. Claude Code called six tools, one after the other.',
+        table: {
+          head: ['Tool', 'What came back'],
+          rows: [
+            ['get_prompt', 'One version, with the production and staging aliases both on v1.'],
+            ['commit_prompt_version', 'Version 2. Production still pointed at v1, because a commit moves no alias.'],
+            ['diff_prompt_versions', 'The prompt messages of v1 and v2 are the same. Only the model changed.'],
+            ['promote_prompt_alias', 'The production alias now points at version 2.'],
+            ['run_prompt', 'The answer from the model, sent through the gateway, for $0.0000141.'],
+            ['get_trace', 'The trace of that run: status ok, 1 span, 46 tokens and $0.0000141.'],
+          ],
+        },
+        note: 'The team audit trail records each step, under the name of the person who created the API key. The cost of the run counts toward any gateway budget your team has set.',
+        links: [{ label: 'Guide: connect an MCP client', href: DOCS.mcpGuide }],
+      },
+      {
+        eyebrow: 'Access',
+        title: 'The assistant can do what your key can do.',
+        lead: 'The server signs in with your API key. An API key has the same role in the team as the person who created it.',
+        cards: [
+          {
+            title: 'A viewer key',
+            body: 'A key created by a team member with the viewer role can only read. An assistant with that key cannot save versions, move aliases or run prompts.',
+          },
+          {
+            title: 'Read-only mode',
+            body: 'The --read-only option removes every tool that changes data. The assistant never receives a tool that changes data, so the assistant cannot call one, whatever you ask.',
+          },
+          {
+            title: 'Fewer toolsets',
+            body: 'The --toolsets prompts,traces option keeps only the toolsets you name. A shorter tool list also helps the assistant pick the right tool.',
+          },
+        ],
+        note: 'Only the local server takes --read-only and --toolsets. No tool deletes anything: to delete a prompt, a tool or a dataset, use the dashboard or the API.',
+        links: [{ label: 'Reference: MCP endpoint', href: DOCS.mcpApi }],
+      },
+      {
+        eyebrow: 'The tools',
+        title: 'What each toolset holds.',
+        lead: 'Pass any of these toolset names to --toolsets to keep only those tools.',
+        table: {
+          head: ['Toolset', 'Tools'],
+          rows: [
+            [
+              'prompts',
+              'list_prompts, get_prompt, render_prompt, diff_prompt_versions, create_prompt, commit_prompt_version, promote_prompt_alias',
+            ],
+            ['gateway', 'run_prompt, chat_completion, list_models, get_gateway_usage'],
+            ['tools', 'list_catalog_tools, get_catalog_tool, sync_catalog_tool, execute_catalog_tool'],
+            [
+              'traces',
+              'search_traces, get_trace, get_trace_analytics, list_sessions, get_session, submit_trace_feedback',
+            ],
+            [
+              'evaluations',
+              'list_datasets, get_dataset, create_dataset, add_dataset_example, run_experiment, list_experiment_runs, get_experiment_run',
+            ],
+          ],
+        },
+        note: 'When a tool call fails, for example because a variable value is missing, the assistant receives the AcruxCore error code and message. The assistant can then fix the call and try again.',
+        links: [{ label: 'Reference: MCP endpoint', href: DOCS.mcpApi }],
+      },
+    ],
+    shot: {
+      src: '/img/features/mcp-trace.png',
+      alt: 'An AcruxCore trace named "Say hello to Sara and mention MCP." with status OK, 1 span, 46 tokens and $0.0000141, and one LLM span on openai/gpt-4o-mini that took 1.18s.',
+      caption: 'The trace of a run that Claude Code started through the MCP server. The trace sits in the same Traces list as every other call.',
+      width: 1280,
+      height: 800,
+    },
+    dashboard: [
+      'Create the API key the MCP server signs in with, under Account & keys.',
+      'Open a prompt to see the version the assistant committed and the alias that points at it.',
+      'Open Traces to read each run the assistant made, with its tokens, cost and model.',
+      'Read each change the assistant made in the team audit trail, under the name of the key owner.',
+    ],
+    docs: [
+      { label: 'Guide: connect an MCP client', href: DOCS.mcpGuide },
+      { label: 'API: MCP endpoint', href: DOCS.mcpApi },
+      { label: 'Guide: version a prompt', href: DOCS.versionPrompt },
+      { label: 'Core concepts', href: DOCS.coreConcepts },
+    ],
+    cta: {
+      title: 'Connect your first MCP client.',
+      body: 'Create an API key, run one claude mcp add command, and ask Claude Code to list your prompts. No credit card required.',
+    },
+  },
 };
 
 /** The pillars as an ordered array — the canonical site-wide ordering. */
@@ -1133,4 +1309,5 @@ export const FEATURE_LIST: Feature[] = [
   FEATURES.tools,
   FEATURES.evaluation,
   FEATURES.audit,
+  FEATURES.mcp,
 ];

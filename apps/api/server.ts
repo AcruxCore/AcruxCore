@@ -5,6 +5,7 @@ import { assertMasterKey } from './src/gateway/connections/crypto';
 import { assertEmailConfig, assertUnsubscribeSecret } from './src/email';
 import { assertAuthConfig } from './src/shared/auth';
 import { AuthRepository, FirstRunService } from './src/auth';
+import { setSelfBaseUrl } from './src/mcp';
 
 // Fail fast if the gateway encryption key is missing or the wrong length.
 assertMasterKey();
@@ -27,8 +28,15 @@ assertAuthConfig();
 const PORT = parseInt(process.env.PORT ?? process.env.API_PORT ?? '3000', 10);
 const app = createApp();
 
-app.listen(PORT, async () => {
+const httpServer = app.listen(PORT, async () => {
   console.log(`API server listening on http://localhost:${PORT}`);
+  // The hosted MCP endpoint's tools call the rest of this API over loopback. Tell them
+  // the port we actually bound to rather than letting them re-derive it from the
+  // environment — the two agree until a deployment sets one and not the other, and the
+  // symptom then is every MCP tool call timing out with no clue why.
+  const address = httpServer.address();
+  const boundPort = typeof address === 'object' && address !== null ? address.port : PORT;
+  setSelfBaseUrl(`http://127.0.0.1:${boundPort}/api/v1`);
   // Printed only while the instance has no accounts, so a restart never hands
   // out a fresh way in. This is how a self-hosted install with no email
   // transport gets its first owner.

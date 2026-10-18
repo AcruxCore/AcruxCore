@@ -1,0 +1,75 @@
+{
+  "name": "@acruxcoreai/mcp-server",
+  "version": "0.1.0",
+  "description": "Model Context Protocol server for AcruxCore — prompts, tool catalog, AI gateway, traces and evaluations as MCP tools",
+  "license": "MIT",
+  "keywords": [
+    "acruxcore",
+    "mcp",
+    "model-context-protocol",
+    "prompt-management",
+    "llm",
+    "ai-gateway",
+    "observability",
+    "claude"
+  ],
+  "homepage": "https://acruxcore.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AcruxCore/AcruxCore.git",
+    "directory": "packages/mcp-server"
+  },
+  "bugs": {
+    "email": "support@acruxcore.com"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "bin": {
+    "acruxcore-mcp": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test:unit": "vitest run",
+    "test:integration": "jest --runInBand --forceExit",
+    "test": "npm run test:unit && npm run test:integration",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run typecheck && npm run test:unit && npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@swc/jest": "^0.2.39",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.14.0",
+    "dotenv": "^16.4.5",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.4",
+    "tsup": "^8.1.0",
+    "typescript": "^5.5.0",
+    "vitest": "^1.6.0"
+  }
+}

@@ -129,6 +129,12 @@ const START_LINKS: StartLink[] = [
     body: 'Every endpoint, curl-verified, with exact request and response shapes.',
     href: '/api-reference',
   },
+  {
+    n: '04',
+    title: 'Connect Claude with MCP',
+    body: 'Manage prompts, run them and read their traces by asking an AI assistant.',
+    href: '/docs/guides/connect-an-mcp-client',
+  },
 ];
 
 function Arrow(): ReactNode {

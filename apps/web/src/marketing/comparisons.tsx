@@ -78,6 +78,14 @@ export interface Comparison {
   auditLog: Fact;
   promptTemplating: Fact;
   promptOptimizer: Fact;
+  /**
+   * What the platform's own MCP server lets an AI assistant do. Every competitor here
+   * has one, so this row compares capabilities, never presence. `acruxWins` is set only
+   * where AcruxCore's server covers everything the competitor's does and more; a
+   * competitor whose server has tools ours lacks gets no flag. Tool counts are stated as
+   * facts, never used as the score.
+   */
+  mcpServer: Fact;
   communityStars: string;
   communityNote?: string;
 }
@@ -92,9 +100,9 @@ export const ACRUX_CORE = {
   tagline:
     'A gateway in the request path, and tools that are defined, versioned, and run in the same place.',
   bestFor:
-    'Teams that want prompts, gateway, tracing, and tools in one self-hosted product. Prompts are versioned, and the gateway sits in the request path. Tools are defined and versioned in AcruxCore, and the gateway runs them. Feedback from users and notes from developers become a dataset of test cases. Standing rules score live traffic against that dataset. The optimizer proposes rewrites, and you promote a rewrite as a normal prompt version. Every change anyone makes is recorded with their name, whether you use the hosted product or self-host it. Langfuse is the only other platform here where we found an audit trail, and it needs a paid plan.',
+    'Teams that want prompts, gateway, tracing, and tools in one self-hosted product. Prompts are versioned, and the gateway sits in the request path. Tools are defined and versioned in AcruxCore, and the gateway runs them. From an MCP client such as Claude Code, you can commit a prompt version, promote it, run it through AcruxCore\'s gateway, and read the resulting trace. Feedback from users and notes from developers become a dataset of test cases. Standing rules score live traffic against that dataset. The optimizer proposes rewrites, and you promote a rewrite as a normal prompt version. Every change anyone makes is recorded with their name, whether you use the hosted product or self-host it. Langfuse is the only other platform here where we found an audit trail, and it needs a paid plan.',
   limitations:
-    'One team with no organization layer, and one role per member. No content or PII guardrails in the request path. A smaller community than any of the six competitors here.',
+    'One team with no organization layer, and one role per member. No content or PII guardrails in the request path. Only the local MCP server has a read-only mode, not the hosted one. A smaller community than any of the six competitors here.',
   license: {
     value: 'Apache License 2.0, permissive and OSI-approved. No part of the repository is under a different license.',
     source: { label: 'LICENSE', href: `${GITHUB_URL}/blob/main/LICENSE` },
@@ -140,6 +148,12 @@ export const ACRUX_CORE = {
       'Built into the dashboard. The optimizer drafts candidate rewrites from the test cases that an eval run got wrong, and from the feedback that your LLM judge left. Every candidate is scored against the prompt you run today, across several models at once. The scores come back in one report, and you promote the winner from that report.',
     source: { label: 'Improve a prompt from feedback', href: `${DOCS_URL}/docs/guides/improve-a-prompt-from-feedback` },
     checkedOn: '2026-09-10',
+  },
+  mcpServer: {
+    value:
+      'The server has 28 tools. AcruxCore hosts it, and you can also run it locally with npx. An assistant can commit a prompt version, promote it to an alias, and run it through AcruxCore\'s gateway. The assistant can then read the resulting trace, test a prompt over a dataset, and call entries in the Tool Catalog.',
+    source: { label: 'Connect an MCP client', href: `${DOCS_URL}/docs/guides/connect-an-mcp-client` },
+    checkedOn: '2026-10-18',
   },
 } as const;
 
@@ -203,6 +217,12 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
       acruxWins: true,
       checkedOn: '2026-09-10',
     },
+    mcpServer: {
+      value:
+        'Langfuse\'s hosted server has about 83 tools for prompts, datasets, scores, annotation queues, and dashboards. The tools create prompts and move their labels, but none runs a stored prompt.',
+      source: { label: 'Langfuse MCP server', href: 'https://langfuse.com/docs/api-and-data-platform/features/mcp-server' },
+      checkedOn: '2026-10-18',
+    },
     communityStars: '32,617',
   },
 
@@ -258,6 +278,12 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
       acruxWins: true,
       checkedOn: '2026-09-10',
     },
+    mcpServer: {
+      value:
+        'Phoenix has a local server with 27 tools that create prompts, tag versions, and read traces. Phoenix\'s hosted server turns every REST route into a tool and adds SQL analytics and GraphQL. A flag makes the hosted server read-only. We found no tool on either server that runs a stored prompt.',
+      source: { label: 'Phoenix MCP server source', href: 'https://github.com/Arize-ai/phoenix/blob/main/src/phoenix/server/mcp_server.py' },
+      checkedOn: '2026-10-18',
+    },
     communityStars: '10,923',
   },
 
@@ -312,6 +338,13 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
       source: { label: 'Opik Agent Optimizer', href: 'https://github.com/comet-ml/opik/blob/main/sdks/opik_optimizer/README.md' },
       checkedOn: '2026-09-10',
     },
+    mcpServer: {
+      value:
+        'Opik has a hosted server and a Beta local one, each with 5 tools. The tools save prompt versions and read traces and experiments, but cannot move a prompt label or run a stored prompt.',
+      source: { label: 'comet-ml/opik-mcp', href: 'https://github.com/comet-ml/opik-mcp' },
+      acruxWins: true,
+      checkedOn: '2026-10-18',
+    },
     communityStars: '21,169',
   },
 
@@ -365,6 +398,13 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
       source: { label: 'Prompt editor (deprecated)', href: 'https://docs.helicone.ai/features/prompts-legacy/editor' },
       acruxWins: true,
       checkedOn: '2026-09-10',
+    },
+    mcpServer: {
+      value:
+        'Helicone\'s local server has 3 tools. Two tools search logged requests and sessions. The third tool sends chat messages that you write through Helicone\'s gateway. That tool cannot send a stored prompt.',
+      source: { label: 'helicone-mcp source', href: 'https://github.com/Helicone/helicone/blob/main/helicone-mcp/src/index.ts' },
+      acruxWins: true,
+      checkedOn: '2026-10-18',
     },
     communityStars: '6,044',
     communityNote:
@@ -421,6 +461,13 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
       source: { label: 'Optimize prompts', href: 'https://mlflow.org/docs/latest/genai/prompt-registry/optimize-prompts/' },
       checkedOn: '2026-09-10',
     },
+    mcpServer: {
+      value:
+        'MLflow\'s local server is experimental and has 26 tools for traces, scorers, experiments, and runs. The tools can evaluate traces, but none reads or changes a prompt.',
+      source: { label: 'MLflow MCP server', href: 'https://mlflow.org/docs/latest/genai/mcp/' },
+      acruxWins: true,
+      checkedOn: '2026-10-18',
+    },
     communityStars: '27,416',
   },
 
@@ -472,6 +519,13 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
       value: 'Nothing to optimize. With no prompt registry, there is no stored prompt for an optimizer to rewrite or version.',
       acruxWins: true,
       checkedOn: '2026-09-10',
+    },
+    mcpServer: {
+      value:
+        'Laminar\'s hosted server has 3 read-only tools. The tools run SQL over traces, fetch the details of one trace, and send a question to an agent inside Laminar. Laminar has no prompt registry, so no tool reads or runs a prompt.',
+      source: { label: 'Laminar MCP server', href: 'https://laminar.sh/docs/platform/mcp' },
+      acruxWins: true,
+      checkedOn: '2026-10-18',
     },
     communityStars: '3,230',
     communityNote:

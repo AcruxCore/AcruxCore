@@ -41,22 +41,23 @@ For each alternative to LangSmith, it lists what the tool adds and what it lacks
 
 **Features**
 
-| Tool | Prompt versions | Gateway (your model calls pass through it) | Evals on datasets | Evals on live traffic | Status in 2026 |
-|---|---|---|---|---|---|
-| **LangSmith** | Yes | Beta | Yes | Yes | Active |
-| Langfuse | Yes | No | Yes | Yes | Active; owned by ClickHouse since January 2026 |
-| AcruxCore | Yes | Yes | Yes | Yes | Active; public since August 2026 |
-| Opik | Yes | Beta, for development and testing | Yes | Yes | Active |
-| MLflow | Yes | Yes | Yes | Yes | Active; a Linux Foundation project |
-| Laminar | No | No | Yes | Signals (rules in plain English) | Active |
-| Arize Phoenix | Yes | No | Yes | Yes | Active |
-| Braintrust | Yes | Yes, hosted, in public preview | Yes | Yes | Active |
-| W&B Weave | Partial | No | Yes | Yes | Active; W&B is owned by CoreWeave |
+| Tool | Prompt versions | Gateway (your model calls pass through it) | Evals on datasets | Evals on live traffic | MCP server | Status in 2026 |
+|---|---|---|---|---|---|---|
+| **LangSmith** | Yes | Beta | Yes | Yes | Yes: prompts, traces, deployments, sandboxes | Active |
+| Langfuse | Yes | No | Yes | Yes | Yes: prompts, traces, datasets, scores | Active; owned by ClickHouse since January 2026 |
+| AcruxCore | Yes | Yes | Yes | Yes | [Yes](/docs/guides/connect-an-mcp-client): prompts (write and run), traces, experiments, tools | Active; public since August 2026 |
+| Opik | Yes | Beta, for development and testing | Yes | Yes | Yes: prompts, traces | Active |
+| MLflow | Yes | Yes | Yes | Yes | Yes: traces, judges | Active; a Linux Foundation project |
+| Laminar | No | No | Yes | Signals (rules in plain English) | Yes: read-only traces | Active |
+| Arize Phoenix | Yes | No | Yes | Yes | Yes: prompts, traces, experiment results | Active |
+| Braintrust | Yes | Yes, hosted, in public preview | Yes | Yes | Yes: prompts, logs, evals | Active |
+| W&B Weave | Partial | No | Yes | Yes | Yes, mostly read-only: traces, evals, reports | Active; W&B is owned by CoreWeave |
 
 A **unit** on Langfuse is one trace, one step inside a trace, or one score. A **span** is one
 step inside a trace. Opik, Phoenix and Braintrust count spans or gigabytes, so their free plans
 are not directly comparable with LangSmith's 5,000 traces. **Closed source** means the vendor
-publishes no server code.
+publishes no server code. An **MCP server** lets a coding assistant, such as Claude Code or
+Cursor, work with the platform's data.
 
 If you want the self-hostable tools at a glance, the [comparison page](https://acruxcore.com/compare) puts AcruxCore next
 to six self-hostable platforms, feature by feature.
@@ -91,8 +92,8 @@ Sources: LangSmith [pricing](https://www.langchain.com/pricing),
 - **The tool is active today.** Each tool had a release or a commit in October 2026.
 - **The price is public**, or the tool is free to self-host.
 - **Every fact comes from the vendor:** the pricing page, the docs, the license file or the
-  repository's compose file, read on 17 October 2026. We do not use other comparison lists as
-  sources.
+  repository's compose file, read on 17 October 2026. The MCP servers were checked on
+  18 October 2026. We do not use other comparison lists as sources.
 
 ## Open-source LangSmith alternatives (free to self-host)
 
@@ -120,6 +121,8 @@ prompts and evals.
 - Langfuse has the largest community here: 35,957 GitHub stars.
 - Datasets, experiments, LLM-as-judge on live traces and review queues are all in the free
   self-hosted version.
+- Langfuse's [MCP server](https://langfuse.com/docs/api-and-data-platform/features/mcp-server)
+  creates prompts, moves prompt labels, and reads traces, datasets and scores.
 
 **Limits of Langfuse**
 
@@ -160,6 +163,8 @@ to self-host, and its gateway sends your model calls to the provider.
 - Roles and the audit log are free in every AcruxCore install. LangSmith keeps custom roles for
   Enterprise.
 - Self-hosting needs two data stores, Postgres and Redis, with no ClickHouse.
+- The [MCP server](/docs/guides/connect-an-mcp-client) lets a coding assistant run a stored prompt through the gateway and
+  read the trace that the run produced.
 
 **Limits of AcruxCore**
 
@@ -193,6 +198,8 @@ Opik vs LangSmith: Opik is Apache-2.0 from end to end and has the cheapest paid 
   optimization algorithms.
 - Opik has guardrails for PII, topics and prompt injection.
 - Opik's free cloud plan allows 10 members. LangSmith's free plan allows 1 seat.
+- Opik's [MCP server](https://www.comet.com/docs/opik/mcp-server) reads traces and saves new prompt
+  versions.
 
 **Limits of Opik**
 
@@ -230,6 +237,8 @@ judges and a gateway in one server.
   USD budget.
 - Judges can score live traces with no code change, and review queues assign traces to people.
 - The same server holds your training runs and model registry.
+- MLflow's [MCP server](https://mlflow.org/docs/latest/genai/mcp/) reads traces and runs judges
+  on them. The MLflow docs call the MCP server experimental.
 
 **Limits of MLflow**
 
@@ -260,6 +269,8 @@ Laminar vs LangSmith: Laminar is open-source tracing built for agents, with SQL 
 
 - Laminar replays a browser agent's session as video, next to the matching steps of the trace.
 - You can query traces, spans and metrics with SQL.
+- Laminar's [MCP server](https://laminar.sh/docs/platform/mcp) gives a coding assistant read-only
+  access to traces, and the assistant can query them with SQL.
 - Signals are rules written in plain English, such as "agent is stuck in a loop". Laminar
   checks every trace against these rules.
 
@@ -299,6 +310,8 @@ Elastic License 2.0, is not approved by the Open Source Initiative.
 - Tracing uses OpenInference, Arize's OpenTelemetry conventions, so any OpenTelemetry language
   can send spans.
 - Prompts have versions and tags, and the playground replays a traced model call.
+- Phoenix's [MCP server](https://github.com/Arize-ai/phoenix/tree/main/js/packages/phoenix-mcp/src)
+  creates prompts, tags prompt versions and reads traces.
 
 **Limits of Phoenix**
 
@@ -338,6 +351,8 @@ unlimited users, and LangSmith charges per seat.
 - The gateway caches responses for up to 7 days and falls back to another provider on errors.
 - Braintrust gives Pro free for 6 to 12 months to startups that qualify. LangSmith gives up to
   $10,000 in credits to startups with venture funding.
+- Braintrust's [MCP server](https://www.braintrust.dev/docs/reference/mcp) creates prompts, queries
+  logs in SQL and runs evals.
 
 **Limits of Braintrust**
 
@@ -370,6 +385,8 @@ Weave vs LangSmith: Weave puts LLM traces and evals next to Weights & Biases exp
 - One subscription covers W&B experiment tracking and Weave traces.
 - Monitors run LLM-judge checks, such as hallucination, on every production trace.
 - The playground compares models side by side, using provider keys stored as team secrets.
+- Weave's [MCP server](https://github.com/wandb/wandb-mcp-server) reads traces, evaluation results,
+  runs and reports.
 
 **Limits of Weave**
 

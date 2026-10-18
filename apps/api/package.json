@@ -64,7 +64,9 @@
     "reset-password": "tsx scripts/reset-password.ts"
   },
   "dependencies": {
+    "@acruxcoreai/mcp-server": "*",
     "@aws-sdk/client-sesv2": "^3.1095.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@prisma/client": "^6.19.3",
     "@sentry/node": "^10.68.0",
     "@types/pg": "^8.20.0",

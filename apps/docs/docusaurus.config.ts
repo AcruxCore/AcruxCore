@@ -474,6 +474,7 @@ const config: Config = {
             {label: 'Version a prompt', to: '/docs/guides/version-a-prompt'},
             {label: 'Use the gateway', to: '/docs/guides/route-calls-through-the-gateway'},
             {label: 'Trace a call', to: '/docs/guides/trace-an-llm-call'},
+            {label: 'Connect an MCP client', to: '/docs/guides/connect-an-mcp-client'},
           ],
         },
         {

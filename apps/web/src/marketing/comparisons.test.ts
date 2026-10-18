@@ -58,6 +58,22 @@ describe('comparison data', () => {
     }
   });
 
+  // Every competitor here ships an MCP server, so the row can only ever compare what
+  // the servers do. A win is recorded only where ours covers everything theirs does;
+  // Langfuse's and Phoenix's servers have tools ours lacks, so those are differences.
+  it('scores the MCP server row only where AcruxCore covers every capability', () => {
+    const winners = COMPARISON_LIST.filter((c) => c.mcpServer.acruxWins).map((c) => c.slug);
+    expect(winners.sort()).toEqual(['helicone', 'laminar', 'mlflow', 'opik']);
+    for (const competitor of COMPARISON_LIST) {
+      expect(competitor.mcpServer.competitorWins, competitor.name).toBeUndefined();
+      expect(competitor.mcpServer.source, `${competitor.name} MCP fact has no source`).toBeDefined();
+      expect(competitor.mcpServer.checkedOn).toBe('2026-10-18');
+      // The row compares what a server does, never whether one exists.
+      expect(competitor.mcpServer.value).not.toMatch(/no MCP server|lacks an MCP/i);
+    }
+    expect(ACRUX_CORE.mcpServer.source.href).toMatch(/connect-an-mcp-client$/);
+  });
+
   it('orders the platforms by community size, largest first', () => {
     const stars = PLATFORMS_BY_COMMUNITY.map((c) => Number(c.communityStars.replace(/,/g, '')));
     expect(stars).toEqual([...stars].sort((a, b) => b - a));

@@ -43,7 +43,7 @@ interface Section {
  * plain terms, and none of them sell.
  */
 const SUMMARIES: Record<string, string> = {
-  '/': 'What AcruxCore is: prompt versioning, an OpenAI-compatible gateway, tracing, a tool catalog, evaluation and an audit trail, in one self-hostable platform.',
+  '/': 'What AcruxCore is: prompt versioning, an OpenAI-compatible gateway, tracing, a tool catalog, evaluation, an audit trail and an MCP server, in one self-hostable platform.',
   '/best-open-source-llmops-platforms':
     'Seven open-source LLMOps platforms compared on licence, self-hosting, request-path control, prompt management and community size, with what each one is best for and where it falls short.',
   '/compare':
@@ -64,6 +64,8 @@ const SUMMARIES: Record<string, string> = {
     'An LLM evaluation platform: offline experiments against datasets, online evaluation rules that score live traffic, and prompt optimization that proposes rewrites you promote.',
   '/features/audit':
     'An LLM audit log of every change a person makes — API keys, members and roles, invites, provider connections, virtual keys, budgets, gateway models, secrets, trace settings, prompts and tools — filtered by area, event or person, on every plan.',
+  '/features/mcp':
+    'An MCP server for prompt management: Claude Code, Claude Desktop, Cursor and other MCP clients get 28 tools to version, promote and run prompts and read traces, from a hosted endpoint or a local stdio server.',
   '/sdk':
     'The TypeScript and Python clients: cached prompt rendering, OpenAI-compatible chat, single-trace tool loops, and feedback, with the same surface in both.',
   '/about': 'Who builds AcruxCore and why it is one platform rather than five separate tools.',
@@ -93,6 +95,7 @@ const SECTIONS: Section[] = [
       '/features/tools',
       '/features/evaluation',
       '/features/audit',
+      '/features/mcp',
       '/sdk',
     ],
   },

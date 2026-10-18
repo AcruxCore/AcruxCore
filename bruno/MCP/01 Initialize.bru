@@ -1,0 +1,41 @@
+meta {
+  name: Initialize
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/mcp
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+  Accept: application/json, text/event-stream
+}
+
+body:json {
+  {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2025-06-18",
+      "capabilities": {},
+      "clientInfo": { "name": "bruno", "version": "1.0" }
+    }
+  }
+}
+
+docs {
+  The MCP handshake. The endpoint is stateless, so no Mcp-Session-Id comes back and
+  nothing here has to be carried into the requests below except the protocol version.
+
+  Accept MUST list both application/json and text/event-stream — the transport rejects
+  the request otherwise, before it reaches any tool.
+}

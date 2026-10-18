@@ -764,8 +764,10 @@ into your coding agent; `npx lmnr-cli setup` authenticates, writes a project key
 and installs a "Laminar skill"; and the CLI can query your traces in SQL, so the agent can
 verify its own instrumentation worked. It also ships a debugger — `LMNR_DEBUG=1` lets an
 agent run your agent, read the resulting trace, change the code, and re-run with cached
-state. Nothing else in this post has an equivalent, and AcruxCore's own MCP server is
-unmerged and unpublished, so today our answer is simply no.
+state. No other platform in this post ships a debugger like `LMNR_DEBUG`, and AcruxCore does
+not either. AcruxCore has an [MCP server](/docs/guides/connect-an-mcp-client) for a coding agent
+instead. Through it, the agent can run a stored prompt through the AcruxCore gateway, read the
+trace that the run produced, and commit a new prompt version.
 
 **MLflow and Helicone break the wrap-a-client pattern in opposite directions.** MLflow needs
 the most calls of any platform in this whole series to do what AcruxCore's two calls do —

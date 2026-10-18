@@ -1,0 +1,37 @@
+meta {
+  name: List Registry Prompts
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/v1/mcp
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+  Accept: application/json, text/event-stream
+  MCP-Protocol-Version: 2025-06-18
+}
+
+body:json {
+  {
+    "jsonrpc": "2.0",
+    "id": 5,
+    "method": "prompts/list",
+    "params": {}
+  }
+}
+
+docs {
+  MCP's own prompts primitive, backed by the prompt registry at the production alias,
+  with each version's template variables as arguments.
+
+  Paged at 25: a result carrying `nextCursor` goes back as `params.cursor`.
+}

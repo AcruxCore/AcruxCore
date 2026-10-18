@@ -44,21 +44,22 @@ and what it lacks.
 
 **Features**
 
-| Tool | Prompt versions | Gateway (your model calls pass through it) | Evals on datasets | Evals on live traffic | Status in 2026 |
-|---|---|---|---|---|---|
-| **Langfuse** | Yes | No | Yes | Yes | Active; owned by ClickHouse since January 2026 |
-| AcruxCore | Yes | Yes | Yes | Yes | Active; public since August 2026 |
-| MLflow | Yes | Yes | Yes | Yes | Active; a Linux Foundation project |
-| OpenLIT | Yes | No | Not in the docs we read | Yes | Active; hosted plan announced, not launched |
-| Laminar | No | No | Yes | Signals (rules in plain English) | Active |
-| Opik | Yes | Beta, for development and testing | Yes | Yes | Active |
-| Arize Phoenix | Yes | No | Yes | Yes | Active |
-| LangSmith | Yes | Beta | Yes | Yes | Active |
-| Braintrust | Yes | Yes, hosted, in public preview | Yes | Yes | Active |
+| Tool | Prompt versions | Gateway (your model calls pass through it) | Evals on datasets | Evals on live traffic | MCP server | Status in 2026 |
+|---|---|---|---|---|---|---|
+| **Langfuse** | Yes | No | Yes | Yes | Yes: prompts, traces, datasets, scores | Active; owned by ClickHouse since January 2026 |
+| AcruxCore | Yes | Yes | Yes | Yes | [Yes](/docs/guides/connect-an-mcp-client): prompts (write and run), traces, experiments, tools | Active; public since August 2026 |
+| MLflow | Yes | Yes | Yes | Yes | Yes: traces, judges | Active; a Linux Foundation project |
+| OpenLIT | Yes | No | Not in the docs we read | Yes | Not checked | Active; hosted plan announced, not launched |
+| Laminar | No | No | Yes | Signals (rules in plain English) | Yes: read-only traces | Active |
+| Opik | Yes | Beta, for development and testing | Yes | Yes | Yes: prompts, traces | Active |
+| Arize Phoenix | Yes | No | Yes | Yes | Yes: prompts, traces, experiment results | Active |
+| LangSmith | Yes | Beta | Yes | Yes | Yes: prompts, traces, deployments, sandboxes | Active |
+| Braintrust | Yes | Yes, hosted, in public preview | Yes | Yes | Yes: prompts, logs, evals | Active |
 
 A **unit** on Langfuse is one trace, one step inside a trace, or one score. A **span** is one
 step inside a trace. "Data stores" counts databases, caches, queues and file stores, not the
-application containers. **Closed source** means the vendor publishes no server code.
+application containers. **Closed source** means the vendor publishes no server code. An **MCP
+server** lets a coding assistant, such as Claude Code or Cursor, work with the platform's data.
 
 If you want the self-hostable tools at a glance, the [comparison page](https://acruxcore.com/compare) puts AcruxCore
 next to Langfuse and five other self-hostable platforms, feature by feature.
@@ -95,8 +96,8 @@ Sources: Langfuse [license](https://github.com/langfuse/langfuse/blob/main/LICEN
 - **The tool is active today.** Each tool had a release or a commit in October 2026.
 - **The price is public**, or the tool is free to self-host.
 - **Every fact comes from the vendor:** the pricing page, the docs, the license file or the
-  repository's compose file, read on 17 October 2026. We do not use other comparison lists as
-  sources.
+  repository's compose file, read on 17 October 2026. The MCP servers, except OpenLIT's,
+  were checked on 18 October 2026. We do not use other comparison lists as sources.
 
 ## Self-hosted Langfuse alternatives
 
@@ -126,6 +127,8 @@ has a gateway. A self-hosted AcruxCore needs only Postgres and Redis.
 - Roles and the audit log are free in every AcruxCore install. Langfuse keeps the audit log and
   project-level roles for its enterprise license.
 - A prompt run can rewrite the prompt for you and score the new version against a dataset.
+- The [MCP server](/docs/guides/connect-an-mcp-client) lets a coding assistant run a stored prompt through the gateway and
+  read the trace that the run produced.
 
 **Limits of AcruxCore**
 
@@ -163,6 +166,8 @@ and a gateway in one server.
   USD budget.
 - User permissions and workspaces are in the open-source version, with no license key.
 - The same server holds your training runs and model registry.
+- MLflow's [MCP server](https://mlflow.org/docs/latest/genai/mcp/) reads traces and runs judges
+  on them. The MLflow docs call the MCP server experimental.
 
 **Limits of MLflow**
 
@@ -229,6 +234,8 @@ and no prompt management.
 - Signals are rules written in plain English, such as "agent is stuck in a loop". Laminar
   checks every trace against these rules.
 - Laminar bills by gigabyte of trace data, not by the number of steps.
+- Laminar's [MCP server](https://laminar.sh/docs/platform/mcp) gives a coding assistant read-only
+  access to traces, and the assistant can query them with SQL.
 
 **Limits of Laminar**
 
@@ -262,6 +269,8 @@ plan here.
 - Opik has guardrails for PII, topics and prompt injection.
 - Opik's free cloud plan keeps data 60 days for up to 10 members. Langfuse Hobby keeps 30 days for
   2 users.
+- Opik's [MCP server](https://www.comet.com/docs/opik/mcp-server) reads traces and saves new prompt
+  versions.
 
 **Limits of Opik**
 
@@ -300,6 +309,8 @@ the Elastic License 2.0, is not approved by the Open Source Initiative.
   your own team is allowed.
 - Self-hosted Phoenix includes OAuth2, LDAP and role-based access.
 - Tracing uses OpenInference, Arize's OpenTelemetry conventions.
+- Phoenix's [MCP server](https://github.com/Arize-ai/phoenix/tree/main/js/packages/phoenix-mcp/src)
+  creates prompts, tags prompt versions and reads traces.
 
 **Limits of Phoenix**
 
@@ -336,6 +347,8 @@ and free to self-host.
 - LangSmith has a gateway in beta, with spend and rate limits.
 - LangSmith has SDKs for Go and Java as well as Python and TypeScript.
 - Startups with venture funding can get up to $10,000 in credits.
+- LangSmith's [MCP server](https://docs.langchain.com/langsmith/langsmith-remote-mcp) pushes and
+  tags prompts, reads traces, and works with deployments and sandboxes.
 
 **Limits of LangSmith**
 
@@ -370,6 +383,8 @@ price and unlimited users.
   scorers and datasets after you approve.
 - The gateway caches responses for up to 7 days and falls back to another provider on errors.
 - Braintrust gives Pro free for 6 to 12 months to startups that qualify.
+- Braintrust's [MCP server](https://www.braintrust.dev/docs/reference/mcp) creates prompts, queries
+  logs in SQL and runs evals.
 
 **Limits of Braintrust**
 

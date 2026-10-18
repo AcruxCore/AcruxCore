@@ -59,6 +59,7 @@ Compared with Helicone, Langfuse, Laminar, MLflow, Opik and Phoenix ([full table
 - 🌐 **AI gateway** — one endpoint in front of OpenAI, Anthropic, Gemini and more, with routing, caching and retries
 - 🔍 **Tracing** — every gateway request lands as a trace automatically, with no separate instrumentation to wire up
 - 📊 **Evaluation** — run a prompt, or a full session, against a dataset and compare scores across runs
+- 🔌 **[MCP server](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client)** — connect Claude Code, Claude Desktop or any Model Context Protocol client and let an assistant operate all of the above
 - 🔓 **Open source, self-hostable** — Apache 2.0, no gated or enterprise-only directory, run it on your own infra against your own Postgres
 
 Hosted at [acruxcore.com](https://acruxcore.com) — or self-host it, below.
@@ -126,6 +127,6 @@ Working on AcruxCore itself rather than just running it? See [CONTRIBUTING.md](.
 
 [Apache License 2.0](./LICENSE) — permissive, OSI-approved, no gated or enterprise-only directory.
 
-`packages/sdk` and `packages/sdk-python` ship under their own **MIT** license, standard for published client libraries. Both are permissive; the split is convention, not restriction.
+`packages/sdk`, `packages/sdk-python` and `packages/mcp-server` ship under their own **MIT** license, standard for published client libraries. All are permissive; the split is convention, not restriction.
 
 The **AcruxCore** name and logo are trademarks, licensed separately — see [TRADEMARK.md](./TRADEMARK.md).

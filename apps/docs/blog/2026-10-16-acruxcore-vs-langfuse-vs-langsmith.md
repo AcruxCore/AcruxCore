@@ -34,6 +34,7 @@ each request against a signed project scope, prices the extra work, and writes a
 | Vercel AI SDK integration | No | Yes | Yes |
 | Gateway in the request path | Yes: fallbacks, cache, budgets, rate limits | No | Yes, in beta: routing, spend and rate limits |
 | Evaluations: datasets, LLM judge, your own code, live traffic | Yes | Yes | Yes |
+| MCP server for coding assistants | [Yes](/docs/guides/connect-an-mcp-client): prompts (write and run), traces, experiments, tool catalog | Yes: prompts, traces, datasets, scores, review queues | Yes: prompts, traces, deployments, sandboxes |
 | Review queue for people | No | Yes | Yes |
 | Alerts | Email: budgets, evaluation rules, weekly digest | Cost, latency, scores; Slack, webhook | Cost, errors, latency, feedback; Slack, PagerDuty, webhook |
 | SSO | No | Pro with the Teams add-on, or Enterprise | Enterprise |
@@ -46,9 +47,11 @@ and [alerts](https://langfuse.com/docs/observability/features/alerts) pages; the
 [pricing](https://www.langchain.com/pricing), [self-hosting](https://docs.langchain.com/langsmith/self-hosted),
 [regions](https://docs.langchain.com/langsmith/regions-faq),
 [gateway](https://docs.langchain.com/langsmith/llm-gateway) and
-[alerts](https://docs.langchain.com/langsmith/alerts) pages; and
-[acruxcore.com/pricing](https://acruxcore.com/pricing). The prices were read on 16 October 2026, and
-everything else on 17 October 2026.
+[alerts](https://docs.langchain.com/langsmith/alerts) pages; the
+[Langfuse MCP](https://langfuse.com/docs/api-and-data-platform/features/mcp-server) and
+[LangSmith MCP](https://docs.langchain.com/langsmith/langsmith-remote-mcp) pages; and
+[acruxcore.com/pricing](https://acruxcore.com/pricing). The prices were read on 16 October 2026, the
+MCP pages on 18 October 2026, and everything else on 17 October 2026.
 
 ## AcruxCore
 
@@ -63,6 +66,8 @@ everything else on 17 October 2026.
 - The comparison of two experiment runs opens on the test messages whose score changed.
 - Prompts use Jinja2-style templates with `if` and `for`, and the server can fill them in.
 - It has a versioned tool catalog that the gateway runs, and a built-in prompt optimizer.
+- Its MCP server lets a coding assistant run a stored prompt through the gateway and then read
+  the trace that the run produced.
 
 **Cons**
 
@@ -90,6 +95,7 @@ everything else on 17 October 2026.
 - It has the largest community of the three: 35,935 GitHub stars.
 - For 100,000 traces a month and 3 people, it costs $98.36 a month and keeps data for 90 days.
 - A model call shows its prompt name and version as a link.
+- Its MCP server works with prompts, traces, datasets, scores and review queues.
 
 **Cons**
 
@@ -112,6 +118,7 @@ everything else on 17 October 2026.
 - It has a gateway, in beta.
 - The prompt page keeps a rollback history.
 - Alerts reach Slack, PagerDuty and webhooks.
+- Its MCP server works with prompts, traces, deployments and sandboxes.
 
 **Cons**
 

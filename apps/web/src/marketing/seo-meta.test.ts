@@ -59,7 +59,7 @@ describe('primary query placement', () => {
 
   it('gives each pillar page a distinct primary query', () => {
     // Two pages chasing one query split it. Kept as an assertion rather than a
-    // convention because the six copies live 600 lines apart.
+    // convention because the seven copies live 900 lines apart.
     const queries = FEATURE_LIST.map((f) => f.primaryQuery.toLowerCase());
     expect(new Set(queries).size).toBe(queries.length);
   });

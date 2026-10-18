@@ -40,6 +40,7 @@ import { viewsRouter } from './src/traces/views';
 import { feedbackRouter } from './src/traces/feedback';
 import evaluationsRouter from './src/evaluations/evaluations.router';
 import { notificationsRouter } from './src/notifications';
+import { mcpRouter } from './src/mcp';
 import { unsubscribeRouter } from './src/email/unsubscribe';
 import { errorMiddleware } from './src/shared/middleware';
 
@@ -257,6 +258,11 @@ export function createApp(): express.Application {
   app.use('/api/v1', promptTracesRouter);
   // Evaluations (Phase 5 E2): datasets — /api/v1/datasets, /api/v1/datasets/from-feedback
   app.use('/api/v1', evaluationsRouter);
+  // Model Context Protocol, Streamable HTTP: POST /api/v1/mcp. Mounted last because it
+  // is the only router that *calls* the others — its tools reach the rest of the API
+  // over loopback with the caller's own key, so everything it can reach must already be
+  // mounted by the time a request arrives.
+  app.use('/api/v1', mcpRouter);
 
   // Reports unhandled 5xx errors to Sentry, then forwards to our own handler
   // below (via `next(err)`) unchanged — the response shape doesn't change.
