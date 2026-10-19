@@ -1,0 +1,10 @@
+{
+  // Used only by ts-jest (see jest.config.ts). `isolatedModules` makes ts-jest
+  // transpile each file on its own instead of type-checking it against the
+  // whole program. Type errors are still caught: `tsc --noEmit` over this
+  // folder's tsconfig.json includes every test file, and CI runs it first.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "isolatedModules": true
+  }
+}

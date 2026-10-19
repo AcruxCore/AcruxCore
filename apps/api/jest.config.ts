@@ -6,7 +6,10 @@ const config: Config = {
   rootDir: '.',
   testMatch: ['<rootDir>/src/**/*.test.ts'],
   transform: {
-    '^.+\\.ts$': ['ts-jest', { tsconfig: 'tsconfig.json' }],
+    // Transpile-only (`isolatedModules` in tsconfig.jest.json): type-checking
+    // every test file against the whole program was most of a cold run's CPU,
+    // and it duplicated `tsc --noEmit`, which already covers the test files.
+    '^.+\\.ts$': ['ts-jest', { tsconfig: 'tsconfig.jest.json' }],
     // better-auth and its dependency chain are ESM-only (`"type": "module"`, no
     // CJS build). Node 22 loads them fine via its native `require(esm)` support,
     // so the app itself needs no change — but Jest replaces `require` with its
@@ -41,7 +44,11 @@ const config: Config = {
   // suite. Without it, any suite whose code path reaches `notify()` leaves an open
   // socket and Jest never exits. See the file's own docstring.
   setupFilesAfterEnv: ['<rootDir>/src/test-utils/jest-teardown.ts'],
-  // Run tests serially — each test suite hits a real DB
+  // Clones the test database once per extra worker before a parallel run, and
+  // does nothing for a serial one. See `worker-isolation.ts`.
+  globalSetup: '<rootDir>/src/test-utils/jest-global-setup.ts',
+  // Serial by default — each suite hits a real DB. `npm run test:parallel`
+  // overrides this; each worker then gets its own database and Redis index.
   maxWorkers: 1,
 };
 
