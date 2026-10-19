@@ -135,6 +135,21 @@ function MatrixCell({
       <span className="text-[11px] text-faint">
         {cell.scoredCount}/{cell.exampleCount} scored
       </span>
+      {(cell.erroredCount ?? 0) > 0 && (
+        <span className="text-[11px] font-medium text-danger" data-testid="matrix-cell-errored">
+          {cell.erroredCount} errored
+        </span>
+      )}
+      {/* The cause of a gap, so "0/50 scored" is never the whole story (issue #570). */}
+      {cell.unscoredReason && (
+        <span
+          className="line-clamp-2 max-w-[220px] break-words text-[11px] text-muted"
+          title={cell.unscoredReason.message}
+          data-testid="matrix-cell-reason"
+        >
+          {cell.unscoredReason.message}
+        </span>
+      )}
       {cell.isProductionBaseline ? (
         <Badge tone="prod" dot className="mt-0.5 px-2 py-0.5 text-[10px]">
           Baseline

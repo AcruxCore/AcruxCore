@@ -127,7 +127,19 @@ export class OnlineEvalRuleService {
     patch: UpdateEvalRuleDto,
   ): Promise<EvalRuleResponse> {
     if (patch.judgeModel !== undefined) await assertModelRegistered(teamId, patch.judgeModel);
-    if (patch.judgePromptId !== undefined) await this.assertJudgePromptExists(teamId, patch.judgePromptId);
+    if (patch.judgePromptId !== undefined) {
+      // Re-sending the rule's own judge prompt is not a change, and must not be refused
+      // when that prompt was deleted since: delete is soft and the rule keeps grading
+      // with it, while the dashboard sends every field on save (issue #581). Switching
+      // TO a deleted or foreign prompt is still refused. The rule is read only when the
+      // check fails, so an ordinary save costs no extra query.
+      try {
+        await this.assertJudgePromptExists(teamId, patch.judgePromptId);
+      } catch (err) {
+        const current = await this.repo.findById(id, teamId);
+        if (patch.judgePromptId !== current?.judgePromptId) throw err;
+      }
+    }
     const rule = await this.repo.update(id, teamId, patch);
     if (!rule) throw new NotFoundError('Rule not found.');
     // Field names, not values: `criteria` and a custom judge prompt are free text

@@ -1,4 +1,5 @@
 export { AppError } from './app-error';
+export type { ErrorTraceRef } from './app-error';
 export {
   ValidationError,
   UnauthorizedError,

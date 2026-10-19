@@ -1,4 +1,4 @@
-import type { RunReportDelta } from '@/api/types';
+import type { RunReportCell, RunReportDelta } from '@/api/types';
 
 /** A cell's score bucket, used to pick both the background tint and the text label. */
 export type ScoreGrade = 'unscored' | 'low' | 'mid' | 'high';
@@ -72,4 +72,35 @@ export function deltaToChip(delta: RunReportDelta | null): DeltaChip {
     default:
       return { label: 'Not comparable', tone: 'unknown' };
   }
+}
+
+/** What a finished run left unscored, summed over its cells, for the report's warning strip. */
+export interface UnscoredSummary {
+  /** Every result the run produced: one per example, per prompt version, per model. */
+  total: number;
+  /** Results with no score, including errored ones. */
+  unscored: number;
+  /** Results whose candidate call failed, so they have no answer at all. */
+  errored: number;
+}
+
+/**
+ * Sums a report's unscored and errored counts. A run whose cells failed used to read as a
+ * clean success: the score averages only the scored results (issues #576, #570). The
+ * run-wide cause comes from the API's `RunReport.unscoredReason`, which counts every
+ * result. Summing each cell's top cause here would miss a cause that is second everywhere.
+ *
+ * @param cells - The report's cells. `erroredCount` may be absent on an older API.
+ * @returns The totals; `unscored` is 0 when every result scored.
+ */
+export function summarizeUnscored(cells: RunReportCell[]): UnscoredSummary {
+  let total = 0;
+  let unscored = 0;
+  let errored = 0;
+  for (const cell of cells) {
+    total += cell.exampleCount;
+    unscored += cell.unscoredCount;
+    errored += cell.erroredCount ?? 0;
+  }
+  return { total, unscored, errored };
 }

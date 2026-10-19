@@ -15,6 +15,8 @@ export interface MultiSelectProps {
   placeholder?: string;
   /** Shown when `options` is empty (e.g. the team has no data for this facet yet). */
   emptyMessage?: string;
+  /** Max-height class for the open list. Defaults to `max-h-56`; longer lists scroll. */
+  listMaxHeightClass?: string;
 }
 
 /**
@@ -26,8 +28,17 @@ export interface MultiSelectProps {
  * @param options - Every selectable value, deduplicated by the caller.
  * @param value - Currently selected values (a subset of `options`' `value`s).
  * @param onChange - Called with the full next selection on every toggle.
+ * @param listMaxHeightClass - A Tailwind max-height class for the popover, for a short fixed list that should show whole.
  */
-export function MultiSelect({ id, options, value, onChange, placeholder, emptyMessage }: MultiSelectProps) {
+export function MultiSelect({
+  id,
+  options,
+  value,
+  onChange,
+  placeholder,
+  emptyMessage,
+  listMaxHeightClass = 'max-h-56',
+}: MultiSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
@@ -89,7 +100,7 @@ export function MultiSelect({ id, options, value, onChange, placeholder, emptyMe
       </div>
 
       {open && (
-        <div className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-line bg-elevated shadow-lg">
+        <div className={`absolute z-10 mt-1 ${listMaxHeightClass} w-full overflow-y-auto rounded-md border border-line bg-elevated shadow-lg`}>
           {options.length === 0 ? (
             <p className="px-3 py-2 text-[12px] text-faint">{emptyMessage ?? 'No options yet.'}</p>
           ) : filtered.length === 0 ? (

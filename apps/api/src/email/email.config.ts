@@ -69,7 +69,8 @@ export function loadEmailConfig(): EmailConfig {
 
   const isProduction = process.env.NODE_ENV === 'production';
   const parsed = Schema.safeParse({
-    transport: process.env.EMAIL_TRANSPORT ?? (isProduction ? 'ses' : 'memory'),
+    // `||`, not `??`: a blanked `EMAIL_TRANSPORT=` line means "unset" (issue #444).
+    transport: process.env.EMAIL_TRANSPORT || (isProduction ? 'ses' : 'memory'),
     sesRegion: process.env.SES_REGION || undefined,
     sesAccessKeyId: process.env.SES_ACCESS_KEY_ID || undefined,
     sesSecretAccessKey: process.env.SES_SECRET_ACCESS_KEY || undefined,

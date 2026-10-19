@@ -1130,6 +1130,10 @@ export interface RunReportCell {
   exampleCount: number;
   scoredCount: number;
   unscoredCount: number;
+  /** Examples whose candidate call failed (part of `unscoredCount`). Absent from older APIs. */
+  erroredCount?: number;
+  /** The commonest reason the cell's examples went unscored, or null when all scored. */
+  unscoredReason?: { message: string; count: number } | null;
   deltaVsBaseline: RunReportDelta | null;
   /** Per-name aggregates of a local run's scores; empty on a server-side cell. Absent from older APIs. */
   namedScores?: RunReportNamedScore[];
@@ -1172,6 +1176,8 @@ export interface RunReport {
   winner: RunReportWinner | null;
   /** The judge that graded this run. Both fields are null for runs created before it was recorded. */
   judge?: { model: string | null; promptVersionId: string | null };
+  /** The commonest reason a result has no score, counted over the whole run. Absent from older servers. */
+  unscoredReason?: { message: string; count: number } | null;
 }
 
 /**

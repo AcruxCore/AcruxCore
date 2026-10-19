@@ -112,3 +112,13 @@ export interface PreviewVerdict {
   passed: boolean | null;
   reason: string | null;
 }
+
+/**
+ * Reason prefix of a row the processor writes when the judge call itself failed (an
+ * `AppError`: provider error, removed judge model). Such a row is not a score, so it is
+ * left out of the daily limit and of today's stats.
+ */
+export const JUDGE_FAILED_PREFIX = 'judge call failed: ';
+
+/** Reason prefix of a row written for an error the processor did not expect. Not a score either. */
+export const SCORING_FAILED_PREFIX = 'scoring failed: ';

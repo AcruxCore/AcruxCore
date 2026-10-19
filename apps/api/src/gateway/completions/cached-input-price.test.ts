@@ -158,3 +158,23 @@ describe("a team model's cached input price (issue #594)", () => {
     expect(Number(res.headers['x-gateway-cost-usd'])).toBeCloseTo((35 * IN + 704 * IN * 0.5 + 155 * OUT) / 1e6, 12);
   });
 });
+
+// `String(number)` printed full float64 noise into the header — `0.00005909999999999999`
+// on a real gpt-4o-mini call (issue #422). The stored cost is unaffected.
+describe('x-gateway-cost-usd formatting (issue #422)', () => {
+  it('rounds the header to at most 10 decimal places with no trailing zeros', async () => {
+    const { agent, credentialId } = await arrange();
+    // gpt-4o-mini's rates: these produce a cost that is not exact in binary floating point.
+    await agent
+      .post('/api/v1/gateway/models')
+      .send({ publicName: 'glm', upstreamModel: 'glm-5.3', credentialId, inputPricePerM: 0.15, outputPricePerM: 0.6 })
+      .expect(201);
+
+    const res = await agent.post('/api/v1/gateway/chat/completions').send(ASK).expect(200);
+
+    const header = res.headers['x-gateway-cost-usd'] as string;
+    expect(header).toMatch(/^\d+(\.\d{0,9}[1-9])?$/);
+    const row = await prisma.gatewayRequest.findUniqueOrThrow({ where: { id: res.headers['x-gateway-request-id'] } });
+    expect(Number(header)).toBeCloseTo(row.costUsd!.toNumber(), 10);
+  });
+});

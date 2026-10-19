@@ -1047,13 +1047,13 @@ export class GatewayService {
         // The row above only reaches the usage page. Without this the trace view showed
         // nothing at all for a failed round, so an agent loop's trace simply stopped mid-run
         // with every span green (issue #452).
-        await recordGatewayErrorSpan({ ctx, request: req, gatewayRequestId: errorRow.id });
+        const traced = await recordGatewayErrorSpan({ ctx, request: req, gatewayRequestId: errorRow.id });
         // The caller does get `PROVIDER_ADDRESS_BLOCKED` here, but an unattended
         // agent loop reads a 502 and retries. Same notice, same dedupe key.
         const blockedOnFailure = this.blockedConnectionsIn(err.meta.trail);
         if (blockedOnFailure.length > 0)
           await this.notifyBlockedConnections(ctx.teamId, blockedOnFailure, false);
-        throw this.mapProviderError(err.lastError);
+        throw this.mapProviderError(err.lastError).withTrace({ ...traced, requestId: errorRow.id });
       }
       throw err;
     }
@@ -1417,10 +1417,11 @@ export class GatewayService {
       // Same reason as the blocking path: a stream that never produced a first chunk used
       // to leave the trace with no llm span at all (issue #452). `requestId` is the
       // pre-minted id the row above was written under.
-      await recordGatewayErrorSpan({ ctx, request: req, gatewayRequestId: requestId });
-      throw terminalStreamError
+      const traced = await recordGatewayErrorSpan({ ctx, request: req, gatewayRequestId: requestId });
+      const failure = terminalStreamError
         ? this.mapProviderError(terminalStreamError)
         : new BadGatewayError('All providers failed before streaming started.');
+      throw failure.withTrace({ ...traced, requestId });
     }
 
     const resolvedModel = selected.model.upstreamModel;

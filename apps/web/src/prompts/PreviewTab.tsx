@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Message } from '@/api';
-import { extractVariables, renderMessages } from '@/lib/template';
+import { extractVariables, parsePreviewValues, renderMessages } from '@/lib/template';
 import { isBlank } from '@/lib/message-content';
 import { Empty, Field, Input } from '@/ui';
 
@@ -12,7 +12,7 @@ export function PreviewTab({ draft }: { draft: Message[] }) {
 
   const rendered = useMemo(() => {
     try {
-      return { messages: renderMessages(draft, values), error: null as string | null };
+      return { messages: renderMessages(draft, parsePreviewValues(values)), error: null as string | null };
     } catch (e) {
       return {
         messages: [] as Message[],
@@ -40,16 +40,21 @@ export function PreviewTab({ draft }: { draft: Message[] }) {
         {variables.length === 0 ? (
           <p className="text-[13px] text-muted">This template has no variables.</p>
         ) : (
-          variables.map((v) => (
-            <Field key={v} label={v} htmlFor={`var-${v}`}>
-              <Input
-                id={`var-${v}`}
-                value={values[v] ?? ''}
-                placeholder={`{{ ${v} }}`}
-                onChange={(e) => setValues((cur) => ({ ...cur, [v]: e.target.value }))}
-              />
-            </Field>
-          ))
+          <>
+            <p className="text-[12px] text-muted" data-testid="preview-json-hint">
+              For a list or object, type JSON, such as <code className="font-mono">["a", "b"]</code>.
+            </p>
+            {variables.map((v) => (
+              <Field key={v} label={v} htmlFor={`var-${v}`}>
+                <Input
+                  id={`var-${v}`}
+                  value={values[v] ?? ''}
+                  placeholder={`{{ ${v} }}`}
+                  onChange={(e) => setValues((cur) => ({ ...cur, [v]: e.target.value }))}
+                />
+              </Field>
+            ))}
+          </>
         )}
       </div>
 

@@ -177,3 +177,35 @@ export function renderMessages(
     content: withTemplates(m.content, templatesOf(m.content).map((t) => env.renderString(t, values))),
   }));
 }
+
+/**
+ * Turns the Preview's typed values into what the template should receive.
+ *
+ * A text box can only hold a string, so a list or object variable used to reach the
+ * template as its JSON text: `{{ xs | join(", ") }}` threw `arr.join is not a function`
+ * and a `{% for %}` loop walked the characters (issue #534). A value that starts with
+ * `[` or `{` and parses as JSON is passed as the parsed value; anything else, including
+ * text that only looks like JSON (`[draft]`), stays a string. This matches what the
+ * render API does with a JSON body, which is how real callers send these variables.
+ *
+ * @param values - Variable name → the raw text typed into its field.
+ * @returns Variable name → string, or the parsed list/object.
+ */
+export function parsePreviewValues(values: Record<string, string>): Record<string, unknown> {
+  const parsed: Record<string, unknown> = {};
+  for (const [name, raw] of Object.entries(values)) {
+    parsed[name] = parseJsonish(raw);
+  }
+  return parsed;
+}
+
+/** One value for {@link parsePreviewValues}: parsed when it is a JSON list or object, else unchanged. */
+function parseJsonish(raw: string): unknown {
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith('[') && !trimmed.startsWith('{')) return raw;
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    return raw;
+  }
+}

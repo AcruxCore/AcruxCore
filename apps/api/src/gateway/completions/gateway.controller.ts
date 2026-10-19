@@ -11,7 +11,8 @@ import type {
 import { ProviderError } from '../providers/adapter';
 import { unappliedParams } from '../providers/unapplied-params';
 import { toWireUsage } from './wire-usage';
-import { ValidationError, RateLimitedError, ProviderRateLimitedError } from '../../shared/errors';
+import { formatCostHeader } from './cost-header';
+import { AppError, ValidationError, RateLimitedError, ProviderRateLimitedError } from '../../shared/errors';
 
 /**
  * Validates one optional context object from the request body, field by field.
@@ -303,7 +304,7 @@ export class GatewayController {
       res.setHeader('x-gateway-request-id', result.requestId);
       res.setHeader('x-gateway-provider', result.provider);
       res.setHeader('x-gateway-model', result.model);
-      res.setHeader('x-gateway-cost-usd', result.costUsd === null ? '' : String(result.costUsd));
+      res.setHeader('x-gateway-cost-usd', formatCostHeader(result.costUsd));
       res.setHeader('x-gateway-cache', result.cacheHit ? 'hit' : 'miss');
       // A cache hit served no provider, so only the unknown fields apply to it.
       setIgnoredParamsHeader(
@@ -330,6 +331,14 @@ export class GatewayController {
         err.retryAfter !== undefined
       ) {
         res.setHeader('Retry-After', String(err.retryAfter));
+      }
+      // A call that failed at the provider was still traced; name that trace the same
+      // way a successful call does, so the caller can open it (issue #638).
+      if (err instanceof AppError && err.trace && !res.headersSent) {
+        const { traceId, spanRef, requestId } = err.trace;
+        if (requestId) res.setHeader('x-gateway-request-id', requestId);
+        if (traceId) res.setHeader('x-gateway-trace-id', traceId);
+        if (spanRef) res.setHeader('x-gateway-span-id', spanRef);
       }
       next(err);
     }

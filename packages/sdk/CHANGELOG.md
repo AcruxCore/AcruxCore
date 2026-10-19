@@ -12,6 +12,13 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+### Added
+
+- `RunReportCell.erroredCount` and `RunReportCell.unscoredReason` (`{ message, count }`): how many
+  examples errored, and the commonest reason the cell's examples have no score. Both optional.
+- `RunReport.unscoredReason` (`{ message, count }`): the commonest reason a result has no score,
+  counted over the whole run rather than taken from each cell's top reason. Optional.
+
 ## 0.18.0 — 2026-10-17
 
 ### Added

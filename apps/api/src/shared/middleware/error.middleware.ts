@@ -132,8 +132,11 @@ export function errorMiddleware(
   }
 
   if (err instanceof AppError) {
+    // `traceId` only when the failure was recorded somewhere the caller can open
+    // (a failed gateway completion, issue #638); absent everywhere else.
+    const traceId = err.trace?.traceId;
     res.status(err.statusCode).json({
-      error: { code: err.code, message: err.message },
+      error: { code: err.code, message: err.message, ...(traceId ? { traceId } : {}) },
     });
     return;
   }

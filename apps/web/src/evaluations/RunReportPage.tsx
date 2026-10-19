@@ -2,14 +2,28 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Empty, PageSpinner, Spinner } from '@/ui';
 import { useRun, useRunReport } from '@/api';
-import type { RunStatus } from '@/api/types';
+import type { RunReport, RunReportCell, RunStatus } from '@/api/types';
 import { LeaderboardMatrix } from './LeaderboardMatrix';
 import { NamedScoreTable } from './NamedScoreTable';
 import { CellDrilldownPanel } from './CellDrilldownPanel';
 import { variantDisplayLabel } from './variant-label';
+import { summarizeUnscored } from './matrix.helpers';
 
-/** One-line status strip shown above the matrix while a run is in flight or has failed; quiet (no strip) once it has succeeded. */
-function RunStatusBanner({ status, error }: { status: RunStatus; error?: string | null }) {
+/**
+ * Status strip above the matrix: while a run is in flight, when it failed, and when it
+ * succeeded with examples left unscored. Quiet once every example has a score.
+ */
+function RunStatusBanner({
+  status,
+  error,
+  cells,
+  unscoredReason,
+}: {
+  status: RunStatus;
+  error?: string | null;
+  cells: RunReportCell[];
+  unscoredReason?: RunReport['unscoredReason'];
+}) {
   if (status === 'queued' || status === 'running') {
     return (
       <div className="flex items-center gap-2.5 rounded-lg border border-line-soft bg-elevated px-3 py-2 text-[13px] text-muted" data-testid="run-status-banner">
@@ -40,7 +54,27 @@ function RunStatusBanner({ status, error }: { status: RunStatus; error?: string 
       </div>
     );
   }
-  return null;
+  // A run whose cells errored, or whose judge failed, still ends "succeeded", and its
+  // score averages only the scored examples. Say so, and say why (issues #576, #570).
+  const { total, unscored, errored } = summarizeUnscored(cells);
+  if (unscored === 0) return null;
+  const topReason = unscoredReason?.message;
+  // "Results", not "examples": a run with 3 examples on 2 models has 6 results, and the
+  // counts here are results.
+  return (
+    <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-[13px] text-warn" data-testid="run-unscored-banner">
+      <p>
+        {unscored} of {total} result{total === 1 ? '' : 's'} {unscored === 1 ? 'was' : 'were'} not scored
+        {errored > 0 && <> ({errored} errored before an answer was produced)</>}. A result is one example run on one
+        prompt version and one model. Scores average only the scored results.
+      </p>
+      {topReason && (
+        <p className="mt-1 break-words text-[12px] text-warn/90" data-testid="run-unscored-reason">
+          Most common cause: {topReason}
+        </p>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -114,7 +148,7 @@ export function RunReportPage() {
         </Link>
       </header>
 
-      <RunStatusBanner status={data.status} error={run.data?.error} />
+      <RunStatusBanner status={data.status} error={run.data?.error} cells={data.cells} unscoredReason={data.unscoredReason} />
 
       <LeaderboardMatrix report={data} selectedCellKey={selectedCellKey} onSelectCell={setSelectedCellKey} />
 

@@ -50,6 +50,8 @@ export function AuditFilterBar({ value, onChange, actors, total, actorsLoading }
               onChange({ ...value, groups, events: value.events.filter((e) => allowed.has(e)) });
             }}
             placeholder="Every area"
+            // Taller than the default so all eight areas show without a scrollbar.
+            listMaxHeightClass="max-h-72"
           />
         </label>
 

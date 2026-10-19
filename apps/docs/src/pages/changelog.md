@@ -27,10 +27,35 @@ called out in the week it ships and in the SDK release notes.
 
 ### Major
 
-- No major changes yet this week.
+#### A failed gateway call names its trace
+
+- A failed completion now sends `x-gateway-trace-id`, `x-gateway-span-id` and `x-gateway-request-id`.
+- The error body adds `error.traceId`, so you can open the failed call in the trace explorer.
+  [Reference →](/api-reference/gateway#finding-the-trace-of-a-failed-call)
+
+#### Run reports show why examples went unscored
+
+- Each report cell now has `erroredCount` and `unscoredReason`, the most common cause.
+- The report adds `unscoredReason` for the whole run, counted over every result.
+- The matrix shows the cell fields, and the run's warning names the run-wide cause.
+  [Reference →](/api-reference/experiments#cells-with-failed-or-unscored-examples)
+
+#### One failing online rule no longer blocks the others
+
+- **Fixed** — when one rule's judge call failed, the other rules never scored that span.
+- The failing rule now records a score row whose reason starts with `judge call failed:`.
+- That row does not count toward the rule's daily limit or its scored-today count.
 
 ### Minor
 
+- **Fixed** — with Capture payloads off, new traces were still named by the message's first words.
+- **Fixed** — `x-gateway-cost-usd` showed float noise such as `0.00005909999999999999`.
+- **Fixed** — a blank `EMAIL_TRANSPORT=` line crashed the API at boot instead of using the default.
+- **Fixed** — saving a rule whose judge prompt was deleted switched it to the built-in judge.
+- **Fixed** — prompt Preview passed a typed JSON list or object to the template as plain text.
+- **Fixed** — screen readers read `&quot;` aloud in image descriptions on docs and blog pages.
+- The [privacy policy](https://acruxcore.com/privacy) now states how long trace content is kept.
+- The [audit trail guide](/docs/guides/read-the-team-audit-trail) now covers the Evaluations area.
 - **New post** — [AcruxCore vs Agenta: built-in evaluators vs a gateway](/blog/acruxcore-vs-agenta).
 - The [compare page](https://acruxcore.com/compare) adds Agenta as a seventh competitor, with a source for each cell.
 - The [hands-on comparison](/blog/hands-on-llm-ops-comparison) adds Agenta, so it now covers ten platforms.

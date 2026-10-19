@@ -95,10 +95,16 @@ export function PrivacyPage(): ReactNode {
 
         <h2>7. Retention</h2>
         <p>
-          We keep account and content data for as long as your account is active and as needed to
-          provide the service. Trace and operational data are retained according to your team's
-          settings and our standard retention windows. You can delete resources you created at any
-          time; deleting your account removes associated data, subject to backups and legal
+          We keep account and content data while your account is active and as long as we need it
+          to provide the service. On the hosted service, we delete the input and output content of
+          traced calls after 90 days. Your team can turn off the Capture payloads setting on its
+          trace settings page. After that, we do not store the input and output content of new
+          calls. We also stop naming new traces by the first words of the message. We keep trace
+          metadata, such as the model, token counts and cost of each call, while your account
+          exists. We also keep audit log events while your account exists. If you turn on response
+          caching for a gateway key, we store each cached model response until you clear the cache.
+          The Capture payloads setting does not change this. You can delete resources you created at
+          any time. Deleting your account removes associated data, subject to backups and legal
           requirements.
         </p>
 

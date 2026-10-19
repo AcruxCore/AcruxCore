@@ -1,6 +1,21 @@
 import { Prisma } from '@prisma/client';
 import prisma from '../../shared/db/client';
-import type { CreateEvalRuleDto, UpdateEvalRuleDto, RuleScoreListQuery } from './online-eval-rule.types';
+import {
+  JUDGE_FAILED_PREFIX,
+  SCORING_FAILED_PREFIX,
+  type CreateEvalRuleDto,
+  type UpdateEvalRuleDto,
+  type RuleScoreListQuery,
+} from './online-eval-rule.types';
+
+// Leaves out the rows the processor writes when a rule failed to score a span. Written as
+// an OR with `reason: null`, because a bare NOT on a nullable column drops the null rows.
+const EXCLUDE_FAILURE_ROWS: Prisma.EvalRuleScoreWhereInput = {
+  OR: [
+    { reason: null },
+    { AND: [{ NOT: { reason: { startsWith: JUDGE_FAILED_PREFIX } } }, { NOT: { reason: { startsWith: SCORING_FAILED_PREFIX } } }] },
+  ],
+};
 
 export interface TodayStats {
   count: number;
@@ -52,7 +67,7 @@ export class EvalRuleRepository {
 
   /**
    * @returns A map of ruleId → today's (UTC) score count and mean score, for
-   * every rule id supplied. Rules with zero scores today are simply absent
+   * every rule id supplied. Rows for a failed judge call are not scores and are not counted. Rules with zero scores today are simply absent
    * from the map — callers default to `{ count: 0, meanScore: null }`.
    */
   async getTodayStats(ruleIds: string[], teamId: string): Promise<Map<string, TodayStats>> {
@@ -61,7 +76,7 @@ export class EvalRuleRepository {
     startOfDayUtc.setUTCHours(0, 0, 0, 0);
     const rows = await prisma.evalRuleScore.groupBy({
       by: ['ruleId'],
-      where: { ruleId: { in: ruleIds }, teamId, createdAt: { gte: startOfDayUtc } },
+      where: { ruleId: { in: ruleIds }, teamId, createdAt: { gte: startOfDayUtc }, ...EXCLUDE_FAILURE_ROWS },
       _count: { _all: true },
       _avg: { score: true },
     });
@@ -181,11 +196,11 @@ export class EvalRuleRepository {
     });
   }
 
-  /** Count of today's (UTC) scored spans for one rule — the daily-limit check. */
+  /** Count of today's (UTC) scored spans for one rule — the daily-limit check. Failure rows do not count, so a judge outage cannot use up the cap. */
   async countTodayScores(ruleId: string, teamId: string): Promise<number> {
     const startOfDayUtc = new Date();
     startOfDayUtc.setUTCHours(0, 0, 0, 0);
-    return prisma.evalRuleScore.count({ where: { ruleId, teamId, createdAt: { gte: startOfDayUtc } } });
+    return prisma.evalRuleScore.count({ where: { ruleId, teamId, createdAt: { gte: startOfDayUtc }, ...EXCLUDE_FAILURE_ROWS } });
   }
 
   /**

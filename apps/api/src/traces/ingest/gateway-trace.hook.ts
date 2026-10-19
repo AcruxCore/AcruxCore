@@ -29,7 +29,8 @@ const TRACE_INPUT_PREVIEW_MAX = 120;
  * pipeline has already replaced `req.messages` with the RENDERED messages (see
  * gateway.service.ts), so a stored-prompt call yields its resolved text here.
  * Returns null when there is no user message with text (caller falls back to
- * the timestamp).
+ * the timestamp). Callers skip it when payload capture is off, because the name is
+ * metadata and would otherwise keep message text that the setting promised not to store.
  */
 function deriveTraceInputName(messages: ChatMessage[] | undefined): string | null {
   if (!messages) return null;
@@ -190,6 +191,10 @@ export async function recordGatewaySpan(args: {
       const startedAt = new Date(reqRow.createdAt.getTime() - (reqRow.latencyMs ?? 0));
       const spanStatus: SpanStatus = reqRow.status === 'error' ? 'error' : 'ok';
 
+      // Read first: with capture off the trace name must not come from the message text either.
+      const teamSettings = await settingsRepo.get(ctx.teamId, tx);
+      const capture = shouldCapture(teamSettings?.capturePayloads ?? true, ctx.capturePayloads);
+
       // Resolve the trace: nest under a caller-supplied trace if it exists for this
       // team; otherwise mint one (honoring the caller's trace id when provided).
       let trace = ctx.traceId ? await spansRepo.findTrace(ctx.traceId, ctx.teamId, tx) : null;
@@ -200,11 +205,12 @@ export async function recordGatewaySpan(args: {
             teamId: ctx.teamId,
             sessionId: ctx.sessionId ?? null,
             // Precedence on create: the caller's instruction, then a client library's
-            // default, then the request's own text, then the Q12 timestamp.
+            // default, then the request's own text (only when capture is on), then the
+            // Q12 timestamp.
             name:
               ctx.traceName?.trim() ||
               ctx.traceNameIfUnset?.trim() ||
-              deriveTraceInputName(request.messages) ||
+              (capture ? deriveTraceInputName(request.messages) : null) ||
               startedAt.toISOString(),
             tags: ctx.traceTags,
             metadata: ctx.traceMetadata,
@@ -271,8 +277,7 @@ export async function recordGatewaySpan(args: {
         tx,
       );
 
-      const teamSettings = await settingsRepo.get(ctx.teamId, tx);
-      if (shouldCapture(teamSettings?.capturePayloads ?? true, ctx.capturePayloads)) {
+      if (capture) {
         await spansRepo.writePayload(
           span.id,
           ctx.teamId,
@@ -337,6 +342,9 @@ export async function recordGatewayErrorSpan(args: {
       const endedAt = reqRow.createdAt;
       const startedAt = new Date(reqRow.createdAt.getTime() - (reqRow.latencyMs ?? 0));
 
+      const teamSettings = await settingsRepo.get(ctx.teamId, tx);
+      const capture = shouldCapture(teamSettings?.capturePayloads ?? true, ctx.capturePayloads);
+
       // Same trace resolution as the success hook: nest under the caller's trace when it
       // exists for this team, otherwise mint one honoring their id. A failed round must
       // land in the SAME trace as the rounds around it, or the loop reads as two traces.
@@ -350,7 +358,7 @@ export async function recordGatewayErrorSpan(args: {
             name:
               ctx.traceName?.trim() ||
               ctx.traceNameIfUnset?.trim() ||
-              deriveTraceInputName(request.messages) ||
+              (capture ? deriveTraceInputName(request.messages) : null) ||
               startedAt.toISOString(),
             tags: ctx.traceTags,
             metadata: ctx.traceMetadata,
@@ -392,8 +400,7 @@ export async function recordGatewayErrorSpan(args: {
         tx,
       );
 
-      const teamSettings = await settingsRepo.get(ctx.teamId, tx);
-      if (shouldCapture(teamSettings?.capturePayloads ?? true, ctx.capturePayloads)) {
+      if (capture) {
         // The input is the whole value of a failed round's payload: it is the only way to
         // see WHAT was being asked when the provider gave up.
         await spansRepo.writePayload(

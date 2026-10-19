@@ -110,6 +110,29 @@ describe('judge model + judge prompt validation', () => {
     await agent.patch(`/api/v1/eval-rules/${rule.id}`).send({ judgeModel: 'nope' }).expect(400);
     await agent.patch(`/api/v1/eval-rules/${rule.id}`).send({ judgePromptId: randomUUID() }).expect(400);
   });
+
+  // Issue #581: a deleted judge prompt keeps grading (prompt delete is soft), but the
+  // dashboard sends every field on save, so re-sending the rule's own id 400'd and an
+  // edit to any other field could not be saved.
+  it('accepts a patch that keeps a judge prompt deleted since, and still refuses switching to one', async () => {
+    const { agent } = await authedAgent(app);
+    const judgeModel = await registerTestModel(agent);
+    const kept = (await agent.post('/api/v1/prompts').send({ name: 'tone-judge' }).expect(201)).body;
+    const other = (await agent.post('/api/v1/prompts').send({ name: 'other-judge' }).expect(201)).body;
+    const rule = (
+      await agent.post('/api/v1/eval-rules').send({ name: 'x', criteria: 'ok', judgeModel, judgePromptId: kept.id }).expect(201)
+    ).body;
+    await agent.delete(`/api/v1/prompts/${kept.id}`).expect(204);
+    await agent.delete(`/api/v1/prompts/${other.id}`).expect(204);
+
+    const saved = await agent
+      .patch(`/api/v1/eval-rules/${rule.id}`)
+      .send({ judgePromptId: kept.id, sampleRate: 0.25 })
+      .expect(200);
+    expect(saved.body).toMatchObject({ judgePromptId: kept.id, sampleRate: 0.25 });
+
+    await agent.patch(`/api/v1/eval-rules/${rule.id}`).send({ judgePromptId: other.id }).expect(400);
+  });
 });
 
 describe('POST /api/v1/eval-rules/:id/preview', () => {

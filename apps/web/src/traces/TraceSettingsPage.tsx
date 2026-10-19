@@ -34,7 +34,8 @@ export function TraceSettingsPage() {
           <div className="text-[14px] font-medium">Capture payloads</div>
           <p className="mt-1 text-[13px] text-muted">
             On by default. When on, request/response message bodies are stored with each traced span so they show in
-            the trace detail.
+            the trace detail. When off, no message text is stored, and a new trace is named by its start time unless
+            your code names it.
           </p>
           {!canManageTeam && <p className="mt-1 text-[12px] text-faint">Only owners and admins can change this.</p>}
         </div>

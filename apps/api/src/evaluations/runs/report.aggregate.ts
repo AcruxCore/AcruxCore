@@ -6,6 +6,7 @@ import type {
   RunReportCell,
   RunReportDelta,
   RunReportNamedScore,
+  RunReportUnscoredReason,
   RunReportVariant,
   RunReportWinner,
 } from './report.types';
@@ -28,6 +29,34 @@ interface CellAggregate {
   exampleCount: number;
   scoredCount: number;
   unscoredCount: number;
+  erroredCount: number;
+  unscoredReason: RunReportUnscoredReason | null;
+}
+
+/** Longest reason the report carries; the drill-down still has each example's full text. */
+const MAX_REASON_LENGTH = 300;
+
+/**
+ * Finds the commonest reason among a cell's unscored rows (issue #570). A cell whose judge
+ * model was not registered read "0/50 scored" and nothing else; the cause was on every
+ * example, and nobody opens fifty examples to find it. Ties go to the reason seen first.
+ */
+function commonestUnscoredReason(rows: EvalResultRow[]): RunReportUnscoredReason | null {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    if (row.score !== null) continue;
+    const message = (row.errorMessage ?? row.reason)?.trim();
+    if (!message) continue;
+    counts.set(message, (counts.get(message) ?? 0) + 1);
+  }
+  let best: RunReportUnscoredReason | null = null;
+  for (const [message, count] of counts) {
+    if (!best || count > best.count) best = { message, count };
+  }
+  if (best && best.message.length > MAX_REASON_LENGTH) {
+    best = { ...best, message: `${best.message.slice(0, MAX_REASON_LENGTH)}…` };
+  }
+  return best;
 }
 
 /**
@@ -61,7 +90,8 @@ function aggregateNamedScores(rows: EvalResultRow[]): RunReportNamedScore[] {
  * Reduces a grid cell's `eval_result` rows to its scored aggregates.
  *
  * @param rows - The result rows belonging to this one (variantLabel, model) cell.
- * @returns Counts plus `avgScore`/`passRate`, both `null` when nothing scored.
+ * @returns Counts plus `avgScore`/`passRate`, both `null` when nothing scored, and the
+ *   errored count and commonest unscored reason.
  */
 function aggregateRows(rows: EvalResultRow[]): {
   avgScore: number | null;
@@ -69,6 +99,8 @@ function aggregateRows(rows: EvalResultRow[]): {
   exampleCount: number;
   scoredCount: number;
   unscoredCount: number;
+  erroredCount: number;
+  unscoredReason: RunReportUnscoredReason | null;
 } {
   const scored = rows.filter((row) => row.score !== null);
   const scoredCount = scored.length;
@@ -77,7 +109,16 @@ function aggregateRows(rows: EvalResultRow[]): {
     scoredCount > 0 ? scored.reduce((sum, row) => sum + (row.score as number), 0) / scoredCount : null;
   const passCount = scored.filter((row) => row.passed === true).length;
   const passRate = scoredCount > 0 ? passCount / scoredCount : null;
-  return { avgScore, passRate, exampleCount: rows.length, scoredCount, unscoredCount };
+  const erroredCount = rows.filter((row) => row.errorMessage != null).length;
+  return {
+    avgScore,
+    passRate,
+    exampleCount: rows.length,
+    scoredCount,
+    unscoredCount,
+    erroredCount,
+    unscoredReason: commonestUnscoredReason(rows),
+  };
 }
 
 /**
@@ -177,6 +218,8 @@ export function buildRunReport(input: BuildRunReportInput): RunReport {
     exampleCount: agg.exampleCount,
     scoredCount: agg.scoredCount,
     unscoredCount: agg.unscoredCount,
+    erroredCount: agg.erroredCount,
+    unscoredReason: agg.unscoredReason,
     deltaVsBaseline: agg.isProductionBaseline ? null : computeDelta(agg, baselineByModel.get(agg.model)),
     namedScores: aggregateNamedScores(rowsByCellKey.get(agg.cellKey) ?? []),
   }));
@@ -217,5 +260,8 @@ export function buildRunReport(input: BuildRunReportInput): RunReport {
     cells,
     leaderboard,
     winner,
+    // Counted over every result in the grid, not taken from each cell's top cause: a cause
+    // that comes second in every cell can still be the commonest in the run.
+    unscoredReason: commonestUnscoredReason(Array.from(rowsByCellKey.values()).flat()),
   };
 }

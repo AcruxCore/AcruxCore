@@ -414,6 +414,50 @@ describe('payload capture (T1, FAQ Q5)', () => {
   });
 });
 
+// With capture off, no message text may reach the database. The trace name used to be the
+// first characters of the user's message even then, so the setting did not do what it says.
+describe('trace name with payload capture off', () => {
+  it('names a successful call by its timestamp, not by the message', async () => {
+    const { agent, teamId } = await signupOwner();
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    await agent.put('/api/v1/traces/settings').send({ capturePayloads: false }).expect(200);
+    await complete(agent).expect(200);
+
+    const trace = await prisma.trace.findFirstOrThrow({ where: { teamId } });
+    expect(trace.name).not.toContain('Say hi');
+    expect(trace.name).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('names a failed call by its timestamp, not by the message', async () => {
+    const { agent, teamId } = await signupOwner();
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    await agent.put('/api/v1/traces/settings').send({ capturePayloads: false }).expect(200);
+    mockFetchOnce({ error: { message: 'upstream exploded' } }, false, 500);
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'Say hi.' }] })
+      .expect(502);
+
+    const trace = await prisma.trace.findFirstOrThrow({ where: { teamId } });
+    expect(trace.name).not.toContain('Say hi');
+  });
+
+  it('still names the trace by the message when capture is on', async () => {
+    const { agent, teamId } = await signupOwner();
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    await complete(agent).expect(200);
+
+    const trace = await prisma.trace.findFirstOrThrow({ where: { teamId } });
+    expect(trace.name).toBe('Say hi.');
+  });
+});
+
 describe('best-effort guarantee (FAQ Q2/Q6)', () => {
   it('a forced appendSpan failure still returns 200 and leaves the gateway_requests cost row committed', async () => {
     const { agent, teamId } = await signupOwner();
@@ -520,6 +564,29 @@ describe('gateway trace hook — failed rounds', () => {
     const trace = await prisma.trace.findUniqueOrThrow({ where: { id: traceId } });
     expect(trace.status).toBe('error'); // one bad span reddens the run
     expect(trace.spanCount).toBe(2);
+  }, 20000);
+
+  // Issue #638: the failed call wrote a trace, but its 502 carried no `x-gateway-*` header,
+  // so the caller could not find the one trace they most wanted to open.
+  it.each([
+    ['a blocking call', false],
+    ['a streaming call that fails before its first chunk', true],
+  ])('tells the caller which trace %s landed in', async (_label, stream) => {
+    const { agent } = await signupOwner();
+    const credentialId = await createConnection(agent);
+    await registerModel(agent, credentialId);
+
+    mockFetchOnce({ error: { message: 'Incorrect API key provided' } }, false, 401);
+    const res = await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({ model: 'gpt-4o-mini', stream, messages: [{ role: 'user', content: 'Say hi.' }] })
+      .expect(502);
+
+    const span = await prisma.span.findFirstOrThrow({ where: { kind: 'llm' } });
+    expect(res.headers['x-gateway-trace-id']).toBe(span.traceId);
+    expect(res.headers['x-gateway-span-id']).toBe(span.spanRef);
+    expect(res.headers['x-gateway-request-id']).toBe(span.gatewayRequestId);
+    expect(res.body.error).toMatchObject({ code: 'PROVIDER_ERROR', traceId: span.traceId });
   }, 20000);
 });
 

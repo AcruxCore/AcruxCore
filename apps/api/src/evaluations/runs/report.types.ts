@@ -28,6 +28,10 @@ export interface EvalResultRow {
   passed: boolean | null;
   /** A local run's named scores (phase-5 FAQ Q46); null or absent on a server-side result. */
   scores?: ReportNamedScoreInput[] | null;
+  /** Why the candidate call failed, when it did. Absent on rows read before #576. */
+  errorMessage?: string | null;
+  /** The judge's reasoning, or its "judge call failed: …" marker when grading failed. */
+  reason?: string | null;
 }
 
 /** One named score as stored on a local result, as far as the report reads it. */
@@ -96,6 +100,16 @@ export interface RunReportDelta {
   label: 'improved' | 'regressed' | 'flat' | 'unknown';
 }
 
+/**
+ * The commonest reason a cell's examples went unscored, with how many share it. The
+ * reason is the example's `errorMessage` when its candidate call failed, otherwise the
+ * judge's `reason` (a "judge call failed: …" marker, or why there was nothing to grade).
+ */
+export interface RunReportUnscoredReason {
+  message: string;
+  count: number;
+}
+
 /** One (variantLabel × model) cell of the report matrix, with its aggregates. */
 export interface RunReportCell {
   cellKey: string;
@@ -107,6 +121,13 @@ export interface RunReportCell {
   exampleCount: number;
   scoredCount: number;
   unscoredCount: number;
+  /**
+   * Examples whose candidate call failed, so they produced no answer at all. They are
+   * part of `unscoredCount`, and `avgScore` leaves them out (issue #576).
+   */
+  erroredCount: number;
+  /** Why this cell's examples went unscored; null when every example scored (issue #570). */
+  unscoredReason: RunReportUnscoredReason | null;
   deltaVsBaseline: RunReportDelta | null;
   /** Per-name aggregates of a local run's scores, in first-seen order; empty on a server-side cell. */
   namedScores: RunReportNamedScore[];
@@ -140,4 +161,6 @@ export interface RunReport {
    * `promptVersionId` is also null when the built-in judge graded it.
    */
   judge?: { model: string | null; promptVersionId: string | null };
+  /** The commonest reason a result in this run has no score, counted over every cell; null when all scored. */
+  unscoredReason: RunReportUnscoredReason | null;
 }

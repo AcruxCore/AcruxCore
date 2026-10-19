@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import prisma from '../../shared/db/client';
-import { PaymentRequiredError } from '../../shared/errors';
+import { AppError, PaymentRequiredError } from '../../shared/errors';
 import { appLink } from '../../email';
 // Imported from the concrete file, not the `../../notifications` barrel: that
 // barrel re-exports `notificationsRouter`, which pulls in Express as a load-time
@@ -13,7 +13,7 @@ import { matchesFilter } from './eval-rule-matcher';
 import { judgeableOutput } from './span-output';
 import { onlineEvalRuleService, JUDGE_MARKER } from './online-eval-rule.service';
 import type { OnlineEvalJobData } from './online-eval.queue';
-import type { EvalRuleFilter } from './online-eval-rule.types';
+import { JUDGE_FAILED_PREFIX, SCORING_FAILED_PREFIX, type EvalRuleFilter } from './online-eval-rule.types';
 
 /** In-process rule cache lifetime. A rule edit taking half a minute to take effect is fine; a query per span is not. */
 const RULE_CACHE_TTL_MS = 30_000;
@@ -59,7 +59,9 @@ export function invalidateRuleCache(): void {
  * samples, checks the daily cap, judges, and persists a score. Never throws
  * on an expected failure mode (missing payload, budget exhaustion) — those
  * are first-class outcomes, not errors. A genuinely unexpected error (DB
- * down, etc.) is allowed to throw so BullMQ's own retry/backoff applies.
+ * down, etc.) is recorded on that rule's row where possible and then thrown, so
+ * the job shows as failed in BullMQ. Jobs are added without retries
+ * (`enqueue-online-eval.ts`), so the row is the only reason a user ever sees.
  *
  * The judge-loop guard below is deliberately doubled and runs before any
  * rule-matching logic: without it, a rule would score its own judge call,
@@ -69,7 +71,7 @@ export function invalidateRuleCache(): void {
  * @returns Nothing. Every outcome (matched-and-scored, sampled-out, no
  *   payload, budget-exhausted-and-disabled) is a side effect on `EvalRuleScore`
  *   or `EvalRule`, never a return value.
- * @throws Whatever the underlying DB call throws, unmodified, so BullMQ can retry.
+ * @throws The first unexpected error, unmodified, after every rule has had its turn.
  */
 export async function processOnlineEval(data: OnlineEvalJobData): Promise<void> {
   // Kind gate (defensive — call sites already only enqueue llm spans).
@@ -101,9 +103,22 @@ export async function processOnlineEval(data: OnlineEvalJobData): Promise<void> 
   const teamRules = rules.filter((r) => r.teamId === data.teamId);
   if (teamRules.length === 0) return;
 
+  // Each rule runs on its own: one rule's failure must not stop the others from grading
+  // this span (issue #580). An expected judge failure is recorded on that rule's row
+  // inside `processOneRule`. Anything else is recorded on the rule's row too, because the
+  // job has no retries and a missing row would hide the failure. It is then held until
+  // every rule has had its turn and re-thrown, so the job shows as failed.
+  let unexpected: unknown;
   for (const rule of teamRules) {
-    await processOneRule(rule, data, span);
+    try {
+      await processOneRule(rule, data, span);
+    } catch (err) {
+      console.error(`[online-eval] rule ${rule.id} failed on span ${data.spanId}`, err);
+      unexpected ??= err;
+      await recordUnexpectedFailure(rule, data, err);
+    }
   }
+  if (unexpected !== undefined) throw unexpected;
 }
 
 /** Runs one rule against one already-guard-cleared span: match, sample, daily cap, judge, persist, alert. */
@@ -195,7 +210,47 @@ async function processOneRule(
       await sendDisabledAlert(rule);
       return;
     }
+    // An expected judge failure — a provider error, a removed judge model — is that
+    // rule's outcome for this span, recorded where its scores are shown, the same way
+    // the payload-capture case above is. Only an unexpected error escapes.
+    if (err instanceof AppError) {
+      await repo.upsertScore({
+        teamId: data.teamId,
+        ruleId: rule.id,
+        traceId: data.traceId,
+        spanId: data.spanId,
+        score: null,
+        passed: null,
+        reason: `${JUDGE_FAILED_PREFIX}${err.message}`,
+        judgeTraceId: null,
+        costUsd: null,
+      });
+      return;
+    }
     throw err;
+  }
+}
+
+/**
+ * Best-effort failure row for an error `processOneRule` did not expect. A write that fails
+ * too (the database is down) is logged, and the original error still fails the job.
+ */
+async function recordUnexpectedFailure(rule: EnabledRule, data: OnlineEvalJobData, err: unknown): Promise<void> {
+  const message = err instanceof Error ? err.message : String(err);
+  try {
+    await repo.upsertScore({
+      teamId: data.teamId,
+      ruleId: rule.id,
+      traceId: data.traceId,
+      spanId: data.spanId,
+      score: null,
+      passed: null,
+      reason: `${SCORING_FAILED_PREFIX}${message}`,
+      judgeTraceId: null,
+      costUsd: null,
+    });
+  } catch (writeErr) {
+    console.error(`[online-eval] could not record the failure of rule ${rule.id}`, writeErr);
   }
 }
 

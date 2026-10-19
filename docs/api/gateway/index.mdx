@@ -101,7 +101,8 @@ Response body (status 200):
 ### POST /api/v1/gateway/chat/completions (Gemini — multi-provider routing)
 
 The same endpoint routes to Gemini when the model belongs to a `gemini` connection.
-Note `x-gateway-cost-usd` is empty when the model has no configured price.
+Note `x-gateway-cost-usd` is empty when the model has no configured price. When it is set, it
+is rounded to at most 10 decimal places, with trailing zeros removed.
 
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
@@ -278,6 +279,10 @@ whether you are giving an instruction or a fallback.
 |---|---|---|
 | `x-trace-name` | names it | **overwrites** it |
 | `x-trace-name-if-unset` | names it | ignored |
+
+With neither header, a new trace is named after the first 120 characters of the last user
+message. When payload capture is off for the call, the message is not used, and the trace is
+named by its start time instead.
 
 `x-trace-name` is last-explicit-write-wins on purpose: an agent that only works out what a
 run *is* on its second call can still name the trace after it. Omitting the header never
@@ -637,12 +642,41 @@ neither of which the caller of this gateway can do anything about, and a provide
 401 body can echo a masked copy of the key it was sent. Those are summarised:
 
 ```json
-{"error":{"code":"PROVIDER_ERROR","message":"Provider error (401): OpenAI request failed with status 401"}}
+{"error":{"code":"PROVIDER_ERROR","message":"Provider error (401): OpenAI request failed with status 401","traceId":"856172e8-73ed-41b4-abe5-33e83babb313"}}
 ```
 
 That one answers **502 `PROVIDER_ERROR`**, and a provider timeout answers **504
 `PROVIDER_TIMEOUT`**. If you see a 401 here, the gateway connection's stored key is
 the thing to check, not the request.
+
+#### Finding the trace of a failed call
+
+A call that fails at the provider is still traced, with an `error` span that carries
+the provider's error. The failed response names that trace in the same headers a
+successful call sends, and in `error.traceId`:
+
+```bash
+curl -s -D - -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"revoked-mini","messages":[{"role":"user","content":"hi"}]}'
+```
+
+Response (status 502):
+
+```
+HTTP/1.1 502 Bad Gateway
+x-gateway-request-id: 6f00ebc5-51d4-46ac-9637-cc8888546c59
+x-gateway-trace-id: 856172e8-73ed-41b4-abe5-33e83babb313
+x-gateway-span-id: 4b63171e-afc6-401e-adaf-cf76796aaafb
+
+{"error":{"code":"PROVIDER_ERROR","message":"Provider error (401): OpenAI request failed with status 401","traceId":"856172e8-73ed-41b4-abe5-33e83babb313"}}
+```
+
+`GET /api/v1/traces/856172e8-73ed-41b4-abe5-33e83babb313` then returns that trace with
+`status: "error"` and one `llm` span whose `spanId` is the `x-gateway-span-id` above. A
+streaming call that fails before its first chunk answers the same way. Both SDKs keep
+the parsed error body, so the id is at `error.body.error.traceId`.
 
 ### A base URL the gateway will not call
 
@@ -762,7 +796,7 @@ curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
 Response (status 502):
 
 ```json
-{"error":{"code":"PROVIDER_ERROR","message":"Provider error (401): OpenAI request failed with status 401"}}
+{"error":{"code":"PROVIDER_ERROR","message":"Provider error (401): OpenAI request failed with status 401","traceId":"6d004f3d-abcb-4f76-a1bb-d331acdffe7b"}}
 ```
 
 #### What a rescued call leaves behind

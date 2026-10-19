@@ -16,6 +16,33 @@ import { PromptPicker } from './PromptPicker';
 import { JudgeModelField } from './JudgeModelField';
 import { JudgePromptField } from './JudgePromptField';
 
+/** Shown for a prompt the rule still points at but that has been deleted since. */
+const DELETED_PROMPT_LABEL = 'Deleted prompt (still in use)';
+
+/** Shown when the name lookup failed for a reason other than a deleted prompt. */
+const UNAVAILABLE_PROMPT_LABEL = 'Prompt name unavailable';
+
+/**
+ * The picker value for a prompt id a saved rule carries.
+ *
+ * The id is kept whatever the lookup says. A deleted prompt is a soft delete, so the
+ * rule keeps grading with (or filtering on) it, but its lookup 404s; seeding `null`
+ * there made the drawer show "Built-in judge", and an unrelated Save sent `null` and
+ * changed how the rule grades (issue #581). While the lookup is in flight the id is
+ * kept too, so a quick Save cannot drop it either. Only a 404 means deleted: a 500 or a
+ * network error says nothing about the prompt.
+ */
+function seedPickedPrompt(
+  id: string | undefined | null,
+  detail: { id: string; name: string } | undefined,
+  error: unknown,
+): { id: string; name: string } | null {
+  if (!id) return null;
+  if (detail?.id === id) return { id, name: detail.name };
+  if (error instanceof ApiError && error.status === 404) return { id, name: DELETED_PROMPT_LABEL };
+  return { id, name: error ? UNAVAILABLE_PROMPT_LABEL : 'Loading…' };
+}
+
 export interface RuleDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -72,8 +99,8 @@ export function RuleDrawer({ open, onOpenChange, rule }: RuleDrawerProps) {
   // Existing rules only carry ids in `filter.promptId`/`judgePromptId` — fetch
   // the names once so the pickers can show something other than a bare UUID
   // when the drawer re-opens in edit mode.
-  const { data: filterPromptDetail } = usePrompt(rule?.filter.promptId ?? '');
-  const { data: judgePromptDetail } = usePrompt(rule?.judgePromptId ?? '');
+  const { data: filterPromptDetail, error: filterPromptError } = usePrompt(rule?.filter.promptId ?? '');
+  const { data: judgePromptDetail, error: judgePromptError } = usePrompt(rule?.judgePromptId ?? '');
 
   const { data: filterAliases } = useAliases(filterPrompt?.id ?? '');
 
@@ -84,19 +111,11 @@ export function RuleDrawer({ open, onOpenChange, rule }: RuleDrawerProps) {
     setName(rule?.name ?? '');
     setCriteria(rule?.criteria ?? '');
     setJudgeModel(rule?.judgeModel ?? '');
-    setJudgePrompt(
-      rule?.judgePromptId && judgePromptDetail?.id === rule.judgePromptId
-        ? { id: judgePromptDetail.id, name: judgePromptDetail.name }
-        : null,
-    );
+    setJudgePrompt(seedPickedPrompt(rule?.judgePromptId, judgePromptDetail, judgePromptError));
     setSamplePercent(rule ? `${Math.round(rule.sampleRate * 100)}` : '10');
     setDailyLimit(rule?.dailyLimit != null ? `${rule.dailyLimit}` : '');
     setAlertBelow(rule?.alertBelow != null ? `${rule.alertBelow}` : '');
-    setFilterPrompt(
-      rule?.filter.promptId && filterPromptDetail?.id === rule.filter.promptId
-        ? { id: filterPromptDetail.id, name: filterPromptDetail.name }
-        : null,
-    );
+    setFilterPrompt(seedPickedPrompt(rule?.filter.promptId, filterPromptDetail, filterPromptError));
     setFilterAlias(rule?.filter.promptAlias ?? '');
     setModel(rule?.filter.model ?? '');
     setTags(rule?.filter.tags ?? []);
@@ -104,8 +123,23 @@ export function RuleDrawer({ open, onOpenChange, rule }: RuleDrawerProps) {
     setDatasetName(rule ? `${rule.name} — low scorers` : '');
     setThreshold('50');
     preview.reset();
+    // Only `open` and `rule`: a prompt lookup that lands later must not wipe what the user
+    // typed in the meantime. The two effects below fill in the picker names instead.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, rule, filterPromptDetail, judgePromptDetail]);
+  }, [open, rule]);
+
+  // When a name lookup lands, relabel the picker, unless the user already picked another prompt.
+  useEffect(() => {
+    if (!open) return;
+    const id = rule?.judgePromptId;
+    setJudgePrompt((current) => (id && current?.id === id ? seedPickedPrompt(id, judgePromptDetail, judgePromptError) : current));
+  }, [open, rule?.judgePromptId, judgePromptDetail, judgePromptError]);
+
+  useEffect(() => {
+    if (!open) return;
+    const id = rule?.filter.promptId;
+    setFilterPrompt((current) => (id && current?.id === id ? seedPickedPrompt(id, filterPromptDetail, filterPromptError) : current));
+  }, [open, rule?.filter.promptId, filterPromptDetail, filterPromptError]);
 
   // Clearing the chosen prompt clears its alias too — an alias is meaningless
   // without the prompt it belongs to.

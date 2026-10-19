@@ -145,6 +145,23 @@ describe('email config', () => {
     expect(config.appUrl).toBe('http://localhost:5173');
   });
 
+  // A blanked `.env` line (`EMAIL_TRANSPORT=`) is the ordinary way to switch a
+  // variable off, and used to crash the API at boot instead (issue #444).
+  it.each([
+    ['development', 'memory'],
+    ['production', 'ses'],
+  ])('treats an empty EMAIL_TRANSPORT as unset in %s (falls back to %s)', (nodeEnv, expected) => {
+    resetEmailConfig();
+    process.env.NODE_ENV = nodeEnv;
+    process.env.EMAIL_TRANSPORT = '';
+    process.env.SES_REGION = 'eu-north-1';
+    process.env.SES_ACCESS_KEY_ID = 'AKIAFAKE';
+    process.env.SES_SECRET_ACCESS_KEY = 'secret';
+    process.env.APP_URL = 'https://acruxcore.com';
+
+    expect(loadEmailConfig().transport).toBe(expected);
+  });
+
   it('rejects EMAIL_TRANSPORT=ses without credentials', () => {
     resetEmailConfig();
     process.env.NODE_ENV = 'development';

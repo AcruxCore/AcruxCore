@@ -843,6 +843,101 @@ Response (status 200):
 }
 ```
 
+#### Cells with failed or unscored examples
+
+Each cell also carries `erroredCount`, the examples whose candidate call failed so no
+answer exists, and `unscoredReason`, the most common reason its examples have no score
+together with how many examples share it. The reason is the example's `errorMessage` when
+the candidate call failed, otherwise the judge's `reason`. `unscoredReason` is `null` when
+every example in the cell was scored. A run still ends `succeeded` unless every example
+errored, and `avgScore` averages only the scored examples, so these two fields are where a
+partial failure shows.
+
+The report also has a top-level `unscoredReason`, counted over every result in the run. A
+reason that comes second in every cell can still be the most common one in the run, so this
+field is not built from the cells' own reasons. When two reasons have the same count, the one
+seen first wins. It is `null` when every result was scored.
+
+Verified with a run of one prompt version on two models, where `revoked-mini` and the
+judge model both use a connection whose key the provider rejects:
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" $ACRUXCORE_BASE_URL/runs/ebe191f6-4e58-4a67-8208-bf8bd9a1ac02/report
+```
+
+Response (status 200):
+
+```json
+{
+    "runId": "ebe191f6-4e58-4a67-8208-bf8bd9a1ac02",
+    "status": "succeeded",
+    "models": [
+        "gpt-4o-mini",
+        "revoked-mini"
+    ],
+    "variants": [
+        {
+            "variantKind": "version",
+            "promptVersionId": "f0d6ec0d-4de6-4b23-9a4e-056011767fd5",
+            "variantLabel": "v1",
+            "versionNumber": 1,
+            "isProductionBaseline": true
+        }
+    ],
+    "cells": [
+        {
+            "cellKey": "v1|gpt-4o-mini",
+            "variantLabel": "v1",
+            "model": "gpt-4o-mini",
+            "isProductionBaseline": true,
+            "avgScore": null,
+            "passRate": null,
+            "exampleCount": 3,
+            "scoredCount": 0,
+            "unscoredCount": 3,
+            "erroredCount": 0,
+            "unscoredReason": {
+                "message": "judge call failed: Provider error (401): OpenAI request failed with status 401",
+                "count": 3
+            },
+            "deltaVsBaseline": null,
+            "namedScores": []
+        },
+        {
+            "cellKey": "v1|revoked-mini",
+            "variantLabel": "v1",
+            "model": "revoked-mini",
+            "isProductionBaseline": true,
+            "avgScore": null,
+            "passRate": null,
+            "exampleCount": 3,
+            "scoredCount": 0,
+            "unscoredCount": 3,
+            "erroredCount": 3,
+            "unscoredReason": {
+                "message": "Provider error (401): OpenAI request failed with status 401",
+                "count": 3
+            },
+            "deltaVsBaseline": null,
+            "namedScores": []
+        }
+    ],
+    "leaderboard": [
+        "v1|gpt-4o-mini",
+        "v1|revoked-mini"
+    ],
+    "winner": null,
+    "unscoredReason": {
+        "message": "judge call failed: Provider error (401): OpenAI request failed with status 401",
+        "count": 3
+    },
+    "judge": {
+        "model": "revoked-mini",
+        "promptVersionId": null
+    }
+}
+```
+
 #### Error responses
 
 Nonexistent run id (status 404) — same message/code as `GET /runs/:id`:

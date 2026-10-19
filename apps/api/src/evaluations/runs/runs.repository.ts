@@ -722,6 +722,8 @@ export class RunsRepository {
       score: row.score,
       passed: row.passed,
       scores: row.scores as unknown as EvalResultRow['scores'],
+      errorMessage: row.errorMessage,
+      reason: row.reason,
     }));
 
     return {

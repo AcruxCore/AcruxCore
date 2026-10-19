@@ -3,6 +3,7 @@ import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 import {REDIRECTS} from './redirects';
+import remarkUnescapeImageAlt from './plugins/remark-unescape-image-alt';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -269,8 +270,10 @@ const config: Config = {
         docs: {
           // Tutorials + Getting Started live here, served under /docs.
           sidebarPath: './sidebars.ts',
+          remarkPlugins: [remarkUnescapeImageAlt],
         },
         blog: {
+          remarkPlugins: [remarkUnescapeImageAlt],
           showReadingTime: true,
           blogTitle: 'AcruxCore blog',
           blogDescription:
@@ -290,6 +293,9 @@ const config: Config = {
           // itself lists all of them. 'ALL' keeps the sidebar a full catalog
           // as the blog grows past what fits on one page.
           blogSidebarCount: 'ALL',
+        },
+        pages: {
+          remarkPlugins: [remarkUnescapeImageAlt],
         },
         theme: {
           customCss: './src/css/custom.css',
@@ -376,6 +382,7 @@ const config: Config = {
         path: '../../docs/api',
         routeBasePath: 'api-reference',
         sidebarPath: './sidebarsApi.ts',
+        remarkPlugins: [remarkUnescapeImageAlt],
       },
     ],
     [

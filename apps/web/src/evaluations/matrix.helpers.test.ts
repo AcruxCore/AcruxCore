@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { deltaToChip, scoreToGrade } from './matrix.helpers';
+import { deltaToChip, scoreToGrade, summarizeUnscored } from './matrix.helpers';
+import type { RunReportCell } from '@/api/types';
 
 describe('scoreToGrade', () => {
   it('maps scores to grade buckets, null -> unscored', () => {
@@ -46,5 +47,34 @@ describe('deltaToChip', () => {
       '-33.3 regressed',
     );
     expect(deltaToChip({ score: 0, passRate: null, label: 'flat' }).label).toBe('±0.0 flat');
+  });
+});
+
+describe('summarizeUnscored (issues #576, #570)', () => {
+  const cell = (over: Partial<RunReportCell>): RunReportCell => ({
+    cellKey: 'k',
+    variantLabel: 'v1',
+    model: 'm',
+    isProductionBaseline: false,
+    avgScore: null,
+    passRate: null,
+    exampleCount: 50,
+    scoredCount: 50,
+    unscoredCount: 0,
+    deltaVsBaseline: null,
+    ...over,
+  });
+
+  it('sums unscored and errored results over every cell', () => {
+    const summary = summarizeUnscored([
+      cell({ scoredCount: 0, unscoredCount: 50, erroredCount: 50, unscoredReason: { message: 'Provider error (402)', count: 50 } }),
+      cell({ scoredCount: 28, unscoredCount: 22, erroredCount: 22, unscoredReason: { message: 'Provider rate limit (429)', count: 22 } }),
+      cell({}),
+    ]);
+    expect(summary).toEqual({ total: 150, unscored: 72, errored: 72 });
+  });
+
+  it('reports nothing unscored for a clean run, and tolerates an API without the new fields', () => {
+    expect(summarizeUnscored([cell({}), cell({})])).toEqual({ total: 100, unscored: 0, errored: 0 });
   });
 });

@@ -396,6 +396,92 @@ describe('processOnlineEval', () => {
     expect(await prisma.emailLog.count({ where: { teamId, type: 'eval_rule_alert' } })).toBe(1);
   });
 
+  // Issue #580: the loop re-threw the first rule's judge error, so every rule after it
+  // never graded the span, and nothing on the healthy rule's screen said why.
+  it("one rule's judge failure does not stop another rule from scoring the same span", async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+    const brokenModel = (
+      await agent.post('/api/v1/gateway/models').send({ publicName: 'removed-judge', upstreamModel: 'gpt-4o-mini', credentialId: credId }).expect(201)
+    ).body;
+    // Created first, so it is the first rule the loop reaches.
+    const broken = (
+      await agent.post('/api/v1/eval-rules').send({ name: 'broken', criteria: 'x', sampleRate: 1, judgeModel: 'removed-judge' }).expect(201)
+    ).body;
+    const healthy = (
+      await agent.post('/api/v1/eval-rules').send({ name: 'healthy', criteria: 'names the capital', sampleRate: 1, judgeModel: 'gpt-4o-mini' }).expect(201)
+    ).body;
+    // The judge model is removed after the rule was saved, so its judge call now fails.
+    await agent.delete(`/api/v1/gateway/models/${brokenModel.id}`).expect(204);
+
+    const { traceId, spanId } = await sendScoredCompletion(agent, teamId);
+    queueFetchResponseOnce(cannedJudge({ score: 90, passed: true, reason: 'correct' }));
+    invalidateRuleCache();
+
+    await processOnlineEval({ teamId, traceId, spanId, spanKind: 'llm' });
+
+    const healthyScore = await prisma.evalRuleScore.findFirst({ where: { ruleId: healthy.id, spanId } });
+    expect(healthyScore?.score).toBe(90);
+    // The failing rule says why it has no score, instead of leaving a silent gap.
+    const brokenScore = await prisma.evalRuleScore.findFirst({ where: { ruleId: broken.id, spanId } });
+    expect(brokenScore?.score).toBeNull();
+    expect(brokenScore?.reason).toMatch(/^judge call failed: Model 'removed-judge' is not registered/);
+  });
+
+  // A judge outage must not use up the daily cap: a failure row is not a score.
+  it('a failed judge call does not count toward the daily limit', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+    const brokenModel = (
+      await agent.post('/api/v1/gateway/models').send({ publicName: 'flaky-judge', upstreamModel: 'gpt-4o-mini', credentialId: credId }).expect(201)
+    ).body;
+    const rule = (
+      await agent
+        .post('/api/v1/eval-rules')
+        .send({ name: 'capped', criteria: 'x', sampleRate: 1, judgeModel: 'flaky-judge', dailyLimit: 1 })
+        .expect(201)
+    ).body;
+    await agent.delete(`/api/v1/gateway/models/${brokenModel.id}`).expect(204);
+    invalidateRuleCache();
+
+    const failed = await sendScoredCompletion(agent, teamId);
+    await processOnlineEval({ teamId, traceId: failed.traceId, spanId: failed.spanId, spanKind: 'llm' });
+
+    // The judge model is back, so the next span is judged: the failure row left the cap free.
+    await agent.post('/api/v1/gateway/models').send({ publicName: 'flaky-judge', upstreamModel: 'gpt-4o-mini', credentialId: credId }).expect(201);
+    invalidateRuleCache();
+    const next = await sendScoredCompletion(agent, teamId);
+    queueFetchResponseOnce(cannedJudge({ score: 70, passed: true, reason: 'ok' }));
+    await processOnlineEval({ teamId, traceId: next.traceId, spanId: next.spanId, spanKind: 'llm' });
+
+    const scored = await prisma.evalRuleScore.findFirst({ where: { ruleId: rule.id, spanId: next.spanId } });
+    expect(scored?.score).toBe(70);
+    const listed = (await agent.get('/api/v1/eval-rules').expect(200)).body.find((r: { id: string }) => r.id === rule.id);
+    expect(listed.todayCount).toBe(1);
+  });
+
+  // Jobs are added without retries, so an unexpected error must still leave a reason behind.
+  it('an unexpected error records a reason on that rule and still fails the job', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+    const rule = (
+      await agent.post('/api/v1/eval-rules').send({ name: 'corrupt', criteria: 'x', sampleRate: 1, judgeModel: 'gpt-4o-mini' }).expect(201)
+    ).body;
+    // A filter the API would never accept, so matching throws a TypeError.
+    await prisma.evalRule.update({ where: { id: rule.id }, data: { filter: { tags: 5 } } });
+    invalidateRuleCache();
+
+    const { traceId, spanId } = await sendScoredCompletion(agent, teamId);
+    await expect(processOnlineEval({ teamId, traceId, spanId, spanKind: 'llm' })).rejects.toThrow(TypeError);
+
+    const row = await prisma.evalRuleScore.findFirst({ where: { ruleId: rule.id, spanId } });
+    expect(row?.score).toBeNull();
+    expect(row?.reason).toMatch(/^scoring failed: /);
+  });
+
   it('a tool-kind span is a no-op', async () => {
     const { agent, teamId } = await authedAgent(app);
     const credId = await createConnection(agent);

@@ -230,6 +230,17 @@ export interface RunReportCell {
   exampleCount: number;
   scoredCount: number;
   unscoredCount: number;
+  /**
+   * Examples whose candidate call failed, so they have no answer. Counted in
+   * `unscoredCount` and left out of `avgScore`. Absent from older servers.
+   */
+  erroredCount?: number;
+  /**
+   * The commonest reason this cell's examples went unscored (a provider error, or a
+   * "judge call failed: …" marker), with how many share it. Null when all scored;
+   * absent from older servers.
+   */
+  unscoredReason?: { message: string; count: number } | null;
   deltaVsBaseline: {
     score: number | null;
     passRate: number | null;
@@ -274,6 +285,11 @@ export interface RunReport {
   } | null;
   /** The judge that graded this run. Absent from servers older than this field. */
   judge?: { model: string | null; promptVersionId: string | null };
+  /**
+   * The commonest reason a result has no score, counted over every cell of the run, with
+   * how many share it. Null when all scored; absent from older servers.
+   */
+  unscoredReason?: { message: string; count: number } | null;
 }
 
 export interface RunCellExampleDto {

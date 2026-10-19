@@ -408,6 +408,85 @@ describe('GET /runs/:id/report', () => {
     }
   });
 
+  // Issues #576 and #570: a cell whose examples all errored, or whose judge call failed,
+  // showed only "0/2 scored". The run read as a normal success and the cause sat on each
+  // example, where nobody looks.
+  it('counts errored examples and names the commonest reason a cell is unscored (issues #576, #570)', async () => {
+    const { agent, teamId, runId, grid, exampleIds } = await arrangeRun();
+    const v1Cell = grid.find((cell) => cell.variantLabel === 'v1')!;
+    const baselineCell = grid.find((cell) => cell.variantLabel === 'production')!;
+
+    // v1: the candidate call failed for both examples (provider out of credit).
+    for (const exampleId of exampleIds) {
+      await runsRepo.writeResultError({
+        teamId,
+        experimentRunId: runId,
+        datasetExampleId: exampleId,
+        variantKind: v1Cell.variantKind,
+        promptVersionId: v1Cell.promptVersionId,
+        variantLabel: v1Cell.variantLabel,
+        model: v1Cell.model,
+        errorMessage: 'Provider error (402): insufficient credits',
+      });
+    }
+
+    // Baseline: the answers were produced, but every judge call failed.
+    for (const exampleId of exampleIds) {
+      mockFetchOnce(CANNED_OPENAI);
+      await processCell({
+        teamId,
+        runId,
+        cellKey: baselineCell.cellKey,
+        variantKind: baselineCell.variantKind,
+        promptVersionId: baselineCell.promptVersionId,
+        variantLabel: baselineCell.variantLabel,
+        model: baselineCell.model,
+        exampleId,
+      });
+    }
+    const judgeFailure = "judge call failed: Model 'gpt-4o-mini' is not registered. Add it under Gateway → Models.";
+    const produced = await prisma.evalResult.findMany({ where: { experimentRunId: runId, variantLabel: baselineCell.variantLabel } });
+    for (const row of produced) {
+      await runsRepo.writeVerdict(row.id, { score: null, passed: null, reason: judgeFailure, judgeTraceId: null });
+    }
+
+    const report = (await agent.get(`/api/v1/runs/${runId}/report`).expect(200)).body;
+
+    const v1 = report.cells.find((c: any) => c.cellKey === v1Cell.cellKey);
+    expect(v1.erroredCount).toBe(2);
+    expect(v1.unscoredReason).toEqual({ message: 'Provider error (402): insufficient credits', count: 2 });
+
+    const baseline = report.cells.find((c: any) => c.cellKey === baselineCell.cellKey);
+    expect(baseline.erroredCount).toBe(0);
+    expect(baseline.unscoredReason).toEqual({ message: judgeFailure, count: 2 });
+  });
+
+  // The run-wide cause is counted over every result, not taken from each cell's top cause:
+  // a reason that comes second in every cell can still be the commonest in the run.
+  it('names the commonest unscored reason across the whole run', async () => {
+    const { agent, teamId, runId, grid, exampleIds } = await arrangeRun();
+    const [first, second] = exampleIds;
+    const write = (cell: (typeof grid)[number], exampleId: string, errorMessage: string) =>
+      runsRepo.writeResultError({
+        teamId,
+        experimentRunId: runId,
+        datasetExampleId: exampleId,
+        variantKind: cell.variantKind,
+        promptVersionId: cell.promptVersionId,
+        variantLabel: cell.variantLabel,
+        model: cell.model,
+        errorMessage,
+      });
+    const [cellA, cellB] = grid;
+    await write(cellA, first, 'cause X');
+    await write(cellA, second, 'shared cause');
+    await write(cellB, first, 'cause Z');
+    await write(cellB, second, 'shared cause');
+
+    const report = (await agent.get(`/api/v1/runs/${runId}/report`).expect(200)).body;
+    expect(report.unscoredReason).toEqual({ message: 'shared cause', count: 2 });
+  });
+
   it('reports errorMessage as null on a cell that produced output (issue #504)', async () => {
     const { agent, teamId, runId, grid, exampleIds } = await arrangeRun();
     const v1Cell = grid.find((cell) => cell.variantLabel === 'v1')!;
