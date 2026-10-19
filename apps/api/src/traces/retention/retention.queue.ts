@@ -8,6 +8,13 @@ export const RETENTION_QUEUE = 'trace-payload-retention';
 export const RETENTION_PURGE_JOB = 'purge-span-payloads';
 
 /**
+ * Job name of the repeatable sweep that deletes expired `gateway_cache` rows
+ * (issue #652). It shares this queue and its worker: both jobs delete data
+ * that has outlived its retention, and neither needs a worker of its own.
+ */
+export const CACHE_PURGE_JOB = 'purge-expired-gateway-cache';
+
+/**
  * The purge job's payload. Empty by design: the job derives its cutoff from
  * the moment it runs plus the configured retention window, so there is
  * nothing to carry and nothing that can go stale if a job sits in the queue.
@@ -79,6 +86,44 @@ export async function registerRetentionSchedule(config: {
 
   await queue.add(
     RETENTION_PURGE_JOB,
+    {} as RetentionJobData,
+    {
+      repeat: { pattern: config.cron, tz: 'UTC' },
+      removeOnComplete: 20,
+      removeOnFail: 20,
+    },
+  );
+
+  return true;
+}
+
+/**
+ * Registers (or removes) the expired-cache sweep (issue #652).
+ *
+ * Same remove-then-add rule as {@link registerRetentionSchedule}, for the
+ * same reason: a changed cron must replace the old schedule, not add a second
+ * one, and `enabled: false` must actually stop it.
+ *
+ * @param config - Whether the sweep is enabled, and its cron pattern.
+ * @returns Whether a schedule is now registered.
+ * @throws {Error} When BullMQ rejects the cron pattern.
+ */
+export async function registerCachePurgeSchedule(config: {
+  enabled: boolean;
+  cron: string;
+}): Promise<boolean> {
+  const queue = getRetentionQueue();
+
+  for (const entry of await queue.getRepeatableJobs()) {
+    if (entry.name === CACHE_PURGE_JOB) {
+      await queue.removeRepeatableByKey(entry.key);
+    }
+  }
+
+  if (!config.enabled) return false;
+
+  await queue.add(
+    CACHE_PURGE_JOB,
     {} as RetentionJobData,
     {
       repeat: { pattern: config.cron, tz: 'UTC' },

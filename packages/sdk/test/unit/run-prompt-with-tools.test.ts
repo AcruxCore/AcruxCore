@@ -43,6 +43,7 @@ describe('runPromptWithTools', () => {
 
   const resolvedTool = (name: string, executorType: 'client' | 'http' = 'client', versionNumber = 4) => ({
     toolId: 'tool-1',
+    versionId: `tv-uuid-${versionNumber}`,
     versionNumber,
     executorType,
     function: { name, parameters: { type: 'object' } },
@@ -565,7 +566,7 @@ describe('runPromptWithTools', () => {
         traces: { spans: { kind: string; attributes?: Record<string, unknown> }[] }[];
       };
       const toolSpans = body.traces.flatMap((t) => t.spans).filter((sp) => sp.kind === 'tool');
-      expect(toolSpans.map((sp) => sp.attributes?.['toolVersionId'])).toEqual(['tool-1:7']);
+      expect(toolSpans.map((sp) => sp.attributes?.['toolVersionId'])).toEqual(['tv-uuid-7']);
     });
 
     it('names the keys it was given when a bound client tool has no runner', async () => {

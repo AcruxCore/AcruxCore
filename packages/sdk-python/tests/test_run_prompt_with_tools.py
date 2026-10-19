@@ -92,6 +92,7 @@ PLAIN_COMPLETION = {
 def resolved(name: str, *, executor: str = "client", version: int = 4) -> Dict[str, Any]:
     return {
         "toolId": "tool-1",
+        "versionId": f"tv-uuid-{version}",
         "versionNumber": version,
         "executorType": executor,
         "function": {"name": name, "parameters": {"type": "object"}},
@@ -665,7 +666,7 @@ async def test_client_tools_keeps_the_bindings_alias_and_the_version_stamp():
     assert seen["chat"]["tool_refs"] == [{"name": "search_flights", "alias": "production"}]
     spans = [s for t in traces for tr in t["traces"] for s in tr["spans"]]
     tool_spans = [s for s in spans if s["kind"] == "tool"]
-    assert [s["attributes"]["toolVersionId"] for s in tool_spans] == ["tool-1:7"]
+    assert [s["attributes"]["toolVersionId"] for s in tool_spans] == ["tv-uuid-7"]
 
 
 async def test_a_pin_still_travels_as_a_pin_when_client_tools_runs_the_tool():

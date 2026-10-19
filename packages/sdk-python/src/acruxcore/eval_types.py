@@ -220,6 +220,32 @@ class StartRunResult:
 
 
 @dataclass
+class RejudgeRunResult:
+    """What :meth:`RunsNamespace.rejudge` reports.
+
+    :param run_id: The run.
+    :param status: ``running`` when judge jobs were queued; the run's unchanged
+        status when none were.
+    :param rejudging: How many results were sent back to the judge. ``0`` means
+        nothing matched.
+    """
+
+    run_id: str
+    status: str
+    rejudging: int
+    raw: Dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "RejudgeRunResult":
+        return cls(
+            run_id=d.get("run_id") or d.get("runId") or "",
+            status=d.get("status") or "",
+            rejudging=int(d.get("rejudging") or 0),
+            raw=d,
+        )
+
+
+@dataclass
 class RunListItemDto:
     id: str
     status: str

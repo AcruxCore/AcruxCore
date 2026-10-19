@@ -113,6 +113,7 @@ export class RunsRepository {
       createdBy?: string | null;
       judgeModel?: string | null;
       judgePromptVersionId?: string | null;
+      gradingSnapshot?: Prisma.InputJsonValue;
     },
   ): Promise<Prisma.ExperimentRunGetPayload<{}>> {
     return prisma.experimentRun.create({
@@ -125,7 +126,134 @@ export class RunsRepository {
         createdBy: data.createdBy ?? null,
         judgeModel: data.judgeModel ?? null,
         judgePromptVersionId: data.judgePromptVersionId ?? null,
+        ...(data.gradingSnapshot !== undefined ? { gradingSnapshot: data.gradingSnapshot } : {}),
       },
+    });
+  }
+
+  /**
+   * Reads what a re-judge needs from a run (issue #639): its status and timing,
+   * its grid, its frozen judge and grading inputs, the experiment's kind, and the
+   * dataset's overall feedback (read even when the dataset was deleted). No results.
+   *
+   * @param teamId - Isolation boundary; another team's run reads as null.
+   * @param runId - Run UUID.
+   * @returns The run's re-judge fields, or null if no such run in this team.
+   */
+  async getRunForRejudge(teamId: string, runId: string) {
+    return prisma.experimentRun.findFirst({
+      where: { id: runId, teamId },
+      select: {
+        id: true,
+        status: true,
+        judgeModel: true,
+        judgePromptVersionId: true,
+        exampleSnapshot: true,
+        gradingSnapshot: true,
+        grid: true,
+        startedAt: true,
+        endedAt: true,
+        error: true,
+        // Through the relation, so a soft-deleted dataset still answers: an older
+        // run with no grading snapshot needs its overall feedback to be graded.
+        experiment: { select: { config: true, dataset: { select: { overallFeedback: true } } } },
+      },
+    });
+  }
+
+  /**
+   * Lists the results a re-judge would grade again: every result that has an
+   * output (no `errorMessage`), and with `onlyUnscored` only those with no score.
+   * A cell that errored has nothing to grade, so it is never included.
+   *
+   * @param teamId - Owning team.
+   * @param runId - The run.
+   * @param onlyUnscored - Limit to results whose `score` is null.
+   * @returns The results' ids, their current verdicts (kept so a failed re-judge
+   *   can put them back), and the fields that locate their prompt and example.
+   */
+  async listRejudgeTargets(teamId: string, runId: string, onlyUnscored: boolean) {
+    return prisma.evalResult.findMany({
+      where: { teamId, experimentRunId: runId, errorMessage: null, ...(onlyUnscored ? { score: null } : {}) },
+      select: {
+        id: true,
+        datasetExampleId: true,
+        variantKind: true,
+        variantLabel: true,
+        promptVersionId: true,
+        promptCandidateId: true,
+        score: true,
+        passed: true,
+        reason: true,
+        judgeTraceId: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  /**
+   * Opens a finished run for a re-judge (issue #639), in one transaction: moves
+   * the run back to `running` and clears the verdict of every listed result, so
+   * the finalize job waits for the new verdicts exactly as it waits for first ones.
+   *
+   * The status change is conditional on the run being finished. Two re-judge
+   * requests racing for one run therefore cannot both win: the second matches no
+   * row and changes nothing.
+   *
+   * `startedAt` is stamped with now. The stale-run reaper fails a `running` run
+   * that was started, and last wrote a result, before its cutoff. A re-judge
+   * writes verdicts onto existing rows and creates none, so without a fresh start
+   * every run older than the reaper's window was failed mid re-judge. The run's
+   * duration then measures this pass.
+   *
+   * @param teamId - Owning team.
+   * @param runId - The run.
+   * @param resultIds - The results to clear. All belong to `runId`.
+   * @returns False when the run was no longer `succeeded` or `failed`.
+   */
+  async reopenForRejudge(teamId: string, runId: string, resultIds: string[]): Promise<boolean> {
+    return prisma.$transaction(async (tx) => {
+      const { count } = await tx.experimentRun.updateMany({
+        where: { id: runId, teamId, status: { in: ['succeeded', 'failed'] } },
+        data: { status: 'running', startedAt: new Date(), endedAt: null, error: null },
+      });
+      if (count === 0) return false;
+      await tx.evalResult.updateMany({
+        where: { teamId, experimentRunId: runId, id: { in: resultIds } },
+        data: { score: null, passed: null, reason: null, judgeTraceId: null },
+      });
+      return true;
+    });
+  }
+
+  /**
+   * Undoes `reopenForRejudge` when the re-judge's jobs could not be queued: puts
+   * the run back to the status and timing it had, and gives each result back its
+   * old verdict.
+   *
+   * A verdict is restored only while the result is still cleared. A judge job that
+   * was queued before the failure may already have written a new verdict, and that
+   * one is kept.
+   *
+   * @param teamId - Owning team.
+   * @param runId - The run, currently `running` because of the re-judge.
+   * @param run - The status, timing and error the run had before it was reopened.
+   * @param verdicts - Each result's verdict before it was cleared.
+   */
+  async restoreAfterFailedRejudge(
+    teamId: string,
+    runId: string,
+    run: { status: 'queued' | 'running' | 'succeeded' | 'failed'; startedAt: Date | null; endedAt: Date | null; error: string | null },
+    verdicts: Array<{ id: string; score: number | null; passed: boolean | null; reason: string | null; judgeTraceId: string | null }>,
+  ): Promise<void> {
+    await prisma.$transaction(async (tx) => {
+      await tx.experimentRun.updateMany({ where: { id: runId, teamId, status: 'running' }, data: run });
+      for (const { id, ...verdict } of verdicts) {
+        await tx.evalResult.updateMany({
+          where: { id, teamId, experimentRunId: runId, score: null, reason: null, judgeTraceId: null },
+          data: verdict,
+        });
+      }
     });
   }
 
@@ -480,12 +608,19 @@ export class RunsRepository {
    *
    * @param runId - Run UUID.
    * @param grid - The resolved grid cells (`RunGridCell[]`, cast by the caller).
+   * @param gradingSnapshot - The run-level grading inputs frozen alongside the
+   *   grid (`{ overallFeedback }`), which a re-judge grades with. Left unchanged
+   *   when omitted.
    * @returns The updated run row.
    */
-  async setRunGrid(runId: string, grid: Prisma.InputJsonValue): Promise<Prisma.ExperimentRunGetPayload<{}>> {
+  async setRunGrid(
+    runId: string,
+    grid: Prisma.InputJsonValue,
+    gradingSnapshot?: Prisma.InputJsonValue,
+  ): Promise<Prisma.ExperimentRunGetPayload<{}>> {
     return prisma.experimentRun.update({
       where: { id: runId },
-      data: { grid },
+      data: { grid, ...(gradingSnapshot !== undefined ? { gradingSnapshot } : {}) },
     });
   }
 

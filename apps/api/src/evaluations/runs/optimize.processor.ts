@@ -270,7 +270,11 @@ export async function processOptimize(data: OptimizeJobData): Promise<void> {
     });
   }
 
-  await runsRepo.setRunGrid(data.runId, grid as unknown as Prisma.InputJsonValue);
+  // The overall feedback is frozen next to the grid, in the same value the cell
+  // jobs carry below, so a later re-judge grades with it too (issue #639).
+  await runsRepo.setRunGrid(data.runId, grid as unknown as Prisma.InputJsonValue, {
+    overallFeedback: dataset.overallFeedback,
+  });
 
   // How many times each cell (one gateway call) is attempted before it is
   // recorded as a terminal error — same knob/default as `RunsService.startRun`.

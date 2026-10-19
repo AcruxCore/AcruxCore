@@ -115,6 +115,36 @@ Response (status 200):
 }
 ```
 
+The examples above were captured before the response carried `versionId`. A current
+response:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/tools/resolve \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"refs":[{"name":"get_weather_632"}]}'
+```
+
+Response (status 200):
+
+```json
+{
+  "data": [
+    {
+      "toolId": "cb249b12-ea7d-45e0-98d2-23acee1df24b",
+      "versionId": "1b3e733d-469d-4722-b860-bc2958252077",
+      "versionNumber": 1,
+      "executorType": "client",
+      "function": {
+        "name": "get_weather_632",
+        "description": "Get today's weather for a city.",
+        "parameters": {"type":"object","required":["city"],"properties":{"city":{"type":"string","description":"City name, e.g. 'Lahore'."}}}
+      }
+    }
+  ]
+}
+```
+
 **Request fields**
 
 | Field | Required | Notes |
@@ -129,6 +159,7 @@ Response (status 200):
 | Field | Notes |
 |---|---|
 | `toolId` | Useful for linking to the tool in the dashboard. |
+| `versionId` | The resolved version's id. A tool span records this value as `toolVersionId`, whether the platform or your own code ran the tool. |
 | `versionNumber` | The immutable version the alias resolved to. Log it and a trace tells you exactly which spec the model saw. |
 | `executorType` | `client` or `http`. Tells the caller **who runs the tool**. |
 | `function` | Ready to drop into an OpenAI-style `tools[].function`. |

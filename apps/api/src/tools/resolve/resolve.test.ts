@@ -35,9 +35,12 @@ describe('POST /tools/resolve', () => {
       .send({ refs: [{ name: 'get_weather', alias: 'production' }] })
       .expect(200);
 
+    const version = await prisma.toolVersion.findFirstOrThrow({ where: { toolId } });
     expect(res.body.data).toHaveLength(1);
     expect(res.body.data[0]).toEqual({
       toolId,
+      // The version's own id, the same value an http tool span stamps (issue #632).
+      versionId: version.id,
       versionNumber: 1,
       executorType: 'client',
       function: { name: 'get_weather', description: 'Get the weather.', parameters: paramsSchema },
@@ -225,8 +228,10 @@ describe('POST /tools/resolve', () => {
       .send({ refs: [{ name: 'get_weather', version: 1 }] })
       .expect(200);
 
+    const v1 = await prisma.toolVersion.findFirstOrThrow({ where: { toolId, versionNumber: 1 } });
     expect(res.body.data[0]).toEqual({
       toolId,
+      versionId: v1.id,
       versionNumber: 1,
       executorType: 'client',
       function: { name: 'get_weather', description: 'v1 description.', parameters: paramsSchema },

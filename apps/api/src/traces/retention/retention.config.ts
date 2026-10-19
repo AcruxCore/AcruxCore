@@ -91,3 +91,34 @@ export function loadRetentionConfig(): RetentionConfig {
     cron: process.env.TRACE_PAYLOAD_PURGE_CRON || DEFAULT_PURGE_CRON,
   };
 }
+
+/** Default expired-cache sweep: every 15 minutes. */
+export const DEFAULT_CACHE_PURGE_CRON = '*/15 * * * *';
+
+/** Resolved expired-cache sweep configuration (issue #652). */
+export interface CachePurgeConfig {
+  /** Whether the repeatable sweep is registered at all. */
+  enabled: boolean;
+  /** Cron pattern, interpreted in UTC. */
+  cron: string;
+}
+
+/**
+ * Resolves the expired-cache sweep schedule from the environment.
+ *
+ * On by default in every environment, unlike the span-payload purge. That
+ * purge deletes content a user can still read, so it waits for production. The
+ * sweep deletes only rows the cache already refuses to serve, so running it
+ * locally loses nothing. `GATEWAY_CACHE_PURGE_ENABLED=false` turns it off.
+ *
+ * The 15-minute default bounds how long a response outlives its TTL. A daily
+ * run would keep a 60-second entry for up to a day.
+ *
+ * @returns The resolved {@link CachePurgeConfig}.
+ */
+export function loadCachePurgeConfig(): CachePurgeConfig {
+  return {
+    enabled: process.env.GATEWAY_CACHE_PURGE_ENABLED !== 'false',
+    cron: process.env.GATEWAY_CACHE_PURGE_CRON || DEFAULT_CACHE_PURGE_CRON,
+  };
+}

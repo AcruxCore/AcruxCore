@@ -1196,15 +1196,18 @@ export class GatewayNamespace {
           'TOOL_SCHEMA_ERROR',
         );
       }
+      const synced = options.sync !== false;
       let toolVersionId: string | undefined;
-      if (options.sync !== false) {
+      if (synced) {
         const result = await this.host.tools.syncOne(t);
-        toolVersionId = `${result.toolId}:${result.versionNumber}`;
+        // The version's own id, the value an http tool span records too (issue #632).
+        // An older API sends none, and the span then omits it.
+        toolVersionId = result.versionId;
       }
       routes.set(t.name, { kind: 'local', tool: t, alias: t.alias, toolVersionId });
       refs.push({ name: t.name, alias: t.alias });
       if (inlineSchemas && !t.description) {
-        if (toolVersionId) {
+        if (synced) {
           undescribed.push({ index: inlinedSchemas.length, ref: { name: t.name, alias: t.alias } });
         } else {
           console.warn(
@@ -1232,7 +1235,7 @@ export class GatewayNamespace {
         const item = resolved[index];
         if (!item) return;
         const name = item.function.name;
-        const versionId = `${item.toolId}:${item.versionNumber}`;
+        const versionId = item.versionId;
         if (routes.has(name)) return;
         const supplied = options.clientTools?.[name];
         if (item.executorType === 'http') {

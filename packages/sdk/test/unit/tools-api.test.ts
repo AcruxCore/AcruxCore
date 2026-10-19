@@ -369,19 +369,31 @@ describe('runToolLoop routing', () => {
    * Plays a full one-tool loop off a single URL-dispatching mock, recording every path
    * so a test can assert which round-trips did and did not happen.
    */
-  function installLoopFetch(opts: { executorType?: 'client' | 'http'; paths: string[] }): void {
+  function installLoopFetch(opts: {
+    executorType?: 'client' | 'http';
+    paths: string[];
+    /** Leave versionId out of the sync response, as an API older than issue #632 does. */
+    noVersionId?: boolean;
+  }): void {
     let completions = 0;
     vi.mocked(fetch).mockImplementation(async (url) => {
       const path = new URL(String(url)).pathname;
       opts.paths.push(path);
       if (path.endsWith('/tools/sync')) {
-        return json({ toolId: 't-1', versionNumber: 1, committed: true, alias: 'production' });
+        return json({
+          toolId: 't-1',
+          ...(opts.noVersionId ? {} : { versionId: 'tv-uuid-1' }),
+          versionNumber: 1,
+          committed: true,
+          alias: 'production',
+        });
       }
       if (path.endsWith('/tools/resolve')) {
         return json({
           data: [
             {
               toolId: 't-1',
+              versionId: 'tv-uuid-1',
               versionNumber: 1,
               executorType: opts.executorType ?? 'client',
               function: { name: 'get_weather', description: 'W.', parameters: {} },
@@ -586,7 +598,24 @@ describe('runToolLoop routing', () => {
     // The gap this closes: a tool span used to carry only { arguments }, so the trace
     // could not say which version of the tool ran.
     expect(span.attributes.executorType).toBe('client');
-    expect(span.attributes.toolVersionId).toBe('t-1:1');
+    // The version's own id, the same value an http tool span carries (issue #632);
+    // never the `<toolId>:<versionNumber>` composite it used to be.
+    expect(span.attributes.toolVersionId).toBe('tv-uuid-1');
+  });
+
+  it('omits toolVersionId when an older API sends no versionId (issue #632)', async () => {
+    const weather = acrux.tool(
+      { name: 'get_weather', description: 'W.', parameters: z.object({ city: z.string() }) },
+      async () => ({ tempC: 30 }),
+    );
+    installLoopFetch({ paths: [], noVersionId: true });
+
+    await hub.gateway.runToolLoop({ model: 'm', messages: [{ role: 'user', content: '?' }], tools: [weather] });
+
+    const traceCall = vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith('/traces'));
+    const span = JSON.parse((traceCall?.[1] as RequestInit).body as string).traces[0].spans[0];
+    expect(span.attributes.executorType).toBe('client');
+    expect(span.attributes).not.toHaveProperty('toolVersionId');
   });
 
   it('sync false skips reconciliation', async () => {

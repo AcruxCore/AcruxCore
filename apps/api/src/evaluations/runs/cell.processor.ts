@@ -10,7 +10,7 @@ import { GatewayService } from '../../gateway/completions/gateway.service';
 import { GatewayRepository } from '../../gateway/completions/gateway.repository';
 import { ConnectionsRepository } from '../../gateway/connections/connections.repository';
 import type { GatewayCallContext } from '../../gateway/completions/completions.types';
-import type { ChatMessage } from '../../gateway/providers/types';
+import type { ChatMessage, ImageContentPart } from '../../gateway/providers/types';
 import { UnrecoverableError } from 'bullmq';
 import { imagePartsOf } from '../../gateway/completions/rendered-images';
 import { NotFoundError, ValidationError } from '../../shared/errors';
@@ -69,13 +69,18 @@ function spliceHistory(rendered: RenderedMessage[], history: ChatMessage[] | nul
  * as before. Both lookups are team-scoped so a queue payload can never read
  * another team's template.
  *
- * @param data - The cell job payload.
+ * Exported for the re-judge path (issue #639), which rebuilds the images a
+ * finished cell's model was shown from the same template.
+ *
+ * @param data - The cell job payload, or the same fields read off a result row.
  * @returns The unrendered OpenAI-shaped message template.
  * @throws {NotFoundError} If the discriminated id (`promptCandidateId` or
  *   `promptVersionId`) is missing, or the row it names does not exist or
  *   belongs to a different team than `data.teamId`.
  */
-async function resolveCellMessages(data: CellJobData): Promise<MessageInput[]> {
+export async function resolveCellMessages(
+  data: Pick<CellJobData, 'teamId' | 'cellKey' | 'variantKind' | 'promptVersionId' | 'promptCandidateId'>,
+): Promise<MessageInput[]> {
   if (data.variantKind === 'candidate') {
     if (!data.promptCandidateId) {
       throw new NotFoundError(`Cell ${data.cellKey} is variantKind 'candidate' but carries no promptCandidateId`);
@@ -232,6 +237,24 @@ export async function processCell(data: CellJobData): Promise<void> {
       backoff: { type: 'exponential', delay: 1000 },
     },
   );
+}
+
+/**
+ * The image parts a cell's model was shown: its template rendered against the
+ * example's input, as `processCell` renders it. Rendering is deterministic, so a
+ * re-judge (issue #639) gets the same images the first judge job carried without
+ * a copy of them being stored anywhere.
+ *
+ * @param data - The cell's team and the fields that locate its template.
+ * @param input - The example's frozen input variables.
+ * @returns The image parts, or an empty array for a text-only cell.
+ * @throws {NotFoundError} If the cell's prompt version or candidate is gone.
+ */
+export async function renderedImagesForCell(
+  data: Pick<CellJobData, 'teamId' | 'cellKey' | 'variantKind' | 'promptVersionId' | 'promptCandidateId'>,
+  input: Record<string, unknown>,
+): Promise<ImageContentPart[]> {
+  return imagePartsOf(await renderMessages(await resolveCellMessages(data), input));
 }
 
 /**

@@ -976,6 +976,15 @@ export interface ExperimentListResponse {
   data: Experiment[];
 }
 
+/** `POST /runs/:id/rejudge` response (issue #639). */
+export interface RejudgeRunResponse {
+  run_id: string;
+  /** `running` when judge jobs were queued; the run's unchanged status when none were. */
+  status: RunStatus;
+  /** How many results were sent back to the judge. */
+  rejudging: number;
+}
+
 /**
  * Response for both `POST /experiments/:id/runs` and `POST
  * /prompts/:promptId/optimize` — both endpoints enqueue a run and return

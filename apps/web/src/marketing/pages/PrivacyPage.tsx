@@ -102,8 +102,9 @@ export function PrivacyPage(): ReactNode {
           calls. We also stop naming new traces by the first words of the message. We keep trace
           metadata, such as the model, token counts and cost of each call, while your account
           exists. We also keep audit log events while your account exists. If you turn on response
-          caching for a gateway key, we store each cached model response until you clear the cache.
-          The Capture payloads setting does not change this. You can delete resources you created at
+          caching for a gateway key, we store each cached model response for the cache time set on
+          that key. We delete the response within 15 minutes after that time ends, or earlier if you
+          clear the cache. The Capture payloads setting does not change this. You can delete resources you created at
           any time. Deleting your account removes associated data, subject to backups and legal
           requirements.
         </p>

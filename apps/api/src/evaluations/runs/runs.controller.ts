@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { RunsService } from './runs.service';
-import { RunCompareQuerySchema, RunListQuerySchema } from './runs.types';
+import { RejudgeRunBodySchema, RunCompareQuerySchema, RunListQuerySchema } from './runs.types';
 import { ValidationError } from '../../shared/errors';
 
 /**
@@ -18,6 +18,24 @@ export class RunsController {
       const userId = req.user?.id ?? null;
       const result = await this.service.startRun(req.teamId!, userId, req.params.id);
       res.status(202).json({ run_id: result.runId, status: result.status });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /**
+   * `POST /runs/:id/rejudge` (issue #639): sends a finished run's outputs back to
+   * its judge. 202 when judge jobs were queued; 200 when nothing matched, since
+   * nothing was started.
+   */
+  rejudge = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const parsed = RejudgeRunBodySchema.safeParse(req.body ?? {});
+      if (!parsed.success) throw new ValidationError(parsed.error.issues[0].message);
+      const result = await this.service.rejudgeRun(req.teamId!, req.params.id, parsed.data);
+      res
+        .status(result.rejudging > 0 ? 202 : 200)
+        .json({ run_id: result.runId, status: result.status, rejudging: result.rejudging });
     } catch (err) {
       next(err);
     }

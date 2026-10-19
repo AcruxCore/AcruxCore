@@ -102,6 +102,7 @@ describe('route policy', () => {
 
       'DELETE /api/v1/runs/:id': 'requireRole(owner|admin|editor)',
       'POST /api/v1/runs/:id/promote': 'requireRole(owner|admin|editor)',
+      'POST /api/v1/runs/:id/rejudge': 'requireRole(owner|admin|editor)',
       'POST /api/v1/runs/:id/results': 'requireRole(owner|admin|editor)',
       'POST /api/v1/runs/:id/finish': 'requireRole(owner|admin|editor)',
 

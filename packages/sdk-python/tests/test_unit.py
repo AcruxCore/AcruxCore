@@ -1884,6 +1884,7 @@ def tool_loop_handler(
                 200,
                 json={
                     "toolId": "t-1",
+                    "versionId": "tv-uuid-1",
                     "versionNumber": 1,
                     "committed": True,
                     "alias": "production",
@@ -1896,6 +1897,7 @@ def tool_loop_handler(
                     "data": [
                         {
                             "toolId": "t-1",
+                            "versionId": "tv-uuid-1",
                             "versionNumber": 1,
                             "executorType": executor_type,
                             "function": {
@@ -2108,7 +2110,37 @@ async def test_loop_records_the_tool_version_on_a_locally_run_span():
     # The gap this closes: a tool span used to carry only {"arguments": ...}, so the
     # trace could not say which version of the tool ran.
     assert span["attributes"]["executorType"] == "client"
-    assert span["attributes"]["toolVersionId"] == "t-1:1"
+    # The version's own id, the same value an http tool span carries (issue #632);
+    # never the "<toolId>:<versionNumber>" composite it used to be.
+    assert span["attributes"]["toolVersionId"] == "tv-uuid-1"
+
+
+async def test_loop_omits_tool_version_id_when_an_older_server_sends_none():
+    """An API from before issue #632 returns no versionId. The span then carries no
+    toolVersionId at all, rather than a value in a second format."""
+    get_weather = _weather_tool()
+
+    reported: List[Dict[str, Any]] = []
+    inner = tool_loop_handler()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/traces"):
+            reported.append(json.loads(request.content))
+        response = inner(request)
+        if request.url.path.endswith("/tools/sync"):
+            body = json.loads(response.content)
+            body.pop("versionId")
+            return httpx.Response(200, json=body)
+        return response
+
+    async with make_client(handler) as client:
+        await client.gateway.run_tool_loop(
+            model="m", messages=[{"role": "user", "content": "?"}], tools=[get_weather]
+        )
+
+    span = reported[0]["traces"][0]["spans"][0]
+    assert span["attributes"]["executorType"] == "client"
+    assert "toolVersionId" not in span["attributes"]
 
 
 async def test_tool_defs_carries_raw_openai_definitions_and_needs_dispatch():

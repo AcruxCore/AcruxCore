@@ -164,6 +164,11 @@ export type ToolVersionSource = 'code' | 'dashboard' | 'api';
 export interface ToolSyncResult {
   /** The catalog tool, created by the call if the name was new. */
   toolId: string;
+  /**
+   * The id of the version the alias points at — the value a tool span records as
+   * `toolVersionId`. Absent only from an API older than this field.
+   */
+  versionId?: string;
   /** The version the alias points at after the call. */
   versionNumber: number;
   /** `false` when the submitted spec already matched the live one. */
@@ -194,6 +199,11 @@ export interface ToolRef {
 export interface ResolvedTool {
   /** The tool's id — what `tools.execute` needs. */
   toolId: string;
+  /**
+   * The resolved version's id — the value a tool span records as `toolVersionId`.
+   * Absent only from an API older than this field.
+   */
+  versionId?: string;
   /** The immutable version the ref's alias resolved to. */
   versionNumber: number;
   /** `'client'` (you run it) or `'http'` (the platform can). */

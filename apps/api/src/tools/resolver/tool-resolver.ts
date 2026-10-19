@@ -43,6 +43,12 @@ export interface ToolRef {
  */
 export interface DetailedResolvedTool {
   toolId: string;
+  /**
+   * The resolved version's own id (`tool_versions.id`). An SDK stamps it as a
+   * client-run tool span's `toolVersionId`, the same value an `http` span carries
+   * (issue #632).
+   */
+  versionId: string;
   versionNumber: number;
   executorType: 'client' | 'http';
   function: { name: string; description?: string; parameters: Record<string, unknown> };
@@ -312,6 +318,7 @@ export class ToolResolver {
       const description = version.description ?? tool.description ?? undefined;
       out.push({
         toolId: tool.id,
+        versionId: version.id,
         versionNumber: version.versionNumber,
         executorType: executor.type,
         function: {

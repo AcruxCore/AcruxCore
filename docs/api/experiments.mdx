@@ -33,11 +33,12 @@ marks the run `succeeded` or `failed`.
 
 Auth: `requireAnyAuth` (session cookie or personal/team API key) on every
 route. `GET` routes are open to any member. `POST /experiments`,
-`DELETE /experiments/:id`, `POST /experiments/:id/runs` and `DELETE /runs/:id`
-additionally require `requireRole('owner', 'admin', 'editor')` — starting a run
-enqueues one paid provider call per (version × model × example) cell, so it is
-not a read-only action. A **team-scoped** API key holds no role and is refused
-on those four; use a personal key from an editor account. Team-scoped
+`DELETE /experiments/:id`, `POST /experiments/:id/runs`, `DELETE /runs/:id` and
+`POST /runs/:id/rejudge` additionally require `requireRole('owner', 'admin', 'editor')` —
+starting a run enqueues one paid provider call per (version × model × example)
+cell, and a re-judge one paid judge call per result, so neither is a read-only
+action. A **team-scoped** API key holds no role and is refused on those five; use
+a personal key from an editor account. Team-scoped
 throughout.
 
 Verified with `apps/api` running via `npm run dev` and a real, separately
@@ -1522,6 +1523,129 @@ curl -X DELETE -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
 
 ```json
 { "error": { "code": "NOT_FOUND", "message": "Experiment not found." } }
+```
+
+---
+
+### POST /api/v1/runs/:id/rejudge
+
+Sends a finished run's existing outputs back to its judge. The models under test
+are not called again, so only the judge calls are billed. Use it when the judge
+provider failed or ran out of quota part-way through a run, and the run ended with
+results that have no score.
+
+The judge grades with what the run started with: the judge model, the custom judge
+prompt version if there was one, each example's criteria and history, and the
+dataset's overall feedback. Editing the dataset after the run does not change what
+a re-judge grades against.
+
+The run goes back to `running`. The chosen results lose their old verdicts, and the
+run settles again as `succeeded` or `failed` when the new verdicts are in. Poll
+`GET /runs/:id` to follow it.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="curl">
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/runs/c4c624f8-5087-4ca3-8903-bc0ed08c126f/rejudge \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"only_unscored": false}'
+```
+
+</TabItem>
+<TabItem value="node" label="TypeScript">
+
+```typescript
+await hub.runs.rejudge('c4c624f8-5087-4ca3-8903-bc0ed08c126f', { onlyUnscored: false });
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+await hub.runs.rejudge('c4c624f8-5087-4ca3-8903-bc0ed08c126f', only_unscored=False)
+```
+
+</TabItem>
+</Tabs>
+
+Response (status 202):
+
+```json
+{"run_id":"c4c624f8-5087-4ca3-8903-bc0ed08c126f","status":"running","rejudging":3}
+```
+
+With an empty body, only results that have no score are sent. When every result
+already has a score, nothing is queued and the run is left as it was:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/runs/c4c624f8-5087-4ca3-8903-bc0ed08c126f/rejudge \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+Response (status 200):
+
+```json
+{"run_id":"c4c624f8-5087-4ca3-8903-bc0ed08c126f","status":"succeeded","rejudging":0}
+```
+
+**Fields**
+
+| Field | Required | Notes |
+|---|---|---|
+| `only_unscored` | no | Defaults to `true`: grade only results with no score. `false` grades every result that has an output again, and replaces the existing scores. A result whose model call failed has no output and is never sent. |
+
+**Response**
+
+| Field | Notes |
+|---|---|
+| `run_id` | The run. |
+| `status` | `running` when judge calls were queued; the run's unchanged status when none were. |
+| `rejudging` | How many results were sent to the judge. |
+
+#### Error responses
+
+The run has not finished (status 409):
+
+```json
+{"error":{"code":"RUN_IN_FLIGHT","message":"This run is still running. Wait for it to finish, then re-judge it."}}
+```
+
+`only_unscored` is not a boolean (status 400):
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"Expected boolean, received string"}}
+```
+
+Some cells of the run never produced a result, for example because the run failed
+before they ran (status 409). A re-judge grades existing results only, so start a new
+run instead:
+
+```json
+{"error":{"code":"RUN_INCOMPLETE","message":"This run has 2 of 3 results, because some cells never ran. A re-judge grades existing results only. Start a new run instead."}}
+```
+
+A judge call for one of the run's results is still queued or waiting to retry
+(status 409):
+
+```json
+{"error":{"code":"JUDGE_PENDING","message":"A judge job for this run is still queued or retrying. Wait for it to settle, then re-judge."}}
+```
+
+The run was made by `runLocal` / `run_local`, so its scores come from your own code
+(status 409):
+
+```json
+{"error":{"code":"LOCAL_EXPERIMENT","message":"This is a local run: its scores come from your own code through the SDK, so there is no server judge to run again."}}
+```
+
+The run's judge model has been removed from the team since the run (status 400):
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"Model 'judge-639' is not registered. Add it under Gateway → Models."}}
 ```
 
 ---

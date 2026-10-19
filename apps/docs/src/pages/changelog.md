@@ -40,6 +40,19 @@ called out in the week it ships and in the SDK release notes.
 - The matrix shows the cell fields, and the run's warning names the run-wide cause.
   [Reference →](/api-reference/experiments#cells-with-failed-or-unscored-examples)
 
+#### Re-judge a finished run without calling its models again
+
+- `POST /runs/:id/rejudge` sends a run's outputs back to its judge. Only judge calls are billed.
+- By default only unscored results are graded; `only_unscored: false` grades every result.
+- The run report adds a re-judge button, and both SDKs add `runs.rejudge`.
+  [Reference →](/api-reference/experiments#post-apiv1runsrejudge)
+
+#### Tool spans record the real tool version id
+
+- **Fixed** — SDK spans for tools run in your code set `toolVersionId` to `toolId:number`.
+- `/tools/sync` and `/tools/resolve` now return `versionId`, and the next SDK release records it.
+- Spans recorded before you upgrade the SDK keep the old value.
+
 #### One failing online rule no longer blocks the others
 
 - **Fixed** — when one rule's judge call failed, the other rules never scored that span.
@@ -49,6 +62,7 @@ called out in the week it ships and in the SDK release notes.
 ### Minor
 
 - **Fixed** — with Capture payloads off, new traces were still named by the message's first words.
+- **Fixed** — expired cached gateway responses stayed stored. They are now deleted within 15 minutes.
 - **Fixed** — `x-gateway-cost-usd` showed float noise such as `0.00005909999999999999`.
 - **Fixed** — a blank `EMAIL_TRANSPORT=` line crashed the API at boot instead of using the default.
 - **Fixed** — saving a rule whose judge prompt was deleted switched it to the built-in judge.

@@ -31,6 +31,7 @@ import type {
   RunReport,
   RunStatus,
   StartRunResponse,
+  RejudgeRunResponse,
   UpdateDatasetInput,
 } from './types';
 
@@ -234,6 +235,30 @@ export function useDeleteRun() {
   return useMutation({
     mutationFn: (id: string) => api<{ success: true }>(`/runs/${id}`, { method: 'DELETE' }),
     onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ['runs'] });
+      qc.invalidateQueries({ queryKey: keys.run(id) });
+      qc.invalidateQueries({ queryKey: keys.runReport(id) });
+    },
+  });
+}
+
+/**
+ * Sends a finished run's existing outputs back to its judge (issue #639): the
+ * judge is graded again, the models under test are not called. `onlyUnscored`
+ * (default true) limits it to results with no score. Invalidates the run and its
+ * report, whose polling then resumes while the run is `running` again, and every
+ * `runs` list query.
+ *
+ * Rejects with a 409 `RUN_IN_FLIGHT` while the run is still queued or running,
+ * `RUN_INCOMPLETE` when some of its cells never produced a result, and
+ * `JUDGE_PENDING` while one of its judge jobs is still retrying.
+ */
+export function useRejudgeRun(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (onlyUnscored: boolean) =>
+      api<RejudgeRunResponse>(`/runs/${id}/rejudge`, { method: 'POST', body: { only_unscored: onlyUnscored } }),
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['runs'] });
       qc.invalidateQueries({ queryKey: keys.run(id) });
       qc.invalidateQueries({ queryKey: keys.runReport(id) });

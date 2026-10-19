@@ -150,6 +150,21 @@ export interface StartRunResult {
   status: string;
 }
 
+/** Options for {@link RunsNamespace.rejudge}. */
+export interface RejudgeRunOptions {
+  /** Grade only results that have no score (default `true`). `false` re-grades every result with an output. */
+  onlyUnscored?: boolean;
+}
+
+/** What `runs.rejudge` reports. */
+export interface RejudgeRunResult {
+  runId: string;
+  /** `running` when judge jobs were queued; the run's unchanged status when none were. */
+  status: string;
+  /** How many results were sent back to the judge. `0` means nothing matched. */
+  rejudging: number;
+}
+
 export interface ListRunsParams {
   status?: string;
   datasetId?: string;

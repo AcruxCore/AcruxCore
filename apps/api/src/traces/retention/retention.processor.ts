@@ -1,7 +1,12 @@
 import { RetentionRepository } from './retention.repository';
-import { RETENTION_PURGE_JOB, type RetentionJobData } from './retention.queue';
+import { CACHE_PURGE_JOB, RETENTION_PURGE_JOB, type RetentionJobData } from './retention.queue';
+// The concrete file, not the `gateway/cache` barrel: the barrel re-exports the
+// cache router, and this processor runs inside apps/worker, which stays
+// Express-free.
+import { CacheRepository } from '../../gateway/cache/cache.repository';
 
 const repo = new RetentionRepository();
+const cacheRepo = new CacheRepository();
 
 /**
  * Purges every `span_payloads` row older than the configured retention
@@ -22,10 +27,12 @@ export async function processRetentionPurge(
 
 /**
  * Runs one retention-queue job, routed by job name — mirrors `processDigest`'s
- * shape so the same single-Worker-per-queue pattern applies here too.
+ * shape so the same single-Worker-per-queue pattern applies here too. Two jobs
+ * share the queue: the span-payload purge and the expired-cache sweep
+ * (issue #652).
  *
  * @param name - The BullMQ job name.
- * @param _data - The job payload (unused — the purge job carries no data).
+ * @param _data - The job payload (unused — neither job carries data).
  * @param config - The resolved retention config.
  * @param now - Dispatch time. Injectable for tests.
  * @throws {Error} On an unknown job name (a stale job from a previous build).
@@ -39,6 +46,12 @@ export async function processRetentionJob(
   if (name === RETENTION_PURGE_JOB) {
     const deleted = await processRetentionPurge(config, now);
     console.log(`[trace-retention] purged ${deleted} span_payloads row(s) older than ${config.retentionDays}d`);
+    return;
+  }
+
+  if (name === CACHE_PURGE_JOB) {
+    const deleted = await cacheRepo.purgeExpired(now);
+    console.log(`[gateway-cache] purged ${deleted} expired gateway_cache row(s)`);
     return;
   }
 

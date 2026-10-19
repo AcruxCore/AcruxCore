@@ -23,6 +23,7 @@ from .eval_types import (
     RunReport,
     StartOptimizeResult,
     StartRunResult,
+    RejudgeRunResult,
 )
 from .local_experiments import LocalRunResult, run_local_experiment
 
@@ -390,6 +391,35 @@ class RunsNamespace:
             f"/runs/{quote(run_id, safe='')}",
             None,
             "deleting run",
+        )
+
+    async def rejudge(self, run_id: str, *, only_unscored: bool = True) -> RejudgeRunResult:
+        """Send a finished run's existing outputs back to its judge.
+
+        The models under test are not called again, so only the judge calls are
+        billed — the way to recover a run whose judge provider failed or ran out of
+        quota. Grades with the judge, judge prompt version, criteria and overall
+        feedback the run started with. Poll :meth:`get` until the run settles again.
+
+        :param run_id: The run's id.
+        :param only_unscored: Grade only results with no score (default). ``False``
+            re-grades every result that has an output.
+        :returns: The run's status and how many results were queued; ``rejudging=0``
+            means nothing matched and the run was left as it was.
+        :raises AcruxCoreError: With ``status_code`` 409 while the run is queued or
+            running (the body's ``error.code`` is ``RUN_IN_FLIGHT``), when some cells
+            never produced a result (``RUN_INCOMPLETE``), while one of its judge jobs
+            is still retrying (``JUDGE_PENDING``), and for a local run
+            (``LOCAL_EXPERIMENT``).
+        """
+        response = await self._client._request(
+            "POST",
+            f"/runs/{quote(run_id, safe='')}/rejudge",
+            {"only_unscored": only_unscored},
+            "re-judging run",
+        )
+        return RejudgeRunResult.from_dict(
+            self._client._parse_json_or_throw(response, "re-judging run")
         )
 
     async def get_report(self, run_id: str) -> RunReport:

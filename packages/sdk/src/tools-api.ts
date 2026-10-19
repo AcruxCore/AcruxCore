@@ -171,6 +171,7 @@ export class ToolsNamespace {
     if (cached) {
       return {
         toolId: cached.toolId,
+        ...(cached.versionId ? { versionId: cached.versionId } : {}),
         versionNumber: cached.versionNumber,
         committed: false,
         alias: cached.alias,
@@ -194,6 +195,7 @@ export class ToolsNamespace {
     const data = (await this.client._parseJsonOrThrow(response, 'syncing tool')) as ToolSyncResult;
     const result: ToolSyncResult = {
       toolId: data.toolId,
+      ...(data.versionId ? { versionId: data.versionId } : {}),
       versionNumber: data.versionNumber,
       committed: Boolean(data.committed),
       alias: data.alias,

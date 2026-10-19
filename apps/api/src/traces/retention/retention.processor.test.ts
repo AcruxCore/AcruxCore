@@ -1,9 +1,10 @@
 import prisma from '../../shared/db/client';
 import { processRetentionPurge } from './retention.processor';
 import { RETENTION_PURGE_JOB } from './retention.queue';
+import { CacheRepository } from '../../gateway/cache/cache.repository';
 
 async function truncate(): Promise<void> {
-  await prisma.$executeRaw`TRUNCATE TABLE span_payloads, spans, traces, team_trace_settings, audit_log, teams, users RESTART IDENTITY CASCADE`;
+  await prisma.$executeRaw`TRUNCATE TABLE gateway_cache, span_payloads, spans, traces, team_trace_settings, audit_log, teams, users RESTART IDENTITY CASCADE`;
 }
 
 async function seedPayload(createdAt: Date): Promise<string> {
@@ -52,5 +53,46 @@ describe('processRetentionPurge', () => {
     await processRetentionJob(RETENTION_PURGE_JOB, {}, { retentionDays: 90 }, now);
 
     expect(await prisma.spanPayload.findUnique({ where: { spanId: old } })).toBeNull();
+  });
+});
+
+describe('expired gateway_cache sweep (issue #652)', () => {
+  async function seedCacheRow(teamId: string, cacheKey: string, expiresAt: Date): Promise<void> {
+    await prisma.gatewayCache.create({
+      data: {
+        teamId,
+        cacheKey,
+        response: { choices: [{ message: { role: 'assistant', content: 'cached answer' } }] },
+        promptTokens: 1,
+        completionTokens: 1,
+        expiresAt,
+      },
+    });
+  }
+
+  it('deletes cache rows whose TTL has passed and keeps live ones', async () => {
+    const { processRetentionJob } = await import('./retention.processor');
+    const now = new Date('2026-10-19T08:00:00Z');
+    const team = await prisma.team.create({ data: { name: 'Cache Sweep Team' } });
+    await seedCacheRow(team.id, 'expired', new Date('2026-10-19T07:59:00Z'));
+    await seedCacheRow(team.id, 'live', new Date('2026-10-19T08:01:00Z'));
+
+    await processRetentionJob('purge-expired-gateway-cache', {}, { retentionDays: 90 }, now);
+
+    const left = await prisma.gatewayCache.findMany({ where: { teamId: team.id }, select: { cacheKey: true } });
+    expect(left.map((r) => r.cacheKey)).toEqual(['live']);
+  });
+
+  it('deletes a backlog larger than one batch, a batch per statement', async () => {
+    const now = new Date('2026-10-19T08:00:00Z');
+    const team = await prisma.team.create({ data: { name: 'Cache Backlog Team' } });
+    for (let i = 0; i < 5; i++) await seedCacheRow(team.id, `old-${i}`, new Date('2026-09-01T00:00:00Z'));
+    await seedCacheRow(team.id, 'live', new Date('2026-10-19T09:00:00Z'));
+
+    const deleted = await new CacheRepository().purgeExpired(now, 2);
+
+    expect(deleted).toBe(5);
+    const left = await prisma.gatewayCache.findMany({ where: { teamId: team.id }, select: { cacheKey: true } });
+    expect(left.map((r) => r.cacheKey)).toEqual(['live']);
   });
 });

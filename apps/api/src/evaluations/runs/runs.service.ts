@@ -6,7 +6,18 @@ import { PromptsRepository } from '../../prompts/prompts.repository';
 import { AliasesService } from '../../prompts/aliases/aliases.service';
 import { VersionsRepository } from '../../prompts/versions/versions.repository';
 import { MembersRepository } from '../../teams/members/members.repository';
-import { getFlowProducer, EVAL_CELLS_QUEUE, EVAL_RUNS_QUEUE, finalizeJobOpts } from '../queue';
+import {
+  getFlowProducer,
+  getJudgeQueue,
+  getRunsQueue,
+  hasUnsettledJudgeJob,
+  judgeJobId,
+  EVAL_CELLS_QUEUE,
+  EVAL_RUNS_QUEUE,
+  finalizeJobOpts,
+  type JudgeJobData,
+} from '../queue';
+import { renderedImagesForCell } from './cell.processor';
 import { AppError, ConflictError, NotFoundError, ValidationError } from '../../shared/errors';
 import { buildRunReport } from './report.aggregate';
 import { compareCells, selectNamedScore } from './run-compare.aggregate';
@@ -26,6 +37,8 @@ import type {
   RunCompareDto,
   RunCompareQuery,
   RunNamedScore,
+  RejudgeRunDto,
+  RejudgeRunResult,
 } from './runs.types';
 import type { RunReport } from './report.types';
 import { assertModelRegistered, resolveJudgePromptVersion } from '../judge';
@@ -133,6 +146,9 @@ export class RunsService {
       // says which judge graded it after the experiment or alias moves on.
       judgeModel,
       judgePromptVersionId: judgePromptVersionId ?? null,
+      // The same overall feedback every cell job carries below, frozen on the run
+      // too, so a re-judge after the jobs are gone grades with it (issue #639).
+      gradingSnapshot: { overallFeedback: dataset.overallFeedback },
     });
 
     await getFlowProducer().add({
@@ -322,6 +338,177 @@ export class RunsService {
     }
 
     await this.runsRepo.deleteRun(teamId, runId);
+  }
+
+  /**
+   * Sends a finished run's existing outputs back to the judge, without calling
+   * the models under test again (issue #639).
+   *
+   * The judge is the cheapest step of a run to repeat, and before this it was the
+   * only one that could not be repeated alone: a judge outage, an exhausted quota
+   * or a wrong judge prompt meant starting a new run and paying for every cell
+   * again, with different outputs to compare.
+   *
+   * Grades with what the run froze at start — its judge model, its judge prompt
+   * version, each example's criteria and history, and the overall feedback — so a
+   * re-judged score means what a first-time score on that run means. A run created
+   * before the overall feedback was frozen on the run reads the dataset's current
+   * value instead. The images a cell's model was shown are rebuilt from its
+   * template, as `processCell` built them.
+   *
+   * The run goes back to `running` with a fresh `startedAt` (so the stale-run reaper
+   * measures from this pass), the chosen results lose their verdicts, and a finalize
+   * job is queued beside the judge jobs; the run settles exactly as a new run does.
+   * The finished-run email is not sent again (its dedupe key is the run). If the
+   * jobs cannot be queued, the run and the verdicts are put back as they were.
+   *
+   * @param teamId - Isolation boundary.
+   * @param runId - UUID of the run.
+   * @param dto - `only_unscored` (default true): limit to results with no score.
+   * @returns The run id, its status, and how many results were sent to the judge.
+   *   Zero means nothing matched; the run is left exactly as it was.
+   * @throws {NotFoundError} If the run does not exist for this team.
+   * @throws {ConflictError} `LOCAL_EXPERIMENT` for a local run, which the server
+   *   never judged; `RUN_IN_FLIGHT` while the run is queued or running;
+   *   `RUN_INCOMPLETE` when some grid cells never produced a result;
+   *   `JUDGE_PENDING` while one of the chosen results still has a judge job queued
+   *   or retrying.
+   * @throws {ValidationError} If the run records no judge model, or that model is
+   *   no longer registered.
+   */
+  async rejudgeRun(teamId: string, runId: string, dto: RejudgeRunDto): Promise<RejudgeRunResult> {
+    const run = await this.runsRepo.getRunForRejudge(teamId, runId);
+    if (!run) throw new NotFoundError('Run not found.');
+
+    if ((run.experiment.config as { kind?: string } | null)?.kind === 'local') {
+      throw new ConflictError(
+        'LOCAL_EXPERIMENT',
+        'This is a local run: its scores come from your own code through the SDK, so there is no server judge to run again.',
+      );
+    }
+    if (run.status === 'queued' || run.status === 'running') {
+      throw new ConflictError(
+        'RUN_IN_FLIGHT',
+        `This run is still ${run.status}. Wait for it to finish, then re-judge it.`,
+      );
+    }
+    if (!run.judgeModel) {
+      throw new ValidationError(
+        'This run records no judge model — it was created before judges were recorded on the run. Start a new run instead.',
+      );
+    }
+    // The model may have been removed since the run; say so now rather than let
+    // every judge job fail the same way in the worker.
+    await assertModelRegistered(teamId, run.judgeModel);
+
+    // Finalize settles a run only once every grid cell has a result. A run that
+    // lost cell jobs is short of that, and a re-judge creates no results, so its
+    // finalize would wait and then fail the run again after the judge calls were paid.
+    const expectedCells =
+      (run.grid as unknown[]).length * (run.exampleSnapshot as unknown[]).length;
+    const { produced } = await this.runsRepo.countResultProgress(teamId, runId);
+    if (produced < expectedCells) {
+      throw new ConflictError(
+        'RUN_INCOMPLETE',
+        `This run has ${produced} of ${expectedCells} results, because some cells never ran. A re-judge grades existing results only. Start a new run instead.`,
+      );
+    }
+
+    const targets = await this.runsRepo.listRejudgeTargets(teamId, runId, dto.only_unscored);
+    if (targets.length === 0) return { runId, status: run.status, rejudging: 0 };
+
+    const resultIds = targets.map((t) => t.id);
+    // A result whose old judge job is still queued or waiting to retry would be
+    // graded twice, and its job cannot be replaced while it may still run.
+    if (await hasUnsettledJudgeJob(resultIds)) {
+      throw new ConflictError(
+        'JUDGE_PENDING',
+        'A judge job for this run is still queued or retrying. Wait for it to settle, then re-judge.',
+      );
+    }
+
+    const examples = new Map(
+      (run.exampleSnapshot as unknown as RunSnapshotExample[]).map((e) => [e.exampleId, e]),
+    );
+    const frozen = run.gradingSnapshot as { overallFeedback?: string | null } | null;
+    const overallFeedback = frozen
+      ? frozen.overallFeedback ?? null
+      : run.experiment.dataset.overallFeedback ?? null;
+
+    // Built before the run is reopened: a deleted prompt version fails here, with
+    // the run still finished and nothing changed.
+    const jobs: JudgeJobData[] = [];
+    for (const target of targets) {
+      const example = examples.get(target.datasetExampleId);
+      const images = example
+        ? await renderedImagesForCell(
+            {
+              teamId,
+              cellKey: target.variantLabel,
+              variantKind: target.variantKind,
+              promptVersionId: target.promptVersionId ?? undefined,
+              promptCandidateId: target.promptCandidateId ?? undefined,
+            },
+            example.input,
+          )
+        : [];
+      jobs.push({
+        teamId,
+        resultId: target.id,
+        criteria: example?.criteria ?? null,
+        history: (example?.history as JudgeJobData['history']) ?? null,
+        overallFeedback,
+        judgeModel: run.judgeModel,
+        ...(run.judgePromptVersionId ? { judgePromptVersionId: run.judgePromptVersionId } : {}),
+        ...(images.length > 0 ? { images } : {}),
+      });
+    }
+
+    // Judge jobs keep one fixed id per result and are kept after they finish, so
+    // the old ones must go first: BullMQ ignores an add whose id still exists.
+    // `hasUnsettledJudgeJob` above made sure each one is finished.
+    const judgeQueue = getJudgeQueue();
+    for (const id of resultIds) {
+      await (await judgeQueue.getJob(judgeJobId(id)))?.remove();
+    }
+
+    if (!(await this.runsRepo.reopenForRejudge(teamId, runId, resultIds))) {
+      // Another request reopened it between the status check and here.
+      throw new ConflictError('RUN_IN_FLIGHT', 'This run is already being re-judged.');
+    }
+
+    try {
+      // One `addBulk` is one Redis transaction: every judge job is queued, or none is.
+      await judgeQueue.addBulk(
+        jobs.map((job) => ({
+          name: 'judge',
+          data: job,
+          opts: {
+            jobId: judgeJobId(job.resultId),
+            // Same retry policy as the first judge job (`cell.processor`).
+            attempts: Number(process.env.EVAL_JUDGE_JOB_ATTEMPTS ?? 3),
+            backoff: { type: 'exponential' as const, delay: 1000 },
+          },
+        })),
+      );
+      await getRunsQueue().add('finalize', { teamId, runId }, finalizeJobOpts(jobs.length));
+    } catch (err) {
+      // Put the run back as it was, so a failed re-judge loses no scores. A judge
+      // job that was queued is removed first, so it cannot write onto the
+      // restored run; one that already started keeps the verdict it writes.
+      for (const id of resultIds) {
+        await (await judgeQueue.getJob(judgeJobId(id)).catch(() => undefined))?.remove().catch(() => undefined);
+      }
+      await this.runsRepo.restoreAfterFailedRejudge(
+        teamId,
+        runId,
+        { status: run.status, startedAt: run.startedAt, endedAt: run.endedAt, error: run.error },
+        targets.map(({ id, score, passed, reason, judgeTraceId }) => ({ id, score, passed, reason, judgeTraceId })),
+      );
+      throw err;
+    }
+
+    return { runId, status: 'running', rejudging: jobs.length };
   }
 
   /**

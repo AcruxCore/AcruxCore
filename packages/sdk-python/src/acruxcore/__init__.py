@@ -50,6 +50,7 @@ from .eval_types import (
     RunReport,
     StartOptimizeResult,
     StartRunResult,
+    RejudgeRunResult,
 )
 from .evaluations import (
     DatasetsNamespace,
@@ -252,6 +253,7 @@ __all__ = [
     "RunReport",
     "StartOptimizeResult",
     "StartRunResult",
+    "RejudgeRunResult",
     "DatasetsNamespace",
     "ExperimentsNamespace",
     "OptimizeNamespace",

@@ -104,6 +104,7 @@ export class ToolSyncService {
           return {
             result: {
               toolId: tool.id,
+              versionId: currentVersion.id,
               versionNumber: currentVersion.versionNumber,
               committed: false as const,
               alias: dto.alias,
@@ -167,6 +168,7 @@ export class ToolSyncService {
       return {
         result: {
           toolId: tool.id,
+          versionId: row.id,
           versionNumber,
           committed: true as const,
           alias: dto.alias,

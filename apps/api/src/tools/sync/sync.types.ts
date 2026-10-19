@@ -31,6 +31,12 @@ export type SyncToolDto = z.infer<typeof SyncToolBodySchema>;
 export interface SyncToolResult {
   /** The tool this spec belongs to, created by this call if the name was new. */
   toolId: string;
+  /**
+   * The id (`tool_versions.id`) of the version the alias points at after the call.
+   * An SDK stamps it as a client-run tool span's `toolVersionId`, the same value an
+   * `http` span carries (issue #632).
+   */
+  versionId: string;
   /** The version the alias points at after the call — the NEW one if `committed`. */
   versionNumber: number;
   /** False when the submitted spec already matched the live version. */

@@ -140,6 +140,7 @@ class ToolsNamespace:
                 committed=False,
                 alias=cached.alias,
                 superseded_source=None,
+                version_id=cached.version_id,
             )
 
         body: Dict[str, Any] = {

@@ -139,6 +139,8 @@ export type {
   ExperimentRunDto,
   CreateExperimentParams,
   StartRunResult,
+  RejudgeRunOptions,
+  RejudgeRunResult,
   ListRunsParams,
   RunListItemDto,
   RunListResponse,

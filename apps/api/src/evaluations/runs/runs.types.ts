@@ -54,6 +54,30 @@ export interface StartRunResult {
   status: string;
 }
 
+/**
+ * Validated body for `POST /runs/:id/rejudge` (issue #639).
+ *
+ * `only_unscored` defaults to true because the common case is a judge outage:
+ * re-grading only what has no score leaves every verdict that did land alone.
+ * `false` re-grades every result that has an output, for a judge that graded
+ * wrongly rather than not at all.
+ */
+export const RejudgeRunBodySchema = z
+  .object({
+    only_unscored: z.boolean().default(true),
+  })
+  .strict();
+export type RejudgeRunDto = z.infer<typeof RejudgeRunBodySchema>;
+
+/** What `RunsService.rejudgeRun` reports back. */
+export interface RejudgeRunResult {
+  runId: string;
+  /** `running` when judge jobs were queued; the run's unchanged status when none were. */
+  status: string;
+  /** How many results were sent back to the judge. */
+  rejudging: number;
+}
+
 /** Result-count summary returned alongside a run's status. */
 export interface RunResultsSummary {
   total: number;

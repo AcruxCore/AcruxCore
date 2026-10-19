@@ -1,4 +1,10 @@
-import { loadRetentionConfig, DEFAULT_RETENTION_DAYS, DEFAULT_PURGE_CRON } from './retention.config';
+import {
+  loadRetentionConfig,
+  loadCachePurgeConfig,
+  DEFAULT_RETENTION_DAYS,
+  DEFAULT_PURGE_CRON,
+  DEFAULT_CACHE_PURGE_CRON,
+} from './retention.config';
 
 describe('loadRetentionConfig', () => {
   const ORIGINAL_ENV = process.env;
@@ -96,5 +102,31 @@ describe('loadRetentionConfig', () => {
     const config = loadRetentionConfig();
     expect(config.retentionDays).toBe(1);
     expect(warnSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('loadCachePurgeConfig (issue #652)', () => {
+  const ORIGINAL_ENV = process.env;
+
+  beforeEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+    delete process.env.GATEWAY_CACHE_PURGE_ENABLED;
+    delete process.env.GATEWAY_CACHE_PURGE_CRON;
+  });
+
+  afterAll(() => {
+    process.env = ORIGINAL_ENV;
+  });
+
+  it('is on by default, outside production too, every 15 minutes', () => {
+    process.env.NODE_ENV = 'test';
+    expect(loadCachePurgeConfig()).toEqual({ enabled: true, cron: DEFAULT_CACHE_PURGE_CRON });
+    expect(DEFAULT_CACHE_PURGE_CRON).toBe('*/15 * * * *');
+  });
+
+  it('GATEWAY_CACHE_PURGE_ENABLED=false turns it off, and the cron is overridable', () => {
+    process.env.GATEWAY_CACHE_PURGE_ENABLED = 'false';
+    process.env.GATEWAY_CACHE_PURGE_CRON = '0 * * * *';
+    expect(loadCachePurgeConfig()).toEqual({ enabled: false, cron: '0 * * * *' });
   });
 });

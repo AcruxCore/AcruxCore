@@ -12,6 +12,19 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+### Added
+
+- `runs.rejudge(run_id, only_unscored=True)` sends a finished run's outputs back to its judge
+  without calling the models again. Returns a `RejudgeRunResult` (`run_id`, `status`, `rejudging`).
+- `ToolSyncResult.version_id` and `ResolvedTool.version_id`: the id of the tool version. `None`
+  from an older server.
+
+### Fixed
+
+- A tool span from a tool your own code ran (`tools=[...]`, or `tool_refs` with `client_tools` or
+  `dispatch`) recorded `toolVersionId` as `<tool_id>:<version_number>`. It now records the version's
+  id, the same value an `http` tool span carries. Against an older server the attribute is left out.
+
 ## 0.18.0 — 2026-10-17
 
 ### Added

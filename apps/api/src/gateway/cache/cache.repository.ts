@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import prisma from '../../shared/db/client';
 import type { NormalizedResponse, Usage } from '../providers/types';
 import type { StoredCacheRow } from './cache.types';
@@ -79,5 +79,32 @@ export class CacheRepository {
   async flushTeam(teamId: string): Promise<number> {
     const result = await prisma.gatewayCache.deleteMany({ where: { teamId } });
     return result.count;
+  }
+
+  /**
+   * Deletes every expired cache row, across all teams (issue #652).
+   *
+   * `lookup` already treats an expired row as a miss, so this changes no
+   * response. It exists because a row holds a full model output: a team that
+   * sets a short `cacheTtlSeconds` expects that output to be gone after the
+   * TTL, not kept until someone clears the cache.
+   *
+   * Deletes in batches of `batchSize` rows, each its own statement. The first
+   * sweep on a database meets every row that expired before the sweep existed,
+   * and one DELETE over all of them would hold a long transaction.
+   *
+   * @param now - Rows with `expires_at <= now` are deleted. Injectable for tests.
+   * @param batchSize - Rows per DELETE statement; must be positive.
+   * @returns The number of rows deleted.
+   */
+  async purgeExpired(now: Date = new Date(), batchSize = 1000): Promise<number> {
+    let total = 0;
+    for (;;) {
+      const deleted = await prisma.$executeRaw(Prisma.sql`
+        DELETE FROM gateway_cache
+         WHERE id IN (SELECT id FROM gateway_cache WHERE expires_at <= ${now} LIMIT ${batchSize})`);
+      total += deleted;
+      if (deleted < batchSize) return total;
+    }
   }
 }

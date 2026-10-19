@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Empty, PageSpinner, Spinner } from '@/ui';
-import { useRun, useRunReport } from '@/api';
+import { Button, Dialog, DialogFooter, Empty, PageSpinner, Spinner, useToast } from '@/ui';
+import { ApiError, useRejudgeRun, useRun, useRunReport } from '@/api';
 import type { RunReport, RunReportCell, RunStatus } from '@/api/types';
 import { LeaderboardMatrix } from './LeaderboardMatrix';
 import { NamedScoreTable } from './NamedScoreTable';
@@ -12,17 +13,22 @@ import { summarizeUnscored } from './matrix.helpers';
 /**
  * Status strip above the matrix: while a run is in flight, when it failed, and when it
  * succeeded with examples left unscored. Quiet once every example has a score.
+ *
+ * `action` sits at the strip's right edge on a finished run — the re-judge button
+ * (issue #639), shown only when there is something to re-judge.
  */
 function RunStatusBanner({
   status,
   error,
   cells,
   unscoredReason,
+  action,
 }: {
   status: RunStatus;
   error?: string | null;
   cells: RunReportCell[];
   unscoredReason?: RunReport['unscoredReason'];
+  action?: ReactNode;
 }) {
   if (status === 'queued' || status === 'running') {
     return (
@@ -44,13 +50,19 @@ function RunStatusBanner({
     // string must not render an empty red box (issue #504).
     const reason = error?.trim();
     return (
-      <div className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-[13px] text-danger" data-testid="run-status-banner">
-        <p>Run failed. Results below reflect whatever completed before the failure.</p>
-        {reason && (
-          <p className="mt-1 text-[12px] text-danger/85" data-testid="run-status-reason">
-            {reason}
-          </p>
-        )}
+      <div
+        className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-[13px] text-danger"
+        data-testid="run-status-banner"
+      >
+        <div className="min-w-0 flex-1">
+          <p>Run failed. Results below reflect whatever completed before the failure.</p>
+          {reason && (
+            <p className="mt-1 text-[12px] text-danger/85" data-testid="run-status-reason">
+              {reason}
+            </p>
+          )}
+        </div>
+        {action}
       </div>
     );
   }
@@ -62,17 +74,23 @@ function RunStatusBanner({
   // "Results", not "examples": a run with 3 examples on 2 models has 6 results, and the
   // counts here are results.
   return (
-    <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-[13px] text-warn" data-testid="run-unscored-banner">
-      <p>
-        {unscored} of {total} result{total === 1 ? '' : 's'} {unscored === 1 ? 'was' : 'were'} not scored
-        {errored > 0 && <> ({errored} errored before an answer was produced)</>}. A result is one example run on one
-        prompt version and one model. Scores average only the scored results.
-      </p>
-      {topReason && (
-        <p className="mt-1 break-words text-[12px] text-warn/90" data-testid="run-unscored-reason">
-          Most common cause: {topReason}
+    <div
+      className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-[13px] text-warn"
+      data-testid="run-unscored-banner"
+    >
+      <div className="min-w-0 flex-1">
+        <p>
+          {unscored} of {total} result{total === 1 ? '' : 's'} {unscored === 1 ? 'was' : 'were'} not scored
+          {errored > 0 && <> ({errored} errored before an answer was produced)</>}. A result is one example run on one
+          prompt version and one model. Scores average only the scored results.
         </p>
-      )}
+        {topReason && (
+          <p className="mt-1 break-words text-[12px] text-warn/90" data-testid="run-unscored-reason">
+            Most common cause: {topReason}
+          </p>
+        )}
+      </div>
+      {action}
     </div>
   );
 }
@@ -92,6 +110,22 @@ export function RunReportPage() {
   // promote button.
   const run = useRun(id ?? null);
   const [selectedCellKey, setSelectedCellKey] = useState<string | null>(null);
+  const rejudge = useRejudgeRun(id ?? '');
+  const toast = useToast();
+  const [confirmRejudgeAll, setConfirmRejudgeAll] = useState(false);
+
+  /** Sends results back to the run's judge; the models under test are not called again. */
+  async function handleRejudge(onlyUnscored: boolean) {
+    try {
+      const res = await rejudge.mutateAsync(onlyUnscored);
+      if (res.rejudging === 0) toast.success('Nothing to re-judge: every result already has a score');
+      else toast.success(`Sent ${res.rejudging} result${res.rejudging === 1 ? '' : 's'} back to the judge`);
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'Could not re-judge this run');
+    } finally {
+      setConfirmRejudgeAll(false);
+    }
+  }
 
   if (report.isLoading) return <PageSpinner />;
   if (report.isError || !report.data) {
@@ -106,6 +140,14 @@ export function RunReportPage() {
   const selectedVariantLabel = selectedVariant
     ? variantDisplayLabel(selectedVariant.variantLabel, selectedVariant.versionNumber)
     : undefined;
+
+  // Re-judging grades the outputs already produced, so a result that errored before
+  // producing one is never counted. A local run has no server judge to run again.
+  const finished = data.status === 'succeeded' || data.status === 'failed';
+  const canRejudge = finished && !isLocal && !!data.judge?.model;
+  const { total, unscored, errored } = summarizeUnscored(data.cells);
+  const withOutput = total - errored;
+  const rejudgeable = unscored - errored;
 
   return (
     <div className="flex flex-col gap-5">
@@ -138,21 +180,69 @@ export function RunReportPage() {
             )}
           </p>
         </div>
-        {/* Averages hide examples that flipped both ways; the compare page shows them. */}
-        <Link
-          to={`/evaluations/runs/${id}/compare`}
-          className="rounded-lg border border-line bg-surface px-3 py-1.5 text-[13px] text-ink hover:bg-elevated"
-          data-testid="run-compare-link"
-        >
-          Compare per example
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {canRejudge && withOutput > 0 && (
+            <Button size="sm" variant="ghost" onClick={() => setConfirmRejudgeAll(true)} data-testid="run-rejudge-all">
+              Re-judge all
+            </Button>
+          )}
+          {/* Averages hide examples that flipped both ways; the compare page shows them. */}
+          <Link
+            to={`/evaluations/runs/${id}/compare`}
+            className="rounded-lg border border-line bg-surface px-3 py-1.5 text-[13px] text-ink hover:bg-elevated"
+            data-testid="run-compare-link"
+          >
+            Compare per example
+          </Link>
+        </div>
       </header>
 
-      <RunStatusBanner status={data.status} error={run.data?.error} cells={data.cells} unscoredReason={data.unscoredReason} />
+      <RunStatusBanner
+        status={data.status}
+        error={run.data?.error}
+        cells={data.cells}
+        unscoredReason={data.unscoredReason}
+        action={
+          canRejudge && rejudgeable > 0 ? (
+            <Button
+              size="sm"
+              className="shrink-0"
+              disabled={rejudge.isPending}
+              onClick={() => handleRejudge(true)}
+              data-testid="run-rejudge-unscored"
+            >
+              {rejudge.isPending
+                ? 'Sending to the judge…'
+                : `Re-judge ${rejudgeable} unscored result${rejudgeable === 1 ? '' : 's'}`}
+            </Button>
+          ) : undefined
+        }
+      />
 
       <LeaderboardMatrix report={data} selectedCellKey={selectedCellKey} onSelectCell={setSelectedCellKey} />
 
       <NamedScoreTable cells={data.cells} />
+
+      <Dialog
+        open={confirmRejudgeAll}
+        onOpenChange={setConfirmRejudgeAll}
+        title={`Re-judge all ${withOutput} result${withOutput === 1 ? '' : 's'}?`}
+        description={`Every result that has an output is graded again by ${data.judge?.model ?? 'the run’s judge'}, with the criteria and judge prompt this run started with. Existing scores are replaced. The models under test are not called again; only the judge calls are billed.`}
+      >
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setConfirmRejudgeAll(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            disabled={rejudge.isPending}
+            onClick={() => handleRejudge(false)}
+            data-testid="run-rejudge-all-confirm"
+          >
+            {rejudge.isPending ? 'Sending to the judge…' : 'Re-judge all'}
+          </Button>
+        </DialogFooter>
+      </Dialog>
 
       {id && (
         <CellDrilldownPanel

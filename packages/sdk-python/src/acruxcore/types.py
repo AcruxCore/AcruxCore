@@ -652,6 +652,8 @@ class ToolSyncResult:
     :param superseded_source: ``'dashboard'`` when this commit replaced a
         dashboard-authored version — a hand edit has stopped being live. ``None``
         otherwise.
+    :param version_id: The id of that version — the value a tool span records as
+        ``toolVersionId``. ``None`` only from an API older than this field.
     """
 
     tool_id: str
@@ -659,6 +661,7 @@ class ToolSyncResult:
     committed: bool
     alias: str
     superseded_source: Optional[str] = None
+    version_id: Optional[str] = None
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "ToolSyncResult":
@@ -668,6 +671,7 @@ class ToolSyncResult:
             committed=bool(d["committed"]),
             alias=d["alias"],
             superseded_source=d.get("supersededSource"),
+            version_id=d.get("versionId"),
         )
 
 
@@ -684,6 +688,8 @@ class ResolvedTool:
         the platform applies to an ``http`` one — otherwise the same tool would be
         validated or not depending on who ran it (issue #452).
     :param result_schema_severity: ``'warn'`` or ``'error'`` — what a mismatch means.
+    :param version_id: The resolved version's id — the value a tool span records as
+        ``toolVersionId``. ``None`` only from an API older than this field.
     """
 
     tool_id: str
@@ -692,6 +698,7 @@ class ResolvedTool:
     function: Dict[str, Any]
     result_schema: Optional[Dict[str, Any]] = None
     result_schema_severity: Optional[str] = None
+    version_id: Optional[str] = None
 
     @property
     def name(self) -> str:
@@ -707,6 +714,7 @@ class ResolvedTool:
             function=d["function"],
             result_schema=d.get("resultSchema"),
             result_schema_severity=d.get("resultSchemaSeverity"),
+            version_id=d.get("versionId"),
         )
 
 

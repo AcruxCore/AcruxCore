@@ -66,6 +66,9 @@ runsRouter.post(
 runsRouter.get('/runs', requireAnyAuth, controller.list);
 runsRouter.get('/runs/:id', requireAnyAuth, controller.getRun);
 runsRouter.delete('/runs/:id', requireAnyAuth, requireRole('owner', 'admin', 'editor'), controller.remove);
+// Re-judging spends judge calls under the team's budget, so it carries the same
+// editor-and-above gate as starting a run (issue #639).
+runsRouter.post('/runs/:id/rejudge', requireAnyAuth, requireRole('owner', 'admin', 'editor'), controller.rejudge);
 runsRouter.get('/runs/:id/report', requireAnyAuth, controller.getReport);
 runsRouter.get('/runs/:id/cells/:cellKey', requireAnyAuth, controller.getCell);
 runsRouter.get('/runs/:id/compare', requireAnyAuth, controller.compare);

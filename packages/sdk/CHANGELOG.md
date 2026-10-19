@@ -18,6 +18,16 @@ changelog: <https://docs.acruxcore.com/changelog>
   examples errored, and the commonest reason the cell's examples have no score. Both optional.
 - `RunReport.unscoredReason` (`{ message, count }`): the commonest reason a result has no score,
   counted over the whole run rather than taken from each cell's top reason. Optional.
+- `runs.rejudge(id, { onlyUnscored })` sends a finished run's outputs back to its judge without
+  calling the models again. Returns `{ runId, status, rejudging }`. New `RejudgeRunResult` type.
+- `ToolSyncResult.versionId` and `ResolvedTool.versionId`: the id of the tool version. Optional,
+  since an older server does not send them.
+
+### Fixed
+
+- A tool span from a tool your own code ran (`tools: [...]`, or `toolRefs` with `clientTools` or
+  `dispatch`) recorded `toolVersionId` as `<toolId>:<versionNumber>`. It now records the version's
+  id, the same value an `http` tool span carries. Against an older server the attribute is left out.
 
 ## 0.18.0 — 2026-10-17
 

@@ -1,5 +1,7 @@
 import { acruxcoreError } from './error';
 import type {
+  RejudgeRunOptions,
+  RejudgeRunResult,
   CreateDatasetParams,
   BuildFromFeedbackParams,
   BuildFromFeedbackResult,
@@ -231,6 +233,34 @@ export class RunsNamespace {
   async delete(id: string): Promise<{ success: boolean }> {
     const response = await this.client._request('DELETE', `/runs/${encodeURIComponent(id)}`, undefined, 'deleting run');
     return this.client._parseJsonOrThrow(response, 'deleting run') as Promise<{ success: boolean }>;
+  }
+
+  /**
+   * Sends a finished run's existing outputs back to its judge. The models under test
+   * are not called again, so only the judge calls are billed — the way to recover a
+   * run whose judge provider failed or ran out of quota.
+   *
+   * Grades with the judge, judge prompt version, criteria and overall feedback the
+   * run started with. Poll {@link get} until the run settles again.
+   *
+   * @param id - The run's id.
+   * @param options - `onlyUnscored` (default `true`) limits it to results with no score.
+   * @returns The run's status and how many results were queued; `rejudging: 0` means
+   *   nothing matched and the run was left as it was.
+   * @throws {acruxcoreError} With `statusCode` 409 while the run is queued or running
+   *   (`body.error.code` is `RUN_IN_FLIGHT`), when some cells never produced a result
+   *   (`RUN_INCOMPLETE`), while one of its judge jobs is still retrying
+   *   (`JUDGE_PENDING`), and for a local run (`LOCAL_EXPERIMENT`).
+   */
+  async rejudge(id: string, options: RejudgeRunOptions = {}): Promise<RejudgeRunResult> {
+    const body = { only_unscored: options.onlyUnscored ?? true };
+    const response = await this.client._request('POST', `/runs/${encodeURIComponent(id)}/rejudge`, body, 're-judging run');
+    const data = (await this.client._parseJsonOrThrow(response, 're-judging run')) as {
+      run_id: string;
+      status: string;
+      rejudging: number;
+    };
+    return { runId: data.run_id, status: data.status, rejudging: data.rejudging };
   }
 
   async getReport(id: string): Promise<RunReport> {

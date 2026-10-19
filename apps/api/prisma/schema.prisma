@@ -1157,6 +1157,11 @@ model ExperimentRun {
   /// built-in judge and for runs created before this column. Not a foreign key:
   /// it is a historical record and must outlive the version row.
   judgePromptVersionId String?               @map("judge_prompt_version_id") @db.Uuid
+  /// Run-level grading inputs frozen at run start: `{ overallFeedback }`. A
+  /// re-judge (issue #639) grades with these, not the dataset as edited since.
+  /// Null for runs created before this column; a re-judge of one of those reads
+  /// the dataset's current overall feedback.
+  gradingSnapshot      Json?                 @map("grading_snapshot")
   startedAt            DateTime?             @map("started_at") @db.Timestamptz(6)
   endedAt              DateTime?             @map("ended_at") @db.Timestamptz(6)
   createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)

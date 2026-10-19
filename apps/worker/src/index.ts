@@ -49,8 +49,10 @@ import {
 } from '@acruxcore/api/notifications/digest';
 import {
   RETENTION_QUEUE,
+  loadCachePurgeConfig,
   loadRetentionConfig,
   processRetentionJob,
+  registerCachePurgeSchedule,
   registerRetentionSchedule,
   type RetentionJobData,
 } from '@acruxcore/api/traces/retention';
@@ -372,8 +374,8 @@ export async function startWorkers(): Promise<EvalWorkers> {
   await waitForWorkerReady(digestWorker);
 
   // One purge sweep a day (default schedule) deleting expired `span_payloads`
-  // rows — a plain delete-by-cutoff query, so concurrency 1 is plenty; there is
-  // never more than one purge job in flight at a time. No `'failed'` handler:
+  // rows, plus the expired `gateway_cache` sweep every 15 minutes (issue #652) —
+  // plain delete-by-cutoff queries, so concurrency 1 is plenty. No `'failed'` handler:
   // a failed purge has no terminal state to record, and the next scheduled run
   // simply tries again with a (by then, even more overdue) cutoff.
   const retentionConfig = loadRetentionConfig();
@@ -416,8 +418,9 @@ export async function startWorkers(): Promise<EvalWorkers> {
 }
 
 /**
- * Registers the two repeatable schedules this process owns: the weekly usage
- * digest and the daily trace-payload purge.
+ * Registers the repeatable schedules this process owns: the weekly usage
+ * digest, the daily trace-payload purge, the expired gateway-cache sweep and
+ * the stale-run reaper.
  *
  * Call this before any Worker starts consuming — see the call site for why the
  * order is load-bearing rather than cosmetic.
@@ -431,6 +434,7 @@ export async function startWorkers(): Promise<EvalWorkers> {
 export async function registerSchedules(): Promise<void> {
   const digestConfig = loadDigestConfig();
   const retentionScheduleConfig = loadRetentionConfig();
+  const cachePurgeConfig = loadCachePurgeConfig();
   const staleRunConfig = loadStaleRunConfig();
 
   await Promise.all([
@@ -455,6 +459,17 @@ export async function registerSchedules(): Promise<void> {
       })
       .catch((err) => {
         console.error('[worker] failed to register the trace payload purge schedule', err);
+      }),
+    registerCachePurgeSchedule(cachePurgeConfig)
+      .then((registered) => {
+        console.log(
+          registered
+            ? `[worker] expired gateway cache sweep scheduled (${cachePurgeConfig.cron} UTC)`
+            : '[worker] expired gateway cache sweep disabled (GATEWAY_CACHE_PURGE_ENABLED)',
+        );
+      })
+      .catch((err) => {
+        console.error('[worker] failed to register the gateway cache sweep schedule', err);
       }),
     registerStaleRunSchedule(staleRunConfig)
       .then((registered) => {

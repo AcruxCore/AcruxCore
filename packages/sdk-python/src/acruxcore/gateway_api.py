@@ -1330,13 +1330,15 @@ class GatewayNamespace:
             tool_version_id: Optional[str] = None
             if sync:
                 result = await self._host.tools.sync_one(spec)
-                tool_version_id = f"{result.tool_id}:{result.version_number}"
+                # The version's own id, the value an http tool span records too
+                # (issue #632). An older API sends none, and the span then omits it.
+                tool_version_id = result.version_id
             routes[spec.name] = _ToolRoute(
                 kind="local", fn=spec.fn, alias=spec.alias, tool_version_id=tool_version_id
             )
             refs.append({"name": spec.name, "alias": spec.alias})
             if inline_schemas and not spec.description:
-                if tool_version_id is not None:
+                if sync:
                     undescribed.append((len(inlined_schemas), {"name": spec.name, "alias": spec.alias}))
                 else:
                     warnings.warn(
@@ -1360,7 +1362,7 @@ class GatewayNamespace:
             resolved: List[ResolvedTool] = await self._host.tools.resolve(caller_refs)
             for ref, item in zip(caller_refs, resolved):
                 name = item.name
-                version_id = f"{item.tool_id}:{item.version_number}"
+                version_id = item.version_id
                 if name in routes:
                     continue
                 supplied = (client_tools or {}).get(name)

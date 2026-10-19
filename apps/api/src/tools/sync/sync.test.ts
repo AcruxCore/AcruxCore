@@ -61,6 +61,9 @@ describe('POST /tools/sync', () => {
     expect(tool?.description).toBe('Get the current weather for a city.');
     const version = await prisma.toolVersion.findFirst({ where: { toolId: tool!.id } });
     expect(version?.source).toBe('code');
+    // The version's own id, so a client-run tool span can stamp the same
+    // toolVersionId an http one does (issue #632).
+    expect(res.body.versionId).toBe(version?.id);
     const aliases = await prisma.toolAlias.findMany({ where: { toolId: tool!.id } });
     expect(aliases.map((a) => a.alias).sort()).toEqual(['production', 'staging']);
   });
@@ -80,6 +83,9 @@ describe('POST /tools/sync', () => {
 
     expect(second.body.committed).toBe(false);
     expect(second.body.versionNumber).toBe(first.body.versionNumber);
+    // An unchanged spec still names the live version's id (issue #632).
+    expect(second.body.versionId).toBe(first.body.versionId);
+    expect(second.body.versionId).toEqual(expect.any(String));
     expect(await prisma.toolVersion.count({ where: { toolId: first.body.toolId } })).toBe(1);
   });
 

@@ -131,6 +131,29 @@ Response (status 200):
 {"toolId":"eb1df7c0-778c-4b89-8536-8c08a1f6d406","versionNumber":2,"committed":true,"alias":"production"}
 ```
 
+The examples above were captured before the response carried `versionId`. A current
+response, for a spec that was already live:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/tools/sync \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "get_weather_632",
+    "description": "Get today'"'"'s weather for a city.",
+    "parametersSchema": {"type":"object","properties":{"city":{"type":"string","description":"City name, e.g. '"'"'Lahore'"'"'."}},"required":["city"]},
+    "executor": {"type":"client"},
+    "alias": "production",
+    "source": "code"
+  }'
+```
+
+Response (status 200):
+
+```json
+{"toolId":"cb249b12-ea7d-45e0-98d2-23acee1df24b","versionId":"1b3e733d-469d-4722-b860-bc2958252077","versionNumber":1,"committed":false,"alias":"production"}
+```
+
 **Fields**
 
 | Field | Required | Notes |
@@ -148,6 +171,7 @@ Response (status 200):
 | Field | Notes |
 |---|---|
 | `toolId` | The tool this name resolved to, created if it did not exist. |
+| `versionId` | The id of the version the alias now points at. A tool span records this value as `toolVersionId`, whether the platform or your own code ran the tool. Missing from responses captured before the field was added. |
 | `versionNumber` | The version the alias now points at. |
 | `committed` | `false` means the live spec already matched and nothing was written. |
 | `alias` | Echoes the alias that was targeted. |
