@@ -68,6 +68,7 @@ called out in the week it ships and in the SDK release notes.
 - **Fixed** — saving a rule whose judge prompt was deleted switched it to the built-in judge.
 - **Fixed** — prompt Preview passed a typed JSON list or object to the template as plain text.
 - **Fixed** — screen readers read `&quot;` aloud in image descriptions on docs and blog pages.
+- **Fixed** — MCP `run_prompt` and `chat_completion` did not name the trace id in their summary.
 - The [privacy policy](https://acruxcore.com/privacy) now states how long trace content is kept.
 - The [audit trail guide](/docs/guides/read-the-team-audit-trail) now covers the Evaluations area.
 - **New post** — [AcruxCore vs Agenta: built-in evaluators vs a gateway](/blog/acruxcore-vs-agenta).

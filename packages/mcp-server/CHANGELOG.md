@@ -5,6 +5,14 @@ All notable changes to `@acruxcoreai/mcp-server` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 package follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- `run_prompt` and `chat_completion` now name the trace id on their summary line, as
+  `trace_id <uuid>`. The JSON part also carries `request-id`, another UUID, and a client
+  that took the first UUID it saw passed that one to `get_trace` and got a 404.
+
 ## 0.1.0 — 2026-10-18
 
 

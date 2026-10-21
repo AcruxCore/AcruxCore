@@ -39,6 +39,17 @@ function gatewayMeta(headers: Headers): Record<string, string> {
   return meta;
 }
 
+/**
+ * The trace pointer for a summary line, or nothing when the gateway sent no trace id.
+ *
+ * The id has to be in the summary, not only in the JSON below it. The JSON also carries
+ * `request-id`, another UUID, and a client that grabs the first UUID it sees passes
+ * that one to `get_trace` and gets a 404. Naming the argument removes the guess.
+ */
+function traceSuffix(meta: Record<string, string>): string {
+  return meta['trace-id'] ? ` Open it with get_trace, trace_id ${meta['trace-id']}.` : '';
+}
+
 /** First choice's text, for the human-readable summary line. */
 function firstChoiceText(body: unknown): string {
   const choice = (body as { choices?: Array<{ message?: { content?: string | null } }> })?.choices?.[0];
@@ -110,9 +121,8 @@ export const gatewayTools: AnyToolDefinition[] = [
       const meta = gatewayMeta(response.headers);
       return okResult(
         `Ran "${name}"@${args.alias ?? 'production'} on ${meta.model ?? 'the resolved model'}` +
-          `${meta['cost-usd'] ? ` for $${meta['cost-usd']}` : ''}. Reply: ${firstChoiceText(
-            response.data,
-          ).slice(0, 400)}`,
+          `${meta['cost-usd'] ? ` for $${meta['cost-usd']}` : ''}.${traceSuffix(meta)} Reply: ` +
+          firstChoiceText(response.data).slice(0, 400),
         { completion: response.data, gateway: meta },
         config.maxTextBytes,
       );
@@ -164,9 +174,8 @@ export const gatewayTools: AnyToolDefinition[] = [
       const meta = gatewayMeta(response.headers);
       return okResult(
         `Completion from ${meta.model ?? args.model}` +
-          `${meta['cost-usd'] ? ` ($${meta['cost-usd']})` : ''}: ${firstChoiceText(
-            response.data,
-          ).slice(0, 400)}`,
+          `${meta['cost-usd'] ? ` ($${meta['cost-usd']})` : ''}.${traceSuffix(meta)} Reply: ` +
+          firstChoiceText(response.data).slice(0, 400),
         { completion: response.data, gateway: meta },
         config.maxTextBytes,
       );

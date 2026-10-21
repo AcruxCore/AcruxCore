@@ -176,7 +176,10 @@ Claude called six tools, one after the other:
 `run_prompt` does the same work your application would do. First it finds the version
 that the alias points at. Then it puts the variable values into the message text, sends
 the messages to the model through the gateway, records the cost and writes a trace. The
-result includes the trace id, so the assistant can open the trace in the next step.
+first line of the result names the trace id, as `trace_id <uuid>`. That is the argument
+`get_trace` takes, so the assistant can open the trace in the next step. The result also
+carries a `request-id`, which is a different UUID: passing it to `get_trace` returns
+"Trace not found".
 
 ## 5. Check the result in the dashboard
 
