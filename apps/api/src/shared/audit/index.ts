@@ -1,1 +1,1 @@
-export { audit } from './audit.helper';
+export { audit, settleAuditWrites } from './audit.helper';

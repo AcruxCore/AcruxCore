@@ -2,6 +2,7 @@ import { closeRedisConnection } from '../evaluations/queue/connection';
 import { closeEmailQueue } from '../email/email.queue';
 import { closeDigestQueue } from '../notifications/digest/digest.queue';
 import { closeRateLimitRedis } from '../shared/auth/rate-limit.storage';
+import { settleAuditWrites } from '../shared/audit';
 import prisma from '../shared/db/client';
 
 /**
@@ -32,6 +33,13 @@ import prisma from '../shared/db/client';
  * hangs until CI kills it. Drain queues in `beforeEach` (see
  * `evaluations.roles.test.ts`) or inside a nested `describe`, never at a suite's root.
  */
+// Services fire `audit()` without awaiting it, so a test can end with an
+// `audit_log` insert still running. The next test's `TRUNCATE … CASCADE` then
+// deadlocks against it (Postgres 40P01), failing a test that did nothing wrong.
+afterEach(async () => {
+  await settleAuditWrites();
+});
+
 afterAll(async () => {
   await closeEmailQueue();
   await closeDigestQueue();
