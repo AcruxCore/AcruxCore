@@ -108,6 +108,10 @@ async function callGateway(apiKey: string, model: string, expectStatus = 200): P
 }
 
 /** Delivers everything queued and returns the accepted messages. */
+async function waitFor(cond: () => boolean): Promise<void> {
+  while (!cond()) await new Promise((r) => setTimeout(r, 5));
+}
+
 async function flush(): Promise<EmailMessage[]> {
   await drainEmailQueue();
   return getMemoryTransport().sent();
@@ -362,20 +366,31 @@ describe('budget alerts', () => {
     };
     const mockedResponse = { ok: true, status: 200, json: async () => RACE_RESPONSE, text: async () => '' } as unknown as Response;
 
-    // First fetch() call resolves immediately; every call after that is frozen
-    // until the test explicitly releases `releaseSecond`, regardless of which
-    // HTTP request it belongs to — the two requests' handlers both reach their
-    // own `reserveBudgets` (and so their own stale-snapshot read) well before
-    // either reaches `fetch()`, so it does not matter which one "wins" the race
-    // to go first; only that one is held back while the other finishes.
+    // A request reaches fetch() only after its reservation has committed, so
+    // the first fetch() call is held until the second one arrives: that is the
+    // point where BOTH reservations have landed ($0.70). Only then does the
+    // first call resolve; the second stays frozen until `releaseSecond`.
+    // Without the first gate, a slow runner can let one request reserve, call
+    // and reconcile before the other has even reserved — the second request's
+    // reservation then makes the crossing, and its alert waits on its frozen
+    // call, so the first batch comes back empty.
     let fetchCalls = 0;
+    let secondArrived!: () => void;
+    const firstGate = new Promise<void>((resolve) => {
+      secondArrived = resolve;
+    });
     let releaseSecond!: () => void;
     const secondGate = new Promise<void>((resolve) => {
       releaseSecond = resolve;
     });
     jest.spyOn(global, 'fetch').mockImplementation(async () => {
       fetchCalls += 1;
-      if (fetchCalls > 1) await secondGate;
+      if (fetchCalls === 1) {
+        await firstGate;
+      } else {
+        secondArrived();
+        await secondGate;
+      }
       return mockedResponse;
     });
 
@@ -384,8 +399,10 @@ describe('budget alerts', () => {
     const call = () =>
       request(app).post('/api/v1/gateway/chat/completions').set('Authorization', `Bearer ${apiKey}`).send(body);
 
-    const reqA = call().expect(200);
-    const reqB = call().expect(200);
+    // `.then()` starts a supertest request; `.expect()` alone does not.
+    const reqA = call().expect(200).then((r) => r);
+    await waitFor(() => fetchCalls >= 1);
+    const reqB = call().expect(200).then((r) => r);
 
     // Whichever of the two literally resolves first MUST be the unfrozen one —
     // the frozen one cannot possibly settle before `releaseSecond()` is called
