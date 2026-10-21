@@ -393,7 +393,7 @@ ${fn('curl')} -X POST $ACRUX/mcp \\
   -d ${st(`'{"jsonrpc":"2.0","id":1,
        "method":"tools/list","params":{}}'`)}
 
-${cm('# → 28 tools, each with a description,')}
+${cm('# → 29 tools, each with a description,')}
 ${cm('# an argument schema and readOnlyHint')}`;
 
 /** The pillar definitions, in the order they appear everywhere on the site. */
@@ -1172,7 +1172,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
       'An MCP server for prompt management. Claude Code, Claude Desktop, Cursor and other MCP clients can list, version, promote and run your prompts.',
     eyebrow: 'Model Context Protocol',
     title: 'An MCP server for prompt management and tracing.',
-    lead: 'Connect Claude Code, Claude Desktop, Cursor or any other MCP client to your AcruxCore team. The assistant gets 28 tools for prompts, the gateway, the tool catalog, traces and evaluations. You ask in plain language, and the assistant picks the tool.',
+    lead: 'Connect Claude Code, Claude Desktop, Cursor or any other MCP client to your AcruxCore team. The assistant gets 29 tools for prompts, the gateway, the tool catalog, traces and evaluations. You ask in plain language, and the assistant picks the tool.',
     metaTitle: 'MCP server for prompt management — AcruxCore',
     metaDescription:
       'An MCP server for prompt management: Claude Code, Cursor and other MCP clients version, promote and run your prompts, then read the trace of each run.',
@@ -1184,14 +1184,14 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
         <path d="M12 17v4" />
       </Ic>
     ),
-    capabilitiesTitle: 'Two ways to connect, 28 tools, slash commands and a read-only mode.',
+    capabilitiesTitle: 'Two ways to connect, 29 tools, slash commands and a read-only mode.',
     capabilities: [
       {
         title: 'Hosted or local',
         body: 'The hosted endpoint at /api/v1/mcp uses Streamable HTTP, so you install nothing. The local server is a Node 20 program that runs on your machine over stdio.',
       },
       {
-        title: '28 tools in five toolsets',
+        title: '29 tools in five toolsets',
         body: 'The toolsets are prompts, gateway, tools, traces and evaluations. Each tool comes with a name, a description and its arguments, and the assistant reads them to choose a tool for your request.',
       },
       {
@@ -1259,7 +1259,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
               'prompts',
               'list_prompts, get_prompt, render_prompt, diff_prompt_versions, create_prompt, commit_prompt_version, promote_prompt_alias',
             ],
-            ['gateway', 'run_prompt, chat_completion, list_models, get_gateway_usage'],
+            ['gateway', 'run_prompt, chat_completion, list_models, get_gateway_usage, get_spending_limits'],
             ['tools', 'list_catalog_tools, get_catalog_tool, sync_catalog_tool, execute_catalog_tool'],
             [
               'traces',

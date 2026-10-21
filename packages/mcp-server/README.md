@@ -76,7 +76,7 @@ into running — which is the point of handing an agent a key it should not writ
 **Prompts** — `list_prompts`, `get_prompt`, `render_prompt`, `diff_prompt_versions`,
 `create_prompt`, `commit_prompt_version`, `promote_prompt_alias`
 
-**Gateway** — `run_prompt`, `chat_completion`, `list_models`, `get_gateway_usage`
+**Gateway** — `run_prompt`, `chat_completion`, `list_models`, `get_gateway_usage`, `get_spending_limits`
 
 **Tool catalog** — `list_catalog_tools`, `get_catalog_tool`, `sync_catalog_tool`,
 `execute_catalog_tool`

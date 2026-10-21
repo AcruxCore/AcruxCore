@@ -59,6 +59,13 @@ called out in the week it ships and in the SDK release notes.
 - The failing rule now records a score row whose reason starts with `judge call failed:`.
 - That row does not count toward the rule's daily limit or its scored-today count.
 
+#### MCP: read budgets and key limits
+
+- New read-only tool `get_spending_limits`: each budget's limit, live spend and reset time.
+- It names the virtual key a budget belongs to, with that key's rate limits and model list.
+- Use it to see which limit a 402 or 429 from the gateway came from. The MCP server has 29 tools.
+  [Reference →](/api-reference/mcp#toolscall--budgets-and-virtual-key-limits)
+
 ### Minor
 
 - **Fixed** — with Capture payloads off, new traces were still named by the message's first words.

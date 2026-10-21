@@ -76,15 +76,15 @@ curl -X POST $ACRUXCORE_BASE_URL/mcp \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
 ```
 
-Response (status 200) — 28 tools; names only, each entry also carries a description,
+Response (status 200) — 29 tools; names only, each entry also carries a description,
 a JSON Schema for its arguments, and a `readOnlyHint` annotation:
 
 ```json
 ["list_prompts", "get_prompt", "render_prompt", "diff_prompt_versions", "create_prompt",
  "commit_prompt_version", "promote_prompt_alias", "run_prompt", "chat_completion",
- "list_models", "get_gateway_usage", "list_catalog_tools", "get_catalog_tool",
- "sync_catalog_tool", "execute_catalog_tool", "search_traces", "get_trace",
- "get_trace_analytics", "list_sessions", "get_session", "submit_trace_feedback",
+ "list_models", "get_gateway_usage", "get_spending_limits", "list_catalog_tools",
+ "get_catalog_tool", "sync_catalog_tool", "execute_catalog_tool", "search_traces",
+ "get_trace", "get_trace_analytics", "list_sessions", "get_session", "submit_trace_feedback",
  "list_datasets", "get_dataset", "create_dataset", "add_dataset_example",
  "run_experiment", "list_experiment_runs", "get_experiment_run"]
 ```
@@ -113,6 +113,43 @@ Response (status 200):
       {
         "type": "text",
         "text": "Showing 2 of 23 prompts (page 1).\n\n{\n  \"data\": [\n    {\n      \"id\": \"5e9d7286-0113-46bb-b211-429c0eb9309f\",\n      \"name\": \"del-demo-prompt\",\n      \"description\": null,\n      \"createdAt\": \"2026-09-06T12:23:53.397Z\"\n    },\n    {\n      \"id\": \"a290cf2f-a724-4389-8bea-da8b53229e00\",\n      \"name\": \"support-reply\",\n      \"description\": \"Draft the reply a support agent sends to an inbound customer message.\",\n      \"createdAt\": \"2026-09-06T11:10:02.034Z\"\n    }\n  ],\n  \"total\": 23,\n  \"page\": 1,\n  \"limit\": 2\n}"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 3
+}
+```
+
+---
+
+### tools/call — budgets and virtual-key limits
+
+`get_spending_limits` takes no arguments. It lists every budget with its live spend, what
+is left and when it resets, and names the virtual key a budget belongs to. Use it after
+the gateway refuses a call with 402 (a budget is spent) or 429 (a key's rate limit). Keys
+come back masked: the last four characters only, never the key itself. The tool reads
+only; budgets and keys are changed in the dashboard or through the
+[budgets](./gateway/budgets.mdx) and [virtual keys](./gateway/keys.mdx) endpoints.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/mcp \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-06-18" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_spending_limits","arguments":{}}}'
+```
+
+Response (status 200):
+
+```json
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "2 budget(s), 1 virtual key(s). Key \"ci-bot\" day: $0 of $2 spent, resets 2026-10-22T00:00:00.000Z; Team month: $0 of $25 spent, resets 2026-11-01T00:00:00.000Z.\n\n{\n  \"budgets\": [\n    {\n      \"id\": \"e5d1547c-fafa-4f42-8635-916b0e1181b5\",\n      \"scope\": \"virtual_key\",\n      \"virtualKeyId\": \"280648fa-e802-4810-bef6-b690cf872817\",\n      \"virtualKeyName\": \"ci-bot\",\n      \"period\": \"day\",\n      \"limitUsd\": 2,\n      \"spendUsd\": 0,\n      \"remainingUsd\": 2,\n      \"exhausted\": false,\n      \"resetsAt\": \"2026-10-22T00:00:00.000Z\"\n    },\n    {\n      \"id\": \"de03b02b-cea3-4727-84a7-cd2b20600a94\",\n      \"scope\": \"team\",\n      \"virtualKeyId\": null,\n      \"virtualKeyName\": null,\n      \"period\": \"month\",\n      \"limitUsd\": 25,\n      \"spendUsd\": 0,\n      \"remainingUsd\": 25,\n      \"exhausted\": false,\n      \"resetsAt\": \"2026-11-01T00:00:00.000Z\"\n    }\n  ],\n  \"virtualKeys\": [\n    {\n      \"id\": \"280648fa-e802-4810-bef6-b690cf872817\",\n      \"name\": \"ci-bot\",\n      \"keyLastFour\": \"3m30\",\n      \"allowedModels\": [\n        \"gpt-4o-mini\"\n      ],\n      \"allowedProviders\": null,\n      \"maxRpm\": 60,\n      \"maxTpm\": null,\n      \"cacheTtlSeconds\": null,\n      \"createdAt\": \"2026-10-21T16:49:43.279Z\",\n      \"revokedAt\": null\n    }\n  ]\n}"
       }
     ]
   },

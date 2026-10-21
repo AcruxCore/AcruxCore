@@ -27,7 +27,7 @@ it offers, called **tools**. Each tool has a name, a description and its argumen
 assistant reads that list when it connects, and from then on it picks the right tool for
 each request you make.
 
-AcruxCore runs an MCP server with 28 tools. The server signs in with your API key, so the
+AcruxCore runs an MCP server with 29 tools. The server signs in with your API key, so the
 assistant can do what your key can do, and nothing more.
 
 The tools work on these parts of AcruxCore:
@@ -254,14 +254,14 @@ npx -y @acruxcoreai/mcp-server --toolsets prompts,traces
 Clients that only accept environment variables can set `ACRUXCORE_MCP_READ_ONLY=true` and
 `ACRUXCORE_MCP_TOOLSETS=prompts,traces` instead.
 
-## The 28 tools
+## The 29 tools
 
 The tools come in five groups. Each group is a toolset you can name in `--toolsets`.
 
 | Toolset | Tools |
 |---|---|
 | `prompts` | `list_prompts`, `get_prompt`, `render_prompt`, `diff_prompt_versions`, `create_prompt`, `commit_prompt_version`, `promote_prompt_alias` |
-| `gateway` | `run_prompt`, `chat_completion`, `list_models`, `get_gateway_usage` |
+| `gateway` | `run_prompt`, `chat_completion`, `list_models`, `get_gateway_usage`, `get_spending_limits` |
 | `tools` | `list_catalog_tools`, `get_catalog_tool`, `sync_catalog_tool`, `execute_catalog_tool` |
 | `traces` | `search_traces`, `get_trace`, `get_trace_analytics`, `list_sessions`, `get_session`, `submit_trace_feedback` |
 | `evaluations` | `list_datasets`, `get_dataset`, `create_dataset`, `add_dataset_example`, `run_experiment`, `list_experiment_runs`, `get_experiment_run` |

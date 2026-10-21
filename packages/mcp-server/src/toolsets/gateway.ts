@@ -234,4 +234,70 @@ export const gatewayTools: AnyToolDefinition[] = [
       );
     },
   }),
+
+  defineTool({
+    name: 'get_spending_limits',
+    title: 'Get budgets and virtual-key limits',
+    toolset: 'gateway',
+    readOnlyHint: true,
+    description:
+      'Every spend budget on the team — team-wide or on one virtual key — with its period, ' +
+      'limit, live spend, what is left and when it resets, plus each virtual key\'s rate ' +
+      'limits and model/provider allow-lists. Use this after a gateway call is refused with ' +
+      'HTTP 402 (budget spent) or 429 (rate limit) to see which limit caused it. Read-only: ' +
+      'budgets and keys are changed in the dashboard.',
+    inputSchema: {},
+    async handler(_args, { client, config }) {
+      const [budgets, keys] = await Promise.all([
+        client.get<BudgetRow[]>('/gateway/budgets'),
+        client.get<VirtualKeyRow[]>('/gateway/keys'),
+      ]);
+      const keyNames = new Map(keys.map((k) => [k.id, k.name]));
+      const limits = budgets.map((b) => ({
+        id: b.id,
+        scope: b.virtualKeyId === null ? 'team' : 'virtual_key',
+        virtualKeyId: b.virtualKeyId,
+        virtualKeyName: b.virtualKeyId === null ? null : (keyNames.get(b.virtualKeyId) ?? null),
+        period: b.period,
+        limitUsd: b.limitUsd,
+        spendUsd: b.spendUsd,
+        remainingUsd: Math.max(0, b.limitUsd - b.spendUsd),
+        exhausted: b.spendUsd >= b.limitUsd,
+        resetsAt: b.resetsAt,
+      }));
+
+      const summary =
+        limits.length === 0
+          ? `No budgets on this team, so the gateway never refuses a call for spend. ${keys.length} virtual key(s).`
+          : `${limits.length} budget(s), ${keys.length} virtual key(s). ` +
+            limits
+              .map(
+                (l) =>
+                  `${l.scope === 'team' ? 'Team' : `Key "${l.virtualKeyName ?? l.virtualKeyId}"`} ` +
+                  `${l.period}: $${l.spendUsd} of $${l.limitUsd} spent` +
+                  (l.exhausted ? ' (EXHAUSTED)' : '') +
+                  (l.resetsAt ? `, resets ${l.resetsAt}` : ''),
+              )
+              .join('; ') +
+            '.';
+      return okResult(summary, { budgets: limits, virtualKeys: keys }, config.maxTextBytes);
+    },
+  }),
 ];
+
+/** One row of `GET /gateway/budgets`. */
+interface BudgetRow {
+  id: string;
+  virtualKeyId: string | null;
+  period: string;
+  limitUsd: number;
+  spendUsd: number;
+  resetsAt: string | null;
+}
+
+/** One row of `GET /gateway/keys` — already masked by the API: no token, no hash. */
+interface VirtualKeyRow {
+  id: string;
+  name: string;
+  [field: string]: unknown;
+}

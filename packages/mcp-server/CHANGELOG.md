@@ -7,6 +7,12 @@ package follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Added
+
+- **`get_spending_limits`** (`gateway` toolset, read-only). Lists every budget with its
+  period, limit, live spend, `remainingUsd`, `exhausted` and reset time, names the virtual
+  key a budget belongs to, and lists the keys masked to their last four characters.
+
 ### Changed
 
 - `run_prompt` and `chat_completion` now name the trace id on their summary line, as

@@ -152,7 +152,7 @@ export const ACRUX_CORE = {
   },
   mcpServer: {
     value:
-      'The server has 28 tools. AcruxCore hosts it, and you can also run it locally with npx. An assistant can commit a prompt version, promote it to an alias, and run it through AcruxCore\'s gateway. The assistant can then read the resulting trace, test a prompt over a dataset, and call entries in the Tool Catalog.',
+      'The server has 29 tools. AcruxCore hosts it, and you can also run it locally with npx. An assistant can commit a prompt version, promote it to an alias, and run it through AcruxCore\'s gateway. The assistant can then read the resulting trace, test a prompt over a dataset, and call entries in the Tool Catalog.',
     source: { label: 'Connect an MCP client', href: `${DOCS_URL}/docs/guides/connect-an-mcp-client` },
     checkedOn: '2026-10-18',
   },
