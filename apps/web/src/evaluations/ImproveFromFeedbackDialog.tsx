@@ -5,6 +5,7 @@ import type { StartRunResponse } from '@/api';
 import { Button, Dialog, DialogFooter, Field, Input, Select, Textarea } from '@/ui';
 import { DEFAULT_DRAFT_COUNT, DraftCountField } from './DraftCountField';
 import { JudgeModelField } from './JudgeModelField';
+import { JudgePromptField } from './JudgePromptField';
 import { ModelCheckboxList } from './ModelCheckboxList';
 
 export interface ImproveFromFeedbackDialogProps {
@@ -38,6 +39,7 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
   const [alias, setAlias] = useState('');
   const [models, setModels] = useState<Set<string>>(new Set());
   const [judgeModel, setJudgeModel] = useState('');
+  const [judgePrompt, setJudgePrompt] = useState<{ id: string; name: string } | null>(null);
   const [draftCount, setDraftCount] = useState(DEFAULT_DRAFT_COUNT);
   const [name, setName] = useState('');
   const [overallFeedback, setOverallFeedback] = useState('');
@@ -61,6 +63,7 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
       setAlias('');
       setModels(new Set());
       setJudgeModel('');
+      setJudgePrompt(null);
       setDraftCount(DEFAULT_DRAFT_COUNT);
       setName('');
       setOverallFeedback('');
@@ -109,6 +112,7 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
         dataset_id: dataset.id,
         models: [...models],
         judge_model: judgeModel,
+        ...(judgePrompt ? { judge_prompt_id: judgePrompt.id } : {}),
         draft_count: draftCount,
         ...(alias ? { alias } : {}),
       });
@@ -222,6 +226,15 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
           id="improve-judge-model"
           value={judgeModel}
           onChange={setJudgeModel}
+          grades="every rewrite and the baseline"
+        />
+
+        {/* No coverage warning here: the dataset does not exist until submit. */}
+        <JudgePromptField
+          id="improve-judge-prompt"
+          value={judgePrompt}
+          onChange={setJudgePrompt}
+          newPromptName={name.trim() ? `${name.trim()} judge` : 'Feedback judge'}
           grades="every rewrite and the baseline"
         />
 

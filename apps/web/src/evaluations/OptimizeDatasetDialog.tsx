@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ApiError, filterPrompts, useAliases, useAllPrompts, useCreatePrompt, useModels, useOptimize } from '@/api';
+import { ApiError, filterPrompts, useAliases, useAllPrompts, useCreatePrompt, useDataset, useModels, useOptimize } from '@/api';
 import type { StartRunResponse } from '@/api';
 import { Button, Dialog, DialogFooter, Field, Input, Select, useToast } from '@/ui';
 import { DEFAULT_DRAFT_COUNT, DraftCountField } from './DraftCountField';
 import { JudgeModelField } from './JudgeModelField';
+import { JudgePromptField } from './JudgePromptField';
 import { ModelCheckboxList } from './ModelCheckboxList';
 import { PromptPicker } from './PromptPicker';
 
@@ -28,7 +29,9 @@ export interface OptimizeDatasetDialogProps {
  *
  * The optimizer model and optimizer prompt are surfaced here for the same
  * reason the judge surfaces its own: the run bills a model and follows
- * instructions, and neither should be invisible.
+ * instructions, and neither should be invisible. The judge prompt is the same
+ * picker an experiment has, so the winning rewrite is chosen by the team's own
+ * rubric rather than the built-in one.
  */
 export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: OptimizeDatasetDialogProps) {
   const navigate = useNavigate();
@@ -40,6 +43,7 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
   const [judgeModel, setJudgeModel] = useState('');
   const [draftCount, setDraftCount] = useState(DEFAULT_DRAFT_COUNT);
   const [optimizerPrompt, setOptimizerPrompt] = useState<{ id: string; name: string } | null>(null);
+  const [judgePrompt, setJudgePrompt] = useState<{ id: string; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [mismatchWarning, setMismatchWarning] = useState<{
@@ -53,6 +57,7 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
     [allPrompts.data, promptSearch],
   );
   const aliases = useAliases(promptId);
+  const dataset = useDataset(datasetId);
   const gatewayModels = useModels();
   const optimize = useOptimize(promptId || 'unset');
   const createPrompt = useCreatePrompt();
@@ -68,6 +73,7 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
       setJudgeModel('');
       setDraftCount(DEFAULT_DRAFT_COUNT);
       setOptimizerPrompt(null);
+      setJudgePrompt(null);
       setError(null);
       setSubmitting(false);
       setMismatchWarning(null);
@@ -106,6 +112,7 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
         draft_count: draftCount,
         ...(optimizerModel ? { optimizer_model: optimizerModel } : {}),
         ...(optimizerPrompt ? { optimizer_prompt_id: optimizerPrompt.id } : {}),
+        ...(judgePrompt ? { judge_prompt_id: judgePrompt.id } : {}),
         ...(alias ? { alias } : {}),
       });
       if (result.prompt_mismatch_warning) {
@@ -215,6 +222,17 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
           value={judgeModel}
           onChange={setJudgeModel}
           grades="every rewrite and the baseline"
+        />
+
+        <JudgePromptField
+          id="optimize-dataset-judge-prompt"
+          value={judgePrompt}
+          onChange={setJudgePrompt}
+          newPromptName={dataset.data ? `${dataset.data.name} judge` : 'Optimize judge'}
+          grades="every rewrite and the baseline"
+          {...(dataset.data
+            ? { dataset: { examples: dataset.data.examples, overallFeedback: dataset.data.overallFeedback } }
+            : {})}
         />
 
         <Field

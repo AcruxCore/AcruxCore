@@ -65,6 +65,11 @@ export const StartOptimizeSchema = z.object({
   // untrusted-data message are appended regardless, so a custom template can
   // change the rewriting philosophy but not the parser's shape.
   optimizer_prompt_id: z.string().uuid().optional(),
+  // Optional team Prompt the judge grades with instead of the built-in rubric,
+  // exactly as `judge_prompt_id` on an experiment. Resolved to one version at
+  // start and frozen onto the run, so the winner is picked by the same rubric
+  // the team's experiments use.
+  judge_prompt_id: z.string().uuid().optional(),
   draft_count: z.number().int().positive().optional(),
   // Which alias's version to use as the comparison baseline (design
   // "Alias-based baseline"). Omitted -> OptimizeService/processOptimize

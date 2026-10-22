@@ -303,6 +303,7 @@ export class OptimizeNamespace {
     };
     if (params.draftCount !== undefined) body['draft_count'] = params.draftCount;
     if (params.alias !== undefined) body['alias'] = params.alias;
+    if (params.judgePromptId !== undefined) body['judge_prompt_id'] = params.judgePromptId;
     const response = await this.client._request('POST', `/prompts/${encodeURIComponent(promptId)}/optimize`, body, 'starting optimize');
     const data = await this.client._parseJsonOrThrow(response, 'starting optimize') as { run_id: string; status: string; prompt_mismatch_warning?: StartOptimizeResult['promptMismatchWarning'] };
     return { runId: data.run_id, status: data.status, promptMismatchWarning: data.prompt_mismatch_warning };

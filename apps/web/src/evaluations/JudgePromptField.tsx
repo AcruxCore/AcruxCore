@@ -17,7 +17,7 @@ interface JudgePromptFieldProps {
   /** What the judge grades on this screen, e.g. "every result". */
   grades: string;
   /**
-   * The dataset an experiment runs on. When given, the field warns if the
+   * The dataset an experiment or optimize run grades on. When given, the field warns if the
    * chosen judge reads `{{ criteria }}`/`{{ overallFeedback }}` and some
    * examples have neither. Omitted for online rules, which always carry criteria.
    */
@@ -26,7 +26,7 @@ interface JudgePromptFieldProps {
 
 /**
  * The optional "Judge prompt" picker for every screen that grades with a judge:
- * running an experiment and the online-rule drawer.
+ * running an experiment, the two optimize dialogs, and the online-rule drawer.
  *
  * A custom judge always runs, even on an example with no criteria (phase-5 FAQ
  * Q43), so the template must carry its own rubric. Two things help the author

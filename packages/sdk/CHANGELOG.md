@@ -14,6 +14,8 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ### Added
 
+- `StartOptimizeParams.judgePromptId`: grade an `optimize.start` run with one of your prompts
+  instead of the built-in judge, as `experiments.create` already allows. Optional.
 - `RunReportCell.erroredCount` and `RunReportCell.unscoredReason` (`{ message, count }`): how many
   examples errored, and the commonest reason the cell's examples have no score. Both optional.
 - `RunReport.unscoredReason` (`{ message, count }`): the commonest reason a result has no score,

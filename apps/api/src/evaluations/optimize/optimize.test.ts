@@ -3,7 +3,7 @@ import { UnrecoverableError } from 'bullmq';
 import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
 import { processOptimize, processCell } from '../runs';
-import { getFlowProducer, getRedisConnection } from '../queue';
+import { getCellsQueue, getFlowProducer, getOptimizeQueue, getRedisConnection } from '../queue';
 import { authedAgent } from '../../test-utils';
 
 /** One `exampleSnapshot` entry as frozen onto `ExperimentRun` (see `runs.types.ts`'s `RunSnapshotExample`). */
@@ -183,8 +183,8 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
 
     const runRowBefore = await prisma.experimentRun.findUnique({ where: { id: run.run_id } });
     const experimentId = runRowBefore!.experimentId;
-    // The judge is recorded on the run at start, like an experiment run. An
-    // optimize run has no custom judge prompt, so the version id stays null.
+    // The judge is recorded on the run at start, like an experiment run. No
+    // judge_prompt_id was sent, so the built-in judge grades: no version id.
     expect(runRowBefore!.judgeModel).toBe('gpt-4o-mini');
     expect(runRowBefore!.judgePromptVersionId).toBeNull();
 
@@ -505,6 +505,63 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
     expect(joined).toContain('COMPLETE message array');
     expect(sent[sent.length - 1].role).toBe('system');
     expect(sent[sent.length - 1].content).toContain('Return EXACTLY 2 candidates.');
+  });
+
+  it('a team optimizer prompt still tells the optimizer to satisfy a custom judge prompt, and not to copy its placeholders', async () => {
+    const { agent, teamId, userId } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agent);
+
+    const optimizerPrompt = (await agent.post('/api/v1/prompts').send({ name: 'house-optimizer' }).expect(201)).body;
+    await agent
+      .post(`/api/v1/prompts/${optimizerPrompt.id}/versions`)
+      .send({ messages: [{ role: 'system', content: 'Rewrite in our house style.' }] })
+      .expect(201);
+    const judgePrompt = (await agent.post('/api/v1/prompts').send({ name: 'house-judge' }).expect(201)).body;
+    const judgeV1 = (
+      await agent
+        .post(`/api/v1/prompts/${judgePrompt.id}/versions`)
+        .send({ messages: [{ role: 'user', content: 'Score 0 unless the reply is JSON. {{ criteria }} {{ output }}' }] })
+        .expect(201)
+    ).body;
+
+    const run = (
+      await agent
+        .post(`/api/v1/prompts/${promptId}/optimize`)
+        .send({
+          dataset_id: datasetId,
+          models: ['gpt-4o-mini'],
+          judge_model: 'gpt-4o-mini',
+          optimizer_prompt_id: optimizerPrompt.id,
+          judge_prompt_id: judgePrompt.id,
+          draft_count: 1,
+        })
+        .expect(202)
+    ).body;
+
+    const spy = mockFetchOnce(
+      cannedOptimizer([{ messages: [{ role: 'system', content: 'House style about {{ name }}' }], rationale: 'house' }]),
+    );
+    const runRow = await prisma.experimentRun.findUniqueOrThrow({ where: { id: run.run_id } });
+    await processOptimize({
+      teamId,
+      userId,
+      promptId,
+      experimentId: runRow.experimentId,
+      runId: run.run_id,
+      datasetId,
+      models: ['gpt-4o-mini'],
+      optimizerModel: 'gpt-4o-mini',
+      optimizerPromptId: optimizerPrompt.id,
+      judgeModel: 'gpt-4o-mini',
+      judgePromptVersionId: judgeV1.id,
+      draftCount: 1,
+    });
+
+    const sent = JSON.parse((spy.mock.calls[0][1] as { body: string }).body).messages;
+    const contract = sent[sent.length - 1];
+    expect(contract.role).toBe('system');
+    expect(contract.content).toContain('scored by the judge template');
+    expect(contract.content).toContain('never copy them into a rewrite');
   });
 
   it('404s for an optimizer prompt belonging to another team', async () => {
@@ -886,6 +943,103 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
     const grid = runRow!.grid as unknown as FrozenGridCell[];
     expect(grid.some((c) => c.variantLabel === 'production')).toBe(true);
     expect(grid.some((c) => c.variantLabel === 'v2')).toBe(false);
+  });
+
+  it('grades with a custom judge prompt: its version is frozen on the run, the report and every cell job', async () => {
+    const { agent } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agent);
+    const judgePrompt = (await agent.post('/api/v1/prompts').send({ name: 'house-judge' }).expect(201)).body;
+    const judgeV1 = (
+      await agent
+        .post(`/api/v1/prompts/${judgePrompt.id}/versions`)
+        .send({
+          messages: [
+            { role: 'system', content: 'Score 100 only when every rubric item holds: {{ criteria }}' },
+            { role: 'user', content: 'Answer to grade: {{ output }}' },
+          ],
+        })
+        .expect(201)
+    ).body;
+    await getOptimizeQueue().obliterate({ force: true });
+    await getCellsQueue().obliterate({ force: true });
+
+    const run = (
+      await agent
+        .post(`/api/v1/prompts/${promptId}/optimize`)
+        .send({
+          dataset_id: datasetId,
+          models: ['gpt-4o-mini'],
+          judge_model: 'gpt-4o-mini',
+          judge_prompt_id: judgePrompt.id,
+          draft_count: 1,
+        })
+        .expect(202)
+    ).body;
+
+    const runRow = await prisma.experimentRun.findUniqueOrThrow({ where: { id: run.run_id } });
+    expect(runRow.judgePromptVersionId).toBe(judgeV1.id);
+    const report = (await agent.get(`/api/v1/runs/${run.run_id}/report`).expect(200)).body;
+    expect(report.judge).toEqual({ model: 'gpt-4o-mini', promptVersionId: judgeV1.id });
+
+    // A judge version promoted after the run started must not change how it grades.
+    await agent
+      .post(`/api/v1/prompts/${judgePrompt.id}/versions`)
+      .send({ messages: [{ role: 'user', content: 'V2 judge: {{ output }}' }] })
+      .expect(201);
+    await agent.post(`/api/v1/prompts/${judgePrompt.id}/aliases/production/promote`).send({ version_number: 2 }).expect(200);
+
+    const [optimizeJob] = (await getOptimizeQueue().getJobs(['waiting'])).filter((j) => j.data.runId === run.run_id);
+    expect(optimizeJob!.data.judgePromptVersionId).toBe(judgeV1.id);
+
+    const spy = mockFetchOnce(
+      cannedOptimizer([{ messages: [{ role: 'system', content: 'Answer about {{ name }} in third person' }], rationale: 'r' }]),
+    );
+    await processOptimize(optimizeJob!.data);
+
+    // The optimizer is shown the frozen v1 rubric, so its rewrites aim at what will grade them.
+    const sent = JSON.stringify(JSON.parse((spy.mock.calls[0][1] as { body: string }).body).messages);
+    expect(sent).toContain('Score 100 only when every rubric item holds');
+    expect(sent).not.toContain('V2 judge');
+
+    const cellJobs = (await getCellsQueue().getJobs(['waiting', 'prioritized', 'delayed', 'waiting-children'])).filter(
+      (j) => j.data.runId === run.run_id,
+    );
+    // 1 candidate + 1 baseline, x 2 examples.
+    expect(cellJobs.length).toBe(4);
+    expect(cellJobs.every((j) => j.data.judgePromptVersionId === judgeV1.id)).toBe(true);
+  });
+
+  it('400s for a judge prompt belonging to another team, before any run exists', async () => {
+    const { agent: agentA } = await authedAgent(app);
+    const { agent: agentB } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agentB);
+    const foreign = (await agentA.post('/api/v1/prompts').send({ name: 'their-judge' }).expect(201)).body;
+    await agentA
+      .post(`/api/v1/prompts/${foreign.id}/versions`)
+      .send({ messages: [{ role: 'user', content: 'Grade {{ output }}' }] })
+      .expect(201);
+
+    const res = await agentB
+      .post(`/api/v1/prompts/${promptId}/optimize`)
+      .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini', judge_prompt_id: foreign.id })
+      .expect(400);
+
+    expect(JSON.stringify(res.body)).toContain('judge_prompt_id');
+    expect(await prisma.experimentRun.count()).toBe(0);
+  });
+
+  it('400s for a judge prompt with no committed version, since every judge call would fail', async () => {
+    const { agent } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agent);
+    const empty = (await agent.post('/api/v1/prompts').send({ name: 'empty-judge' }).expect(201)).body;
+
+    const res = await agent
+      .post(`/api/v1/prompts/${promptId}/optimize`)
+      .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini', judge_prompt_id: empty.id })
+      .expect(400);
+
+    expect(JSON.stringify(res.body)).toContain('no committed version');
+    expect(await prisma.experimentRun.count()).toBe(0);
   });
 });
 

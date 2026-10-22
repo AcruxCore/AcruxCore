@@ -27,6 +27,13 @@ called out in the week it ships and in the SDK release notes.
 
 ### Major
 
+#### Optimize runs can grade with your own judge prompt
+
+- Optimize takes `judge_prompt_id`, and both optimize dialogs add the **Judge prompt** field.
+- The optimizer reads that judge prompt, so its rewrites aim at the rubric that scores them.
+- The hosted MCP tools `run_experiment` and `optimize_prompt` take it as `judge_prompt`.
+  [Reference →](/api-reference/optimize#choosing-a-judge-prompt)
+
 #### A failed gateway call names its trace
 
 - A failed completion now sends `x-gateway-trace-id`, `x-gateway-span-id` and `x-gateway-request-id`.
@@ -80,6 +87,7 @@ called out in the week it ships and in the SDK release notes.
 
 ### Minor
 
+- **Fixed** — the MCP tool `run_experiment` failed on every call because it sent no judge model.
 - The dashboard's optimize dialogs have a **Number of rewrites** field (1 to 6, default 3).
 - **Fixed** — some optimizer models wrote one rewrite when you asked for three.
 - Run reports: **View prompt** shows any variant's full prompt and diffs it against another.

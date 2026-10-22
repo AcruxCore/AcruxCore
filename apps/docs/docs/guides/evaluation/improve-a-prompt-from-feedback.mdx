@@ -99,6 +99,11 @@ Core uses the prompt's `production` alias if it has one, or its latest committed
 otherwise — pick `staging` or another alias instead if you want the comparison to be against
 something other than what's currently live.
 
+**Judge prompt** is optional. Leave it empty and the built-in judge grades each reply against
+the comments and the overall feedback. Pick one of your own judge prompts to grade with your
+rubric instead. The optimizer also reads that judge prompt, so its rewrites aim at the same
+rubric. See [Write a custom judge prompt](./write-a-custom-judge-prompt).
+
 **Number of rewrites** is how many different rewrites the optimizer writes, from 1 to 6
 (default 3). Each rewrite is run and graded on every example, so a larger number costs more.
 Pick 1 when the fix is obvious and you only want one candidate to check.

@@ -388,6 +388,11 @@ export interface StartOptimizeParams {
   alias?: string;
   /** The model that grades every candidate and baseline result: a model registered under Gateway → Models. Required; there is no server-side default. */
   judgeModel: string;
+  /**
+   * One of your prompts to grade with instead of the built-in judge. The run uses its
+   * `production` version (else its latest), and the optimizer is shown it too.
+   */
+  judgePromptId?: string;
 }
 
 export interface StartOptimizeResult {

@@ -272,7 +272,9 @@ the API.
 The three optimizer tools improve a prompt against a dataset. `optimize_prompt` starts a
 run, and an optimizer model writes rewrites of the prompt's production version. A judge
 model, which you name in the call, then scores each rewrite and the production version on
-the dataset's examples. `get_optimize_report` lists each rewrite with its score next to
+the dataset's examples. Both `optimize_prompt` and `run_experiment` take an optional
+`judge_prompt`, which names one of your prompts to grade with instead of the built-in
+judge. `get_optimize_report` lists each rewrite with its score next to
 the production score. `promote_optimize_candidate` saves one rewrite as a new version and
 points the `production` alias at it. The promote tool refuses a rewrite that scored no
 better than production. It also refuses when `production` has moved to another version

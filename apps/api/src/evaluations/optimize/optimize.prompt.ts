@@ -50,6 +50,15 @@ const IMAGE_PART_NOTE = `
 
 A message's "content" can be a list of parts, where an {"type": "image_url", ...} part holds an image. Keep every image part exactly as it is, in its message, and rewrite only the text. A rewritten message that holds an image keeps "content" as a list of parts.`;
 
+/**
+ * Added when the run grades with a custom judge prompt: to the built-in system
+ * message, or to the trailing contract when a team optimizer prompt replaces it.
+ * The judge template carries its own placeholders (`{{ output }}`, `{{ criteria }}`),
+ * and a rewrite that copies them fails the variable-set check, so the note says
+ * whose they are.
+ */
+const JUDGE_TEMPLATE_NOTE = ` Every rewrite's output will be scored by the judge template included in the data, so the outputs must also satisfy its rubric. The judge template's own \`{{ }}\` placeholders and \`{% %}\` tags belong to the judge: never copy them into a rewrite.`;
+
 /** Whether a production template (a messages array) has a message with an image part. */
 function hasImagePart(productionMessages: unknown): boolean {
   return (
@@ -93,6 +102,11 @@ function hasImagePart(productionMessages: unknown): boolean {
  *   - `overallFeedback`: Dataset-level feedback directive (null if not
  *     supplied).
  *   - `draftCount`: Number of candidate rewrites to request.
+ *   - `judgeTemplate`: The custom judge prompt's messages when the run grades
+ *     with one. The optimizer is shown it so its rewrites aim at the rubric
+ *     that will score them; without it, a rule that lives only in the judge
+ *     (such as "reply as JSON") is invisible to the optimizer and every
+ *     rewrite can score 0.
  * @returns A message array suitable for passing to a gateway completion call.
  */
 export function compileOptimizePrompt(input: {
@@ -100,6 +114,7 @@ export function compileOptimizePrompt(input: {
   cases: Array<{ input: unknown; criteria: string | null; priorOutput?: unknown; history?: ChatMessage[] | null }>;
   overallFeedback: string | null;
   draftCount: number;
+  judgeTemplate?: unknown;
 }): ChatMessage[] {
   // Stringify the production template if it is not already a string, then
   // neutralize any literal delimiter-marker token it contains — the
@@ -114,6 +129,13 @@ export function compileOptimizePrompt(input: {
   );
 
   const overallFeedbackStr = neutralizeDelimiterMarkers(input.overallFeedback ?? 'none');
+  // The judge template is team-written, so it is untrusted data like the rest.
+  const judgeTemplateStr =
+    input.judgeTemplate === undefined
+      ? null
+      : neutralizeDelimiterMarkers(
+          typeof input.judgeTemplate === 'string' ? input.judgeTemplate : JSON.stringify(input.judgeTemplate),
+        );
 
   const casesStr = input.cases
     .map((c, idx) => {
@@ -155,7 +177,7 @@ ${priorOutputStr}
     role: 'system',
     content: `You are an expert prompt engineer. You will be given a production prompt template, a set of failing test cases (with their inputs, per-case criteria, and the output the template previously produced), and optional overall feedback describing how the template's outputs should change.
 
-Rewrite the template to better satisfy the failing cases' criteria and the overall feedback. The rewrite MUST preserve the exact same \`{{ variable }}\` placeholders as the original template — do not invent new variables and do not drop any existing ones. The rewrite must remain a valid, renderable template.${hasImagePart(input.productionMessages) ? IMAGE_PART_NOTE : ''}${input.draftCount > 1 ? DISTINCT_DRAFTS_NOTE : ''}
+Rewrite the template to better satisfy the failing cases' criteria and the overall feedback.${judgeTemplateStr === null ? '' : JUDGE_TEMPLATE_NOTE} The rewrite MUST preserve the exact same \`{{ variable }}\` placeholders as the original template — do not invent new variables and do not drop any existing ones. The rewrite must remain a valid, renderable template.${hasImagePart(input.productionMessages) ? IMAGE_PART_NOTE : ''}${input.draftCount > 1 ? DISTINCT_DRAFTS_NOTE : ''}
 
 ${optimizerOutputContract(input.draftCount)}`,
   };
@@ -164,6 +186,7 @@ ${optimizerOutputContract(input.draftCount)}`,
     productionMessagesStr,
     casesStr,
     overallFeedbackStr,
+    judgeTemplateStr,
     draftCount: input.draftCount,
   });
 
@@ -187,6 +210,7 @@ function buildOptimizerDataMessage(parts: {
   productionMessagesStr: string;
   casesStr: string;
   overallFeedbackStr: string;
+  judgeTemplateStr: string | null;
   draftCount: number;
 }): ChatMessage {
   return {
@@ -206,7 +230,16 @@ Overall feedback:
 <<<OVERALL_FEEDBACK_START>>>
 ${parts.overallFeedbackStr}
 <<<OVERALL_FEEDBACK_END>>>
-
+${
+      parts.judgeTemplateStr === null
+        ? ''
+        : `
+Judge template (every rewrite's output is scored by this judge prompt):
+<<<JUDGE_TEMPLATE_START>>>
+${parts.judgeTemplateStr}
+<<<JUDGE_TEMPLATE_END>>>
+`
+    }
 Please propose exactly ${parts.draftCount} candidate ${parts.draftCount === 1 ? 'rewrite' : 'rewrites'} in the specified JSON format.`,
   };
 }
@@ -247,6 +280,7 @@ export async function compileCustomOptimizePrompt(
     cases: Array<{ input: unknown; criteria: string | null; priorOutput?: unknown; history?: ChatMessage[] | null }>;
     overallFeedback: string | null;
     draftCount: number;
+    judgeTemplate?: unknown;
   },
 ): Promise<ChatMessage[]> {
   const production = await prisma.promptAlias.findFirst({
@@ -278,5 +312,11 @@ export async function compileCustomOptimizePrompt(
   const builtIn = compileOptimizePrompt(input);
   const dataMessage = builtIn[builtIn.length - 1]!;
 
-  return [...rendered, dataMessage, { role: 'system', content: optimizerOutputContract(input.draftCount) }];
+  // The judge note lived in the discarded system message, so it rides on the
+  // contract instead: a team prompt must not hide what the rewrites are graded by.
+  const contract =
+    input.judgeTemplate === undefined
+      ? optimizerOutputContract(input.draftCount)
+      : `${optimizerOutputContract(input.draftCount)}\n\n${JUDGE_TEMPLATE_NOTE.trim()}`;
+  return [...rendered, dataMessage, { role: 'system', content: contract }];
 }

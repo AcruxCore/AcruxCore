@@ -493,12 +493,17 @@ class OptimizeNamespace:
         judge_model: str,
         draft_count: Optional[int] = None,
         alias: Optional[str] = None,
+        judge_prompt_id: Optional[str] = None,
     ) -> StartOptimizeResult:
         """Start an optimize run.
 
         ``judge_model`` is the model that grades every candidate and baseline result:
         a model registered under Gateway → Models. It is required because the server
         has no default judge.
+
+        ``judge_prompt_id`` is a prompt of yours that grades instead of the built-in
+        judge. The run uses its ``production`` version (else its latest), and the
+        optimizer is shown it too.
         """
         body: Dict[str, Any] = {
             "dataset_id": dataset_id,
@@ -509,6 +514,8 @@ class OptimizeNamespace:
             body["draft_count"] = draft_count
         if alias is not None:
             body["alias"] = alias
+        if judge_prompt_id is not None:
+            body["judge_prompt_id"] = judge_prompt_id
         response = await self._client._request(
             "POST",
             f"/prompts/{quote(prompt_id, safe='')}/optimize",

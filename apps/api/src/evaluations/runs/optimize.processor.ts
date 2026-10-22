@@ -171,6 +171,18 @@ export async function processOptimize(data: OptimizeJobData): Promise<void> {
   }
   const baselineLabel = baseline.alias ?? `v${baseline.versionNumber}`;
 
+  // The frozen custom judge version, shown to the optimizer so it rewrites
+  // toward the rubric that will score the rewrites. Team-scoped lookup, as for
+  // the baseline version above.
+  let judgeTemplate: unknown;
+  if (data.judgePromptVersionId) {
+    const judgeVersion = await versionsRepo.findByIdForTeam(data.judgePromptVersionId, data.teamId);
+    if (!judgeVersion) {
+      throw new NotFoundError(`Judge prompt version ${data.judgePromptVersionId} not found`);
+    }
+    judgeTemplate = judgeVersion.messages;
+  }
+
   const optimizerInput = {
     productionMessages: baselineVersion.messages,
     // No `priorOutput`: this is a brand-new optimize attempt, so there is no
@@ -178,6 +190,7 @@ export async function processOptimize(data: OptimizeJobData): Promise<void> {
     cases: exampleSnapshot.map((example) => ({ input: example.input, criteria: example.criteria, history: example.history })),
     overallFeedback: dataset.overallFeedback,
     draftCount: data.draftCount,
+    ...(judgeTemplate ? { judgeTemplate } : {}),
   };
   const optimizerMessages = data.optimizerPromptId
     ? await compileCustomOptimizePrompt(data.optimizerPromptId, optimizerInput)
@@ -303,6 +316,8 @@ export async function processOptimize(data: OptimizeJobData): Promise<void> {
           overallFeedback: dataset.overallFeedback,
           // The caller's judge from the optimize request, forwarded cell → judge job.
           judgeModel: data.judgeModel,
+          // The frozen custom judge prompt version; absent for the built-in judge.
+          ...(data.judgePromptVersionId ? { judgePromptVersionId: data.judgePromptVersionId } : {}),
           ...(cell.promptVersionId ? { promptVersionId: cell.promptVersionId } : {}),
           ...(cell.promptCandidateId ? { promptCandidateId: cell.promptCandidateId } : {}),
         };

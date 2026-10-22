@@ -14,6 +14,8 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ### Added
 
+- `optimize.start(..., judge_prompt_id=...)`: grade an optimize run with one of your prompts
+  instead of the built-in judge, as `experiments.create` already allows. Optional.
 - `runs.rejudge(run_id, only_unscored=True)` sends a finished run's outputs back to its judge
   without calling the models again. Returns a `RejudgeRunResult` (`run_id`, `status`, `rejudging`).
 - `ToolSyncResult.version_id` and `ResolvedTool.version_id`: the id of the tool version. `None`

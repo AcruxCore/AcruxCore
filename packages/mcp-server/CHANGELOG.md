@@ -7,6 +7,18 @@ package follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Added
+
+- `judge_prompt` on `run_experiment` and `optimize_prompt`: the name or UUID of one of your
+  prompts that grades instead of the built-in judge. The optimizer also reads it.
+- `get_optimize_report` returns `judgePromptVersionId`, the judge prompt version that graded
+  the run, or `null` for the built-in judge.
+
+### Fixed
+
+- `run_experiment` failed on every call with `judge_model is required`: it sent no judge model.
+  It now takes a required `judge_model`, like `optimize_prompt`.
+
 ## 0.2.0 — 2026-10-22
 
 ### Added

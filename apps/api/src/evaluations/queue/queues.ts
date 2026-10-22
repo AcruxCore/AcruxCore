@@ -187,6 +187,12 @@ export interface OptimizeJobData {
    */
   optimizerPromptId?: string;
   /**
+   * The custom judge prompt version to grade with, resolved and frozen in
+   * `startOptimize`. Forwarded onto every cell job. Absent means the built-in
+   * judge prompt.
+   */
+  judgePromptVersionId?: string;
+  /**
    * Alias whose version is the comparison baseline, or undefined to use the
    * prompt's latest committed version (design "Alias-based baseline").
    */

@@ -239,6 +239,52 @@ Trace "mcp-doc-verification" — status ok, 1 span(s), 139 tokens, $0.000042.
 
 ---
 
+### tools/call — running an experiment
+
+`run_experiment` creates an experiment over a dataset and starts its run. The run tests
+every pair of a prompt version in `version_ids` and a model in `models`. `judge_model` is
+required, and it must be a model registered in the gateway. `judge_prompt` is optional. It
+takes the name or UUID of one of your prompts, and that prompt grades every answer
+instead of the built-in judge. The call returns as soon as the run is queued.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/mcp \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-06-18" \
+  -d '{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"run_experiment","arguments":{"dataset_id":"3f04989b-adff-40eb-b86a-d9b5ffc64153","version_ids":["d6f7cca3-b855-4445-8983-269cf7859fdf"],"models":["gpt-4o-mini-or"],"judge_model":"gpt-4o-mini-or","judge_prompt":"ticket-classifier judge","name":"classifier, rubric judge"}}}'
+```
+
+Response (status 200) — the text block, unescaped and shortened:
+
+```text
+Experiment 1974b5db-2b84-4545-a413-848b0555e72f created and run 83e9d642-7fee-44ce-b60d-4a7dfd3567f6 is queued. Results arrive asynchronously — poll get_experiment_run.
+
+{
+  "experiment": {
+    "id": "1974b5db-2b84-4545-a413-848b0555e72f",
+    "name": "classifier, rubric judge",
+    "config": {
+      "models": ["gpt-4o-mini-or"],
+      "judgeModel": "gpt-4o-mini-or",
+      "versionIds": ["d6f7cca3-b855-4445-8983-269cf7859fdf"],
+      "judgePromptId": "821f5b28-6c7f-43b2-aa8a-841bad82e671"
+    }
+  },
+  "run": {
+    "run_id": "83e9d642-7fee-44ce-b60d-4a7dfd3567f6",
+    "status": "queued"
+  }
+}
+```
+
+A `judge_prompt` name that matches no prompt in your team fails before the experiment is
+created. See [Write a custom judge prompt](/docs/guides/write-a-custom-judge-prompt) for
+how to write one.
+
+---
+
 ### tools/call — improving a prompt with the optimizer
 
 Three tools drive the optimizer. `optimize_prompt` starts a run. In the run, an
@@ -246,7 +292,9 @@ optimizer model writes rewrites of the prompt version that `alias` points at (de
 `production`). That version is the **baseline**. The judge model then scores each rewrite
 and the baseline on the dataset's examples. `prompt` takes the prompt's name or its UUID.
 `judge_model` is required. `draft_count` is the number of rewrites to write, 1 to 6
-(default 3). The call returns the run id as soon as the run is queued.
+(default 3). `judge_prompt` is optional and works as in `run_experiment`. The optimizer
+also reads that judge prompt, so its rewrites aim at the same rubric. The call returns the
+run id as soon as the run is queued.
 
 ```bash
 curl -X POST $ACRUXCORE_BASE_URL/mcp \
@@ -296,6 +344,7 @@ Optimize run 4d179b65-f0ef-4b35-a267-ac3a986f07b0 succeeded. 2 of 2 rewrite(s) b
   "runId": "4d179b65-f0ef-4b35-a267-ac3a986f07b0",
   "status": "succeeded",
   "judgeModel": "gpt-4o-mini-or",
+  "judgePromptVersionId": null,
   "recommended": "65608412-a11f-4c1b-bb89-c58c2c766853",
   "baseline": [
     {
@@ -439,6 +488,40 @@ Error: Refused: alias "production" now points at version 1, but run 4a20afef-4b4
 When six long rewrites do not fit in one result, `get_optimize_report` leaves out every
 rewrite's `messages` and sets `messagesOmitted: true`. Every `candidateId` and score stays in
 the result. Pass `candidate_id` with `run_id` to read one rewrite with its full messages.
+
+`judgePromptVersionId` is `null` when the built-in judge graded the run. When the run used
+a `judge_prompt`, it is the id of the judge prompt version that graded it. This run used
+the `ticket-classifier judge` prompt, whose rubric scores 0 for any reply that is not one
+JSON object:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/mcp \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-06-18" \
+  -d '{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"optimize_prompt","arguments":{"prompt":"ticket-classifier","dataset_id":"3f04989b-adff-40eb-b86a-d9b5ffc64153","models":["gpt-4o-mini-or"],"optimizer_model":"gpt-5.4-mini-or","judge_model":"gpt-4o-mini-or","judge_prompt":"ticket-classifier judge","draft_count":2}}}'
+```
+
+`get_optimize_report` for that run, shortened:
+
+```text
+Optimize run c5622383-ba91-4975-ad3c-4075349b285c succeeded. 1 of 1 rewrite(s) beat the baseline. Recommended: candidate-A (candidate_id 32e3f29b-3678-4fad-966f-d1c88c102c80), +100.0 on gpt-4o-mini-or. Promote it with promote_optimize_candidate only if the user agrees.
+
+{
+  "runId": "c5622383-ba91-4975-ad3c-4075349b285c",
+  "status": "succeeded",
+  "judgeModel": "gpt-4o-mini-or",
+  "judgePromptVersionId": "aa5c99fb-f152-4d05-a901-5f612c4cde0c",
+  "recommended": "32e3f29b-3678-4fad-966f-d1c88c102c80",
+  "baseline": [
+    { "label": "production", "model": "gpt-4o-mini-or", "avgScore": 0, "passRate": 0 }
+  ]
+}
+```
+
+The rewrite's rationale says it was changed to "require a single JSON object", which
+"better aligns the template with the judge rubric".
 
 Read-only mode (`--read-only` on the local server) removes `optimize_prompt` and
 `promote_optimize_candidate`. `get_optimize_report` stays.

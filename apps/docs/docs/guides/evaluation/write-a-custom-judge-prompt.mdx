@@ -1,6 +1,6 @@
 ---
 title: Write a custom judge prompt
-description: Grade experiment runs and evaluation rules with your own rubric, including examples that have no criteria, and see exactly what the judge model receives.
+description: Grade experiment runs, optimize runs and evaluation rules with your own rubric, including examples that have no criteria, and see exactly what the judge model receives.
 sidebar_position: 6
 keywords: [llm as a judge, custom judge prompt, evaluation rubric, llm evaluation, grading prompt]
 slug: /guides/write-a-custom-judge-prompt
@@ -305,6 +305,53 @@ above leaves out. That id points to the trace of the judge call: the record of t
 the judge model received and its reply. Open the trace under **Traces**. For the
 export-button example, the system message ends after the two rubric lines, because the
 `{% if criteria %}` block rendered nothing.
+
+## Use the same judge in an optimize run
+
+An optimize run can grade with your judge prompt too. The optimizer also reads the judge
+prompt, so the rewrites it writes aim at your rubric. See
+[Improve a prompt from feedback](./improve-a-prompt-from-feedback) for how an optimize run
+works.
+
+<Tabs groupId="route">
+<TabItem value="dashboard" label="Dashboard">
+
+Open the dataset and click **Optimize a prompt**. In the **Judge prompt** field, pick the
+judge prompt from Step 1. The **Improve from feedback** dialog on the Feedback page has the
+same field.
+
+![The Optimize a prompt dialog with a judge model and a custom judge prompt selected](/img/guides/write-a-custom-judge-prompt/03-optimize-judge-prompt.png)
+
+</TabItem>
+<TabItem value="curl" label="curl">
+
+Pass the judge prompt's id as `judge_prompt_id`:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/prompts/781d8cbb-c0eb-49cc-a7a8-faf2797b5af2/optimize \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dataset_id": "3f04989b-adff-40eb-b86a-d9b5ffc64153",
+    "models": ["gpt-4o-mini-or"],
+    "optimizer_model": "gpt-5.4-mini-or",
+    "judge_model": "gpt-4o-mini-or",
+    "judge_prompt_id": "821f5b28-6c7f-43b2-aa8a-841bad82e671",
+    "draft_count": 2
+  }'
+```
+
+```json
+{ "run_id": "22e5f2b1-e2d9-4a79-aabb-005e9774faf5", "status": "queued", "optimizer_model": "gpt-5.4-mini-or" }
+```
+
+</TabItem>
+</Tabs>
+
+In that run, the prompt under test did not ask for JSON, and the rubric from Step 2 scores
+0 for any reply that is not one JSON object. The optimizer wrote a rewrite that asks for
+one JSON object with the `category` and `priority` keys. The rewrite scored 100, and the
+`production` version scored 0.
 
 ## What a judge template can use
 

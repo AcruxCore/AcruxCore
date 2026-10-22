@@ -147,6 +147,10 @@ const UUID_FIELDS: Record<string, { verdict: Verdict; by: string }> = {
     verdict: 'ownership-checked',
     by: 'OptimizeService.start → promptsRepo.findById(id, teamId).',
   },
+  'evaluations/optimize/optimize.types.ts:StartOptimizeSchema.judge_prompt_id': {
+    verdict: 'ownership-checked',
+    by: 'OptimizeService.startOptimize → resolveJudgePromptVersion → promptsRepo.findById(id, teamId), 400.',
+  },
   'evaluations/optimize/optimize.types.ts:PromoteCandidateSchema.prompt_candidate_id': {
     verdict: 'ownership-checked',
     by: 'optimizeRepo.getCandidateForRun(teamId, runId, id).',

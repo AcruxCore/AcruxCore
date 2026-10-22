@@ -64,7 +64,7 @@ have to be one of the models in `models`. The server has no default judge, so a 
 without it is a 400, and so is a name your team has not registered. Both are checked
 before any run or job is created.
 
-Four more fields exist alongside `dataset_id`/`models`/`draft_count`/`judge_model`:
+Five more fields exist alongside `dataset_id`/`models`/`draft_count`/`judge_model`:
 
 - `optimizer_model` (request, optional) — the model that **writes** the
   candidate rewrites. This is not `models`, which is what the rewrites are then
@@ -76,6 +76,12 @@ Four more fields exist alongside `dataset_id`/`models`/`draft_count`/`judge_mode
   output shape and the untrusted-data isolation are always applied on top, so a
   custom template can change what a good rewrite looks like but cannot break the
   response format. Omitted, the built-in optimizer instructions are used.
+- `judge_prompt_id` (request, optional) — one of your own prompts, used as the
+  judge's grading template instead of the built-in judge, exactly as on an
+  experiment. The run grades with its `production` version, or its latest version
+  when it has no `production` alias, and that version is fixed when the run
+  starts. The optimizer is also shown the template, so its rewrites aim at your
+  rubric. See "Choosing a judge prompt" below.
 - `alias` (request, optional) — resolves the comparison baseline to a named
   alias's current version (e.g. `staging`). Omitted, the baseline resolves to
   the prompt's `production` alias if one exists, otherwise its latest committed
@@ -277,6 +283,61 @@ itself never sends the production template's actual prior output to the
 optimizer on this (first) attempt for a prompt — it has no `priorOutput` to
 cite yet — so the quality of `overall_feedback` is what determines whether
 the optimizer's rewrite meaningfully changes model behavior.
+
+#### Choosing a judge prompt
+
+Pass `judge_prompt_id` to grade with your own rubric. In this run the judge prompt
+scores 0 for any reply that is not one JSON object, and the prompt being optimized
+never asks for JSON:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/prompts/781d8cbb-c0eb-49cc-a7a8-faf2797b5af2/optimize \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"dataset_id": "3f04989b-adff-40eb-b86a-d9b5ffc64153", "models": ["gpt-4o-mini-or"], "optimizer_model": "gpt-5.4-mini-or", "judge_model": "gpt-4o-mini-or", "judge_prompt_id": "821f5b28-6c7f-43b2-aa8a-841bad82e671", "draft_count": 2}'
+```
+
+Response (status 202):
+
+```json
+{
+  "run_id": "22e5f2b1-e2d9-4a79-aabb-005e9774faf5",
+  "status": "queued",
+  "optimizer_model": "gpt-5.4-mini-or"
+}
+```
+
+The run report names the judge prompt version that graded the run. The rewrite
+asked for one JSON object and scored 100; the baseline scored 0. Response of
+`GET /api/v1/runs/22e5f2b1-e2d9-4a79-aabb-005e9774faf5/report` (status 200,
+shortened to the judge and two fields of each cell):
+
+```json
+{
+  "runId": "22e5f2b1-e2d9-4a79-aabb-005e9774faf5",
+  "status": "succeeded",
+  "judge": {
+    "model": "gpt-4o-mini-or",
+    "promptVersionId": "aa5c99fb-f152-4d05-a901-5f612c4cde0c"
+  },
+  "cells": [
+    { "cellKey": "candidate-A|gpt-4o-mini-or", "avgScore": 100 },
+    { "cellKey": "production|gpt-4o-mini-or", "avgScore": 0 }
+  ]
+}
+```
+
+A judge prompt with no committed version is rejected before a run exists (status 400):
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "Judge prompt 'empty judge' has no committed version yet. Commit its judge template first." } }
+```
+
+An id that is not a prompt in your team is also a 400:
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "judge_prompt_id does not refer to a prompt in this team." } }
+```
 
 #### Alias-based baseline (`alias` field)
 

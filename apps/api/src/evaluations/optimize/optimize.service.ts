@@ -15,7 +15,7 @@ import type { StartOptimizeDto, PromoteCandidateDto, CandidateDetail } from './o
 import type { VersionDetail } from '../../prompts/versions/versions.types';
 import type { AliasDetail } from '../../prompts/aliases/aliases.types';
 import type { PromptMismatchWarning } from '../datasets/datasets.types';
-import { assertModelRegistered } from '../judge';
+import { assertModelRegistered, resolveJudgePromptVersion } from '../judge';
 
 /** Shared, stateless — mirrors how `OnlineEvalRuleService` reaches the model registry. */
 
@@ -91,8 +91,9 @@ export class OptimizeService {
    * @param dto - Validated payload: dataset id, models to sweep, optional draft_count.
    * @returns The created run's id and its initial `queued` status.
    * @throws {UnprocessableError} If `draft_count` exceeds {@link MAX_DRAFT_COUNT}.
-   * @throws {ValidationError} If the resolved optimizer model is not registered
-   *   for this team.
+   * @throws {ValidationError} If the resolved optimizer model or the judge model
+   *   is not registered for this team, or `judge_prompt_id` is not this team's
+   *   prompt or has no committed version.
    * @throws {NotFoundError} If the prompt or dataset does not resolve for this team.
    */
   async startOptimize(
@@ -135,6 +136,12 @@ export class OptimizeService {
     // The judge is the caller's choice, like the optimizer model above — and
     // checked at the same point, so a bad name is a 400 before any run exists.
     await assertModelRegistered(teamId, dto.judge_model);
+    // A custom judge prompt is frozen to one version now, as `RunsService.startRun`
+    // does, so promoting a new judge version mid-run cannot change how this run
+    // grades. A bad id or an uncommitted prompt is a 400 before any run exists.
+    const judgePromptVersionId = dto.judge_prompt_id
+      ? await resolveJudgePromptVersion(teamId, dto.judge_prompt_id)
+      : undefined;
 
     const promptMismatchWarning = await new DatasetsService(this.datasetsRepo).checkPromptMismatch(
       dataset.examples,
@@ -151,7 +158,12 @@ export class OptimizeService {
     // plain `POST /experiments` endpoint), and nothing reads
     // `Experiment.config` for an optimize run — the real, authoritative grid
     // lives on `ExperimentRun.grid` instead, resolved by `processOptimize`.
-    const config: ExperimentConfig = { versionIds: [], models: dto.models, judgeModel: dto.judge_model };
+    const config: ExperimentConfig = {
+      versionIds: [],
+      models: dto.models,
+      judgeModel: dto.judge_model,
+      ...(dto.judge_prompt_id ? { judgePromptId: dto.judge_prompt_id } : {}),
+    };
     const experiment = await this.experimentsRepo.create(teamId, userId, {
       datasetId: dto.dataset_id,
       promptId,
@@ -173,9 +185,10 @@ export class OptimizeService {
       grid: [] as unknown as Prisma.InputJsonValue,
       // Recorded so the run-finished email reaches whoever started the optimize.
       createdBy: userId,
-      // The run report names the judge that graded it. Optimize has no custom
-      // judge prompt, so there is no version to record.
+      // The run report names the judge that graded it, and the custom judge
+      // prompt version when one was chosen.
       judgeModel: dto.judge_model,
+      judgePromptVersionId: judgePromptVersionId ?? null,
     });
 
     const jobData: OptimizeJobData = {
@@ -189,6 +202,7 @@ export class OptimizeService {
       optimizerModel,
       judgeModel: dto.judge_model,
       ...(dto.optimizer_prompt_id ? { optimizerPromptId: dto.optimizer_prompt_id } : {}),
+      ...(judgePromptVersionId ? { judgePromptVersionId } : {}),
       alias: dto.alias,
       draftCount,
     };

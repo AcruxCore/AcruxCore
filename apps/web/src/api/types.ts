@@ -1293,6 +1293,8 @@ export interface OptimizeInput {
   optimizer_model?: string;
   /** Team prompt supplying the optimizer's instructions; omitted uses the built-in ones. */
   optimizer_prompt_id?: string;
+  /** Team prompt the judge grades with instead of the built-in judge; omitted uses the built-in one. */
+  judge_prompt_id?: string;
   draft_count?: number;
   /** The model that grades every candidate and baseline result: a team-registered model name. Required. */
   judge_model: string;

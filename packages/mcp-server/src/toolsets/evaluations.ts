@@ -29,7 +29,7 @@ interface RunDetail {
 /** The fields of `GET /runs/:id/report` the optimizer tools read. */
 interface RunReportBody {
   cells: OptimizeReportCell[];
-  judge?: { model: string | null };
+  judge?: { model: string | null; promptVersionId?: string | null };
 }
 
 /** The fields of `GET /runs/:id/candidates/:candidateId` worth showing before a promote. */
@@ -223,9 +223,9 @@ export const evaluationTools: AnyToolDefinition[] = [
       'is every (version x model) pair you list. When `prompt` is given, a baseline cell ' +
       'for its production alias is added automatically unless that version is already in ' +
       'the grid. Returns as soon as the run is queued — the worker executes it ' +
-      'asynchronously, so poll get_experiment_run for results. Note the judge model ' +
-      '(gpt-4o-mini by default) must itself be registered in the gateway or every score ' +
-      'fails.',
+      'asynchronously, so poll get_experiment_run for results. `judge_model` scores every ' +
+      'answer and must be registered in the gateway (see list_models). `judge_prompt` ' +
+      'grades with one of your prompts instead of the built-in judge.',
     inputSchema: {
       dataset_id: z.string().uuid().describe('Dataset to evaluate against.'),
       version_ids: z
@@ -242,13 +242,26 @@ export const evaluationTools: AnyToolDefinition[] = [
         .string()
         .optional()
         .describe('Which alias the automatic baseline points at. Default "production".'),
+      judge_model: z.string().min(1).describe('Gateway model that scores every answer. Required.'),
+      judge_prompt: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'Name or UUID of a team prompt that grades instead of the built-in judge. The run ' +
+            'uses its production version (else its latest). Default: the built-in judge.',
+        ),
     },
     async handler(args, { client, config }) {
       const body: Record<string, unknown> = {
         dataset_id: args.dataset_id,
         version_ids: args.version_ids,
         models: args.models,
+        judge_model: args.judge_model,
       };
+      if (args.judge_prompt !== undefined) {
+        body.judge_prompt_id = await resolvePromptRef(client, args.judge_prompt);
+      }
       if (args.name !== undefined) body.name = args.name;
       if (args.alias !== undefined) body.alias = args.alias;
       if (args.prompt !== undefined) body.prompt_id = await resolvePromptRef(client, args.prompt);
@@ -343,7 +356,9 @@ export const evaluationTools: AnyToolDefinition[] = [
       '`judge_model` scores every answer. Returns the run id as soon as the run is queued — ' +
       'drafting and scoring take minutes, so poll get_optimize_report. Nothing is promoted ' +
       'automatically: a rewrite only ships when promote_optimize_candidate is called. The ' +
-      'dataset\'s examples need `criteria`, or the judge has nothing to grade against. ' +
+      'dataset\'s examples need `criteria`, or the built-in judge has nothing to grade ' +
+      'against. `judge_prompt` grades with one of your prompts instead, and the optimizer ' +
+      'reads it too, so the rewrites aim at that rubric. ' +
       'Every model named here must be registered in the gateway (see list_models).',
     inputSchema: {
       prompt: z.string().min(1).describe('Prompt name or UUID to improve.'),
@@ -374,6 +389,14 @@ export const evaluationTools: AnyToolDefinition[] = [
         .string()
         .optional()
         .describe('Name or UUID of a team prompt to use as the optimizer\'s instructions.'),
+      judge_prompt: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'Name or UUID of a team prompt that grades instead of the built-in judge. The run ' +
+            'uses its production version (else its latest). Default: the built-in judge.',
+        ),
     },
     async handler(args, { client, config }) {
       const promptId = await resolvePromptRef(client, args.prompt);
@@ -387,6 +410,9 @@ export const evaluationTools: AnyToolDefinition[] = [
       if (args.alias !== undefined) body.alias = args.alias;
       if (args.optimizer_prompt !== undefined) {
         body.optimizer_prompt_id = await resolvePromptRef(client, args.optimizer_prompt);
+      }
+      if (args.judge_prompt !== undefined) {
+        body.judge_prompt_id = await resolvePromptRef(client, args.judge_prompt);
       }
 
       const result = await client.post<{
@@ -501,6 +527,8 @@ export const evaluationTools: AnyToolDefinition[] = [
         runId: run_id,
         status: run.status,
         judgeModel: report?.judge?.model ?? null,
+        // Null means the built-in judge graded the run.
+        judgePromptVersionId: report?.judge?.promptVersionId ?? null,
         recommended: best?.candidateId ?? null,
         baseline: (report?.cells ?? [])
           .filter((cell) => cell.isProductionBaseline)
