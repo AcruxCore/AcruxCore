@@ -24,6 +24,11 @@ export interface CellDrilldownPanelProps {
   candidateId: string | null;
   /** The variant's display label from the report, e.g. "v1 (production)". Falls back to the cell's own label. */
   variantLabel?: string;
+  /**
+   * Opens the prompt viewer for this cell's prompt. Absent for a local run's
+   * cell, which has no prompt on the platform.
+   */
+  onViewPrompt?: () => void;
   onClose: () => void;
 }
 
@@ -116,9 +121,18 @@ function ExampleRow({ example }: { example: RunCellExample }) {
  * @param cellKey - The cell to show, or null to keep the panel closed.
  * @param candidateId - The cell's `promptCandidateId`, or null if this cell
  *   is a production-baseline (`'version'`) cell rather than a candidate one.
+ * @param onViewPrompt - Opens the cell's prompt read-only; the "View prompt" button shows
+ *   when it is given, for every role, since reading a candidate is not promoting it.
  * @param onClose - Called when the panel is dismissed (Esc, overlay click, or close button).
  */
-export function CellDrilldownPanel({ runId, cellKey, candidateId, variantLabel, onClose }: CellDrilldownPanelProps) {
+export function CellDrilldownPanel({
+  runId,
+  cellKey,
+  candidateId,
+  variantLabel,
+  onViewPrompt,
+  onClose,
+}: CellDrilldownPanelProps) {
   const { canWrite } = useAuth();
   const [promoteOpen, setPromoteOpen] = useState(false);
   const detail = useRunCell(runId, cellKey);
@@ -133,13 +147,23 @@ export function CellDrilldownPanel({ runId, cellKey, candidateId, variantLabel, 
         <Empty title="Could not load this cell" description="Something went wrong. Try again." />
       ) : (
         <div className="flex flex-col gap-3">
-          {/* Promote is gated on the same promote-right the prompt-alias promote UI uses
-              (`canWrite` — owner/admin/editor, see `VersionsTab`) — viewers never see the button.
-              Only rendered for candidate cells; the production baseline cell has nothing to promote. */}
-          {canWrite && candidateId && (
-            <Button variant="primary" size="sm" onClick={() => setPromoteOpen(true)} className="self-start">
-              Promote to production
-            </Button>
+          {/* View prompt shows for every cell and every role: reading a prompt needs no
+              promote-right. Promote is gated on the same promote-right the prompt-alias
+              promote UI uses (`canWrite` — owner/admin/editor, see `VersionsTab`), and only
+              on candidate cells; the production baseline cell has nothing to promote. */}
+          {(onViewPrompt || (canWrite && candidateId)) && (
+            <div className="flex flex-wrap gap-2">
+              {onViewPrompt && (
+                <Button size="sm" onClick={onViewPrompt} data-testid="drilldown-view-prompt">
+                  View prompt
+                </Button>
+              )}
+              {canWrite && candidateId && (
+                <Button variant="primary" size="sm" onClick={() => setPromoteOpen(true)}>
+                  Promote to production
+                </Button>
+              )}
+            </div>
           )}
 
           {detail.data.examples.length === 0 ? (

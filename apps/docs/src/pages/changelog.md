@@ -80,6 +80,7 @@ called out in the week it ships and in the SDK release notes.
 
 ### Minor
 
+- Run reports: **View prompt** shows any variant's full prompt and diffs it against another.
 - **Fixed** — the MCP tool `get_experiment_run` said every run had 0 results, even a finished one.
 - **Fixed** — promoting an optimizer rewrite cleared the prompt's default model on the new version.
 - **Fixed** — with Capture payloads off, new traces were still named by the message's first words.

@@ -11,6 +11,13 @@ export interface LeaderboardMatrixProps {
   selectedCellKey: string | null;
   /** Called with a cell's `cellKey` when the user activates it (click or Enter/Space). */
   onSelectCell: (cellKey: string) => void;
+  /**
+   * Variant labels whose prompt can be opened from the matrix's Variant column.
+   * A local run's variants have no prompt on the platform and are left out.
+   */
+  promptLabels?: ReadonlySet<string>;
+  /** Called with a variant label when its name in the Variant column is clicked. */
+  onViewPrompt?: (variantLabel: string) => void;
 }
 
 /**
@@ -166,6 +173,16 @@ function MatrixCell({
   );
 }
 
+/** A variant's name in the Variant column, with the production-baseline dot. */
+function VariantName({ label, isBaseline, className }: { label: string; isBaseline: boolean; className?: string }) {
+  return (
+    <span className="whitespace-nowrap">
+      <span className={cn('text-[13px] font-medium text-ink', className)}>{label}</span>
+      {isBaseline && <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-accent align-middle" aria-hidden />}
+    </span>
+  );
+}
+
 /**
  * The matrix leaderboard: a ranked list of every (prompt-variant × model)
  * cell by average score, above a full variant-rows × model-columns grid.
@@ -179,8 +196,10 @@ function MatrixCell({
  * @param report - The run's comparison report (`GET /runs/:id/report`).
  * @param selectedCellKey - The currently drilled-down cell's key, for the selection ring.
  * @param onSelectCell - Invoked with a cell's `cellKey` on click/activation.
+ * @param promptLabels - Variants whose name opens their prompt; others render as plain text.
+ * @param onViewPrompt - Invoked with a variant label when its name is clicked.
  */
-export function LeaderboardMatrix({ report, selectedCellKey, onSelectCell }: LeaderboardMatrixProps) {
+export function LeaderboardMatrix({ report, selectedCellKey, onSelectCell, promptLabels, onViewPrompt }: LeaderboardMatrixProps) {
   const cellsByKey = new Map(report.cells.map((c) => [c.cellKey, c]));
   const ranked = report.leaderboard.map((key) => cellsByKey.get(key)).filter((c): c is RunReportCell => !!c);
 
@@ -227,11 +246,27 @@ export function LeaderboardMatrix({ report, selectedCellKey, onSelectCell }: Lea
                 <Fragment key={variant.variantLabel}>
                   <tr className="border-b border-line-soft last:border-b-0">
                     <td className="sticky left-0 z-10 whitespace-nowrap bg-surface px-4 py-2.5 align-top">
-                      <span className="text-[13px] font-medium text-ink">
-                        {variantDisplayLabel(variant.variantLabel, variant.versionNumber)}
-                      </span>
-                      {variant.isProductionBaseline && (
-                        <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-accent align-middle" aria-hidden />
+                      {onViewPrompt && promptLabels?.has(variant.variantLabel) ? (
+                        /* The hint line is what tells a reader the name is clickable;
+                           a bare name gave no sign that the prompt was one click away. */
+                        <button
+                          type="button"
+                          onClick={() => onViewPrompt(variant.variantLabel)}
+                          className="group flex flex-col items-start gap-0.5 rounded-md text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                          data-testid="matrix-view-prompt"
+                        >
+                          <VariantName
+                            label={variantDisplayLabel(variant.variantLabel, variant.versionNumber)}
+                            isBaseline={variant.isProductionBaseline}
+                            className="group-hover:underline"
+                          />
+                          <span className="text-[12px] text-faint group-hover:text-varhi">View prompt →</span>
+                        </button>
+                      ) : (
+                        <VariantName
+                          label={variantDisplayLabel(variant.variantLabel, variant.versionNumber)}
+                          isBaseline={variant.isProductionBaseline}
+                        />
                       )}
                     </td>
                     {report.models.map((model) => {

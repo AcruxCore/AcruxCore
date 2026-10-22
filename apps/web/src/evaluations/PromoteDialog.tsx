@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { ApiError, useAliases, useRunCandidate, useRunCell, useVersion, usePromoteCandidate } from '@/api';
-import type { Message } from '@/api/types';
-import { describeContent } from '@/lib/message-content';
 import { Button, Dialog, DialogFooter, Empty, Field, Input, MonoBlock, PageSpinner, useToast } from '@/ui';
+import { formatMessages } from './format-messages';
 
 export interface PromoteDialogProps {
   open: boolean;
@@ -13,11 +12,6 @@ export interface PromoteDialogProps {
   candidateId: string;
   /** The candidate's grid cell key — used to pull its judge evidence via `useRunCell`. */
   cellKey: string;
-}
-
-/** Renders a messages array as readable `role: content` text for the template panels. */
-function formatMessages(messages: Message[]): string {
-  return messages.map((m) => `[${m.role}]\n${describeContent(m.content)}`).join('\n\n');
 }
 
 /**

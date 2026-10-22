@@ -3,10 +3,12 @@ import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Button, Dialog, DialogFooter, Empty, PageSpinner, Spinner, useToast } from '@/ui';
 import { ApiError, useRejudgeRun, useRun, useRunReport } from '@/api';
-import type { RunReport, RunReportCell, RunStatus } from '@/api/types';
+import type { RunGridCell, RunReport, RunReportCell, RunReportVariant, RunStatus } from '@/api/types';
 import { LeaderboardMatrix } from './LeaderboardMatrix';
 import { NamedScoreTable } from './NamedScoreTable';
 import { CellDrilldownPanel } from './CellDrilldownPanel';
+import { PromptViewerDialog } from './PromptViewerDialog';
+import type { PromptSource } from './PromptViewerDialog';
 import { variantDisplayLabel } from './variant-label';
 import { summarizeUnscored } from './matrix.helpers';
 
@@ -96,6 +98,30 @@ function RunStatusBanner({
 }
 
 /**
+ * One {@link PromptSource} per prompt variant in the run, in grid order. The grid
+ * holds one cell per variant per model, so a variant is kept once. A local run's
+ * cells have no prompt on the platform and are left out.
+ *
+ * @param grid - The run's resolved grid (`Run.grid`), which alone carries the candidate ids.
+ * @param variants - The report's variants, which carry the version numbers for display labels.
+ * @returns The run's prompt variants by variant label; each source is keyed `candidate:<id>` or `version:<id>`.
+ */
+function promptSourcesOf(grid: RunGridCell[], variants: RunReportVariant[]): Map<string, PromptSource> {
+  const sources = new Map<string, PromptSource>();
+  for (const cell of grid) {
+    if (sources.has(cell.variantLabel)) continue;
+    const variant = variants.find((v) => v.variantLabel === cell.variantLabel);
+    const label = variantDisplayLabel(cell.variantLabel, variant?.versionNumber);
+    if (cell.variantKind === 'candidate' && cell.promptCandidateId) {
+      sources.set(cell.variantLabel, { key: `candidate:${cell.promptCandidateId}`, label, kind: 'candidate', candidateId: cell.promptCandidateId });
+    } else if (cell.variantKind === 'version' && cell.promptVersionId) {
+      sources.set(cell.variantLabel, { key: `version:${cell.promptVersionId}`, label, kind: 'version', versionId: cell.promptVersionId });
+    }
+  }
+  return sources;
+}
+
+/**
  * The `/evaluations/runs/:id` screen: polls the run's comparison report
  * ({@link useRunReport}) and renders the matrix leaderboard, a run-status
  * strip while results are still streaming in, and — on cell click — the
@@ -110,6 +136,8 @@ export function RunReportPage() {
   // promote button.
   const run = useRun(id ?? null);
   const [selectedCellKey, setSelectedCellKey] = useState<string | null>(null);
+  // The variant whose prompt is open in the viewer, from the matrix or the side panel.
+  const [viewingLabel, setViewingLabel] = useState<string | null>(null);
   const rejudge = useRejudgeRun(id ?? '');
   const toast = useToast();
   const [confirmRejudgeAll, setConfirmRejudgeAll] = useState(false);
@@ -140,6 +168,10 @@ export function RunReportPage() {
   const selectedVariantLabel = selectedVariant
     ? variantDisplayLabel(selectedVariant.variantLabel, selectedVariant.versionNumber)
     : undefined;
+  const sourcesByLabel = promptSourcesOf(run.data?.grid ?? [], data.variants);
+  const runSources = [...sourcesByLabel.values()];
+  const selectedSource = selectedGridCell ? sourcesByLabel.get(selectedGridCell.variantLabel) ?? null : null;
+  const viewingSource = viewingLabel ? sourcesByLabel.get(viewingLabel) ?? null : null;
 
   // Re-judging grades the outputs already produced, so a result that errored before
   // producing one is never counted. A local run has no server judge to run again.
@@ -219,7 +251,13 @@ export function RunReportPage() {
         }
       />
 
-      <LeaderboardMatrix report={data} selectedCellKey={selectedCellKey} onSelectCell={setSelectedCellKey} />
+      <LeaderboardMatrix
+        report={data}
+        selectedCellKey={selectedCellKey}
+        onSelectCell={setSelectedCellKey}
+        promptLabels={new Set(sourcesByLabel.keys())}
+        onViewPrompt={setViewingLabel}
+      />
 
       <NamedScoreTable cells={data.cells} />
 
@@ -250,7 +288,19 @@ export function RunReportPage() {
           cellKey={selectedCellKey}
           candidateId={selectedCandidateId}
           variantLabel={selectedVariantLabel}
+          onViewPrompt={selectedSource ? () => setViewingLabel(selectedGridCell?.variantLabel ?? null) : undefined}
           onClose={() => setSelectedCellKey(null)}
+        />
+      )}
+
+      {id && viewingSource && (
+        <PromptViewerDialog
+          key={viewingSource.key}
+          open
+          onOpenChange={(open) => !open && setViewingLabel(null)}
+          runId={id}
+          source={viewingSource}
+          runSources={runSources}
         />
       )}
     </div>
