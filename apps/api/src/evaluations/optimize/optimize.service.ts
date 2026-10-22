@@ -19,10 +19,18 @@ import { assertModelRegistered } from '../judge';
 
 /** Shared, stateless — mirrors how `OnlineEvalRuleService` reaches the model registry. */
 
-/** Default number of candidate rewrites requested when `draft_count` is omitted. */
+/**
+ * Default number of candidate rewrites requested when `draft_count` is omitted.
+ * Copied by hand in `apps/web/src/evaluations/DraftCountField.tsx`; change both.
+ */
 const DEFAULT_DRAFT_COUNT = 3;
 
-/** Hard cap on `draft_count` — protects the optimizer call and downstream grid size. */
+/**
+ * Hard cap on `draft_count` — protects the optimizer call and downstream grid size.
+ * Copied by hand in `apps/web/src/evaluations/DraftCountField.tsx` and in the
+ * `optimize_prompt` schema in `packages/mcp-server/src/toolsets/evaluations.ts`;
+ * change all three together.
+ */
 const MAX_DRAFT_COUNT = 6;
 
 /** Response DTO for `POST /prompts/:promptId/optimize`. */

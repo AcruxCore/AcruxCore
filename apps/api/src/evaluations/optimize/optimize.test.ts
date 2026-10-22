@@ -504,7 +504,7 @@ describe('POST /prompts/:promptId/optimize + processOptimize', () => {
     expect(joined).toContain('<<<PRODUCTION_TEMPLATE_START>>>');
     expect(joined).toContain('COMPLETE message array');
     expect(sent[sent.length - 1].role).toBe('system');
-    expect(sent[sent.length - 1].content).toContain('Return AT MOST 2 candidates');
+    expect(sent[sent.length - 1].content).toContain('Return EXACTLY 2 candidates.');
   });
 
   it('404s for an optimizer prompt belonging to another team', async () => {

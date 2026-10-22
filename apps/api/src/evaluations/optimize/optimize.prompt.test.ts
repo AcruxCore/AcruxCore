@@ -1,4 +1,4 @@
-import { compileOptimizePrompt } from './optimize.prompt';
+import { compileOptimizePrompt, optimizerOutputContract } from './optimize.prompt';
 
 describe('compileOptimizePrompt', () => {
   it('wraps the untrusted production template in explicit delimiters', () => {
@@ -50,6 +50,46 @@ describe('compileOptimizePrompt', () => {
     });
     expect(messages[0]!.content).toContain('{{ variable }}');
     expect(messages[1]!.content).toContain('5 candidate rewrites');
+  });
+
+  it('asks for exactly draftCount distinct candidates, not a ceiling', () => {
+    // "AT MOST 3" / "up to 3" let a literal-minded optimizer (gpt-5.4-mini)
+    // return one rewrite every time while the caller had asked for three.
+    const [system, user] = compileOptimizePrompt({
+      productionMessages: 'Hi {{ name }}',
+      cases: [],
+      overallFeedback: null,
+      draftCount: 3,
+    });
+    expect(system!.content).toContain('Return EXACTLY 3 candidates.');
+    expect(system!.content).toContain('genuinely different');
+    expect(system!.content).not.toMatch(/at most/i);
+    expect(user!.content).toContain('Please propose exactly 3 candidate rewrites');
+    expect(user!.content).not.toMatch(/up to 3/i);
+  });
+
+  it('keeps the "different rewrites" style advice out of the contract a custom optimizer prompt cannot override', () => {
+    // The contract is appended after a team's own optimizer prompt, so anything
+    // in it overrules that prompt. It may fix the count and the JSON shape, not
+    // what a good rewrite looks like.
+    const contract = optimizerOutputContract(3);
+    expect(contract).toContain('Return EXACTLY 3 candidates.');
+    expect(contract).not.toContain('genuinely different');
+    // Worked examples invite invented `{{ }}` placeholders, which the parser rejects.
+    expect(compileOptimizePrompt({ productionMessages: 'Hi {{ name }}', cases: [], overallFeedback: null, draftCount: 3 })[0]!.content)
+      .not.toContain('worked examples');
+  });
+
+  it('asks for a single candidate in the singular when draftCount is 1', () => {
+    const [system, user] = compileOptimizePrompt({
+      productionMessages: 'Hi {{ name }}',
+      cases: [],
+      overallFeedback: null,
+      draftCount: 1,
+    });
+    expect(system!.content).toContain('Return EXACTLY 1 candidate.');
+    expect(system!.content).not.toContain('genuinely different');
+    expect(user!.content).toContain('Please propose exactly 1 candidate rewrite in');
   });
 
   it('neutralizes a forged END marker embedded in the untrusted production template', () => {

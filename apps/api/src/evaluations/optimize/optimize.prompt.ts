@@ -14,7 +14,15 @@ import { renderMessages } from '../../prompts/versions/nunjucks.utils';
  * because a template that omits the complete-array rule reproduces the failure
  * that once killed every candidate in a run.
  *
- * @param draftCount - Ceiling on how many candidates to return.
+ * The count is stated as an exact target, not a ceiling. "AT MOST 3" let a
+ * literal-minded optimizer (gpt-5.4-mini) return one rewrite on every call
+ * while the caller had asked for three. The parser still caps the result and
+ * may drop invalid candidates, and a model can still under-deliver, so a run
+ * can end with fewer — but the model is never told fewer is fine. Advice on
+ * how the candidates should differ is style, so it lives in the built-in
+ * system message, where a custom optimizer prompt can replace it.
+ *
+ * @param draftCount - How many candidates to ask for (1–6, validated upstream).
  * @returns The contract text.
  */
 export function optimizerOutputContract(draftCount: number): string {
@@ -23,8 +31,19 @@ export function optimizerOutputContract(draftCount: number): string {
 Return ONLY strict JSON with this shape (no markdown, no prose, no extra fields):
 {"candidates": [{"messages": [{"role": "system", "content": "..."}, {"role": "user", "content": "..."}], "rationale": "<string explanation of the change>"}]}
 
-Return AT MOST ${draftCount} candidates.`;
+Return EXACTLY ${draftCount} ${draftCount === 1 ? 'candidate' : 'candidates'}.`;
 }
+
+/**
+ * Asks several drafts to differ, so a model told "exactly 3" does not answer
+ * with three near-copies. Not part of the contract: it is advice on what a good
+ * set of rewrites looks like, which a custom optimizer prompt may overrule.
+ * Worked examples are deliberately not suggested — they invite new `{{ }}`
+ * placeholders, which the parser rejects.
+ */
+const DISTINCT_DRAFTS_NOTE = `
+
+Make each candidate a genuinely different rewrite — for example, change how the rules are phrased or how the prompt is structured — not the same rewrite with small wording changes.`;
 
 /** Added to the built-in system message when the production template has an image part (issue #573). */
 const IMAGE_PART_NOTE = `
@@ -50,7 +69,7 @@ function hasImagePart(productionMessages: unknown): boolean {
  * failing cases' criteria/feedback while PRESERVING the same
  * `{{ variable }}` placeholders (the rewrite must remain a valid,
  * renderable template with the same variables — no new variables invented,
- * none dropped), and return ONLY strict JSON with at most `draftCount`
+ * none dropped), and return ONLY strict JSON with exactly `draftCount`
  * candidates. The user message embeds the production template, each
  * failing case's input/criteria/prior output, and the dataset-level
  * overall feedback.
@@ -73,7 +92,7 @@ function hasImagePart(productionMessages: unknown): boolean {
  *     source trace belonged to a session — FAQ Q19).
  *   - `overallFeedback`: Dataset-level feedback directive (null if not
  *     supplied).
- *   - `draftCount`: Maximum number of candidate rewrites to request.
+ *   - `draftCount`: Number of candidate rewrites to request.
  * @returns A message array suitable for passing to a gateway completion call.
  */
 export function compileOptimizePrompt(input: {
@@ -136,7 +155,7 @@ ${priorOutputStr}
     role: 'system',
     content: `You are an expert prompt engineer. You will be given a production prompt template, a set of failing test cases (with their inputs, per-case criteria, and the output the template previously produced), and optional overall feedback describing how the template's outputs should change.
 
-Rewrite the template to better satisfy the failing cases' criteria and the overall feedback. The rewrite MUST preserve the exact same \`{{ variable }}\` placeholders as the original template — do not invent new variables and do not drop any existing ones. The rewrite must remain a valid, renderable template.${hasImagePart(input.productionMessages) ? IMAGE_PART_NOTE : ''}
+Rewrite the template to better satisfy the failing cases' criteria and the overall feedback. The rewrite MUST preserve the exact same \`{{ variable }}\` placeholders as the original template — do not invent new variables and do not drop any existing ones. The rewrite must remain a valid, renderable template.${hasImagePart(input.productionMessages) ? IMAGE_PART_NOTE : ''}${input.draftCount > 1 ? DISTINCT_DRAFTS_NOTE : ''}
 
 ${optimizerOutputContract(input.draftCount)}`,
   };
@@ -161,7 +180,7 @@ ${optimizerOutputContract(input.draftCount)}`,
  * instructions, so that stays platform-owned regardless of who wrote the
  * system message.
  *
- * @param parts - Already-neutralized strings plus the draft ceiling.
+ * @param parts - Already-neutralized strings plus the number of drafts to ask for.
  * @returns The user message carrying every untrusted input.
  */
 function buildOptimizerDataMessage(parts: {
@@ -188,7 +207,7 @@ Overall feedback:
 ${parts.overallFeedbackStr}
 <<<OVERALL_FEEDBACK_END>>>
 
-Please propose up to ${parts.draftCount} candidate rewrites in the specified JSON format.`,
+Please propose exactly ${parts.draftCount} candidate ${parts.draftCount === 1 ? 'rewrite' : 'rewrites'} in the specified JSON format.`,
   };
 }
 

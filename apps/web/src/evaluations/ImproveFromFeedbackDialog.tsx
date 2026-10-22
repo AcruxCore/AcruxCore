@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ApiError, filterPrompts, useAliases, useAllPrompts, useCreateDatasetFromFeedback, useModels, useOptimize } from '@/api';
 import type { StartRunResponse } from '@/api';
 import { Button, Dialog, DialogFooter, Field, Input, Select, Textarea } from '@/ui';
+import { DEFAULT_DRAFT_COUNT, DraftCountField } from './DraftCountField';
 import { JudgeModelField } from './JudgeModelField';
 import { ModelCheckboxList } from './ModelCheckboxList';
 
@@ -37,6 +38,7 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
   const [alias, setAlias] = useState('');
   const [models, setModels] = useState<Set<string>>(new Set());
   const [judgeModel, setJudgeModel] = useState('');
+  const [draftCount, setDraftCount] = useState(DEFAULT_DRAFT_COUNT);
   const [name, setName] = useState('');
   const [overallFeedback, setOverallFeedback] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +61,7 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
       setAlias('');
       setModels(new Set());
       setJudgeModel('');
+      setDraftCount(DEFAULT_DRAFT_COUNT);
       setName('');
       setOverallFeedback('');
       setError(null);
@@ -106,6 +109,7 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
         dataset_id: dataset.id,
         models: [...models],
         judge_model: judgeModel,
+        draft_count: draftCount,
         ...(alias ? { alias } : {}),
       });
       onStarted?.();
@@ -211,6 +215,8 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
             />
           )}
         </Field>
+
+        <DraftCountField id="improve-draft-count" value={draftCount} onChange={setDraftCount} />
 
         <JudgeModelField
           id="improve-judge-model"

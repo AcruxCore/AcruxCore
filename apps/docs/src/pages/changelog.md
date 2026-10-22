@@ -80,6 +80,8 @@ called out in the week it ships and in the SDK release notes.
 
 ### Minor
 
+- The dashboard's optimize dialogs have a **Number of rewrites** field (1 to 6, default 3).
+- **Fixed** — some optimizer models wrote one rewrite when you asked for three.
 - Run reports: **View prompt** shows any variant's full prompt and diffs it against another.
 - **Fixed** — the MCP tool `get_experiment_run` said every run had 0 results, even a finished one.
 - **Fixed** — promoting an optimizer rewrite cleared the prompt's default model on the new version.

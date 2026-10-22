@@ -99,6 +99,10 @@ Core uses the prompt's `production` alias if it has one, or its latest committed
 otherwise — pick `staging` or another alias instead if you want the comparison to be against
 something other than what's currently live.
 
+**Number of rewrites** is how many different rewrites the optimizer writes, from 1 to 6
+(default 3). Each rewrite is run and graded on every example, so a larger number costs more.
+Pick 1 when the fix is obvious and you only want one candidate to check.
+
 If the dataset has examples captured from a *different* prompt than the one you're targeting
 here, AcruxCore doesn't stop you — it starts the run anyway and shows a warning next to the
 result, since a mismatch usually just means the comment was written against a different

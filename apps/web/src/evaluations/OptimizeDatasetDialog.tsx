@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ApiError, filterPrompts, useAliases, useAllPrompts, useCreatePrompt, useModels, useOptimize } from '@/api';
 import type { StartRunResponse } from '@/api';
 import { Button, Dialog, DialogFooter, Field, Input, Select, useToast } from '@/ui';
+import { DEFAULT_DRAFT_COUNT, DraftCountField } from './DraftCountField';
 import { JudgeModelField } from './JudgeModelField';
 import { ModelCheckboxList } from './ModelCheckboxList';
 import { PromptPicker } from './PromptPicker';
@@ -37,6 +38,7 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
   const [models, setModels] = useState<Set<string>>(new Set());
   const [optimizerModel, setOptimizerModel] = useState('');
   const [judgeModel, setJudgeModel] = useState('');
+  const [draftCount, setDraftCount] = useState(DEFAULT_DRAFT_COUNT);
   const [optimizerPrompt, setOptimizerPrompt] = useState<{ id: string; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -64,6 +66,7 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
       setModels(new Set());
       setOptimizerModel('');
       setJudgeModel('');
+      setDraftCount(DEFAULT_DRAFT_COUNT);
       setOptimizerPrompt(null);
       setError(null);
       setSubmitting(false);
@@ -100,6 +103,7 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
         dataset_id: datasetId,
         models: [...models],
         judge_model: judgeModel,
+        draft_count: draftCount,
         ...(optimizerModel ? { optimizer_model: optimizerModel } : {}),
         ...(optimizerPrompt ? { optimizer_prompt_id: optimizerPrompt.id } : {}),
         ...(alias ? { alias } : {}),
@@ -203,6 +207,8 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
             ))}
           </Select>
         </Field>
+
+        <DraftCountField id="optimize-dataset-draft-count" value={draftCount} onChange={setDraftCount} />
 
         <JudgeModelField
           id="optimize-dataset-judge-model"

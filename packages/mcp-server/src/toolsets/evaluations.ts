@@ -338,7 +338,7 @@ export const evaluationTools: AnyToolDefinition[] = [
     readOnlyHint: false,
     description:
       'Ask the optimizer to improve a prompt against a dataset. An optimizer model drafts ' +
-      'up to `draft_count` rewrites of the version behind `alias` (default "production"), ' +
+      '`draft_count` rewrites of the version behind `alias` (default "production"), ' +
       'then every rewrite and that baseline run over the dataset on each of `models`, and ' +
       '`judge_model` scores every answer. Returns the run id as soon as the run is queued — ' +
       'drafting and scoring take minutes, so poll get_optimize_report. Nothing is promoted ' +

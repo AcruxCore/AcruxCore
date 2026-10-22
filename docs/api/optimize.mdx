@@ -19,9 +19,11 @@ prompt-mismatch-warning field's shape, documented from source; see
 
 The **optimize loop** closes the feedback → optimize → promote cycle: given
 a prompt's `production` version and a dataset of failing/target cases, an
-LLM ("the optimizer") drafts up to `draft_count` candidate rewrites of the
-template, then those candidates (plus the `production` baseline) are run
-through the exact same E3/E4/E5 machinery — grid resolution, BullMQ cell
+LLM ("the optimizer") is asked for exactly `draft_count` candidate rewrites of the
+template (a run can still end with fewer: a rewrite is dropped when it adds or
+removes a `{{ variable }}`, moves or changes an image part, or does not parse, and
+a model can return fewer than it was asked for), then those
+candidates (plus the `production` baseline) are run through the exact same E3/E4/E5 machinery — grid resolution, BullMQ cell
 execution via `GatewayService.complete`, and judge scoring — so a
 candidate's score is directly comparable to production's. A human then
 inspects `GET /runs/:id/report` (E5, documented in
