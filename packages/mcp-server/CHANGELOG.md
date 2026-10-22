@@ -7,6 +7,8 @@ package follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+## 0.3.0 — 2026-10-22
+
 ### Added
 
 - `judge_prompt` on `run_experiment` and `optimize_prompt`: the name or UUID of one of your

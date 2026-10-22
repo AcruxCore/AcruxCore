@@ -7,7 +7,7 @@ import { registerResources } from './resources';
 import { selectTools } from './toolsets';
 
 /** Version reported to clients in `initialize`. Kept in step with package.json. */
-export const SERVER_VERSION = '0.2.0';
+export const SERVER_VERSION = '0.3.0';
 
 /** What the caller gets back, so a host can inspect what was registered. */
 export interface BuiltServer {

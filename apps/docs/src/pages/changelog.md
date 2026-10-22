@@ -85,6 +85,11 @@ called out in the week it ships and in the SDK release notes.
 - Both SDKs add `runs.rejudge`, a judge prompt for optimize runs, and `optimizerRejections`.
 - Run reports carry `unscoredReason`; tool spans record the real tool version id.
 
+#### `@acruxcoreai/mcp-server` 0.3.0 on npm
+
+- `run_experiment` and `optimize_prompt` take `judge_prompt`, one of your prompts as the judge.
+- `get_optimize_report` lists `rejectedRewrites`, and `run_experiment` needs a `judge_model`.
+
 #### `@acruxcoreai/mcp-server` 0.2.0 on npm
 
 - The local `npx @acruxcoreai/mcp-server` gets the optimizer tools and `get_spending_limits`.
