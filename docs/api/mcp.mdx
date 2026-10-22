@@ -76,7 +76,7 @@ curl -X POST $ACRUXCORE_BASE_URL/mcp \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
 ```
 
-Response (status 200) — 29 tools; names only, each entry also carries a description,
+Response (status 200) — 32 tools; names only, each entry also carries a description,
 a JSON Schema for its arguments, and a `readOnlyHint` annotation:
 
 ```json
@@ -86,7 +86,8 @@ a JSON Schema for its arguments, and a `readOnlyHint` annotation:
  "get_catalog_tool", "sync_catalog_tool", "execute_catalog_tool", "search_traces",
  "get_trace", "get_trace_analytics", "list_sessions", "get_session", "submit_trace_feedback",
  "list_datasets", "get_dataset", "create_dataset", "add_dataset_example",
- "run_experiment", "list_experiment_runs", "get_experiment_run"]
+ "run_experiment", "list_experiment_runs", "get_experiment_run", "optimize_prompt",
+ "get_optimize_report", "promote_optimize_candidate"]
 ```
 
 ---
@@ -235,6 +236,212 @@ Trace "mcp-doc-verification" — status ok, 1 span(s), 139 tokens, $0.000042.
   "spans": [ … ]
 }
 ```
+
+---
+
+### tools/call — improving a prompt with the optimizer
+
+Three tools drive the optimizer. `optimize_prompt` starts a run. In the run, an
+optimizer model writes rewrites of the prompt version that `alias` points at (default
+`production`). That version is the **baseline**. The judge model then scores each rewrite
+and the baseline on the dataset's examples. `prompt` takes the prompt's name or its UUID.
+`judge_model` is required. `draft_count` is the number of rewrites to write, 1 to 6
+(default 3). The call returns the run id as soon as the run is queued.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/mcp \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-06-18" \
+  -d '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"optimize_prompt","arguments":{"prompt":"mcp-optimizer-demo","dataset_id":"9e756ad4-f39b-4b64-98da-03a4cca02354","models":["gpt-4o-mini-or"],"judge_model":"gpt-4o-mini-or","draft_count":2}}}'
+```
+
+Response (status 200) — the text block, unescaped for readability:
+
+```text
+Optimize run 4d179b65-f0ef-4b35-a267-ac3a986f07b0 is queued; gpt-4o-mini-or drafts the rewrites, then they are scored against the production baseline. Poll get_optimize_report with this run id.
+
+{
+  "run_id": "4d179b65-f0ef-4b35-a267-ac3a986f07b0",
+  "status": "queued",
+  "optimizer_model": "gpt-4o-mini-or"
+}
+```
+
+`get_optimize_report` takes that run id. While the run is queued or running, the tool
+returns only the status, so call it again later. Once the run has succeeded, the report
+lists each rewrite with its `candidateId`, the optimizer's rationale, the rewritten
+messages, and its score next to the baseline's score on each model. `beatsBaseline` is
+true when a rewrite improved on at least one model and was improved or flat on every other.
+A model with no scored answers counts against the rewrite.
+`recommended` is the `candidateId` with the largest gain among those rewrites, or `null`
+when no rewrite has `beatsBaseline` true.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/mcp \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-06-18" \
+  -d '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"get_optimize_report","arguments":{"run_id":"4d179b65-f0ef-4b35-a267-ac3a986f07b0"}}}'
+```
+
+Response (status 200) — the text block, unescaped:
+
+```text
+Optimize run 4d179b65-f0ef-4b35-a267-ac3a986f07b0 succeeded. 2 of 2 rewrite(s) beat the baseline. Recommended: candidate-A (candidate_id 65608412-a11f-4c1b-bb89-c58c2c766853), +90.0 on gpt-4o-mini-or. Promote it with promote_optimize_candidate only if the user agrees.
+
+{
+  "runId": "4d179b65-f0ef-4b35-a267-ac3a986f07b0",
+  "status": "succeeded",
+  "judgeModel": "gpt-4o-mini-or",
+  "recommended": "65608412-a11f-4c1b-bb89-c58c2c766853",
+  "baseline": [
+    {
+      "label": "production",
+      "model": "gpt-4o-mini-or",
+      "avgScore": 6.666666666666667,
+      "passRate": 0
+    }
+  ],
+  "candidates": [
+    {
+      "candidateId": "65608412-a11f-4c1b-bb89-c58c2c766853",
+      "label": "candidate-A",
+      "scores": [
+        {
+          "model": "gpt-4o-mini-or",
+          "avgScore": 96.66666666666667,
+          "passRate": 1,
+          "baselineAvgScore": 6.666666666666667,
+          "scoreDelta": 90,
+          "verdict": "improved"
+        }
+      ],
+      "beatsBaseline": true,
+      "rationale": "The system message was rewritten to explicitly instruct the assistant to provide an explanation suitable for a child, avoiding technical terms and providing an example, which aligns with the criteria for all failing cases.",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Explain the following concept in simple terms appropriate for a child. Use at most two short sentences with one everyday example and avoid technical terms."
+        },
+        {
+          "role": "user",
+          "content": "Define {{ word }}."
+        }
+      ]
+    },
+    {
+      "candidateId": "5f867403-4e42-48f1-a51e-e80025822817",
+      "label": "candidate-B",
+      "scores": [
+        {
+          "model": "gpt-4o-mini-or",
+          "avgScore": 96.66666666666667,
+          "passRate": 1,
+          "baselineAvgScore": 6.666666666666667,
+          "scoreDelta": 90,
+          "verdict": "improved"
+        }
+      ],
+      "beatsBaseline": true,
+      "rationale": "This version of the system message emphasizes the need for a clear, simplified explanation with an example, directly addressing the criteria for the failing cases.",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Provide a child-friendly explanation of the given word. Use no more than two short sentences, incorporate one everyday example, and avoid any technical jargon."
+        },
+        {
+          "role": "user",
+          "content": "Define {{ word }}."
+        }
+      ]
+    }
+  ]
+}
+```
+
+`promote_optimize_candidate` saves one rewrite as a new prompt version and points `alias`
+at that new version. `alias` defaults to the alias the run was scored against. The new
+version keeps the baseline version's default model. The tool refuses a rewrite whose
+`beatsBaseline` is false. It also refuses when `alias` now points at a different version
+than the baseline, because no score compared the rewrite with that version. Setting
+`promote_without_improvement: true` overrides both refusals. The tool also refuses while the
+run is still queued or running, with no override. Promoting needs the editor role or higher, and the audit
+log records the new version and the alias move, as it does for a promote in the
+dashboard.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/mcp \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-06-18" \
+  -d '{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"promote_optimize_candidate","arguments":{"run_id":"4d179b65-f0ef-4b35-a267-ac3a986f07b0","candidate_id":"65608412-a11f-4c1b-bb89-c58c2c766853"}}}'
+```
+
+Response (status 200) — the text block, unescaped:
+
+```text
+Promoted candidate-A as version 2; alias "production" now points at it.
+
+{
+  "version": {
+    "id": "27ef48ea-a611-47ba-a709-75e98124a160",
+    "promptId": "c6b97f52-27c0-41c1-a53c-a157021fac9a",
+    "versionNumber": 2,
+    "messages": [
+      {
+        "role": "system",
+        "content": "Explain the following concept in simple terms appropriate for a child. Use at most two short sentences with one everyday example and avoid technical terms."
+      },
+      {
+        "role": "user",
+        "content": "Define {{ word }}."
+      }
+    ],
+    "variables": [
+      "word"
+    ],
+    "createdBy": "18c76b52-ee0d-4001-be8e-c29976488fbb",
+    "createdAt": "2026-10-22T07:45:08.100Z",
+    "model": null
+  },
+  "alias": {
+    "id": "78d6bafd-4772-40a9-b3d9-54853415b569",
+    "alias": "production",
+    "versionId": "27ef48ea-a611-47ba-a709-75e98124a160",
+    "versionNumber": 2,
+    "updatedAt": "2026-10-22T07:45:08.114Z"
+  }
+}
+```
+
+If `alias` has moved since the run, the promote is refused. In this call, `production`
+was moved from version 3, the run's baseline, to version 1 before the promote:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/mcp \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-06-18" \
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"promote_optimize_candidate","arguments":{"run_id":"4a20afef-4b43-49f8-8b68-c006fb7a29b1","candidate_id":"a622c9b7-f04e-4e4d-b5d5-790cd5bff376"}}}'
+```
+
+Response (status 200, with `isError: true`) — the text block:
+
+```text
+Error: Refused: alias "production" now points at version 1, but run 4a20afef-4b43-49f8-8b68-c006fb7a29b1 scored its rewrites against a different version. Nothing compared candidate-B with version 1. Start a new optimize run against this alias, or set promote_without_improvement to true only if the user explicitly asked to replace it anyway.
+```
+
+When six long rewrites do not fit in one result, `get_optimize_report` leaves out every
+rewrite's `messages` and sets `messagesOmitted: true`. Every `candidateId` and score stays in
+the result. Pass `candidate_id` with `run_id` to read one rewrite with its full messages.
+
+Read-only mode (`--read-only` on the local server) removes `optimize_prompt` and
+`promote_optimize_candidate`. `get_optimize_report` stays.
 
 ---
 

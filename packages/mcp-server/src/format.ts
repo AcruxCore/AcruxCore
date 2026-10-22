@@ -9,6 +9,24 @@ import { AcruxCoreApiError } from './errors';
  */
 export type ToolResult = CallToolResult;
 
+/** Appended by {@link truncateText} to a result it had to cut. */
+const TRUNCATION_MARKER =
+  '\n\n[truncated: response exceeded the size limit — narrow the query, ' +
+  'use a smaller `limit`, or fetch one item at a time]';
+
+/**
+ * Tells whether {@link okResult} had to cut a result to fit its byte budget.
+ *
+ * Lets a tool retry with a smaller payload instead of returning JSON cut mid-value.
+ *
+ * @param result - A result built by {@link okResult}.
+ * @returns True when its text ends in the truncation marker.
+ */
+export function isTruncated(result: ToolResult): boolean {
+  const first = result.content[0];
+  return first?.type === 'text' && first.text.endsWith(TRUNCATION_MARKER);
+}
+
 /**
  * Truncates text to a byte budget, appending a marker that says so.
  *
@@ -24,8 +42,7 @@ export function truncateText(text: string, maxBytes: number): string {
   const encoder = new TextEncoder();
   if (encoder.encode(text).length <= maxBytes) return text;
 
-  const marker = '\n\n[truncated: response exceeded the size limit — narrow the query, ' +
-    'use a smaller `limit`, or fetch one item at a time]';
+  const marker = TRUNCATION_MARKER;
   const budget = Math.max(0, maxBytes - encoder.encode(marker).length);
 
   let end = Math.min(text.length, budget);

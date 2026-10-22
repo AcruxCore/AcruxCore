@@ -27,7 +27,7 @@ it offers, called **tools**. Each tool has a name, a description and its argumen
 assistant reads that list when it connects, and from then on it picks the right tool for
 each request you make.
 
-AcruxCore runs an MCP server with 29 tools. The server signs in with your API key, so the
+AcruxCore runs an MCP server with 32 tools. The server signs in with your API key, so the
 assistant can do what your key can do, and nothing more.
 
 The tools work on these parts of AcruxCore:
@@ -115,7 +115,7 @@ Restart the client after you save the file.
 </Tabs>
 
 To check the connection in Claude Code, run `claude mcp list` in a terminal, or type
-`/mcp` inside Claude Code. The `acruxcore` row says **Connected**, and the server lists 29
+`/mcp` inside Claude Code. The `acruxcore` row says **Connected**, and the server lists 32
 tools.
 
 ## 3. Ask a first question
@@ -254,7 +254,7 @@ npx -y @acruxcoreai/mcp-server --toolsets prompts,traces
 Clients that only accept environment variables can set `ACRUXCORE_MCP_READ_ONLY=true` and
 `ACRUXCORE_MCP_TOOLSETS=prompts,traces` instead.
 
-## The 29 tools
+## The 32 tools
 
 The tools come in five groups. Each group is a toolset you can name in `--toolsets`.
 
@@ -264,10 +264,21 @@ The tools come in five groups. Each group is a toolset you can name in `--toolse
 | `gateway` | `run_prompt`, `chat_completion`, `list_models`, `get_gateway_usage`, `get_spending_limits` |
 | `tools` | `list_catalog_tools`, `get_catalog_tool`, `sync_catalog_tool`, `execute_catalog_tool` |
 | `traces` | `search_traces`, `get_trace`, `get_trace_analytics`, `list_sessions`, `get_session`, `submit_trace_feedback` |
-| `evaluations` | `list_datasets`, `get_dataset`, `create_dataset`, `add_dataset_example`, `run_experiment`, `list_experiment_runs`, `get_experiment_run` |
+| `evaluations` | `list_datasets`, `get_dataset`, `create_dataset`, `add_dataset_example`, `run_experiment`, `list_experiment_runs`, `get_experiment_run`, `optimize_prompt`, `get_optimize_report`, `promote_optimize_candidate` |
 
 No tool deletes anything. To delete a prompt, a tool or a dataset, use the dashboard or
 the API.
+
+The three optimizer tools improve a prompt against a dataset. `optimize_prompt` starts a
+run, and an optimizer model writes rewrites of the prompt's production version. A judge
+model, which you name in the call, then scores each rewrite and the production version on
+the dataset's examples. `get_optimize_report` lists each rewrite with its score next to
+the production score. `promote_optimize_candidate` saves one rewrite as a new version and
+points the `production` alias at it. The promote tool refuses a rewrite that scored no
+better than production. It also refuses when `production` has moved to another version
+since the run, because the rewrite was never compared with that version. The call can set
+`promote_without_improvement` to ship the rewrite anyway. Read-only mode removes
+`optimize_prompt` and `promote_optimize_candidate`.
 
 When a tool fails, the assistant receives the error as the tool's result, with the
 AcruxCore error code and message. For example, if a variable value is missing, the result

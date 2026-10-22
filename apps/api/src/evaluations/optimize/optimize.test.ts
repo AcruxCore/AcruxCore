@@ -983,6 +983,27 @@ describe('POST /runs/:id/promote (E6 Task 5)', () => {
     expect(prod.versionNumber).toBe(res.body.version.versionNumber);
   });
 
+  // A rewrite replaces the template, not the model choice: callers that run the prompt
+  // without naming a model rely on the version's default model.
+  it('keeps the baseline version\'s default model on the promoted version', async () => {
+    const { agent, teamId, userId } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agent);
+    await agent
+      .post(`/api/v1/prompts/${promptId}/versions`)
+      .send({ messages: [{ role: 'system', content: 'Answer as {{ name }}' }], model: 'gpt-4o-mini' })
+      .expect(201);
+    await agent.post(`/api/v1/prompts/${promptId}/aliases/production/promote`).send({ version_number: 2 }).expect(200);
+    const { runId, candidateId } = await draftOptimizeRun(agent, teamId, userId, promptId, datasetId);
+
+    const res = await agent
+      .post(`/api/v1/runs/${runId}/promote`)
+      .send({ prompt_candidate_id: candidateId })
+      .expect(200);
+
+    expect(res.body.version.versionNumber).toBe(3);
+    expect(res.body.version.model).toBe('gpt-4o-mini');
+  });
+
   it('promotes to a non-default alias when one is given', async () => {
     const { agent, teamId, userId } = await authedAgent(app);
     const { promptId, runId, candidateId } = await arrangeOptimizeRunWithCandidate(agent, teamId, userId);

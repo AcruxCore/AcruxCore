@@ -10,7 +10,7 @@ import { AliasesService } from '../../prompts/aliases/aliases.service';
 import { getOptimizeQueue, type OptimizeJobData } from '../queue';
 import { NotFoundError, UnprocessableError } from '../../shared/errors';
 import type { ExperimentConfig } from '../experiments/experiments.types';
-import type { RunSnapshotExample } from '../runs/runs.types';
+import type { RunGridCell, RunSnapshotExample } from '../runs/runs.types';
 import type { StartOptimizeDto, PromoteCandidateDto, CandidateDetail } from './optimize.types';
 import type { VersionDetail } from '../../prompts/versions/versions.types';
 import type { AliasDetail } from '../../prompts/aliases/aliases.types';
@@ -221,7 +221,8 @@ export class OptimizeService {
    *   promoted through this run's endpoint.
    * @param dto - Validated body: which candidate to promote, and which
    *   alias to move (defaults to `'production'`).
-   * @returns The newly committed version and the alias's new state.
+   * @returns The newly committed version, carrying the baseline version's
+   *   default model, and the alias's new state.
    * @throws {NotFoundError} If the run does not exist for this team, or the
    *   candidate does not exist, belongs to another team, or was drafted for
    *   a different run than `runId`.
@@ -238,8 +239,19 @@ export class OptimizeService {
     const candidate = await this.optimizeRepo.getCandidateForRun(teamId, runId, dto.prompt_candidate_id);
     if (!candidate) throw new NotFoundError('Prompt candidate not found for this run.');
 
+    // The optimizer rewrites the template only, so the new version keeps the default model
+    // of the version it was scored against. Without it, callers that run the prompt without
+    // naming a model lose their model the moment a rewrite ships.
+    const baselineCell = (run.grid as unknown as RunGridCell[]).find(
+      (cell) => cell.isProductionBaseline && cell.promptVersionId,
+    );
+    const baselineModel = baselineCell?.promptVersionId
+      ? (await this.versionsService.getVersionById(baselineCell.promptVersionId, teamId)).model
+      : null;
+
     const { version } = await this.versionsService.commitVersion(candidate.promptId, teamId, userId, {
       messages: candidate.messages as unknown as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+      ...(baselineModel ? { model: baselineModel } : {}),
     });
 
     const alias = await this.aliasesService.promoteAlias(

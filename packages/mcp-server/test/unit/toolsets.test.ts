@@ -62,6 +62,11 @@ describe('selectTools', () => {
     expect(names).not.toContain('promote_prompt_alias');
     expect(names).not.toContain('commit_prompt_version');
     expect(names).not.toContain('run_prompt');
+    // The optimizer: starting a run spends money and promoting ships a prompt, but
+    // reading the report changes nothing.
+    expect(names).not.toContain('optimize_prompt');
+    expect(names).not.toContain('promote_optimize_candidate');
+    expect(names).toContain('get_optimize_report');
   });
 
   it('applies the toolset filter and read-only together', () => {

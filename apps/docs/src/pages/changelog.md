@@ -66,8 +66,22 @@ called out in the week it ships and in the SDK release notes.
 - Use it to see which limit a 402 or 429 from the gateway came from. The MCP server has 29 tools.
   [Reference →](/api-reference/mcp#toolscall--budgets-and-virtual-key-limits)
 
+#### MCP: run the optimizer and promote its winner
+
+- `optimize_prompt` has a model rewrite a prompt; `get_optimize_report` shows each score.
+- `promote_optimize_candidate` ships a rewrite only if it beat the version its alias serves now.
+- Read-only mode hides `optimize_prompt` and `promote_optimize_candidate`. 32 tools in total.
+  [Reference →](/api-reference/mcp#toolscall--improving-a-prompt-with-the-optimizer)
+
+#### `@acruxcoreai/mcp-server` 0.2.0 on npm
+
+- The local `npx @acruxcoreai/mcp-server` gets the optimizer tools and `get_spending_limits`.
+- `run_prompt` and `chat_completion` name the trace id on their summary line.
+
 ### Minor
 
+- **Fixed** — the MCP tool `get_experiment_run` said every run had 0 results, even a finished one.
+- **Fixed** — promoting an optimizer rewrite cleared the prompt's default model on the new version.
 - **Fixed** — with Capture payloads off, new traces were still named by the message's first words.
 - **Fixed** — expired cached gateway responses stayed stored. They are now deleted within 15 minutes.
 - **Fixed** — `x-gateway-cost-usd` showed float noise such as `0.00005909999999999999`.

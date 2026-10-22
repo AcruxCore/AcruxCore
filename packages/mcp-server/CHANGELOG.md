@@ -7,8 +7,21 @@ package follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+## 0.2.0 — 2026-10-22
+
 ### Added
 
+- **`optimize_prompt`**, **`get_optimize_report`** and **`promote_optimize_candidate`**
+  (`evaluations` toolset). Start an optimizer run, read each rewrite's score against the
+  baseline with the candidate id and rationale, and ship one as a new version.
+- `promote_optimize_candidate` refuses a rewrite that did not improve on at least one model,
+  or that regressed or has no scores on any, unless `promote_without_improvement` is set.
+  Read-only mode hides `optimize_prompt` and `promote_optimize_candidate`.
+- `promote_optimize_candidate` moves the alias the run was scored against by default. It
+  refuses when that alias now points at another version than the one scored, since nothing
+  compared the rewrite with it; `promote_without_improvement` overrides this too.
+- When six long rewrites do not fit in one result, `get_optimize_report` leaves out their
+  messages (`messagesOmitted`) and keeps every id and score; `candidate_id` reads one in full.
 - **`get_spending_limits`** (`gateway` toolset, read-only). Lists every budget with its
   period, limit, live spend, `remainingUsd`, `exhausted` and reset time, names the virtual
   key a budget belongs to, and lists the keys masked to their last four characters.
@@ -18,6 +31,11 @@ package follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `run_prompt` and `chat_completion` now name the trace id on their summary line, as
   `trace_id <uuid>`. The JSON part also carries `request-id`, another UUID, and a client
   that took the first UUID it saw passed that one to `get_trace` and got a 404.
+
+### Fixed
+
+- `get_experiment_run` always reported "0 result(s)" on its summary line. It read
+  `results.length`, but the API returns `results` as `{ total, succeeded, errored }`.
 
 ## 0.1.0 — 2026-10-18
 

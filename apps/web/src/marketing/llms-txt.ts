@@ -65,7 +65,7 @@ const SUMMARIES: Record<string, string> = {
   '/features/audit':
     'An LLM audit log of every change a person makes — API keys, members and roles, invites, provider connections, virtual keys, budgets, gateway models, secrets, trace settings, prompts and tools — filtered by area, event or person, on every plan.',
   '/features/mcp':
-    'An MCP server for prompt management: Claude Code, Claude Desktop, Cursor and other MCP clients get 29 tools to version, promote and run prompts and read traces, from a hosted endpoint or a local stdio server.',
+    'An MCP server for prompt management: Claude Code, Claude Desktop, Cursor and other MCP clients get 32 tools to version, promote and run prompts and read traces, from a hosted endpoint or a local stdio server.',
   '/sdk':
     'The TypeScript and Python clients: cached prompt rendering, OpenAI-compatible chat, single-trace tool loops, and feedback, with the same surface in both.',
   '/about': 'Who builds AcruxCore and why it is one platform rather than five separate tools.',

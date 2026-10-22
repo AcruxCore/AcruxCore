@@ -85,7 +85,8 @@ into running — which is the point of handing an agent a key it should not writ
 `get_session`, `submit_trace_feedback`
 
 **Evaluations** — `list_datasets`, `get_dataset`, `create_dataset`,
-`add_dataset_example`, `run_experiment`, `list_experiment_runs`, `get_experiment_run`
+`add_dataset_example`, `run_experiment`, `list_experiment_runs`, `get_experiment_run`,
+`optimize_prompt`, `get_optimize_report`, `promote_optimize_candidate`
 
 Anywhere a tool takes a prompt or a catalog tool, a **name works as well as a UUID**.
 

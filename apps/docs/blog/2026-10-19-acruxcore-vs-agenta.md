@@ -303,7 +303,7 @@ tool, and a page measures call volume, error rate and latency per tool.
 | Third-party actions | Composio catalog, for agents | No |
 | Connect an outside MCP server | Yes, for agents | No |
 | Per-tool analytics | No | Yes |
-| Own MCP server for coding agents | 3 tools that search Agenta's docs | 29 tools for prompts, the gateway, traces, tools and evaluations |
+| Own MCP server for coding agents | 3 tools that search Agenta's docs | 32 tools for prompts, the gateway, traces, tools and evaluations |
 
 Both products also ship their own MCP server, for a coding agent such as Claude Code.
 Agenta's [server](https://agenta.ai/docs/misc/mcp-server) searches Agenta's documentation,
