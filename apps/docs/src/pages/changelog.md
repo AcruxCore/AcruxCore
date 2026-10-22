@@ -78,6 +78,7 @@ called out in the week it ships and in the SDK release notes.
 - **Fixed** — MCP `run_prompt` and `chat_completion` did not name the trace id in their summary.
 - The [privacy policy](https://acruxcore.com/privacy) now states how long trace content is kept.
 - The [audit trail guide](/docs/guides/read-the-team-audit-trail) now covers the Evaluations area.
+- The [MCP guide](/docs/guides/connect-an-mcp-client) says what to use if `urllib` gets a cut-short response behind a proxy.
 - **New post** — [AcruxCore vs Agenta: built-in evaluators vs a gateway](/blog/acruxcore-vs-agenta).
 - The [compare page](https://acruxcore.com/compare) adds Agenta as a seventh competitor, with a source for each cell.
 - The [hands-on comparison](/blog/hands-on-llm-ops-comparison) adds Agenta, so it now covers ten platforms.

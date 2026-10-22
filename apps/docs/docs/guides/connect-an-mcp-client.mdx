@@ -115,7 +115,7 @@ Restart the client after you save the file.
 </Tabs>
 
 To check the connection in Claude Code, run `claude mcp list` in a terminal, or type
-`/mcp` inside Claude Code. The `acruxcore` row says **Connected**, and the server lists 28
+`/mcp` inside Claude Code. The `acruxcore` row says **Connected**, and the server lists 29
 tools.
 
 ## 3. Ask a first question
@@ -354,6 +354,17 @@ The first line on stderr lists what the server registered:
 
 </TabItem>
 </Tabs>
+
+### If a Python request gets an incomplete response
+
+Some networks send all traffic through a proxy, such as a company proxy or the sandbox
+that an AI agent runs in. On one network like this, Python's built-in `urllib` raised
+`http.client.IncompleteRead` on most `tools/list` calls. The `tools/list` call returns the
+list of tools, about 31 KB, and `urllib` received only part of that response.
+
+On that network, `requests` and curl received the full response every time. If you see
+this error, send the request with `requests` instead of `urllib`. Retrying with `urllib`
+does not help, because each new attempt can also stop before the end of the response.
 
 ## What's next
 
