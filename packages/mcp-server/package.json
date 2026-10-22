@@ -29,7 +29,7 @@
     "node": ">=20.0.0"
   },
   "bin": {
-    "acruxcore-mcp": "./dist/bin.js"
+    "acruxcore-mcp": "dist/bin.js"
   },
   "exports": {
     ".": {
