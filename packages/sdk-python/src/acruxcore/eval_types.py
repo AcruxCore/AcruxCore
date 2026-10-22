@@ -328,6 +328,9 @@ class RunDetailDto:
     grid: List[Dict[str, Any]] = field(default_factory=list)
     example_count: int = 0
     results: Dict[str, int] = field(default_factory=dict)
+    #: Optimize runs only: why each rewrite the optimizer wrote but the run dropped
+    #: was dropped. None for other runs and on servers older than the field.
+    optimizer_rejections: Optional[List[str]] = None
     raw: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -343,6 +346,7 @@ class RunDetailDto:
             grid=d.get("grid") or [],
             example_count=d.get("exampleCount", 0),
             results=d.get("results") or {},
+            optimizer_rejections=d.get("optimizerRejections"),
             raw=d,
         )
 
@@ -373,6 +377,8 @@ class RunReport:
     winner: Optional[Dict[str, Any]]
     #: None when the API sent no ``judge`` (an older server).
     judge: Optional[RunJudge] = None
+    #: Same as :attr:`RunDetailDto.optimizer_rejections`.
+    optimizer_rejections: Optional[List[str]] = None
     raw: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -386,6 +392,7 @@ class RunReport:
             leaderboard=d.get("leaderboard") or [],
             winner=d.get("winner"),
             judge=RunJudge.from_dict(d["judge"]) if d.get("judge") else None,
+            optimizer_rejections=d.get("optimizerRejections"),
             raw=d,
         )
 

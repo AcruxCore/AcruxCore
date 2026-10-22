@@ -161,9 +161,8 @@ export interface RunListResultCounts {
  * recognise a run without opening it: what it evaluated, the shape of its
  * frozen grid, and how it scored.
  *
- * `kind` is derived from the frozen grid rather than stored — an optimize run
- * (E6) is an ordinary `experiment_runs` row distinguished only by containing
- * `variantKind: 'candidate'` cells.
+ * `kind` is stored on the run when it is created (issue #684), so a queued
+ * optimize run, whose grid is still empty, already reads as `optimize`.
  *
  * `avgScore`/`passRate`/`topVariantLabel` are `null` — never `0`/`''` — when a
  * run has no scored results yet, matching how the report reports an unscored
@@ -220,6 +219,11 @@ export interface RunDetailDto {
   startedAt: string | null;
   endedAt: string | null;
   error: string | null;
+  /**
+   * Optimize runs only: why each dropped rewrite was dropped (issue #686). Empty
+   * when every rewrite was kept; null on evaluation runs and before drafting.
+   */
+  optimizerRejections: string[] | null;
   createdAt: string;
   grid: RunGridCell[];
   exampleCount: number;

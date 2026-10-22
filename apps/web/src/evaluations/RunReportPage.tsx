@@ -11,6 +11,7 @@ import { PromptViewerDialog } from './PromptViewerDialog';
 import type { PromptSource } from './PromptViewerDialog';
 import { variantDisplayLabel } from './variant-label';
 import { summarizeUnscored } from './matrix.helpers';
+import { optimizerRejectionsNote } from './optimizer-rejections';
 
 /**
  * Status strip above the matrix: while a run is in flight, when it failed, and when it
@@ -98,6 +99,34 @@ function RunStatusBanner({
 }
 
 /**
+ * Says how many of the optimizer's rewrites were dropped before scoring, and why
+ * (issue #686). Without it, a report with fewer rewrites than requested looks the
+ * same as the optimizer writing fewer. {@link optimizerRejectionsNote} decides
+ * when it shows.
+ */
+function OptimizerRejectionsNote({ rejections, kept }: { rejections: string[]; kept: number }) {
+  const written = kept + rejections.length;
+  return (
+    <div
+      className="rounded-lg border border-line-soft bg-elevated px-3 py-2 text-[13px] text-muted"
+      data-testid="run-optimizer-rejections"
+    >
+      <p>
+        The optimizer wrote {written} rewrite{written === 1 ? '' : 's'}. {rejections.length} {rejections.length === 1 ? 'was' : 'were'}{' '}
+        dropped before scoring, so the table below shows {kept}.
+      </p>
+      <ul className="mt-1 list-disc pl-5 text-[12px]">
+        {rejections.map((reason) => (
+          <li key={reason} className="break-words">
+            {reason}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
  * One {@link PromptSource} per prompt variant in the run, in grid order. The grid
  * holds one cell per variant per model, so a variant is kept once. A local run's
  * cells have no prompt on the platform and are left out.
@@ -180,6 +209,7 @@ export function RunReportPage() {
   const { total, unscored, errored } = summarizeUnscored(data.cells);
   const withOutput = total - errored;
   const rejudgeable = unscored - errored;
+  const rejectionsNote = optimizerRejectionsNote(data);
 
   return (
     <div className="flex flex-col gap-5">
@@ -250,6 +280,8 @@ export function RunReportPage() {
           ) : undefined
         }
       />
+
+      {rejectionsNote && <OptimizerRejectionsNote {...rejectionsNote} />}
 
       <LeaderboardMatrix
         report={data}

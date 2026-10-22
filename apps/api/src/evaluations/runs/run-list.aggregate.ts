@@ -74,25 +74,12 @@ function topVariant(groups: RunVariantAggregate[]): string | null {
   }).variantLabel;
 }
 
-/** What a run is, as the history list and the report label it. */
-export type RunKind = 'evaluation' | 'optimize' | 'local';
-
 /**
- * Reads a run's kind off its frozen grid. An optimize run (E6) is an ordinary
- * `experiment_runs` row — the only thing that marks it is at least one
- * optimizer-drafted `candidate` cell, so the kind is derived here rather than
- * stored on the row where it could drift from the grid's contents. A local run
- * (phase-5 FAQ Q46) is marked the same way, by its `local` cell.
- *
- * @param grid - The run's frozen grid cells (empty on an optimize run whose
- *   candidates have not been drafted yet, which therefore reads as
- *   `'evaluation'` until the optimizer fills the grid in).
- * @returns `'local'` for a local run, `'optimize'` if any cell is a candidate, else `'evaluation'`.
+ * What a run is, as the history list and the report label it. Stored on the
+ * row at creation (`experiment_runs.kind`, issue #684) rather than read off the
+ * grid: an optimize run's grid stays empty until its rewrites are drafted.
  */
-export function deriveRunKind(grid: ShapeGridCell[]): RunKind {
-  if (grid.some((cell) => cell.variantKind === 'local')) return 'local';
-  return grid.some((cell) => cell.variantKind === 'candidate') ? 'optimize' : 'evaluation';
-}
+export type RunKind = 'evaluation' | 'optimize' | 'local';
 
 /**
  * Counts the distinct axes of a run's frozen grid — the "3 variants × 2 models"

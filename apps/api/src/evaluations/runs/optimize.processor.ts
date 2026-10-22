@@ -78,6 +78,15 @@ async function retryGatewayCall<T>(fn: () => Promise<T>, attempts: number): Prom
   throw lastErr;
 }
 
+/** The dataset's current overall feedback, for a run queued before it was frozen at start. */
+async function liveOverallFeedback(data: OptimizeJobData): Promise<string | null> {
+  const dataset = await datasetsRepo.getDatasetById(data.teamId, data.datasetId);
+  if (!dataset) {
+    throw new NotFoundError(`Dataset ${data.datasetId} not found`);
+  }
+  return dataset.overallFeedback;
+}
+
 /**
  * Executes one optimize job: the second half of the optimize flow, after
  * `OptimizeService.startOptimize` has already created the `queued` run (with
@@ -93,14 +102,15 @@ async function retryGatewayCall<T>(fn: () => Promise<T>, attempts: number): Prom
  * id it needs already exists before the HTTP request.
  *
  * Steps:
- * 1. Load the run's frozen `exampleSnapshot` and the dataset's `overallFeedback`.
+ * 1. Load the run's frozen `exampleSnapshot` and its frozen `overallFeedback`
+ *    (read from the dataset only for a run queued before it was frozen at start).
  * 2. Resolve the comparison baseline (design "Alias-based baseline"): the
  *    named alias in `data.alias`'s current version, or, when no alias was
  *    given, the prompt's latest committed version — plus that version's `messages`.
  * 3. Compile the optimizer prompt (`compileOptimizePrompt`) from the
  *    production template + the snapshot's cases (no `priorOutput` — this is a
  *    brand-new optimize attempt, so there is no prior cell result to cite)
- *    and the dataset's `overallFeedback`, then call the optimizer model
+ *    and the frozen `overallFeedback`, then call the optimizer model
  *    through the gateway (traced + budget-enforced, same pattern as
  *    `cell.processor.ts`/`JudgeService.scoreResult`).
  * 4. Parse the response (`parseCandidatesDetailed`, capped/dropped per Task 2's
@@ -116,7 +126,8 @@ async function retryGatewayCall<T>(fn: () => Promise<T>, attempts: number): Prom
  * @param data - The optimize job payload (`OptimizeJobData`).
  * @throws {UnrecoverableError} If the job names no judge model (queued before
  *   judges were chosen per request). Thrown before any paid call.
- * @throws {NotFoundError} If the run, the dataset, the prompt itself, the
+ * @throws {NotFoundError} If the run, the dataset (only for a run queued before its
+ *   feedback was frozen), the prompt itself, the
  *   requested baseline alias (or, when none was requested, any committed
  *   version), or that baseline's version cannot be found for `data.teamId`.
  * @throws Rethrows whatever `GatewayService.complete` throws (e.g. a
@@ -138,10 +149,12 @@ export async function processOptimize(data: OptimizeJobData): Promise<void> {
   }
   const exampleSnapshot = run.exampleSnapshot as unknown as RunSnapshotExample[];
 
-  const dataset = await datasetsRepo.getDatasetById(data.teamId, data.datasetId);
-  if (!dataset) {
-    throw new NotFoundError(`Dataset ${data.datasetId} not found`);
-  }
+  // `startOptimize` freezes the overall feedback on the run (issue #693), and the
+  // examples were frozen before that, so a new run needs nothing from the live
+  // dataset and still drafts if it was deleted while queued. A run queued before
+  // the freeze has no snapshot, so it reads the dataset and freezes it here.
+  const frozen = run.gradingSnapshot as { overallFeedback?: string | null } | null;
+  const overallFeedback = frozen ? frozen.overallFeedback ?? null : await liveOverallFeedback(data);
 
   // Team-scoped ownership check, same defense-in-depth pattern as
   // RunsService.resolveGrid: OptimizeService.startOptimize already verifies
@@ -188,7 +201,7 @@ export async function processOptimize(data: OptimizeJobData): Promise<void> {
     // No `priorOutput`: this is a brand-new optimize attempt, so there is no
     // earlier cell result for these examples to cite yet.
     cases: exampleSnapshot.map((example) => ({ input: example.input, criteria: example.criteria, history: example.history })),
-    overallFeedback: dataset.overallFeedback,
+    overallFeedback,
     draftCount: data.draftCount,
     ...(judgeTemplate ? { judgeTemplate } : {}),
   };
@@ -239,6 +252,7 @@ export async function processOptimize(data: OptimizeJobData): Promise<void> {
           ? `optimizer produced no valid candidates — ${rejections.join(' | ')}`
           : 'optimizer produced no valid candidates',
       endedAt: new Date(),
+      optimizerRejections: rejections,
     });
     return;
   }
@@ -283,10 +297,11 @@ export async function processOptimize(data: OptimizeJobData): Promise<void> {
     });
   }
 
-  // The overall feedback is frozen next to the grid, in the same value the cell
-  // jobs carry below, so a later re-judge grades with it too (issue #639).
+  // The rejection reasons are kept even when some rewrites survive, so a report
+  // with fewer candidates than `draftCount` says why (issue #686).
   await runsRepo.setRunGrid(data.runId, grid as unknown as Prisma.InputJsonValue, {
-    overallFeedback: dataset.overallFeedback,
+    optimizerRejections: rejections,
+    ...(frozen ? {} : { gradingSnapshot: { overallFeedback } }),
   });
 
   // How many times each cell (one gateway call) is attempted before it is
@@ -313,7 +328,7 @@ export async function processOptimize(data: OptimizeJobData): Promise<void> {
           // Freeze the dataset directive onto the cell job (→ judge job), so
           // the judge grades against the run's frozen value, not the live
           // dataset (FAQ Q5 reproducibility) — same as `RunsService.startRun`.
-          overallFeedback: dataset.overallFeedback,
+          overallFeedback,
           // The caller's judge from the optimize request, forwarded cell → judge job.
           judgeModel: data.judgeModel,
           // The frozen custom judge prompt version; absent for the built-in judge.

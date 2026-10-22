@@ -7,6 +7,21 @@ import { JUDGE_PROMPT_GUIDE_URL, STARTER_JUDGE_MESSAGES, judgeCoverageGap } from
 
 type PickedPrompt = { id: string; name: string } | null;
 
+/**
+ * Whether Start must wait on the picked judge prompt. The API refuses to start a
+ * run with a judge that has no committed version (400), so the screens that start
+ * one disable their Start button while this is true (issue #692).
+ *
+ * @param value - The picked judge prompt, or null for the built-in judge.
+ * @returns False for the built-in judge. For a picked prompt, true until its
+ *   versions have loaded and include at least one, so a click made while they
+ *   load, or after the request failed, cannot reach the API.
+ */
+export function useJudgePromptHasNoVersion(value: PickedPrompt): boolean {
+  const versions = useVersions(value?.id ?? '');
+  return !!value && !(versions.isSuccess && versions.data.length > 0);
+}
+
 interface JudgePromptFieldProps {
   /** DOM id for the picker; the label is tied to it. Unique per screen. */
   id: string;
@@ -48,6 +63,7 @@ export function JudgePromptField({ id, value, onChange, newPromptName, grades, d
   const judgeVersion = production
     ? versions.data?.find((v) => v.versionNumber === production.versionNumber)
     : versions.data?.[0];
+  // Only a loaded empty list earns the warning; the Start buttons also wait while it loads.
   const noVersion = !!value && versions.isSuccess && versions.data.length === 0;
   const gap = dataset && judgeVersion ? judgeCoverageGap(judgeVersion.variables, dataset.examples, dataset.overallFeedback) : null;
 
@@ -123,7 +139,7 @@ export function JudgePromptField({ id, value, onChange, newPromptName, grades, d
       </div>
       {noVersion && (
         <p className="mt-1.5 text-[12px] text-warn" data-testid={`${id}-no-version`}>
-          This prompt has no committed version yet. Commit its judge template before you start.
+          This prompt has no committed version yet. Commit its judge template before you use it.
         </p>
       )}
       {gap && (

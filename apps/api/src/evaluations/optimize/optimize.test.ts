@@ -1296,3 +1296,135 @@ describe('GET /runs/:id/candidates/:candidateId (E7 Task 5)', () => {
     expect(res.body.error.code).toBe('NOT_FOUND');
   });
 });
+
+describe('what an optimize run records before and while it drafts', () => {
+  /** Starts an optimize run and returns its id and experiment id, without drafting. */
+  async function startOptimize(
+    agent: ReturnType<typeof request.agent>,
+    promptId: string,
+    datasetId: string,
+  ): Promise<{ runId: string; experimentId: string }> {
+    const run = (
+      await agent
+        .post(`/api/v1/prompts/${promptId}/optimize`)
+        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini', draft_count: 2 })
+        .expect(202)
+    ).body;
+    const row = await prisma.experimentRun.findUnique({ where: { id: run.run_id } });
+    return { runId: run.run_id, experimentId: row!.experimentId };
+  }
+
+  it('reads as an optimize run while queued, and after failing before drafting (issue #684)', async () => {
+    const { agent, teamId, userId } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agent);
+    const { runId, experimentId } = await startOptimize(agent, promptId, datasetId);
+
+    // Queued: the grid is still the empty placeholder.
+    expect((await agent.get(`/api/v1/runs/${runId}`).expect(200)).body.kind).toBe('optimize');
+    expect((await agent.get('/api/v1/runs').expect(200)).body.data[0].kind).toBe('optimize');
+
+    mockFetchOnce(cannedOptimizer([{ messages: [{ role: 'system', content: 'broken {{ unclosed' }], rationale: 'x' }]));
+    await processOptimize({
+      teamId, userId, promptId, experimentId, runId, datasetId,
+      models: ['gpt-4o-mini'], judgeModel: 'gpt-4o-mini', draftCount: 2,
+    });
+
+    const detail = (await agent.get(`/api/v1/runs/${runId}`).expect(200)).body;
+    expect(detail.status).toBe('failed');
+    expect(detail.kind).toBe('optimize');
+  });
+
+  it('keeps the reasons rewrites were rejected when others survive (issue #686)', async () => {
+    const { agent, teamId, userId } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agent);
+    const { runId, experimentId } = await startOptimize(agent, promptId, datasetId);
+
+    mockFetchOnce(
+      cannedOptimizer([
+        { messages: [{ role: 'system', content: 'Answer about {{ name }} in third person' }], rationale: 'kept' },
+        { messages: [{ role: 'system', content: 'Answer in third person' }], rationale: 'dropped a variable' },
+      ]),
+    );
+    await processOptimize({
+      teamId, userId, promptId, experimentId, runId, datasetId,
+      models: ['gpt-4o-mini'], judgeModel: 'gpt-4o-mini', draftCount: 2,
+    });
+
+    expect(await prisma.promptCandidate.count({ where: { experimentRunId: runId } })).toBe(1);
+    const detail = (await agent.get(`/api/v1/runs/${runId}`).expect(200)).body;
+    expect(detail.optimizerRejections).toHaveLength(1);
+    expect(detail.optimizerRejections[0]).toContain('candidate 2');
+    const report = (await agent.get(`/api/v1/runs/${runId}/report`).expect(200)).body;
+    expect(report.optimizerRejections).toEqual(detail.optimizerRejections);
+  });
+
+  it('keeps grading against the frozen feedback when the dataset is edited after drafting (issue #693 repro)', async () => {
+    const { agent, teamId, userId } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agent);
+    await agent.patch(`/api/v1/datasets/${datasetId}`).send({ overall_feedback: 'A' }).expect(200);
+    const { runId, experimentId } = await startOptimize(agent, promptId, datasetId);
+
+    mockFetchOnce(
+      cannedOptimizer([{ messages: [{ role: 'system', content: 'Answer about {{ name }} in third person' }], rationale: 'r' }]),
+    );
+    await processOptimize({
+      teamId, userId, promptId, experimentId, runId, datasetId,
+      models: ['gpt-4o-mini'], judgeModel: 'gpt-4o-mini', draftCount: 2,
+    });
+    await agent.patch(`/api/v1/datasets/${datasetId}`).send({ overall_feedback: 'B' }).expect(200);
+
+    // A re-judge reads this snapshot first and only falls back to the live dataset when it is null.
+    const run = await prisma.experimentRun.findUnique({ where: { id: runId } });
+    expect(run!.gradingSnapshot).toEqual({ overallFeedback: 'A' });
+  });
+
+  it('still drafts when its dataset is deleted while the job is queued', async () => {
+    // The run froze the examples and the overall feedback when it started, so the
+    // worker needs nothing from the live dataset row.
+    const { agent, teamId, userId } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agent);
+    const { runId, experimentId } = await startOptimize(agent, promptId, datasetId);
+    await agent.delete(`/api/v1/datasets/${datasetId}`).expect(200);
+
+    mockFetchOnce(
+      cannedOptimizer([{ messages: [{ role: 'system', content: 'Answer about {{ name }} in third person' }], rationale: 'r' }]),
+    );
+    await processOptimize({
+      teamId, userId, promptId, experimentId, runId, datasetId,
+      models: ['gpt-4o-mini'], judgeModel: 'gpt-4o-mini', draftCount: 2,
+    });
+
+    expect(await prisma.promptCandidate.count({ where: { experimentRunId: runId } })).toBe(1);
+  });
+
+  it('freezes the overall feedback when the run starts, not when the worker drafts (issue #693)', async () => {
+    const { agent, teamId, userId } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agent);
+    await agent.patch(`/api/v1/datasets/${datasetId}`).send({ overall_feedback: 'FEEDBACK AT START' }).expect(200);
+    const { runId, experimentId } = await startOptimize(agent, promptId, datasetId);
+
+    const atStart = await prisma.experimentRun.findUnique({ where: { id: runId } });
+    expect(atStart!.gradingSnapshot).toEqual({ overallFeedback: 'FEEDBACK AT START' });
+
+    // Edited while the job waits in the queue.
+    await agent.patch(`/api/v1/datasets/${datasetId}`).send({ overall_feedback: 'EDITED WHILE QUEUED' }).expect(200);
+
+    const fetchSpy = mockFetchOnce(
+      cannedOptimizer([{ messages: [{ role: 'system', content: 'Answer about {{ name }} in third person' }], rationale: 'r' }]),
+    );
+    await processOptimize({
+      teamId, userId, promptId, experimentId, runId, datasetId,
+      models: ['gpt-4o-mini'], judgeModel: 'gpt-4o-mini', draftCount: 2,
+    });
+
+    const optimizerBody = JSON.stringify(fetchSpy.mock.calls[0]![1]!.body);
+    expect(optimizerBody).toContain('FEEDBACK AT START');
+    expect(optimizerBody).not.toContain('EDITED WHILE QUEUED');
+    const after = await prisma.experimentRun.findUnique({ where: { id: runId } });
+    expect(after!.gradingSnapshot).toEqual({ overallFeedback: 'FEEDBACK AT START' });
+    const cellJobs = await getCellsQueue().getJobs(['waiting', 'delayed', 'waiting-children']);
+    const mine = cellJobs.filter((j) => j.data.runId === runId);
+    expect(mine.length).toBeGreaterThan(0);
+    expect(mine.every((j) => j.data.overallFeedback === 'FEEDBACK AT START')).toBe(true);
+  });
+});

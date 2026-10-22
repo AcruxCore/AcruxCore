@@ -229,6 +229,11 @@ export interface RunDetailDto {
   startedAt: string | null;
   endedAt: string | null;
   error: string | null;
+  /**
+   * Optimize runs only: why each rewrite the optimizer wrote but the run dropped was
+   * dropped. Empty when all were kept; null otherwise; absent from older servers.
+   */
+  optimizerRejections?: string[] | null;
   createdAt: string;
   grid: RunGridCell[];
   exampleCount: number;
@@ -305,6 +310,8 @@ export interface RunReport {
    * how many share it. Null when all scored; absent from older servers.
    */
   unscoredReason?: { message: string; count: number } | null;
+  /** Same as {@link RunDetailDto.optimizerRejections}. Absent from older servers. */
+  optimizerRejections?: string[] | null;
 }
 
 export interface RunCellExampleDto {

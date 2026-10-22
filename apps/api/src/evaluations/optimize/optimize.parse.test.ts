@@ -85,6 +85,23 @@ describe('Finding #17: variable-preservation enforcement', () => {
       expect(rejections[0]).not.toContain('dropped');
     });
 
+    it('gives a reason for each surplus rewrite it cuts, so the counts add up (issue #686)', () => {
+      // The report says "the optimizer wrote N, M were dropped". A rewrite cut only
+      // because the optimizer returned more than asked must count as dropped too.
+      const raw = JSON.stringify({
+        candidates: [1, 2, 3].map((n) => ({
+          messages: [{ role: 'system', content: `Rewrite ${n} about {{ name }}` }],
+          rationale: `r${n}`,
+        })),
+      });
+      const { candidates, rejections } = parseCandidatesDetailed(raw, 2, ['name']);
+
+      expect(candidates).toHaveLength(2);
+      expect(rejections).toHaveLength(1);
+      expect(rejections[0]).toContain('candidate 3');
+      expect(rejections[0]).toContain('more rewrites than requested');
+    });
+
     it('returns no rejections when every candidate survives', () => {
       const raw = JSON.stringify({
         candidates: [

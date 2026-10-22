@@ -15,7 +15,7 @@ import {
 import type { Experiment } from '@/api';
 import { Button, Empty, Field, Input, PageSpinner, Select } from '@/ui';
 import { JudgeModelField } from './JudgeModelField';
-import { JudgePromptField } from './JudgePromptField';
+import { JudgePromptField, useJudgePromptHasNoVersion } from './JudgePromptField';
 import { ModelCheckboxList } from './ModelCheckboxList';
 
 /** Toggles membership of `id` in a `Set`, returning a new set (never mutates in place). */
@@ -48,6 +48,7 @@ export function ExperimentConfigPage() {
   const [alias, setAlias] = useState('');
   const [judgeModel, setJudgeModel] = useState('');
   const [judgePrompt, setJudgePrompt] = useState<{ id: string; name: string } | null>(null);
+  const judgeHasNoVersion = useJudgePromptHasNoVersion(judgePrompt);
   const [error, setError] = useState<string | null>(null);
   const [mismatchWarning, setMismatchWarning] = useState<{
     runId: string;
@@ -269,7 +270,7 @@ export function ExperimentConfigPage() {
           {canWrite ? (
             <Button
               variant="primary"
-              disabled={submitting}
+              disabled={submitting || (judgeHasNoVersion && !mismatchWarning)}
               onClick={mismatchWarning ? () => navigate(`/evaluations/runs/${mismatchWarning.runId}`) : handleSubmit}
             >
               {submitting ? 'Starting…' : mismatchWarning ? 'Open run' : 'Start run'}

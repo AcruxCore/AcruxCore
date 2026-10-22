@@ -2387,3 +2387,15 @@ def test_run_report_and_experiment_runs_expose_the_judge():
     )
     assert exp.runs[0].judge_model == "gpt-4o-mini"
     assert exp.runs[0].judge_prompt_version_id is None
+
+
+def test_run_report_and_run_detail_expose_optimizer_rejections():
+    """An optimize run returns why the optimizer's dropped rewrites were dropped
+    (`optimizerRejections`), on both the run and its report. Older servers omit it."""
+    from acruxcore.eval_types import RunDetailDto, RunReport
+
+    reasons = ["candidate 2: dropped {{ message }} (a rewrite must keep exactly the original variables)"]
+    assert RunReport.from_dict({"runId": "r1", "optimizerRejections": reasons}).optimizer_rejections == reasons
+    assert RunDetailDto.from_dict({"id": "r1", "optimizerRejections": reasons}).optimizer_rejections == reasons
+    assert RunReport.from_dict({"runId": "r0"}).optimizer_rejections is None
+    assert RunDetailDto.from_dict({"id": "r0"}).optimizer_rejections is None

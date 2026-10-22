@@ -430,8 +430,9 @@ dataset and prompt the run evaluated, the shape of its frozen grid, and the
 scores it produced, so you can find the run worth opening without fetching each
 one's report.
 
-`kind` is `"optimize"` when the run swept optimizer-drafted candidates
-(`POST /prompts/:id/optimize`) and `"evaluation"` otherwise.
+`kind` is `"optimize"` for a run started by `POST /prompts/:id/optimize`, `"local"` for a
+run your SDK ran, and `"evaluation"` otherwise. The kind is set when the run is created, so a
+queued optimize run already reads as `"optimize"`.
 `avgScore`, `passRate` and `topVariantLabel` are `null` — never `0` — until the
 run has at least one judge-scored result, so an unscored run is never mistaken
 for one that scored badly. `avgScore` is the mean across every scored result in

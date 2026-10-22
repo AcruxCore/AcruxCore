@@ -153,4 +153,42 @@ describe('get_optimize_report', () => {
     expect(report.judgeModel).toBe('gpt-4o-mini');
     expect(report.judgePromptVersionId).toBe(judgeV1);
   });
+
+  it('reads a queued optimize run as one, from the kind stored when it was created (issue #684)', async () => {
+    const { promptId, datasetId } = await arrange();
+    await rest(harness, 'POST', `/prompts/${promptId}/aliases/production/promote`, { version_number: 1 });
+    const started = payloadOf<{ run_id: string }>(
+      await callTool(harness.client, 'optimize_prompt', {
+        prompt: 'triage',
+        dataset_id: datasetId,
+        models: ['gpt-4o-mini'],
+        judge_model: 'gpt-4o-mini',
+      }),
+    );
+
+    const text = await callTool(harness.client, 'get_optimize_report', { run_id: started.run_id });
+    expect(text).toContain(`Optimize run ${started.run_id} is queued`);
+  });
+
+  it('says how many rewrites were dropped before scoring, and why (issue #686)', async () => {
+    const { promptId, datasetId } = await arrange();
+    await rest(harness, 'POST', `/prompts/${promptId}/aliases/production/promote`, { version_number: 1 });
+    const started = payloadOf<{ run_id: string }>(
+      await callTool(harness.client, 'optimize_prompt', {
+        prompt: 'triage',
+        dataset_id: datasetId,
+        models: ['gpt-4o-mini'],
+        judge_model: 'gpt-4o-mini',
+      }),
+    );
+    const reason = 'candidate 2: template variables {} do not match the original {message}';
+    await prisma.experimentRun.update({
+      where: { id: started.run_id },
+      data: { status: 'succeeded', optimizerRejections: [reason] },
+    });
+
+    const text = await callTool(harness.client, 'get_optimize_report', { run_id: started.run_id });
+    expect(text).toContain(`1 more rewrite(s) were dropped before scoring: ${reason}`);
+    expect(payloadOf<{ rejectedRewrites: string[] }>(text).rejectedRewrites).toEqual([reason]);
+  });
 });

@@ -12,8 +12,12 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+## 0.19.0 — 2026-10-22
+
 ### Added
 
+- `RunDetailDto.optimizerRejections` and `RunReport.optimizerRejections`: on an optimize run, why
+  each rewrite the optimizer wrote but the run dropped was dropped. Optional.
 - `StartOptimizeParams.judgePromptId`: grade an `optimize.start` run with one of your prompts
   instead of the built-in judge, as `experiments.create` already allows. Optional.
 - `RunReportCell.erroredCount` and `RunReportCell.unscoredReason` (`{ message, count }`): how many

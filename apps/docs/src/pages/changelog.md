@@ -57,7 +57,7 @@ called out in the week it ships and in the SDK release notes.
 #### Tool spans record the real tool version id
 
 - **Fixed** — SDK spans for tools run in your code set `toolVersionId` to `toolId:number`.
-- `/tools/sync` and `/tools/resolve` now return `versionId`, and the next SDK release records it.
+- `/tools/sync` and `/tools/resolve` now return `versionId`, and SDK 0.19.0 records it.
 - Spans recorded before you upgrade the SDK keep the old value.
 
 #### One failing online rule no longer blocks the others
@@ -80,10 +80,22 @@ called out in the week it ships and in the SDK release notes.
 - Read-only mode hides `optimize_prompt` and `promote_optimize_candidate`. 32 tools in total.
   [Reference →](/api-reference/mcp#toolscall--improving-a-prompt-with-the-optimizer)
 
+#### SDKs 0.19.0 on npm and PyPI
+
+- Both SDKs add `runs.rejudge`, a judge prompt for optimize runs, and `optimizerRejections`.
+- Run reports carry `unscoredReason`; tool spans record the real tool version id.
+
 #### `@acruxcoreai/mcp-server` 0.2.0 on npm
 
 - The local `npx @acruxcoreai/mcp-server` gets the optimizer tools and `get_spending_limits`.
 - `run_prompt` and `chat_completion` name the trace id on their summary line.
+
+#### Optimize runs say which rewrites were dropped
+
+- `GET /runs/:id` and its report add `optimizerRejections`: why each dropped rewrite was dropped.
+- The run report says how many rewrites the optimizer wrote and how many it kept.
+- The MCP tool `get_optimize_report` lists them as `rejectedRewrites`.
+  [Reference →](/api-reference/optimize#rewrites-that-were-dropped)
 
 ### Minor
 
@@ -101,6 +113,11 @@ called out in the week it ships and in the SDK release notes.
 - **Fixed** — prompt Preview passed a typed JSON list or object to the template as plain text.
 - **Fixed** — screen readers read `&quot;` aloud in image descriptions on docs and blog pages.
 - **Fixed** — MCP `run_prompt` and `chat_completion` did not name the trace id in their summary.
+- **Fixed** — an optimize run showed as an evaluation run until its rewrites were written.
+- **Fixed** — a refused **Improve from feedback** made a new dataset on every retry.
+- **Fixed** — Start stayed enabled for a judge prompt with no version, which the API refuses.
+- **Fixed** — a queued optimize run graded with overall feedback edited after it started.
+- **Fixed** — a queued optimize run failed when its dataset was deleted.
 - The [privacy policy](https://acruxcore.com/privacy) now states how long trace content is kept.
 - The [audit trail guide](/docs/guides/read-the-team-audit-trail) now covers the Evaluations area.
 - The [MCP guide](/docs/guides/connect-an-mcp-client) says what to use if `urllib` gets a cut-short response behind a proxy.

@@ -189,6 +189,11 @@ export class OptimizeService {
       // prompt version when one was chosen.
       judgeModel: dto.judge_model,
       judgePromptVersionId: judgePromptVersionId ?? null,
+      // Stored now, not read off the grid, which stays empty until drafting (issue #684).
+      kind: 'optimize',
+      // Frozen at start, as `RunsService.startRun` does, so an edit made while the
+      // job waits in the queue reaches neither the optimizer nor the judge (issue #693).
+      gradingSnapshot: { overallFeedback: dataset.overallFeedback },
     });
 
     const jobData: OptimizeJobData = {

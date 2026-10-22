@@ -345,6 +345,14 @@ enum experiment_run_status {
   failed
 }
 
+/// What started a run. Stored at creation (issue #684): an optimize run's grid
+/// stays empty until its rewrites are drafted, so the kind cannot be read off it.
+enum experiment_run_kind {
+  evaluation
+  optimize
+  local
+}
+
 // ---------------------------------------------------------------------------
 // Audit event enum
 // ---------------------------------------------------------------------------
@@ -1140,6 +1148,10 @@ model ExperimentRun {
   teamId               String                @map("team_id") @db.Uuid
   experimentId         String                @map("experiment_id") @db.Uuid
   status               experiment_run_status @default(queued)
+  /// Set once at creation and never changed. Rows from before this column were
+  /// backfilled from their grid and, for an optimize run that never drafted,
+  /// from its experiment's `optimize` shape.
+  kind                 experiment_run_kind   @default(evaluation)
   /// Frozen example set: [{ exampleId, input, criteria }].
   exampleSnapshot      Json                  @default("[]") @map("example_snapshot")
   /// Resolved cells: [{ cellKey, variantKind, promptVersionId, versionLabel, model }].
@@ -1162,6 +1174,10 @@ model ExperimentRun {
   /// Null for runs created before this column; a re-judge of one of those reads
   /// the dataset's current overall feedback.
   gradingSnapshot      Json?                 @map("grading_snapshot")
+  /// Optimize runs only: why the optimizer's rewrites that were dropped were
+  /// dropped, one string per rewrite (issue #686). Empty when every rewrite was
+  /// kept; null on evaluation runs and on optimize runs that have not drafted.
+  optimizerRejections  Json?                 @map("optimizer_rejections")
   startedAt            DateTime?             @map("started_at") @db.Timestamptz(6)
   endedAt              DateTime?             @map("ended_at") @db.Timestamptz(6)
   createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)

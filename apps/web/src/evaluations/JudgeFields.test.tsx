@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { createElement, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '@/ui';
 import { JudgeModelField } from './JudgeModelField';
-import { JudgePromptField } from './JudgePromptField';
+import { JudgePromptField, useJudgePromptHasNoVersion } from './JudgePromptField';
 
 /** A response object shaped exactly the way `api()` reads it — no real fetch involved. */
 function fakeResponse(body: unknown, status = 200): Response {
@@ -84,5 +84,27 @@ describe('JudgePromptField', () => {
 
     fireEvent.click(screen.getByTestId('jp-create'));
     await waitFor(() => expect(onChange).toHaveBeenCalledWith({ id: 'p-1', name: 'Receipts judge' }));
+  });
+});
+
+describe('useJudgePromptHasNoVersion', () => {
+  const picked = { id: 'p-1', name: 'empty judge' };
+
+  it('blocks Start until the versions have loaded, so a click cannot slip through first', () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})));
+
+    const { result } = renderHook(() => useJudgePromptHasNoVersion(picked), { wrapper: wrapper(quietClient()) });
+
+    expect(result.current).toBe(true);
+  });
+
+  it('allows Start once the judge prompt has a version, and for the built-in judge', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ data: [{ id: 'v1', versionNumber: 1, variables: [] }], total: 1, page: 1, limit: 100 })));
+
+    const { result } = renderHook(() => useJudgePromptHasNoVersion(picked), { wrapper: wrapper(quietClient()) });
+    await waitFor(() => expect(result.current).toBe(false));
+
+    const builtIn = renderHook(() => useJudgePromptHasNoVersion(null), { wrapper: wrapper(quietClient()) });
+    expect(builtIn.result.current).toBe(false);
   });
 });

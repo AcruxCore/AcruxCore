@@ -161,6 +161,12 @@ export interface RunReport {
    * `promptVersionId` is also null when the built-in judge graded it.
    */
   judge?: { model: string | null; promptVersionId: string | null };
+  /**
+   * Optimize runs only: why each rewrite the optimizer wrote but the run dropped
+   * was dropped, e.g. a rewrite that lost a `{{ variable }}` (issue #686). Empty
+   * when every rewrite was kept; null on an evaluation run.
+   */
+  optimizerRejections?: string[] | null;
   /** The commonest reason a result in this run has no score, counted over every cell; null when all scored. */
   unscoredReason: RunReportUnscoredReason | null;
 }

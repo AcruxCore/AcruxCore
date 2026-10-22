@@ -1,4 +1,4 @@
-import { deriveGridShape, deriveRunKind, foldRunScores } from './run-list.aggregate';
+import { deriveGridShape, foldRunScores } from './run-list.aggregate';
 
 /** Builds one (run × variant) aggregate row, defaulting the counts a case does not care about. */
 function agg(variantLabel: string, over: Partial<Parameters<typeof foldRunScores>[0][number]> = {}) {
@@ -74,24 +74,6 @@ it('rounds the mean to 1dp and the pass rate to 3dp', () => {
 
   expect(folded.avgScore).toBe(66.7);
   expect(folded.passRate).toBe(0.333);
-});
-
-it('derives the run kind from candidate cells in the grid', () => {
-  const evaluation = [
-    { variantKind: 'version', variantLabel: 'v1', model: 'gpt-4o-mini' },
-    { variantKind: 'version', variantLabel: 'production', model: 'gpt-4o-mini' },
-  ];
-  const optimize = [
-    { variantKind: 'candidate', variantLabel: 'candidate-A', model: 'gpt-4o-mini' },
-    { variantKind: 'version', variantLabel: 'production', model: 'gpt-4o-mini' },
-  ];
-
-  expect(deriveRunKind(evaluation)).toBe('evaluation');
-  expect(deriveRunKind(optimize)).toBe('optimize');
-  // An optimize run's grid is empty until its candidates are drafted (the row
-  // is created with `grid: []` at request time), so it reads as an evaluation
-  // for that window rather than throwing.
-  expect(deriveRunKind([])).toBe('evaluation');
 });
 
 it('counts distinct grid axes, not cells', () => {

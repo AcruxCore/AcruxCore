@@ -12,6 +12,8 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+## 0.19.0 — 2026-10-22
+
 ### Added
 
 - `optimize.start(..., judge_prompt_id=...)`: grade an optimize run with one of your prompts
@@ -20,6 +22,8 @@ changelog: <https://docs.acruxcore.com/changelog>
   without calling the models again. Returns a `RejudgeRunResult` (`run_id`, `status`, `rejudging`).
 - `ToolSyncResult.version_id` and `ResolvedTool.version_id`: the id of the tool version. `None`
   from an older server.
+- `RunDetailDto.optimizer_rejections` and `RunReport.optimizer_rejections`: on an optimize run,
+  why each rewrite the optimizer wrote but the run dropped was dropped. `None` from an older server.
 
 ### Fixed
 

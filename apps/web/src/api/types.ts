@@ -1187,6 +1187,11 @@ export interface RunReport {
   judge?: { model: string | null; promptVersionId: string | null };
   /** The commonest reason a result has no score, counted over the whole run. Absent from older servers. */
   unscoredReason?: { message: string; count: number } | null;
+  /**
+   * Optimize runs only: why each rewrite the optimizer wrote but the run dropped was
+   * dropped. Empty when all were kept; null otherwise; absent from older servers.
+   */
+  optimizerRejections?: string[] | null;
 }
 
 /**

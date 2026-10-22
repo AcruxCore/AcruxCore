@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, type experiment_run_kind } from '@prisma/client';
 import prisma from '../../shared/db/client';
 import type { ReportGridCell, EvalResultRow } from './report.types';
 import type { RunListFilters, RunVariantAggregate } from './runs.types';
@@ -33,6 +33,8 @@ export interface RunReportInputs {
   judgeModel: string | null;
   /** The frozen custom judge prompt version; null for the built-in judge. */
   judgePromptVersionId: string | null;
+  /** Why the optimizer's dropped rewrites were dropped; null unless an optimize run drafted. */
+  optimizerRejections: string[] | null;
 }
 
 /** One (variant × model) cell as frozen into `ExperimentRun.grid` at run-start (`RunsService.resolveGrid`). */
@@ -58,6 +60,7 @@ interface RawGridCell {
 export interface RunListRow {
   id: string;
   status: string;
+  kind: experiment_run_kind;
   experimentId: string;
   experimentName: string | null;
   datasetId: string;
@@ -114,6 +117,8 @@ export class RunsRepository {
       judgeModel?: string | null;
       judgePromptVersionId?: string | null;
       gradingSnapshot?: Prisma.InputJsonValue;
+      /** Defaults to `evaluation`; `startOptimize` passes `optimize`. */
+      kind?: experiment_run_kind;
     },
   ): Promise<Prisma.ExperimentRunGetPayload<{}>> {
     return prisma.experimentRun.create({
@@ -121,6 +126,7 @@ export class RunsRepository {
         teamId,
         experimentId,
         status: 'queued',
+        ...(data.kind ? { kind: data.kind } : {}),
         exampleSnapshot: data.exampleSnapshot,
         grid: data.grid,
         createdBy: data.createdBy ?? null,
@@ -296,6 +302,7 @@ export class RunsRepository {
         select: {
           id: true,
           status: true,
+          kind: true,
           experimentId: true,
           grid: true,
           createdBy: true,
@@ -331,6 +338,7 @@ export class RunsRepository {
       runs: rows.map((r) => ({
         id: r.id,
         status: r.status,
+        kind: r.kind,
         experimentId: r.experimentId,
         experimentName: r.experiment.name,
         datasetId: r.experiment.datasetId,
@@ -583,7 +591,7 @@ export class RunsRepository {
   async setRunStatus(
     runId: string,
     status: 'queued' | 'running' | 'succeeded' | 'failed',
-    patch?: { startedAt?: Date; endedAt?: Date; error?: string },
+    patch?: { startedAt?: Date; endedAt?: Date; error?: string; optimizerRejections?: string[] },
   ): Promise<Prisma.ExperimentRunGetPayload<{}>> {
     return prisma.experimentRun.update({
       where: { id: runId },
@@ -592,6 +600,7 @@ export class RunsRepository {
         ...(patch?.startedAt !== undefined ? { startedAt: patch.startedAt } : {}),
         ...(patch?.endedAt !== undefined ? { endedAt: patch.endedAt } : {}),
         ...(patch?.error !== undefined ? { error: patch.error } : {}),
+        ...(patch?.optimizerRejections !== undefined ? { optimizerRejections: patch.optimizerRejections } : {}),
       },
     });
   }
@@ -608,19 +617,26 @@ export class RunsRepository {
    *
    * @param runId - Run UUID.
    * @param grid - The resolved grid cells (`RunGridCell[]`, cast by the caller).
-   * @param gradingSnapshot - The run-level grading inputs frozen alongside the
-   *   grid (`{ overallFeedback }`), which a re-judge grades with. Left unchanged
-   *   when omitted.
+   * @param extra - Written with the grid; each field is left unchanged when omitted.
+   * @param extra.gradingSnapshot - The run-level grading inputs (`{ overallFeedback }`)
+   *   a re-judge grades with. Only written for a run queued before `startOptimize`
+   *   froze them at start.
+   * @param extra.optimizerRejections - Why each dropped rewrite was dropped
+   *   (issue #686); an empty list when every rewrite was kept.
    * @returns The updated run row.
    */
   async setRunGrid(
     runId: string,
     grid: Prisma.InputJsonValue,
-    gradingSnapshot?: Prisma.InputJsonValue,
+    extra: { gradingSnapshot?: Prisma.InputJsonValue; optimizerRejections?: string[] } = {},
   ): Promise<Prisma.ExperimentRunGetPayload<{}>> {
     return prisma.experimentRun.update({
       where: { id: runId },
-      data: { grid, ...(gradingSnapshot !== undefined ? { gradingSnapshot } : {}) },
+      data: {
+        grid,
+        ...(extra.gradingSnapshot !== undefined ? { gradingSnapshot: extra.gradingSnapshot } : {}),
+        ...(extra.optimizerRejections !== undefined ? { optimizerRejections: extra.optimizerRejections } : {}),
+      },
     });
   }
 
@@ -868,6 +884,7 @@ export class RunsRepository {
       results,
       judgeModel: run.judgeModel,
       judgePromptVersionId: run.judgePromptVersionId,
+      optimizerRejections: run.optimizerRejections as string[] | null,
     };
   }
 

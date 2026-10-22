@@ -13,6 +13,8 @@ package follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   prompts that grades instead of the built-in judge. The optimizer also reads it.
 - `get_optimize_report` returns `judgePromptVersionId`, the judge prompt version that graded
   the run, or `null` for the built-in judge.
+- `get_optimize_report` returns `rejectedRewrites`, why each dropped rewrite was dropped, and
+  its summary says how many there were.
 
 ### Fixed
 

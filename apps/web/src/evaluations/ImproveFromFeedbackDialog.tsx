@@ -5,7 +5,8 @@ import type { StartRunResponse } from '@/api';
 import { Button, Dialog, DialogFooter, Field, Input, Select, Textarea } from '@/ui';
 import { DEFAULT_DRAFT_COUNT, DraftCountField } from './DraftCountField';
 import { JudgeModelField } from './JudgeModelField';
-import { JudgePromptField } from './JudgePromptField';
+import { JudgePromptField, useJudgePromptHasNoVersion } from './JudgePromptField';
+import { datasetForAttempt, type AttemptDataset } from './improve-from-feedback';
 import { ModelCheckboxList } from './ModelCheckboxList';
 
 export interface ImproveFromFeedbackDialogProps {
@@ -46,6 +47,8 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [mismatchWarning, setMismatchWarning] = useState<{ runId: string; warning: NonNullable<StartRunResponse['prompt_mismatch_warning']> } | null>(null);
+  // The dataset an earlier, refused attempt created, so a retry reuses it (issue #692).
+  const [attemptDataset, setAttemptDataset] = useState<AttemptDataset | null>(null);
 
   const allPrompts = useAllPrompts();
   const prompts = useMemo(
@@ -55,6 +58,7 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
   const gatewayModels = useModels();
   const optimize = useOptimize(promptId || 'unset');
   const aliases = useAliases(promptId);
+  const judgeHasNoVersion = useJudgePromptHasNoVersion(judgePrompt);
 
   useEffect(() => {
     if (open) {
@@ -70,6 +74,7 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
       setError(null);
       setSubmitting(false);
       setMismatchWarning(null);
+      setAttemptDataset(null);
     }
   }, [open]);
 
@@ -103,11 +108,12 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
     setError(null);
     setSubmitting(true);
     try {
-      const dataset = await createDataset.mutateAsync({
-        name: trimmedName,
-        overall_feedback: overallFeedback.trim() || undefined,
-        feedback_ids: feedbackIds,
-      });
+      const dataset = await datasetForAttempt(
+        attemptDataset,
+        { name: trimmedName, overall_feedback: overallFeedback.trim() || undefined, feedback_ids: feedbackIds },
+        (body) => createDataset.mutateAsync(body),
+      );
+      setAttemptDataset(dataset);
       const result = await optimize.mutateAsync({
         dataset_id: dataset.id,
         models: [...models],
@@ -257,8 +263,13 @@ export function ImproveFromFeedbackDialog({ open, onOpenChange, feedbackIds, onS
         <Button variant="ghost" onClick={() => onOpenChange(false)}>
           Cancel
         </Button>
-        <Button variant="primary" disabled={submitting} onClick={handleSubmit}>
-          {submitting ? 'Starting…' : 'Improve'}
+        {/* After a mismatch warning the run has started; a second click would start another. */}
+        <Button
+          variant="primary"
+          disabled={submitting || (judgeHasNoVersion && !mismatchWarning)}
+          onClick={mismatchWarning ? () => navigate(`/evaluations/runs/${mismatchWarning.runId}`) : handleSubmit}
+        >
+          {submitting ? 'Starting…' : mismatchWarning ? 'Open run' : 'Improve'}
         </Button>
       </DialogFooter>
     </Dialog>

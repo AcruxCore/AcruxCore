@@ -22,7 +22,7 @@ import { AppError, ConflictError, NotFoundError, ValidationError } from '../../s
 import { buildRunReport } from './report.aggregate';
 import { compareCells, selectNamedScore } from './run-compare.aggregate';
 import type { CompareResultRow } from './run-compare.aggregate';
-import { deriveGridShape, deriveRunKind, foldRunScores } from './run-list.aggregate';
+import { deriveGridShape, foldRunScores } from './run-list.aggregate';
 import type { ExperimentConfig } from '../experiments/experiments.types';
 import type {
   RunDetailDto,
@@ -250,7 +250,7 @@ export class RunsService {
       return {
         id: run.id,
         status: run.status,
-        kind: deriveRunKind(run.grid),
+        kind: run.kind,
         experimentId: run.experimentId,
         experimentName: run.experimentName,
         datasetId: run.datasetId,
@@ -296,13 +296,14 @@ export class RunsService {
 
     return {
       id: run.id,
-      kind: deriveRunKind(grid),
+      kind: run.kind,
       experimentId: run.experimentId,
       datasetId: header.datasetId,
       status: run.status,
       startedAt: run.startedAt ? run.startedAt.toISOString() : null,
       endedAt: run.endedAt ? run.endedAt.toISOString() : null,
       error: run.error,
+      optimizerRejections: run.optimizerRejections as string[] | null,
       createdAt: run.createdAt.toISOString(),
       grid,
       exampleCount: (run.exampleSnapshot as unknown[]).length,
@@ -540,6 +541,7 @@ export class RunsService {
         versionNumbers,
       }),
       judge: { model: data.judgeModel, promptVersionId: data.judgePromptVersionId },
+      optimizerRejections: data.optimizerRejections,
     };
   }
 

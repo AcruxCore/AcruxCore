@@ -61,6 +61,7 @@ export class LocalRunsRepository {
           teamId,
           experimentId: experiment.id,
           status: 'running',
+          kind: 'local',
           startedAt: new Date(),
           exampleSnapshot: data.exampleSnapshot,
           grid: data.grid,

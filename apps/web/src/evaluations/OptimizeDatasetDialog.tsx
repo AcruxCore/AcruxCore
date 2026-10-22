@@ -5,7 +5,7 @@ import type { StartRunResponse } from '@/api';
 import { Button, Dialog, DialogFooter, Field, Input, Select, useToast } from '@/ui';
 import { DEFAULT_DRAFT_COUNT, DraftCountField } from './DraftCountField';
 import { JudgeModelField } from './JudgeModelField';
-import { JudgePromptField } from './JudgePromptField';
+import { JudgePromptField, useJudgePromptHasNoVersion } from './JudgePromptField';
 import { ModelCheckboxList } from './ModelCheckboxList';
 import { PromptPicker } from './PromptPicker';
 
@@ -62,6 +62,7 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
   const optimize = useOptimize(promptId || 'unset');
   const createPrompt = useCreatePrompt();
   const toast = useToast();
+  const judgeHasNoVersion = useJudgePromptHasNoVersion(judgePrompt);
 
   useEffect(() => {
     if (open) {
@@ -281,7 +282,7 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
         </Button>
         <Button
           variant="primary"
-          disabled={submitting}
+          disabled={submitting || (judgeHasNoVersion && !mismatchWarning)}
           onClick={mismatchWarning ? () => navigate(`/evaluations/runs/${mismatchWarning.runId}`) : handleSubmit}
         >
           {submitting ? 'Starting…' : mismatchWarning ? 'Open run' : 'Optimize'}

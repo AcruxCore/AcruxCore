@@ -502,6 +502,53 @@ elements"). Production's own output for the same example scored 10 (see the
 cell drill-down for the exact multi-sentence, greeting-laden text the judge
 penalized).
 
+#### Rewrites that were dropped
+
+The optimizer drops a rewrite that adds or removes a `{{ variable }}`, or that loses an
+image part. A dropped rewrite gets no candidate and no grid cell. `GET /runs/:id` and
+`GET /runs/:id/report` both list the reasons in `optimizerRejections`, one string per
+dropped rewrite.
+
+`optimizerRejections` is `[]` when every rewrite was kept. It is `null` on an evaluation
+run and on an optimize run that has not drafted yet. When every rewrite is dropped, the run
+fails and its `error` names the same reasons.
+
+This run asked for 3 rewrites. Rewrite 2 lost `{{ message }}`, so the grid holds 2
+candidates and the baseline:
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" $ACRUXCORE_BASE_URL/runs/f1218e15-1721-4556-9a1b-dcf9abb3cc75
+```
+
+Response (status 200):
+
+```json
+{
+  "id": "f1218e15-1721-4556-9a1b-dcf9abb3cc75",
+  "kind": "optimize",
+  "experimentId": "1cf321af-eef8-40f3-b6b3-6754bec9dea1",
+  "datasetId": "f028cce4-57bd-4b71-984e-314c2c117a82",
+  "status": "succeeded",
+  "startedAt": "2026-10-22T12:13:52.293Z",
+  "endedAt": "2026-10-22T12:13:58.102Z",
+  "error": null,
+  "optimizerRejections": [
+    "candidate 2: dropped {{ message }} (a rewrite must keep exactly the original variables)"
+  ],
+  "createdAt": "2026-10-22T12:13:38.460Z",
+  "grid": [
+    { "model": "gpt-5.4-mini-or", "cellKey": "candidate-A|gpt-5.4-mini-or", "variantKind": "candidate", "variantLabel": "candidate-A", "promptCandidateId": "67c70c59-c4d0-4070-b6b6-a73bbdda08ea", "isProductionBaseline": false },
+    { "model": "gpt-5.4-mini-or", "cellKey": "candidate-B|gpt-5.4-mini-or", "variantKind": "candidate", "variantLabel": "candidate-B", "promptCandidateId": "86b020ba-fd6c-4896-b06f-5d7307ee9f76", "isProductionBaseline": false },
+    { "model": "gpt-5.4-mini-or", "cellKey": "production|gpt-5.4-mini-or", "variantKind": "version", "variantLabel": "production", "promptVersionId": "d6f7cca3-b855-4445-8983-269cf7859fdf", "isProductionBaseline": true }
+  ],
+  "exampleCount": 1,
+  "results": { "total": 3, "succeeded": 3, "errored": 0 }
+}
+```
+
+`kind` is `"optimize"` from the moment the run is created, while it is still `queued` and
+its `grid` is empty.
+
 ---
 
 ### POST /api/v1/runs/:id/promote

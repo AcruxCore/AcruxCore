@@ -30,6 +30,8 @@ interface RunDetail {
 interface RunReportBody {
   cells: OptimizeReportCell[];
   judge?: { model: string | null; promptVersionId?: string | null };
+  /** Why each dropped rewrite was dropped; absent from servers older than the field. */
+  optimizerRejections?: string[] | null;
 }
 
 /** The fields of `GET /runs/:id/candidates/:candidateId` worth showing before a promote. */
@@ -70,10 +72,10 @@ async function loadOptimizeRun(
   runId: string,
 ): Promise<{ run: RunDetail; report: RunReportBody | null; candidates: CandidateSummary[] }> {
   const run = await client.get<RunDetail>(`/runs/${runId}`);
-  // The API derives `kind` from the grid, and an optimize run's grid stays empty until
-  // its rewrites are drafted, so a just-started optimize run reads as "evaluation". An
-  // ordinary evaluation run freezes its grid when it starts, so an empty grid can only
-  // be an optimize run that has not drafted yet.
+  // The API stores the kind when the run is created, so a queued optimize run reads as
+  // `optimize` (issue #684). A server older than that derives the kind from the grid,
+  // which stays empty until the rewrites are drafted. An evaluation run freezes its grid
+  // when it starts, so on either server an empty grid can only be an undrafted optimize run.
   const notDraftedYet = run.grid.length === 0;
   if (run.kind !== 'optimize' && !notDraftedYet) {
     throw new Error(
@@ -514,14 +516,21 @@ export const evaluationTools: AnyToolDefinition[] = [
       });
       const best = bestCandidate(candidates);
       const winners = candidates.filter((candidate) => candidate.beatsBaseline).length;
+      // Without this, a report with fewer rewrites than requested looks like the
+      // optimizer wrote fewer (issue #686).
+      const rejected = report?.optimizerRejections ?? [];
+      const rejectedNote =
+        rejected.length > 0
+          ? ` ${rejected.length} more rewrite(s) were dropped before scoring: ${rejected.join(' | ')}.`
+          : '';
 
-      const summary = best
+      const summary = (best
         ? `Optimize run ${run_id} succeeded. ${winners} of ${candidates.length} rewrite(s) beat ` +
           `the baseline. Recommended: ${best.label} (candidate_id ${best.candidateId}), ` +
           best.scores.map((score) => `${formatDelta(score.scoreDelta)} on ${score.model}`).join(', ') +
           '. Promote it with promote_optimize_candidate only if the user agrees.'
         : `Optimize run ${run_id} succeeded, but none of its ${candidates.length} rewrite(s) ` +
-          'beat the baseline. Nothing is worth promoting; keep the current version.';
+          'beat the baseline. Nothing is worth promoting; keep the current version.') + rejectedNote;
 
       const payload = {
         runId: run_id,
@@ -530,6 +539,7 @@ export const evaluationTools: AnyToolDefinition[] = [
         // Null means the built-in judge graded the run.
         judgePromptVersionId: report?.judge?.promptVersionId ?? null,
         recommended: best?.candidateId ?? null,
+        rejectedRewrites: rejected,
         baseline: (report?.cells ?? [])
           .filter((cell) => cell.isProductionBaseline)
           .map((cell) => ({

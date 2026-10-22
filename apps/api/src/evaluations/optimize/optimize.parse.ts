@@ -168,8 +168,8 @@ function imagePlacementProblem(messages: ReadonlyArray<{ role: string; content: 
  *   ({@link imageUrlTemplates}). A candidate must hold the same ones, each in a user message.
  *   Omit to skip this check.
  * @returns `{ candidates, rejections }` — `rejections` holds one human-readable
- *   reason per dropped candidate, in the order they appeared, and is empty when
- *   nothing was dropped.
+ *   reason per dropped candidate, and is empty when nothing was dropped. Invalid
+ *   rewrites come first, in the order they appeared, then any valid ones cut by `draftCount`.
  */
 export function parseCandidatesDetailed(
   raw: string,
@@ -254,7 +254,7 @@ export function parseCandidatesDetailed(
 
   // Drop any candidate whose rewritten template fails to parse, or (Finding
   // #17) whose variable set doesn't exactly match the original template's.
-  const survivors: Array<{ messages: ChatMessage[]; rationale: string }> = [];
+  const survivors: Array<{ idx: number; candidate: { messages: ChatMessage[]; rationale: string } }> = [];
   for (const [idx, candidate] of parseResult.data.candidates.entries()) {
     let candidateVars: string[];
     try {
@@ -290,11 +290,20 @@ export function parseCandidatesDetailed(
       }
     }
     survivors.push({
-      messages: candidate.messages as ChatMessage[],
-      rationale: candidate.rationale,
+      idx,
+      candidate: { messages: candidate.messages as ChatMessage[], rationale: candidate.rationale },
     });
   }
 
-  // Cap (don't pad) to draftCount.
-  return { candidates: survivors.slice(0, draftCount), rejections };
+  // Cap (don't pad) to draftCount. A surplus rewrite is dropped too, so it gets a
+  // reason: the run report counts written = kept + rejections (issue #686).
+  return {
+    candidates: survivors.slice(0, draftCount).map(({ candidate }) => candidate),
+    rejections: [
+      ...rejections,
+      ...survivors
+        .slice(draftCount)
+        .map(({ idx }) => `candidate ${idx + 1}: more rewrites than requested (the run keeps the first ${draftCount})`),
+    ],
+  };
 }
