@@ -391,7 +391,8 @@ price and unlimited users.
 - Braintrust's free plan keeps data 14 days.
 - Self-hosting any part of Braintrust needs an Enterprise contract.
 
-Our comparison: [AcruxCore vs Braintrust](/blog/acruxcore-vs-braintrust).
+Our comparison: [AcruxCore vs Braintrust](/blog/acruxcore-vs-braintrust). For more options
+starting from Braintrust, see [10 Braintrust alternatives](/blog/braintrust-alternatives).
 
 Sources: [pricing](https://www.braintrust.dev/pricing),
 [self-hosting](https://www.braintrust.dev/docs/admin/self-hosting),

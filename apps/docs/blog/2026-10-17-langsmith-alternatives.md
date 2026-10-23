@@ -360,7 +360,8 @@ unlimited users, and LangSmith charges per seat.
 - Prompt environments need Pro.
 - The Braintrust gateway has no uptime guarantee (SLA) while it is in preview.
 
-Our comparison: [AcruxCore vs Braintrust](/blog/acruxcore-vs-braintrust).
+Our comparison: [AcruxCore vs Braintrust](/blog/acruxcore-vs-braintrust). For more options
+starting from Braintrust, see [10 Braintrust alternatives](/blog/braintrust-alternatives).
 
 Sources: [pricing](https://www.braintrust.dev/pricing),
 [self-hosting](https://www.braintrust.dev/docs/admin/self-hosting),

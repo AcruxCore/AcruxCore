@@ -130,6 +130,7 @@ called out in the week it ships and in the SDK release notes.
 - The [compare page](https://acruxcore.com/compare) adds Agenta as a seventh competitor, with a source for each cell.
 - The [hands-on comparison](/blog/hands-on-llm-ops-comparison) adds Agenta, so it now covers ten platforms.
 - The same post now explains what LLM observability is and how each tool traces an agent run.
+- **New post** — [10 Braintrust alternatives for LLM evals](/blog/braintrust-alternatives): full platforms first, then eval-only tools.
 
 ---
 

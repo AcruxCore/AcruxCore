@@ -16,6 +16,8 @@ tool's JSON Schema at most. Braintrust takes your Python, bundles it, and runs i
 infrastructure. That one decision sets the Python version you may use, sets whether your handler
 can open a file, and sets where your data has to live. This comparison is built around that
 decision.
+To compare Braintrust with all the other alternatives at once, see
+[10 Braintrust alternatives](/blog/braintrust-alternatives).
 
 Braintrust is not open source, and self-hosting needs the Enterprise plan. There is no free
 self-hosted install to test against, so everything below ran on their hosted Starter tier.
@@ -567,6 +569,7 @@ For the six open-source alternatives we have compared against, see the
 [compare page](https://acruxcore.com/compare).
 
 To compare more tools, see [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison),
-[8 LangSmith alternatives](/blog/langsmith-alternatives) and [8 Langfuse alternatives](/blog/langfuse-alternatives).
+[8 LangSmith alternatives](/blog/langsmith-alternatives), [8 Langfuse alternatives](/blog/langfuse-alternatives)
+and [10 Braintrust alternatives](/blog/braintrust-alternatives).
 
 Start here if you want to try AcruxCore: [Quickstart](/docs/getting-started/quickstart).
