@@ -77,3 +77,25 @@ export const BLOG_REDIRECTS: readonly RedirectEntry[] = REDIRECTS.filter((entry)
 export const DOCS_REDIRECTS: readonly RedirectEntry[] = REDIRECTS.filter(
   (entry) => !entry.from.startsWith('/blog/'),
 );
+
+/**
+ * The whole old blog tree on docs.acruxcore.com, sent to acruxcore.com/blog.
+ *
+ * The blog moved to the main domain (cross-cutting FAQ Q129) with the same
+ * slugs, so one splat covers every post, tag, page and feed. Written last into
+ * `_redirects`: Pages applies the first rule that matches, and a retired tag
+ * must hit its own entry (one hop to its final page) before this splat would
+ * send it to a tag page that itself redirects. The index goes to `/blog/` with
+ * the slash, its one canonical form.
+ *
+ * Every other blog URL has no trailing slash, and the new host 308s a slashed
+ * one. The placeholder rules strip the slash here instead, so `/blog/x/` is
+ * still one hop. Tags, pages and authors sit at most three segments deep.
+ */
+export const OLD_BLOG_RULES: readonly string[] = [
+  '/blog https://acruxcore.com/blog/ 301',
+  '/blog/:a/ https://acruxcore.com/blog/:a 301',
+  '/blog/:a/:b/ https://acruxcore.com/blog/:a/:b 301',
+  '/blog/:a/:b/:c/ https://acruxcore.com/blog/:a/:b/:c 301',
+  '/blog/* https://acruxcore.com/blog/:splat 301',
+];

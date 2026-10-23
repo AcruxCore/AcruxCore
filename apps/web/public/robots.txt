@@ -84,8 +84,12 @@ Allow: /
 # every page with a one-line summary, best pages first.
 # https://acruxcore.com/llms.txt
 #
-# The documentation, blog and changelog live on a separate host with its own
+# The blog lives here, under /blog, but is built separately with its own
+# sitemap (listed below) and its own index at https://acruxcore.com/blog/llms.txt.
+#
+# The documentation and changelog live on a separate host with its own
 # robots.txt and its own sitemap, which a crawler finds there rather than here:
 # https://docs.acruxcore.com/robots.txt
 
 Sitemap: https://acruxcore.com/sitemap.xml
+Sitemap: https://acruxcore.com/blog/sitemap.xml

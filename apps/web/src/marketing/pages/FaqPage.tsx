@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { MarketingShell, ContentHeader } from '../MarketingShell';
-import { cssToStyle, DOCS_URL, Eyebrow } from '../marketing-chrome';
+import { cssToStyle, BLOG_URL, Eyebrow } from '../marketing-chrome';
 import { FAQ_GROUPS, FaqAnswer } from '../faq';
 
 /**
@@ -86,7 +86,7 @@ export function FaqPage(): ReactNode {
         <p className="acx-prose" style={cssToStyle('margin:0;')}>
           The <Link to="/compare">comparison matrix</Link> puts the eight platforms side by side with
           a source for each cell. The{' '}
-          <a href={`${DOCS_URL}/blog/hands-on-llm-ops-comparison`} target="_blank" rel="noreferrer">
+          <a href={`${BLOG_URL}/hands-on-llm-ops-comparison`} target="_blank" rel="noreferrer">
             hands-on test of ten platforms
           </a>{' '}
           covers these eight, plus LangSmith and PromptLayer, in more detail. The{' '}

@@ -2,7 +2,7 @@
 
 Internal notes behind the blog post
 `apps/docs/blog/2026-10-17-self-hosting-llm-observability.md`
-(docs.acruxcore.com/blog/self-hosting-llm-observability). Nothing here is shown
+(acruxcore.com/blog/self-hosting-llm-observability). Nothing here is shown
 on the page. `header.html` renders the post's header image
 (`apps/docs/static/img/blog/self-hosting-llm-observability/header.png`, 1200x630).
 

@@ -1,5 +1,5 @@
 import type { PrerenderRoute } from './entry-prerender';
-import { DOCS_URL, GITHUB_URL } from './marketing-chrome';
+import { BLOG_URL, DOCS_URL, GITHUB_URL } from './marketing-chrome';
 
 /**
  * `/llms.txt` for acruxcore.com — a Markdown index of the site, written for AI
@@ -150,8 +150,13 @@ const EXTERNAL_SECTION = {
     },
     {
       title: 'A hands-on test of nine LLM-ops platforms',
-      url: `${DOCS_URL}/blog/hands-on-llm-ops-comparison`,
+      url: `${BLOG_URL}/hands-on-llm-ops-comparison`,
       summary: 'The same example rebuilt on every platform, self-hosted, with screenshots from the real sessions.',
+    },
+    {
+      title: 'Every blog post',
+      url: `${BLOG_URL}/llms.txt`,
+      summary: 'The blog has its own llms.txt: every comparison and benchmark post, newest first, each with a one-line summary.',
     },
     {
       title: 'Source code',

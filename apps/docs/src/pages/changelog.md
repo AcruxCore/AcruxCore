@@ -104,6 +104,7 @@ called out in the week it ships and in the SDK release notes.
 
 ### Minor
 
+- The blog moved to [acruxcore.com/blog](https://acruxcore.com/blog/), and every old link redirects to the same post.
 - **Fixed** — the MCP tool `run_experiment` failed on every call because it sent no judge model.
 - The dashboard's optimize dialogs have a **Number of rewrites** field (1 to 6, default 3).
 - **Fixed** — some optimizer models wrote one rewrite when you asked for three.
@@ -126,11 +127,11 @@ called out in the week it ships and in the SDK release notes.
 - The [privacy policy](https://acruxcore.com/privacy) now states how long trace content is kept.
 - The [audit trail guide](/docs/guides/read-the-team-audit-trail) now covers the Evaluations area.
 - The [MCP guide](/docs/guides/connect-an-mcp-client) says what to use if `urllib` gets a cut-short response behind a proxy.
-- **New post** — [AcruxCore vs Agenta: built-in evaluators vs a gateway](/blog/acruxcore-vs-agenta).
+- **New post** — [AcruxCore vs Agenta: built-in evaluators vs a gateway](https://acruxcore.com/blog/acruxcore-vs-agenta).
 - The [compare page](https://acruxcore.com/compare) adds Agenta as a seventh competitor, with a source for each cell.
-- The [hands-on comparison](/blog/hands-on-llm-ops-comparison) adds Agenta, so it now covers ten platforms.
+- The [hands-on comparison](https://acruxcore.com/blog/hands-on-llm-ops-comparison) adds Agenta, so it now covers ten platforms.
 - The same post now explains what LLM observability is and how each tool traces an agent run.
-- **New post** — [10 Braintrust alternatives for LLM evals](/blog/braintrust-alternatives): full platforms first, then eval-only tools.
+- **New post** — [10 Braintrust alternatives for LLM evals](https://acruxcore.com/blog/braintrust-alternatives): full platforms first, then eval-only tools.
 
 ---
 
@@ -319,10 +320,10 @@ called out in the week it ships and in the SDK release notes.
 - **New guide** — [Write a custom judge prompt](/docs/guides/write-a-custom-judge-prompt).
 - **Fixed** — the Evaluation code sample on acruxcore.com left out the required `judge_model`.
 - Head-to-head blog posts are now titled "AcruxCore vs X", such as "AcruxCore vs LangChain".
-- **New post** — [Langfuse vs LangSmith: one app tested end to end on both](/blog/langfuse-vs-langsmith).
-- **New posts** — [8 LangSmith alternatives](/blog/langsmith-alternatives) and [8 Langfuse alternatives](/blog/langfuse-alternatives).
-- Four comparison posts add a header image and diagrams, such as [8 Langfuse alternatives](/blog/langfuse-alternatives).
-- [Tool-call traces: LangSmith vs AcruxCore](/blog/tool-calling-traces-langsmith-vs-acruxcore) re-run on today's SDK.
+- **New post** — [Langfuse vs LangSmith: one app tested end to end on both](https://acruxcore.com/blog/langfuse-vs-langsmith).
+- **New posts** — [8 LangSmith alternatives](https://acruxcore.com/blog/langsmith-alternatives) and [8 Langfuse alternatives](https://acruxcore.com/blog/langfuse-alternatives).
+- Four comparison posts add a header image and diagrams, such as [8 Langfuse alternatives](https://acruxcore.com/blog/langfuse-alternatives).
+- [Tool-call traces: LangSmith vs AcruxCore](https://acruxcore.com/blog/tool-calling-traces-langsmith-vs-acruxcore) re-run on today's SDK.
 - **Fixed** — the New dataset dialog said examples are added by hand; it now mentions file import.
 - The Models page warns when a model lacks a price: its calls count as $0 in Usage and budgets.
 - The run report shows a baseline as "v1 (production)"; the report API returns `versionNumber`.
@@ -331,12 +332,12 @@ called out in the week it ships and in the SDK release notes.
 - **Fixed** — the Tag and filter traces guide's SDK snippets failed on their first line; they now run.
 - **Fixed** — the no-code tool-agent tutorial's SDK tabs for secrets called a method no SDK has.
 - **Fixed** — the LangChain alternative post's AcruxCore code and its two scripts now run.
-- **New post** — [AcruxCore vs Langfuse vs LangSmith: one app tested end to end on all three](/blog/acruxcore-vs-langfuse-vs-langsmith).
-- **Restored** — [AcruxCore vs Langfuse](/blog/acruxcore-vs-langfuse) and [AcruxCore vs LangSmith](/blog/acrux-core-vs-langsmith) are back at their own URLs.
+- **New post** — [AcruxCore vs Langfuse vs LangSmith: one app tested end to end on all three](https://acruxcore.com/blog/acruxcore-vs-langfuse-vs-langsmith).
+- **Restored** — [AcruxCore vs Langfuse](https://acruxcore.com/blog/acruxcore-vs-langfuse) and [AcruxCore vs LangSmith](https://acruxcore.com/blog/acrux-core-vs-langsmith) are back at their own URLs.
 - Retired docs, blog and tag URLs now return a permanent 301 redirect to the page that replaced them.
 - The [Press page](https://acruxcore.com/press) adds an AI Agents Directory badge.
 - **Fixed** — the README's production self-host steps left out creating the `mynetwork` network.
-- **New post** — [Self-hosting LLM observability: seven open-source tools measured](/blog/self-hosting-llm-observability).
+- **New post** — [Self-hosting LLM observability: seven open-source tools measured](https://acruxcore.com/blog/self-hosting-llm-observability).
 
 ---
 
@@ -1074,7 +1075,7 @@ called out in the week it ships and in the SDK release notes.
 - **Fixed** — `group_by=day` trace analytics bucketed days in the server timezone, not UTC.
 - **Fixed** — the changelog showed one week as two sections, dated three days apart.
 - `GET /traces/facets` now also returns distinct resolved models, for filter pickers.
-- **Corrected** — comparison posts now reflect AcruxCore's rule-based online evaluation. [Reference →](/blog/acruxcore-vs-opik)
+- **Corrected** — comparison posts now reflect AcruxCore's rule-based online evaluation. [Reference →](https://acruxcore.com/blog/acruxcore-vs-opik)
 - New tutorial: a travel planner that picks between three tools, or calls none at all.
   [Tutorial →](/docs/tutorials/build-a-travel-planner-agent)
 - Nine screenshots across the tutorials and guides now show the current alias-keyed Tools tab.
@@ -1169,7 +1170,7 @@ called out in the week it ships and in the SDK release notes.
 - **Fixed** — LLM cost showed blank for provider-dated model ids (e.g. `gpt-4o-mini-2024-07-18`).
 - New tutorials: trace a [CrewAI crew](/docs/tutorials/trace-a-crewai-trip-planner) and an [OpenAI Agents SDK](/docs/tutorials/trace-an-openai-agents-sdk-triage-system) app over OTLP.
 - **Blog tag and author pages** (`/blog/tags`, `/blog/authors`, and their archives) are now marked `noindex` so they stop competing with the posts they link to in search results.
-- **Corrected** — comparison posts now state the gateway's spend caps and rate limits correctly. [Reference →](/blog/acruxcore-vs-mlflow)
+- **Corrected** — comparison posts now state the gateway's spend caps and rate limits correctly. [Reference →](https://acruxcore.com/blog/acruxcore-vs-mlflow)
 - **Compare** — a row where a competitor lands in the same place as AcruxCore is now marked "Tie". [Reference →](https://acruxcore.com/compare)
 - **Compare** — the Tool catalog row now records our edge over MLflow's MCP server registry.
 - **Fixed** — the comparison table cut off its last column on wide screens, at any zoom level.
@@ -1368,9 +1369,9 @@ called out in the week it ships and in the SDK release notes.
 - **A "Beta" badge** in the landing hero, matching the one the signed-in app already showed.
 - **A product demo** plays on the home page.
 - **The home page's code panel** switches between TypeScript and Python, with a tab to pin one.
-- **New writing** — a [hands-on comparison](/blog) of LangSmith, Langfuse, PromptLayer and
+- **New writing** — a [hands-on comparison](https://acruxcore.com/blog/) of LangSmith, Langfuse, PromptLayer and
   AcruxCore.
-- **Re-measured** — [how much overhead an LLM gateway adds](/blog/llm-gateway-overhead) now
+- **Re-measured** — [how much overhead an LLM gateway adds](https://acruxcore.com/blog/llm-gateway-overhead) now
   benchmarks five paths including bring-your-own-key, on one fresh run.
 - **A real logo** — a crescent and compass rose, across the site, docs, browser tab and previews.
 - **Tool release notes** are separate from the model-facing description.
@@ -1404,8 +1405,8 @@ called out in the week it ships and in the SDK release notes.
 - **New guide** — [set spend limits with gateway budgets and rate limits](/docs/guides/set-spend-limits-with-gateway-budgets-and-rate-limits).
 - **New guide** — [diff, export, and import your prompt library](/docs/guides/diff-export-and-import-your-prompt-library).
 - **[Evaluate a prompt](/docs/guides/evaluate-a-prompt)** now frames the baseline comparison as a pre-ship gate.
-- **New writing** — [how much latency and spend exact-match gateway caching actually saves](/blog/exact-match-gateway-caching).
-- **New writing** — [comparing Anthropic, OpenAI, and Gemini request shapes behind one gateway API](/blog/one-gateway-three-providers).
+- **New writing** — [how much latency and spend exact-match gateway caching actually saves](https://acruxcore.com/blog/exact-match-gateway-caching).
+- **New writing** — [comparing Anthropic, OpenAI, and Gemini request shapes behind one gateway API](https://acruxcore.com/blog/one-gateway-three-providers).
 - **Fixed** — a malformed prompt id in the URL returned a raw `500` instead of a clear `400`.
 - **Fixed** — deleting a tool could leave a secret it referenced permanently undeletable.
 - **New guide** — [tag and filter traces](/docs/guides/tag-and-filter-traces).

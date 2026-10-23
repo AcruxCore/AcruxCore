@@ -49,7 +49,9 @@ describe('buildLlmsTxt', () => {
   // the only things here that qualify, and putting anything else there would
   // quietly tell a crawler to skip a page we want read.
   it('reserves the Optional section for the legal pages', () => {
-    const optional = output.split('## Optional')[1] ?? '';
+    // Up to the next heading: the external "Documentation and source" section
+    // follows it and links acruxcore.com/blog, which is not Optional.
+    const optional = (output.split('## Optional')[1] ?? '').split('\n## ')[0];
     const paths = [...optional.matchAll(/\]\(https:\/\/acruxcore\.com([^)]*)\)/g)].map((m) => m[1]);
     expect(paths.sort()).toEqual(['/privacy', '/terms']);
   });

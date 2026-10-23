@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { MarketingShell, ContentHeader } from '../MarketingShell';
-import { cssToStyle, Eyebrow, Ic, DOCS_URL, GITHUB_URL, ExternalArrow } from '../marketing-chrome';
+import { cssToStyle, Eyebrow, Ic, BLOG_URL, GITHUB_URL, ExternalArrow } from '../marketing-chrome';
 import { ACRUX_CORE, PLATFORMS_BY_COMMUNITY, type Comparison } from '../comparisons';
 
 /**
@@ -144,7 +144,7 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
           <p style={cssToStyle('margin:0 0 12px;')}>
             AcruxCore&rsquo;s gateway added about 42 ms per call compared with calling OpenAI
             directly. The confidence interval is +17 ms to +81 ms. The{' '}
-            <a href={`${DOCS_URL}/blog/llm-gateway-overhead`} target="_blank" rel="noreferrer">
+            <a href={`${BLOG_URL}/llm-gateway-overhead`} target="_blank" rel="noreferrer">
               gateway latency benchmark
             </a>{' '}
             has the full distribution, the tail latencies, and the scripts to rerun it.
@@ -167,7 +167,7 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
         <p className="acx-prose" style={cssToStyle('margin:0;')}>
           The <Link to="/compare">comparison matrix</Link> puts every platform side by side, row
           by row, with a source for each cell. The{' '}
-          <a href={`${DOCS_URL}/blog/hands-on-llm-ops-comparison`} target="_blank" rel="noreferrer">
+          <a href={`${BLOG_URL}/hands-on-llm-ops-comparison`} target="_blank" rel="noreferrer">
             hands-on review of ten platforms
           </a>{' '}
           has the screenshots from each test. The <Link to="/faq">FAQ</Link> says which teams

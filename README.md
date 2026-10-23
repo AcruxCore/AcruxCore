@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://acruxcore.com">Website</a> ·
   <a href="https://docs.acruxcore.com">Docs</a> ·
-  <a href="https://docs.acruxcore.com/blog">Blog</a> ·
+  <a href="https://acruxcore.com/blog/">Blog</a> ·
   <a href="https://docs.acruxcore.com/changelog">Changelog</a> ·
   <a href="#-self-hosting">Self-hosting</a>
 </p>
@@ -100,7 +100,7 @@ Checked by hand against each project's own docs and a live self-hosted instance 
 **Where they beat us.** Four rows go the other way. We ship no built-in guardrails, while Helicone, MLflow, Opik and Laminar (PII only) all do. Our alerts are email only — every platform except Phoenix can post to Slack or a webhook. There is no human labeling queue; Langfuse, Laminar and Opik have one. And there is no organization layer above the team, which Langfuse and Laminar both have. MLflow also matches us on two of our own rows: its gateway sits in the request path, and its prompt registry renders full Jinja2. Every project here is older than us and has a much larger community.
 
 
-One app built and measured on three platforms: **[AcruxCore vs Langfuse vs LangSmith](https://docs.acruxcore.com/blog/acruxcore-vs-langfuse-vs-langsmith)**. Hands-on comparisons, each built by running the same prompt on both platforms: **[Langfuse](https://docs.acruxcore.com/blog/acruxcore-vs-langfuse)** · **[LangSmith](https://docs.acruxcore.com/blog/acrux-core-vs-langsmith)** · **[Helicone](https://docs.acruxcore.com/blog/acruxcore-vs-helicone)** · **[Laminar](https://docs.acruxcore.com/blog/acruxcore-vs-laminar)** · **[MLflow](https://docs.acruxcore.com/blog/acruxcore-vs-mlflow)** · **[Opik](https://docs.acruxcore.com/blog/acruxcore-vs-opik)** · **[Phoenix](https://docs.acruxcore.com/blog/acruxcore-vs-phoenix)** — or the [side-by-side matrix](https://acruxcore.com/compare).
+One app built and measured on three platforms: **[AcruxCore vs Langfuse vs LangSmith](https://acruxcore.com/blog/acruxcore-vs-langfuse-vs-langsmith)**. Hands-on comparisons, each built by running the same prompt on both platforms: **[Langfuse](https://acruxcore.com/blog/acruxcore-vs-langfuse)** · **[LangSmith](https://acruxcore.com/blog/acrux-core-vs-langsmith)** · **[Helicone](https://acruxcore.com/blog/acruxcore-vs-helicone)** · **[Laminar](https://acruxcore.com/blog/acruxcore-vs-laminar)** · **[MLflow](https://acruxcore.com/blog/acruxcore-vs-mlflow)** · **[Opik](https://acruxcore.com/blog/acruxcore-vs-opik)** · **[Phoenix](https://acruxcore.com/blog/acruxcore-vs-phoenix)** — or the [side-by-side matrix](https://acruxcore.com/compare).
 
 ## 🏠 Self-hosting
 

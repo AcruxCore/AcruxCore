@@ -1,4 +1,4 @@
-import { DOCS_URL, GITHUB_URL } from './marketing-chrome';
+import { BLOG_URL, DOCS_URL, GITHUB_URL } from './marketing-chrome';
 
 /**
  * The competitors with a row on `/compare` and a matched-example blog post. Kept
@@ -164,7 +164,7 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     slug: 'langfuse',
     name: 'Langfuse',
     tagline: 'OpenTelemetry-based tracing and prompt management, with an organization layer above projects.',
-    postHref: `${DOCS_URL}/blog/acruxcore-vs-langfuse`,
+    postHref: `${BLOG_URL}/acruxcore-vs-langfuse`,
     githubHref: 'https://github.com/langfuse/langfuse',
     checkedOn: '2026-08-06',
     bestFor:
@@ -231,7 +231,7 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     slug: 'phoenix',
     name: 'Phoenix',
     tagline: 'Arize\'s tracing and evaluation, running on your own machine inside a notebook.',
-    postHref: `${DOCS_URL}/blog/acruxcore-vs-phoenix`,
+    postHref: `${BLOG_URL}/acruxcore-vs-phoenix`,
     githubHref: 'https://github.com/Arize-ai/phoenix',
     checkedOn: '2026-08-07',
     bestFor:
@@ -292,7 +292,7 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     slug: 'opik',
     name: 'Opik',
     tagline: 'Observability from Comet, built around datasets, experiments, and online scoring rules.',
-    postHref: `${DOCS_URL}/blog/acruxcore-vs-opik`,
+    postHref: `${BLOG_URL}/acruxcore-vs-opik`,
     githubHref: 'https://github.com/comet-ml/opik',
     checkedOn: '2026-08-07',
     bestFor:
@@ -353,7 +353,7 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     slug: 'helicone',
     name: 'Helicone',
     tagline: 'A request-path proxy with per-user metrics. It has been in maintenance mode since Mintlify acquired it.',
-    postHref: `${DOCS_URL}/blog/acruxcore-vs-helicone`,
+    postHref: `${BLOG_URL}/acruxcore-vs-helicone`,
     githubHref: 'https://github.com/Helicone/helicone',
     checkedOn: '2026-08-07',
     bestFor:
@@ -416,7 +416,7 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     slug: 'mlflow',
     name: 'MLflow',
     tagline: 'The open-source ML and GenAI platform, with a prompt registry, tracing, evaluation, and its own request-path AI Gateway.',
-    postHref: `${DOCS_URL}/blog/acruxcore-vs-mlflow`,
+    postHref: `${BLOG_URL}/acruxcore-vs-mlflow`,
     githubHref: 'https://github.com/mlflow/mlflow',
     checkedOn: '2026-08-08',
     bestFor:
@@ -476,7 +476,7 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     slug: 'laminar',
     name: 'Laminar',
     tagline: 'Observability for agent runs, built in Rust on ClickHouse. Laminar has SQL over spans, LLM-watched Signals, and a CLI made for coding agents.',
-    postHref: `${DOCS_URL}/blog/acruxcore-vs-laminar`,
+    postHref: `${BLOG_URL}/acruxcore-vs-laminar`,
     githubHref: 'https://github.com/lmnr-ai/lmnr',
     checkedOn: '2026-09-06',
     bestFor:
@@ -537,7 +537,7 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     slug: 'agenta',
     name: 'Agenta',
     tagline: 'A workspace for building agents by chatting, with a prompt registry, evaluation, and tracing behind it.',
-    postHref: `${DOCS_URL}/blog/acruxcore-vs-agenta`,
+    postHref: `${BLOG_URL}/acruxcore-vs-agenta`,
     githubHref: 'https://github.com/Agenta-AI/agenta',
     checkedOn: '2026-10-18',
     bestFor:

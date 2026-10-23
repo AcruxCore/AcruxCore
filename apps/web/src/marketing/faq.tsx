@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { DOCS_URL, GITHUB_URL } from './marketing-chrome';
+import { BLOG_URL, DOCS_URL, GITHUB_URL } from './marketing-chrome';
 
 /**
  * One piece of an answer: either plain prose, or a link.
@@ -69,8 +69,8 @@ export function answerToPlainText(answer: readonly AnswerParagraph[]): string {
     .trim();
 }
 
-const COMPARE_POST = `${DOCS_URL}/blog/hands-on-llm-ops-comparison`;
-const LATENCY_POST = `${DOCS_URL}/blog/llm-gateway-overhead`;
+const COMPARE_POST = `${BLOG_URL}/hands-on-llm-ops-comparison`;
+const LATENCY_POST = `${BLOG_URL}/llm-gateway-overhead`;
 const AUDIT_API = `${DOCS_URL}/api-reference/audit`;
 const AUDIT_GUIDE = `${DOCS_URL}/docs/guides/read-the-team-audit-trail`;
 const CORE_CONCEPTS = `${DOCS_URL}/docs/getting-started/core-concepts`;

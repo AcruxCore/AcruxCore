@@ -1,7 +1,7 @@
 import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
-import {REDIRECTS} from './redirects';
+import {BLOG_REDIRECTS, DOCS_REDIRECTS, OLD_BLOG_RULES} from './redirects';
 import {addLastmod, analyticsHeadTags, classifySitemapRoute} from './site-shared';
 import remarkUnescapeImageAlt from './plugins/remark-unescape-image-alt';
 
@@ -80,28 +80,10 @@ const config: Config = {
           sidebarPath: './sidebars.ts',
           remarkPlugins: [remarkUnescapeImageAlt],
         },
-        blog: {
-          remarkPlugins: [remarkUnescapeImageAlt],
-          showReadingTime: true,
-          blogTitle: 'AcruxCore blog',
-          blogDescription:
-            'Comparisons, concepts, and release notes for the AcruxCore LLM-ops platform.',
-          feedOptions: {
-            type: ['rss', 'atom'],
-            xslt: true,
-            title: 'AcruxCore blog',
-            description: 'LLM-ops articles and comparisons from the AcruxCore team.',
-            copyright: `Copyright © ${new Date().getFullYear()} AcruxCore.`,
-          },
-          onInlineTags: 'warn',
-          onInlineAuthors: 'warn',
-          onUntruncatedBlogPosts: 'warn',
-          // Default caps the "Recent posts" sidebar at 5, silently dropping our
-          // oldest posts from every blog page's navigation even though /blog
-          // itself lists all of them. 'ALL' keeps the sidebar a full catalog
-          // as the blog grows past what fits on one page.
-          blogSidebarCount: 'ALL',
-        },
+        // The blog moved to https://acruxcore.com/blog (docusaurus.blog.config.ts,
+        // cross-cutting FAQ Q129). The posts and static/img/blog stay in this
+        // package; this site only redirects the old URLs, see _redirects below.
+        blog: false,
         pages: {
           remarkPlugins: [remarkUnescapeImageAlt],
         },
@@ -197,11 +179,25 @@ const config: Config = {
       '@docusaurus/plugin-client-redirects',
       // Meta-refresh fallback pages; see redirects.ts for why the same list
       // also feeds the Cloudflare `_redirects` plugin below.
-      {redirects: [...REDIRECTS]},
+      // Docs pages only: a meta refresh cannot cross hosts, so the old blog
+      // URLs rely on the Cloudflare 301s alone.
+      {redirects: [...DOCS_REDIRECTS]},
     ],
     // Writes `_redirects` so Cloudflare Pages serves a real 301 for every
     // retired URL in redirects.ts.
-    ['./plugins/cloudflare-redirects.ts', {redirects: REDIRECTS}],
+    // Retired blog tags point straight at their final page on the new host, so
+    // they are one hop, and the splat that sends the rest of /blog there comes
+    // last.
+    [
+      './plugins/cloudflare-redirects.ts',
+      {
+        redirects: [
+          ...BLOG_REDIRECTS.map(({from, to}) => ({from, to: `https://acruxcore.com${to}`})),
+          ...DOCS_REDIRECTS,
+        ],
+        extraRules: OLD_BLOG_RULES,
+      },
+    ],
     // Emits /llms.txt after the build — a Markdown index of every page, written
     // for the AI crawlers that reach the docs through an answer engine rather
     // than through search. Generated from each page's own front matter so it
@@ -209,11 +205,11 @@ const config: Config = {
     [
       './plugins/llms-txt.ts',
       {
+        // The comparison and benchmark posts that used to head this list are
+        // featured in https://acruxcore.com/blog/llms.txt now.
         featuredRoutePaths: [
-          '/blog/hands-on-llm-ops-comparison',
           '/docs/getting-started/quickstart',
           '/docs/getting-started/core-concepts',
-          '/blog/full-cycle-latency-benchmark',
           '/docs/tutorials/build-a-tool-calling-agent-in-the-dashboard-no-code',
         ],
       },
@@ -225,7 +221,7 @@ const config: Config = {
       '@easyops-cn/docusaurus-search-local',
       {
         hashed: true,
-        indexBlog: true,
+        indexBlog: false,
         indexDocs: true,
         docsRouteBasePath: ['docs', 'api-reference'],
         highlightSearchTermsOnTargetPage: true,
@@ -264,7 +260,7 @@ const config: Config = {
           label: 'Tutorials',
         },
         {to: '/api-reference', label: 'API Reference', position: 'left'},
-        {to: '/blog', label: 'Blog', position: 'left'},
+        {href: 'https://acruxcore.com/blog/', label: 'Blog', position: 'left', target: '_self', className: 'navbar-sister-site'},
         {to: '/changelog', label: 'Changelog', position: 'left'},
         // AcruxCore/AcruxCore was private until 2026-08-03, so this used to 404 for
         // every visitor and was left out. It is public now.
@@ -309,7 +305,7 @@ const config: Config = {
             {label: 'Product site', href: 'https://acruxcore.com'},
             {label: 'Pricing', href: 'https://acruxcore.com/pricing'},
             {label: 'Contact', href: 'https://acruxcore.com/contact'},
-            {label: 'Blog', to: '/blog'},
+            {label: 'Blog', href: 'https://acruxcore.com/blog/'},
             {label: 'Changelog', to: '/changelog'},
           ],
         },

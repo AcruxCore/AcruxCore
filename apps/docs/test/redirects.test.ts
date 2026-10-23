@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {describe, it} from 'node:test';
 import {renderRedirects} from '../plugins/cloudflare-redirects.ts';
-import {BLOG_REDIRECTS, DOCS_REDIRECTS, REDIRECTS} from '../redirects.ts';
+import {BLOG_REDIRECTS, DOCS_REDIRECTS, OLD_BLOG_RULES, REDIRECTS} from '../redirects.ts';
 
 describe('renderRedirects', () => {
   it('writes both slash forms of each entry before any extra rule', () => {
@@ -25,5 +25,18 @@ describe('redirect lists', () => {
     for (const entry of BLOG_REDIRECTS) assert.match(entry.from, /^\/blog\//);
     for (const entry of DOCS_REDIRECTS) assert.doesNotMatch(entry.from, /^\/blog\//);
     assert.ok(BLOG_REDIRECTS.length > 0);
+  });
+});
+
+describe('old blog rules', () => {
+  it('send the index and every path under /blog to the new host', () => {
+    assert.deepEqual([...OLD_BLOG_RULES], [
+      '/blog https://acruxcore.com/blog/ 301',
+      // A trailing slash is dropped here, or the new host would add a second hop.
+      '/blog/:a/ https://acruxcore.com/blog/:a 301',
+      '/blog/:a/:b/ https://acruxcore.com/blog/:a/:b 301',
+      '/blog/:a/:b/:c/ https://acruxcore.com/blog/:a/:b/:c 301',
+      '/blog/* https://acruxcore.com/blog/:splat 301',
+    ]);
   });
 });

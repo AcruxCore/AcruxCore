@@ -1,0 +1,25 @@
+# Files allowed to mention docs.acruxcore.com/blog — read by
+# scripts/check-old-blog-host.sh. One repo-relative path per line; no globs, so
+# a new file is always checked. Each needs a reason.
+
+# Redirect sources: they name the old paths on purpose.
+apps/docs/redirects.ts
+
+# The move's own spec, plan and decision log describe the old host.
+docs/superpowers/specs/cross-cutting/2026-10-23-blog-to-main-domain-design.md
+docs/superpowers/plans/cross-cutting/2026-10-23-blog-to-main-domain.md
+docs/superpowers/specs/cross-cutting/cross-cutting-faq.md
+
+# Contributor docs that explain the old host and this guard.
+CLAUDE.md
+apps/docs/DEPLOY.md
+
+# Copies of articles already live on another platform (published 2026-09-09 on
+# Medium per the backlink-hunting tracker). The file mirrors what is published;
+# the old links still work through the 301.
+syndication/seven-open-source-llm-ops-platforms/ai-advances.md
+
+# This guard and its allowlist name the host they look for.
+scripts/check-old-blog-host.sh
+scripts/old-blog-host-allowlist.txt
+.github/workflows/old-blog-host.yml

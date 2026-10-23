@@ -22,6 +22,13 @@ export const LANDING_TITLE = 'AcruxCore — open-source LLMOps platform for engi
 
 export const DOCS_URL = 'https://docs.acruxcore.com';
 
+/**
+ * The blog, on the main domain since it moved off the docs host (cross-cutting
+ * FAQ Q129). No trailing slash, so `${BLOG_URL}/<slug>` reads naturally; the
+ * index itself is `${BLOG_URL}/`, its one canonical form.
+ */
+export const BLOG_URL = 'https://acruxcore.com/blog';
+
 /** Public source mirror — Apache License 2.0, synced from every deploy to `main`. */
 export const GITHUB_URL = 'https://github.com/AcruxCore/AcruxCore';
 
@@ -45,7 +52,7 @@ export const DOCS = {
   coreConcepts: `${DOCS_URL}/docs/getting-started/core-concepts`,
   introduction: `${DOCS_URL}/docs/getting-started/introduction`,
   apiReference: `${DOCS_URL}/api-reference`,
-  blog: `${DOCS_URL}/blog`,
+  blog: `${BLOG_URL}/`,
   /**
    * Per-language tutorials, attributed by which SDK the guide actually imports.
    * The site's "TypeScript SDK" / "Python SDK" nav entries point at the `/sdk`
@@ -90,7 +97,7 @@ export const DOCS = {
   modelFallbacks: `${DOCS_URL}/docs/guides/automatic-model-fallbacks`,
   virtualKeys: `${DOCS_URL}/docs/guides/scope-access-with-virtual-keys`,
   budgetsAndRateLimits: `${DOCS_URL}/docs/guides/set-spend-limits-with-gateway-budgets-and-rate-limits`,
-  cachingBenchmark: `${DOCS_URL}/blog/exact-match-gateway-caching`,
+  cachingBenchmark: `${BLOG_URL}/exact-match-gateway-caching`,
   otelHelper: `${DOCS_URL}/docs/guides/send-otel-traces-with-the-sdk-helper`,
   tagAndFilterTraces: `${DOCS_URL}/docs/guides/tag-and-filter-traces`,
   traceAnalytics: `${DOCS_URL}/docs/guides/view-trace-analytics`,

@@ -106,6 +106,13 @@ path on Pages equal the public path. nginx can then pass the path through
 unchanged, and Pages' own redirects (`slug.html` → `slug`) keep the `/blog`
 prefix in their `Location` header.
 
+**Old URLs.** The docs build no longer contains the blog (`blog: false`). Its
+`_redirects` sends every old `docs.acruxcore.com/blog…` URL to the new host with
+one 301. Retired tags go straight to their final page, and a trailing slash is
+dropped. A splat comes last, so these specific rules win. See `OLD_BLOG_RULES` in
+`redirects.ts`. The blog's images stay in `static/img/blog/` and are served on both
+hosts, because published articles embed `docs.acruxcore.com/img/blog/…` URLs.
+
 The blog has no search bar. The local-search plugin needs the docs plugin, which
 a blog-only build does not have.
 
