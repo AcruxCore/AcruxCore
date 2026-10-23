@@ -59,7 +59,10 @@ describe('estimateTokens', () => {
     const elapsed = Date.now() - started;
 
     expect(n).toBeGreaterThan(0);
-    expect(elapsed).toBeLessThan(3000);
+    // ~330ms locally, but CI's four parallel Jest workers share a small runner and measured
+    // 3026ms against an old 3s bound (#701). Without the sample cap this input takes 6.8s
+    // locally and far longer on CI, so 5s still fails loudly if the cap is removed.
+    expect(elapsed).toBeLessThan(5000);
   });
 
   // The guards must not change the answer for text that was never slow, or every budget
