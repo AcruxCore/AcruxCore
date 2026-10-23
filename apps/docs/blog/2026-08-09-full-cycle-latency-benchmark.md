@@ -43,7 +43,7 @@ then completes it, timed together as one number:
 8. **AcruxCore BYOK (gateway-free)** — the same render call, then
    `hub.gateway.chat()` with a `provider` config that posts to OpenAI directly,
    skipping the gateway. See
-   [build a RAG agent without the gateway](/docs/tutorials/build-a-rag-agent-without-the-gateway)
+   [build a RAG agent without the gateway](https://docs.acruxcore.com/docs/tutorials/build-a-rag-agent-without-the-gateway)
    for the full BYO path.
 
 Each run is **100 rounds plus 3 discarded warm-up rounds**, with the eight paths
@@ -123,7 +123,9 @@ Median, p95, and p99 are still only three numbers standing in for 100 real
 measurements each. Here's every one of those 800 rounds, plotted:
 
 <figure>
-<img src="/img/blog/full-cycle-latency-benchmark/01-all-platforms-distribution.png" alt="Box plot of all 100 measured rounds per leg, across all eight paths, with individual rounds jittered on top. Boxes show the median and interquartile range; a dashed line marks the OpenAI baseline's median. A handful of multi-second spikes per leg are capped at 4 seconds and marked with a triangle rather than hidden." style="max-width:100%;height:auto" />
+
+![Box plot of all 100 measured rounds per leg, across all eight paths, with individual rounds jittered on top. Boxes show the median and interquartile range; a dashed line marks the OpenAI baseline's median. A handful of multi-second spikes per leg are capped at 4 seconds and marked with a triangle rather than hidden.](/img/blog/full-cycle-latency-benchmark/01-all-platforms-distribution.png)
+
 <figcaption><em>Every measured round (not just the median), most recent of four independent runs. Generated from `results.json` by <a href="https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/shared/plot_latency_charts.py">plot_latency_charts.py</a>.</em></figcaption>
 </figure>
 
@@ -158,7 +160,9 @@ plotting every round against the same-round baseline shows Opik coming back
 faster in 72–77% of individual rounds, every run:
 
 <figure>
-<img src="/img/blog/full-cycle-latency-benchmark/02-opik-vs-baseline-per-round.png" alt="Scatter plot of Opik tracked SDK versus OpenAI baseline latency, round by round, with a 9-round rolling median line for each. Opik's rolling median line sits below the baseline's for most of the run. Opik came back faster than the same-round baseline in 72 of 100 rounds." style="max-width:100%;height:auto" />
+
+![Scatter plot of Opik tracked SDK versus OpenAI baseline latency, round by round, with a 9-round rolling median line for each. Opik's rolling median line sits below the baseline's for most of the run. Opik came back faster than the same-round baseline in 72 of 100 rounds.](/img/blog/full-cycle-latency-benchmark/02-opik-vs-baseline-per-round.png)
+
 <figcaption><em>Raw round-by-round latency, most recent run — same round index means the same round of the interleaved benchmark. The rolling median makes the separation visible through the network noise. Same script as the chart above.</em></figcaption>
 </figure>
 
@@ -286,7 +290,7 @@ raw data alongside the script for exactly that reason.
   still reporting a trace. If you want the gateway's tracing and versioned
   prompts without its synchronous request-path work, that's the trade BYOK
   makes — see
-  [route your calls through the gateway](/docs/guides/route-calls-through-the-gateway)
+  [route your calls through the gateway](https://docs.acruxcore.com/docs/guides/route-calls-through-the-gateway)
   for the other side of that choice.
 - **Real third-party network latency is the dominant, most variable term in
   every path here** — hundreds of milliseconds and swings of a similar size,

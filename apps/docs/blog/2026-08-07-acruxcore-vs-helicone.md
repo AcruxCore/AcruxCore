@@ -45,7 +45,7 @@ price change there is one edit instead of three.
 | SDK & DX | Direct-call script ran; the log-to-Helicone call it makes 500s | Automatic side effect of `hub.gateway.chat()` | AcruxCore |
 | Measured overhead | −15 to +3 ms, but forwarding only — nothing was logged | +4 to +10 ms, logging included | Tie |
 | Real friction hit | Auth + config bugs blocked the Playground and manual logging; the gateway itself was fine | Nothing to instrument, zero extra code | AcruxCore |
-| MCP server | [Local program, three tools](https://github.com/Helicone/helicone/tree/main/helicone-mcp): query requests and sessions, send raw messages through the gateway | [Hosted or local](/docs/guides/connect-an-mcp-client): commit, promote and run stored prompts, read traces, run experiments | AcruxCore |
+| MCP server | [Local program, three tools](https://github.com/Helicone/helicone/tree/main/helicone-mcp): query requests and sessions, send raw messages through the gateway | [Hosted or local](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client): commit, promote and run stored prompts, read traces, run experiments | AcruxCore |
 
 License, pricing, team structure, security, and community stats: see
 [AcruxCore vs Helicone on the compare page](https://acruxcore.com/compare).
@@ -389,5 +389,5 @@ picture, including license, pricing, and team structure, on the
 
 To compare more tools, see [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison).
 
-Want to run this yourself? The [Quickstart](/docs/getting-started/quickstart) gets you
+Want to run this yourself? The [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart) gets you
 from sign-up to a traced, gateway-routed call in about ten minutes.

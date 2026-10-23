@@ -6,7 +6,10 @@
   "compilerOptions": {
     "baseUrl": ".",
     "ignoreDeprecations": "6.0",
-    "strict": true
+    "strict": true,
+    // The tests run under `node --experimental-strip-types`, which needs explicit
+    // `.ts` import paths. Safe here: this config never emits.
+    "allowImportingTsExtensions": true
   },
-  "exclude": [".docusaurus", "build"]
+  "exclude": [".docusaurus", "build", "build-blog", "deploy-blog"]
 }

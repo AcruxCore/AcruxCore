@@ -45,7 +45,7 @@ For each alternative to LangSmith, it lists what the tool adds and what it lacks
 |---|---|---|---|---|---|---|
 | **LangSmith** | Yes | Beta | Yes | Yes | Yes: prompts, traces, deployments, sandboxes | Active |
 | Langfuse | Yes | No | Yes | Yes | Yes: prompts, traces, datasets, scores | Active; owned by ClickHouse since January 2026 |
-| AcruxCore | Yes | Yes | Yes | Yes | [Yes](/docs/guides/connect-an-mcp-client): prompts (write and run), traces, experiments, tools | Active; public since August 2026 |
+| AcruxCore | Yes | Yes | Yes | Yes | [Yes](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client): prompts (write and run), traces, experiments, tools | Active; public since August 2026 |
 | Opik | Yes | Beta, for development and testing | Yes | Yes | Yes: prompts, traces | Active |
 | MLflow | Yes | Yes | Yes | Yes | Yes: traces, judges | Active; a Linux Foundation project |
 | Laminar | No | No | Yes | Signals (rules in plain English) | Yes: read-only traces | Active |
@@ -163,7 +163,7 @@ to self-host, and its gateway sends your model calls to the provider.
 - Roles and the audit log are free in every AcruxCore install. LangSmith keeps custom roles for
   Enterprise.
 - Self-hosting needs two data stores, Postgres and Redis, with no ClickHouse.
-- The [MCP server](/docs/guides/connect-an-mcp-client) lets a coding assistant run a stored prompt through the gateway and
+- The [MCP server](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client) lets a coding assistant run a stored prompt through the gateway and
   read the trace that the run produced.
 
 **Limits of AcruxCore**
@@ -487,7 +487,7 @@ to tracing, prompts and evals. Opik adds automatic prompt optimization.
   step by step.
 - [8 best Langfuse alternatives for startups](/blog/langfuse-alternatives): the same comparison,
   starting from Langfuse.
-- [Quickstart](/docs/getting-started/quickstart): sign up for AcruxCore and send a first trace.
+- [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart): sign up for AcruxCore and send a first trace.
 - [Self-hosting LLM observability: seven open-source tools measured](/blog/self-hosting-llm-observability):
   memory, disk and trace storage for seven self-hosted stacks on one machine.
 - [Self-hosting AcruxCore](https://github.com/AcruxCore/AcruxCore#-self-hosting): the

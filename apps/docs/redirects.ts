@@ -61,3 +61,19 @@ export const REDIRECTS: readonly RedirectEntry[] = [
     ['promptlayer', '/blog/promptlayer-hands-on-walkthrough'],
   ].map(([tag, to]) => ({ from: `/blog/tags/${tag}`, to })),
 ];
+
+/**
+ * The entries under `/blog/`: tag pages retired from the blog.
+ *
+ * The blog is also built on its own for https://acruxcore.com/blog (see
+ * docusaurus.blog.config.ts), and that build serves these from its own
+ * `_redirects`, so a retired tag 301s on the blog's host too.
+ */
+export const BLOG_REDIRECTS: readonly RedirectEntry[] = REDIRECTS.filter((entry) =>
+  entry.from.startsWith('/blog/'),
+);
+
+/** Every entry that is not under `/blog/` — the docs site's own retired pages. */
+export const DOCS_REDIRECTS: readonly RedirectEntry[] = REDIRECTS.filter(
+  (entry) => !entry.from.startsWith('/blog/'),
+);

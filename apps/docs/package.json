@@ -5,6 +5,7 @@
   "scripts": {
     "docusaurus": "docusaurus",
     "start": "docusaurus start --port ${DOCS_PORT:-3100}",
+    "start:blog": "docusaurus start --config docusaurus.blog.config.ts --port ${BLOG_PORT:-3101}",
     "build": "docusaurus build",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
@@ -12,7 +13,10 @@
     "serve": "docusaurus serve",
     "write-translations": "docusaurus write-translations",
     "write-heading-ids": "docusaurus write-heading-ids",
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "build:blog": "docusaurus build --config docusaurus.blog.config.ts --out-dir build-blog",
+    "serve:blog": "docusaurus serve --config docusaurus.blog.config.ts --dir build-blog",
+    "test": "node --experimental-strip-types --no-warnings=ExperimentalWarning --test test/*.test.ts"
   },
   "dependencies": {
     "@docusaurus/core": "3.10.2",

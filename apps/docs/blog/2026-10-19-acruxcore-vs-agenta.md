@@ -83,9 +83,9 @@ match has to be written as a code scorer in your own process.
 | Feature | Agenta | AcruxCore |
 |---|---|---|
 | Built-in rule evaluators | 11 types, set up in the UI | None on the server; code scorers in your process |
-| LLM judge | Yes, with an editable prompt and a test panel | Yes, with a [custom judge prompt](/docs/guides/write-a-custom-judge-prompt) |
+| LLM judge | Yes, with an editable prompt and a test panel | Yes, with a [custom judge prompt](https://docs.acruxcore.com/docs/guides/write-a-custom-judge-prompt) |
 | Custom code evaluator | Runs in Agenta | Runs in your process, through the SDK |
-| Scoring live traffic | Live evaluations | [Evaluation rules](/docs/guides/score-live-traffic-with-an-evaluation-rule), sampled |
+| Scoring live traffic | Live evaluations | [Evaluation rules](https://docs.acruxcore.com/docs/guides/score-live-traffic-with-an-evaluation-rule), sampled |
 | Human review | Human evaluations and annotation queues | Trace feedback, with no queue |
 | Dataset from traces | "Add to testset" on a trace | A dataset from the feedback list |
 
@@ -308,7 +308,7 @@ tool, and a page measures call volume, error rate and latency per tool.
 Both products also ship their own MCP server, for a coding agent such as Claude Code.
 Agenta's [server](https://agenta.ai/docs/misc/mcp-server) searches Agenta's documentation,
 and none of its tools reads your prompts, traces or evaluations. AcruxCore's
-[server](/docs/guides/connect-an-mcp-client) can commit a prompt version, promote it, run it
+[server](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client) can commit a prompt version, promote it, run it
 through the gateway and read the resulting trace.
 
 ## What Agenta does that AcruxCore doesn't

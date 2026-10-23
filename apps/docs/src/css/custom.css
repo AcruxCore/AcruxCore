@@ -444,3 +444,10 @@
   color: var(--acx-accent-ink);
   text-decoration: none;
 }
+
+/* Navbar links between our own sites (docs, blog, app) are
+   absolute URLs, so Docusaurus marks them with the external-link arrow. They
+   open in the same tab and are the same product, so the arrow is dropped. */
+.navbar-sister-site svg {
+  display: none;
+}

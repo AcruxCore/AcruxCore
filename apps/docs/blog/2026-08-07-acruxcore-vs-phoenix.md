@@ -40,7 +40,7 @@ here — they were always tables, and a price change there is one edit instead o
 | SDK trace capture | Instrument a client + call the provider yourself | Automatic side effect of the gateway call | AcruxCore |
 | Measured overhead | −14 to +21 ms across three 100-round runs | +11 to +51 ms across the same three runs | Phoenix, barely |
 | Time-to-first-trace | SDK setup (register + instrument) before anything lands | Zero code, first gateway call | AcruxCore |
-| MCP server | [A local program](https://github.com/Arize-ai/phoenix/tree/main/js/packages/phoenix-mcp), plus a hosted endpoint that exposes every REST route, SQL analytics and GraphQL | [Hosted or local](/docs/guides/connect-an-mcp-client): commit and promote prompts, run a stored prompt through the gateway, run experiments, use the tool catalog | Depends |
+| MCP server | [A local program](https://github.com/Arize-ai/phoenix/tree/main/js/packages/phoenix-mcp), plus a hosted endpoint that exposes every REST route, SQL analytics and GraphQL | [Hosted or local](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client): commit and promote prompts, run a stored prompt through the gateway, run experiments, use the tool catalog | Depends |
 
 License, pricing, team structure, security, and community stats: see
 [AcruxCore vs Phoenix on the compare page](https://acruxcore.com/compare).
@@ -374,5 +374,5 @@ on the [compare page](https://acruxcore.com/compare).
 To compare more tools, see [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison),
 [8 LangSmith alternatives](/blog/langsmith-alternatives) and [8 Langfuse alternatives](/blog/langfuse-alternatives).
 
-Want to run this yourself? The [Quickstart](/docs/getting-started/quickstart) gets you
+Want to run this yourself? The [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart) gets you
 from sign-up to a traced, gateway-routed call in about ten minutes.

@@ -69,6 +69,46 @@ secrets) in GitHub.
 |--------|---------|
 | `GA4_MEASUREMENT_ID` | Same GA4 property as the marketing site (e.g. `G-XXXXXXXXXX`). Unset, the build skips the analytics tag entirely — see `docusaurus.config.ts`. |
 
+## The blog build (acruxcore.com/blog)
+
+The blog is a second build of this package, served on the main domain rather
+than on `docs.` so the posts strengthen `acruxcore.com` itself (cross-cutting
+FAQ Q129). `docusaurus.blog.config.ts` builds only the blog, with
+`url: https://acruxcore.com` and `baseUrl: /blog/`:
+
+```bash
+npm run build:blog -w @acruxcore/docs   # -> apps/docs/build-blog/
+npm test -w @acruxcore/docs             # checks canonicals, sitemap, feeds, _redirects
+```
+
+**Run one dev server at a time.** `npm run start` (docs) and `npm run start:blog`
+(blog, http://localhost:3101/blog/) both write their generated config into the one
+`apps/docs/.docusaurus/` folder, so two running together overwrite each other: the
+blog crashes with "docs plugin … does not seem to be enabled". To see both, run one
+in dev and serve the other's production build: `npm run build && npx docusaurus serve
+--dir build --port 3102`. Builds run one after the other, as in CI, and are not
+affected.
+
+How it reaches visitors:
+
+1. `docs.yml` copies `build-blog/` into `deploy-blog/blog/` and moves `_redirects`
+   to `deploy-blog/`. It then deploys `deploy-blog/` to a second Pages project,
+   **`acruxcore-blog`**, with the same token and the same "push to `main` only"
+   gate as the docs. The first run creates the project.
+2. The marketing site's nginx (`apps/web`) proxies `/blog/` to
+   `https://acruxcore-blog.pages.dev`. It does so only when the `web` container
+   has `BLOG_UPSTREAM` set (see `apps/web/docker/41-blog-proxy.sh`), because
+   self-hosted installs pull the same image and must not serve our blog.
+
+**Why nest the output under `blog/`?** Docusaurus writes `build-blog/` with its
+files at the root, although every URL starts with `/blog/`. Nesting makes the
+path on Pages equal the public path. nginx can then pass the path through
+unchanged, and Pages' own redirects (`slug.html` → `slug`) keep the `/blog`
+prefix in their `Location` header.
+
+The blog has no search bar. The local-search plugin needs the docs plugin, which
+a blog-only build does not have.
+
 ## DNS
 
 No manual DNS step — adding the custom domain in the Pages project (above)

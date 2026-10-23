@@ -871,7 +871,7 @@ and installs a "Laminar skill"; and the CLI can query your traces in SQL, so the
 verify its own instrumentation worked. It also ships a debugger — `LMNR_DEBUG=1` lets an
 agent run your agent, read the resulting trace, change the code, and re-run with cached
 state. No other platform in this post ships a debugger like `LMNR_DEBUG`, and AcruxCore does
-not either. AcruxCore has an [MCP server](/docs/guides/connect-an-mcp-client) for a coding agent
+not either. AcruxCore has an [MCP server](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client) for a coding agent
 instead. Through it, the agent can run a stored prompt through the AcruxCore gateway, read the
 trace that the run produced, and commit a new prompt version.
 
@@ -1265,7 +1265,7 @@ plan, on hosted Langfuse too. Agenta's is also Enterprise only, on Agenta Cloud 
 LangSmith and PromptLayer were never checked for it in this series, so read that row as seven
 platforms, not nine. What ours does not do yet is export or
 expire: there is no CSV or JSON download, and no retention window to configure. See
-[Read the team audit trail](/docs/guides/read-the-team-audit-trail).
+[Read the team audit trail](https://docs.acruxcore.com/docs/guides/read-the-team-audit-trail).
 
 **Behind:** three real gaps stand out now — the third is one that Laminar exposed as a whole
 missing category:
@@ -1336,5 +1336,5 @@ paired comparison against AcruxCore using the same fixture prompt each time:
 And for the full license, pricing, team-structure, security, and community picture across the
 seven self-hostable competitors next to AcruxCore, see the [compare page](https://acruxcore.com/compare).
 
-Want to see it for yourself? The [Quickstart](/docs/getting-started/quickstart)
+Want to see it for yourself? The [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart)
 gets you from sign-up to a traced, gateway-routed call in about ten minutes.

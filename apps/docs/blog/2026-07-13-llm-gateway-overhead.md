@@ -188,9 +188,9 @@ summarized into three numbers? See
 
 For a walk-through of the BYO path end to end — your own key, your own embeddings,
 prompts and traces still working — see
-[build a RAG agent without the gateway](/docs/tutorials/build-a-rag-agent-without-the-gateway).
+[build a RAG agent without the gateway](https://docs.acruxcore.com/docs/tutorials/build-a-rag-agent-without-the-gateway).
 For the other side of the trade, see
-[routing your calls through the gateway](/docs/guides/route-calls-through-the-gateway).
+[routing your calls through the gateway](https://docs.acruxcore.com/docs/guides/route-calls-through-the-gateway).
 
 :::note
 Want to reproduce this? Every path used the same model, key, prompt, and

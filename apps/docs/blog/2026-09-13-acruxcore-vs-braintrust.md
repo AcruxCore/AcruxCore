@@ -30,7 +30,7 @@ prompt is `vip-support-triage`: a support agent that changes tone for VIP custom
 their open tickets.
 
 The tool sections use one more shared example: `search_flights`, from the
-[travel-planner tutorial](/docs/tutorials/build-a-travel-planner-agent). That tool reads a
+[travel-planner tutorial](https://docs.acruxcore.com/docs/tutorials/build-a-travel-planner-agent). That tool reads a
 committed JSON file of flights and needs no API key.
 
 Licence, self-hosting, plans and access control are in this post, not on the
@@ -49,7 +49,7 @@ Licence, self-hosting, plans and access control are in this post, not on the
 | Where the platform sits | An AI proxy you can opt into, and an ingest path that works without the proxy | Always in the request path, so routing, caching, budgets and virtual keys apply before the provider | Depends |
 | SDK and developer experience | `braintrust push` bundles and uploads code; `braintrust eval` runs experiments; two SDKs disagree on templating | Fetch a stored prompt and send it through the gateway with no tracing code | Depends |
 | Querying your own data | A SQL sandbox over experiments, logs and datasets | Fixed analytics pages, no query editor | Braintrust |
-| MCP server | [Hosted only](https://www.braintrust.dev/docs/reference/mcp): SQL queries over your data, create a prompt, run an eval | [Hosted or local](/docs/guides/connect-an-mcp-client): commit and promote prompts, run a stored prompt through the gateway, run experiments | Depends |
+| MCP server | [Hosted only](https://www.braintrust.dev/docs/reference/mcp): SQL queries over your data, create a prompt, run an eval | [Hosted or local](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client): commit and promote prompts, run a stored prompt through the gateway, run experiments | Depends |
 | Spend and rate controls | Spend alerts on the invoice, informational only; the proxy caches and load balances | Budgets that refuse the call at the cap, plus per-key RPM and TPM limits | AcruxCore |
 | Self-hosting | Enterprise plan only; the Docker data plane runs but cannot be connected | Apache 2.0, `docker compose up` | AcruxCore |
 
@@ -572,4 +572,4 @@ To compare more tools, see [10 LLM observability tools tested hands-on](/blog/ha
 [8 LangSmith alternatives](/blog/langsmith-alternatives), [8 Langfuse alternatives](/blog/langfuse-alternatives)
 and [10 Braintrust alternatives](/blog/braintrust-alternatives).
 
-Start here if you want to try AcruxCore: [Quickstart](/docs/getting-started/quickstart).
+Start here if you want to try AcruxCore: [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart).

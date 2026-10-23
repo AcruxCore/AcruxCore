@@ -201,5 +201,5 @@ template via `pl_client.templates.get(...)` first and feed its rendered messages
 | Hosting & pricing | Seat-based trial plan | Open source and self-hostable, free in beta |
 
 Want to see the same loop on AcruxCore? The
-[Quickstart](/docs/getting-started/quickstart) gets you from sign-up to a traced,
+[Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart) gets you from sign-up to a traced,
 gateway-routed call in about ten minutes.

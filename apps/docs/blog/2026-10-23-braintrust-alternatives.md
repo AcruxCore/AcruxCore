@@ -169,7 +169,7 @@ run it on their own servers.
 - The repository went public in August 2026 and has 11 GitHub stars.
 
 Our comparison: [AcruxCore vs Braintrust](/blog/acruxcore-vs-braintrust). The eval guides start
-at [Evaluate a prompt against a dataset](/docs/guides/evaluate-a-prompt).
+at [Evaluate a prompt against a dataset](https://docs.acruxcore.com/docs/guides/evaluate-a-prompt).
 
 Sources: [license](https://github.com/AcruxCore/AcruxCore/blob/main/LICENSE),
 [compose file](https://github.com/AcruxCore/AcruxCore/blob/main/docker-compose.local.yml),

@@ -50,7 +50,7 @@ price change there is one edit instead of three.
 | Measured overhead | +135 to +225 ms across three 100-round runs, never crossing zero | +21 to +43 ms across the same three runs | AcruxCore |
 | Guardrails | Safety + PII detection + custom, per gateway endpoint | None | MLflow |
 | Spend controls | Budget policy per endpoint — reset period, on-exceeded action | Spend cap per team or virtual key, enforced before the provider call, plus RPM/TPM limits | Tie |
-| MCP server | [Local program, still experimental](https://mlflow.org/docs/latest/genai/mcp/): tools for traces, scorers, experiments and runs, none for prompts | [Hosted or local](/docs/guides/connect-an-mcp-client): commit, promote and run stored prompts, read traces, run experiments | AcruxCore |
+| MCP server | [Local program, still experimental](https://mlflow.org/docs/latest/genai/mcp/): tools for traces, scorers, experiments and runs, none for prompts | [Hosted or local](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client): commit, promote and run stored prompts, read traces, run experiments | AcruxCore |
 
 License, pricing, team structure, security, and community stats: see
 [AcruxCore vs MLflow on the compare page](https://acruxcore.com/compare).
@@ -444,5 +444,5 @@ To compare more tools, see [10 LLM observability tools tested hands-on](/blog/ha
 [8 LangSmith alternatives](/blog/langsmith-alternatives) and [8 Langfuse alternatives](/blog/langfuse-alternatives).
 
 Want to run this yourself? The
-[Quickstart](/docs/getting-started/quickstart) gets you from sign-up to a traced,
+[Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart) gets you from sign-up to a traced,
 gateway-routed call in about ten minutes.

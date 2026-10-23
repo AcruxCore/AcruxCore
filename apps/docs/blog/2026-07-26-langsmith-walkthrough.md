@@ -207,5 +207,5 @@ Langfuse. [AcruxCore vs Langfuse vs LangSmith](/blog/acruxcore-vs-langfuse-vs-la
 the same app on all three platforms and measures each step.
 
 Want to see the same loop on AcruxCore? The
-[Quickstart](/docs/getting-started/quickstart) gets you from sign-up to a traced,
+[Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart) gets you from sign-up to a traced,
 gateway-routed call in about ten minutes.

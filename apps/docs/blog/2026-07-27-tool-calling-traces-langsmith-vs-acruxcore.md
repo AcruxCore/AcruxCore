@@ -218,7 +218,7 @@ result = await hub.gateway.run_prompt_with_tools(
 ```
 
 The tool span then says `executorType: client`, and it still names the tool version.
-[Call a prompt's tools from the SDK](/docs/guides/call-a-prompts-tools-from-the-sdk) covers
+[Call a prompt's tools from the SDK](https://docs.acruxcore.com/docs/guides/call-a-prompts-tools-from-the-sdk) covers
 both executors.
 
 ## Counting the code
@@ -968,6 +968,6 @@ on all three platforms and compares prompts, evaluations and price as well as to
 [Langfuse vs LangSmith](/blog/langfuse-vs-langsmith) compares the two hosted platforms on the
 same app.
 
-[Create a tool](/docs/guides/create-a-tool) and
-[Call a prompt's tools from the SDK](/docs/guides/call-a-prompts-tools-from-the-sdk) show
+[Create a tool](https://docs.acruxcore.com/docs/guides/create-a-tool) and
+[Call a prompt's tools from the SDK](https://docs.acruxcore.com/docs/guides/call-a-prompts-tools-from-the-sdk) show
 each AcruxCore step from this post in more detail.

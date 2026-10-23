@@ -48,6 +48,7 @@ FROM nginx:1.27-alpine AS web
 
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --chmod=755 apps/web/docker/40-runtime-config.sh /docker-entrypoint.d/40-runtime-config.sh
+COPY --chmod=755 apps/web/docker/41-blog-proxy.sh /docker-entrypoint.d/41-blog-proxy.sh
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
 
 EXPOSE 80

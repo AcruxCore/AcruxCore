@@ -36,25 +36,21 @@ interface SectionSpec {
 }
 
 /**
- * Pages worth reading first, in the order a newcomer should read them.
- *
- * Hand-picked on purpose: the rest of the file is generated, so without this
- * block every page would arrive at equal weight and the one page that answers
- * "what is this and how does it compare" would be buried among thirty guides.
- * A crawler that reads only the first section should still come away with the
- * measured comparison, the five-minute path to a first call, and the vocabulary.
- *
- * Each path is checked against the real route table at build time — see
- * {@link resolveFeatured} — so a renamed or deleted page fails the build
- * instead of shipping a broken pointer to every crawler that reads the file.
+ * Options passed from a Docusaurus config.
  */
-const FEATURED_ROUTE_PATHS: readonly string[] = [
-  '/blog/hands-on-llm-ops-comparison',
-  '/docs/getting-started/quickstart',
-  '/docs/getting-started/core-concepts',
-  '/blog/full-cycle-latency-benchmark',
-  '/docs/tutorials/build-a-tool-calling-agent-in-the-dashboard-no-code',
-];
+export interface LlmsTxtOptions {
+  /**
+   * Pages worth reading first, in the order a newcomer should read them.
+   *
+   * Hand-picked on purpose: the rest of the file is generated, so without this
+   * list every page would arrive at equal weight and the one page that answers
+   * "what is this and how does it compare" would be buried among thirty guides.
+   * Route paths of this site, leading-slashed. Each is checked against the real
+   * route table at build time — see {@link resolveFeatured} — so a renamed or
+   * deleted page fails the build instead of shipping a broken pointer.
+   */
+  featuredRoutePaths: readonly string[];
+}
 
 /** Sort helper: `sidebar_position` first, then title, for sidebar-ordered folders. */
 function bySidebarPosition(a: PageEntry, b: PageEntry): number {
@@ -233,9 +229,10 @@ async function readEntry(
 }
 
 /**
- * Resolves {@link FEATURED_ROUTE_PATHS} against the pages that actually exist.
+ * Resolves the featured route paths against the pages that actually exist.
  *
  * @param entries - Every page collected from the route tree.
+ * @param featuredRoutePaths - The site's featured list, from the plugin options.
  * @returns The featured entries, in the order they are listed in the constant.
  * @throws {Error} When a featured path matches no real route. The whole point
  *   of this file is to hand crawlers a short list of URLs worth fetching, so a
@@ -243,12 +240,15 @@ async function readEntry(
  *   nothing else references these paths, a rename would otherwise break them
  *   silently.
  */
-function resolveFeatured(entries: readonly PageEntry[]): PageEntry[] {
+function resolveFeatured(
+  entries: readonly PageEntry[],
+  featuredRoutePaths: readonly string[],
+): PageEntry[] {
   const byRoutePath = new Map(entries.map((entry) => [entry.routePath, entry]));
   const missing: string[] = [];
   const featured: PageEntry[] = [];
 
-  for (const routePath of FEATURED_ROUTE_PATHS) {
+  for (const routePath of featuredRoutePaths) {
     const entry = byRoutePath.get(routePath);
     if (entry) {
       featured.push(entry);
@@ -260,8 +260,8 @@ function resolveFeatured(entries: readonly PageEntry[]): PageEntry[] {
   if (missing.length > 0) {
     throw new Error(
       `llms.txt: ${missing.length} featured page(s) no longer exist: ` +
-        `${missing.join(', ')}. Update FEATURED_ROUTE_PATHS in ` +
-        `plugins/llms-txt.ts to point at the pages that replaced them.`,
+        `${missing.join(', ')}. Update featuredRoutePaths in the site's ` +
+        `Docusaurus config to point at the pages that replaced them.`,
     );
   }
   return featured;
@@ -277,10 +277,15 @@ function renderEntry(entry: PageEntry): string {
  *
  * @param entries - Every page collected from the route tree.
  * @param siteUrl - Site origin, with no trailing slash.
+ * @param featuredRoutePaths - The site's featured list, from the plugin options.
  * @returns The full text of `llms.txt`, newline-terminated.
  * @throws {Error} When a featured page is missing, via {@link resolveFeatured}.
  */
-function renderLlmsTxt(entries: readonly PageEntry[], siteUrl: string): string {
+function renderLlmsTxt(
+  entries: readonly PageEntry[],
+  siteUrl: string,
+  featuredRoutePaths: readonly string[],
+): string {
   const lines: string[] = [
     '# AcruxCore',
     '',
@@ -308,7 +313,7 @@ function renderLlmsTxt(entries: readonly PageEntry[], siteUrl: string): string {
     '',
   ];
 
-  for (const entry of resolveFeatured(entries)) {
+  for (const entry of resolveFeatured(entries, featuredRoutePaths)) {
     lines.push(renderEntry(entry));
   }
 
@@ -343,19 +348,23 @@ function renderLlmsTxt(entries: readonly PageEntry[], siteUrl: string): string {
  * time, which the docs site already requires on every page, so the index cannot
  * drift from what it indexes. Curation survives in two places that generation
  * cannot supply: the ordered {@link SECTIONS} and the hand-picked
- * {@link FEATURED_ROUTE_PATHS}.
+ * featured list in {@link LlmsTxtOptions}.
  *
  * The file is written straight into the build output rather than `static/`
  * because `static/` is copied verbatim and would need the same manual upkeep
  * this plugin exists to remove.
  *
  * @param context - Docusaurus load context, for `siteDir` and `siteConfig.url`.
+ * @param options - The featured list.
  * @returns The plugin, whose only hook is `postBuild`.
  * @throws {Error} During `postBuild`, when a featured page no longer exists, or
  *   when no page at all could be collected — either means the route metadata
  *   this reads has changed shape and the file would ship empty.
  */
-export default function llmsTxtPlugin(context: LoadContext): Plugin<void> {
+export default function llmsTxtPlugin(
+  context: LoadContext,
+  options: LlmsTxtOptions,
+): Plugin<void> {
   const siteUrl = context.siteConfig.url.replace(/\/$/, '');
 
   return {
@@ -383,7 +392,7 @@ export default function llmsTxtPlugin(context: LoadContext): Plugin<void> {
 
       await fs.writeFile(
         nodePath.join(outDir, 'llms.txt'),
-        renderLlmsTxt(entries, siteUrl),
+        renderLlmsTxt(entries, siteUrl, options.featuredRoutePaths),
         'utf8',
       );
       console.log(`[llms.txt] Indexed ${entries.length} pages.`);

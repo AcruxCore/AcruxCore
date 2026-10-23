@@ -47,7 +47,7 @@ and what it lacks.
 | Tool | Prompt versions | Gateway (your model calls pass through it) | Evals on datasets | Evals on live traffic | MCP server | Status in 2026 |
 |---|---|---|---|---|---|---|
 | **Langfuse** | Yes | No | Yes | Yes | Yes: prompts, traces, datasets, scores | Active; owned by ClickHouse since January 2026 |
-| AcruxCore | Yes | Yes | Yes | Yes | [Yes](/docs/guides/connect-an-mcp-client): prompts (write and run), traces, experiments, tools | Active; public since August 2026 |
+| AcruxCore | Yes | Yes | Yes | Yes | [Yes](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client): prompts (write and run), traces, experiments, tools | Active; public since August 2026 |
 | MLflow | Yes | Yes | Yes | Yes | Yes: traces, judges | Active; a Linux Foundation project |
 | OpenLIT | Yes | No | Not in the docs we read | Yes | Not checked | Active; hosted plan announced, not launched |
 | Laminar | No | No | Yes | Signals (rules in plain English) | Yes: read-only traces | Active |
@@ -127,7 +127,7 @@ has a gateway. A self-hosted AcruxCore needs only Postgres and Redis.
 - Roles and the audit log are free in every AcruxCore install. Langfuse keeps the audit log and
   project-level roles for its enterprise license.
 - A prompt run can rewrite the prompt for you and score the new version against a dataset.
-- The [MCP server](/docs/guides/connect-an-mcp-client) lets a coding assistant run a stored prompt through the gateway and
+- The [MCP server](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client) lets a coding assistant run a stored prompt through the gateway and
   read the trace that the run produced.
 
 **Limits of AcruxCore**

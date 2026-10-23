@@ -102,7 +102,7 @@ between the feedback you already collect and the datasets you evaluate against.
 
 ## MCP server
 
-- **AcruxCore** has an [MCP server](/docs/guides/connect-an-mcp-client), as a hosted endpoint or a local program.
+- **AcruxCore** has an [MCP server](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client), as a hosted endpoint or a local program.
   Through that server, a coding assistant can commit a prompt version, promote an alias, run the
   stored prompt through the gateway, read traces and run experiments.
 - **LangSmith** has a [remote MCP server](https://docs.langchain.com/langsmith/langsmith-remote-mcp)
@@ -124,7 +124,7 @@ between the feedback you already collect and the datasets you evaluate against.
   and evaluation as **one integrated, open source, self-hostable platform** — and
   you value runtime prompt swaps and a single cost-visible path to every model.
 
-Want to try the integrated story? The [Quickstart](/docs/getting-started/quickstart)
+Want to try the integrated story? The [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart)
 gets you from sign-up to a traced, gateway-routed call in about ten minutes.
 
 Everything above compares product *shape* from documentation. If you want to see

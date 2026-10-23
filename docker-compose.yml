@@ -218,6 +218,9 @@ services:
     environment:
       SENTRY_WEB_DSN: ${SENTRY_WEB_DSN:-}
       GA4_MEASUREMENT_ID: ${GA4_MEASUREMENT_ID:-}
+      # acruxcore.com only: proxies /blog/ to the blog's Cloudflare Pages
+      # project (apps/web/docker/41-blog-proxy.sh). Leave unset when self-hosting.
+      BLOG_UPSTREAM: ${BLOG_UPSTREAM:-}
     depends_on:
       - api
     # ports:

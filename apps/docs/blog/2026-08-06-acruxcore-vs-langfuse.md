@@ -42,7 +42,7 @@ price change there is one edit instead of three.
 | SDK trace capture | Wrap a client + open an observation context | Automatic side effect of the gateway call | AcruxCore |
 | Measured overhead | −22 ms, CI crosses zero | +63 ms, CI crosses zero | Tie |
 | Time-to-first-trace | Only via the SDK path, after setup | Zero code, first call | AcruxCore |
-| MCP server | [Hosted in the app](https://langfuse.com/docs/api-and-data-platform/features/mcp-server): tools for prompts and labels, datasets, scores, annotation queues and dashboards | [Hosted or local](/docs/guides/connect-an-mcp-client): prompts and aliases, plus running a stored prompt through the gateway, experiments and the tool catalog | Depends |
+| MCP server | [Hosted in the app](https://langfuse.com/docs/api-and-data-platform/features/mcp-server): tools for prompts and labels, datasets, scores, annotation queues and dashboards | [Hosted or local](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client): prompts and aliases, plus running a stored prompt through the gateway, experiments and the tool catalog | Depends |
 
 License, pricing, team structure, security, and community stats: see
 [AcruxCore vs Langfuse on the compare page](https://acruxcore.com/compare).
@@ -355,7 +355,7 @@ including license, pricing, and team structure, on the
 LangSmith is in the picture too? [AcruxCore vs Langfuse vs LangSmith](/blog/acruxcore-vs-langfuse-vs-langsmith)
 builds one app on all three and measures it.
 
-Want to run this yourself? The [Quickstart](/docs/getting-started/quickstart) gets you
+Want to run this yourself? The [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart) gets you
 from sign-up to a traced, gateway-routed call in about ten minutes.
 
 To compare more than two tools, [8 best Langfuse alternatives for startups](/blog/langfuse-alternatives)

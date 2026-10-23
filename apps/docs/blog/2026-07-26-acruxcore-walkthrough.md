@@ -280,5 +280,5 @@ commits and alias promotions, not an empty state waiting for an upgrade:
   showing up as a trace span.
 
 Want to run through this yourself? The
-[Quickstart](/docs/getting-started/quickstart) gets you from sign-up to a
+[Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart) gets you from sign-up to a
 traced, gateway-routed call in about ten minutes.

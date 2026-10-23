@@ -198,5 +198,5 @@ shapes themselves come from running the gateway's real, unmodified adapter
 classes directly against the one request at the top of this post.
 :::
 
-Want to try this yourself? The [Quickstart](/docs/getting-started/quickstart)
+Want to try this yourself? The [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart)
 gets you from sign-up to a traced, gateway-routed call in about ten minutes.

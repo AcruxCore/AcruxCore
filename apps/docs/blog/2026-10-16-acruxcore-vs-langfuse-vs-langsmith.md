@@ -34,7 +34,7 @@ each request against a signed project scope, prices the extra work, and writes a
 | Vercel AI SDK integration | No | Yes | Yes |
 | Gateway in the request path | Yes: fallbacks, cache, budgets, rate limits | No | Yes, in beta: routing, spend and rate limits |
 | Evaluations: datasets, LLM judge, your own code, live traffic | Yes | Yes | Yes |
-| MCP server for coding assistants | [Yes](/docs/guides/connect-an-mcp-client): prompts (write and run), traces, experiments, tool catalog | Yes: prompts, traces, datasets, scores, review queues | Yes: prompts, traces, deployments, sandboxes |
+| MCP server for coding assistants | [Yes](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client): prompts (write and run), traces, experiments, tool catalog | Yes: prompts, traces, datasets, scores, review queues | Yes: prompts, traces, deployments, sandboxes |
 | Review queue for people | No | Yes | Yes |
 | Alerts | Email: budgets, evaluation rules, weekly digest | Cost, latency, scores; Slack, webhook | Cost, errors, latency, feedback; Slack, PagerDuty, webhook |
 | SSO | No | Pro with the Teams add-on, or Enterprise | Enterprise |
