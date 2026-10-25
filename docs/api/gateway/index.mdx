@@ -642,12 +642,23 @@ neither of which the caller of this gateway can do anything about, and a provide
 401 body can echo a masked copy of the key it was sent. Those are summarised:
 
 ```json
-{"error":{"code":"PROVIDER_ERROR","message":"Provider error (401): OpenAI request failed with status 401","traceId":"856172e8-73ed-41b4-abe5-33e83babb313"}}
+{"error":{"code":"PROVIDER_ERROR","message":"Provider error (401): OpenAI request failed with status 401","traceId":"172dcb43-39b1-4934-9b9c-e03af727ae7e"}}
 ```
 
-That one answers **502 `PROVIDER_ERROR`**, and a provider timeout answers **504
+That one answers **503 `PROVIDER_ERROR`**, and a provider timeout answers **503
 `PROVIDER_TIMEOUT`**. If you see a 401 here, the gateway connection's stored key is
 the thing to check, not the request.
+
+`PROVIDER_ERROR`, `PROVIDER_TIMEOUT` and `PROVIDER_ADDRESS_BLOCKED` all answer 503, never
+502 or 504. A provider 400 stays a 400 (`PROVIDER_BAD_REQUEST`), and a provider 429 stays a
+429 (`PROVIDER_RATE_LIMITED`). Proxies and CDNs such as Cloudflare replace a 502 or 504
+with their own HTML error page, which would hide this JSON body and its `traceId`. Branch
+on `error.code`, not on the status.
+
+For the same reason, one call answers within 90 seconds, every retry and fallback
+included. Cloudflare stops waiting for a server after 100 seconds. When the time runs out,
+the model still running is stopped and you get `503 PROVIDER_TIMEOUT`. A self-hosted
+install can change this limit with `GATEWAY_CHAIN_DEADLINE_MS`.
 
 #### Finding the trace of a failed call
 
@@ -662,18 +673,18 @@ curl -s -D - -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
   -d '{"model":"revoked-mini","messages":[{"role":"user","content":"hi"}]}'
 ```
 
-Response (status 502):
+Response (status 503):
 
 ```
-HTTP/1.1 502 Bad Gateway
-x-gateway-request-id: 6f00ebc5-51d4-46ac-9637-cc8888546c59
-x-gateway-trace-id: 856172e8-73ed-41b4-abe5-33e83babb313
-x-gateway-span-id: 4b63171e-afc6-401e-adaf-cf76796aaafb
+HTTP/1.1 503 Service Unavailable
+x-gateway-request-id: d5276a65-2c60-406e-8c3c-efcda15990bd
+x-gateway-trace-id: 172dcb43-39b1-4934-9b9c-e03af727ae7e
+x-gateway-span-id: 09f1135f-4245-417a-95c6-dfc06331c5f8
 
-{"error":{"code":"PROVIDER_ERROR","message":"Provider error (401): OpenAI request failed with status 401","traceId":"856172e8-73ed-41b4-abe5-33e83babb313"}}
+{"error":{"code":"PROVIDER_ERROR","message":"Provider error (401): OpenAI request failed with status 401","traceId":"172dcb43-39b1-4934-9b9c-e03af727ae7e"}}
 ```
 
-`GET /api/v1/traces/856172e8-73ed-41b4-abe5-33e83babb313` then returns that trace with
+`GET /api/v1/traces/172dcb43-39b1-4934-9b9c-e03af727ae7e` then returns that trace with
 `status: "error"` and one `llm` span whose `spanId` is the `x-gateway-span-id` above. A
 streaming call that fails before its first chunk answers the same way. Both SDKs keep
 the parsed error body, so the id is at `error.body.error.traceId`.
@@ -692,10 +703,10 @@ curl -i -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
   -d '{"model":"internal-model","messages":[{"role":"user","content":"hello"}]}'
 ```
 
-Response (status 502):
+Response (status 503):
 
 ```json
-{"error":{"code":"PROVIDER_ADDRESS_BLOCKED","message":"OpenAI request blocked: target address is not allowed. Check this connection's base URL — it must be a public address."}}
+{"error":{"code":"PROVIDER_ADDRESS_BLOCKED","message":"OpenAI request blocked: target address is not allowed. Check this connection's base URL — it must be a public address.","traceId":"432ed956-e711-4c4a-822a-381f2f0fed2d"}}
 ```
 
 Nothing is sent upstream — the request is refused before the connection opens, so this
@@ -793,10 +804,10 @@ curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
   -d '{"model":"unstable-4o-mini","messages":[{"role":"user","content":"Say OK"}],"max_tokens":5,"gateway":{"fallback":false}}'
 ```
 
-Response (status 502):
+Response (status 503):
 
 ```json
-{"error":{"code":"PROVIDER_ERROR","message":"Provider error (401): OpenAI request failed with status 401","traceId":"6d004f3d-abcb-4f76-a1bb-d331acdffe7b"}}
+{"error":{"code":"PROVIDER_ERROR","message":"Provider error (401): OpenAI request failed with status 401","traceId":"04f48268-5a62-44d4-86b1-e19c1f9b5101"}}
 ```
 
 #### What a rescued call leaves behind

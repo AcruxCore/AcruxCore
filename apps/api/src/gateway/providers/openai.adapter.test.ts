@@ -275,3 +275,39 @@ describe('cache_control on the OpenAI wire (issue #552)', () => {
     expect(body.messages).toEqual([{ role: 'system', content: 'Docs' }]);
   });
 });
+
+describe('OpenAiAdapter.chatCompletion caller deadline (issue #732)', () => {
+  // The fallback chain hands each attempt what is left of its overall deadline. A
+  // provider that accepts the connection and then says nothing must be cut off at
+  // that deadline, not at the adapter's own 60 s, or the chain outlives the proxies.
+  let server: http.Server;
+  let baseUrl: string;
+
+  beforeAll(async () => {
+    server = http.createServer(() => {
+      // Never answers.
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`;
+    allowLoopbackForTests();
+  });
+
+  afterAll(async () => {
+    resetSsrfAllowlist();
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  it('gives up when the caller deadline passes and reports it as a timeout', async () => {
+    const startedAt = Date.now();
+    const err = await openaiCompatibleAdapter
+      .chatCompletion(req, { apiKey: 'sk-x', baseUrl }, AbortSignal.timeout(200))
+      .catch((e: unknown) => e);
+    expect(Date.now() - startedAt).toBeLessThan(2_000);
+    expect(err).toBeInstanceOf(ProviderError);
+    // Retriable either way. Not asserted as `timeout`: Node aborts with a DOMException,
+    // which is not `instanceof` Jest's sandboxed `Error`, so under Jest only the adapter
+    // reads it as a network error. Plain Node labels it `timeout`.
+    expect((err as ProviderError).retriable).toBe(true);
+  });
+});

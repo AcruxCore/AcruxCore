@@ -1,8 +1,8 @@
 import {
   PaymentRequiredError,
   RateLimitedError,
-  BadGatewayError,
-  GatewayTimeoutError,
+  ProviderFailedError,
+  ProviderTimeoutError,
   PayloadTooLargeError,
   UnprocessableError,
 } from './http-errors';
@@ -29,15 +29,15 @@ describe('Phase 2 gateway error classes', () => {
     expect(err.retryAfter).toBe(30);
   });
 
-  it('BadGatewayError → 502 PROVIDER_ERROR', () => {
-    const err = new BadGatewayError('Upstream failed.');
-    expect(err.statusCode).toBe(502);
+  it('ProviderFailedError → 503 PROVIDER_ERROR', () => {
+    const err = new ProviderFailedError('Upstream failed.');
+    expect(err.statusCode).toBe(503);
     expect(err.code).toBe('PROVIDER_ERROR');
   });
 
-  it('GatewayTimeoutError → 504 PROVIDER_TIMEOUT', () => {
-    const err = new GatewayTimeoutError();
-    expect(err.statusCode).toBe(504);
+  it('ProviderTimeoutError → 503 PROVIDER_TIMEOUT', () => {
+    const err = new ProviderTimeoutError();
+    expect(err.statusCode).toBe(503);
     expect(err.code).toBe('PROVIDER_TIMEOUT');
   });
 

@@ -5,7 +5,7 @@ import { geminiAdapter } from './gemini.adapter';
 
 // Re-exported so the many existing `from './adapter'` imports keep working; the value
 // itself lives in timeout.ts to keep it out of this module's import cycle.
-export { GATEWAY_TIMEOUT_MS } from './timeout';
+export { GATEWAY_TIMEOUT_MS, gatewayChainDeadlineMs } from './timeout';
 
 /**
  * A provider adapter maps the canonical request to a specific provider's wire format,
@@ -22,9 +22,13 @@ export interface ProviderAdapter {
   readonly unsentParams: ReadonlyArray<keyof NormalizedRequest>;
   /**
    * Perform a non-streaming chat completion.
+   * @param signal - Optional extra deadline, combined with the adapter's own
+   *   {@link GATEWAY_TIMEOUT_MS}: the fallback chain passes what is left of its
+   *   overall deadline. Aborting it with a `TimeoutError` maps to a timeout like the
+   *   adapter's own clock does.
    * @throws {ProviderError} On any provider HTTP error, timeout, or network failure.
    */
-  chatCompletion(req: NormalizedRequest, creds: ProviderCredentials): Promise<NormalizedResponse>;
+  chatCompletion(req: NormalizedRequest, creds: ProviderCredentials, signal?: AbortSignal): Promise<NormalizedResponse>;
   /**
    * Stream a chat completion as normalized OpenAI-style delta chunks.
    *
@@ -80,8 +84,8 @@ export function summarizeProviderDetail(detail: string): string | undefined {
 /**
  * Error thrown by adapters on any upstream failure. `status` is the provider HTTP
  * status (or 502/504 for network/timeout); `retriable` (429/5xx/network) is consumed
- * by G5 retry/fallback. The gateway service maps `status === 504` → GatewayTimeoutError
- * and everything else → BadGatewayError.
+ * by G5 retry/fallback. The gateway service maps `status === 504` → ProviderTimeoutError
+ * and everything else → ProviderFailedError.
  *
  * `detail` is the provider's own error body, summarised by
  * {@link summarizeProviderDetail}. It is forwarded to the caller only for a 4xx, where

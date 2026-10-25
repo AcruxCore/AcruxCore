@@ -108,22 +108,36 @@ export class ProviderRateLimitedError extends AppError {
 }
 
 /**
- * 502 — Upstream provider returned an error we surface to the caller.
- * Call as `new BadGatewayError(message)` or `new BadGatewayError(code, message)`.
+ * The HTTP status for every upstream provider failure: 503, not the textbook 502/504.
+ *
+ * The hosted gateway sits behind Cloudflare, which replaces any origin 502 or 504 with
+ * its own HTML error page. The caller then loses our JSON body — the `code` that tells
+ * "bad key" from "provider down", the provider's message, and the `traceId` of the
+ * error trace (issue #732). A 503 passes through unchanged and is retried by the same
+ * retry-on-5xx clients a 502 was. The `code` carries the distinction the status no
+ * longer does.
  */
-export class BadGatewayError extends AppError {
+export const PROVIDER_FAILURE_STATUS = 503;
+
+/**
+ * 503 — Upstream provider returned an error, or could not be reached, and we surface it.
+ * Call as `new ProviderFailedError(message)` or `new ProviderFailedError(code, message)`.
+ * See {@link PROVIDER_FAILURE_STATUS} for why this is not a 502.
+ */
+export class ProviderFailedError extends AppError {
   constructor(codeOrMessage = 'Upstream provider error.', message?: string) {
-    if (message === undefined) super(codeOrMessage, 502, 'PROVIDER_ERROR');
-    else super(message, 502, codeOrMessage);
+    if (message === undefined) super(codeOrMessage, PROVIDER_FAILURE_STATUS, 'PROVIDER_ERROR');
+    else super(message, PROVIDER_FAILURE_STATUS, codeOrMessage);
   }
 }
 
 /**
- * 504 — Upstream provider call timed out before responding.
+ * 503 — Upstream provider call timed out before responding.
+ * See {@link PROVIDER_FAILURE_STATUS} for why this is not a 504.
  */
-export class GatewayTimeoutError extends AppError {
+export class ProviderTimeoutError extends AppError {
   constructor(message = 'Upstream provider timed out.') {
-    super(message, 504, 'PROVIDER_TIMEOUT');
+    super(message, PROVIDER_FAILURE_STATUS, 'PROVIDER_TIMEOUT');
   }
 }
 

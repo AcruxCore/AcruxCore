@@ -1,4 +1,5 @@
 import { ProviderAdapter, ProviderError, GATEWAY_TIMEOUT_MS, summarizeProviderDetail, parseRetryAfter } from './adapter';
+import { providerCallSignal } from './timeout';
 import type {
   NormalizedRequest,
   NormalizedResponse,
@@ -264,10 +265,16 @@ export class AnthropicAdapter implements ProviderAdapter {
   /**
    * @param req - Canonical request. `system` messages are hoisted; `max_tokens` defaulted.
    * @param creds - Decrypted API key. `baseUrl` is ignored (Anthropic has a fixed host).
+   * @param deadline - Optional caller deadline (what is left of the fallback chain's);
+   *   the call ends at whichever comes first, it or GATEWAY_TIMEOUT_MS.
    * @returns Normalized (OpenAI-shaped) response.
    * @throws {ProviderError} On a non-2xx response, timeout (504), or network error (502).
    */
-  async chatCompletion(req: NormalizedRequest, creds: ProviderCredentials): Promise<NormalizedResponse> {
+  async chatCompletion(
+    req: NormalizedRequest,
+    creds: ProviderCredentials,
+    deadline?: AbortSignal,
+  ): Promise<NormalizedResponse> {
     const systemText = toAnthropicSystem(req.messages);
     const messages = toAnthropicMessages(req.messages);
 
@@ -323,7 +330,7 @@ export class AnthropicAdapter implements ProviderAdapter {
             'anthropic-version': ANTHROPIC_VERSION,
           },
           body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
+          signal: providerCallSignal(deadline),
         },
         false,
         'Anthropic',

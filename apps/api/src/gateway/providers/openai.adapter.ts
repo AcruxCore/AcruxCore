@@ -1,5 +1,6 @@
 import type { Agent } from 'undici';
 import { ProviderAdapter, ProviderError, GATEWAY_TIMEOUT_MS, summarizeProviderDetail, parseRetryAfter } from './adapter';
+import { providerCallSignal } from './timeout';
 import type { ChatMessage, NormalizedRequest, NormalizedResponse, ProviderCredentials, StreamChunk } from './types';
 import { isAnthropicModel } from './models';
 import { parseSseStream } from './sse-parse';
@@ -196,10 +197,16 @@ export class OpenAiAdapter implements ProviderAdapter {
   /**
    * @param req - Canonical request (already OpenAI-shaped).
    * @param creds - Decrypted API key and optional base URL override.
+   * @param deadline - Optional caller deadline (what is left of the fallback chain's);
+   *   the call ends at whichever comes first, it or GATEWAY_TIMEOUT_MS.
    * @returns Normalized (OpenAI-shaped) response.
    * @throws {ProviderError} On a non-2xx response (retriable for 429/5xx), timeout (504), or network error (502).
    */
-  async chatCompletion(req: NormalizedRequest, creds: ProviderCredentials): Promise<NormalizedResponse> {
+  async chatCompletion(
+    req: NormalizedRequest,
+    creds: ProviderCredentials,
+    deadline?: AbortSignal,
+  ): Promise<NormalizedResponse> {
     const baseUrl = this.resolveBaseUrl(creds);
     const url = `${baseUrl}/chat/completions`;
 
@@ -218,7 +225,7 @@ export class OpenAiAdapter implements ProviderAdapter {
             Authorization: `Bearer ${creds.apiKey}`,
           },
           body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
+          signal: providerCallSignal(deadline),
         },
         usesCustomBaseUrl,
         'OpenAI',

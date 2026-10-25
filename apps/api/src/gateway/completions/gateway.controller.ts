@@ -364,7 +364,7 @@ export class GatewayController {
     unknownFields: string[],
   ): Promise<void> => {
     // completeStream throws BEFORE headers are sent for any pre-first-chunk
-    // failure (402/429/400/502) → caught by the outer handler → JSON error.
+    // failure (402/429/400/503) → caught by the outer handler → JSON error.
     const gs = await this.service.completeStream(ctx, body);
 
     let clientAborted = false;

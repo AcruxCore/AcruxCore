@@ -440,7 +440,7 @@ describe('trace name with payload capture off', () => {
     await agent
       .post('/api/v1/gateway/chat/completions')
       .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'Say hi.' }] })
-      .expect(502);
+      .expect(503);
 
     const trace = await prisma.trace.findFirstOrThrow({ where: { teamId } });
     expect(trace.name).not.toContain('Say hi');
@@ -516,7 +516,7 @@ describe('gateway trace hook — failed rounds', () => {
     await agent
       .post('/api/v1/gateway/chat/completions')
       .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'Say hi.' }] })
-      .expect(502);
+      .expect(503);
 
     // The ledger row was already written before this change; the span is the new part.
     const ledger = await prisma.gatewayRequest.findFirstOrThrow({ where: { teamId } });
@@ -553,7 +553,7 @@ describe('gateway trace hook — failed rounds', () => {
       .post('/api/v1/gateway/chat/completions')
       .set('x-trace-id', traceId)
       .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'And again.' }] })
-      .expect(502);
+      .expect(503);
 
     // A failed middle round must not fork the trace — an agent loop would otherwise read
     // as two unrelated runs, with the half that broke invisible from the half that worked.
@@ -580,7 +580,7 @@ describe('gateway trace hook — failed rounds', () => {
     const res = await agent
       .post('/api/v1/gateway/chat/completions')
       .send({ model: 'gpt-4o-mini', stream, messages: [{ role: 'user', content: 'Say hi.' }] })
-      .expect(502);
+      .expect(503);
 
     const span = await prisma.span.findFirstOrThrow({ where: { kind: 'llm' } });
     expect(res.headers['x-gateway-trace-id']).toBe(span.traceId);

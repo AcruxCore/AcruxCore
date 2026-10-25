@@ -414,3 +414,84 @@ describe('callWithFallback', () => {
     }
   });
 });
+
+describe('callWithFallback overall deadline (issue #732)', () => {
+  // A provider gets up to 60 s per attempt, and the chain used to keep moving to the
+  // next deployment however long the earlier ones took. Past Cloudflare's 100 s
+  // origin limit the caller gets Cloudflare's HTML 524 instead of our JSON error, so
+  // the whole chain must answer within one deadline.
+
+  /** An invoker for a provider that never answers: it fails only when its signal aborts. */
+  function hangingInvoker(calls: string[]): DeploymentInvoker {
+    return (d, _r, signal) =>
+      new Promise((_resolve, reject) => {
+        calls.push(d.model.id);
+        // Safety net so a broken deadline fails the assertion below instead of hanging Jest.
+        const safety = setTimeout(() => reject(new ProviderError('safety net', 504, 'timeout', true)), 2_000);
+        signal?.addEventListener('abort', () => {
+          clearTimeout(safety);
+          reject(new ProviderError('timed out', 504, 'timeout', true));
+        });
+      });
+  }
+
+  it('cuts the attempt in flight when the chain deadline passes, and answers with the timeout', async () => {
+    const calls: string[] = [];
+    const startedAt = Date.now();
+    try {
+      await callWithFallback([dep('a'), dep('b'), dep('c')], REQ, hangingInvoker(calls), {
+        maxRetriesPerConn: 1,
+        chainDeadlineMs: 300,
+      });
+      throw new Error('should have thrown');
+    } catch (err) {
+      const e = err as FallbackExhaustedError;
+      expect(e).toBeInstanceOf(FallbackExhaustedError);
+      expect(e.lastError.providerCode).toBe('timeout');
+    }
+    expect(Date.now() - startedAt).toBeLessThan(1_000);
+    // The deadline was spent on the first attempt; nothing else was started after it.
+    expect(calls).toEqual(['a']);
+  });
+
+  it('starts no retry and no fallback once the deadline has passed', async () => {
+    const calls: string[] = [];
+    // Ignores its signal and fails late, as a provider whose error arrives just after the deadline.
+    const invoke: DeploymentInvoker = async (d) => {
+      calls.push(d.model.id);
+      await new Promise((r) => setTimeout(r, 400));
+      throw provErr(500, true);
+    };
+    await expect(
+      callWithFallback([dep('a'), dep('b')], REQ, invoke, { maxRetriesPerConn: 1, chainDeadlineMs: 300 }),
+    ).rejects.toBeInstanceOf(FallbackExhaustedError);
+    expect(calls).toEqual(['a']);
+  });
+
+  it('answers at the deadline even when the provider call ignores its signal', async () => {
+    // undici does not abort while a TCP connect is still in progress: a provider whose
+    // address drops packets holds the call for its full 10 s connect timeout whatever
+    // the signal says. Measured on the real stack, that ran the chain 4.7 s past 90 s.
+    const invoke: DeploymentInvoker = () =>
+      new Promise((_resolve, reject) => setTimeout(() => reject(provErr(502, true)), 1_500));
+    const startedAt = Date.now();
+    const err = (await callWithFallback([dep('a'), dep('b')], REQ, invoke, { chainDeadlineMs: 300 }).catch(
+      (e: unknown) => e,
+    )) as FallbackExhaustedError;
+    expect(Date.now() - startedAt).toBeLessThan(1_000);
+    expect(err).toBeInstanceOf(FallbackExhaustedError);
+    expect(err.lastError.providerCode).toBe('timeout');
+  });
+
+  it('still falls back after a fast failure while time remains', async () => {
+    const calls: string[] = [];
+    const invoke: DeploymentInvoker = async (d) => {
+      calls.push(d.model.id);
+      if (d.model.id === 'a') throw provErr(401, false);
+      return okResponse('gpt-4o-mini');
+    };
+    const res = await callWithFallback([dep('a'), dep('b')], REQ, invoke, { chainDeadlineMs: 5_000 });
+    expect(res.deployment.model.id).toBe('b');
+    expect(calls).toEqual(['a', 'b']);
+  });
+});

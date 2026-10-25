@@ -489,7 +489,7 @@ describe('POST /api/v1/gateway/chat/completions (adapter-mocked)', () => {
     expect(res.body.error.code).toBe('MODEL_NOT_REGISTERED');
   });
 
-  it('provider 500 → 502 PROVIDER_ERROR + error row recorded', async () => {
+  it('provider 500 → 503 PROVIDER_ERROR + error row recorded', async () => {
     const { agent, teamId } = await authedAgent(app);
     const credId = await createConnection(agent, 'openai', 'sk-test-abcdAB12');
     await registerModel(agent, credId, 'gpt-4o-mini');
@@ -498,7 +498,7 @@ describe('POST /api/v1/gateway/chat/completions (adapter-mocked)', () => {
     const res = await agent
       .post('/api/v1/gateway/chat/completions')
       .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'hi' }] })
-      .expect(502);
+      .expect(503);
 
     expect(res.body.error.code).toBe('PROVIDER_ERROR');
 
@@ -507,6 +507,122 @@ describe('POST /api/v1/gateway/chat/completions (adapter-mocked)', () => {
     expect(rows[0]?.status).toBe('error');
     expect(rows[0]?.errorCode).toBe('500');
     expect(Number(rows[0]?.costUsd)).toBe(0);
+  });
+
+  describe('provider failures never answer 502 or 504 (issue #732)', () => {
+    // Cloudflare replaces any origin 502 or 504 with its own HTML error page, so a
+    // JSON 502 left the API and reached the caller as "502: Bad gateway" HTML: no
+    // error code, no message, no traceId. A 503 passes through unchanged.
+
+    async function failingCall(
+      mockFailure: () => void,
+    ): Promise<{ res: request.Response; teamId: string }> {
+      const { agent, teamId } = await authedAgent(app);
+      const credId = await createConnection(agent, 'openai', 'sk-test-abcdAB12');
+      await registerModel(agent, credId, 'gpt-4o-mini');
+      mockFailure();
+      const res = await agent
+        .post('/api/v1/gateway/chat/completions')
+        .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'hi' }] });
+      return { res, teamId };
+    }
+
+    it('provider 401 (bad stored key) → 503 PROVIDER_ERROR JSON with the traceId', async () => {
+      const { res, teamId } = await failingCall(() =>
+        mockFetchOnce({ error: { message: 'Incorrect API key provided' } }, false, 401),
+      );
+
+      expect(res.status).toBe(503);
+      expect(res.headers['content-type']).toMatch(/application\/json/);
+      expect(res.body.error.code).toBe('PROVIDER_ERROR');
+      expect(res.body.error.message).toContain('401');
+      const trace = await prisma.trace.findFirst({ where: { teamId } });
+      expect(res.body.error.traceId).toBe(trace?.id);
+    });
+
+    it('provider timeout → 503 PROVIDER_TIMEOUT JSON', async () => {
+      const { res } = await failingCall(() =>
+        jest
+          .spyOn(global, 'fetch')
+          // What `AbortSignal.timeout` throws. Built from this realm's `Error`: a Node
+          // `DOMException` is not `instanceof` Jest's sandboxed `Error`, so the adapter
+          // would read it as a network error and the test would cover the wrong branch.
+          .mockRejectedValue(Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' })),
+      );
+
+      expect(res.status).toBe(503);
+      expect(res.body.error.code).toBe('PROVIDER_TIMEOUT');
+    });
+
+    it('provider network failure → 503 PROVIDER_ERROR JSON', async () => {
+      const { res } = await failingCall(() =>
+        jest.spyOn(global, 'fetch').mockRejectedValue(new TypeError('fetch failed')),
+      );
+
+      expect(res.status).toBe(503);
+      expect(res.body.error.code).toBe('PROVIDER_ERROR');
+    });
+
+    describe('a chain of slow providers still answers within the chain deadline', () => {
+      // Each provider attempt may take 60 s, and the chain used to keep moving to the
+      // next model however long that took. Past Cloudflare's 100 s origin limit the
+      // caller got Cloudflare's HTML 524 instead of this JSON. The deadline is 90 s in
+      // production; GATEWAY_CHAIN_DEADLINE_MS shortens it here.
+      beforeEach(() => {
+        process.env.GATEWAY_CHAIN_DEADLINE_MS = '400';
+      });
+      afterEach(() => {
+        delete process.env.GATEWAY_CHAIN_DEADLINE_MS;
+      });
+
+      /** Every provider accepts the call and never answers; it fails only when aborted. */
+      function hangingProviders(): jest.SpyInstance {
+        return jest.spyOn(global, 'fetch').mockImplementation(
+          (_input, init) =>
+            new Promise((_resolve, reject) => {
+              init?.signal?.addEventListener('abort', () =>
+                // This realm's Error, for the reason given in the timeout test above.
+                reject(Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' })),
+              );
+            }),
+        );
+      }
+
+      async function slowChain(stream: boolean): Promise<{ res: request.Response; ms: number; calls: number }> {
+        const { agent } = await authedAgent(app);
+        const credId = await createConnection(agent, 'openai', 'sk-test-abcdAB12');
+        const backup = await registerModel(agent, credId, 'slow-backup');
+        await agent
+          .post('/api/v1/gateway/models')
+          .send({ publicName: 'slow-primary', upstreamModel: 'slow-primary', credentialId: credId, fallbackModelIds: [backup] })
+          .expect(201);
+        const spy = hangingProviders();
+        const startedAt = Date.now();
+        const res = await agent
+          .post('/api/v1/gateway/chat/completions')
+          .send({ model: 'slow-primary', stream, messages: [{ role: 'user', content: 'hi' }] });
+        return { res, ms: Date.now() - startedAt, calls: spy.mock.calls.length };
+      }
+
+      it('non-streaming: 503 PROVIDER_TIMEOUT JSON at the deadline, not after every model has hung', async () => {
+        const { res, ms, calls } = await slowChain(false);
+        expect(res.status).toBe(503);
+        expect(res.body.error.code).toBe('PROVIDER_TIMEOUT');
+        expect(res.body.error.traceId).toEqual(expect.any(String));
+        expect(ms).toBeLessThan(3_000);
+        // The primary used up the deadline; no retry and no fallback started after it.
+        expect(calls).toBe(1);
+      });
+
+      it('streaming: 503 PROVIDER_TIMEOUT JSON at the deadline, before any byte is sent', async () => {
+        const { res, ms, calls } = await slowChain(true);
+        expect(res.status).toBe(503);
+        expect(res.headers['content-type']).toMatch(/application\/json/);
+        expect(res.body.error.code).toBe('PROVIDER_TIMEOUT');
+        expect(ms).toBeLessThan(3_000);
+        expect(calls).toBe(1);
+      });
+    });
   });
 
   it('provider 429 → 429 PROVIDER_RATE_LIMITED carrying the provider\'s own reason', async () => {

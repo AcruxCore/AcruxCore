@@ -91,6 +91,9 @@ services:
       # without it, so a deploy that forgets it crash-loops rather than issuing
       # sessions nobody can revoke.
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      # Optional. Longest one gateway call may run, retries and fallbacks included
+      # (ms, default 90000). Keep it below the timeout of every proxy in front.
+      GATEWAY_CHAIN_DEADLINE_MS: ${GATEWAY_CHAIN_DEADLINE_MS:-}
       # Optional auth tuning. Each is safe to leave unset — an empty value is
       # read as "unset", not as a deliberate override.
       AUTH_SESSION_TTL_DAYS: ${AUTH_SESSION_TTL_DAYS:-}

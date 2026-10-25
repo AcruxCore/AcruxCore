@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Agent } from 'undici';
 import { ProviderAdapter, ProviderError, GATEWAY_TIMEOUT_MS, summarizeProviderDetail, parseRetryAfter } from './adapter';
+import { providerCallSignal } from './timeout';
 import type {
   NormalizedRequest,
   NormalizedResponse,
@@ -272,10 +273,16 @@ export class GeminiAdapter implements ProviderAdapter {
   /**
    * @param req - Canonical request; `system` hoisted, `assistant`→`model`, sampling params → generationConfig, tools/tool_choice translated.
    * @param creds - Decrypted API key (sent as `x-goog-api-key`). `baseUrl` overrides the default host.
+   * @param deadline - Optional caller deadline (what is left of the fallback chain's);
+   *   the call ends at whichever comes first, it or GATEWAY_TIMEOUT_MS.
    * @returns Normalized (OpenAI-shaped) response with a synthesized `id`; `tool_calls` present when the model called a function.
    * @throws {ProviderError} On a non-2xx response (retriable for 429/5xx), timeout (504), or network error (502).
    */
-  async chatCompletion(req: NormalizedRequest, creds: ProviderCredentials): Promise<NormalizedResponse> {
+  async chatCompletion(
+    req: NormalizedRequest,
+    creds: ProviderCredentials,
+    deadline?: AbortSignal,
+  ): Promise<NormalizedResponse> {
     const payload = buildGeminiPayload(req);
 
     const baseUrl = (creds.baseUrl ?? GEMINI_BASE_URL).replace(/\/+$/, '');
@@ -294,7 +301,7 @@ export class GeminiAdapter implements ProviderAdapter {
             'x-goog-api-key': creds.apiKey,
           },
           body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
+          signal: providerCallSignal(deadline),
         },
         usesCustomBaseUrl,
         'Gemini',

@@ -158,7 +158,7 @@ describe('gateway explicit per-model fallback / retry', () => {
     });
   });
 
-  it('primary + backup both fail (500) → 502 PROVIDER_ERROR; error row lists the full trail', async () => {
+  it('primary + backup both fail (500) → 503 PROVIDER_ERROR; error row lists the full trail', async () => {
     const ctx = await signupTestUser(app);
     const credA = await createCred(ctx, 'sk-a');
     const credB = await createCred(ctx, 'sk-b');
@@ -173,7 +173,7 @@ describe('gateway explicit per-model fallback / retry', () => {
       model: 'primary',
       messages: [{ role: 'user', content: 'hi' }],
       gateway: { maxRetries: 0 },
-    }).expect(502);
+    }).expect(503);
     expect(res.body.error.code).toBe('PROVIDER_ERROR');
 
     const row = await latestRow(ctx.teamId);
@@ -199,7 +199,7 @@ describe('gateway explicit per-model fallback / retry', () => {
       model: 'primary',
       messages: [{ role: 'user', content: 'hi' }],
       gateway: { fallback: false },
-    }).expect(502);
+    }).expect(503);
     expect(res.body.error.code).toBe('PROVIDER_ERROR');
     expect(spy).toHaveBeenCalledTimes(1); // the backup was never called
 

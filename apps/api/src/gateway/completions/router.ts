@@ -1,8 +1,9 @@
 import type { ProviderConnection, GatewayModel } from '@prisma/client';
 import { ModelsRepository } from '../models/models.repository';
-import { ProviderError } from '../providers/adapter';
+import { ProviderError, gatewayChainDeadlineMs } from '../providers/adapter';
 import { withoutRefusedReasoningEffort } from '../providers/refused-params';
 import type { NormalizedRequest, NormalizedResponse } from '../providers/types';
+import { raceDeadline } from './deadline';
 
 // ── Deployment resolution ─────────────────────────────────────────────────────
 
@@ -68,6 +69,8 @@ function sleep(ms: number): Promise<void> {
 export type DeploymentInvoker = (
   deployment: ResolvedDeployment,
   req: NormalizedRequest,
+  /** Aborts with a `TimeoutError` when the chain's overall deadline passes. */
+  deadline?: AbortSignal,
 ) => Promise<NormalizedResponse>;
 
 /** One entry in the fallback trail: the deployment tried and its error (if any). */
@@ -163,6 +166,12 @@ export interface FallbackOptions {
    */
   allowFallback?: boolean;
   timeoutBudgetMs?: number;
+  /**
+   * Ceiling on the whole chain, every retry and fallback included (default
+   * `gatewayChainDeadlineMs()`, 90 s). The attempt running when it passes is aborted
+   * as a timeout, and no new attempt starts after it.
+   */
+  chainDeadlineMs?: number;
 }
 
 /**
@@ -196,6 +205,12 @@ export class FallbackExhaustedError extends Error {
  * deployment but does fall back to the next one. When the chain is exhausted the
  * last error is thrown.
  *
+ * The whole chain shares one deadline, `opts.chainDeadlineMs`. Each attempt gets
+ * what is left of it as an abort signal, and once it has passed no retry or
+ * fallback starts: the caller is answered with the last error instead. Without it
+ * a chain of slow deployments outlived the proxies in front of the API, and the
+ * caller got their HTML error page instead of ours (issue #732).
+ *
  * `opts.allowFallback: false` stops the chain after the first deployment, which is
  * how a caller says "this model or nothing" for a call that must not be silently
  * answered by a different model. Retries still run, because retrying is the same
@@ -204,7 +219,7 @@ export class FallbackExhaustedError extends Error {
  * @param deployments - Ordered chain from `resolveDeployments`; must be non-empty.
  * @param req - The normalized request (already stripped of the `gateway` control field).
  * @param invoke - Bound provider call for a deployment (adapter + credentials + upstream model).
- * @param opts - Retry depth + timeout budget overrides.
+ * @param opts - Retry depth, timeout budget and chain deadline overrides.
  * @returns The successful response, the serving deployment, and the attempt trail.
  * @throws {FallbackExhaustedError} On a provider 400 (immediate) or when the whole
  *   chain fails; carries `lastError`, `meta`, and `lastDeployment`.
@@ -218,7 +233,9 @@ export async function callWithFallback(
   const maxRetries = opts.maxRetriesPerConn ?? DEFAULT_MAX_RETRIES_PER_CONN;
   const allowFallback = opts.allowFallback ?? true;
   const budgetMs = opts.timeoutBudgetMs ?? DEFAULT_TIMEOUT_BUDGET_MS;
+  const chainDeadlineMs = opts.chainDeadlineMs ?? gatewayChainDeadlineMs();
   const startedAt = Date.now();
+  const pastDeadline = (): boolean => Date.now() - startedAt >= chainDeadlineMs;
 
   const trail: FallbackTrailEntry[] = [];
   let attempts = 0;
@@ -232,6 +249,9 @@ export async function callWithFallback(
   let blockedAddressError: ProviderError | undefined;
 
   for (const deployment of deployments) {
+    // Out of time: answer with what the chain has seen rather than start a model
+    // that could not finish before the proxies give up.
+    if (attempts > 0 && pastDeadline()) break;
     lastDeployment = deployment;
     const entry = {
       modelId: deployment.model.id,
@@ -246,10 +266,13 @@ export async function callWithFallback(
     const droppedParams: string[] = [];
 
     for (let tryN = 0; tryN <= maxRetries; tryN++) {
+      if (tries > 0 && pastDeadline()) break;
       attempts++;
       tries++;
       try {
-        const response = await invoke(deployment, deploymentReq);
+        const remainingMs = Math.max(chainDeadlineMs - (Date.now() - startedAt), 0);
+        const deadline = AbortSignal.timeout(remainingMs);
+        const response = await raceDeadline(invoke(deployment, deploymentReq, deadline), deadline);
         trail.push({
           ...entry,
           attempts: tries,
@@ -293,7 +316,7 @@ export async function callWithFallback(
 
         // Transient (429/5xx/network): retry the SAME deployment if budget allows.
         const withinBudget = Date.now() - startedAt < budgetMs;
-        if (err.retriable && tryN < maxRetries && withinBudget) {
+        if (err.retriable && tryN < maxRetries && withinBudget && !pastDeadline()) {
           await sleep(backoffMs(tryN));
           continue;
         }

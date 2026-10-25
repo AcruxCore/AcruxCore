@@ -15,7 +15,7 @@ import {
 // concern as the `AliasesService` import below).
 import { notify } from '../../notifications/notify';
 import { appLink } from '../../email';
-import { getAdapter, ProviderError } from '../providers/adapter';
+import { getAdapter, ProviderError, gatewayChainDeadlineMs } from '../providers/adapter';
 import { cacheRatesForModel, computeCostFromPrices } from '../providers/models';
 import { estimateTokens } from '../providers/token-estimate';
 import { withoutRefusedReasoningEffort } from '../providers/refused-params';
@@ -39,6 +39,7 @@ import { ToolResolver, ToolRefNotFoundError } from '../../tools/resolver';
 import type { ResolvedToolDefinition } from '../../tools/resolver';
 import { randomUUID } from 'node:crypto';
 import { resolveDeployments, callWithFallback, FallbackExhaustedError } from './router';
+import { raceDeadline } from './deadline';
 import type { DeploymentInvoker, FallbackTrailEntry, ResolvedDeployment } from './router';
 import type { GatewayCallContext, GatewayCompletionRequest, GatewayResult } from './completions.types';
 import { CacheRepository } from '../cache/cache.repository';
@@ -46,9 +47,9 @@ import { computeCacheKey } from '../cache/cache-key';
 import { recordGatewaySpan, recordGatewayErrorSpan } from '../../traces/ingest/gateway-trace.hook';
 import {
   AppError,
-  BadGatewayError,
+  ProviderFailedError,
   ProviderRateLimitedError,
-  GatewayTimeoutError,
+  ProviderTimeoutError,
   ForbiddenError,
   PaymentRequiredError,
   RateLimitedError,
@@ -486,13 +487,13 @@ export class GatewayService {
   // provider, decrypted credentials, and the request `model` rewritten to the
   // deployment's upstream model name.
   private buildInvoker(): DeploymentInvoker {
-    return (d, r) => {
+    return (d, r, deadline) => {
       const adapter = getAdapter(d.credential.provider);
       const creds: ProviderCredentials = {
         apiKey: decryptStoredSecret(d.credential.secretCiphertext, 'provider_credential', d.credential.label),
         baseUrl: connectionBaseUrl(d.credential.config),
       };
-      return adapter.chatCompletion({ ...r, model: d.model.upstreamModel }, creds);
+      return adapter.chatCompletion({ ...r, model: d.model.upstreamModel }, creds, deadline);
     };
   }
 
@@ -819,8 +820,8 @@ export class GatewayService {
    * @throws {PaymentRequiredError} 402 BUDGET_EXCEEDED when an applicable spend cap is reached (G4).
    * @throws {AppError} 400 NO_CONNECTION when no connection can serve the model, or
    *   400 PROVIDER_BAD_REQUEST when the provider rejects the request.
-   * @throws {BadGatewayError} 502 PROVIDER_ERROR when all candidate connections fail.
-   * @throws {GatewayTimeoutError} 504 on a provider timeout.
+   * @throws {ProviderFailedError} 503 PROVIDER_ERROR when all candidate connections fail.
+   * @throws {ProviderTimeoutError} 503 PROVIDER_TIMEOUT on a provider timeout.
    */
   async complete(ctx: GatewayCallContext, req: GatewayCompletionRequest, opts?: CompleteOptions): Promise<GatewayResult> {
     // 1. Validate — done at the controller boundary (Zod).
@@ -1049,7 +1050,7 @@ export class GatewayService {
         // with every span green (issue #452).
         const traced = await recordGatewayErrorSpan({ ctx, request: req, gatewayRequestId: errorRow.id });
         // The caller does get `PROVIDER_ADDRESS_BLOCKED` here, but an unattended
-        // agent loop reads a 502 and retries. Same notice, same dedupe key.
+        // agent loop reads a 5xx and retries. Same notice, same dedupe key.
         const blockedOnFailure = this.blockedConnectionsIn(err.meta.trail);
         if (blockedOnFailure.length > 0)
           await this.notifyBlockedConnections(ctx.teamId, blockedOnFailure, false);
@@ -1179,7 +1180,7 @@ export class GatewayService {
    * @throws {PaymentRequiredError} A budget is already exceeded (no stream opened).
    * @throws {RateLimitedError} RPM/TPM exceeded (no stream opened).
    * @throws {AppError} 400 NO_CONNECTION when no connection can serve the model.
-   * @throws {BadGatewayError} Every candidate provider failed before the first chunk.
+   * @throws {ProviderFailedError} Every candidate provider failed before the first chunk.
    */
   async completeStream(
     ctx: GatewayCallContext,
@@ -1317,11 +1318,25 @@ export class GatewayService {
     // whether or not anything answered.
     const streamBlocked: { credentialId: string; reason: string }[] = [];
     let droppedParams: string[] = [];
+    // One deadline for the whole selection, as `callWithFallback` has: the caller
+    // sees no byte until a deployment yields its first chunk, so a chain of slow
+    // deployments outlived the proxies in front of the API and the caller got their
+    // HTML error page instead of ours (issue #732).
+    const chainDeadlineAt = Date.now() + gatewayChainDeadlineMs();
 
     deployments: for (const deployment of scopedDeployments) {
+      // Out of time: answer with the last error rather than open another model.
+      if (lastProviderError && Date.now() >= chainDeadlineAt) break;
       let attemptReq: NormalizedRequest = { ...normalized, model: deployment.model.upstreamModel };
       const attemptDropped: string[] = [];
       for (;;) {
+        // Armed only until the first chunk: like guardedFetch's headers clock, it
+        // is disarmed rather than replaced, so a long healthy stream is never cut.
+        const attemptDeadline = new AbortController();
+        const deadlineTimer = setTimeout(
+          () => attemptDeadline.abort(new DOMException('Gateway call ran out of time', 'TimeoutError')),
+          Math.max(chainDeadlineAt - Date.now(), 0),
+        );
         try {
           const creds: ProviderCredentials = {
             apiKey: decryptStoredSecret(
@@ -1332,8 +1347,15 @@ export class GatewayService {
             baseUrl: connectionBaseUrl(deployment.credential.config),
           };
           const adapter = getAdapter(deployment.credential.provider);
-          const it = adapter.streamChatCompletion(attemptReq, creds, abortController.signal)[Symbol.asyncIterator]();
-          const first = await it.next(); // may throw ProviderError before the first chunk
+          const signal = AbortSignal.any([abortController.signal, attemptDeadline.signal]);
+          const it = adapter.streamChatCompletion(attemptReq, creds, signal)[Symbol.asyncIterator]();
+          // may throw ProviderError before the first chunk
+          const first = await raceDeadline(it.next(), attemptDeadline.signal);
+          // The deadline passed after the headers but before a chunk: the adapter
+          // cancelled the body and ended quietly, which must not count as an answer.
+          if (attemptDeadline.signal.aborted) {
+            throw new ProviderError(`${deployment.credential.provider} stream timed out`, 504, 'timeout', true);
+          }
           selected = deployment;
           iterator = it;
           firstChunk = first;
@@ -1377,6 +1399,8 @@ export class GatewayService {
           }
           if (!allowFallback) break deployments;
           continue deployments;
+        } finally {
+          clearTimeout(deadlineTimer);
         }
       }
     }
@@ -1391,7 +1415,7 @@ export class GatewayService {
 
     if (!selected || !iterator || !firstChunk) {
       // Record a failure row (status 'error' credits the reservation back in
-      // full, no real cost — see recordStreamRow) then surface a JSON 502.
+      // full, no real cost — see recordStreamRow) then surface a JSON 503.
       await this.recordStreamRow({
         requestId,
         ctx,
@@ -1420,7 +1444,7 @@ export class GatewayService {
       const traced = await recordGatewayErrorSpan({ ctx, request: req, gatewayRequestId: requestId });
       const failure = terminalStreamError
         ? this.mapProviderError(terminalStreamError)
-        : new BadGatewayError('All providers failed before streaming started.');
+        : new ProviderFailedError('All providers failed before streaming started.');
       throw failure.withTrace({ ...traced, requestId });
     }
 
@@ -1665,7 +1689,7 @@ export class GatewayService {
     // A failed call alerts about nothing. Its reservation did raise spend and may well
     // have crossed a line on the way up, but the reconciliation below credits every
     // cent of it back in the same transaction — so emailing "you have passed 80%" for
-    // a request that returned a 502 and cost nothing is both wrong and expensive: the
+    // a request that failed upstream and cost nothing is both wrong and expensive: the
     // dedupe key is per (budget, period, crossing), so that one false alert consumes
     // the period's only real one. `complete()` reaches the same outcome by a different
     // route — its failure path credits back and rethrows before any alert is built.
@@ -1733,21 +1757,20 @@ export class GatewayService {
    * request was refused before the socket opened. Flattening it to `PROVIDER_ERROR`
    * told an operator their provider had a bad day, when what they have is a
    * connection to fix — the same distinction the 400 and 429 branches above exist to
-   * preserve. The status stays 502, since the refusal is ours and the caller's own
-   * request was well formed; only the code becomes specific.
+   * preserve. It stays a {@link ProviderFailedError} (503), since the refusal is ours
+   * and the caller's own request was well formed; only the code becomes specific.
    *
    * @param err - The last provider error carried by `FallbackExhaustedError`.
    * @returns 400 PROVIDER_BAD_REQUEST for a provider 400 (caller's fault); 429
-   *   PROVIDER_RATE_LIMITED for a provider 429; 504 PROVIDER_TIMEOUT for a 504/408;
-   *   502 PROVIDER_ADDRESS_BLOCKED when the target address was refused; else 502
-   *   PROVIDER_ERROR.
+   *   PROVIDER_RATE_LIMITED for a provider 429; 503 PROVIDER_TIMEOUT for a 504/408;
+   *   503 PROVIDER_ADDRESS_BLOCKED when the target address was refused; else 503
+   *   PROVIDER_ERROR. Never 502/504: see {@link ProviderFailedError}.
    */
   private mapProviderError(err: ProviderError): AppError {
     if (err.providerCode === 'SSRF_BLOCKED') {
-      return new AppError(
-        `${err.message}. Check this connection's base URL — it must be a public address.`,
-        502,
+      return new ProviderFailedError(
         'PROVIDER_ADDRESS_BLOCKED',
+        `${err.message}. Check this connection's base URL — it must be a public address.`,
       );
     }
     if (err.status === 400) {
@@ -1758,7 +1781,7 @@ export class GatewayService {
       );
     }
     if (err.status === 504 || err.status === 408) {
-      return new GatewayTimeoutError();
+      return new ProviderTimeoutError();
     }
     if (err.status === 429) {
       return new ProviderRateLimitedError(
@@ -1775,6 +1798,6 @@ export class GatewayService {
         'PROVIDER_BAD_REQUEST',
       );
     }
-    return new BadGatewayError(`Provider error (${err.status}): ${err.message}`);
+    return new ProviderFailedError(`Provider error (${err.status}): ${err.message}`);
   }
 }

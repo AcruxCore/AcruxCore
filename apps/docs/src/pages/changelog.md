@@ -34,6 +34,20 @@ called out in the week it ships and in the SDK release notes.
 - The hosted MCP tools `run_experiment` and `optimize_prompt` take it as `judge_prompt`.
   [Reference →](/api-reference/optimize#choosing-a-judge-prompt)
 
+#### Gateway provider failures answer 503 instead of 502 and 504
+
+- `PROVIDER_ERROR`, `PROVIDER_TIMEOUT` and `PROVIDER_ADDRESS_BLOCKED` now answer `503`.
+- Hosted calls used to get Cloudflare's HTML page; you now get the JSON error and `traceId`.
+- Branch on `error.code`. Both SDKs retry a 503 the same way they retried a 502.
+  [Reference →](/api-reference/gateway#finding-the-trace-of-a-failed-call)
+
+#### A gateway call answers within 90 seconds
+
+- One call now ends by 90 s, every retry and fallback included, with `503 PROVIDER_TIMEOUT`.
+- A chain of slow models used to pass Cloudflare's 100 s limit and get its HTML page instead.
+- Self-hosted installs can change the limit with `GATEWAY_CHAIN_DEADLINE_MS`.
+  [Reference →](/api-reference/gateway#finding-the-trace-of-a-failed-call)
+
 #### A failed gateway call names its trace
 
 - A failed completion now sends `x-gateway-trace-id`, `x-gateway-span-id` and `x-gateway-request-id`.

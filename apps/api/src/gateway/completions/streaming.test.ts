@@ -146,7 +146,7 @@ describe('POST /gateway/chat/completions (stream)', () => {
     expect(rows).toHaveLength(0);
   });
 
-  it('returns 502 JSON when the provider errors before the first chunk', async () => {
+  it('returns 503 JSON when the provider errors before the first chunk', async () => {
     const { agent } = await authedAgent(app);
     await createOpenAiConnection(agent);
     jest
@@ -156,7 +156,7 @@ describe('POST /gateway/chat/completions (stream)', () => {
     const res = await agent
       .post('/api/v1/gateway/chat/completions')
       .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'hi' }], stream: true })
-      .expect(502);
+      .expect(503);
 
     expect(res.body.error.code).toBe('PROVIDER_ERROR');
   });
@@ -233,7 +233,7 @@ describe('POST /gateway/chat/completions (stream)', () => {
         stream: true,
         gateway: { fallback: false },
       })
-      .expect(502);
+      .expect(503);
 
     expect(res.body.error.code).toBe('PROVIDER_ERROR');
     expect(spy).toHaveBeenCalledTimes(1); // the backup was never opened
