@@ -14,6 +14,7 @@ import { FeaturePage } from './pages/FeaturePage';
 import { ComparePage } from './pages/ComparePage';
 import { FaqPage } from './pages/FaqPage';
 import { BestLlmOpsPlatformsPage } from './pages/BestLlmOpsPlatformsPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 import { faqStructuredData } from './faq';
 import { platformListStructuredData } from './comparisons';
 import { FEATURE_LIST } from './features';
@@ -25,6 +26,8 @@ import { LANDING_TITLE } from './marketing-chrome';
  * needs has to be reachable from here.
  */
 export { buildLlmsTxt } from './llms-txt';
+export { noindexShell } from './page-head';
+export { pageStructuredData } from './structured-data';
 
 /** A public marketing route baked to static HTML at build time. */
 export interface PrerenderRoute {
@@ -107,7 +110,7 @@ export const ROUTES: PrerenderRoute[] = [
   {
     path: '/about',
     out: 'about/index.html',
-    title: 'About — AcruxCore',
+    title: 'About AcruxCore, the Open-Source LLMOps Platform',
     description:
       'AcruxCore is one control plane for the whole LLM stack: prompt versioning, an OpenAI-compatible gateway, tracing, a tool catalog and evaluation.',
     component: AboutPage,
@@ -172,7 +175,7 @@ export const ROUTES: PrerenderRoute[] = [
   {
     path: '/pricing',
     out: 'pricing/index.html',
-    title: 'Pricing — AcruxCore',
+    title: 'AcruxCore Pricing: Free, Open-Source LLMOps Platform',
     description:
       'AcruxCore is free while in beta: the whole platform, with your own provider keys and no token markup. Self-hosted and enterprise options on request.',
     component: PricingPage,
@@ -264,6 +267,24 @@ export function render(path = '/'): string {
   return renderToString(
     <StaticRouter location={path}>
       <Page />
+    </StaticRouter>,
+  );
+}
+
+/**
+ * Render the 404 page to a static HTML string, for `dist/404.html`.
+ *
+ * nginx serves that file, with a real 404 status, for every path that is
+ * neither a prerendered page nor a dashboard route. It is not in
+ * {@link ROUTES} because it has no URL of its own: it must stay out of the
+ * sitemap and llms.txt, and its head is `noindex` with no canonical.
+ *
+ * @returns The rendered 404 page markup.
+ */
+export function renderNotFound(): string {
+  return renderToString(
+    <StaticRouter location="/404">
+      <NotFoundPage />
     </StaticRouter>,
   );
 }

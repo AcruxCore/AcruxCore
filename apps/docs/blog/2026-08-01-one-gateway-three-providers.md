@@ -6,14 +6,17 @@ authors: [acrux]
 tags: [llm-gateway]
 image: /img/social-card.png
 keywords: [anthropic api vs openai api, gemini api shape, llm provider comparison, unified llm api, chat completions translation]
+last_update:
+  date: 2026-10-25
 ---
 
-Your app sends one `POST /gateway/chat/completions` request with an
-OpenAI-shaped body; changing providers is a one-field edit to `model`. What
-that field hides is more interesting: underneath, Anthropic, OpenAI, and
-Gemini each expect a genuinely different request — a different auth header,
-different sampling-param nesting, and a different key for the same tool
-definition. We took one fixed request — a system message, a user message, and
+Anthropic, Gemini, and OpenAI each expect a different request: a different auth
+header, a different place for sampling parameters, and a different key for the
+same tool definition. The AcruxCore gateway takes one OpenAI-shaped request and
+its adapters rewrite it into each provider's shape, so changing provider is a
+one-field edit to `model`.
+
+We took one fixed request — a system message, a user message, and
 one tool definition — and traced it through all three adapters that ship
 today to show exactly what each one rewrites and why the gateway needs to do
 it at all.
@@ -195,7 +198,10 @@ Gemini-backed, and an OpenAI-backed model, all given the exact same system
 and user message (only the registered `model` name differed from the
 `"demo-model"` placeholder shown in the request bodies above). The request
 shapes themselves come from running the gateway's real, unmodified adapter
-classes directly against the one request at the top of this post.
+classes directly against the one request at the top of this post, with
+[`gateway-provider-shapes.mts`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/one-gateway-three-providers/typescript/gateway-provider-shapes.mts).
+That script imports the adapters from the AcruxCore repo, so run it from a clone
+with `npx tsx`.
 :::
 
 Want to try this yourself? The [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart)

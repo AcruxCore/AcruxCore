@@ -6,8 +6,8 @@
 #
 # Why it is optional: this is the image every self-hosted install pulls, and only
 # acruxcore.com serves the AcruxCore blog (a second Cloudflare Pages project, see
-# apps/docs/DEPLOY.md). Unset, /blog behaves exactly as before — the SPA shell,
-# served noindex.
+# apps/docs/DEPLOY.md). Unset, /blog is not a page of this site and returns the
+# same 404 as any other unknown path.
 #
 # The value is checked against the characters an origin can contain before it
 # goes into nginx config. A value that fails is dropped with a warning, so a
@@ -34,7 +34,7 @@ location = /blog {
     return 301 /blog/\$is_args\$args;
 }
 
-# ^~ so neither the trailing-slash regex nor the noindex SPA fallback ever sees
+# ^~ so neither the trailing-slash regex nor the app-shell routes ever see
 # a blog path. The upstream serves the same /blog/... paths (the deploy nests the
 # build under blog/), so the URI passes through unchanged.
 location ^~ /blog/ {

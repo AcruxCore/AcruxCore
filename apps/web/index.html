@@ -8,7 +8,7 @@
     <title>AcruxCore — open-source LLMOps platform for engineering teams</title>
     <meta
       name="description"
-      content="AcruxCore is an open-source, Apache-2.0, self-hostable LLMOps platform for engineering teams: version prompts, route LLM calls through an OpenAI-compatible gateway, trace every request, catalog tools, evaluate quality, and audit every change — one platform, no redeploy to change a prompt."
+      content="AcruxCore is an open-source, Apache-2.0, self-hostable LLMOps platform: version prompts, route calls through an OpenAI-compatible gateway, trace and evaluate."
     />
     <meta
       name="keywords"
@@ -56,6 +56,7 @@
       {
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
+        "@id": "https://acruxcore.com/#software",
         "name": "AcruxCore",
         "alternateName": ["Acrux Core", "AcruxCore LLMOps Platform"],
         "applicationCategory": "DeveloperApplication",
@@ -66,6 +67,7 @@
         "isAccessibleForFree": true,
         "softwareHelp": "https://docs.acruxcore.com/",
         "codeRepository": "https://github.com/AcruxCore/AcruxCore",
+        "publisher": { "@id": "https://acruxcore.com/#org" },
         "description": "AcruxCore is an open-source, Apache-2.0, self-hostable LLMOps platform for engineering teams: version prompts, route LLM calls through an OpenAI-compatible gateway, trace every request, catalog tools, evaluate quality, and audit every change people make.",
         "featureList": [
           "Prompt versioning with named aliases and diffs",
@@ -91,16 +93,28 @@
       {
         "@context": "https://schema.org",
         "@type": "Organization",
+        "@id": "https://acruxcore.com/#org",
         "name": "AcruxCore",
         "alternateName": "Acrux Core",
         "url": "https://acruxcore.com/",
-        "logo": "https://acruxcore.com/favicon.svg",
+        "logo": {
+          "@type": "ImageObject",
+          "@id": "https://acruxcore.com/#logo",
+          "url": "https://acruxcore.com/brand/logo-512.png",
+          "contentUrl": "https://acruxcore.com/brand/logo-512.png",
+          "width": 512,
+          "height": 512,
+          "caption": "AcruxCore"
+        },
+        "image": { "@id": "https://acruxcore.com/#logo" },
         "sameAs": [
           "https://github.com/AcruxCore",
           "https://www.linkedin.com/company/acruxcore/",
           "https://x.com/AcruxCore",
           "https://www.youtube.com/@AcruxCoreAI",
-          "https://www.reddit.com/r/AcruxCore/"
+          "https://www.reddit.com/r/AcruxCore/",
+          "https://www.npmjs.com/package/@acruxcoreai/sdk",
+          "https://pypi.org/project/acruxcore/"
         ]
       }
     </script>
@@ -108,9 +122,11 @@
       {
         "@context": "https://schema.org",
         "@type": "WebSite",
+        "@id": "https://acruxcore.com/#website",
         "name": "AcruxCore",
         "alternateName": "Acrux Core",
-        "url": "https://acruxcore.com/"
+        "url": "https://acruxcore.com/",
+        "publisher": { "@id": "https://acruxcore.com/#org" }
       }
     </script>
   </head>

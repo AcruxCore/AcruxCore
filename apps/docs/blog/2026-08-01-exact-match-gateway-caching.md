@@ -6,9 +6,17 @@ authors: [acrux]
 tags: [llm-gateway, llm-latency]
 image: /img/social-card.png
 keywords: [llm response caching, gateway cache, exact-match cache, reduce llm cost, reduce llm latency, cache hit rate]
+last_update:
+  date: 2026-10-25
 ---
 
-A gateway virtual key can be given a cache window: set `cacheTtlSeconds` and
+A cache hit in the AcruxCore gateway returned in a median of **9 ms**, against
+**902 ms** for the same call sent to the provider, and it cost $0. In a run that
+sent each of 15 prompts four times, caching cut spend by 75%.
+
+A gateway [virtual key](https://docs.acruxcore.com/docs/guides/scope-access-with-virtual-keys)
+can be given a cache window: set
+[`cacheTtlSeconds`](https://docs.acruxcore.com/api-reference/gateway/keys) and
 an **exact-match** repeat of a call — same model, same messages, same
 `temperature`/`max_tokens`/`top_p`/`stop` — is served from Postgres instead
 of the provider. We ran the same fixed set of prompts through it repeatedly
@@ -110,7 +118,8 @@ specifics worth knowing before you rely on it:
 
 :::note
 Want to reproduce this? The exact numbers above come from one live run of
-`gateway-cache-bench.mjs` against a running gateway — 15 fixed prompts, 4
+[`gateway-cache-bench.mjs`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/exact-match-gateway-caching/typescript/gateway-cache-bench.mjs)
+against a running gateway — 15 fixed prompts, 4
 passes each, a virtual key with `cacheTtlSeconds` set, reading the real
 `x-gateway-cache` and `x-gateway-cost-usd` response headers rather than
 inferring hit/miss from latency alone.

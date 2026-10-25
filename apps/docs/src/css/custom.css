@@ -451,3 +451,95 @@
 .navbar-sister-site svg {
   display: none;
 }
+
+/* ── Cookie consent banner (src/theme/Root.tsx) ── */
+.acx-consent {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 200;
+  border-top: 1px solid var(--ifm-toc-border-color);
+  background: var(--ifm-background-surface-color);
+  padding: 1rem 1.5rem;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+}
+.acx-consent__inner {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.acx-consent__text {
+  margin: 0;
+  font-size: 0.85rem;
+}
+.acx-consent__short {
+  display: none;
+}
+.acx-consent__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex: none;
+}
+/* On a phone the full sentence wrapped to three lines above the buttons and
+   covered about a sixth of the screen. One row instead: a short sentence
+   beside the buttons. */
+@media (max-width: 640px) {
+  .acx-consent {
+    padding: 0.6rem 1rem;
+  }
+  .acx-consent__text {
+    font-size: 0.8rem;
+    line-height: 1.35;
+  }
+  .acx-consent__short {
+    display: inline;
+  }
+  .acx-consent__long {
+    display: none;
+  }
+}
+
+/* ── Touch targets ──
+   On touch screens every control reaches 44px, the size a fingertip needs.
+   Scoped to pointer:coarse rather than a width, so a narrow desktop window
+   keeps Infima's denser 28-32px controls. */
+@media (pointer: coarse) {
+  .acx-consent .button,
+  .navbar__item.navbar-cta,
+  .navbar__toggle,
+  .navbar-sidebar__close,
+  .navbar-sidebar__back,
+  .clean-btn[class*='toggleButton'],
+  .tabs__item,
+  .pagination-nav__link {
+    min-height: 44px;
+  }
+  .acx-consent .button {
+    display: inline-flex;
+    align-items: center;
+  }
+  .navbar__toggle,
+  .navbar-sidebar__close,
+  .clean-btn[class*='toggleButton'] {
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .navbar__item.navbar-cta {
+    display: inline-flex;
+    align-items: center;
+  }
+  /* Docs and blog sidebar rows, and the mobile menu. */
+  .menu__link,
+  .menu__caret,
+  .menu__list-item-collapsible > .menu__link {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+}

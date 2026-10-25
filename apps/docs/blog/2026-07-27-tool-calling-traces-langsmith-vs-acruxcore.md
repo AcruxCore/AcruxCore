@@ -1,11 +1,13 @@
 ---
 title: "Tool-call traces: LangSmith vs AcruxCore"
-description: We built the same weather agent twice, with a traced Python function on LangSmith and a catalog tool bound to a prompt on AcruxCore, ran both live, and compared the traces and the code.
+description: "One weather agent built twice: a traced Python function on LangSmith and a catalog tool bound to a prompt on AcruxCore. We compare the traces and the code."
 slug: tool-calling-traces-langsmith-vs-acruxcore
 authors: [acrux]
 tags: [llmops-comparison, llm-tracing]
 image: /img/social-card.png
 keywords: [langsmith tool calling, tool call tracing, langsmith vs acruxcore, tool catalog, llm tool observability, streaming tool calls, run_prompt_with_tools]
+last_update:
+  date: 2026-10-25
 ---
 
 A tool call is the point where an agent stops producing text and calls code or an API.
@@ -20,7 +22,20 @@ Every number and every output below comes from those runs. The scripts for both 
 are [at the end of the post](/blog/tool-calling-traces-langsmith-vs-acruxcore#run-it-yourself-the-complete-scripts)
 in full.
 
+We build AcruxCore. We ran every tool ourselves, and the scripts are linked below.
+
 <!-- truncate -->
+
+## Results at a glance
+
+| | LangSmith | AcruxCore |
+|---|---|---|
+| Lines of code in the agent script | 65 | 19 |
+| Lines of code in the streaming agent script | 70 | 25 |
+| One-time setup script | none | 45 lines, or none if you use the dashboard |
+| Trace of one run | 4 runs, 377 tokens | 3 spans, 381 tokens |
+| Cost of one run, as each platform priced it | $0.0000822 | $0.0000846 |
+| Who joins a streamed tool call | Your code, with a 41-line accumulator | The SDK |
 
 ## The tool
 
@@ -312,7 +327,8 @@ tokens, and every request that names it is priced at those rates.
 Six files, exactly as executed. The shared module holds the code that the other scripts
 import. Run `setup_acruxcore.py` once before the AcruxCore agents, or create the same tool,
 prompt and binding in the dashboard. The scripts are in the repo under
-`scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/` and `scripts/blogs/shared/`.
+[`scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore)
+and [`scripts/blogs/shared/`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/shared).
 
 ```bash
 pip install acruxcore openai requests langsmith

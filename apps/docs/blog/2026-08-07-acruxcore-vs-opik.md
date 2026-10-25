@@ -1,20 +1,28 @@
 ---
-title: "AcruxCore vs Opik: guardrails, PII and online evaluation"
+title: "AcruxCore vs Opik: prompts, tracing, tools and guardrails compared"
 description: "AcruxCore vs Opik tested hands-on — one prompt rebuilt on self-hosted Opik and AcruxCore, with real screenshots, an SDK trace and a latency benchmark."
 slug: acruxcore-vs-opik
 authors: [acrux]
 tags: [llmops-comparison, prompt-management, llm-tracing]
 image: /img/social-card.png
 keywords: [AcruxCore vs opik, opik vs AcruxCore, llm ops comparison, prompt versioning, ai gateway, llm tracing]
+last_update:
+  date: 2026-10-25
 ---
 
-Opik is Comet's open-source LLM-ops platform, and unlike some competitors we've covered
-it ships with genuinely no login wall when self-hosted — you `docker compose up` and
-you're working inside a real workspace immediately. We built the same prompt —
-`vip-support-triage`, a support agent that changes tone for VIP customers and lists
-their open tickets — on both platforms, then ran the identical sequence on each: create
-the prompt, version it, send a live call, inspect the trace, build a dataset, run an
-experiment, and call it from an SDK script.
+Opik is Comet's open-source LLM-ops platform. When you self-host it, there is no login
+wall: you run `docker compose up` and work inside a workspace right away. We built the
+same prompt on both platforms. The prompt is `vip-support-triage`, a support agent that
+changes tone for VIP customers and lists their open tickets. On each platform we created
+the prompt, versioned it, sent a live call, inspected the trace, built a dataset, ran an
+experiment, and called it from an SDK script.
+
+The short answer: for running a prompt in production, AcruxCore covers more. It has a
+request-path gateway, a tool catalog that runs tools, and a trace for every call with no
+client code. Opik has topic and PII guardrails and dedicated test suites, and AcruxCore
+has neither.
+
+We build AcruxCore. We ran every tool ourselves, and the scripts are linked below.
 
 <!-- truncate -->
 
@@ -52,8 +60,7 @@ Full breakdown, screenshots, and the verdict below.
 
 ## Evaluation & datasets
 
-Opik's "Add to → Dataset" works straight from a trace's detail panel — broader than a
-span-only restriction we hit on another platform — and creating a brand-new dataset is
+Opik's "Add to → Dataset" works straight from a trace's detail panel, and creating a brand-new dataset is
 a one-step inline dialog from that same menu.
 
 <details>
@@ -65,7 +72,7 @@ a one-step inline dialog from that same menu.
 
 AcruxCore's dataset — built from a real feedback row, since the vip-support-triage
 trace's own single-span feedback wasn't eligible — is one sentence here; see the
-[walkthrough](/blog/acruxcore-hands-on-walkthrough#5-build-a-dataset-from-real-feedback)
+[dashboard tour](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#feedback)
 for the screenshot.
 
 Running an experiment against that dataset from the UI goes through "Open in
@@ -84,7 +91,7 @@ the Playground as the interactive alternative.
 
 AcruxCore's Run report for that dataset against gpt-4o-mini — a plain, unscored
 manual run — is one sentence here; see the
-[walkthrough](/blog/acruxcore-hands-on-walkthrough#6-check-the-run-history) for the
+[dashboard tour](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#datasets-and-runs) for the
 screenshot.
 
 | Feature | Opik | AcruxCore |
@@ -98,7 +105,7 @@ screenshot.
 Opik's Prompt library offers a "text prompt" or a "chat prompt" — both are flat
 `{{variable}}` substitution, confirmed hands-on: there is no `{% if %}` or `{% for %}`
 anywhere. We flattened the VIP-branch note and the two-item ticket list into plain
-text, the same way an earlier comparison had to for Langfuse, keeping only
+text, keeping only
 `{{company}}` and `{{customer_message}}` as real variables.
 
 <details>
@@ -112,11 +119,10 @@ text, the same way an earlier comparison had to for Langfuse, keeping only
 
 AcruxCore's own prompt editor — real nunjucks conditionals and loops rendering VIP
 status and the ticket list inline — is one sentence here; see the
-[walkthrough](/blog/acruxcore-hands-on-walkthrough#2-create-a-prompt-version-it-and-promote-an-alias)
+[dashboard tour](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#prompts)
 for the picture.
 
-Unlike a competitor we compared earlier that had no diff feature at all, Opik does have
-a real version comparison — we edited the prompt to create v2 and used its "Diff"
+Opik has a real version comparison. We edited the prompt to create v2 and used its "Diff"
 button:
 
 <details>
@@ -165,8 +171,7 @@ reply from the identical inputs.
 ## Tracing & observability
 
 Confirmed hands-on: running the prompt from Opik's Playground left the project's Logs
-tab at "No traces yet" — the Playground alone does not trace, the same finding as an
-earlier comparison. A real trace only appeared after calling the SDK-wrapped client,
+tab at "No traces yet" — the Playground alone does not trace. A real trace only appeared after calling the SDK-wrapped client,
 producing a two-level span tree: an outer `chat_completion_create` trace wrapping an
 inner LLM span with model, provider, tokens, and cost.
 
@@ -189,8 +194,7 @@ inner LLM span with model, provider, tokens, and cost.
 AcruxCore's gateway sits **in the request path**: every call is routed through it, so
 BYOK provider selection, caching, budgets, and virtual keys all apply before the
 provider is ever called, and the trace is a side effect of that same hop. Opik sits
-**beside** the request path too — like the other observability-first platforms we've
-compared, it ingests a trace *after* your own client made the call, so there's nothing
+**beside** the request path, like most observability-first platforms: it ingests a trace *after* your own client made the call, so there's nothing
 to route, cache, or budget against on its side.
 
 | Feature | Opik | AcruxCore |
@@ -213,12 +217,10 @@ command in your terminal, and Opik waits for that process to connect.
 
 </details>
 
-With nothing connected, the page just sits at "Disconnected" showing setup copy — this
-is weaker than even the placeholder "Create LLM Tool" schema dialog a prior
-comparison found on another platform, since that at least produced a stored,
-reusable JSON Schema object from the UI with zero code. AcruxCore's Tools page — a
+With nothing connected, the page stays at "Disconnected" and shows setup text. It
+cannot store a reusable tool schema from the UI. AcruxCore's Tools page — a
 dozen real, versioned tools — is one sentence here; see the
-[walkthrough](/blog/acruxcore-hands-on-walkthrough#7-a-versioned-tool-catalog) for the
+[dashboard tour](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#tools) for the
 screenshot.
 
 | Feature | Opik | AcruxCore |
@@ -266,7 +268,7 @@ Both produced a real trace within seconds of the call returning:
 Full scripts: [`op_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/opik-vs-acruxcore/python/op_trace_run.py) and [`acx_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/opik-vs-acruxcore/python/acx_sdk_run.py).
 
 AcruxCore's SDK-produced trace is one sentence here; see the
-[walkthrough](/blog/acruxcore-hands-on-walkthrough#doing-this-from-code) for the
+[product tour](https://docs.acruxcore.com/docs/getting-started/product-tour) for the
 screenshot.
 
 | Feature | Opik | AcruxCore |
@@ -375,7 +377,7 @@ confusing first hour if you are evaluating it by clicking around.
 
 Two things you would lose are real, and we will not talk around them: Opik's Topic and PII
 guardrails, configurable per project, and its Test suites — a dedicated pre-deployment
-regression object that nothing else in this series has an equivalent of. If either is the
+regression object that AcruxCore has no equivalent of. If either is the
 reason you run Opik, we are not a replacement for it.
 
 ## Verdict

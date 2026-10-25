@@ -1,11 +1,13 @@
 ---
-title: "AcruxCore vs Langfuse: org hierarchy vs a flat team"
+title: "AcruxCore vs Langfuse: one prompt built and tested on both"
 description: "AcruxCore vs Langfuse tested hands-on — the same prompt rebuilt and run on both, with real screenshots, an SDK trace and a measured latency benchmark."
 slug: acruxcore-vs-langfuse
 authors: [acrux]
 tags: [llmops-comparison, prompt-management, llm-tracing]
 image: /img/social-card.png
 keywords: [AcruxCore vs langfuse, langfuse vs AcruxCore, llm ops comparison, prompt versioning, ai gateway, llm tracing]
+last_update:
+  date: 2026-10-25
 ---
 
 Langfuse is the LLM-ops platform we get compared to most often, and it deserves a real
@@ -14,6 +16,8 @@ answer, not a table copied from two docs sites. So we built the same prompt —
 their open tickets — on both platforms, then ran the identical sequence on each: create
 the prompt, version it, send a live call, inspect the trace, build a dataset, run an
 experiment, and call it from an SDK script.
+
+We build AcruxCore. We ran every tool ourselves, and the scripts are linked below.
 
 <!-- truncate -->
 
@@ -68,7 +72,7 @@ message on the recreated prompt says so explicitly.
 
 AcruxCore's own prompt editor — real nunjucks conditionals and loops rendering VIP
 status and the ticket list inline — is one sentence here; see the
-[walkthrough](/blog/acruxcore-hands-on-walkthrough#2-create-a-prompt-version-it-and-promote-an-alias)
+[dashboard tour](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#prompts)
 for the picture.
 
 | Feature | Langfuse | AcruxCore |
@@ -155,7 +159,7 @@ not just a shape the model is told about.
 
 AcruxCore's Tools page — a dozen real, versioned tools including
 `get_order_status`, `query_database`, and `get_weather` — is one sentence here; see the
-[walkthrough](/blog/acruxcore-hands-on-walkthrough#7-a-versioned-tool-catalog) for the
+[dashboard tour](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#tools) for the
 screenshot.
 
 | Feature | Langfuse | AcruxCore |
@@ -182,8 +186,8 @@ dataset (we hit this directly and had to reuse a trace with more than one span).
 
 AcruxCore's dataset (built from trace feedback) and its experiment run report are one
 sentence each here; see the walkthrough's
-[dataset](/blog/acruxcore-hands-on-walkthrough#5-build-a-dataset-from-real-feedback) and
-[run-history](/blog/acruxcore-hands-on-walkthrough#6-check-the-run-history) sections
+[dataset](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#feedback) and
+[run-history](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#datasets-and-runs) sections
 for the screenshots.
 
 | Feature | Langfuse | AcruxCore |
@@ -229,7 +233,7 @@ Both produced a real trace within seconds of the call returning:
 Full scripts: [`acx_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/acruxcore-vs-langfuse/python/acx_sdk_run.py) and [`lf_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/acruxcore-vs-langfuse/python/lf_trace_run.py).
 
 AcruxCore's SDK-produced trace is one sentence here; see the
-[walkthrough](/blog/acruxcore-hands-on-walkthrough#doing-this-from-code) for the
+[product tour](https://docs.acruxcore.com/docs/getting-started/product-tour) for the
 screenshot.
 
 | Feature | Langfuse | AcruxCore |

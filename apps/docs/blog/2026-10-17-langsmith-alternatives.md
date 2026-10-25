@@ -1,6 +1,6 @@
 ---
 title: "8 LangSmith alternatives for startups: open source, self-hosted and cheaper (2026)"
-description: "Eight LangSmith alternatives compared on license, free self-hosting, per-seat price and trace retention. Which ones are truly open source, and which fit a startup."
+description: "Eight LangSmith alternatives compared on license, free self-hosting, per-seat price and trace retention: which are open source, and which fit a startup."
 title_meta: "LangSmith Alternatives: 8 Open-Source Picks (2026)"
 slug: langsmith-alternatives
 date: 2026-10-17
@@ -8,19 +8,23 @@ authors: [acrux]
 tags: [llmops-comparison, llm-tracing, prompt-management]
 image: /img/blog/langsmith-alternatives/01-header.webp
 keywords: [langsmith alternatives, alternatives to langsmith, best langsmith alternatives, langsmith competitors, open source langsmith alternative, self-hosted langsmith alternatives, best langsmith alternatives for startups, best free langsmith alternative]
+last_update:
+  date: 2026-10-25
 ---
 
-![Eight LangSmith alternatives in a grid, each with what it is best for, coloured by license: Langfuse, AcruxCore, Opik, MLflow and Laminar open source, Arize Phoenix source-available, Braintrust and W&B Weave closed source](/img/blog/langsmith-alternatives/01-header.webp)
+![LangSmith alternatives in a grid, each with what it is best for, coloured by license: Langfuse, AcruxCore (ours), Opik, MLflow and Laminar open source, Arize Phoenix source-available, Braintrust and W&B Weave closed source](/img/blog/langsmith-alternatives/01-header.webp)
 
 This post compares eight LangSmith alternatives on license, self-hosting, price and features.
 For each alternative to LangSmith, it lists what the tool adds and what it lacks.
+
+We build AcruxCore, one of the tools in this post. We do not rank it.
 
 <!-- truncate -->
 
 **The short answer**
 
-- **Open source and free to self-host:** Langfuse, AcruxCore, Opik, MLflow and Laminar.
-- **Tracing, prompts, evals and a gateway in one open-source tool:** AcruxCore or MLflow.
+- **Open source and free to self-host:** AcruxCore (ours), Langfuse, Laminar, MLflow and Opik.
+- **Tracing, prompts, evals and a gateway in one open-source tool:** AcruxCore (ours) or MLflow.
 - **Evals first, hosted for you:** Braintrust.
 
 ## LangSmith competitors at a glance
@@ -31,7 +35,7 @@ For each alternative to LangSmith, it lists what the tool adds and what it lacks
 |---|---|---|---|---|---|
 | **LangSmith** | Closed source | Enterprise plan only | Developer: 5,000 traces, 1 seat, 14 days | Plus: $39 per seat a month | 14 days |
 | Langfuse | MIT core; enterprise (`ee/`) folders commercial | Free | Hobby: 50,000 units, 2 users, 30 days | Core: $29 a month, unlimited users | 90 days |
-| AcruxCore | Apache-2.0 | Free | Free; span content kept 90 days | None; the hosted plan is free | Not applicable |
+| AcruxCore (ours) | Apache-2.0 | Free | Free; span content kept 90 days | None; the hosted plan is free | Not applicable |
 | Opik | Apache-2.0 | Free | 25,000 spans a month, 10 members, 60 days | Pro: $19 a month, 50 members | 60 days |
 | MLflow | Apache-2.0 | Free | None outside Databricks | Through Databricks | You decide |
 | Laminar | Apache-2.0 | Free | 1 GB, 1 seat, 7 days | Starter: $30 a month, unlimited seats | 30 days |
@@ -45,7 +49,7 @@ For each alternative to LangSmith, it lists what the tool adds and what it lacks
 |---|---|---|---|---|---|---|
 | **LangSmith** | Yes | Beta | Yes | Yes | Yes: prompts, traces, deployments, sandboxes | Active |
 | Langfuse | Yes | No | Yes | Yes | Yes: prompts, traces, datasets, scores | Active; owned by ClickHouse since January 2026 |
-| AcruxCore | Yes | Yes | Yes | Yes | [Yes](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client): prompts (write and run), traces, experiments, tools | Active; public since August 2026 |
+| AcruxCore (ours) | Yes | Yes | Yes | Yes | [Yes](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client): prompts (write and run), traces, experiments, tools | Active; public since August 2026 |
 | Opik | Yes | Beta, for development and testing | Yes | Yes | Yes: prompts, traces | Active |
 | MLflow | Yes | Yes | Yes | Yes | Yes: traces, judges | Active; a Linux Foundation project |
 | Laminar | No | No | Yes | Signals (rules in plain English) | Yes: read-only traces | Active |
@@ -58,6 +62,18 @@ step inside a trace. Opik, Phoenix and Braintrust count spans or gigabytes, so t
 are not directly comparable with LangSmith's 5,000 traces. **Closed source** means the vendor
 publishes no server code. An **MCP server** lets a coding assistant, such as Claude Code or
 Cursor, work with the platform's data.
+
+Plans and prices as read on each vendor's pricing page on 17 October 2026.
+
+:::tip[Our product: AcruxCore]
+
+We build AcruxCore, so we do not rank it. AcruxCore covers prompts, tracing and evals like
+LangSmith. AcruxCore is Apache-2.0, self-hosts for free on Postgres and Redis, and its gateway sends your
+model calls to the provider. It fits a small team that wants all four parts in one self-hosted app.
+It does not fit a team that needs SAML or OIDC single sign-on, or an SDK other than Python and
+TypeScript. The details are in [About AcruxCore](#about-acruxcore).
+
+:::
 
 If you want the self-hostable tools at a glance, the [comparison page](https://acruxcore.com/compare) puts AcruxCore next
 to six self-hostable platforms, feature by feature.
@@ -94,11 +110,14 @@ Sources: LangSmith [pricing](https://www.langchain.com/pricing),
 - **Every fact comes from the vendor:** the pricing page, the docs, the license file or the
   repository's compose file, read on 17 October 2026. The MCP servers were checked on
   18 October 2026. We do not use other comparison lists as sources.
+- **AcruxCore is not ranked.** We build it, so it has its own section after the ranked tools.
 
 ## Open-source LangSmith alternatives (free to self-host)
 
-These five tools use a license approved by the Open Source Initiative. You can run every one of
-them on your own servers without paying.
+These four tools use a license approved by the Open Source Initiative. You can run every one of
+them on your own servers without paying. AcruxCore (ours) also meets both rules: it is
+Apache-2.0 and free to self-host. It is not ranked, because we build it; it is described in
+[About AcruxCore](#about-acruxcore).
 
 ### 1. Langfuse
 
@@ -118,7 +137,7 @@ prompts and evals.
 
 - Langfuse charges one flat price for the whole team on Core. LangSmith charges per seat.
 - Langfuse keeps data 90 days on Core. LangSmith keeps base traces 14 days on Plus.
-- Langfuse has the largest community here: 35,957 GitHub stars.
+- Langfuse has the largest community here: 36,448 GitHub stars on 25 October 2026.
 - Datasets, experiments, LLM-as-judge on live traces and review queues are all in the free
   self-hosted version.
 - Langfuse's [MCP server](https://langfuse.com/docs/api-and-data-platform/features/mcp-server)
@@ -140,46 +159,7 @@ Sources: [license](https://github.com/langfuse/langfuse/blob/main/LICENSE),
 [compose file](https://github.com/langfuse/langfuse/blob/main/docker-compose.yml),
 [ClickHouse acquisition](https://clickhouse.com/blog/clickhouse-acquires-langfuse-open-source-llm-observability).
 
-### 2. AcruxCore
-
-AcruxCore vs LangSmith: both cover prompts, tracing and evals. AcruxCore is Apache-2.0 and free
-to self-host, and its gateway sends your model calls to the provider.
-
-**Best for:** small teams that want prompts, a gateway, traces and evals in one self-hosted app.
-
-| | AcruxCore | LangSmith |
-|---|---|---|
-| License | Apache-2.0, no enterprise folder | Closed source |
-| Self-host | Free: Postgres, Redis, API, worker, web | Enterprise plan only |
-| Cheapest paid plan | None; the hosted plan is free to use | Plus: $39 per seat a month |
-| Gateway | Yes | Beta |
-
-**Where AcruxCore differs**
-
-- The gateway is part of the product. It holds your provider keys, caches responses, falls back
-  to a second model, and stops calls at a spend budget or a rate limit.
-- You define the tools a model can call and keep versions of them. AcruxCore runs a tool when
-  your code calls its API.
-- Roles and the audit log are free in every AcruxCore install. LangSmith keeps custom roles for
-  Enterprise.
-- Self-hosting needs two data stores, Postgres and Redis, with no ClickHouse.
-- The [MCP server](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client) lets a coding assistant run a stored prompt through the gateway and
-  read the trace that the run produced.
-
-**Limits of AcruxCore**
-
-- The AcruxCore repository went public in August 2026 and has 11 GitHub stars.
-- AcruxCore has no SAML or OIDC single sign-on. Sign-in is email or Google.
-- The gateway supports OpenAI, Anthropic, Gemini and OpenAI-compatible APIs. The SDKs are Python
-  and TypeScript only.
-
-Our longer comparison is [AcruxCore vs LangSmith](/blog/acrux-core-vs-langsmith).
-
-Sources: [license](https://github.com/AcruxCore/AcruxCore/blob/main/LICENSE),
-[compose file](https://github.com/AcruxCore/AcruxCore/blob/main/docker-compose.local.yml),
-[pricing](https://acruxcore.com/pricing).
-
-### 3. Opik
+### 2. Opik
 
 Opik vs LangSmith: Opik is Apache-2.0 from end to end and has the cheapest paid plan here.
 
@@ -216,7 +196,7 @@ Sources: [README and license](https://github.com/comet-ml/opik/blob/main/README.
 [gateway](https://www.comet.com/docs/opik/integrations/opik-llm-gateway),
 [optimizer](https://github.com/comet-ml/opik/blob/main/sdks/opik_optimizer/README.md).
 
-### 4. MLflow
+### 3. MLflow
 
 MLflow vs LangSmith: MLflow is an Apache-2.0 ML platform with tracing, a prompt registry,
 judges and a gateway in one server.
@@ -252,7 +232,7 @@ Sources: [license](https://raw.githubusercontent.com/mlflow/mlflow/master/LICENS
 [compose file](https://raw.githubusercontent.com/mlflow/mlflow/master/docker-compose/docker-compose.yml),
 [managed MLflow](https://www.databricks.com/product/managed-mlflow).
 
-### 5. Laminar
+### 4. Laminar
 
 Laminar vs LangSmith: Laminar is open-source tracing built for agents, with SQL over your traces.
 
@@ -287,7 +267,7 @@ Sources: [repository](https://github.com/lmnr-ai/lmnr),
 
 ## Source-available: Arize Phoenix
 
-### 6. Arize Phoenix
+### 5. Arize Phoenix
 
 Phoenix vs LangSmith: Phoenix is free to self-host with no feature limits. Its license, the
 Elastic License 2.0, is not approved by the Open Source Initiative.
@@ -330,7 +310,7 @@ Sources: [license](https://github.com/Arize-ai/phoenix/blob/main/LICENSE),
 Braintrust and W&B Weave publish no server code, like LangSmith. Self-hosting either one needs an
 enterprise contract.
 
-### 7. Braintrust
+### 6. Braintrust
 
 Braintrust vs LangSmith: both are closed source and hosted. Braintrust charges a flat price with
 unlimited users, and LangSmith charges per seat.
@@ -368,7 +348,7 @@ Sources: [pricing](https://www.braintrust.dev/pricing),
 [gateway](https://www.braintrust.dev/docs/deploy/gateway),
 [Loop](https://www.braintrust.dev/docs/guides/loop).
 
-### 8. W&B Weave
+### 7. W&B Weave
 
 Weave vs LangSmith: Weave puts LLM traces and evals next to Weights & Biases experiment tracking.
 
@@ -400,6 +380,47 @@ Sources: [pricing](https://wandb.ai/site/pricing),
 [monitors](https://docs.coreweave.com/weave/guides/evaluation/monitors.md),
 [CoreWeave acquisition](https://coreweave.com/blog/coreweave-completes-acquisition-of-weights-biases).
 
+## About AcruxCore
+
+AcruxCore is our own product, so it has no rank in this list.
+
+AcruxCore vs LangSmith: both cover prompts, tracing and evals. AcruxCore is Apache-2.0 and free
+to self-host, and its gateway sends your model calls to the provider.
+
+**Best for:** small teams that want prompts, a gateway, traces and evals in one self-hosted app.
+
+| | AcruxCore | LangSmith |
+|---|---|---|
+| License | Apache-2.0, no enterprise folder | Closed source |
+| Self-host | Free: Postgres, Redis, API, worker, web | Enterprise plan only |
+| Cheapest paid plan | None; the hosted plan is free to use | Plus: $39 per seat a month |
+| Gateway | Yes | Beta |
+
+**Where AcruxCore differs**
+
+- The gateway is part of the product. It holds your provider keys, caches responses, falls back
+  to a second model, and stops calls at a spend budget or a rate limit.
+- You define the tools a model can call and keep versions of them. AcruxCore runs a tool when
+  your code calls its API.
+- Roles and the audit log are free in every AcruxCore install. LangSmith keeps custom roles for
+  Enterprise.
+- Self-hosting needs two data stores, Postgres and Redis, with no ClickHouse.
+- The [MCP server](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client) lets a coding assistant run a stored prompt through the gateway and
+  read the trace that the run produced.
+
+**Limits of AcruxCore**
+
+- The AcruxCore repository went public in August 2026 and had 11 GitHub stars on 25 October 2026.
+- AcruxCore has no SAML or OIDC single sign-on. Sign-in is email or Google.
+- The gateway supports OpenAI, Anthropic, Gemini and OpenAI-compatible APIs. The SDKs are Python
+  and TypeScript only.
+
+Our longer comparison is [AcruxCore vs LangSmith](/blog/acrux-core-vs-langsmith).
+
+Sources: [license](https://github.com/AcruxCore/AcruxCore/blob/main/LICENSE),
+[compose file](https://github.com/AcruxCore/AcruxCore/blob/main/docker-compose.local.yml),
+[pricing](https://acruxcore.com/pricing).
+
 ## Tools other lists still recommend
 
 Older lists of LangSmith alternatives still include these five tools. Their status on
@@ -407,7 +428,7 @@ Older lists of LangSmith alternatives still include these five tools. Their stat
 
 - **Helicone** was acquired by Mintlify in March 2026. The service runs in maintenance mode: it
   gets security fixes, bug fixes and new models, but no new features.
-  ([source](https://www.helicone.ai/blog/joining-mintlify))
+  ([source](https://www.mintlify.com/blog/mintlify-acquires-helicone))
 - **Portkey** was acquired by Palo Alto Networks in May 2026. The open-source gateway repository
   has had no merged code since 25 May 2026.
   ([source](https://www.paloaltonetworks.com/company/press/2026/palo-alto-networks-completes-acquisition-of-portkey-to-secure-ai-agents))
@@ -426,24 +447,24 @@ Start at the top and stop at the first question you answer yes to.
 
 ### Best LangSmith alternative for a startup
 
-- **AcruxCore** if you want one self-hosted app for prompts, gateway, traces and evals, and the
-  hosted plan is free to use.
 - **Opik** if you want a paid cloud plan: $19 a month for up to 50 members.
 - **Langfuse** if you want the largest open-source community and $29 a month for unlimited users.
+- **AcruxCore**, our own product, if you want one self-hosted app for prompts, gateway, traces and
+  evals. Its hosted plan is free to use.
 
 ### Best free LangSmith alternative
 
-- **AcruxCore**, **MLflow** or **Arize Phoenix** to self-host without ClickHouse. AcruxCore runs
-  on Postgres and Redis. MLflow and Phoenix each run as one Python process on SQLite. Phoenix's
-  license forbids selling it as a hosted service.
+- **AcruxCore** (ours), **MLflow** or **Arize Phoenix** to self-host without ClickHouse.
+  AcruxCore runs on Postgres and Redis. MLflow and Phoenix each run as one Python process on
+  SQLite. Phoenix's license forbids selling it as a hosted service.
 - **Opik** for a free cloud plan that keeps data 60 days for up to 10 members.
 
 ### Self-hosted LangSmith alternatives for regulated teams
 
 - **Langfuse** and **Opik** keep every trace on your servers. Both also need ClickHouse, an
   analytics database you must run and back up.
-- **AcruxCore** keeps every trace on your servers on Postgres and Redis.
 - **MLflow** keeps every trace on your servers on Postgres and an S3-compatible store.
+- **AcruxCore**, our own product, keeps every trace on your servers on Postgres and Redis.
 
 ### LangSmith alternatives for enterprises
 
@@ -473,8 +494,9 @@ Not for tracing. The `traceable` decorator and the OpenTelemetry endpoint work w
 
 ### What is the best open-source LangSmith alternative?
 
-Langfuse has the most GitHub stars of the open-source alternatives: 35,957. AcruxCore and MLflow add a gateway
-to tracing, prompts and evals. Opik adds automatic prompt optimization.
+Langfuse has the most GitHub stars of the open-source alternatives: 36,448 on 25 October 2026.
+AcruxCore (ours) and MLflow add a gateway to tracing, prompts and evals. Opik adds automatic
+prompt optimization.
 
 ## Related posts
 

@@ -4,8 +4,35 @@
 export interface RedirectEntry {
   /** Site-relative path that no longer has a page, e.g. `/blog/tags/langfuse`. */
   from: string;
-  /** Site-relative path of a page that exists in the build. */
+  /**
+   * Site-relative path of a page that exists in the build, or an absolute
+   * `https://` URL when the page now lives on the other host — a blog post
+   * that moved into the docs points at `https://docs.acruxcore.com/docs/…`.
+   */
   to: string;
+}
+
+/** Origin of the blog since it moved to the main domain (cross-cutting FAQ Q129). */
+export const BLOG_ORIGIN = 'https://acruxcore.com';
+
+/** Origin of the docs site, the target of a blog post that moved into the docs. */
+export const DOCS_ORIGIN = 'https://docs.acruxcore.com';
+
+/**
+ * Turns a retired blog entry's `to` into the absolute URL the old docs host
+ * redirects to.
+ *
+ * The docs host still answers the old `docs.acruxcore.com/blog/…` URLs, but it
+ * has no blog pages, so every target must name a host. A site-relative `to` is
+ * a blog page and gets the blog's origin. An absolute `to` already names its
+ * page (a post that moved into the docs) and is kept as it is, so the old URL
+ * reaches it in one hop rather than going through the blog host first.
+ *
+ * @param to - An entry's `to`: a site-relative path, or an absolute `https://` URL.
+ * @returns The absolute URL to write into the docs host's `_redirects`.
+ */
+export function blogTargetFromDocsHost(to: string): string {
+  return to.startsWith('/') ? `${BLOG_ORIGIN}${to}` : to;
 }
 
 /**
@@ -37,6 +64,13 @@ export const REDIRECTS: readonly RedirectEntry[] = [
     from: '/docs/guides/alias-and-track-usage-of-tools-in-the-catalog',
     to: '/docs/guides/version-and-track-a-tool',
   },
+  // A blog post that toured only our own dashboard. The blog compares and
+  // measures, so the tour moved into the docs; six posts and outside articles
+  // link the old URL.
+  {
+    from: '/blog/acruxcore-hands-on-walkthrough',
+    to: `${DOCS_ORIGIN}/docs/getting-started/dashboard-tour`,
+  },
   // Tags removed from blog/tags.yml as thin pages. Search Console still
   // showed them in results, so each points at the page that now holds
   // its intent: a competitor tag goes to that competitor's comparison
@@ -63,7 +97,7 @@ export const REDIRECTS: readonly RedirectEntry[] = [
 ];
 
 /**
- * The entries under `/blog/`: tag pages retired from the blog.
+ * The entries under `/blog/`: tag pages and posts retired from the blog.
  *
  * The blog is also built on its own for https://acruxcore.com/blog (see
  * docusaurus.blog.config.ts), and that build serves these from its own

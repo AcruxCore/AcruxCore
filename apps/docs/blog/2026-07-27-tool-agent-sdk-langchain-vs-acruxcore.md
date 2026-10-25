@@ -1,26 +1,32 @@
 ---
-title: "AcruxCore vs LangChain: the same tool-calling agent, built twice"
-description: "AcruxCore vs LangChain for tool-calling agents, tested. We rewrote the same agent with LangChain's create_agent and the AcruxCore SDK's run_tool_loop, ran both live, and compared the code and traces."
+title: "AcruxCore vs LangChain: one tool-calling agent, built twice"
+description: "AcruxCore vs LangChain for tool-calling agents: one agent built with LangChain's create_agent and the AcruxCore SDK's run_tool_loop, code and traces compared."
 slug: tool-agent-sdk-langchain-vs-acruxcore
+date: 2026-07-27
 authors: [acrux]
 tags: [llmops-comparison, llm-tracing]
 image: /img/social-card.png
 keywords: [AcruxCore vs langchain, langchain create_agent, langchain vs acruxcore sdk, run_tool_loop, agent sdk comparison, langchain tool tracing, python llm agent sdk]
+last_update:
+  date: 2026-10-25
 ---
 
-The [previous post](/blog/tool-calling-traces-langsmith-vs-acruxcore) compares how
-LangSmith and AcruxCore trace the same tool-calling agent.
+This post compares the code you write for a tool-calling agent when the tool is a function
+in your own app. We built the agent twice: once with LangChain's `create_agent`, and once with
+the AcruxCore SDK's `run_tool_loop`. Both use the same tool, the same question and the same
+model (`openai/gpt-4o-mini` via OpenRouter), and both ran live.
 
-This post compares the code you write when the tool is a function in your own app.
-LangChain's `create_agent` runs against the AcruxCore SDK's `run_tool_loop`. Same tool, same question, same model (`openai/gpt-4o-mini` via
-OpenRouter), both run live.
+A [separate post](/blog/tool-calling-traces-langsmith-vs-acruxcore) compares how LangSmith and
+AcruxCore trace the same agent.
+
+We build AcruxCore. We ran every tool ourselves, and the scripts are linked below.
 
 <!-- truncate -->
 
 ## LangChain: the tool is a decorated function, the loop is a graph
 
-LangChain derives the tool schema from your type hints and docstring, which is a genuinely
-nice trick — you write one function and the JSON Schema falls out of it:
+LangChain builds the tool schema from your type hints and docstring. You write one function,
+and LangChain derives the JSON Schema from it:
 
 ```python
 @tool
@@ -126,7 +132,7 @@ field, so nothing has to guess later:
 {"type": "http", "url": "...", "method": "GET", ...} // the platform runs it
 ```
 
-This post uses the first. The [previous post](/blog/tool-calling-traces-langsmith-vs-acruxcore)
+This post uses the first. The [tool-call traces post](/blog/tool-calling-traces-langsmith-vs-acruxcore)
 uses the second, which is why the tool here is named `get_weather_local` rather than reusing
 that post's `get_weather`: one name per execution model, so neither version lies about who
 does the work.
@@ -172,12 +178,14 @@ real code, excluding docstrings, comments and blank lines:
 The first row differs because the LangChain leg wires the model client itself —
 `ChatOpenAI(model=..., api_key=..., base_url=...)` plus the tracing env vars — while the
 AcruxCore leg names a model the gateway already knows. On the fully self-contained scripts
-the two are level at 40 lines each.
+the two have 40 lines each.
 
 Both figures are checkable: the two self-contained scripts are at the end of this post, and
 the pair behind the first row is here. They import one shared module for the tool body and
 the question, which is
-[printed in full in the previous post](/blog/tool-calling-traces-langsmith-vs-acruxcore#run-it-yourself-the-complete-scripts).
+[printed in full in the tool-call traces post](/blog/tool-calling-traces-langsmith-vs-acruxcore#run-it-yourself-the-complete-scripts).
+All four scripts in this post are in the repo under
+[`scripts/blogs/tool-agent-sdk-langchain-vs-acruxcore/`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/tool-agent-sdk-langchain-vs-acruxcore).
 
 <details>
 <summary><strong>tool_agent_langchain.py</strong> — LangChain's <code>create_agent</code>, 50 lines of code</summary>
@@ -364,14 +372,7 @@ if __name__ == "__main__":
 
 </details>
 
-:::note[The counting rule matters more than the numbers]
-An earlier version of this post showed AcruxCore winning by a wider margin, because the
-count left out getting the tool into the catalog — we had done that beforehand with curl, so
-the comparison charged LangChain for its `@tool` and charged us for nothing. If a benchmark
-shows a platform's own product winning, check what happened before the script ran.
-:::
-
-What you buy for those 40 lines still differs. LangChain gives you a graph and a large
+The 40 lines give you different things. LangChain gives you a graph and a large
 ecosystem of components. AcruxCore gives you a versioned catalog artifact your other
 services can call, in any language, and a version you can promote without redeploying the
 caller.
@@ -381,12 +382,12 @@ caller.
 For a tool-calling agent, yes. For an agent that needs LangChain's retrievers, memory and
 integrations, no.
 
-**On tool ergonomics they are now level.** Both decorators read the schema off your type
+**On tool ergonomics they are the same.** Both decorators read the schema off your type
 hints and docstring, and neither needs a separate registration step.
 
 **AcruxCore wins on the loop and the trace.** One call replaces the loop, parallel tool
 calls are dispatched concurrently for you, and the trace has one span per real event
-instead of a graph node per framework abstraction. Schema drift is also off the table: the
+instead of a graph node per framework abstraction. Schema drift also cannot happen: the
 model is handed whatever `production` points at, so the definition cannot fall out of step
 with the code the way a hand-maintained schema can.
 
@@ -407,7 +408,8 @@ buys you a versioned artifact and a cleaner trace, for the same amount of code.
 ## Run it yourself: the two complete scripts
 
 Everything above is excerpts. These two are the whole thing — no local imports, nothing to
-set up in a dashboard or a terminal first. Both were executed exactly as printed, and the
+set up in a dashboard or a terminal first. Both files are also in the repo under
+[`scripts/blogs/tool-agent-sdk-langchain-vs-acruxcore/python/`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/tool-agent-sdk-langchain-vs-acruxcore/python). Both were executed exactly as printed, and the
 output of those runs is shown underneath each one. Open either to copy it.
 
 <details>

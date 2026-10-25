@@ -103,7 +103,7 @@ export const ACRUX_CORE = {
   bestFor:
     'Teams that want prompts, gateway, tracing, and tools in one self-hosted product. Prompts are versioned, and the gateway sits in the request path. Tools are defined and versioned in AcruxCore, and the gateway runs them. From an MCP client such as Claude Code, you can commit a prompt version, promote it, run it through AcruxCore\'s gateway, and read the resulting trace. Feedback from users and notes from developers become a dataset of test cases. Standing rules score live traffic against that dataset. The optimizer proposes rewrites, and you promote a rewrite as a normal prompt version. Every change anyone makes is recorded with their name, whether you use the hosted product or self-host it. Langfuse and Agenta are the only other platforms here with an audit trail, and both put it on their Enterprise plan.',
   limitations:
-    'One team with no organization layer, and one role per member. No content or PII guardrails in the request path. Only the local MCP server has a read-only mode, not the hosted one. A smaller community than any of the seven competitors here.',
+    'One team with no organization layer, and one role per member. No content or PII guardrails in the request path. Only the local MCP server has a read-only mode, not the hosted one. A smaller community than any competitor on this page.',
   license: {
     value: 'Apache License 2.0, permissive and OSI-approved. No part of the repository is under a different license.',
     source: { label: 'LICENSE', href: `${GITHUB_URL}/blob/main/LICENSE` },
@@ -482,7 +482,7 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     bestFor:
       'Observability for agent runs, with SQL over spans, an LLM-watched Signals engine, and PII redaction. It has a workspace layer above projects, and three roles.',
     limitations:
-      'No prompt registry, so there is nothing to version or template. Nothing in the request path. The lite self-host stack switches Signals off and does not create the span index. The smallest community of the seven competitors.',
+      'No prompt registry, so there is nothing to version or template. Nothing in the request path. The lite self-host stack switches Signals off and does not create the span index. The smallest community of the competitors here.',
     license: {
       value: 'Apache License 2.0. At the commit we checked, no part of the repository was under a different license. The same terms as AcruxCore.',
       source: { label: 'LICENSE', href: 'https://github.com/lmnr-ai/lmnr/blob/main/LICENSE.md' },

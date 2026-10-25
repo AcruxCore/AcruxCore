@@ -1,24 +1,29 @@
 ---
-title: "Full-cycle latency across six LLM-ops platforms, measured against real OpenAI"
-description: We timed prompt-fetch-plus-completion, not just the model call, across Opik, MLflow, Langfuse, Helicone, Phoenix, and AcruxCore's gateway and gateway-free BYOK modes, against a real OpenAI baseline — then ran it four times to see what's stable and what isn't.
+title: "Full-cycle latency of six LLM-ops platforms vs real OpenAI"
+title_meta: "LLMOps Latency: Six Platforms vs OpenAI"
+description: Prompt fetch plus completion, timed against a real OpenAI baseline across Opik, MLflow, Langfuse, Helicone, Phoenix and AcruxCore, four runs each.
 slug: full-cycle-latency-benchmark
 date: 2026-08-11
 authors: [acrux]
 tags: [llmops-comparison, llm-latency, llm-gateway]
 image: /img/social-card.png
-keywords: [llm ops latency comparison, ai gateway latency, opik latency, mlflow ai gateway latency, langfuse latency, helicone latency, phoenix latency, byok latency, full cycle latency benchmark]
+keywords: [llm ops latency comparison, opik latency, mlflow ai gateway latency, langfuse latency, helicone latency, phoenix latency, full cycle latency benchmark]
+last_update:
+  date: 2026-10-25
 ---
 
-Every latency number we'd published before this measured one thing: the completion
-call. But a real request to any of these platforms is usually two round trips —
-fetch or resolve a stored prompt, **then** complete it — and most of them were
-benchmarked against OpenRouter, not the provider whose name is on the model.
+Opik, MLflow, Langfuse, Helicone, Phoenix, and AcruxCore all landed within about
+220 ms of each other on the median, between 810 ms and 1032 ms for a prompt fetch
+plus a `gpt-4o-mini` completion. In the latest of four runs, only Opik's gap
+against calling OpenAI directly was larger than the noise, and Opik was faster
+than the direct call, not slower.
 
-So this one measures the **full cycle**, on **real OpenAI billing**, across all six
-platforms plus both of AcruxCore's calling modes — eight paths in one interleaved
-run. We also ran it four independent times, because a single 100-round run against
-a live third-party API turned out to not be enough to trust a single number, and
-that's worth showing rather than hiding.
+The benchmark measures the **full cycle** on **real OpenAI billing**: a raw OpenAI
+baseline, the five other platforms, and AcruxCore's two calling modes, eight paths in one
+interleaved run. We ran it four independent times, because one 100-round run
+against a live third-party API is too noisy to trust a single number.
+
+We build AcruxCore. We ran every tool ourselves, and the scripts are linked below.
 
 <!-- truncate -->
 

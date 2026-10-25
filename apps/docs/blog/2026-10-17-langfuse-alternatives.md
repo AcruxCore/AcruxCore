@@ -1,6 +1,6 @@
 ---
 title: "8 best Langfuse alternatives for startups: self-hosted, cheaper and open source (2026)"
-description: "Eight Langfuse alternatives compared on self-host effort, license, price and what sits behind an enterprise plan, including which ones are lighter to run than Langfuse."
+description: "Eight Langfuse alternatives compared on self-host effort, license, price and enterprise-only features, including which are lighter to run than Langfuse."
 title_meta: "8 Best Langfuse Alternatives for Startups (2026)"
 slug: langfuse-alternatives
 date: 2026-10-17
@@ -8,22 +8,26 @@ authors: [acrux]
 tags: [llmops-comparison, llm-tracing, prompt-management]
 image: /img/blog/langfuse-alternatives/01-header.webp
 keywords: [langfuse alternatives, alternatives to langfuse, best langfuse alternatives, best langfuse alternatives for startups, self-hosted langfuse alternatives, cheaper alternatives to langfuse, langfuse competitors, open source langfuse alternatives]
+last_update:
+  date: 2026-10-25
 ---
 
-![Eight Langfuse alternatives in a grid, each with what it is best for, coloured by license: AcruxCore, MLflow, OpenLIT, Laminar and Opik open source, Arize Phoenix source-available, LangSmith and Braintrust closed source](/img/blog/langfuse-alternatives/01-header.webp)
+![Langfuse alternatives in a grid, each with what it is best for, coloured by license: AcruxCore (ours), MLflow, OpenLIT, Laminar and Opik open source, Arize Phoenix source-available, LangSmith and Braintrust closed source](/img/blog/langfuse-alternatives/01-header.webp)
 
 This post compares eight alternatives to Langfuse on self-hosting effort, license, price and the
 features that need an enterprise plan. For each Langfuse alternative, it lists what the tool adds
 and what it lacks.
 
+We build AcruxCore, one of the tools in this post. We do not rank it.
+
 <!-- truncate -->
 
 **The short answer**
 
-- **Self-hosted without ClickHouse:** AcruxCore runs on Postgres and Redis. MLflow and Arize
-  Phoenix each run as one Python process on SQLite.
+- **Self-hosted without ClickHouse:** AcruxCore (ours), MLflow and Arize Phoenix. AcruxCore runs
+  on Postgres and Redis. MLflow and Phoenix each run as one Python process on SQLite.
 - **Cheapest paid cloud:** Opik, at $19 a month.
-- **A gateway, prompts, traces and evals in one open-source tool:** AcruxCore or MLflow.
+- **A gateway, prompts, traces and evals in one open-source tool:** AcruxCore (ours) or MLflow.
 - **Built for LangChain apps:** LangSmith.
 
 ## Langfuse alternatives: feature comparison
@@ -33,7 +37,7 @@ and what it lacks.
 | Tool | License | Data stores to self-host | Hosted free plan | Cheapest paid plan | Data kept on the paid plan |
 |---|---|---|---|---|---|
 | **Langfuse** | MIT core; enterprise (`ee/`) folders commercial | 4: Postgres, ClickHouse, Redis, S3 | Hobby: 50,000 units, 2 users, 30 days | Core: $29 a month, unlimited users | 90 days |
-| AcruxCore | Apache-2.0 | 2: Postgres, Redis | Free; span content kept 90 days | None; the hosted plan is free | Not applicable |
+| AcruxCore (ours) | Apache-2.0 | 2: Postgres, Redis | Free; span content kept 90 days | None; the hosted plan is free | Not applicable |
 | MLflow | Apache-2.0 | 1: SQLite (Postgres and S3 for production) | None outside Databricks | Through Databricks | You decide |
 | OpenLIT | Apache-2.0; Enterprise Edition commercial | 2: ClickHouse, SQLite | No hosted plan yet | No public price | You decide |
 | Laminar | Apache-2.0 | 3: Postgres, ClickHouse, Quickwit | 1 GB, 1 seat, 7 days | Starter: $30 a month, unlimited seats | 30 days |
@@ -47,7 +51,7 @@ and what it lacks.
 | Tool | Prompt versions | Gateway (your model calls pass through it) | Evals on datasets | Evals on live traffic | MCP server | Status in 2026 |
 |---|---|---|---|---|---|---|
 | **Langfuse** | Yes | No | Yes | Yes | Yes: prompts, traces, datasets, scores | Active; owned by ClickHouse since January 2026 |
-| AcruxCore | Yes | Yes | Yes | Yes | [Yes](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client): prompts (write and run), traces, experiments, tools | Active; public since August 2026 |
+| AcruxCore (ours) | Yes | Yes | Yes | Yes | [Yes](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client): prompts (write and run), traces, experiments, tools | Active; public since August 2026 |
 | MLflow | Yes | Yes | Yes | Yes | Yes: traces, judges | Active; a Linux Foundation project |
 | OpenLIT | Yes | No | Not in the docs we read | Yes | Not checked | Active; hosted plan announced, not launched |
 | Laminar | No | No | Yes | Signals (rules in plain English) | Yes: read-only traces | Active |
@@ -60,6 +64,18 @@ A **unit** on Langfuse is one trace, one step inside a trace, or one score. A **
 step inside a trace. "Data stores" counts databases, caches, queues and file stores, not the
 application containers. **Closed source** means the vendor publishes no server code. An **MCP
 server** lets a coding assistant, such as Claude Code or Cursor, work with the platform's data.
+
+Plans and prices as read on each vendor's pricing page on 17 October 2026.
+
+:::tip[Our product: AcruxCore]
+
+We build AcruxCore, so we do not rank it. AcruxCore covers prompts, tracing and evals like
+Langfuse, and adds a gateway. A self-hosted AcruxCore needs only Postgres and Redis, with no
+ClickHouse. It fits a small team that wants all four parts in one self-hosted app. It does not fit
+a team that needs SAML or OIDC single sign-on, data retention set per project, or an SDK other than
+Python and TypeScript. The details are in [About AcruxCore](#about-acruxcore).
+
+:::
 
 If you want the self-hostable tools at a glance, the [comparison page](https://acruxcore.com/compare) puts AcruxCore
 next to Langfuse and five other self-hostable platforms, feature by feature.
@@ -98,54 +114,15 @@ Sources: Langfuse [license](https://github.com/langfuse/langfuse/blob/main/LICEN
 - **Every fact comes from the vendor:** the pricing page, the docs, the license file or the
   repository's compose file, read on 17 October 2026. The MCP servers, except OpenLIT's,
   were checked on 18 October 2026. We do not use other comparison lists as sources.
+- **AcruxCore is not ranked.** We build it, so it has its own section after the ranked tools.
 
 ## Self-hosted Langfuse alternatives
 
-These five tools use a license approved by the Open Source Initiative, and each one is free to
-self-host.
+These four tools use a license approved by the Open Source Initiative, and each one is free to
+self-host. AcruxCore (ours) also meets both rules: it is Apache-2.0 and free to self-host. It is
+not ranked, because we build it; it is described in [About AcruxCore](#about-acruxcore).
 
-### 1. AcruxCore
-
-AcruxCore vs Langfuse: both are open source and cover prompts, tracing and evals. AcruxCore also
-has a gateway. A self-hosted AcruxCore needs only Postgres and Redis.
-
-**Best for:** small teams that want prompts, a gateway, traces and evals in one self-hosted app.
-
-| | AcruxCore | Langfuse |
-|---|---|---|
-| License | Apache-2.0, no enterprise folder | MIT core; enterprise (`ee/`) folders commercial |
-| Self-host | Postgres, Redis, API, worker, web | Postgres, ClickHouse, Redis, S3, web, worker |
-| Cheapest paid plan | None; the hosted plan is free to use | Core: $29 a month, 100,000 units |
-| Gateway | Yes | No |
-
-**Where AcruxCore differs**
-
-- The gateway is part of the product. It holds your provider keys, caches responses, falls back
-  to a second model, and stops calls at a spend budget or a rate limit.
-- You define the tools a model can call and keep versions of them. AcruxCore runs a tool when
-  your code calls its API.
-- Roles and the audit log are free in every AcruxCore install. Langfuse keeps the audit log and
-  project-level roles for its enterprise license.
-- A prompt run can rewrite the prompt for you and score the new version against a dataset.
-- The [MCP server](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client) lets a coding assistant run a stored prompt through the gateway and
-  read the trace that the run produced.
-
-**Limits of AcruxCore**
-
-- The AcruxCore repository went public in August 2026 and has 11 GitHub stars. Langfuse has
-  35,957 stars.
-- AcruxCore has no SAML or OIDC single sign-on. Sign-in is email or Google.
-- AcruxCore deletes span content after 90 days by default. One setting covers the whole install,
-  not each project.
-- The SDKs are Python and TypeScript only.
-
-Our hands-on comparison is [AcruxCore vs Langfuse](/blog/acruxcore-vs-langfuse).
-
-Sources: [license](https://github.com/AcruxCore/AcruxCore/blob/main/LICENSE),
-[compose file](https://github.com/AcruxCore/AcruxCore/blob/main/docker-compose.local.yml),
-[pricing](https://acruxcore.com/pricing).
-
-### 2. MLflow
+### 1. MLflow
 
 MLflow vs Langfuse: MLflow is an Apache-2.0 ML platform with tracing, a prompt registry, judges
 and a gateway in one server.
@@ -182,7 +159,7 @@ Sources: [license](https://raw.githubusercontent.com/mlflow/mlflow/master/LICENS
 [compose file](https://raw.githubusercontent.com/mlflow/mlflow/master/docker-compose/docker-compose.yml),
 [managed MLflow](https://www.databricks.com/product/managed-mlflow).
 
-### 3. OpenLIT
+### 2. OpenLIT
 
 OpenLIT vs Langfuse: OpenLIT is built on OpenTelemetry from the start and self-hosts on
 ClickHouse plus one app container.
@@ -213,7 +190,7 @@ Sources: [license](https://github.com/openlit/openlit/blob/main/LICENSE),
 [compose file](https://github.com/openlit/openlit/blob/main/docker-compose.yml),
 [docs](https://docs.openlit.io), [pricing](https://openlit.io/pricing).
 
-### 4. Laminar
+### 3. Laminar
 
 Laminar vs Langfuse: Laminar is open-source tracing built for agents, with SQL over your traces
 and no prompt management.
@@ -248,7 +225,7 @@ Sources: [repository](https://github.com/lmnr-ai/lmnr),
 [compose file](https://github.com/lmnr-ai/lmnr/blob/main/docker-compose.yml),
 [pricing](https://laminar.sh/pricing).
 
-### 5. Opik
+### 4. Opik
 
 Opik vs Langfuse: the whole Opik platform is Apache-2.0, and Opik has the cheapest paid cloud
 plan here.
@@ -288,7 +265,7 @@ Sources: [README and license](https://github.com/comet-ml/opik/blob/main/README.
 
 ## Source-available: Arize Phoenix
 
-### 6. Arize Phoenix
+### 5. Arize Phoenix
 
 Phoenix vs Langfuse: Phoenix self-hosts in one container with no feature limits. Its license,
 the Elastic License 2.0, is not approved by the Open Source Initiative.
@@ -328,7 +305,7 @@ Sources: [license](https://github.com/Arize-ai/phoenix/blob/main/LICENSE),
 LangSmith and Braintrust publish no server code. Self-hosting either one needs an enterprise
 contract.
 
-### 7. LangSmith
+### 6. LangSmith
 
 LangSmith vs Langfuse: LangSmith is the LangChain team's hosted platform. Langfuse is open source
 and free to self-host.
@@ -363,7 +340,7 @@ Sources: [pricing](https://www.langchain.com/pricing),
 [gateway](https://docs.langchain.com/langsmith/llm-gateway),
 [self-hosting](https://docs.langchain.com/langsmith/architectural-overview).
 
-### 8. Braintrust
+### 7. Braintrust
 
 Braintrust vs Langfuse: Braintrust is a closed-source, hosted platform built around evals, with a flat
 price and unlimited users.
@@ -399,6 +376,49 @@ Sources: [pricing](https://www.braintrust.dev/pricing),
 [gateway](https://www.braintrust.dev/docs/deploy/gateway),
 [Loop](https://www.braintrust.dev/docs/guides/loop).
 
+## About AcruxCore
+
+AcruxCore is our own product, so it has no rank in this list.
+
+AcruxCore vs Langfuse: both are open source and cover prompts, tracing and evals. AcruxCore also
+has a gateway. A self-hosted AcruxCore needs only Postgres and Redis.
+
+**Best for:** small teams that want prompts, a gateway, traces and evals in one self-hosted app.
+
+| | AcruxCore | Langfuse |
+|---|---|---|
+| License | Apache-2.0, no enterprise folder | MIT core; enterprise (`ee/`) folders commercial |
+| Self-host | Postgres, Redis, API, worker, web | Postgres, ClickHouse, Redis, S3, web, worker |
+| Cheapest paid plan | None; the hosted plan is free to use | Core: $29 a month, 100,000 units |
+| Gateway | Yes | No |
+
+**Where AcruxCore differs**
+
+- The gateway is part of the product. It holds your provider keys, caches responses, falls back
+  to a second model, and stops calls at a spend budget or a rate limit.
+- You define the tools a model can call and keep versions of them. AcruxCore runs a tool when
+  your code calls its API.
+- Roles and the audit log are free in every AcruxCore install. Langfuse keeps the audit log and
+  project-level roles for its enterprise license.
+- A prompt run can rewrite the prompt for you and score the new version against a dataset.
+- The [MCP server](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client) lets a coding assistant run a stored prompt through the gateway and
+  read the trace that the run produced.
+
+**Limits of AcruxCore**
+
+- The AcruxCore repository went public in August 2026 and had 11 GitHub stars on 25 October 2026.
+  Langfuse had 36,448.
+- AcruxCore has no SAML or OIDC single sign-on. Sign-in is email or Google.
+- AcruxCore deletes span content after 90 days by default. One setting covers the whole install,
+  not each project.
+- The SDKs are Python and TypeScript only.
+
+Our hands-on comparison is [AcruxCore vs Langfuse](/blog/acruxcore-vs-langfuse).
+
+Sources: [license](https://github.com/AcruxCore/AcruxCore/blob/main/LICENSE),
+[compose file](https://github.com/AcruxCore/AcruxCore/blob/main/docker-compose.local.yml),
+[pricing](https://acruxcore.com/pricing).
+
 ## Tools other lists still recommend
 
 Older lists of Langfuse alternatives still include these six tools. Their status on
@@ -412,7 +432,7 @@ Older lists of Langfuse alternatives still include these six tools. Their status
   ([source](https://agenta.ai/docs/))
 - **Helicone** was acquired by Mintlify in March 2026. The service runs in maintenance mode: it
   gets security fixes, bug fixes and new models, but no new features.
-  ([source](https://www.helicone.ai/blog/joining-mintlify))
+  ([source](https://www.mintlify.com/blog/mintlify-acquires-helicone))
 - **Portkey** was acquired by Palo Alto Networks in May 2026. The open-source gateway repository
   has had no merged code since 25 May 2026.
   ([source](https://www.paloaltonetworks.com/company/press/2026/palo-alto-networks-completes-acquisition-of-portkey-to-secure-ai-agents))
@@ -433,10 +453,10 @@ Start at the top and stop at the first question you answer yes to.
 
 ### Best Langfuse alternative for a startup
 
-- **AcruxCore** if you want one self-hosted app for prompts, gateway, traces and evals, and the
-  hosted plan is free to use.
 - **Opik** if you want a paid cloud plan: $19 a month for up to 50 members.
 - **MLflow** if you already use MLflow and want a gateway in the same server.
+- **AcruxCore**, our own product, if you want one self-hosted app for prompts, gateway, traces and
+  evals. Its hosted plan is free to use.
 
 ### Cheaper alternatives to Langfuse
 
@@ -452,9 +472,9 @@ Start at the top and stop at the first question you answer yes to.
 
 ### Best free Langfuse alternative
 
-- **AcruxCore**, **MLflow** or **Arize Phoenix** to self-host without ClickHouse. AcruxCore runs
-  on Postgres and Redis. MLflow and Phoenix each run as one Python process on SQLite. Phoenix's
-  license forbids selling it as a hosted service.
+- **AcruxCore** (ours), **MLflow** or **Arize Phoenix** to self-host without ClickHouse.
+  AcruxCore runs on Postgres and Redis. MLflow and Phoenix each run as one Python process on
+  SQLite. Phoenix's license forbids selling it as a hosted service.
 - **Opik** for a free cloud plan that keeps data 60 days for up to 10 members.
 
 ### For AI agent observability

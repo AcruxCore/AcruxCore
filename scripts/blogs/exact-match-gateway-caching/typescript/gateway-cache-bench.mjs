@@ -1,6 +1,6 @@
 /**
  * Exact-match cache benchmark backing "Exact-Match Gateway Caching: How Much
- * Latency and Spend It Actually Saves" (../2026-08-01-exact-match-gateway-caching.md).
+ * Latency and Spend It Actually Saves" (apps/docs/blog/2026-08-01-exact-match-gateway-caching.md).
  *
  * Sends the same fixed set of prompts through the gateway repeatedly, using a
  * virtual key with cacheTtlSeconds set. The first pass through each prompt is
@@ -9,7 +9,8 @@
  * than guessing hit/miss from latency alone.
  *
  * Env vars: ACRUXCORE_BASE_URL (default http://localhost:3001/api/v1),
- * ACX_CACHE_BENCH_KEY (a virtual key created with cacheTtlSeconds > 0).
+ * ACX_CACHE_BENCH_KEY (a virtual key created with cacheTtlSeconds > 0), and
+ * optionally ACX_CACHE_BENCH_MODEL (the gateway model name, default gpt-4o-mini).
  *
  * Usage: node gateway-cache-bench.mjs [passes]
  */
@@ -19,6 +20,7 @@ import { writeFileSync } from 'node:fs';
 const BASE = process.env.ACRUXCORE_BASE_URL ?? 'http://localhost:3001/api/v1';
 const KEY = process.env.ACX_CACHE_BENCH_KEY;
 const PASSES = Number(process.argv[2] ?? 4);
+const MODEL = process.env.ACX_CACHE_BENCH_MODEL ?? 'gpt-4o-mini';
 
 if (!KEY) {
   console.error('Set ACX_CACHE_BENCH_KEY to a virtual key with cacheTtlSeconds > 0');
@@ -37,7 +39,7 @@ async function call(content) {
     method: 'POST',
     headers: { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'gpt-4o-mini',
+      model: MODEL,
       messages: [{ role: 'user', content }],
       max_tokens: 5,
       temperature: 0, // required — an omitted temperature is never cached

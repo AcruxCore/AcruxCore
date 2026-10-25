@@ -64,37 +64,20 @@ export default function Root({ children }: { children: ReactNode }): ReactNode {
   return (
     <>
       {children}
-      <div
-        role="region"
-        aria-label="Cookie consent"
-        style={{
-          position: 'fixed',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 200,
-          borderTop: '1px solid var(--ifm-toc-border-color)',
-          background: 'var(--ifm-background-surface-color)',
-          padding: '1rem 1.5rem',
-          boxShadow: '0 -4px 12px rgba(0, 0, 0, 0.08)',
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 960,
-            margin: '0 auto',
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '0.75rem',
-          }}
-        >
-          <p style={{ margin: 0, fontSize: '0.85rem' }}>
-            We use cookies to understand site traffic with Google Analytics. We only set analytics
-            cookies if you accept — see our <Link to="https://acruxcore.com/privacy">Privacy Policy</Link>.
+      {/* Layout lives in custom.css (.acx-consent): on a phone it is one row,
+          a short sentence beside the buttons, and on touch screens the buttons
+          are 44px tall. */}
+      <div role="region" aria-label="Cookie consent" className="acx-consent">
+        <div className="acx-consent__inner">
+          <p className="acx-consent__text">
+            <span className="acx-consent__short">We set analytics cookies only if you accept. </span>
+            <span className="acx-consent__long">
+              We use cookies to understand site traffic with Google Analytics. We only set analytics
+              cookies if you accept — see our{' '}
+            </span>
+            <Link to="https://acruxcore.com/privacy">Privacy Policy</Link>.
           </p>
-          <div style={{ display: 'flex', gap: '0.5rem', flex: 'none' }}>
+          <div className="acx-consent__actions">
             <button
               type="button"
               className="button button--secondary button--sm"

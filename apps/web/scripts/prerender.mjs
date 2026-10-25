@@ -16,7 +16,7 @@ const webRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SITE_ORIGIN = 'https://acruxcore.com';
 const MARKER = '<!--app-html-->';
 
-const { render, ROUTES, buildLlmsTxt } = await import(resolve(webRoot, 'dist-ssr/entry-prerender.js'));
+const { render, renderNotFound, noindexShell, ROUTES, buildLlmsTxt, pageStructuredData } = await import(resolve(webRoot, 'dist-ssr/entry-prerender.js'));
 
 const indexPath = resolve(webRoot, 'dist/index.html');
 const template = readFileSync(indexPath, 'utf8');
@@ -64,25 +64,25 @@ function patchHead(html, route) {
  * outside a string and is escaped here for the case where it appears inside
  * one.
  */
-function addStructuredData(html, route) {
-  if (!route.structuredData) return html;
-  const json = route.structuredData.replace(/<\//g, '<\\/');
+function addStructuredData(html, structuredData) {
+  if (!structuredData) return html;
+  const json = structuredData.replace(/<\//g, '<\\/');
   return html.replace(
     '</head>',
     `<script type="application/ld+json">${json}</script></head>`,
   );
 }
 
-for (const route of ROUTES) {
-  const appHtml = render(route.path);
-  const page = addStructuredData(patchHead(template, route), route).replace(MARKER, appHtml);
-  const outPath = resolve(webRoot, 'dist', route.out);
-  mkdirSync(dirname(outPath), { recursive: true });
-  writeFileSync(outPath, page);
-  console.log(`Prerendered ${route.path} → dist/${route.out} (${appHtml.length} bytes).`);
+/**
+ * Append the route's WebPage + BreadcrumbList graph (see
+ * src/marketing/structured-data.ts). Every route gets one, the landing page
+ * included: it is what gives each page its own URL in the structured data,
+ * where the site-wide blocks in index.html all point at the home page.
+ */
+function addPageGraph(html, route) {
+  const json = pageStructuredData(route).replace(/<\//g, '<\\/');
+  return html.replace('</head>', `<script type="application/ld+json">${json}</script></head>`);
 }
-
-console.log(`Prerendered ${ROUTES.length} marketing route(s).`);
 
 // --- sitemap.xml -----------------------------------------------------------
 //
@@ -213,6 +213,43 @@ if (undated.length > 0) {
       `src/marketing/page-dates.json.`,
   );
 }
+
+// --- pages -----------------------------------------------------------------
+//
+// Written after the dates are resolved, because each page states its own change
+// date as the `dateModified` of its WebPage node (see src/marketing/structured-data.ts). Without it
+// the only date on a marketing page is the footer's "© 2026", which date
+// extractors read as 1 January 2026.
+for (const route of ROUTES) {
+  const appHtml = render(route.path);
+  const lastmod = routeLastmod(route);
+  const page = addPageGraph(addStructuredData(patchHead(template, route), route.structuredData), {
+    ...route,
+    dateModified: lastmod,
+  }).replace(MARKER, appHtml);
+  const outPath = resolve(webRoot, 'dist', route.out);
+  mkdirSync(dirname(outPath), { recursive: true });
+  writeFileSync(outPath, page);
+  console.log(`Prerendered ${route.path} → dist/${route.out} (${appHtml.length} bytes).`);
+}
+
+console.log(`Prerendered ${ROUTES.length} marketing route(s).`);
+
+// --- 404 page and app shell --------------------------------------------------
+//
+// nginx answers a path that is neither a prerendered page nor a dashboard route
+// with dist/404.html and a real 404 status. Dashboard routes (/login, /prompts,
+// …) get dist/app-shell.html with a 200: an empty #root that the React app
+// fills in. Both say `noindex` in the HTML itself and carry no canonical link.
+// Before these existed, every unknown path returned the landing page with a 200,
+// which told crawlers an unbounded set of URLs were copies of the home page.
+const notFoundHtml = renderNotFound();
+writeFileSync(
+  resolve(webRoot, 'dist/404.html'),
+  noindexShell(template, 'Page not found — AcruxCore').replace(MARKER, notFoundHtml),
+);
+writeFileSync(resolve(webRoot, 'dist/app-shell.html'), noindexShell(template, 'AcruxCore').replace(MARKER, ''));
+console.log(`Wrote dist/404.html (${notFoundHtml.length} bytes) and dist/app-shell.html.`);
 
 const sitemap = [
   '<?xml version="1.0" encoding="UTF-8"?>',

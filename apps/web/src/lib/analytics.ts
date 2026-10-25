@@ -112,11 +112,43 @@ export function setAnalyticsConsent(value: ConsentValue): void {
 }
 
 /**
+ * Runs `task` once the page has finished loading and the main thread is idle.
+ *
+ * Waits for the window `load` event (or runs straight away if it already
+ * fired), then hands `task` to `requestIdleCallback`, with a 2-second ceiling so
+ * a busy page still gets it. Browsers without `requestIdleCallback` (Safari)
+ * fall back to a zero-delay timer after `load`.
+ *
+ * @param task - Work that must not compete with the page's own first render.
+ */
+export function whenPageIsIdle(task: () => void): void {
+  const schedule = (): void => {
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(() => task(), { timeout: 2000 });
+    } else {
+      window.setTimeout(task, 0);
+    }
+  };
+  if (document.readyState === 'complete') {
+    schedule();
+  } else {
+    window.addEventListener('load', schedule, { once: true });
+  }
+}
+
+/**
  * Boots Google Analytics 4 behind Google Consent Mode v2: `analytics_storage`
  * defaults to denied, so no analytics cookie is set until the visitor accepts
  * the cookie banner (or the shared `.acruxcore.com` consent cookie already
  * records an earlier "accept" from this or the docs subdomain). Call once,
  * as early as possible during app bootstrap.
+ *
+ * The consent default and the `js`/`config` commands are queued right away,
+ * so they are first in `dataLayer` whatever happens next. Only the gtag.js
+ * `<script>` itself (194 KiB) waits for {@link whenPageIsIdle}: it then reads
+ * the queue in order, so no hit is lost, and it no longer competes with the
+ * page's own JavaScript before first paint. It still loads before any consent
+ * choice — Consent Mode v2 sends cookieless pings while consent is denied.
  *
  * No-ops in local dev (`import.meta.env.PROD` false) and whenever
  * the container set no `GA4_MEASUREMENT_ID` (read from `/runtime-config.js`,
@@ -139,11 +171,13 @@ export function initAnalytics(): void {
     gtag('consent', 'update', { analytics_storage: 'granted' });
   }
 
-  const script = document.createElement('script');
-  script.async = true;
-  script.src = `https://www.googletagmanager.com/gtag/js?id=${ga4MeasurementId}`;
-  document.head.appendChild(script);
-
   gtag('js', new Date());
   gtag('config', ga4MeasurementId);
+
+  whenPageIsIdle(() => {
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${ga4MeasurementId}`;
+    document.head.appendChild(script);
+  });
 }

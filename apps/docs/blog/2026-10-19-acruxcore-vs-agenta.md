@@ -1,15 +1,21 @@
 ---
 title: "AcruxCore vs Agenta: built-in evaluators vs a gateway"
-description: "AcruxCore vs Agenta tested hands-on. One Jinja2 prompt on self-hosted Agenta 0.122.7 and AcruxCore, with screenshots from both and a 100-round latency benchmark run three times."
+description: "AcruxCore vs Agenta tested hands-on: one Jinja2 prompt on self-hosted Agenta 0.122.7 and AcruxCore, with screenshots and a latency benchmark run three times."
 slug: acruxcore-vs-agenta
 date: 2026-10-19
 authors: [acrux]
 tags: [llmops-comparison, prompt-management, llm-latency]
 image: /img/blog/acruxcore-vs-agenta/header.webp
 keywords: [AcruxCore vs agenta, agenta vs AcruxCore, agenta alternative, agenta self-hosted, llm evaluation platform, prompt management comparison, llm ops comparison]
+last_update:
+  date: 2026-10-25
 ---
 
 ![AcruxCore vs Agenta. Agenta is strongest at evaluation: 15 built-in evaluator types, annotation queues, human and live evaluations, and webhooks on deploy. AcruxCore is strongest at controlling the call: a gateway with budgets, a response cache, virtual keys, and versioned tools it runs.](/img/blog/acruxcore-vs-agenta/header.webp)
+
+The short answer: Agenta wins on evaluation, and AcruxCore wins on control of the model call.
+Agenta has 15 built-in evaluator types and annotation queues. AcruxCore has a gateway with
+budgets, caching and virtual keys, and a catalog of versioned tools that it runs.
 
 Agenta is an open-source platform from Agentatech UG. Its README describes a workspace
 where you build agents by chatting with them. You then talk to those agents in Slack,
@@ -22,6 +28,8 @@ AcruxCore, because those are the parts the two products share.
 We ran Agenta 0.122.7 on one machine with its own Docker Compose file. The prompt, the
 customer message and the model were the same on both sides. Each section below shows what
 we saw on Agenta, then what AcruxCore does with the same prompt.
+
+We build AcruxCore. We ran every tool ourselves, and the scripts are linked below.
 
 <!-- truncate -->
 

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { MarketingShell, ContentHeader } from '../MarketingShell';
 import { cssToStyle, BLOG_URL, Eyebrow } from '../marketing-chrome';
 import { FAQ_GROUPS, FaqAnswer } from '../faq';
+import { COMPETITOR_COUNT, HANDS_ON_EXTRA_PLATFORMS, HANDS_ON_PLATFORM_COUNT, PLATFORM_COUNT, countWord } from '../platform-counts';
 
 /**
  * Public FAQ page: the questions someone asks while deciding whether to use
@@ -23,8 +24,8 @@ export function FaqPage(): ReactNode {
       <ContentHeader
         eyebrow="Questions"
         title="Frequently asked questions"
-        lead="This page says what AcruxCore does, how it compares with six other platforms, and which teams should pick something else."
-        docTitle="FAQ — AcruxCore"
+        lead={`This page says what AcruxCore does, how it compares with the ${countWord(COMPETITOR_COUNT)} other platforms on our comparison page, and which teams should pick something else.`}
+        docTitle="AcruxCore FAQ — how it compares, and where it does not fit"
       />
 
       {/* Jump links: the page is long enough that the comparison group — the
@@ -84,12 +85,12 @@ export function FaqPage(): ReactNode {
           Where to look next
         </h2>
         <p className="acx-prose" style={cssToStyle('margin:0;')}>
-          The <Link to="/compare">comparison matrix</Link> puts the eight platforms side by side with
+          The <Link to="/compare">comparison matrix</Link> puts the {countWord(PLATFORM_COUNT)} platforms side by side with
           a source for each cell. The{' '}
           <a href={`${BLOG_URL}/hands-on-llm-ops-comparison`} target="_blank" rel="noreferrer">
-            hands-on test of ten platforms
+            hands-on test of {countWord(HANDS_ON_PLATFORM_COUNT)} platforms
           </a>{' '}
-          covers these eight, plus LangSmith and PromptLayer, in more detail. The{' '}
+          covers these {countWord(PLATFORM_COUNT)}, plus {HANDS_ON_EXTRA_PLATFORMS.join(' and ')}, in more detail. The{' '}
           <Link to="/contact">contact page</Link> reaches the AcruxCore team.
         </p>
       </section>

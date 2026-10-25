@@ -1,12 +1,14 @@
 ---
 title: "Self-hosting LLM observability: seven open-source tools measured"
-description: We ran the official self-host setup of Langfuse, Opik, Phoenix, MLflow, Laminar, Agenta and AcruxCore on one machine, sent each 1,000 traces, and measured memory, disk growth and the space the traces take.
+description: We self-hosted Langfuse, Opik, Phoenix, MLflow, Laminar, Agenta and AcruxCore on one machine, sent each 1,000 traces, and measured memory and disk.
 slug: self-hosting-llm-observability
 date: 2026-10-17
 authors: [acrux]
 tags: [llmops-comparison, llm-tracing]
 image: /img/blog/self-hosting-llm-observability/header.png
 keywords: [self-hosted llm observability, self-host langfuse, self-host opik, self-host phoenix, self-host mlflow, self-host agenta, self-host laminar, open source llm observability, llm observability docker compose, clickhouse disk usage]
+last_update:
+  date: 2026-10-25
 ---
 
 ![Bar chart of idle memory for seven self-hosted LLM observability stacks: AcruxCore 0.39 GiB, Phoenix 0.47, Laminar 1.11, MLflow 2.33, Langfuse 2.60, Agenta 2.62, Opik 3.69](/img/blog/self-hosting-llm-observability/header.png)
@@ -16,6 +18,8 @@ Open-source LLM observability tools describe self-hosting the same way. You clon
 The compose file behind that command fixes several things the self-host page does not list. The file sets how many containers you run and which databases come with them. Those containers set how much memory the server needs before the first trace arrives. The file's volume mounts decide whether your data survives a restart.
 
 We ran the official self-host setup of seven tools in October 2026: Langfuse, Opik, Phoenix, MLflow, Laminar, Agenta and AcruxCore. Each ran alone on the same machine. Each received the same 1,000 traces.
+
+We build AcruxCore. We ran every tool ourselves, and the scripts are linked below.
 
 <!-- truncate -->
 

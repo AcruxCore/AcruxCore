@@ -2,6 +2,7 @@ import { type ReactNode } from 'react';
 import { MarketingShell } from '../MarketingShell';
 import { cssToStyle, Eyebrow, CtaSection, Ic, useDocumentTitle, ExternalArrow } from '../marketing-chrome';
 import { ACRUX_CORE, COMPARISON_LIST, type Fact } from '../comparisons';
+import { COMPETITOR_COUNT, countWord } from '../platform-counts';
 
 /**
  * The verdict a single cell carries. Ties are marked as loudly as wins, so a reader
@@ -215,7 +216,7 @@ export function ComparePage(): ReactNode {
             'font-size:clamp(30px,4.4vw,48px);line-height:1.05;letter-spacing:-.026em;font-weight:700;margin:0 0 18px;max-width:22ch;text-wrap:balance;',
           )}
         >
-          AcruxCore next to seven open-source alternatives.
+          AcruxCore next to {countWord(COMPETITOR_COUNT)} open-source alternatives.
         </h1>
         <p
           style={cssToStyle(
@@ -232,7 +233,7 @@ export function ComparePage(): ReactNode {
 
       <section className="acx-compare-matrix" style={cssToStyle('padding:0 0 clamp(40px,6vw,64px);')}>
         <p className="acx-compare-hint" style={cssToStyle('font-size:12.5px;color:var(--faint);margin:0 4px 10px;')}>
-          Scroll right to see all seven competitors →
+          Scroll right to see all {countWord(COMPETITOR_COUNT)} competitors →
         </p>
         <div style={cssToStyle('overflow-x:auto;border:1px solid var(--line);border-radius:14px;')}>
           <table style={cssToStyle('width:100%;border-collapse:collapse;background:var(--surface);')}>

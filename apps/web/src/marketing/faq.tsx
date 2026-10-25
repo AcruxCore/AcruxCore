@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { BLOG_URL, DOCS_URL, GITHUB_URL } from './marketing-chrome';
+import { HANDS_ON_EXTRA_PLATFORMS, HANDS_ON_PLATFORM_COUNT, PLATFORM_COUNT, countWord } from './platform-counts';
 
 /**
  * One piece of an answer: either plain prose, or a link.
@@ -177,16 +178,16 @@ export const FAQ_GROUPS: FaqGroup[] = [
             'AcruxCore versions prompts and tools in the same place. The gateway runs those tools, and tracing records each model call. AcruxCore is also the only one of these platforms with an audit trail that costs nothing extra.',
           ],
           [
-            'All eight platforms have an MCP server, though Agenta’s only searches its documentation. AcruxCore’s ',
+            `All ${countWord(PLATFORM_COUNT)} platforms have an MCP server, though Agenta’s only searches its documentation. AcruxCore’s `,
             { text: 'MCP server', href: `${DOCS_URL}/docs/guides/connect-an-mcp-client` },
             ' is the only one of them that runs a stored, versioned prompt through a gateway.',
           ],
           [
             'The ',
             { text: 'comparison matrix', to: '/compare' },
-            ' puts the eight platforms side by side on eleven criteria, with a source for each cell. The ',
-            { text: 'hands-on test of ten platforms', href: COMPARE_POST },
-            ' covers all of them, plus LangSmith and PromptLayer, in more detail.',
+            ` puts the ${countWord(PLATFORM_COUNT)} platforms side by side, with a source for each cell. The `,
+            { text: `hands-on test of ${countWord(HANDS_ON_PLATFORM_COUNT)} platforms`, href: COMPARE_POST },
+            ` covers all of them, plus ${HANDS_ON_EXTRA_PLATFORMS.join(' and ')}, in more detail.`,
           ],
         ],
       },

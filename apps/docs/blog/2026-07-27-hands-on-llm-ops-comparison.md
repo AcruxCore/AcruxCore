@@ -1,11 +1,13 @@
 ---
 title: "10 LLM Observability Tools Tested Hands-On (2026)"
-description: We tested 10 LLM observability tools hands-on, including Langfuse, Opik, MLflow, Laminar and Agenta. We compare tracing, evals and measured latency, with screenshots.
+description: We tested 10 LLM observability tools hands-on, including Langfuse, Opik, MLflow, Laminar and Agenta, and compare tracing, evals and latency.
 slug: hands-on-llm-ops-comparison
 authors: [acrux]
 tags: [llmops-comparison, prompt-management, llm-tracing]
 image: /img/social-card.png
-keywords: [llm observability tools, ai observability, llm monitoring, ai agent observability, langsmith alternatives, langfuse alternatives, promptlayer alternatives, arize phoenix alternatives, opik alternatives, mlflow alternatives, helicone alternatives, laminar alternatives, agenta alternatives, open source llm observability, llm ops comparison, prompt management comparison, llm tracing comparison, llm evaluation comparison]
+keywords: [llm observability tools, ai observability, llm monitoring, ai agent observability, open source llm observability, llm ops comparison, prompt management comparison, llm tracing comparison, llm evaluation comparison]
+last_update:
+  date: 2026-10-25
 ---
 
 Most comparisons of the best LLM observability tools are written from docs and marketing pages. We didn't do that here.
@@ -21,6 +23,19 @@ below covers both. Prompt management, evals, guardrails, and tool calling get th
 sections too. For open source LLM observability tools that you can self-host,
 [a separate post](/blog/self-hosting-llm-observability) measures the memory and disk use of
 seven open source observability tools on one machine.
+
+**The short answer**
+
+- **Where AcruxCore is ahead:** it has a versioned tool catalog that runs your tools, and it sits
+  in the request path, so every call is traced and costed with no extra code. It also starts a
+  prompt rewrite from the dashboard, from answers a person marked wrong.
+- **Where AcruxCore is behind:** Opik and MLflow have content guardrails, and AcruxCore has none.
+  LangSmith, PromptLayer, Opik, Laminar and Agenta each have evaluation tools that AcruxCore
+  lacks. Laminar lets you query traces with SQL.
+- **Details for each tool** are in the sections below, and the full list is in
+  [Where AcruxCore stands](#where-acruxcore-stands).
+
+We build AcruxCore. We ran every tool ourselves, and the scripts are linked below.
 
 <!-- truncate -->
 
@@ -76,7 +91,7 @@ built for that side-by-side format:
 - [Hands-on with LangSmith](/blog/langsmith-hands-on-walkthrough)
 - [Hands-on with Langfuse](/blog/langfuse-hands-on-walkthrough)
 - [A hands-on walkthrough of PromptLayer](/blog/promptlayer-hands-on-walkthrough)
-- [A hands-on walkthrough of AcruxCore](/blog/acruxcore-hands-on-walkthrough)
+- [A tour of the AcruxCore dashboard](https://docs.acruxcore.com/docs/getting-started/dashboard-tour)
 - [AcruxCore vs Arize Phoenix](/blog/acruxcore-vs-phoenix)
 - [AcruxCore vs Opik](/blog/acruxcore-vs-opik)
 - [AcruxCore vs MLflow](/blog/acruxcore-vs-mlflow)
@@ -122,17 +137,16 @@ does each platform compare to AcruxCore," not as one ten-way race:
 | Guardrails / spend controls | None found | None found | None found | None found | Topic + PII guardrails, per project | Safety + PII + custom guardrails, and spend Budgets, per gateway endpoint | Rate Limit Rules (not content-inspecting); no PII/safety guardrail found | PII redaction on ingested spans; no spend control is possible from beside the path | None found — no spend cap, per-key rate limit or cache on invoke, and no content guardrail in its source | Spend caps and RPM/TPM limits enforced pre-call; no content guardrail |
 | Evaluation | Datasets + Experiments, hand-authored examples | Datasets + Experiments, hand-authored examples | A/B test on live traffic + ad-hoc model-comparison grid | Dataset from a trace span + LLM/Code evaluator split; a templated-prompt experiment failed on a variable-shape mismatch | Dataset from any trace + inline creation; UI experiments defer to the SDK; plus dedicated Test suites | Built-in LLM-as-judge + custom code judges; hit a real dataset-list-page bug | Datasets curated from Request rows; none existed since no call was ever logged this run | Code-first: your data, your executor, your scorer functions, run locally or in CI; datasets one click from a span; plus labeling queues | 15 built-in evaluator types set up in the UI (rules, code, webhook, LLM judge); auto, human, live and SDK evaluations; annotation queues | Datasets from feedback, typed by hand, or imported from a CSV/JSON file; plus rule-based online evaluation — a judge scoring every matching live trace |
 | Feedback → Playground → save loop | Feedback + Dataset + Annotation Queue exist, but no trace → Playground jump | Full loop: trace → Playground (pre-loaded) → Save as prompt | Full loop: Request → Playground (pre-loaded) → Save Template | Not run as this exact loop — see [Phoenix vs AcruxCore](/blog/acruxcore-vs-phoenix) | Not run as this exact loop — see [Opik vs AcruxCore](/blog/acruxcore-vs-opik) | Not run as this exact loop — see [MLflow vs AcruxCore](/blog/acruxcore-vs-mlflow) | Not run as this exact loop — see [Helicone vs AcruxCore](/blog/acruxcore-vs-helicone) | Trace → playground exists ("Experiment in playground"), but there is no prompt version to save back into | Not run as this exact loop — a trace has Playground, Add to testset and Annotate buttons; see [Agenta vs AcruxCore](/blog/acruxcore-vs-agenta) | Full loop, plus an automated version: feedback → drafted candidates → judged run → Promote to production |
-| Automatic prompt optimizer † | Polly's **Optimize prompt** rewrites the prompt conversationally in the Playground — no dataset, no scored candidates | None in the product — an Agent Skill for Claude Code edits prompts through the API from your editor | None found — A/B tests and eval pipelines score versions you wrote yourself | Arize's Prompt Learning does rewrite from eval results, but it is a separate clone-and-run repo, not part of the Phoenix app | **Opik Agent Optimizer** — MetaPrompt, GEPA, evolutionary and few-shot Bayesian search, SDK-driven, runs logged back to the UI | **`optimize_prompts()`** (experimental) — DSPy MIPROv2 or GEPA against a dataset, winner registered as a new prompt version; SDK-only | "Auto-Improve" was a single-pass rewrite in the prompt editor deprecated on 20 August 2025; nothing replaced it | No prompt registry, so there is nothing for an optimizer to rewrite | Not checked — this row comes from the 10 September 2026 docs check, before Agenta was added | **Improve from feedback** — failing cases draft candidates, each judged against production across a model grid, promote from the report; started in the dashboard |
+| Automatic prompt optimizer † | Polly's **Optimize prompt** rewrites the prompt conversationally in the Playground — no dataset, no scored candidates | None in the product — an Agent Skill for Claude Code edits prompts through the API from your editor | None found — A/B tests and eval pipelines score versions you wrote yourself | Arize's Prompt Learning does rewrite from eval results, but it is a separate clone-and-run repo, not part of the Phoenix app | **Opik Agent Optimizer** — MetaPrompt, GEPA, evolutionary and few-shot Bayesian search, SDK-driven, runs logged back to the UI | **`optimize_prompts()`** (experimental) — DSPy MIPROv2 or GEPA against a dataset, winner registered as a new prompt version; SDK-only | "Auto-Improve" was a single-pass rewrite in the prompt editor deprecated on 20 August 2025; nothing replaced it | No prompt registry, so there is nothing for an optimizer to rewrite | Not checked | **Improve from feedback** — failing cases draft candidates, each judged against production across a model grid, promote from the report; started in the dashboard |
 | Tool calling | Shows up as spans only; no catalog | Playground-scoped tool schema; no catalog | Per-request tool-call count; no catalog | Ad-hoc JSON Schema per Playground prompt; nothing executes or gets measured | No tool-catalog concept at all; its "Agent playground" needs a live process wired in by code | MCP Registry — catalogs external MCP *servers* by manifest, doesn't execute an individual tool | No tool-catalog concept found in any nav section checked | Tool schema is a JSONB field on a playground row; tool calls show as spans; nothing executes | Tool schemas typed per prompt; Composio actions and MCP servers for agents; no catalog of your own tools | Dedicated versioned Tool Catalog + a Tool analytics page |
 | Developer experience | `wrap_openai` + `@traceable` around your own OpenAI call | Drop-in OpenAI wrapper, built on OpenTelemetry | `pl_client.openai` wrapper around your own OpenAI call | `register()` + `OpenAIInstrumentor()`; no server-side render call, so template logic gets hand-duplicated in Python | `track_openai()` wraps a client you already own; trace appears once it's called | `load_prompt()` + `start_span()` + a separate `link_prompt_versions_to_trace()` call | No stored-prompt SDK call; a direct provider call plus a manual log() call that 500'd this run | One `Laminar.initialize()` auto-instruments your client; a CLI queries your own traces in SQL | `ag.init()` + `OpenAIInstrumentor()` + `@ag.instrument()` + `store_refs()` around your own call, or one invoke call for a stored prompt | `hub.prompts.render` + `hub.gateway.chat` — no direct call to a provider at all, Node and Python |
 | Measured overhead | Not benchmarked in this series | −22 ms in the six-platform full-cycle run, CI crosses zero | Not benchmarked in this series | −14 to +21 ms over 3 runs, CI crosses zero | +2 to +22 ms over 3 runs, CI crosses zero | **+135 to +225 ms** over 3 runs — never crosses zero | −15 to +3 ms over 3 runs, but forwarding only, nothing logged | −8 to +18 ms over 3 runs, CI crosses zero | Invoke −107 to +160 ms over 3 runs, on an OpenRouter baseline; CI crosses zero in every run | +4 to +51 ms over all 15 runs — see [Latency overhead](#latency-overhead--measured-on-seven-of-the-ten) below |
-| Audit trail | Not checked in this series | Present in the UI, gated behind the Enterprise plan ($2,499/mo — on hosted Langfuse too) | Not checked in this series | Not found in any settings page checked | Not found anywhere in the settings pages checked | Not found — Settings has only General, LLM Connections, and Webhooks | Not found in the settings pages checked | Not found in any project or workspace settings page checked | Enterprise plan only, on Agenta Cloud and self-hosted | Team-wide trail, on by default — 34 event types, filtered by area, event or person |
-| Pricing (what we actually saw) | Not verified hands-on | Not verified hands-on | Team Trial plan with visible quotas | See [compare page](https://acruxcore.com/compare) | See [compare page](https://acruxcore.com/compare) | See [compare page](https://acruxcore.com/compare) | See [compare page](https://acruxcore.com/compare) | See [compare page](https://acruxcore.com/compare) | See [compare page](https://acruxcore.com/compare) | Open source, free during public beta — no trial, no quota |
+| Audit trail | Not checked in this series | Present in the UI, gated behind the Enterprise plan ($2,499/mo in Oct 2026 — on hosted Langfuse too) | Not checked in this series | Not found in any settings page checked | Not found anywhere in the settings pages checked | Not found — Settings has only General, LLM Connections, and Webhooks | Not found in the settings pages checked | Not found in any project or workspace settings page checked | Enterprise plan only, on Agenta Cloud and self-hosted | Team-wide trail, on by default — 34 event types, filtered by area, event or person |
+| Pricing (what we actually saw) | Not verified hands-on | Not verified hands-on | Team Trial plan with visible quotas | See [compare page](https://acruxcore.com/compare) | See [compare page](https://acruxcore.com/compare) | See [compare page](https://acruxcore.com/compare) | See [compare page](https://acruxcore.com/compare) | See [compare page](https://acruxcore.com/compare) | See [compare page](https://acruxcore.com/compare) | Open source, free during public beta (Oct 2026) — no trial, no quota |
 
-† The prompt-optimizer row is the one row here **not** run hands-on. It was checked against each
-platform's own docs and source on 10 September 2026, after this comparison was published, because
-the original pass asked readers to tell us if a feedback-triggered rewrite loop existed elsewhere —
-and on two platforms it does. Every other row is something we drove ourselves.
+† The prompt-optimizer row is the one row here **not** run hands-on. It comes from each
+platform's own docs and source, checked on 10 September 2026. Every other row is something we
+drove ourselves.
 
 License, team structure, security, and community stats for Langfuse, Phoenix, Opik, MLflow,
 Helicone, Laminar, and Agenta live on the [compare page](https://acruxcore.com/compare) rather than repeated here
@@ -504,6 +518,14 @@ is quoting one sample. The
 version of this measurement we've published, and it puts Opik, MLflow, Langfuse, Helicone, and
 Phoenix in one interleaved run against AcruxCore's gateway and gateway-free BYOK modes.
 
+The benchmark script for each pairing is on GitHub:
+[Phoenix](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/phoenix-vs-acruxcore/python/latency_bench.py),
+[Opik](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/opik-vs-acruxcore/python/latency_bench.py),
+[MLflow](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/mlflow-vs-acruxcore/python/latency_bench.py),
+[Helicone](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/helicone-vs-acruxcore/python/latency_bench.py),
+[Laminar](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/laminar-vs-acruxcore/python/latency_bench.py) and
+[Agenta](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/agenta-vs-acruxcore/python/latency_bench.py).
+
 ## Evaluation
 
 :::info[Quick take]
@@ -769,8 +791,7 @@ or Agenta — their comparisons instead tested dataset-from-trace or evaluation 
 hands-on. An Agenta trace does have a **Playground** button, beside **Add to testset** and
 **Annotate**, but we did not follow it through to a saved version.
 
-**On two of them, an automated rewrite loop does exist**, and this is the correction to the
-question this section originally left open. **Opik** ships the Opik Agent Optimizer, an
+**On two of them, an automated rewrite loop does exist.** **Opik** ships the Opik Agent Optimizer, an
 Apache-2.0 package that rewrites a prompt against a dataset and a metric using MetaPrompt,
 GEPA, evolutionary or few-shot Bayesian search — more algorithms than AcruxCore implements,
 and it optimizes MCP tool signatures too. **MLflow** has `mlflow.genai.optimize_prompts()`,
@@ -781,8 +802,7 @@ repository you install by cloning, documented as a tutorial rather than shipped 
 
 Both Opik's and MLflow's are driven entirely from the SDK — there is no button in either
 product that starts one — and both begin from a dataset you already have rather than from
-feedback rows. That is the real difference now, and it is a narrower one than "nobody else
-does this": AcruxCore's version is reachable from the dashboard and starts at the point a
+feedback rows. AcruxCore's version is reachable from the dashboard and starts at the point a
 human says an answer was wrong. **Helicone**'s only optimizer was a single-pass rewrite in a
 prompt editor deprecated in August 2025, and **Langfuse** publishes an Agent Skill for Claude
 Code rather than anything in the product itself. These four were checked from docs and source
@@ -1151,8 +1171,8 @@ platform does, not just a different button for the same idea.
   fixture's actual `{% if %}`/`{% for %}` logic didn't need flattening.
 - An **MCP Registry** cataloging external Model Context Protocol servers, and a docked
   "MLflow Assistant" that can flag latency/correctness problems across recent traces.
-- By far the largest, oldest project compared here — 27,000+ GitHub stars, 444
-  contributors, shipping since 2018.
+- By far the largest, oldest project compared here — 28,526 GitHub stars and 447
+  contributors as of 25 October 2026, shipping since 2018.
 
 **Helicone**
 - **Rate Limit Rules** — a real rule builder, separate from the BYOK routing bugs we hit
@@ -1237,9 +1257,8 @@ nine competitors:
 
 1. The feedback → Playground → save loop that Langfuse and PromptLayer both have (and
    LangSmith doesn't) is fully present in AcruxCore too — plus an automated version of it in
-   **Improve from feedback**. This is the narrowest of the three advantages, and it narrowed
-   further after publication: Opik and MLflow both ship a real prompt optimizer, and Opik's
-   covers more algorithms than ours does. What neither has is a way to start one without
+   **Improve from feedback**. This is the narrowest of the three advantages. Opik and MLflow
+   both ship a real prompt optimizer, and Opik's covers more algorithms than ours does. What neither has is a way to start one without
    writing code, or a path that begins at a human marking an answer wrong rather than at a
    dataset you already built. For Laminar the loop is structurally impossible: it has the
    nicest trace → playground jump of any platform here, and no prompt version to save the
@@ -1260,7 +1279,7 @@ keys, members, gateway credentials, secrets, prompts and tools, filterable by ar
 or by the person who did it, and readable by an owner or admin from the day a workspace exists. This is
 scoped more tightly than the three above and we won't inflate it: it holds against the seven
 self-hostable platforms on the [compare page](https://acruxcore.com/compare). Five of them had no audit
-log we could find in any settings page. Langfuse's is real but gated behind the $2,499/mo Enterprise
+log we could find in any settings page. Langfuse's is real but gated behind the $2,499/mo (Oct 2026) Enterprise
 plan, on hosted Langfuse too. Agenta's is also Enterprise only, on Agenta Cloud and self-hosted.
 LangSmith and PromptLayer were never checked for it in this series, so read that row as seven
 platforms, not nine. What ours does not do yet is export or
@@ -1295,7 +1314,7 @@ missing category:
 - Opik's optimizer algorithms — GEPA and evolutionary search do something our single
   meta-prompt rewrite pass does not, and both are published, reproducible methods.
 - Opik's or MLflow's guardrails (a Topic/PII check on input or output) would close the
-  largest *capability* gap this expanded comparison surfaced — AcruxCore has no
+  largest *capability* gap this comparison surfaced — AcruxCore has no
   content-inspection layer at all today.
 - A lightweight, no-dataset-required comparison tool (PromptLayer's Model comparison) would
   remove the "nothing to evaluate yet" wall for brand-new AcruxCore accounts, without

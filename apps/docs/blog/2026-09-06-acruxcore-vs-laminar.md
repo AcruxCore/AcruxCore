@@ -7,18 +7,26 @@ authors: [acrux]
 tags: [llmops-comparison, llm-tracing, llm-latency]
 image: /img/social-card.png
 keywords: [AcruxCore vs laminar, laminar vs AcruxCore, llm ops comparison, agent observability, sql over traces, opentelemetry llm tracing]
+last_update:
+  date: 2026-10-25
 ---
 
 Laminar (`lmnr`) is a Y Combinator S24 project that calls itself observability **purpose-built
 for AI agents** — a Rust ingest server, ClickHouse for spans, Quickwit for search, and an
 OpenTelemetry SDK that instruments fifteen-plus agent frameworks from one line of code — Vercel
 AI SDK, Claude Agent SDK, OpenAI Agents SDK, LangChain DeepAgents, Mastra, Pydantic AI, Browser
-Use, Stagehand, Playwright, LiteLLM, OpenCode and OpenHands among them. It is
-the most differently shaped tool we have compared AcruxCore against. Its project sidebar has
+Use, Stagehand, Playwright, LiteLLM, OpenCode and OpenHands among them. Its project sidebar has
 dashboards, traces, evaluations, datasets, labeling, a SQL editor, playgrounds, a debugger and
 settings — and **no prompt registry anywhere**. That is not an oversight; it is the product
 being about agent runs rather than about the calls inside them. Both projects are Apache 2.0,
 so this is a comparison of shape, not of who is open.
+
+The short answer: Laminar is stronger at digging into an agent run, with SQL over spans,
+custom dashboards and labeling queues. AcruxCore covers what happens before the call:
+prompt versions and aliases, and a gateway that can refuse a call over budget. The two
+can run together.
+
+We build AcruxCore. We ran every tool ourselves, and the scripts are linked below.
 
 <!-- truncate -->
 
@@ -29,7 +37,7 @@ message. Both SDK runs end at the same downstream model, `gpt-4o-mini` on OpenAI
 generated text is comparable. Laminar's **playground** was configured with a direct OpenAI key
 and run for real, so its screenshot below is a completion rather than an empty state. The
 latency benchmark uses SDK paths on all three legs, every one of them ending at
-`api.openai.com`. Licence, pricing,
+`api.openai.com`. License, pricing,
 team structure and community stats live on the [compare page](https://acruxcore.com/compare)
 rather than here.
 :::
@@ -319,7 +327,7 @@ sampled numeric score, not arbitrary assertions.
 
 ## SDK and developer experience
 
-Laminar's onboarding is the most coding-agent-first we have seen. The empty traces page hands you
+Laminar's onboarding is built for coding agents. The empty traces page hands you
 a prompt to paste into your coding agent; `npx lmnr-cli setup` authenticates, writes a project key
 to `.env` and installs a "Laminar skill"; and the CLI can query your traces in SQL so the agent
 can verify its own instrumentation.
@@ -425,7 +433,7 @@ gateway and keep Laminar's SDK instrumenting the run. Nothing about the two conf
 | Weakest at | Anything before the call — no prompt registry, no request path, no spend control — and a playground that reaches only seven named providers, with no custom base URL | Asking arbitrary questions of your own trace data |
 | Pick it if | You are shipping an agent on a framework, and your hard problem is understanding its behaviour | Your prompts change often, several people edit them, and cost or access needs a control point |
 
-These two tools barely overlap, which is the most useful thing this comparison found. Laminar
+These two tools barely overlap. Laminar
 starts at the trace and builds upward — SQL, dashboards, labeling, signals, a debugger — and it
 beats us clearly on [querying trace data](#querying-your-trace-data), and on the breadth and
 reading of [traces](#tracing-an-agent-run) — both platforms take nested OTel spans, but they
@@ -436,10 +444,7 @@ AcruxCore starts at the prompt and
 the request — versions, aliases, templates, a gateway that can refuse a call that would blow a
 budget — and Laminar has no answer for any of that, by design.
 
-If you already run Laminar and your prompts are drifting across a team, the two compose fine:
-point your client at our gateway, keep Laminar's SDK instrumenting the run.
-
-Licence, pricing, team model, security and community stats for both — with a source link and a
+License, pricing, team model, security and community stats for both — with a source link and a
 checked-on date for every fact — are on the [compare page](https://acruxcore.com/compare).
 
 To compare more tools, see [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison),

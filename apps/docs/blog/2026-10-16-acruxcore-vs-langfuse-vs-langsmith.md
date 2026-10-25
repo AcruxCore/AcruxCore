@@ -7,6 +7,8 @@ authors: [acrux]
 tags: [llmops-comparison, prompt-management, llm-tracing]
 image: /img/blog/acruxcore-vs-langfuse-vs-langsmith/header.webp
 keywords: [acruxcore vs langfuse vs langsmith, llm observability comparison, prompt management, llm evaluation, llm tracing]
+last_update:
+  date: 2026-10-18
 ---
 
 ![AcruxCore vs Langfuse vs LangSmith, one app tested on all three. AcruxCore: open source with every feature, gateway built in, no review queue. Langfuse: open core with a big community, review queue, no gateway. LangSmith: closed platform, review queue, Go and Java SDKs](/img/blog/acruxcore-vs-langfuse-vs-langsmith/header.webp)

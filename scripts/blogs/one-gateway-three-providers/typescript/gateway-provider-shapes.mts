@@ -2,7 +2,7 @@
  * Captures the exact outbound request each gateway provider adapter builds from
  * one identical canonical (OpenAI-shaped) request, backing "One Gateway, Three
  * Providers: Comparing Anthropic, OpenAI, and Gemini Request Shapes Behind One
- * API" (../2026-08-01-one-gateway-three-providers.md).
+ * API" (apps/docs/blog/2026-08-01-one-gateway-three-providers.md).
  *
  * This imports the real, unmodified adapter classes from apps/api/src/gateway/
  * providers/ and calls their actual `chatCompletion` methods — no source file is
@@ -17,10 +17,10 @@
  * Usage: npx tsx gateway-provider-shapes.mts
  */
 
-import { AnthropicAdapter } from '../../../api/src/gateway/providers/anthropic.adapter';
-import { GeminiAdapter } from '../../../api/src/gateway/providers/gemini.adapter';
-import { OpenAiAdapter } from '../../../api/src/gateway/providers/openai.adapter';
-import type { NormalizedRequest } from '../../../api/src/gateway/providers/types';
+import { AnthropicAdapter } from '../../../../apps/api/src/gateway/providers/anthropic.adapter';
+import { GeminiAdapter } from '../../../../apps/api/src/gateway/providers/gemini.adapter';
+import { OpenAiAdapter } from '../../../../apps/api/src/gateway/providers/openai.adapter';
+import type { NormalizedRequest } from '../../../../apps/api/src/gateway/providers/types';
 
 // One request, identical across all three providers.
 const REQUEST: NormalizedRequest = {

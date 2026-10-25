@@ -6,6 +6,8 @@ authors: [acrux]
 tags: [prompt-management, llm-tracing]
 image: /img/social-card.png
 keywords: [langsmith walkthrough, langsmith tracing, langsmith prompt hub, langsmith evaluation, llm ops]
+last_update:
+  date: 2026-10-25
 ---
 
 We logged into the real, hosted version of LangSmith (US region) and worked through
@@ -13,7 +15,10 @@ the same four steps we're using across every platform in this comparison: create
 prompt, run it and inspect the trace, and build a small eval dataset. This post is
 just the LangSmith leg — screenshots, actual UI, no marketing copy. The
 [main comparison post](/blog/hands-on-llm-ops-comparison) pulls the findings from
-LangSmith, Langfuse, PromptLayer, and AcruxCore together.
+LangSmith, Langfuse, PromptLayer, and AcruxCore together. We tested LangSmith in July 2026,
+and the screenshots are from that month.
+
+We build AcruxCore. We ran every tool in this post ourselves.
 
 <!-- truncate -->
 
@@ -38,17 +43,27 @@ single `question` variable).
 
 ![LangSmith Playground with the acruxcore-support-assistant prompt loaded, showing System and Human messages, model gpt-5.6-terra, and an Inputs panel for the question variable](/img/tutorials/langsmith-walkthrough/ls-03-playground-loaded.png)
 
-Trying to actually run the prompt from here surfaced a real constraint worth
-noting: LangSmith's Playground needs **your own provider API key** (a BYOK model —
-bring your own key) before it will execute a call. There's no built-in gateway
-sitting in front of model providers.
+LangSmith's Playground needs **your own provider API key** (a BYOK model — bring
+your own key) before it will execute a call. There's no built-in gateway sitting in
+front of model providers. Without a key, the Playground asks for one:
 
 ![LangSmith Playground showing a "Secrets & API keys" panel requesting an OPENAI_API_KEY before the prompt can be run](/img/tutorials/langsmith-walkthrough/ls-04-playground-needs-api-key.png)
 
+You add the key under **Settings → Provider secrets → Browser Secrets**, the store the
+Playground reads from. With an OpenAI key there, the Playground calls the model and
+returns an answer:
+
+![LangSmith Playground showing a completed run: the question "What is prompt versioning in one sentence?" and a real generated answer beginning "Prompt versioning is the practice of tracking, managing..."](/img/tutorials/langsmith-walkthrough/ls-live-01-playground-run-success.jpg)
+
+That run produced a trace. A `RunnableSequence` parent holds a `RunnableLambda`, three
+`ChatPromptTemplate` spans, and the `gpt-5.6-terra` model call. The model call span shows
+its latency (2.69s) and token count (59).
+
+![LangSmith trace detail showing a RunnableSequence span tree with RunnableLambda and ChatPromptTemplate child spans feeding into a gpt-5.6-terra span, with 2.69s latency and 59 tokens, and the real generated output text](/img/tutorials/langsmith-walkthrough/ls-live-02-trace-span-tree.png)
+
 ## 3. Tracing: span-based, not proxy-based
 
-Rather than force a Playground run without a key, we checked the account's
-existing trace history — this is where LangSmith's tracing model is easiest to see.
+The account's existing trace history shows LangSmith's tracing model most clearly.
 The **Tracing** section lists projects (LangSmith's word for a trace-collection
 bucket), each showing trace count, latency percentiles, and cost.
 
@@ -83,34 +98,12 @@ Each submit gave an immediate "Example added to dataset" confirmation, and the
 Examples table updated in place. Running a full **Experiment** (an evaluation
 run against the dataset) needs the same provider key as the Playground.
 
-## Update: with a provider key configured
-
-After adding an OpenAI key to LangSmith's **Provider secrets** (Settings →
-Provider secrets → Browser Secrets, the store the Playground reads from), the
-BYOK wall above came down and we could confirm live execution end to end.
-
-Running the prompt from the Playground now actually calls the model and
-returns a real answer instead of asking for a key:
-
-![LangSmith Playground showing a completed run: the question "What is prompt versioning in one sentence?" and a real generated answer beginning "Prompt versioning is the practice of tracking, managing..."](/img/tutorials/langsmith-walkthrough/ls-live-01-playground-run-success.jpg)
-
-That run produced a fresh trace, confirming the span tree is real, not just a
-UI mock: a `RunnableSequence` parent containing a `RunnableLambda`, three
-`ChatPromptTemplate` spans, and the `gpt-5.6-terra` model call itself, with
-real latency (2.69s) and token count (59) attached to the leaf span.
-
-![LangSmith trace detail showing a RunnableSequence span tree with RunnableLambda and ChatPromptTemplate child spans feeding into a gpt-5.6-terra span, with 2.69s latency and 59 tokens, and the real generated output text](/img/tutorials/langsmith-walkthrough/ls-live-02-trace-span-tree.png)
-
-With a key in place, a full **Experiment** run against the `acruxcore-support-qa`
-dataset also completes: 5 examples, each with input/reference-output/actual-output
-columns, an automatic **Correctness** evaluator score of 0.80, and P50/P99 latency
+With the key in place, an Experiment run against the `acruxcore-support-qa` dataset
+completed. It covered 5 examples, each with input, reference-output and actual-output
+columns. The automatic **Correctness** evaluator scored 0.80, and P50/P99 latency was
 around 0.99s.
 
 ![LangSmith experiment results grid for acruxcore-support-assistant-v2-gpt4o-mini showing 5 rows with Inputs, Reference Outputs, and generated Outputs columns](/img/tutorials/langsmith-walkthrough/ls-live-03-experiment-results.jpg)
-
-So the earlier "needs BYOK" note wasn't a dead end — it's a one-time setup
-step. Once a provider key is in place, Playground runs, tracing, and full
-dataset Experiments all work exactly as advertised.
 
 ## Doing this from code
 
@@ -184,12 +177,10 @@ against a plain OpenAI client.
 
 LangSmith's tracing is genuinely deep (real span trees, not just LLM call logs),
 and its prompt commit history plus Environments give a clean, git-like way to
-version and promote prompts. The trade-off is that it assumes you'll bring your
-own model provider key for anything that actually executes a call — Playground
-runs and Experiments both need it, since LangSmith doesn't run its own gateway
-in front of providers. That's a one-time setup cost, not a hard limitation:
-once a key is added, everything — live Playground runs, real traces, and full
-dataset Experiments — works as expected.
+version and promote prompts. Playground runs and Experiments both need your own
+model provider key, since LangSmith doesn't run its own gateway in front of
+providers. You add the key once. With it in place, Playground runs, traces and
+dataset Experiments all worked.
 
 ## LangSmith vs AcruxCore
 

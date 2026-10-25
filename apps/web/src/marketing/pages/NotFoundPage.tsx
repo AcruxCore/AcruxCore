@@ -22,10 +22,12 @@ import { FEATURE_LIST } from '../features';
  * looked like a forced sign-in wall. Signed-in users keep their redirect into the
  * app; only genuinely unknown paths land here.
  *
- * Note the HTTP status is still 200: nginx serves the SPA shell for unknown paths
- * and cannot tell a typo from a dashboard route. The shell is sent with
- * `X-Robots-Tag: noindex` (see apps/web/nginx.conf), which is what keeps these out
- * of the index.
+ * It renders in two places. `scripts/prerender.mjs` bakes it into
+ * `dist/404.html`, which nginx serves with a real 404 status for any path that
+ * is neither a prerendered page nor a dashboard route. And the React router
+ * shows it in the browser for a bad path inside a dashboard section (such as
+ * `/prompts/x/y`), which nginx answers with the app shell because it cannot
+ * check ids. See apps/web/nginx.conf.
  *
  * @returns The rendered 404 page.
  */

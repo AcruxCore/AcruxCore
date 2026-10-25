@@ -6,14 +6,22 @@ authors: [acrux]
 tags: [llmops-comparison, llm-tracing]
 image: /img/social-card.png
 keywords: [AcruxCore vs arize phoenix, phoenix vs AcruxCore, llm ops comparison, prompt versioning, ai gateway, llm tracing, openinference]
+last_update:
+  date: 2026-10-25
 ---
 
-Arize Phoenix is the OTel-native tracing-and-eval project a lot of teams reach for
-first, so it deserves a real answer, not a table copied from two docs sites. We built
-the same prompt — `vip-support-triage`, a support agent that changes tone for VIP
-customers and lists their open tickets — on both platforms, then ran the identical
-sequence on each: create the prompt, version it, send a live call, inspect the trace,
-build a dataset, run an experiment, and call it from an SDK script.
+Arize Phoenix is an OTel-native tracing and evaluation project that many teams try
+first. We built the same prompt on both platforms. The prompt is `vip-support-triage`, a
+support agent that changes tone for VIP customers and lists their open tickets. On each
+platform we created the prompt, versioned it, sent a live call, inspected the trace,
+built a dataset, ran an experiment, and called it from an SDK script.
+
+The short answer: for running an LLM app, AcruxCore covers more. It has a request-path
+gateway, a tool catalog that runs tools, and server-side prompt rendering. Phoenix shows
+more detail per span and has a built-in assistant, and if your work happens inside a
+notebook, Phoenix is the better fit.
+
+We build AcruxCore. We ran every tool ourselves, and the scripts are linked below.
 
 <!-- truncate -->
 
@@ -49,10 +57,9 @@ Full breakdown, screenshots, and the verdict below.
 
 ## Tracing & observability
 
-Same call, genuinely richer trace UI on Phoenix's side. Its Info/Attributes/Events
-tabs, per-span cost and token counts, and OTel semantic-convention attributes gave us
-more to look at than AcruxCore's single-span view — deserved credit even though this
-is the comparison's own template.
+The same call produced a richer trace view on Phoenix. Its Info, Attributes and Events
+tabs, per-span cost and token counts, and OTel semantic-convention attributes show
+more than AcruxCore's single-span view.
 
 <details>
 <summary>Show screenshots: trace detail on both platforms</summary>
@@ -90,12 +97,11 @@ construct, not two. That's a real difference from nunjucks, where `{% if %}` and
 
 AcruxCore's own prompt editor — real nunjucks conditionals and loops rendering VIP
 status and the ticket list inline — is one sentence here rather than another
-screenshot; see the [walkthrough](/blog/acruxcore-hands-on-walkthrough#2-create-a-prompt-version-it-and-promote-an-alias)
+screenshot; see the [dashboard tour](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#prompts)
 for the picture.
 
-Phoenix also has a real, separate diff view between versions — we didn't expect that
-going in. But it exposed a structural gap: the Playground's input fields are flat text
-boxes. Typing a JSON array into the `tickets` field for the Mustache loop to consume
+Phoenix also has a separate diff view between versions. Its Playground has a
+structural gap: the input fields are flat text boxes. Typing a JSON array into the `tickets` field for the Mustache loop to consume
 doesn't parse it — Mustache treats the whole string as one truthy value, the loop runs
 once with no bound fields, and the ticket lines render blank (`- #: `) with no error.
 The SDK renders it correctly (see **SDK & DX** below) because there the array is a real
@@ -164,7 +170,7 @@ nothing gets executed or measured — the schema is registered, never run.
 
 AcruxCore's Tools page — a dozen versioned tools with real execution history — is one
 sentence here; see the
-[walkthrough](/blog/acruxcore-hands-on-walkthrough#7-a-versioned-tool-catalog) for the
+[dashboard tour](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#tools) for the
 screenshot.
 
 | Feature | Phoenix | AcruxCore |
@@ -196,9 +202,9 @@ the templated prompt don't speak the same shape without manual remapping.
 
 AcruxCore's dataset (built from trace feedback) and its experiment run report are one
 sentence each here; see the walkthrough's
-[dataset](/blog/acruxcore-hands-on-walkthrough#5-build-a-dataset-from-real-feedback)
+[dataset](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#feedback)
 and
-[run-history](/blog/acruxcore-hands-on-walkthrough#6-check-the-run-history)
+[run-history](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#datasets-and-runs)
 sections for the screenshots.
 
 | Feature | Phoenix | AcruxCore |
@@ -247,7 +253,7 @@ AcruxCore's leg:
 
 AcruxCore's SDK-produced trace, with prompt-version lineage attached automatically, is
 one sentence here; see the
-[walkthrough](/blog/acruxcore-hands-on-walkthrough#doing-this-from-code) for the
+[product tour](https://docs.acruxcore.com/docs/getting-started/product-tour) for the
 screenshot.
 
 | Feature | Phoenix | AcruxCore |
@@ -257,8 +263,7 @@ screenshot.
 
 ## Latency overhead — measured
 
-100 interleaved rounds, three legs, rotating order, warm-up discarded — the same
-method as every comparison in this series. `phoenix_otel` wraps a raw OpenAI client
+100 interleaved rounds, three legs, rotating order, warm-up discarded. `phoenix_otel` wraps a raw OpenAI client
 with `openinference-instrumentation-openai`; `acx_gateway` is a raw POST to a local
 AcruxCore gateway. Every leg ends at `gpt-4o-mini` on `api.openai.com` with the same
 key and body, and the script refuses to start unless the gateway model resolves to a
@@ -330,11 +335,6 @@ retention schedule and no typed-annotation configuration.
 ![Phoenix's per-project Config tab: a retention policy with a real schedule, and an Annotation Configs table defining a Categorical "user_feedback" type](/img/comparison/phoenix/px-14-project-config.png)
 
 </details>
-
-One earlier expectation didn't hold up: Phoenix's docs list Tracing, Evaluation, Prompt
-Engineering, Datasets & Experiments, and PXI as its top-level capabilities today — no
-embedding-drift-analysis section turned up in the docs nav or in this instance's UI, so
-we're not carrying that claim forward from older material.
 
 ## Is AcruxCore an Arize Phoenix alternative?
 

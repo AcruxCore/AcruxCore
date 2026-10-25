@@ -1,12 +1,14 @@
 ---
 title: "Langfuse vs LangSmith: one app tested end to end on both"
-description: "Langfuse vs LangSmith: license, self-hosting, price, retention, gateway, review queues and SSO side by side, the pros and cons of each, and one app measured on both."
+description: "Langfuse vs LangSmith: license, self-hosting, price, retention, gateway, review queues and SSO side by side, with one app measured on both platforms."
 slug: langfuse-vs-langsmith
 date: 2026-10-16
 authors: [acrux]
 tags: [llmops-comparison, prompt-management, llm-tracing]
 image: /img/blog/langfuse-vs-langsmith/header.webp
 keywords: [langfuse vs langsmith, langsmith vs langfuse, langfuse or langsmith, langsmith without langchain, langfuse pricing, langsmith pricing, llm observability comparison, prompt management, llm evaluation]
+last_update:
+  date: 2026-10-25
 ---
 
 ![Langfuse vs LangSmith, one app tested on both. Langfuse: open core and free to self-host, draft-safe prompt reads, no gateway. LangSmith: closed with Enterprise-only self-hosting, a changed-score filter, a gateway in beta](/img/blog/langfuse-vs-langsmith/header.webp)
@@ -15,6 +17,13 @@ This post compares Langfuse and LangSmith on the things a developer checks befor
 We also ran one app on both hosted platforms, with the same code, data, prompts and model, and
 measured each step. The app is a small agent that reads a client's email, checks each request
 against a signed project scope, prices the extra work, and writes a reply.
+
+Pick Langfuse if you want an open-source platform that you can self-host for free, a large
+community, and 90 days of data at a low price. Pick LangSmith if you compare experiment runs often, need Go or Java, or
+want a gateway from the same vendor, and $567 a month fits your budget.
+
+We build AcruxCore, a third tool in this space that this post does not test. We ran Langfuse and
+LangSmith ourselves, and the scripts are linked below.
 
 <!-- truncate -->
 
@@ -37,7 +46,7 @@ against a signed project scope, prices the extra work, and writes a reply.
 | Alerts | Cost, latency, scores; Slack, webhook | Cost, errors, latency, feedback; Slack, PagerDuty, webhook |
 | SSO | Pro plan with the Teams add-on ($300 a month), or Enterprise | Enterprise |
 | Audit log | Enterprise | Enterprise |
-| GitHub stars, 17 October 2026 | 35,935 | No public platform repository |
+| GitHub stars, 25 October 2026 | 36,448 | No public platform repository |
 | LangChain needed | No | Not for tracing; pushing a prompt from code needs `langchain-core` |
 
 Sources: the Langfuse [license](https://github.com/langfuse/langfuse/blob/main/LICENSE),
@@ -49,7 +58,8 @@ and [alerts](https://langfuse.com/docs/observability/features/alerts) pages; the
 [alerts](https://docs.langchain.com/langsmith/alerts) pages; and the
 [Langfuse MCP](https://langfuse.com/docs/api-and-data-platform/features/mcp-server) and
 [LangSmith MCP](https://docs.langchain.com/langsmith/langsmith-remote-mcp) pages. Prices were read on
-16 October 2026, the MCP pages on 18 October 2026, and everything else on 17 October 2026.
+16 October 2026, the MCP pages on 18 October 2026, the star count on 25 October 2026, and
+everything else on 17 October 2026.
 
 ## Langfuse
 
@@ -57,7 +67,7 @@ and [alerts](https://langfuse.com/docs/observability/features/alerts) pages; the
 
 - Our app needed fewer lines of tracing and prompt-fetching code: 11, against 18 on LangSmith.
 - The core is MIT-licensed and free to self-host.
-- It has the larger community: 35,935 GitHub stars.
+- It has the larger community: 36,448 GitHub stars on 25 October 2026.
 - 100,000 traces of our app cost $98.36 a month, less than a fifth of the LangSmith price.
 - It keeps data for 90 days at that price.
 - A model call shows its prompt name and version as a link.
@@ -91,13 +101,6 @@ and [alerts](https://langfuse.com/docs/observability/features/alerts) pages; the
 - Pushing a prompt from code needs the `langchain-core` package.
 - A prompt read with no tag returns the newest commit, so a draft can reach users.
 - The SDK caches a prompt for 5 minutes, so a promotion takes up to 5 minutes to arrive.
-
-## Which one to choose
-
-- **Langfuse** if you want an open-source platform that you can self-host for free, a large
-  community, and a low price with 90 days of data.
-- **LangSmith** if you compare experiment runs often, need Go or Java, or want a gateway from
-  the same vendor, and $567 a month fits your budget.
 
 ## The setup
 

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { ROUTES } from './entry-prerender';
 import { FEATURE_LIST } from './features';
@@ -31,6 +33,57 @@ describe('prerendered head budgets', () => {
     // is the brand entity sentence, is already indexed, and is asserted against
     // index.html in structured-data.test.ts — it is 61 characters on purpose.
     expect(feature.metaTitle.length).toBeLessThanOrEqual(TITLE_MAX);
+  });
+});
+
+describe('page titles', () => {
+  it.each(ROUTES.filter((r) => r.path !== '/').map((r) => [r.path, r] as const))(
+    '%s has a title within budget',
+    (_path, route) => {
+      expect(route.title.length).toBeLessThanOrEqual(TITLE_MAX);
+    },
+  );
+
+  // "Pricing — AcruxCore" told a searcher nothing about what is being priced.
+  it.each(['/pricing', '/about'])('%s names the product category in its title', (path) => {
+    const route = ROUTES.find((r) => r.path === path);
+    expect(route?.title).toMatch(/LLMOps/);
+    expect(route?.title).toMatch(/AcruxCore/);
+  });
+});
+
+/**
+ * The prerendered `<title>` comes from ROUTES; the title the tab shows after
+ * hydration comes from the page component (`useDocumentTitle` or the shell's
+ * `docTitle`). Google renders JavaScript, so it can index the second one. When
+ * they differ, the title in ROUTES is a title nobody sees.
+ */
+describe('client-side titles', () => {
+  const pageSources = ROUTES.filter((r) => r.sourceFiles[0].startsWith('src/marketing/pages/')).map(
+    (r) => [r.path, r, readFileSync(fileURLToPath(new URL(`../../${r.sourceFiles[0]}`, import.meta.url)), 'utf8')] as const,
+  );
+
+  it.each(pageSources)('%s sets the same title after hydration', (_path, route, source) => {
+    const literal =
+      source.match(/docTitle="([^"]+)"/)?.[1] ?? source.match(/useDocumentTitle\('([^']+)'\)/)?.[1];
+    if (literal === undefined) return; // falls back to `${title} — AcruxCore`, checked by the shell
+    expect(literal).toBe(route.title);
+  });
+});
+
+/**
+ * `prerender.mjs` leaves the landing page's head exactly as `index.html` has
+ * it, so the description a search result shows for acruxcore.com is the one in
+ * that file, not the one in ROUTES. They had drifted to 289 and 155
+ * characters. One value now, checked here.
+ */
+describe('landing page description', () => {
+  const indexHtml = readFileSync(fileURLToPath(new URL('../../index.html', import.meta.url)), 'utf8');
+
+  it('matches the ROUTES entry, so it is held to the same budget', () => {
+    const description = indexHtml.match(/<meta\s+name="description"\s+content="([^"]*)"/)?.[1];
+    const landing = ROUTES.find((r) => r.path === '/');
+    expect(description).toBe(landing?.description);
   });
 });
 

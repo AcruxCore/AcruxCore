@@ -65,3 +65,7 @@ store.db
 # Blog build (apps/docs/docusaurus.blog.config.ts) and its nested deploy folder
 apps/docs/build-blog/
 apps/docs/deploy-blog/
+
+# Smaller copies of blog hero images, written by apps/docs/scripts/blog-image-variants.ts
+# before every blog build (prebuild:blog) — derived from static/, never committed
+apps/docs/static-generated/

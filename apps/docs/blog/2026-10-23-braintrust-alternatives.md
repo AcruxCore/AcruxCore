@@ -1,6 +1,6 @@
 ---
 title: "10 Braintrust alternatives for LLM evals: open source and self-hosted (2026)"
-description: "Ten Braintrust alternatives and competitors compared on eval features, license, self-hosting and price: which replace the whole platform, and which replace only the evals."
+description: "Ten Braintrust alternatives compared on eval features, license, self-hosting and price: which replace the whole platform and which replace only the evals."
 title_meta: "10 Best Braintrust Alternatives for LLM Evals (2026)"
 slug: braintrust-alternatives
 date: 2026-10-23
@@ -8,26 +8,29 @@ authors: [acrux]
 tags: [llmops-comparison, prompt-management]
 image: /img/blog/braintrust-alternatives/01-header.webp
 keywords: [braintrust alternatives, braintrust competitors, alternatives to braintrust, open source braintrust alternative, self-hosted braintrust alternative, braintrust self hosted, braintrust pricing, best braintrust alternatives]
+last_update:
+  date: 2026-10-25
 ---
 
-![Ten Braintrust alternatives in a grid, each with what it is best for, coloured by license: AcruxCore, MLflow, Opik, LangWatch, Langfuse, DeepEval and promptfoo open source, Arize Phoenix source-available, LangSmith and W&B Weave closed source](/img/blog/braintrust-alternatives/01-header.webp)
+![Braintrust alternatives in a grid, each with what it is best for, coloured by license: AcruxCore (ours), MLflow, Opik, LangWatch, Langfuse, DeepEval and promptfoo open source, Arize Phoenix source-available, LangSmith and W&B Weave closed source](/img/blog/braintrust-alternatives/01-header.webp)
 
 This post compares ten Braintrust alternatives on eval features, license, self-hosting and price.
 Tools that replace the whole Braintrust platform come first, then tools that replace only its
 evals.
 
+We build AcruxCore, one of the tools in this post. We do not rank it.
+
 <!-- truncate -->
 
 **The short answer**
 
-- **If you need the whole platform, not only evals:** AcruxCore. Like Braintrust, it has prompt
-  versions, a gateway, tracing and evals. Unlike Braintrust, it is Apache-2.0 and self-hosts for
-  free on Postgres and Redis.
-- **If you already run MLflow:** MLflow covers the same four parts in one server.
+- **If you need the whole platform, not only evals:** AcruxCore (ours) or MLflow. Like
+  Braintrust, both have prompt versions, a gateway, tracing and evals. Both are Apache-2.0 and
+  free to self-host: AcruxCore on Postgres and Redis, MLflow as one server.
 - **If you only need evals:** Opik or LangWatch. Both have online scoring, review queues,
   simulated conversations and a prompt optimizer, under Apache-2.0.
-- **Largest open-source community:** Langfuse, with 36,135 GitHub stars. No eval feature needs
-  Langfuse's paid enterprise license.
+- **Largest open-source community:** Langfuse, with 36,448 GitHub stars on 25 October 2026. No
+  eval feature needs Langfuse's paid enterprise license.
 - **Evals as tests in CI, with no server:** promptfoo or DeepEval.
 - **A hosted platform charged per seat:** LangSmith, at $39 per seat a month.
 
@@ -38,7 +41,7 @@ evals.
 | Tool | License | Self-host | Gateway | Hosted free plan | Cheapest paid plan |
 |---|---|---|---|---|---|
 | **Braintrust** | Closed source; SDKs Apache-2.0 | Enterprise plan only | Hosted, in public preview | Starter: 1 GB, 10,000 scores, 14 days | Pro: $249 a month |
-| AcruxCore | Apache-2.0 | Free | Yes, with budgets and rate limits | Free; span content kept 90 days | None; the hosted plan is free |
+| AcruxCore (ours) | Apache-2.0 | Free | Yes, with budgets and rate limits | Free; span content kept 90 days | None; the hosted plan is free |
 | MLflow | Apache-2.0 | Free | Yes, with budgets | None outside Databricks | Through Databricks |
 | Opik | Apache-2.0 | Free | Beta, for development and testing | 25,000 spans a month, 60 days | Pro: $19 a month |
 | LangWatch | Apache-2.0; `enterprise/` folder commercial | Free | In the enterprise folder | 50,000 events, 2 users, 14 days | Growth: €29 per seat a month |
@@ -49,6 +52,8 @@ evals.
 | LangSmith | Closed source; SDKs MIT | Enterprise plan only | Beta | 5,000 traces, 1 seat, 14 days | Plus: $39 per seat a month |
 | W&B Weave | SDK Apache-2.0; server needs a license | Enterprise plan only | No | 1 GB of trace data a month | Pro: from $60 a month |
 
+Plans and prices as read on each vendor's pricing page on 21 October 2026.
+
 A **span** is one step inside a trace. Each vendor bills in its own unit. A Langfuse unit is one
 trace, span or score, and LangWatch counts events.
 
@@ -57,7 +62,7 @@ trace, span or score, and LangWatch counts events.
 | Tool | Built-in judges | Online scoring of live traffic | Review queues | CI | Multi-turn simulation | Prompt optimizer |
 |---|---|---|---|---|---|---|
 | **Braintrust** (hosted only) | Yes (`autoevals`) | Yes | Yes | GitHub Action | Scores whole sessions | Loop, an agent, suggests prompt edits |
-| AcruxCore | One judge, or your own judge prompt | Yes, with alerts | No | No | No simulator; replays a real conversation | Yes |
+| AcruxCore (ours) | One judge, or your own judge prompt | Yes, with alerts | No | No | No simulator; replays a real conversation | Yes |
 | MLflow | Yes | Yes, LLM judges only | Experimental | pytest | Yes | Yes |
 | Opik | 43 metrics | Yes | Yes | pytest plugin | Yes | Yes |
 | LangWatch | Yes | Yes | Yes | SDK exit code | Yes | Yes (DSPy) |
@@ -71,6 +76,16 @@ trace, span or score, and LangWatch counts events.
 Every tool here has datasets, experiments you can compare, and scorers you write in code.
 **Online scoring** means a rule scores a sample of production calls as they happen. A **review
 queue** sends chosen traces to people who grade them.
+
+:::tip[Our product: AcruxCore]
+
+We build AcruxCore, so we do not rank it. AcruxCore has the same four parts as Braintrust: prompt
+versions, a gateway, tracing and evals. AcruxCore is Apache-2.0 and self-hosts for free on
+Postgres and Redis. It fits a team that wants to replace the whole platform on its own servers. It does not fit
+a team that only needs evals: it has one built-in judge, no review queues and no CI integration.
+The details are in [About AcruxCore](#about-acruxcore).
+
+:::
 
 ## Why look for Braintrust alternatives?
 
@@ -105,6 +120,8 @@ Sources: [pricing](https://www.braintrust.dev/pricing),
 | Pro | $249 a month | 5 GB, then $3 per GB | 50,000, then $1.50 per 1,000 | 30 days |
 | Enterprise | Custom, billed yearly | Custom | Custom | Up to 365 days |
 
+Prices as read on the Braintrust pricing page on 21 October 2026.
+
 Every plan has unlimited users. Startups at Series A or earlier can get Pro free for 6 to 12
 months.
 
@@ -118,64 +135,20 @@ months.
   with all four parts come first, then open-source tools focused on evals. Source-available
   tools, code-only libraries and closed hosted products follow, in that order.
 - **Inside each group, a tool with more eval features in its free version ranks higher.**
+- **AcruxCore is not ranked.** We build it, so it has its own section after the ranked tools.
 - **Every fact comes from the vendor:** the pricing page, the docs, the license file or the
   GitHub API, read on 21 October 2026. We do not use other comparison lists as sources.
 
-## Open-source Braintrust alternatives with a gateway
+## Open-source Braintrust alternative with a gateway
 
-These two tools replace all four parts of Braintrust: prompt versions, a gateway, tracing and
-evals. Both are Apache-2.0 and free to run on your own servers.
+AcruxCore (ours) and MLflow each replace all four parts of Braintrust: prompt versions, a
+gateway, tracing and evals. Both are Apache-2.0 and free to run on your own servers. MLflow is
+ranked below. AcruxCore is not ranked, because we build it; it is described in
+[About AcruxCore](#about-acruxcore).
 
 ![Two columns. Whole platform: prompts, gateway, tracing and evals, covered by AcruxCore and MLflow. Evals only: Opik, LangWatch and Langfuse](/img/blog/braintrust-alternatives/03-platform-or-evals.webp)
 
-### 1. AcruxCore
-
-AcruxCore vs Braintrust: AcruxCore has the same four parts as Braintrust: prompt versions, a
-gateway, tracing and evals. AcruxCore is Apache-2.0 and self-hosts on Postgres and Redis, while
-Braintrust self-hosts only on Enterprise.
-
-**Best for:** teams that want to replace the whole Braintrust platform, not only the evals, and
-run it on their own servers.
-
-| | AcruxCore | Braintrust |
-|---|---|---|
-| License | Apache-2.0, with no enterprise folder | Closed source |
-| Self-host | Postgres, Redis, API, worker, web | Enterprise only |
-| Gateway | Yes; stops calls at a spend budget or a rate limit | Hosted, in public preview; spend alerts only |
-| Cheapest paid plan | None; the hosted plan is free | Pro: $249 a month |
-
-**Where AcruxCore differs**
-
-- The gateway refuses a call that would go over a spend budget. It also limits requests and
-  tokens per key. Braintrust has spend alerts that do not stop usage.
-- When you self-host AcruxCore, your provider keys stay in your own database.
-- Roles, the audit log and prompt aliases such as `production` are free. Braintrust puts roles
-  on Pro and audit logs on Enterprise.
-- An experiment runs several prompt versions on several models against one dataset. A compare
-  page then shows which examples improved and which got worse.
-- Your team can rate a reply thumbs down and leave a comment. A dataset built from those
-  ratings uses each comment as that example's grading criteria.
-- An optimize run reads those rated replies and rewrites your production prompt. AcruxCore then
-  scores each rewrite against the current production version.
-- Online rules score a sample of live calls. A rule alerts the team's owners when its mean score
-  for the day falls below a threshold you set.
-
-**Limits of AcruxCore**
-
-- If evals are all you need, Opik and LangWatch have more eval features: a metric library,
-  review queues and a conversation simulator. AcruxCore has one built-in judge, and you can
-  write your own judge prompt.
-- AcruxCore has no CI integration.
-- The repository went public in August 2026 and has 11 GitHub stars.
-
-Our comparison: [AcruxCore vs Braintrust](/blog/acruxcore-vs-braintrust). The eval guides start
-at [Evaluate a prompt against a dataset](https://docs.acruxcore.com/docs/guides/evaluate-a-prompt).
-
-Sources: [license](https://github.com/AcruxCore/AcruxCore/blob/main/LICENSE),
-[compose file](https://github.com/AcruxCore/AcruxCore/blob/main/docker-compose.local.yml),
-[pricing](https://acruxcore.com/pricing).
-
-### 2. MLflow
+### 1. MLflow
 
 MLflow vs Braintrust: MLflow also has prompt versions, a gateway, tracing and evals, in one
 Apache-2.0 server from the Linux Foundation.
@@ -215,7 +188,7 @@ These three tools replace Braintrust's eval work. None of them has a production 
 free version. The core of each uses a license approved by the Open Source Initiative, and each
 is free to self-host.
 
-### 3. Opik
+### 2. Opik
 
 Opik vs Braintrust: Opik, from Comet, has every eval feature in the feature table at the top
 of this post, in its free self-hosted version. Its cloud plan costs $19 a month, against $249 for Braintrust Pro.
@@ -251,7 +224,7 @@ Sources: [repository](https://github.com/comet-ml/opik),
 [self-hosting](https://www.comet.com/docs/opik/self-host/overview),
 [pricing](https://www.comet.com/site/pricing/).
 
-### 4. LangWatch
+### 3. LangWatch
 
 LangWatch vs Braintrust: LangWatch is an Apache-2.0 platform built around testing agents with
 simulated users, and it self-hosts for free.
@@ -274,7 +247,7 @@ simulated users, and it self-hosts for free.
 
 **Limits of LangWatch**
 
-- LangWatch has 4,986 GitHub stars. Opik has 22,798.
+- LangWatch had 4,992 GitHub stars on 25 October 2026, and Opik had 22,907.
 - CI support is an SDK call that exits with code 1 when an evaluation fails. There is no GitHub
   Action.
 
@@ -284,10 +257,10 @@ Sources: [license](https://github.com/langwatch/langwatch/blob/main/LICENSE.md),
 [CI](https://langwatch.ai/docs/evaluations/experiments/ci-cd),
 [pricing](https://langwatch.ai/pricing).
 
-### 5. Langfuse
+### 4. Langfuse
 
-Langfuse vs Braintrust: Langfuse is the open-source LLM platform with the most GitHub stars,
-36,135. Its cloud plan costs $29 a month, against $249 for Braintrust Pro.
+Langfuse vs Braintrust: Langfuse is the open-source LLM platform with the most GitHub stars:
+36,448 on 25 October 2026. Its cloud plan costs $29 a month, against $249 for Braintrust Pro.
 
 **Best for:** teams that want tracing, prompts and evals in one open-source tool with a large
 community.
@@ -324,7 +297,7 @@ Sources: [license](https://github.com/langfuse/langfuse/blob/main/LICENSE),
 
 ## Source-available: Arize Phoenix
 
-### 6. Arize Phoenix
+### 5. Arize Phoenix
 
 Phoenix vs Braintrust: Phoenix self-hosts in one container with no feature limits. Its license,
 the Elastic License 2.0, is not approved by the Open Source Initiative.
@@ -363,7 +336,7 @@ Sources: [license](https://github.com/Arize-ai/phoenix/blob/main/LICENSE),
 These two tools run evals as code, with no server to keep running. Neither one scores production
 traffic in its free version.
 
-### 7. DeepEval and Confident AI
+### 6. DeepEval and Confident AI
 
 DeepEval vs Braintrust: DeepEval is an Apache-2.0 Python library for evals. Confident AI is its
 closed, hosted platform, priced below Braintrust Pro.
@@ -396,7 +369,7 @@ Sources: [repository](https://github.com/confident-ai/deepeval),
 [Confident AI self-hosting](https://www.confident-ai.com/docs/self-hosting),
 [pricing](https://www.confident-ai.com/pricing).
 
-### 8. promptfoo
+### 7. promptfoo
 
 promptfoo vs Braintrust: promptfoo is an MIT command-line tool that runs evals and red-team tests
 from a config file. OpenAI agreed to acquire it in March 2026.
@@ -433,7 +406,7 @@ Sources: [license](https://github.com/promptfoo/promptfoo/blob/main/LICENSE),
 LangSmith and W&B Weave publish no server code. Self-hosting either one needs an enterprise
 contract.
 
-### 9. LangSmith
+### 8. LangSmith
 
 LangSmith vs Braintrust: LangSmith, from the LangChain team, has datasets, judges, review queues,
 online scoring and multi-turn simulation. It charges per seat, where Braintrust charges a flat
@@ -467,7 +440,7 @@ Sources: [pricing](https://www.langchain.com/pricing),
 [online rules](https://docs.langchain.com/langsmith/rules),
 [multi-turn simulation](https://docs.langchain.com/langsmith/multi-turn-simulation).
 
-### 10. W&B Weave
+### 9. W&B Weave
 
 Weave vs Braintrust: Weave, from Weights & Biases, has review queues, monitors and leaderboards.
 Its Pro plan starts at $60 a month, against $249 for Braintrust Pro.
@@ -497,6 +470,55 @@ Sources: [pricing](https://coreweave.com/forge-pricing),
 [comparing evaluations](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/compare_evals),
 [monitors](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/custom-monitors).
 
+## About AcruxCore
+
+AcruxCore is our own product, so it has no rank in this list.
+
+AcruxCore vs Braintrust: AcruxCore has the same four parts as Braintrust: prompt versions, a
+gateway, tracing and evals. AcruxCore is Apache-2.0 and self-hosts on Postgres and Redis, while
+Braintrust self-hosts only on Enterprise.
+
+**Best for:** teams that want to replace the whole Braintrust platform, not only the evals, and
+run it on their own servers.
+
+| | AcruxCore | Braintrust |
+|---|---|---|
+| License | Apache-2.0, with no enterprise folder | Closed source |
+| Self-host | Postgres, Redis, API, worker, web | Enterprise only |
+| Gateway | Yes; stops calls at a spend budget or a rate limit | Hosted, in public preview; spend alerts only |
+| Cheapest paid plan | None; the hosted plan is free | Pro: $249 a month |
+
+**Where AcruxCore differs**
+
+- The gateway refuses a call that would go over a spend budget. It also limits requests and
+  tokens per key. Braintrust has spend alerts that do not stop usage.
+- When you self-host AcruxCore, your provider keys stay in your own database.
+- Roles, the audit log and prompt aliases such as `production` are free. Braintrust puts roles
+  on Pro and audit logs on Enterprise.
+- An experiment runs several prompt versions on several models against one dataset. A compare
+  page then shows which examples improved and which got worse.
+- Your team can rate a reply thumbs down and leave a comment. A dataset built from those
+  ratings uses each comment as that example's grading criteria.
+- An optimize run reads those rated replies and rewrites your production prompt. AcruxCore then
+  scores each rewrite against the current production version.
+- Online rules score a sample of live calls. A rule alerts the team's owners when its mean score
+  for the day falls below a threshold you set.
+
+**Limits of AcruxCore**
+
+- If evals are all you need, Opik and LangWatch have more eval features: a metric library,
+  review queues and a conversation simulator. AcruxCore has one built-in judge, and you can
+  write your own judge prompt.
+- AcruxCore has no CI integration.
+- The repository went public in August 2026 and had 11 GitHub stars on 25 October 2026.
+
+Our comparison: [AcruxCore vs Braintrust](/blog/acruxcore-vs-braintrust). The eval guides start
+at [Evaluate a prompt against a dataset](https://docs.acruxcore.com/docs/guides/evaluate-a-prompt).
+
+Sources: [license](https://github.com/AcruxCore/AcruxCore/blob/main/LICENSE),
+[compose file](https://github.com/AcruxCore/AcruxCore/blob/main/docker-compose.local.yml),
+[pricing](https://acruxcore.com/pricing).
+
 ## Tools other lists still recommend
 
 Older lists of Braintrust alternatives still include these tools. Their status on
@@ -521,15 +543,17 @@ Start at the top and stop at the first question you answer yes to.
 
 ### Best open-source Braintrust alternative
 
-- **AcruxCore** if you need the whole platform: prompts, a gateway, tracing and evals, free to
-  self-host.
+- **AcruxCore** (ours) or **MLflow** if you need the whole platform: prompts, a gateway,
+  tracing and evals, free to self-host.
 - **Opik** if you only need evals. It has the most eval features of any free self-hosted tool.
 - **Langfuse** for the largest community, with every eval feature free.
 
 ### Best self-hosted Braintrust alternative for a small team
 
-- **AcruxCore** for one app on Postgres and Redis, with a gateway that enforces spend budgets.
+- **MLflow** for one server on SQLite, with a gateway that rejects calls over a USD budget.
 - **Arize Phoenix** for evals only, with the fewest parts to run: one container on SQLite.
+- **AcruxCore**, our own product, runs as one app on Postgres and Redis, with a gateway that
+  enforces spend budgets.
 
 ### If you test agents over many turns
 

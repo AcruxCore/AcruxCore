@@ -49,7 +49,7 @@ export interface AliasDetail {
 /** Internal: alias row joined with version details, used during render. */
 export interface AliasWithVersion {
   aliasId: string;
-  /** The parent prompt's id — the scope for `PromptToolAliasRoute` lookups (Q50). */
+  /** The parent prompt's id — the scope for `prompt_tool_bindings` lookups (phase-4-faq Q53). */
   promptId: string;
   alias: string;
   versionId: string;
@@ -68,9 +68,9 @@ export interface RenderResponse {
   /**
    * Per-tool resolution metadata, parallel to `tools` (never merged into it — those
    * definitions are sometimes forwarded as-is to a model provider). Reports which
-   * tool alias (or pin) each attachment actually resolved through this alias
-   * (phase-4-faq Q50), including whether a live routing override — not the version's
-   * own baked-in attachment — decided it.
+   * tool alias (or pin) each attachment actually resolved through this alias, and
+   * whether the prompt alias's own binding or the prompt's default binding decided it
+   * (phase-4-faq Q53).
    */
   toolResolutions: ToolResolutionDetail[];
   /** The resolved version's bound default model publicName, or null (#12) — so

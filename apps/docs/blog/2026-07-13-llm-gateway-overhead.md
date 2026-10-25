@@ -6,15 +6,19 @@ authors: [acrux]
 tags: [llm-gateway, llm-latency]
 image: /img/social-card.png
 keywords: [llm gateway latency, ai gateway overhead, openai proxy latency, byok latency, AcruxCore gateway, llm ops performance]
+last_update:
+  date: 2026-10-25
 ---
 
-Putting a gateway in front of your model providers buys you a lot: one endpoint
-for every provider, cost accounting, caching, virtual keys, and budgets. But it
-raises an obvious worry — **am I paying for that with latency?** Every request now
-takes an extra hop, and for a user-facing app, milliseconds matter.
+An AcruxCore gateway running on the same machine as your app adds a median of
+**42 ms** to an OpenAI call that takes about 750 ms, roughly 5% of the wait.
+Calling OpenAI with your own key through the SDK, with no gateway, adds nothing
+measurable, with tracing on or off.
 
-So we measured five ways to reach the same model — through our gateway, around
-it with your own key, and raw — to see exactly where the milliseconds go.
+A gateway gives you one endpoint for every provider, cost accounting, caching,
+virtual keys, and budgets, and it also adds a network hop. We measured five ways
+to reach the same model — through our gateway, around it with your own key, and
+raw — to see where the milliseconds go.
 
 <!-- truncate -->
 
@@ -164,13 +168,14 @@ Medians tell you the typical case, but users remember the slow one:
 
 The tail is wider than the median suggests for every path — plan for the p99,
 not the median, when a call like this sits on a user-facing route. With only 60
-rounds per path, treat these tails as a rough shape rather than a precise claim;
-a larger run is on our list.
+rounds per path, treat these tails as a rough shape rather than a precise claim.
 
-Want the same median/p95/p99 shape against six other LLM-ops platforms, on real
-OpenAI billing, four independent runs, and every raw round plotted rather than
-summarized into three numbers? See
+A larger run is in
 [full-cycle latency across six LLM-ops platforms](/blog/full-cycle-latency-benchmark).
+That benchmark ran 100 rounds four times, on real OpenAI billing, against five
+other LLM-ops platforms, and it plots every round. Most of its paths also fetch
+a stored prompt before the completion, so its gateway numbers measure a different
+request from the one in this post.
 
 ## What this means for you
 

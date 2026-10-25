@@ -36,9 +36,12 @@ post="$(cd "$deploy/blog" && ls ./*.html | grep -v -e index -e 404 -e archive -e
 post="${post#./}"
 blog_js="$(cd "$deploy/blog/assets/js" && ls | head -1)"
 
-# A stand-in for the Vite build: the SPA shell, one prerendered page, one asset.
+# A stand-in for the Vite build: the landing page, the app shell, the 404 page,
+# one prerendered page, one asset.
 mkdir -p "$work/html/about" "$work/html/assets"
-echo '<html>spa shell</html>' >"$work/html/index.html"
+echo '<html>landing page</html>' >"$work/html/index.html"
+echo '<html>app shell</html>' >"$work/html/app-shell.html"
+echo '<html>not found page</html>' >"$work/html/404.html"
 echo '<html>about page</html>' >"$work/html/about/index.html"
 echo 'console.log(1)' >"$work/html/assets/app-abc123.js"
 
@@ -51,6 +54,7 @@ start_web() { # name port [env...]
   shift 2
   docker run -d --name "$name" --network "$net" --add-host api:127.0.0.1 -p "$port:80" \
     -v "$repo/apps/web/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
+    -v "$repo/apps/web/docker/security-headers.conf:/etc/nginx/snippets/security-headers.conf:ro" \
     -v "$repo/apps/web/docker/41-blog-proxy.sh:/docker-entrypoint.d/41-blog-proxy.sh:ro" \
     -v "$work/html:/usr/share/nginx/html:ro" \
     "$@" "$nginx_image" >/dev/null
@@ -79,7 +83,7 @@ check "the post carries the acruxcore.com canonical" \
 check "/blog 301s to /blog/" test "$(status "$on/blog")" = 301
 check "/blog Location is /blog/" test "$(header "$on/blog" location)" = /blog/
 check "/blog/ serves the blog index (200)" test "$(status "$on/blog/")" = 200
-check "/blog/ is the blog, not the SPA shell" grep -q "AcruxCore blog" <(body "$on/blog/")
+check "/blog/ is the blog, not the landing page" grep -q "AcruxCore blog" <(body "$on/blog/")
 check "a missing post is a real 404" test "$(status "$on/blog/no-such-post")" = 404
 check "a missing post is not served noindex" test -z "$(header "$on/blog/no-such-post" x-robots-tag)"
 check "blog assets are proxied (200)" test "$(status "$on/blog/assets/js/$blog_js")" = 200
@@ -92,14 +96,17 @@ check "a prerendered marketing page is unchanged" grep -q "about page" <(body "$
 
 echo "# with BLOG_UPSTREAM unset (self-hosted)"
 check "nginx is running" test "$(docker inspect -f '{{.State.Running}}' "acx-web-off-$$")" = true
-check "/blog/<post> falls back to the SPA shell (200)" test "$(status "$off/blog/$post")" = 200
-check "that fallback is noindex, as before" \
-  grep -q noindex <(header "$off/blog/$post" x-robots-tag)
+check "/blog/<post> is a real 404" test "$(status "$off/blog/$post")" = 404
+check "that 404 serves the not-found page" grep -q "not found page" <(body "$off/blog/$post")
+check "that 404 is noindex" grep -q noindex <(header "$off/blog/$post" x-robots-tag)
+check "a dashboard route serves the app shell (200)" test "$(status "$off/prompts/abc123")" = 200
+check "the app shell is the app, not the landing page" grep -q "app shell" <(body "$off/prompts/abc123")
+check "an unknown path is a real 404" test "$(status "$off/zzz-nonexistent-123")" = 404
+check "the app shell has no address of its own" test "$(status "$off/app-shell.html")" = 404
 
 echo "# with an invalid BLOG_UPSTREAM"
 check "nginx is running" test "$(docker inspect -f '{{.State.Running}}' "acx-web-bad-$$")" = true
-check "the proxy stays off (noindex shell)" \
-  grep -q noindex <(header "http://localhost:$port_bad/blog/$post" x-robots-tag)
+check "the proxy stays off (a 404)" test "$(status "http://localhost:$port_bad/blog/$post")" = 404
 check "the warning is logged" grep -q "is not a bare http(s) origin" <(docker logs "acx-web-bad-$$" 2>&1)
 
 echo "# $failures failed"

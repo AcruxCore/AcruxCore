@@ -1,6 +1,6 @@
 /**
  * Interleaved latency benchmark backing "How much overhead does an LLM gateway
- * add?" (../2026-07-13-llm-gateway-overhead.md).
+ * add?" (apps/docs/blog/2026-07-13-llm-gateway-overhead.md).
  *
  * Every path ends at the same upstream (OpenAI gpt-4o-mini, same API key, same
  * prompt and parameters), so the model's own think time is a shared constant and
@@ -52,7 +52,7 @@ async function openaiDirect() {
 }
 
 async function byoSdkNoTrace() {
-  await sdk.chat({
+  await sdk.gateway.chat({
     model: 'gpt-4o-mini',
     messages: MESSAGES,
     maxTokens: 5,
@@ -63,14 +63,14 @@ async function byoSdkNoTrace() {
 }
 
 async function byoSdk() {
-  await sdk.chat({
+  await sdk.gateway.chat({
     model: 'gpt-4o-mini',
     messages: MESSAGES,
     maxTokens: 5,
     temperature: 0,
     provider: PROVIDER,
-    // trace defaults to true on the BYO path — once the background-queue fix
-    // ships, the report is queued and no longer blocks the response.
+    // trace defaults to true on the BYO path; the report is queued in the
+    // background and does not block the response.
   });
 }
 

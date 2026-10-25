@@ -76,3 +76,5 @@ A concrete run looks like this:
 In the [Quickstart](./quickstart) you make your first call in a few minutes.
 [Core concepts](./core-concepts) explains how the pieces fit together, if you
 want that first.
+The [Dashboard tour](./dashboard-tour) lists every page of the web app and what it
+is for.

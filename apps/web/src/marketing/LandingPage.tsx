@@ -112,6 +112,7 @@ export function LandingPage(): ReactNode {
       id={`acx-codetab-${id}`}
       aria-selected={tab === id}
       aria-controls="acx-codepanel"
+      className="acx-landing-tab"
       onClick={() => setTab(id)}
       style={cssToStyle(tab === id ? tabOn : tabOff)}
     >

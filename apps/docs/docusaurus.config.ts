@@ -1,9 +1,16 @@
 import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
-import {BLOG_REDIRECTS, DOCS_REDIRECTS, OLD_BLOG_RULES} from './redirects';
-import {addLastmod, analyticsHeadTags, classifySitemapRoute} from './site-shared';
+import {BLOG_REDIRECTS, DOCS_REDIRECTS, OLD_BLOG_RULES, blogTargetFromDocsHost} from './redirects';
+import {
+  addLastmod,
+  analyticsHeadTags,
+  classifySitemapRoute,
+  ORGANIZATION_ID,
+  organizationHeadTag,
+} from './site-shared';
 import remarkUnescapeImageAlt from './plugins/remark-unescape-image-alt';
+import {docsHeaderRules} from './plugins/cloudflare-headers';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -33,18 +40,8 @@ const config: Config = {
   // cookie banner, or the shared consent cookie already says they did.
   headTags: [
     ...analyticsHeadTags(),
-    {
-      tagName: 'script',
-      attributes: {type: 'application/ld+json'},
-      innerHTML: JSON.stringify({
-        '@context': 'https://schema.org',
-        '@type': 'Organization',
-        name: 'AcruxCore',
-        url: 'https://docs.acruxcore.com',
-        description:
-          'LLM-ops platform: version prompts, route LLM calls through a gateway, trace every request, catalog tools, and evaluate quality.',
-      }),
-    },
+    // The same Organization entity as acruxcore.com (see site-shared.ts).
+    organizationHeadTag(),
     {
       tagName: 'script',
       attributes: {type: 'application/ld+json'},
@@ -53,6 +50,7 @@ const config: Config = {
         '@type': 'WebSite',
         name: 'AcruxCore Docs',
         url: 'https://docs.acruxcore.com',
+        publisher: {'@id': ORGANIZATION_ID},
       }),
     },
   ],
@@ -185,19 +183,22 @@ const config: Config = {
     ],
     // Writes `_redirects` so Cloudflare Pages serves a real 301 for every
     // retired URL in redirects.ts.
-    // Retired blog tags point straight at their final page on the new host, so
-    // they are one hop, and the splat that sends the rest of /blog there comes
-    // last.
+    // Retired blog tags and posts point straight at their final page — on the
+    // blog's host, or on this one for a post that moved into the docs — so they
+    // are one hop, and the splat that sends the rest of /blog there comes last.
     [
       './plugins/cloudflare-redirects.ts',
       {
         redirects: [
-          ...BLOG_REDIRECTS.map(({from, to}) => ({from, to: `https://acruxcore.com${to}`})),
+          ...BLOG_REDIRECTS.map(({from, to}) => ({from, to: blogTargetFromDocsHost(to)})),
           ...DOCS_REDIRECTS,
         ],
         extraRules: OLD_BLOG_RULES,
       },
     ],
+    // Writes `_headers`: long cache for the hashed assets, HSTS and
+    // X-Frame-Options, llms.txt as Markdown, and the discovery Link header.
+    ['./plugins/cloudflare-headers.ts', {rules: docsHeaderRules()}],
     // Emits /llms.txt after the build — a Markdown index of every page, written
     // for the AI crawlers that reach the docs through an answer engine rather
     // than through search. Generated from each page's own front matter so it

@@ -11,7 +11,8 @@ on the page. `header.html` renders the post's header image
 A measurement of the official self-host setup of seven open-source LLM
 observability tools, AcruxCore included, run with one harness on one machine.
 It was first drafted as a HackerNoon original; on 2026-10-17 the owner moved it
-to the AcruxCore blog instead. See cross-cutting FAQ Q108.
+to the AcruxCore blog instead. See cross-cutting FAQ Q108 (removed 2026-10-23;
+it is in git history at commit 750215f).
 
 ## Relation to PR #518
 

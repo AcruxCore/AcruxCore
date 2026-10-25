@@ -10,6 +10,8 @@
  * Produces:
  *   apps/web/public/apple-touch-icon.png   180x180  iOS home screen
  *   apps/web/public/og-image.png          1200x630  social preview card
+ *   apps/web/public/brand/logo-512.png     512x512  Organization logo in JSON-LD
+ *   apps/docs/static/img/social-card.png  1200x630  docs + blog share card
  *   apps/web/public/favicon.ico            16/32/48 multi-size, marketing + app
  *   apps/docs/static/img/favicon.ico       16/32/48 multi-size, docs site
  *
@@ -120,6 +122,54 @@ try {
                 font-family:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace">acruxcore.com</p>
     </div>`;
   await shoot(browser, og, 1200, 630, join(PUBLIC, 'og-image.png'));
+
+  // --- logo-512: the Organization logo in index.html's JSON-LD. Google ignores
+  //     SVG logos and wants a raster of at least 112x112; 512 leaves headroom
+  //     for any surface that scales it up. Full-bleed tile, like the touch icon.
+  await shoot(
+    browser,
+    `<div class="fill" style="width:512px;height:512px;background:${T.bg}">
+       ${icon.replace(/rx="14"/, 'rx="0"')}
+     </div>`,
+    512,
+    512,
+    join(PUBLIC, 'brand/logo-512.png'),
+  );
+
+  // --- social-card: what a shared docs page or blog post shows when the post
+  //     has no header image of its own. Same layout and tokens as og-image so a
+  //     link from either host reads as the same product.
+  const card = `
+    <div style="position:relative;width:1200px;height:630px;background:${T.bg};
+                border:1px solid ${T.line};overflow:hidden;
+                font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,Roboto,Helvetica,Arial,sans-serif">
+      <div style="position:absolute;top:-320px;left:420px;width:900px;height:640px;
+                  background:radial-gradient(closest-side,rgba(182,244,0,.17),transparent 70%)"></div>
+      <div class="h" style="position:absolute;top:64px;left:80px;height:34px">${lockup}</div>
+      <div style="position:absolute;top:214px;left:80px;right:80px">
+        <p style="margin:0 0 18px;color:${T.accent};font-size:21px;font-weight:700;
+                  letter-spacing:.12em;text-transform:uppercase">Docs and blog</p>
+        <h1 style="margin:0;color:${T.ink};font-size:62px;line-height:1.1;
+                   letter-spacing:-.028em;font-weight:700;max-width:1040px">Guides, API reference and
+          LLMOps comparisons<span style="color:${T.accent}"> — measured.</span></h1>
+        <p style="margin:34px 0 0;color:${T.muted};font-size:24px;line-height:1.5">Open-source, Apache-2.0,
+          self-hostable LLMOps platform.</p>
+      </div>
+      <p style="position:absolute;bottom:44px;left:80px;margin:0;color:${T.faint};font-size:19px;
+                font-family:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace">docs.acruxcore.com · acruxcore.com/blog</p>
+    </div>`;
+  const cardOut = join(DOCS_IMG, 'social-card.png');
+  await shoot(browser, card, 1200, 630, cardOut);
+  // Every docs page and most blog posts point at this file, so its weight is
+  // paid on every share. A 256-colour palette holds the flat dark design and
+  // the soft glow without visible banding, at well under a fifth of the size.
+  try {
+    execFileSync('magick', [cardOut, '-strip', '-colors', '256',
+      '-define', 'png:compression-level=9', `PNG8:${cardOut}`], { stdio: 'pipe' });
+    console.log(`  compressed ${cardOut.replace(`${REPO}/`, '')} to a 256-colour palette`);
+  } catch {
+    console.warn('  left social-card.png uncompressed — ImageMagick (`magick`) not on PATH');
+  }
 
   // --- favicon.ico for both sites: 48 and 32 keep the dial, 16 uses the dial-less
   //     twin because the cut-out silts up into a smudge at that size.

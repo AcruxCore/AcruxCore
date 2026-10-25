@@ -1,18 +1,18 @@
 ---
-title: "AcruxCore vs Braintrust: what changes when the platform runs your tool code"
-description: The same prompt and the same tool run on both platforms, with real screenshots. A tool was pushed and executed on Braintrust's runtime, and running their Python SDK turned up a templating bug.
+title: "AcruxCore vs Braintrust: when the platform runs your tool code"
+description: "AcruxCore vs Braintrust, tested hands-on with one prompt and one tool. Braintrust runs your tool code, and its Python SDK renders nunjucks as mustache."
 slug: acruxcore-vs-braintrust
 date: 2026-09-13
 authors: [acrux]
 tags: [llmops-comparison, prompt-management]
 image: /img/social-card.png
 keywords: [AcruxCore vs braintrust, braintrust vs AcruxCore, llm ops comparison, llm evaluation platform, tool calling platform, prompt versioning]
+last_update:
+  date: 2026-10-25
 ---
 
-Braintrust is the first hosted-only platform in this series, and the first that **runs your tool
-code instead of only storing the tool's schema**. Six platforms have been compared here before
-Braintrust: Langfuse, Phoenix, Opik, Helicone, MLflow and Laminar. Every one of them stores a
-tool's JSON Schema at most. Braintrust takes your Python, bundles it, and runs it on its own
+Braintrust is a hosted LLM evaluation platform that **runs your tool code instead of only
+storing the tool's schema**. Braintrust takes your Python, bundles it, and runs it on its own
 infrastructure. That one decision sets the Python version you may use, sets whether your handler
 can open a file, and sets where your data has to live. This comparison is built around that
 decision.
@@ -21,6 +21,12 @@ To compare Braintrust with all the other alternatives at once, see
 
 Braintrust is not open source, and self-hosting needs the Enterprise plan. There is no free
 self-hosted install to test against, so everything below ran on their hosted Starter tier.
+
+The short answer: if your main job is to measure prompt quality against a dataset, Braintrust
+does it better. AcruxCore is stronger on controls in the request path: budgets that refuse the
+call, per-key rate limits, and tool code that stays in your own process.
+
+We build AcruxCore. We ran every tool ourselves, and the scripts are linked below.
 
 <!-- truncate -->
 
@@ -33,7 +39,7 @@ The tool sections use one more shared example: `search_flights`, from the
 [travel-planner tutorial](https://docs.acruxcore.com/docs/tutorials/build-a-travel-planner-agent). That tool reads a
 committed JSON file of flights and needs no API key.
 
-Licence, self-hosting, plans and access control are in this post, not on the
+License, self-hosting, plans and access control are in this post, not on the
 [compare page](https://acruxcore.com/compare), which covers open-source alternatives only.
 :::
 
@@ -220,9 +226,7 @@ notes that the web runtime uses nunjucks wherever a prompt says Jinja. The "no t
 AcruxCore, a prompt full of JSON examples or LaTeX has to have its braces escaped by hand.
 
 Because the engine is real nunjucks, the `vip-support-triage` prompt went in **verbatim**: the
-conditionals and the `{% for %}` loop over tickets, unchanged. No competitor in this series has
-taken that prompt unchanged before. Every previous one forced the template to be flattened into
-plain text first.
+conditionals and the `{% for %}` loop over tickets, unchanged.
 
 ![Braintrust prompt editor: the vip-support-triage system message with syntax-highlighted nunjucks conditionals and loop, a GPT-4o mini model picker, and a Jinja template-format selector](/img/comparison/braintrust/bt-10-prompt-editor.png)
 
@@ -255,7 +259,8 @@ titles vanished while the "Open tickets:" heading above them stayed. Braintrust 
 exception and printed no warning, and the model answered plausibly.
 
 The cause is in the source. In `braintrust==0.39.0`, `template_format` appears only inside
-generated type stubs, and `Prompt.build()` calls `render_mustache()` unconditionally.
+generated type stubs, and `Prompt.build()` calls `render_mustache()` unconditionally. The same
+is true in `braintrust==0.48.0`, the latest release on 25 October 2026.
 
 Their Node SDK reads the same field and refuses to render rather than guessing:
 
@@ -399,8 +404,8 @@ and
 
 **There is no benchmark number in this post.**
 
-Every previous benchmark in this series compared a self-hosted competitor on localhost against
-AcruxCore on localhost. Braintrust cannot be self-hosted on a Starter account, so any timing would
+A fair overhead benchmark runs both products on the same machine, for example a self-hosted
+competitor and AcruxCore both on localhost. Braintrust cannot be self-hosted on a Starter account, so any timing would
 measure the round trip to their datacenter against a loopback call. Such a timing measures the
 distance between the two machines, not either product's overhead. Interleaving the runs does not
 remove that distance; it only spreads it evenly.
@@ -409,7 +414,7 @@ Their Docker data plane does run locally, but it cannot be attached to a Starter
 next section shows the setting that would attach it. So a Starter reader could not reproduce a
 benchmark here even if this post published one.
 
-## Licence, self-hosting and plans
+## License, self-hosting and plans
 
 **Braintrust is not open source.** Parts of the tooling around it are published: the JavaScript
 SDK is Apache-2.0 and `autoevals` is MIT. The hosted platform itself is not something you can read
@@ -417,7 +422,7 @@ or fork. AcruxCore is Apache-2.0 in full.
 
 **Self-hosting is Enterprise-only, and the product says so itself.** The containers are not the
 obstacle. `braintrustdata/braintrust-deployment` brings up Redis, Postgres and a `standalone-api`
-container, all healthy in about 25 seconds, with no licence key and no S3 bucket, and
+container, all healthy in about 25 seconds, with no license key and no S3 bucket, and
 `GET :8000/status` returns a real Braintrust `ForbiddenError`, so the API is live.
 
 The deployment is still unusable, because those containers are only the **data plane**. The UI,
@@ -443,7 +448,7 @@ and `staging` aliases do. Our aliases are in the free self-hosted product.
 
 | | Braintrust | AcruxCore |
 |---|---|---|
-| Licence | Proprietary. JS SDK Apache-2.0, `autoevals` MIT | Apache-2.0, all of it |
+| License | Proprietary. JS SDK Apache-2.0, `autoevals` MIT | Apache-2.0, all of it |
 | Self-host | Enterprise plan only; the Docker data plane runs but cannot be attached | `docker compose up` |
 | Free tier | $0: 1 GB processed data, 10k scores, $10 model credits, 14-day retention, unlimited users | Self-host, no limits |
 | Next tier | Pro, $249/mo: 5 GB, 50k scores, 30-day retention, RBAC, environments, custom charts | — |
@@ -451,8 +456,8 @@ and `staging` aliases do. Our aliases are in the free self-hosted product.
 | Audit log | Enterprise only | Per-prompt audit tab, free |
 | Prompt environments/aliases | Pro and above | Free |
 
-Sources: [braintrust.dev/pricing](https://www.braintrust.dev/pricing) and the organization
-settings pages above, all checked 2026-09-13.
+Sources: [braintrust.dev/pricing](https://www.braintrust.dev/pricing), prices checked
+25 October 2026, and the organization settings pages above, checked 2026-09-13.
 
 ## What Braintrust does that AcruxCore doesn't
 
@@ -565,8 +570,7 @@ behind. Braintrust's answer costs you a sandbox, a chosen interpreter and a copy
 buys a tool anything can call with nothing of yours deployed. Ours costs you the work of running
 the tool, and buys a tool that still reaches your own database and filesystem.
 
-For the six open-source alternatives we have compared against, see the
-[compare page](https://acruxcore.com/compare).
+The [compare page](https://acruxcore.com/compare) puts the open-source alternatives side by side.
 
 To compare more tools, see [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison),
 [8 LangSmith alternatives](/blog/langsmith-alternatives), [8 Langfuse alternatives](/blog/langfuse-alternatives)

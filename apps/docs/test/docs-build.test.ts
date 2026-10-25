@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import nodePath from 'node:path';
 import {describe, it} from 'node:test';
-import {BLOG_REDIRECTS, OLD_BLOG_RULES} from '../redirects.ts';
+import {BLOG_REDIRECTS, DOCS_ORIGIN, OLD_BLOG_RULES, blogTargetFromDocsHost} from '../redirects.ts';
 
 const BUILD = nodePath.resolve(import.meta.dirname, '..', 'build');
 
@@ -38,9 +38,20 @@ describe('docs build without the blog', () => {
     const firstSplat = lines.length - OLD_BLOG_RULES.length;
     for (const {from, to} of BLOG_REDIRECTS) {
       for (const source of [from, `${from}/`]) {
-        const index = lines.indexOf(`${source} https://acruxcore.com${to} 301`);
+        const index = lines.indexOf(`${source} ${blogTargetFromDocsHost(to)} 301`);
         assert.ok(index >= 0 && index < firstSplat, `${source} -> ${to}`);
       }
+    }
+  });
+
+  it('sends a blog post that moved into the docs to a page this build has', () => {
+    // The client-redirects plugin checks DOCS_REDIRECTS targets, but these go
+    // only into _redirects, so nothing else would catch a renamed docs page.
+    const moved = BLOG_REDIRECTS.filter(({to}) => to.startsWith(`${DOCS_ORIGIN}/`));
+    assert.ok(moved.length > 0);
+    for (const {to} of moved) {
+      const page = `${to.slice(DOCS_ORIGIN.length + 1)}.html`;
+      assert.ok(fs.existsSync(nodePath.join(BUILD, page)), `${to} has no ${page}`);
     }
   });
 });

@@ -14,7 +14,7 @@ export function AboutPage(): ReactNode {
     <MarketingShell>
       <ContentHeader
         eyebrow="About"
-        docTitle="About — AcruxCore"
+        docTitle="About AcruxCore, the Open-Source LLMOps Platform"
         title="One control plane for the whole LLM stack."
         lead="AcruxCore is an LLM-ops platform for engineering teams — prompt versioning, an OpenAI-compatible gateway, tracing, a tool catalog, evaluation, and an audit trail over all of it, wired together so a fix flows from a bad answer back to a live prompt without a redeploy."
       />

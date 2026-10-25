@@ -1,23 +1,33 @@
 ---
 title: "AcruxCore vs MLflow: two gateways, one with guardrails"
-description: "AcruxCore vs MLflow for LLM work, measured. We timed the same prompt through both gateways. MLflow's gateway added +135 to +225 ms, and ours added +21 to +43 ms."
+description: "AcruxCore vs MLflow for LLM work, measured. We timed one prompt through both gateways: MLflow's added +135 to +225 ms, and ours added +21 to +43 ms."
 slug: acruxcore-vs-mlflow
 date: 2026-08-11
 authors: [acrux]
 tags: [llmops-comparison, llm-gateway, prompt-management]
 image: /img/social-card.png
 keywords: [AcruxCore vs mlflow, mlflow vs AcruxCore, llm ops comparison, ai gateway, prompt registry, mlflow tracing, mlflow guardrails]
+last_update:
+  date: 2026-10-25
 ---
 
-MLflow is the open-source ML/GenAI platform originally built at Databricks, and by far
-the largest, oldest project we've compared AcruxCore against — 27,000+ GitHub stars,
-444 contributors, shipping since 2018. Its GenAI side is newer: a Prompt Registry, a
-tracing store, LLM-as-judge evaluation, and — the real surprise of this comparison — an
-**AI Gateway** that sits in the request path, the same design AcruxCore uses. We built
-the same prompt — `vip-support-triage`, a support agent that changes tone for VIP
-customers and lists their open tickets — on both platforms, then ran the identical
-sequence on each: create the prompt, version it, send a live call through a gateway,
-inspect the trace, build a dataset, and call it from an SDK script.
+MLflow is the open-source ML and GenAI platform first built at Databricks. It has
+shipped since 2018 and has about 28,500 GitHub stars and 447 contributors, as of
+25 October 2026. Its GenAI side is newer: a Prompt Registry, a tracing store,
+LLM-as-judge evaluation, and an **AI Gateway** that sits in the request path, the same
+design AcruxCore uses. We built the same prompt on both platforms. The prompt is
+`vip-support-triage`, a support agent that changes tone for VIP customers and lists
+their open tickets. On each platform we created the prompt, versioned it, sent a live
+call through a gateway, inspected the trace, built a dataset, and called it from an SDK
+script.
+
+The short answer: both gateways sit in the request path, and the measured cost of that
+hop differs. MLflow's gateway added +135 to +225 ms, and AcruxCore's added +21 to +43 ms.
+MLflow has Safety and PII guardrails on every gateway endpoint, and AcruxCore has none.
+AcruxCore shows cost on every call and links each trace to its prompt version
+automatically.
+
+We build AcruxCore. We ran every tool ourselves, and the scripts are linked below.
 
 <!-- truncate -->
 
@@ -59,7 +69,7 @@ Full breakdown, screenshots, and the verdict below.
 
 ## Where the platform sits — in the request path, or beside it
 
-Every other observability-first platform we've compared sits **beside** the request
+Most observability-first platforms sit **beside** the request
 path: your own client calls the provider, and the tool ingests a trace after the fact.
 MLflow doesn't. Its **AI Gateway** is a real proxy: you create a named endpoint, pick a
 provider and model, and get back an OpenAI-compatible URL. Every call through it is
@@ -76,12 +86,11 @@ We created the endpoint, then called it with a plain curl — no SDK, no auth he
 beyond what the endpoint already stores — and got a real completion back with
 `"provider": "openrouter"` in the response. AcruxCore's own request-path gateway is one
 sentence here; see the
-[walkthrough](/blog/acruxcore-hands-on-walkthrough#3-send-a-stored-prompt-reference-through-the-gateway)
+[dashboard tour](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#playground)
 for the picture.
 
 The endpoint also ships an aggregate **Usage dashboard** — requests, p50/p90/p99
-latency, token usage, and cost broken down by model — that neither of the other four
-platforms we've compared has an equivalent of.
+latency, token usage, and cost broken down by model.
 
 <details>
 <summary>Show screenshot: MLflow AI Gateway usage and cost dashboard</summary>
@@ -137,8 +146,7 @@ Every prompt starts life as a `mlflow.genai.register_prompt()` call.
 What that call can hold was the real surprise here: MLflow's templates are **full
 Jinja2**, not flat `{{variable}}` substitution. We registered the fixture's actual
 `{% if is_vip %}...{% else %}...{% endif %}` and `{% for ticket in tickets %}...{%
-endfor %}` logic verbatim — no flattening needed, the first competitor in this series
-where that's been true.
+endfor %}` logic verbatim, with no flattening needed.
 
 <details>
 <summary>Show screenshots: prompt version and diff view on MLflow</summary>
@@ -152,7 +160,7 @@ where that's been true.
 MLflow also has real `@production` / `@staging` aliases — `set_prompt_alias()` — the
 same functional idea as AcruxCore's aliases, just set via SDK call rather than a UI
 button. AcruxCore's own prompt editor is one sentence here; see the
-[walkthrough](/blog/acruxcore-hands-on-walkthrough#2-create-a-prompt-version-it-and-promote-an-alias)
+[dashboard tour](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#prompts)
 for the picture.
 
 | Feature | MLflow | AcruxCore |
@@ -255,7 +263,7 @@ didn't fix it. The dataset existed the whole time (confirmed via
 linked directly) — the list view just never picked it up in this build.
 
 AcruxCore's dataset — built from a real feedback row — is one sentence here; see the
-[walkthrough](/blog/acruxcore-hands-on-walkthrough#5-build-a-dataset-from-real-feedback)
+[dashboard tour](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#feedback)
 for the screenshot.
 
 | Feature | MLflow | AcruxCore |
@@ -343,7 +351,7 @@ OpenAI credential — so all three legs provably end at the same host. It ran th
 | 2 | 611 ms | +157 ms, CI [+73, +250] | +43 ms, CI [+22, +58] |
 | 3 | 613 ms | +135 ms, CI [+63, +255] | +36 ms, CI [+23, +55] |
 
-This is the one row in this series where the two gateways are not close. MLflow's
+Here the two gateways are not close. MLflow's
 overhead lands between +135 ms and +225 ms and **no confidence interval crosses zero** in
 any run, so it is a real cost rather than measurement noise. AcruxCore's lands between
 +21 ms and +43 ms — also real, and roughly five times smaller. Both are doing comparable
@@ -358,8 +366,7 @@ Real friction hit while doing this comparison, not a symmetric wish list.
 
 **MLflow**
 - 👍 No login wall at all on self-host — straight into a working instance.
-- 👍 Full Jinja2 templates — no flattening needed, the first competitor in this series
-  where that's true.
+- 👍 Full Jinja2 templates — no flattening needed.
 - 👍 A real Gateway endpoint with a working curl snippet shown right on its overview page.
 - 👎 The OpenRouter model picker doesn't include `gpt-4o-mini`, even though OpenRouter's
   own live catalog still serves it — the picker is a curated static list, not a mirror
@@ -398,10 +405,10 @@ Registry (covered in "How tools are handled") has no AcruxCore equivalent at all
 every page ships a docked "MLflow Assistant" chat panel that can answer questions about
 your own experiments, traces, and evaluations, plus a one-click "Detect Issues" button
 on the experiment overview that uses AI to flag latency and correctness problems across
-recent traces. AcruxCore has no in-product assistant or automated issue detection.
+recent traces.
 
-AcruxCore has no equivalent to any of the three — no guardrails, no catalog of external MCP servers,
-and no in-product AI assistant.
+AcruxCore has none of these four: no guardrails, no catalog of external MCP servers, no
+in-product AI assistant, and no automated issue detection.
 
 ## Is AcruxCore an MLflow alternative?
 
@@ -409,8 +416,8 @@ Partly, and the split is clean. MLflow is much more than an LLM-ops tool — it 
 experiment tracker with years of history, tens of thousands of GitHub stars and hundreds of
 contributors. If you already run MLflow for classical ML, nothing here suggests removing it.
 
-As an *LLM gateway*, it is the closest structural match to us of anything we have compared,
-which is what makes the measured numbers the interesting part: its AI Gateway added +135 to
+As an *LLM gateway*, it has the same design as ours, so the measured numbers can be
+compared directly: its AI Gateway added +135 to
 +225 ms across three 100-round runs and never once crossed zero, where ours added +21 to
 +43 ms in the same runs. Two identical designs, about 5× apart.
 
@@ -426,7 +433,7 @@ spend caps and rate limits, but no content guardrail at all.
 | Weakest at | No cost on individual traces, prompt-version linking needs a separate call, a real dataset-list UI bug hit hands-on | No guardrails, no registry of external MCP servers |
 | Pick it if | You want guardrails and full templating logic layered onto a platform that's also a serious classical-ML tracker | You want the provider call itself — gateway, cost, tools, prompt lineage — traced for free, with nothing bolted on after the fact |
 
-This is the closest structural match to AcruxCore of any competitor we've compared:
+MLflow and AcruxCore have the same structure:
 both run a real gateway in the request path, and both trace as a side effect of that
 same call. Both enforce a spend cap on that path (**Spend controls** above). Because
 both sit in the request path, the cost of that hop is directly comparable, and it is the

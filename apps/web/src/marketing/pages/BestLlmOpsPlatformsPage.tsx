@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { MarketingShell, ContentHeader } from '../MarketingShell';
 import { cssToStyle, Eyebrow, Ic, BLOG_URL, GITHUB_URL, ExternalArrow } from '../marketing-chrome';
 import { ACRUX_CORE, PLATFORMS_BY_COMMUNITY, type Comparison } from '../comparisons';
+import { COMPETITOR_COUNT, HANDS_ON_PLATFORM_COUNT, PLATFORM_COUNT, countWord } from '../platform-counts';
 
 /**
  * `/best-open-source-llmops-platforms` — a category page answering the query
@@ -35,7 +36,7 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
         eyebrow="Comparison"
         title="8 best open-source LLMOps and observability platforms in 2026"
         lead="We compared eight open-source and source-available platforms for prompt management, LLM gateways, tracing, and evaluation. We self-hosted each one and ran the same prompt through it. This page shows how each one handles prompts, tools, teams, audit logs, and licensing."
-        docTitle="Best open-source LLMOps platforms in 2026 — AcruxCore"
+        docTitle="Best Open-Source LLMOps Platforms in 2026 | AcruxCore"
       />
 
       <section
@@ -106,7 +107,7 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
             'font-size:clamp(22px,2.6vw,28px);line-height:1.15;letter-spacing:-.02em;font-weight:700;margin:12px 0 10px;',
           )}
         >
-          Eight LLMOps platforms compared
+          {countWord(PLATFORM_COUNT, { capitalize: true })} LLMOps platforms compared
         </h2>
         <p className="acx-prose" style={cssToStyle('margin:0 0 24px;color:var(--muted);')}>
           Competitors are listed by community size, with AcruxCore last. The order is not a
@@ -132,7 +133,7 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
         </h2>
         <div className="acx-prose">
           <p style={cssToStyle('margin:0 0 12px;')}>
-            We tested the same example prompt across all eight platforms, including AcruxCore, and
+            We tested the same example prompt across all {countWord(PLATFORM_COUNT)} platforms, including AcruxCore, and
             self-hosted each where supported. The linked reviews include screenshots from these
             hands-on tests.
           </p>
@@ -168,7 +169,7 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
           The <Link to="/compare">comparison matrix</Link> puts every platform side by side, row
           by row, with a source for each cell. The{' '}
           <a href={`${BLOG_URL}/hands-on-llm-ops-comparison`} target="_blank" rel="noreferrer">
-            hands-on review of ten platforms
+            hands-on review of {countWord(HANDS_ON_PLATFORM_COUNT)} platforms
           </a>{' '}
           has the screenshots from each test. The <Link to="/faq">FAQ</Link> says which teams
           AcruxCore fits and which should pick something else.
@@ -208,7 +209,7 @@ export const DECISION_POINTS: { question: string; answer: string }[] = [
   {
     question: 'Can you see who changed what and when, and does it cost extra?',
     answer:
-      'Yes, in AcruxCore, and it costs nothing extra. Every prompt and every tool keeps its own change history. Owners and admins also see one audit trail for the whole team in the dashboard. That trail records 39 event types across eight areas: prompts, tools, members and invites, API keys, gateway credentials and budgets, secrets, evaluations, and trace settings. You can filter the trail by area, by one event type, or by person. Entries stay in the trail after the person who made them leaves the team, so you can still filter by that person. The trail is on by default, whether hosted or self-hosted, with nothing to pay and nothing to switch on. Of the other seven platforms, Langfuse and Agenta are the only ones where we found an audit log. Both put it on their Enterprise plan, even if you self-host. For Phoenix, Opik, Helicone, MLflow and Laminar we found no activity audit option in the platform.',
+      `Yes, in AcruxCore, and it costs nothing extra. Every prompt and every tool keeps its own change history. Owners and admins also see one audit trail for the whole team in the dashboard. That trail records 39 event types across eight areas: prompts, tools, members and invites, API keys, gateway credentials and budgets, secrets, evaluations, and trace settings. You can filter the trail by area, by one event type, or by person. Entries stay in the trail after the person who made them leaves the team, so you can still filter by that person. The trail is on by default, whether hosted or self-hosted, with nothing to pay and nothing to switch on. Of the other ${countWord(COMPETITOR_COUNT)} platforms, Langfuse and Agenta are the only ones where we found an audit log. Both put it on their Enterprise plan, even if you self-host. For Phoenix, Opik, Helicone, MLflow and Laminar we found no activity audit option in the platform.`,
   },
   {
     question: 'How do you turn feedback into better prompts?',

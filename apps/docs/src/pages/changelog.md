@@ -131,7 +131,23 @@ called out in the week it ships and in the SDK release notes.
 - The [compare page](https://acruxcore.com/compare) adds Agenta as a seventh competitor, with a source for each cell.
 - The [hands-on comparison](https://acruxcore.com/blog/hands-on-llm-ops-comparison) adds Agenta, so it now covers ten platforms.
 - The same post now explains what LLM observability is and how each tool traces an agent run.
+- **Fixed** — a mistyped address on acruxcore.com showed the home page instead of a 404 page.
+- [AcruxCore vs LangSmith](https://acruxcore.com/blog/acrux-core-vs-langsmith) is rewritten with measured runs on both platforms.
+- The new [dashboard tour](/docs/getting-started/dashboard-tour) replaces the blog walkthrough; the old link redirects.
+- Comparison posts now say we build AcruxCore, and list posts no longer give it a rank number.
+- **Fixed** — blog post dates moved on every small edit. Each post now shows its last real update.
+- **Fixed** — pages stated different counts for the platforms we compare. The counts now agree.
+- Blog header images load first, and phones get a smaller copy, so posts open faster.
 - **New post** — [10 Braintrust alternatives for LLM evals](https://acruxcore.com/blog/braintrust-alternatives): full platforms first, then eval-only tools.
+- acruxcore.com, the docs and the blog send HSTS, X-Frame-Options and other security headers.
+- Site pages and blog posts now carry breadcrumb and publisher data that search engines read.
+- The cookie banner is one short row on phones; touch screens get 44px buttons and menu rows.
+- Shared docs and blog links show a branded preview card, at a seventh of the old weight.
+- The [blog](https://acruxcore.com/blog/) index has a heading and a title that says what it covers.
+- Google Analytics now loads after the page has finished loading, so pages render sooner.
+- Docs and blog scripts are cached for a year, since their file names change with each release.
+- `llms.txt` is served as Markdown on acruxcore.com, the docs and the blog.
+- **Fixed** — the FAQ and best-platforms pages switched to an older tab title after loading.
 
 ---
 

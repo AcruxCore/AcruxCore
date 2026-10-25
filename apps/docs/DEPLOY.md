@@ -91,7 +91,7 @@ affected.
 
 How it reaches visitors:
 
-1. `docs.yml` copies `build-blog/` into `deploy-blog/blog/` and moves `_redirects`
+1. `docs.yml` copies `build-blog/` into `deploy-blog/blog/` and moves `_redirects` and `_headers`
    to `deploy-blog/`. It then deploys `deploy-blog/` to a second Pages project,
    **`acruxcore-blog`**, with the same token and the same "push to `main` only"
    gate as the docs. The first run creates the project.

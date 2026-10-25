@@ -6,6 +6,8 @@ authors: [acrux]
 tags: [prompt-management, llm-tracing]
 image: /img/social-card.png
 keywords: [langfuse, langfuse walkthrough, llm tracing, prompt management, open source llm observability, opentelemetry tracing]
+last_update:
+  date: 2026-10-25
 ---
 
 Langfuse is one of the best-known **open-source LLM engineering platforms** — it
@@ -16,7 +18,10 @@ through the whole loop ourselves — open a prompt, version it, inspect a real t
 and set up a dataset for testing. This post is a plain, factual account of what we
 found — the good and the rough edges. The
 [main comparison post](/blog/hands-on-llm-ops-comparison) pulls the findings from
-Langfuse, LangSmith, PromptLayer, and AcruxCore together.
+Langfuse, LangSmith, PromptLayer, and AcruxCore together. We tested Langfuse in July 2026,
+and the screenshots are from that month.
+
+We build AcruxCore. We ran every tool in this post ourselves.
 
 <!-- truncate -->
 
@@ -56,12 +61,21 @@ renders as literal, inert characters rather than executing as a real conditional
 
 ## 3. Reading a real trace
 
-Langfuse's **Playground** needs a working LLM provider connection (OpenAI, Anthropic,
-etc.) before it can run anything — the account used for this walkthrough didn't have
-one configured, so the Playground itself was a dead end here. But Langfuse's tracing
-isn't tied to the Playground: it's fundamentally an **ingestion API** any app can send
-events to (this is what the SDKs do under the hood), and the account already had real
-trace data from that path.
+Langfuse's **Playground** runs a prompt against a model once the project has an LLM
+provider connection (OpenAI, Anthropic, etc.). You add one under **Settings → LLM
+Connections**, with your own API key. With an OpenAI connection, the Playground returned a
+reply on the first run:
+
+![Langfuse Playground showing a completed run with a real generated reply about the benefit of versioning prompts](/img/tutorials/langfuse-walkthrough/lf-live-01-playground-run.jpg)
+
+A Playground run does **not** create a trace. The Tracing table showed no new rows right
+after the run, because the Playground is kept separate from Observability:
+
+![Langfuse Tracing table still showing no results immediately after a successful Playground run](/img/tutorials/langfuse-walkthrough/lf-live-02-playground-not-traced.jpg)
+
+Langfuse's traces come from its **ingestion API**, which any app can send events to. The
+SDKs use this API under the hood, and the account already had real trace data from that
+path.
 
 ![Langfuse tracing table listing chat-completion generations and support-greeting-run spans, grouped under trace names](/img/tutorials/langfuse-walkthrough/lf-02-tracing-table.jpg)
 
@@ -95,36 +109,15 @@ across different company/name inputs.
 
 From a prompt version, "Run experiment" opens a multi-step wizard: pick the prompt
 version and model, pick the dataset, pick evaluators, fill in run details, then
-review — a clean, guided flow. It stops cold on step one, though:
+review. The model step needs the same LLM connection as the Playground. In a project
+without one, the wizard stops at that step:
 
 ![Langfuse Run Experiment dialog blocked at the model step with a No LLM API key set in project message](/img/tutorials/langfuse-walkthrough/lf-06-run-experiment-needs-model.jpg)
 
-Same gate as the Playground: running an experiment also needs a working LLM
-connection configured in the project, so we could see the whole flow but not execute
-a live run in this environment. Structurally, though, the pieces are all there —
-datasets, an evaluator step for automatic scoring, and experiment run tracking — and
-Langfuse ties this back to the same trace view once a run does execute.
-
-## Update: with an LLM connection configured
-
-After this walkthrough, we added a real OpenAI connection under **Settings → LLM
-Connections** and came back to finish the two steps that were blocked above.
-
-The Playground worked immediately — no more dead end:
-
-![Langfuse Playground showing a completed run with a real generated reply about the benefit of versioning prompts](/img/tutorials/langfuse-walkthrough/lf-live-01-playground-run.jpg)
-
-One genuine surprise: running the Playground does **not** create a trace. Checking
-Tracing right after confirmed zero new rows — the Playground is a sandbox, separate
-from anything that shows up in Observability. Only real SDK/API-instrumented calls
-(the ones already covered in section 3) get traced.
-
-![Langfuse Tracing table still showing no results immediately after a successful Playground run](/img/tutorials/langfuse-walkthrough/lf-live-02-playground-not-traced.jpg)
-
-Running an actual **experiment** against the `support-greeting-eval-set` dataset,
-though, worked end to end: pick the prompt version and the now-available `openai:
-gpt-4.1` model, review, run. It completed in seconds, at a real cost of **$0.00021**
-and 1.55s total latency for the dataset.
+With the OpenAI connection in place, we ran an experiment against the
+`support-greeting-eval-set` dataset: pick the prompt version and the `openai: gpt-4.1`
+model, review, run. The run completed in seconds, cost **$0.00021**, and took 1.55s in
+total for the dataset.
 
 ![Langfuse experiment run row showing completed status, item count, latency, and total cost](/img/tutorials/langfuse-walkthrough/lf-live-03-experiment-result.jpg)
 
@@ -135,9 +128,8 @@ the prompt's instructions using the actual variables from that row:
 
 ![Langfuse experiment results table showing per-item real generated outputs for each dataset input](/img/tutorials/langfuse-walkthrough/lf-live-04-experiment-outputs.jpg)
 
-So the earlier "blocked" finding was entirely about missing BYOK, not a gap in the
-product — once a key is configured, both the Playground and the dataset/experiment
-flow work as designed.
+The wizard also has an evaluator step for automatic scoring, and each run is tracked
+on the dataset page.
 
 ## Doing this from code
 
@@ -199,13 +191,10 @@ likely feed into Langfuse with minimal glue code.
 
 Langfuse's strongest showing was the **trace view** — the span/observation tree, with
 cost and latency per node and session/user context always visible, is genuinely
-pleasant to read. The prompt versioning model is simple and Git-like. The one real
-friction point was that both the Playground and Experiments require a **live LLM
-provider connection** before you can run anything end-to-end — there's no fallback or
-trial credit, so in an account without one configured, you can look at every screen
-but not press "go" without bringing your own working key. Once that key was added,
-both flows worked cleanly, with one worth-knowing quirk: Playground runs don't
-produce traces, only real instrumented calls and dataset/experiment runs do.
+pleasant to read. The prompt versioning model is simple and Git-like. Both the
+Playground and Experiments need an **LLM provider connection** with your own key before
+they run anything. With a key in place, both worked. Playground runs do not produce
+traces; only instrumented calls and experiment runs do.
 
 ## Langfuse vs AcruxCore
 

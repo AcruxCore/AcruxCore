@@ -2,7 +2,13 @@
 import assert from 'node:assert/strict';
 import {describe, it} from 'node:test';
 import {renderRedirects} from '../plugins/cloudflare-redirects.ts';
-import {BLOG_REDIRECTS, DOCS_REDIRECTS, OLD_BLOG_RULES, REDIRECTS} from '../redirects.ts';
+import {
+  BLOG_REDIRECTS,
+  DOCS_REDIRECTS,
+  OLD_BLOG_RULES,
+  REDIRECTS,
+  blogTargetFromDocsHost,
+} from '../redirects.ts';
 
 describe('renderRedirects', () => {
   it('writes both slash forms of each entry before any extra rule', () => {
@@ -25,6 +31,25 @@ describe('redirect lists', () => {
     for (const entry of BLOG_REDIRECTS) assert.match(entry.from, /^\/blog\//);
     for (const entry of DOCS_REDIRECTS) assert.doesNotMatch(entry.from, /^\/blog\//);
     assert.ok(BLOG_REDIRECTS.length > 0);
+  });
+});
+
+describe('blogTargetFromDocsHost', () => {
+  it('puts a blog page on the blog host', () => {
+    assert.equal(
+      blogTargetFromDocsHost('/blog/tags/llm-gateway'),
+      'https://acruxcore.com/blog/tags/llm-gateway',
+    );
+  });
+
+  it('keeps an absolute target, so a post moved into the docs is one hop', () => {
+    const to = 'https://docs.acruxcore.com/docs/getting-started/dashboard-tour';
+    assert.equal(blogTargetFromDocsHost(to), to);
+  });
+
+  it('sends the retired dashboard walkthrough post to its docs page', () => {
+    const entry = BLOG_REDIRECTS.find((e) => e.from === '/blog/acruxcore-hands-on-walkthrough');
+    assert.equal(entry?.to, 'https://docs.acruxcore.com/docs/getting-started/dashboard-tour');
   });
 });
 

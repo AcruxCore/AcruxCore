@@ -6,14 +6,18 @@ authors: [acrux]
 tags: [prompt-management]
 image: /img/social-card.png
 keywords: [promptlayer, promptlayer walkthrough, prompt management, llm ops, prompt versioning]
+last_update:
+  date: 2026-10-25
 ---
 
-This is a hands-on look at [PromptLayer](https://promptlayer.com), one of the products we compare
-ourselves against. Instead of reading their docs, we logged into a real hosted PromptLayer account
-and did the same four things we do on every platform in this series: create a prompt, version it,
-run it and inspect the trace, and see what evaluation looks like. This post is just the PromptLayer
-leg — the [main comparison post](/blog/hands-on-llm-ops-comparison) pulls the findings from all
-platforms together.
+This is a hands-on look at [PromptLayer](https://promptlayer.com). Instead of reading their docs,
+we logged into a real hosted PromptLayer account and did the same four things we do on every
+platform in this series: create a prompt, version it, run it and inspect the trace, and see what
+evaluation looks like. This post is just the PromptLayer leg — the
+[main comparison post](/blog/hands-on-llm-ops-comparison) pulls the findings from all platforms
+together. We tested PromptLayer in July 2026, and the screenshots are from that month.
+
+We build AcruxCore. We ran every tool in this post ourselves.
 
 <!-- truncate -->
 
@@ -39,6 +43,13 @@ variable" step.
 Running the prompt (via the **Run** button, without filling in the variable) produced a real output
 in about 2 seconds for $0.000405 — cost and latency are shown inline on the output card, with a
 **Go to Request** link straight into the log entry for that call.
+
+We also added our own OpenAI key under **Settings → Model API Keys → OpenAI** and ran a second
+prompt, **Product Tagline Generator**, with both variables filled in (`product_name: AcruxCore`,
+`product_category: SaaS platform`). It returned a completion in under 2 seconds for $0.0002475
+(43 input / 14 output tokens):
+
+![PromptLayer playground output panel showing a real generated tagline, with cost, latency, and model shown inline](/img/tutorials/promptlayer-walkthrough/07-live-run-success.jpg)
 
 ## 3. Saving a new version
 
@@ -67,6 +78,18 @@ nested steps, because a single LLM call has none to show.
 
 ![PromptLayer's Request Log detail view showing model, latency, cost, token counts, tags, and a single chat turn, with a "Missing or Empty Variable: city" warning](/img/tutorials/promptlayer-walkthrough/05-request-log-detail.png)
 
+The tagline run appeared in the **Request Log** right away, with the same detail: model, latency,
+cost, and token counts.
+
+![PromptLayer Request Log detail page for the new live request, showing gpt-4o, cost, and token counts](/img/tutorials/promptlayer-walkthrough/08-live-request-log-detail.jpg)
+
+**Traces** stayed empty after that live call too:
+
+![PromptLayer Traces & Analytics page showing "No traces found" even after a live model call](/img/tutorials/promptlayer-walkthrough/09-live-traces-still-empty.jpg)
+
+Traces is a separate, opt-in feature that needs SDK instrumentation. Running prompts in the UI
+does not fill it, however many live calls you make.
+
 **So: is it span-based or proxy-based?** Neither term fits exactly. PromptLayer doesn't sit in front
 of your model calls as a routing proxy the way a gateway does — you call the model yourself and then
 log the result to PromptLayer via their SDK. But what you get back by default is a flat per-call log,
@@ -75,59 +98,30 @@ default behavior of "run a prompt."
 
 ## 5. Evaluation
 
-PromptLayer doesn't have a LangSmith/Langfuse-style "create a dataset, run an experiment across a
-grid" flow. Its closest equivalent is the **A/B Test** feature: pick a **Release Label** attached to
-a prompt template, and it builds an experiment that compares traffic between labeled versions.
+PromptLayer has two evaluation tools in the UI.
 
-![PromptLayer's "Create A/B Test" dialog, requiring a release label already configured on the prompt template](/img/tutorials/promptlayer-walkthrough/06-ab-test-release-label.png)
-
-This is a live-traffic A/B test between two named releases, not an offline batch eval against a
-fixed example set. We didn't have two release labels configured to complete a full test, but the
-entry point and its requirements are visible above. Individual requests can also be manually scored
-(a "Score N/A" control sits on every Request Log page), which is closer to spot-checking than
-systematic evaluation.
-
-## Update: with a model key configured
-
-The steps above were done before this account had an OpenAI key configured anywhere, so several
-things were untested. After adding a key under **Settings → Model API Keys → OpenAI**, we went back
-and re-ran the same prompt live.
-
-Running the **Product Tagline Generator** prompt with both variables filled in (`product_name:
-AcruxCore`, `product_category: SaaS platform`) produced a real completion in under 2 seconds for
-$0.0002475 (43 input / 14 output tokens):
-
-![PromptLayer playground output panel showing a real generated tagline, with cost, latency, and model shown inline](/img/tutorials/promptlayer-walkthrough/07-live-run-success.jpg)
-
-That request immediately showed up in the **Request Log** with full detail — model, latency, cost,
-and token counts, same as before but now for output we generated ourselves:
-
-![PromptLayer Request Log detail page for the new live request, showing gpt-4o, cost, and token counts](/img/tutorials/promptlayer-walkthrough/08-live-request-log-detail.jpg)
-
-We also re-checked **Traces** after this run. It's still empty:
-
-![PromptLayer Traces & Analytics page showing "No traces found" even after a live model call](/img/tutorials/promptlayer-walkthrough/09-live-traces-still-empty.jpg)
-
-This confirms the finding above: having a model key configured unlocks *running* prompts, but
-**Traces stays a separate, opt-in, SDK-instrumented feature** — it's not populated just by using the
-UI, no matter how many live calls you make through it.
-
-The bigger discovery: the **Evaluate** button on a prompt's Overview page (easy to miss — it's not
-under the A/B Test flow we found before) opens a real dataset-style tool with presets for **Model
-comparison**, **Ground truth check**, **Structure check**, and a blank **Custom prompt table**. We
-ran **Model comparison** — one input row, two models (`gpt-4o` and `gpt-4o-mini`) — and it built a
-live spreadsheet-style comparison table, calling both models for real and showing each output side by
-side with "lowest cost" and "lowest latency" columns:
+The **Evaluate** button on a prompt's Overview page opens a grid-style eval tool. It has presets for
+**Model comparison**, **Ground truth check**, **Structure check**, and a blank **Custom prompt
+table**. We ran **Model comparison** with one input row and two models (`gpt-4o` and `gpt-4o-mini`).
+It built a spreadsheet-style table, called both models, and showed each output side by side with
+"lowest cost" and "lowest latency" columns:
 
 ![PromptLayer's model-comparison table showing gpt-4o and gpt-4o-mini outputs side by side for the same input row, with lowest-cost and lowest-latency columns](/img/tutorials/promptlayer-walkthrough/10-live-model-comparison-eval.jpg)
 
-This changes the evaluation picture from what section 5 above found: PromptLayer **does** have a
-genuine grid-style eval tool, it's just organized around ad-hoc comparison tables rather than a
-persistent "dataset" object you build up over time and reuse across experiments the way LangSmith or
-Langfuse do. The release-label A/B test from before is a second, separate eval path (live traffic
-between two named releases), and this table-based comparison is a third (offline, one-off grids you
-build yourself). Between the two, PromptLayer actually covers more eval ground than section 5
-originally gave it credit for.
+These tables are one-off comparisons that you build yourself. PromptLayer has no persistent
+"dataset" object that you build up over time and reuse across experiments, the way LangSmith and
+Langfuse do.
+
+The second tool is the **A/B Test** feature: pick a **Release Label** attached to a prompt template,
+and it builds an experiment that compares traffic between labeled versions.
+
+![PromptLayer's "Create A/B Test" dialog, requiring a release label already configured on the prompt template](/img/tutorials/promptlayer-walkthrough/06-ab-test-release-label.png)
+
+This is a live-traffic A/B test between two named releases, not an offline eval against a fixed
+example set. We didn't have two release labels configured to complete a full test, but the
+entry point and its requirements are visible above. Individual requests can also be manually scored
+(a "Score N/A" control sits on every Request Log page), which is closer to spot-checking than
+systematic evaluation.
 
 ## Doing this from code
 
@@ -176,9 +170,8 @@ template via `pl_client.templates.get(...)` first and feed its rendered messages
 
 ## What's unique to PromptLayer
 
-- **Release-label A/B testing on live traffic**, rather than dataset-based offline experiments —
-  useful if you want to compare two prompt versions on real production traffic rather than a fixed
-  test set.
+- **Release-label A/B testing on live traffic** — useful if you want to compare two prompt versions
+  on real production traffic rather than a fixed test set.
 - **Automatic variable detection in the editor** — typing `{{name}}` anywhere in a message
   instantly becomes a first-class template variable with no separate declaration step.
 - **A visible, git-style diff** on every prompt version save, before you even commit — you see
@@ -198,7 +191,9 @@ template via `pl_client.templates.get(...)` first and feed its rendered messages
 | Gateway | No request-routing layer — call providers yourself through their SDK wrapper, it logs the call | Gateway routes every provider call itself — one audited, cost-visible path |
 | Tracing | Multi-step tracing is a separate, opt-in SDK feature; default is a flat per-call log | Automatic the moment a call goes through the gateway |
 | Evaluation | Live, ad-hoc model-comparison tables and release-label A/B tests on live traffic | Datasets and experiments persist and build up over time, built from production feedback, by hand, or from a CSV/JSON file |
-| Hosting & pricing | Seat-based trial plan | Open source and self-hostable, free in beta |
+| Hosting & pricing | Seat-based; we tested on a Team trial plan (July 2026) | Open source and self-hostable; hosted version free during beta (Oct 2026) |
+
+AcruxCore pricing checked 25 October 2026.
 
 Want to see the same loop on AcruxCore? The
 [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart) gets you from sign-up to a traced,

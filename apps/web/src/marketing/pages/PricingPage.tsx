@@ -152,7 +152,7 @@ const FAQ: { q: string; a: ReactNode }[] = [
  * @returns The rendered Pricing page.
  */
 export function PricingPage(): ReactNode {
-  useDocumentTitle('Pricing — AcruxCore');
+  useDocumentTitle('AcruxCore Pricing: Free, Open-Source LLMOps Platform');
 
   return (
     <MarketingShell wide>

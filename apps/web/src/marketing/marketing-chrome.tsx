@@ -734,7 +734,7 @@ export function MarketingHeader({ onLanding = false }: { onLanding?: boolean }):
             onClick={flipTheme}
             aria-label="Toggle color theme"
             title="Toggle theme"
-            className="acx-hover-faint"
+            className="acx-nav-theme acx-hover-faint"
             style={cssToStyle(
               'height:34px;width:34px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:8px;cursor:pointer;transition:border-color .15s,color .15s;',
             )}
@@ -989,6 +989,27 @@ export const MARKETING_CSS = `
   /* The brand is an SVG lockup, so it shrinks by height rather than font-size. */
   .acx-landing .acx-nav-wordmark{height:20px !important;}
   .acx-landing .acx-nav-cta{height:32px !important;padding:0 11px !important;font-size:12.5px !important;}
+}
+/* Touch screens: every control reaches the 44px touch-target size. Scoped to
+   pointer:coarse, not to a width, so a narrow desktop window keeps the compact
+   34px controls and a tablet in landscape still gets the bigger ones. The hero
+   language pills grow their hit area with padding, not their font. */
+@media (pointer:coarse){
+  .acx-landing .acx-nav-cta{height:44px !important;}
+  .acx-landing .acx-nav-github,
+  .acx-landing .acx-nav-theme,
+  .acx-landing .acx-nav-burger{height:44px !important;width:44px !important;}
+  .acx-landing .acx-code-tab{min-height:44px !important;min-width:44px !important;justify-content:center;}
+  .acx-landing .acx-landing-tab{height:44px !important;}
+}
+/* The smallest phones (320-360px) cannot fit the wordmark plus the theme toggle,
+   CTA and burger at full size: the burger ended up past the right edge. The
+   wordmark, gutters and gaps shrink there instead of a control being dropped. */
+@media (max-width:360px){
+  .acx-landing .acx-nav{padding-left:12px !important;padding-right:12px !important;gap:8px !important;}
+  .acx-landing .acx-nav > div:last-child{gap:6px !important;}
+  .acx-landing .acx-nav-wordmark{height:16px !important;}
+  .acx-landing .acx-nav-cta{padding:0 8px !important;}
 }
 
 /* ── landing pillar grid ── */
