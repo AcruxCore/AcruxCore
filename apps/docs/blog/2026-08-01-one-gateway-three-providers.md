@@ -124,10 +124,11 @@ x-goog-api-key: <key>
 
 A live call through the gateway to a Gemini-backed model with this same
 system and user message came back through the same normalization path as
-the other two:
+the other two. `gemini-3.6-flash` is a thinking model, so `completion_tokens`
+includes its reasoning, which `reasoning_tokens` also reports:
 
 ```json
-{"id":"chatcmpl-0c393a95-d15d-4446-8f06-f63f301462fd","model":"gemini-flash-latest","object":"chat.completion","created":1785558362,"choices":[{"index":0,"message":{"role":"assistant","content":"I'd be happy to help check on your order! Could you please provide your order ID?"},"finish_reason":"stop"}],"usage":{"prompt_tokens":70,"completion_tokens":20,"total_tokens":173}}
+{"id":"chatcmpl-8794e3b4-4e8d-48eb-9b52-f0f8c3156d4c","model":"gemini-3.6-flash","object":"chat.completion","created":1792949745,"choices":[{"index":0,"message":{"role":"assistant","content":"I'd be happy to help check on your order! Could you please provide your order ID?"},"finish_reason":"stop"}],"usage":{"prompt_tokens":70,"completion_tokens":115,"total_tokens":185,"reasoning_tokens":95,"completion_tokens_details":{"reasoning_tokens":95}}}
 ```
 
 ## OpenAI: the gateway's own shape, close to a passthrough
@@ -143,7 +144,7 @@ Authorization: Bearer <key>
     { "role": "user", "content": "My order has not arrived yet — can you look it up?" }
   ],
   "temperature": 0.2,
-  "max_tokens": 200,
+  "max_completion_tokens": 200,
   "tools": [
     { "type": "function", "function": { "name": "lookup_order", "description": "Look up an order by its id.", "parameters": { "type": "object", "properties": { "orderId": { "type": "string" } }, "required": ["orderId"] } } }
   ],
@@ -154,13 +155,15 @@ Authorization: Bearer <key>
 
 Because the gateway's own client-facing API already mirrors OpenAI's Chat
 Completions shape, this adapter does almost nothing: `messages`, `tools`,
-and `tool_choice` pass straight through unchanged, `Authorization: Bearer`
-is the standard header, and the only addition is an explicit `stream: false`.
-A live call through the gateway to `gpt-4o-mini` with this same system and
-user message came back exactly as you'd expect from that passthrough:
+and `tool_choice` pass straight through unchanged, and `Authorization: Bearer`
+is the standard header. Two things change. `max_tokens` is sent as
+`max_completion_tokens`, which OpenAI's reasoning models require, and an explicit
+`stream: false` is added. A live call through the gateway to `gpt-4o-mini` with
+this same system and user message came back exactly as you'd expect from that
+passthrough:
 
 ```json
-{"id":"gen-1785557584-vX8IgUyDLe4W8wtJx8bX","model":"openai/gpt-4o-mini","object":"chat.completion","created":1785557584,"choices":[{"index":0,"message":{"role":"assistant","content":"I'm sorry to hear your order hasn't arrived yet! Unfortunately, I can't look up specific orders. However, I recommend checking your order confirmation email for tracking information or contacting customer support directly for assistance. Let me know if you need help with anything else!"},"finish_reason":"stop"}],"usage":{"prompt_tokens":33,"completion_tokens":54,"total_tokens":87}}
+{"id":"chatcmpl-EcwMIJOD35Up0SNP0MUPnhgHli0oQ","model":"gpt-4o-mini-2024-07-18","object":"chat.completion","created":1792949502,"choices":[{"index":0,"message":{"role":"assistant","content":"Please provide me with your order ID so I can look it up for you."},"finish_reason":"stop"}],"usage":{"prompt_tokens":68,"completion_tokens":17,"total_tokens":85}}
 ```
 
 ## Side by side
@@ -170,7 +173,7 @@ user message came back exactly as you'd expect from that passthrough:
 | Model name | In body (`model`) | **In URL path** | In body (`model`) |
 | System message | Hoisted to top-level `system` string | Hoisted to `systemInstruction.parts` | Stays inline in `messages` |
 | `assistant` role | Unchanged | Renamed to `model` | Unchanged |
-| Sampling params | Inline (`temperature`, `max_tokens`) | Nested under `generationConfig`, `max_tokens`→`maxOutputTokens` | Inline, unchanged |
+| Sampling params | Inline (`temperature`, `max_tokens`) | Nested under `generationConfig`, `max_tokens`→`maxOutputTokens` | Inline; `max_tokens`→`max_completion_tokens` |
 | Tool schema field | `input_schema` | `parameters`, wrapped in `functionDeclarations` | `parameters`, unchanged |
 | Auth header | `x-api-key` + `anthropic-version` | `x-goog-api-key` | `Authorization: Bearer` |
 | `max_tokens` | **Required** — defaults to 1024 if omitted | Optional | Optional |

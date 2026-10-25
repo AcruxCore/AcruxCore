@@ -1,7 +1,7 @@
 ---
 title: "8 LangSmith alternatives for startups: open source, self-hosted and cheaper (2026)"
 description: "Eight LangSmith alternatives compared on license, free self-hosting, per-seat price and trace retention: which are open source, and which fit a startup."
-title_meta: "LangSmith Alternatives: 8 Open-Source Picks (2026)"
+title_meta: "LangSmith Alternatives: 8 Tools, 5 Open Source (2026)"
 slug: langsmith-alternatives
 date: 2026-10-17
 authors: [acrux]
@@ -510,7 +510,7 @@ prompt optimization.
 - [8 best Langfuse alternatives for startups](/blog/langfuse-alternatives): the same comparison,
   starting from Langfuse.
 - [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart): sign up for AcruxCore and send a first trace.
-- [Self-hosting LLM observability: seven open-source tools measured](/blog/self-hosting-llm-observability):
+- [Self-hosting LLM observability tools: seven measured, six open source](/blog/self-hosting-llm-observability):
   memory, disk and trace storage for seven self-hosted stacks on one machine.
 - [Self-hosting AcruxCore](https://github.com/AcruxCore/AcruxCore#-self-hosting): the
   `docker compose` setup.

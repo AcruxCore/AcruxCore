@@ -44,8 +44,7 @@ single `question` variable).
 ![LangSmith Playground with the acruxcore-support-assistant prompt loaded, showing System and Human messages, model gpt-5.6-terra, and an Inputs panel for the question variable](/img/tutorials/langsmith-walkthrough/ls-03-playground-loaded.png)
 
 LangSmith's Playground needs **your own provider API key** (a BYOK model — bring
-your own key) before it will execute a call. There's no built-in gateway sitting in
-front of model providers. Without a key, the Playground asks for one:
+your own key) before it will execute a call. Without a key, the Playground asks for one:
 
 ![LangSmith Playground showing a "Secrets & API keys" panel requesting an OPENAI_API_KEY before the prompt can be run](/img/tutorials/langsmith-walkthrough/ls-04-playground-needs-api-key.png)
 
@@ -178,8 +177,7 @@ against a plain OpenAI client.
 LangSmith's tracing is genuinely deep (real span trees, not just LLM call logs),
 and its prompt commit history plus Environments give a clean, git-like way to
 version and promote prompts. Playground runs and Experiments both need your own
-model provider key, since LangSmith doesn't run its own gateway in front of
-providers. You add the key once. With it in place, Playground runs, traces and
+model provider key. You add the key once. With it in place, Playground runs, traces and
 dataset Experiments all worked.
 
 ## LangSmith vs AcruxCore
@@ -188,7 +186,7 @@ dataset Experiments all worked.
 | --- | --- | --- |
 | Framework integration | Deep LangChain/LangGraph-native instrumentation, plus a dedicated Studio for LangGraph agents | Framework-agnostic — plain REST or either published SDK, no LangChain dependency |
 | Prompt management | Git-like prompt commits with named Environments (Production/Staging) | Immutable versions with alias promotion (`production`/`staging`), no redeploy |
-| Gateway | No request-routing layer — bring your own provider key, call providers directly | Gateway sits in front of every provider call — one audited, cost-visible path |
+| Gateway | LLM Gateway in beta (as of 25 October 2026): spend and rate limits; no fallbacks or cache documented | Gateway sits in front of every provider call — one audited, cost-visible path |
 | Tool calling | Traces tool calls made through LangChain | First-class, versioned tool catalog, callable via a client-side tool loop in either SDK |
 | Evaluation | Rich, mature evaluation suite with many built-in evaluators and a Pairwise Experiments UI | Datasets built from real production feedback, typed by hand, or imported from a CSV/JSON file |
 | Hosting & pricing | Self-hosting is an enterprise add-on | Open source and self-hostable by default |

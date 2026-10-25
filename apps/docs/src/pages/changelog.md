@@ -148,6 +148,10 @@ called out in the week it ships and in the SDK release notes.
 - Docs and blog scripts are cached for a year, since their file names change with each release.
 - `llms.txt` is served as Markdown on acruxcore.com, the docs and the blog.
 - **Fixed** — the FAQ and best-platforms pages switched to an older tab title after loading.
+- **Fixed** — 16 blog posts had wrong or outdated facts, such as AcruxCore having no alerts or judge.
+- **Fixed** — the Traces list column that shows each trace's name is now headed Name, not Input.
+- **Re-measured** — [gateway overhead](https://acruxcore.com/blog/llm-gateway-overhead): a local gateway adds +9 ms, too small to measure.
+- **Fixed** — a link in the hands-on comparison's preview did nothing on blog list pages.
 
 ---
 

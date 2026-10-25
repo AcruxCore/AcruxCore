@@ -33,7 +33,7 @@ seven open source observability tools on one machine.
   LangSmith, PromptLayer, Opik, Laminar and Agenta each have evaluation tools that AcruxCore
   lacks. Laminar lets you query traces with SQL.
 - **Details for each tool** are in the sections below, and the full list is in
-  [Where AcruxCore stands](#where-acruxcore-stands).
+  [Where AcruxCore stands](/blog/hands-on-llm-ops-comparison#where-acruxcore-stands).
 
 We build AcruxCore. We ran every tool ourselves, and the scripts are linked below.
 
@@ -445,9 +445,9 @@ means tracing depends on remembering to instrument every call site.
 ### Latency overhead — measured on seven of the ten
 
 AcruxCore's own dedicated [gateway-overhead post](/blog/llm-gateway-overhead) measured its
-software cost against a direct OpenAI call in isolation: about **42 ms**, with the rest of
-what you'd see in production being ordinary network distance you control by deploying close
-to your callers. The five paired comparisons repeat that measurement fifteen more times,
+software cost against a direct OpenAI call in isolation: a median of **+9 ms**, with a
+confidence interval that crosses zero. The rest of what you'd see in production is ordinary
+network distance, which you control by deploying close to your callers. The five paired comparisons repeat that measurement fifteen more times,
 which is what makes the swing across runs visible rather than hidden behind one number.
 
 Every one of those runs times the identical call three ways — a direct call to the provider
@@ -502,9 +502,10 @@ its ClickHouse `request_response_rmt` table afterwards. So it is being timed doi
 than the other gateways in this table, and the comparison is unfair in Helicone's favour, not
 against it.
 
-**The two gateways doing comparable work are about 5× apart.** MLflow's AI Gateway is the
-only path in this entire series whose overhead never once crossed zero, at +135 to +225 ms;
-AcruxCore's, doing the same job plus writing a trace, ran +4 to +51 ms. Helicone is the third
+**The two gateways doing comparable work are about 4× to 11× apart.** In the three
+MLflow-vs-AcruxCore runs, MLflow's AI Gateway overhead never crossed zero, at +135 to +225 ms.
+AcruxCore's, doing the same job plus writing a trace, ran +21 to +43 ms in those runs and
++4 to +51 ms across all 15. Helicone is the third
 in-path gateway here, but as the caveat above says it was forwarding without logging, so it
 isn't doing the same work. MLflow against AcruxCore is the one place in this post where two
 structurally identical designs can be compared directly.
@@ -1342,7 +1343,7 @@ paired comparison against AcruxCore using the same fixture prompt each time:
 - [A hands-on walkthrough of PromptLayer](/blog/promptlayer-hands-on-walkthrough)
 - [AcruxCore vs Arize Phoenix](/blog/acruxcore-vs-phoenix) — OpenTelemetry tracing depth against a request-path gateway.
 - [AcruxCore vs Opik](/blog/acruxcore-vs-opik) — guardrails, PII, and online evaluation against a working Tool Catalog.
-- [AcruxCore vs MLflow](/blog/acruxcore-vs-mlflow) — the closest structural match of any competitor here; its gateway measured about 5× our overhead.
+- [AcruxCore vs MLflow](/blog/acruxcore-vs-mlflow) — the closest structural match of any competitor here; its gateway measured about 4× to 11× our overhead.
 - [AcruxCore vs Helicone](/blog/acruxcore-vs-helicone) — two request-path proxies, and the real self-hosted bugs we hit around one of them.
 - [AcruxCore vs Laminar](/blog/acruxcore-vs-laminar) — SQL over agent spans and a custom dashboard builder against prompt versioning and a request-path gateway.
 - [AcruxCore vs Agenta](/blog/acruxcore-vs-agenta) — 15 built-in evaluator types and annotation queues against a request-path gateway and versioned tools.
@@ -1350,7 +1351,7 @@ paired comparison against AcruxCore using the same fixture prompt each time:
 - [AcruxCore vs Langfuse vs LangSmith](/blog/acruxcore-vs-langfuse-vs-langsmith) — the same app built and measured on all three.
 - [8 LangSmith alternatives](/blog/langsmith-alternatives) — license, self-hosting, price and features for eight tools, starting from LangSmith.
 - [8 Langfuse alternatives](/blog/langfuse-alternatives) — the same comparison, starting from Langfuse.
-- [Self-hosting LLM observability: seven open-source tools measured](/blog/self-hosting-llm-observability) — memory, disk and trace storage for seven self-hosted stacks on one machine.
+- [Self-hosting LLM observability tools: seven measured, six open source](/blog/self-hosting-llm-observability) — memory, disk and trace storage for seven self-hosted stacks on one machine.
 
 And for the full license, pricing, team-structure, security, and community picture across the
 seven self-hostable competitors next to AcruxCore, see the [compare page](https://acruxcore.com/compare).

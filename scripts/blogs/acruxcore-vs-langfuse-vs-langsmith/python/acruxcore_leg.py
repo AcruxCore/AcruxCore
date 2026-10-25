@@ -176,8 +176,9 @@ def experiment(alias: str, name: str, concurrency: int, only: set[str] | None):
     """A local experiment: this process runs the app and the scorers, AcruxCore stores the run.
 
     POST /experiments/local returns the dataset's examples; each result goes up with its trace id
-    and three scores (0-100); POST /runs/:id/finish closes the run. The Python SDK's
-    experiments.run_local makes the same three calls, but it is async.
+    and three scores (0-100); POST /runs/:id/finish closes the run. This script makes the
+    three calls itself. The SDK's experiments.run_local makes the same calls, on both
+    AcruxCore and AcruxCoreSync.
     """
     app = make_app(alias, only)
     judge = prompt_version("scope-judge", "production")

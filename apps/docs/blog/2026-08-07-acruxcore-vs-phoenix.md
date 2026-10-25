@@ -39,7 +39,7 @@ here — they were always tables, and a price change there is one edit instead o
 
 | Aspect | Phoenix | AcruxCore | Winner |
 |---|---|---|---|
-| Tracing depth | Single span, OTel semantic conventions, rich attribute tabs | Single automatic span | Phoenix |
+| Tracing depth | Single span, OTel semantic conventions, rich attribute tabs | One automatic span per gateway call; trees through SDK steps or OTel framework instrumentors | Phoenix |
 | Prompt templating | Mustache — `{{#section}}` doubles as both if *and* for | Real nunjucks `{% if %}` / `{% for %}` logic | AcruxCore |
 | Playground | Cost, tokens, latency shown inline | Cost, cache, latency shown inline | Tie |
 | Request-path gateway | None — Playground calls proxy through a GraphQL mutation, SDK calls go direct | Built in — routing, caching, budgets | AcruxCore |
@@ -59,7 +59,7 @@ Full breakdown, screenshots, and the verdict below.
 
 The same call produced a richer trace view on Phoenix. Its Info, Attributes and Events
 tabs, per-span cost and token counts, and OTel semantic-convention attributes show
-more than AcruxCore's single-span view.
+more than AcruxCore shows for the same span.
 
 <details>
 <summary>Show screenshots: trace detail on both platforms</summary>
@@ -71,7 +71,7 @@ more than AcruxCore's single-span view.
 
 | Feature | Phoenix | AcruxCore |
 |---|---|---|
-| Trace shape | Single span, rich attribute/event tabs | Single span per gateway call |
+| Trace shape | Single span, rich attribute/event tabs | One span per gateway call; SDK steps or OTel instrumentors add a tree around it |
 | How it's produced | Client-side OTel instrumentation (Playground calls proxy through Phoenix's own GraphQL backend) | Automatic — a side effect of the gateway call |
 | Links back to prompt version | Not surfaced in this run | Yes — "View traces for this prompt version" |
 
@@ -341,8 +341,9 @@ retention schedule and no typed-annotation configuration.
 For running an LLM app, yes. For notebook-based analysis, no.
 
 Phoenix has no request-path gateway, its "tool" is an unversioned JSON Schema saved per
-prompt that never executes, and the local open-source install has no team, role or audit
-concept at all — that last one is worth checking first if more than one person needs access.
+prompt that never executes, and the self-hosted install has roles (admin, member, viewer)
+only after you turn authentication on, with no teams and no audit log. Check that first if
+more than one person needs access.
 
 Phoenix's per-span attribute depth is genuinely better than ours, and PXI, its docked
 assistant, has no equivalent here. If your work happens inside a notebook and OTel-native
@@ -357,8 +358,8 @@ rather than a fork in the road.
 | | Phoenix | AcruxCore |
 |---|---|---|
 | Strongest at | Rich per-span trace attributes, a genuine LLM-vs-code evaluator split, a built-in dashboard assistant | A request-path gateway with routing, caching, and budgets on every call; tools that actually execute and get measured; server-side prompt rendering with zero tracing code |
-| Weakest at | No request-path gateway; no team/RBAC/audit at all in local OSS; Playground's flat inputs silently mis-render structured template data | No in-dashboard assistant; narrower eval-evaluator taxonomy; no audit export |
-| Pick it if | You want OTel-native tracing and evals layered onto a client you already own, and don't need team/RBAC out of the box | You want the provider call itself — gateway, tools, feedback-driven datasets — traced for free, with a real team model, nothing bolted on after the fact; AcruxCore also accepts your own OTel-instrumented traces directly via its OTLP endpoint |
+| Weakest at | No request-path gateway; auth off by default; no teams or audit log; Playground's flat inputs silently mis-render structured template data | No in-dashboard assistant; narrower eval-evaluator taxonomy; no audit export |
+| Pick it if | You want OTel-native tracing and evals layered onto a client you already own, and don't need teams or an audit log | You want the provider call itself — gateway, tools, feedback-driven datasets — traced for free, with a real team model, nothing bolted on after the fact; AcruxCore also accepts your own OTel-instrumented traces directly via its OTLP endpoint |
 
 Phoenix's tracing depth and its LLM/code evaluator split (**Tracing & observability**,
 **Evaluation & datasets** above) are real strengths, and so is PXI, its built-in
@@ -366,8 +367,8 @@ assistant (**What Phoenix does that AcruxCore doesn't**). But on the loop that
 actually runs a production LLM app day to day, this comparison landed on AcruxCore's
 side each time: Phoenix has no request-path gateway at all (**Where the platform sits**
 above), its "tool" is an unversioned JSON Schema saved per-prompt, never executed or
-measured (**How tools are handled** above), and its local OSS install has no team,
-role, or audit concept whatsoever. AcruxCore does all three natively, in one
+measured (**How tools are handled** above), and its self-hosted install has roles only
+once you turn authentication on, and no teams or audit log. AcruxCore does all three natively, in one
 integrated flow. See the full picture, including license, pricing, and team structure,
 on the [compare page](https://acruxcore.com/compare).
 

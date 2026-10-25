@@ -1,5 +1,5 @@
 ---
-title: "Self-hosting LLM observability: seven open-source tools measured"
+title: "Self-hosting LLM observability tools: seven measured, six open source"
 description: We self-hosted Langfuse, Opik, Phoenix, MLflow, Laminar, Agenta and AcruxCore on one machine, sent each 1,000 traces, and measured memory and disk.
 slug: self-hosting-llm-observability
 date: 2026-10-17
@@ -13,7 +13,7 @@ last_update:
 
 ![Bar chart of idle memory for seven self-hosted LLM observability stacks: AcruxCore 0.39 GiB, Phoenix 0.47, Laminar 1.11, MLflow 2.33, Langfuse 2.60, Agenta 2.62, Opik 3.69](/img/blog/self-hosting-llm-observability/header.png)
 
-Open-source LLM observability tools describe self-hosting the same way. You clone the repo, run one `docker compose up`, and open the dashboard. Most self-host pages say nothing after that step.
+Open-source and source-available LLM observability tools describe self-hosting the same way. You clone the repo, run one `docker compose up`, and open the dashboard. Most self-host pages say nothing after that step.
 
 The compose file behind that command fixes several things the self-host page does not list. The file sets how many containers you run and which databases come with them. Those containers set how much memory the server needs before the first trace arrives. The file's volume mounts decide whether your data survives a restart.
 
@@ -136,7 +136,7 @@ The production file, `docker-compose.yml`, brings no database. You supply Postgr
 
 - **Langfuse** is the only one of the seven whose docs state hardware: at least 4 cores, 16 GiB of memory and 100 GiB of disk on a VM. Langfuse marks 14 lines in its compose file with `# CHANGEME`, which are its default secrets. Its docs say the compose setup has no high availability, no scaling and no backups, and point to Kubernetes for production.
 - **Opik** loads a demo project with 156 traces on first start. Its docs say the compose setup "is not meant for production deployments." Opik has no login screen in self-hosted mode, so anyone who can reach the port can read every trace.
-- **Phoenix** has authentication off by default, and you turn it on with `PHOENIX_ENABLE_AUTH`. Phoenix's docs also show a single-container option on SQLite, which we did not measure. We measured the Postgres setup, because that is the setup you would keep running.
+- **Phoenix**'s license is the Elastic License 2.0, which is source-available, not open source. Phoenix has authentication off by default, and you turn it on with `PHOENIX_ENABLE_AUTH`. Phoenix's docs also show a single-container option on SQLite, which we did not measure. We measured the Postgres setup, because that is the setup you would keep running.
 
 ## Which tool fits which server
 

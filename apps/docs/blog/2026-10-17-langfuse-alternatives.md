@@ -464,11 +464,16 @@ Start at the top and stop at the first question you answer yes to.
 |---|---|---|---|
 | Langfuse | $29 a month | 100,000 units, unlimited users | 90 days |
 | Opik | $19 a month | 100,000 spans, up to 50 members | 60 days |
-| Laminar | $30 a month | 3 GB, unlimited seats | 30 days |
-| Arize AX Pro | $50 a month | 50,000 spans, unlimited users | 30 days |
-| LangSmith | $39 per seat a month | 10,000 traces | 14 days |
-| Braintrust | $249 a month | 5 GB, 50,000 scores, unlimited users | 30 days |
 | AcruxCore | Free | Every feature | 90 days of span content |
+
+### Langfuse alternatives that cost more
+
+| Tool | Cheapest paid plan | What it includes | Data kept |
+|---|---|---|---|
+| Laminar | $30 a month | 3 GB, unlimited seats | 30 days |
+| LangSmith | $39 per seat a month | 10,000 traces | 14 days |
+| Arize AX Pro | $50 a month | 50,000 spans, unlimited users | 30 days |
+| Braintrust | $249 a month | 5 GB, 50,000 scores, unlimited users | 30 days |
 
 ### Best free Langfuse alternative
 
@@ -536,7 +541,7 @@ beta, and Braintrust has a hosted one in preview.
   step by step.
 - [8 LangSmith alternatives for startups](/blog/langsmith-alternatives): the same comparison,
   starting from LangSmith.
-- [Self-hosting LLM observability: seven open-source tools measured](/blog/self-hosting-llm-observability):
+- [Self-hosting LLM observability tools: seven measured, six open source](/blog/self-hosting-llm-observability):
   memory, disk and trace storage for Langfuse, AcruxCore and five more stacks on one machine.
 - [Self-hosting AcruxCore](https://github.com/AcruxCore/AcruxCore#-self-hosting): the
   `docker compose` setup.

@@ -45,7 +45,7 @@ always tables, and a price change there is one edit instead of three.
 | Dataset creation | Add-to-dataset from any trace, inline dataset creation | Span-level trace feedback, manual entry, API, or a CSV/JSON file | Depends |
 | Prompt templating | Flat `{{variable}}` only, but real Diff view + environment labels | Real nunjucks `{% if %}` / `{% for %}` logic, real Diff tab | AcruxCore |
 | Playground | Latency + tokens shown inline, no cost, no cache | Cost, cache, latency shown inline | AcruxCore |
-| Tracing depth | Span tree via client-side SDK instrumentation | Single automatic span | Depends |
+| Tracing depth | Span tree via client-side SDK instrumentation | One automatic span per gateway call; trees through SDK steps or OTel framework instrumentors | Depends |
 | Request-path gateway | None — ingests a trace after your own call | Built in — routing, caching, budgets | AcruxCore |
 | Tool catalog | No catalog at all — "Agent playground" needs a live connected process | Versioned catalog, real executed calls, analytics | AcruxCore |
 | SDK trace capture | Wrap a client with `track_openai()` | Automatic side effect of the gateway call | AcruxCore |
@@ -185,7 +185,7 @@ inner LLM span with model, provider, tokens, and cost.
 
 | Feature | Opik | AcruxCore |
 |---|---|---|
-| Trace shape | Span tree (outer trace + inner LLM span) | Single span per gateway call |
+| Trace shape | Span tree (outer trace + inner LLM span) | One span per gateway call; SDK steps or OTel instrumentors add a tree around it |
 | How it's produced | Client-side `track_openai()` wrapper | Automatic — a side effect of the gateway call |
 | Playground produces a trace | No — confirmed, Logs stayed empty after a Playground run | Yes — every Playground run is traced |
 
@@ -364,7 +364,8 @@ regression testing rather than dataset-driven experimentation.
 AcruxCore has no equivalent to guardrails or a separate pre-deployment test-suite
 object. It does have its own rule-based online evaluation — a judge (built-in or your
 own prompt) scoring every matching live trace as it lands, not just a dataset run on
-demand.
+demand. Opik has online evaluation too: its rules score new traces, threads or spans with
+an LLM judge, a decision model or Python code.
 
 ## Is AcruxCore an Opik alternative?
 
@@ -384,9 +385,9 @@ reason you run Opik, we are not a replacement for it.
 
 | | Opik | AcruxCore |
 |---|---|---|
-| Strongest at | Guardrails and PII detection, dedicated test suites, self-host with zero setup friction, real diff/deploy on prompts | A request-path gateway with routing, caching, and budgets on every call; tools that actually execute and get measured; datasets built from real feedback; rule-based online evaluation with a real judge model and custom judge prompts |
+| Strongest at | Guardrails and PII detection, dedicated test suites, self-host with zero setup friction, real diff/deploy on prompts | A request-path gateway with routing, caching, and budgets on every call; tools that actually execute and get measured; datasets built from real feedback |
 | Weakest at | No tool catalog at all; experiments default to the SDK, not the UI; Playground doesn't produce a trace | No guardrails, no dedicated test-suite object |
-| Pick it if | You want guardrails and regression test suites layered onto a client you already own | You want the provider call itself — gateway, tools, feedback-driven datasets, and online scoring rules — traced for free, with nothing bolted on after the fact |
+| Pick it if | You want guardrails and regression test suites layered onto a client you already own | You want the provider call itself — gateway, tools, and feedback-driven datasets — traced for free, with nothing bolted on after the fact |
 
 Opik's guardrails and test suites (**What Opik does that AcruxCore
 doesn't** above) are real, and neither is something AcruxCore has an answer

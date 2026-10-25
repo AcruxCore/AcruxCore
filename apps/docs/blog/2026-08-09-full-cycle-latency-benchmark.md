@@ -51,6 +51,10 @@ then completes it, timed together as one number:
    [build a RAG agent without the gateway](https://docs.acruxcore.com/docs/tutorials/build-a-rag-agent-without-the-gateway)
    for the full BYO path.
 
+On six of the eight paths the fetch took 0 ms at the median, because the SDK served the
+prompt from its local cache or the path has no fetch. Those numbers are close to a
+completion-only time. Only Opik (1 ms) and Phoenix (5 ms) show a fetch at the median.
+
 Each run is **100 rounds plus 3 discarded warm-up rounds**, with the eight paths
 **interleaved in rotating order** — the running order shifts every round, so no
 path is always first and a passing network blip hits all eight equally.

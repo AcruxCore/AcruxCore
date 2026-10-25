@@ -157,9 +157,8 @@ before the trace ever reaches ClickHouse. AcruxCore's trace, meanwhile, is writt
 automatically as a side effect of the gateway call — nothing to log by hand at all.
 
 <details>
-<summary>Show screenshots: Requests page on Helicone, trace detail on AcruxCore</summary>
+<summary>Show screenshot: trace detail on AcruxCore</summary>
 
-![Helicone's Requests page still showing only its static "Integrate to see your requests" preview data — our real OpenRouter calls never appear because the log call failed](/img/comparison/helicone/hl-06-datasets-empty.png)
 ![AcruxCore's trace detail: one LLM span with model, provider, tokens, cost, and latency, linked back to the exact gateway request and prompt version](/img/comparison/acruxcore/acx-05-trace-detail.png)
 
 </details>
@@ -338,7 +337,7 @@ individual end user the way a Helicone rule can.
 
 **Per-user request tracking via a single header.** The Users page tracks per-user
 request volumes and usage patterns the moment a caller adds one header
-(`Helicone-User-Id: john@doe.com`) to a request — no separate user-management setup.
+(`Helicone-User-Id: user-123`) to a request — no separate user-management setup.
 AcruxCore's tracing has no per-end-user dimension at all today.
 
 <details>
@@ -350,7 +349,9 @@ AcruxCore's tracing has no per-end-user dimension at all today.
 
 **Alerts — real-time Slack or email notifications on error-rate or other
 thresholds.** "Create Your First Alert" wires a threshold directly to a Slack channel
-or an email address. AcruxCore has no alerting surface — you have to go look.
+or an email address. AcruxCore sends email alerts when a gateway budget passes 80% or
+runs out, and when a live evaluation rule scores below its threshold. AcruxCore has no
+Slack alerts and no alerts on error rate or latency.
 
 <details>
 <summary>Show screenshot: Alerts on Helicone</summary>
@@ -383,7 +384,7 @@ user, where ours stops at the virtual key.
 | | Helicone | AcruxCore |
 |---|---|---|
 | Strongest at | A genuinely proxy-first design with real caching/rate-limit controls; per-user request tracking via one header; real-time Slack/email alerting; a gateway hop that costs nothing measurable | Every live-call path worked first time — Playground, SDK, gateway, and the trace written without extra code |
-| Weakest at | On this self-hosted build: Playground auth and manual logging fail with real, reproducible errors, and the gateway only forwards to its native providers | No per-user tracking dimension; no rate-limit-rule object; no alerting surface |
+| Weakest at | On this self-hosted build: Playground auth and manual logging fail with real, reproducible errors, and the gateway only forwards to its native providers | No per-user tracking dimension; no rate-limit-rule object; alerts by email only, none on error rate or latency |
 | Pick it if | You want a proxy-first tool with per-user tracking and alerting, and can either use its native providers or debug the BYOK path yourself on self-host | You want every step — prompt, call, trace, dataset — to work the first time, with nothing to route around |
 
 The honest headline of this comparison isn't "AcruxCore wins every row" — it doesn't;

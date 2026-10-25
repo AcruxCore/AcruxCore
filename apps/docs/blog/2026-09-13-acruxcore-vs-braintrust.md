@@ -106,17 +106,17 @@ shows.
 
 ![Braintrust scorers page: buttons for LLM judge scorer and Code scorer, above templates for Factuality, Closed Q&A, Security, Possible, Summary and ExactMatch](/img/comparison/braintrust/bt-15-scorers.png)
 
-AcruxCore runs evaluations server-side against a stored dataset, not from a CLI on your machine.
-AcruxCore also covers one case Braintrust's experiment model does not: **online rules score a
-sample of live production traffic** instead of a fixed dataset. Scoring live traffic and iterating
-on a dataset are two different jobs.
+AcruxCore runs evaluations server-side against a stored dataset, or from your own code on your
+machine with the SDK's `run_local`. AcruxCore has no CLI command for it. Both platforms also score
+live production traffic: AcruxCore with sampled online rules, Braintrust with online scoring rules
+under Automations. Scoring live traffic and iterating on a dataset are two different jobs.
 
 | Feature | Braintrust | AcruxCore |
 |---|---|---|
-| Declaring an eval | `Eval(data, task, scores)`, run by CLI | Dataset plus judge configured in the dashboard, run server-side |
-| Auto-compare to previous run | Yes, in the CLI output and the UI | Run history, compared manually |
+| Declaring an eval | `Eval(data, task, scores)`, run by CLI | Dataset plus judge, run server-side; or `run_local` with your own task and scorers |
+| Auto-compare to previous run | Yes, in the CLI output and the UI | Not automatic; pick two runs and see which examples changed |
 | Scorer as its own resource | Yes, versioned, UI or code | Judge config lives inside the run |
-| Scoring live production traffic | Not in the experiment model | Sampled online rules |
+| Scoring live production traffic | Yes, online scoring rules (Automations) | Sampled online rules |
 | Score distribution per scorer | Yes | Aggregates per run |
 
 ## How tools are handled
@@ -230,10 +230,9 @@ conditionals and the `{% for %}` loop over tickets, unchanged.
 
 ![Braintrust prompt editor: the vip-support-triage system message with syntax-highlighted nunjucks conditionals and loop, a GPT-4o mini model picker, and a Jinja template-format selector](/img/comparison/braintrust/bt-10-prompt-editor.png)
 
-The version history is better than ours in two specific ways. The diff covers the **entire prompt
+The version history is better than ours in one specific way. The diff covers the **entire prompt
 object**: the model, the params, `endpoint_name` and `template_format` all appear in it, not only
-the message text. And you can compare **any two versions**, not only adjacent ones, then restore
-one with "Set as editor contents".
+the message text. You can also restore any version with "Set as editor contents".
 
 ![Braintrust prompt version diff: a YAML diff of the whole prompt object with a version-pair selector, showing the changed instruction line in red and green, with template_format nunjucks visible](/img/comparison/braintrust/bt-11-prompt-diff.png)
 
@@ -273,8 +272,8 @@ Refusing is better than rendering with an engine the prompt never asked for. The
 message names currently 404s on npm, so the instruction it gives cannot be followed today.
 
 AcruxCore renders nunjucks server-side in `prompts.render()`, so there is one renderer and no
-client-side engine that can disagree with it. The diff is narrower than Braintrust's, covering
-message text between adjacent versions.
+client-side engine that can disagree with it. The diff is narrower than Braintrust's: it covers
+message text only, between any two versions.
 
 ![AcruxCore diff tab: a unified diff between two prompt versions](/img/comparison/acruxcore/acx-03-diff-tab.png)
 
@@ -282,7 +281,7 @@ message text between adjacent versions.
 |---|---|---|
 | Conditionals and loops in the UI | Yes, real nunjucks | Yes, real nunjucks |
 | "No templating" mode | Yes | No |
-| Diff scope | Whole prompt object, any two versions | Message text, adjacent versions |
+| Diff scope | Whole prompt object, any two versions | Message text, any two versions |
 | Restore an old version | One click | Promote by alias |
 | SDK renders the stored format | Python no, Node refuses | Yes — rendered server-side |
 
@@ -396,7 +395,7 @@ and
 | Feature | Braintrust | AcruxCore |
 |---|---|---|
 | Push runnable code to the platform | Yes, `braintrust push` | No |
-| Run experiments from the CLI | Yes, `braintrust eval` | Run server-side from the dashboard |
+| Run experiments from the CLI | Yes, `braintrust eval` | No CLI; `run_local` in your code, or server-side runs |
 | Tracing code in the script | `init_logger()` plus `wrap_openai()` | None |
 | SDKs agree on template rendering | No — Python renders mustache, Node refuses | One renderer, server-side |
 

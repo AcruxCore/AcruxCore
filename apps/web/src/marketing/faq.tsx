@@ -262,7 +262,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: 'How much latency does the AcruxCore gateway add?',
         answer: [
           [
-            'In our published benchmark, AcruxCore added about 42 ms of latency to each call compared with calling OpenAI directly. The confidence interval was +17 ms to +81 ms. Actual overhead depends on your setup and workload.',
+            'In our published benchmark, a gateway on the same machine added a median of 9 ms to each call compared with calling OpenAI directly. The 95% confidence interval was −15 ms to +28 ms, so the overhead was too small to measure. Network distance to the gateway adds more, and depends on where you deploy it.',
           ],
           [
             'The ',

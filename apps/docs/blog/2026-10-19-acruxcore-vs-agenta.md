@@ -379,7 +379,7 @@ To choose, start at the top and stop at the first question you answer yes to.
 License, pricing, team model and community numbers for both, each with a source link and a
 checked-on date, are on the [compare page](https://acruxcore.com/compare). Memory, disk and
 container counts for a self-hosted Agenta are in
-[Self-hosting LLM observability: seven open-source tools measured](/blog/self-hosting-llm-observability).
+[Self-hosting LLM observability tools: seven measured, six open source](/blog/self-hosting-llm-observability).
 
 To compare more tools, see [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison),
 [8 LangSmith alternatives](/blog/langsmith-alternatives) and [8 Langfuse alternatives](/blog/langfuse-alternatives).

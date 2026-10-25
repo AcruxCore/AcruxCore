@@ -610,5 +610,5 @@ No. Braintrust has spend alerts, but its billing FAQ says it has no hard limits 
   LangSmith.
 - [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison): screenshots
   of each tool.
-- [Self-hosting LLM observability: seven open-source tools measured](/blog/self-hosting-llm-observability):
+- [Self-hosting LLM observability tools: seven measured, six open source](/blog/self-hosting-llm-observability):
   memory, disk and trace storage for each stack on one machine.

@@ -1,6 +1,6 @@
 ---
 title: "How much overhead does an LLM gateway add?"
-description: We benchmarked five ways to reach the same OpenAI model — gateway, BYOK, and raw. The gateway's software costs about 42 ms; the rest is network distance.
+description: We benchmarked five ways to reach the same OpenAI model — gateway, BYOK, and raw. The gateway's own code added no measurable time; the rest is network distance.
 slug: llm-gateway-overhead
 authors: [acrux]
 tags: [llm-gateway, llm-latency]
@@ -10,10 +10,11 @@ last_update:
   date: 2026-10-25
 ---
 
-An AcruxCore gateway running on the same machine as your app adds a median of
-**42 ms** to an OpenAI call that takes about 750 ms, roughly 5% of the wait.
-Calling OpenAI with your own key through the SDK, with no gateway, adds nothing
-measurable, with tracing on or off.
+An AcruxCore gateway running on the same machine as your app added a median of
+**9 ms** to an OpenAI call that takes about 640 ms. The 95% confidence interval
+runs from −15 ms to +28 ms, so this test cannot tell the gateway apart from a
+direct call. Calling OpenAI with your own key through the SDK, with no gateway,
+also adds nothing measurable, with tracing on or off.
 
 A gateway gives you one endpoint for every provider, cost accounting, caching,
 virtual keys, and budgets, and it also adds a network hop. We measured five ways
@@ -64,34 +65,34 @@ spikes that actually annoy users.
 ## The five paths, side by side
 
 <figure>
-<svg viewBox="0 0 720 250" role="img" aria-label="Median latency by path, 31 July 2026: BYO no trace 753 ms, OpenAI direct 757 ms, BYO tracing on 766 ms, Local gateway 825 ms, Hosted gateway 1320 ms" style="max-width:100%;height:auto;font-family:system-ui,sans-serif;font-size:14px">
+<svg viewBox="0 0 720 250" role="img" aria-label="Median latency by path, 25 October 2026: BYO tracing on 621 ms, Local gateway 632 ms, BYO no trace 634 ms, OpenAI direct 639 ms, Hosted gateway 1176 ms" style="max-width:100%;height:auto;font-family:system-ui,sans-serif;font-size:14px">
   <line x1="180" y1="18" x2="180" y2="222" stroke="currentColor" stroke-opacity="0.25"/>
-  <text x="170" y="42" text-anchor="end" fill="currentColor">BYO, no trace</text>
-  <rect x="180" y="26" width="248" height="26" rx="4" fill="#10a37f"/>
-  <text x="438" y="44" fill="currentColor" font-weight="700">753 ms</text>
-  <text x="170" y="86" text-anchor="end" fill="currentColor">OpenAI direct</text>
-  <rect x="180" y="70" width="249" height="26" rx="4" fill="#10a37f"/>
-  <text x="439" y="88" fill="currentColor" font-weight="700">757 ms</text>
-  <text x="170" y="130" text-anchor="end" fill="currentColor">BYO, tracing on</text>
-  <rect x="180" y="114" width="252" height="26" rx="4" fill="#10a37f"/>
-  <text x="442" y="132" fill="currentColor" font-weight="700">766 ms</text>
-  <text x="170" y="174" text-anchor="end" fill="currentColor">Local gateway</text>
-  <rect x="180" y="158" width="271" height="26" rx="4" fill="#6366f1"/>
-  <text x="461" y="176" fill="currentColor" font-weight="700">825 ms</text>
+  <text x="170" y="42" text-anchor="end" fill="currentColor">BYO, tracing on</text>
+  <rect x="180" y="26" width="204" height="26" rx="4" fill="#10a37f"/>
+  <text x="394" y="44" fill="currentColor" font-weight="700">621 ms</text>
+  <text x="170" y="86" text-anchor="end" fill="currentColor">Local gateway</text>
+  <rect x="180" y="70" width="208" height="26" rx="4" fill="#6366f1"/>
+  <text x="398" y="88" fill="currentColor" font-weight="700">632 ms</text>
+  <text x="170" y="130" text-anchor="end" fill="currentColor">BYO, no trace</text>
+  <rect x="180" y="114" width="209" height="26" rx="4" fill="#10a37f"/>
+  <text x="399" y="132" fill="currentColor" font-weight="700">634 ms</text>
+  <text x="170" y="174" text-anchor="end" fill="currentColor">OpenAI direct</text>
+  <rect x="180" y="158" width="210" height="26" rx="4" fill="#10a37f"/>
+  <text x="400" y="176" fill="currentColor" font-weight="700">639 ms</text>
   <text x="170" y="218" text-anchor="end" fill="currentColor">Hosted gateway</text>
-  <rect x="180" y="202" width="434" height="26" rx="4" fill="#6366f1"/>
-  <text x="624" y="220" fill="currentColor" font-weight="700">1320 ms</text>
+  <rect x="180" y="202" width="387" height="26" rx="4" fill="#6366f1"/>
+  <text x="577" y="220" fill="currentColor" font-weight="700">1176 ms</text>
   <text x="180" y="242" fill="currentColor" fill-opacity="0.6" font-size="12px">0</text>
   <text x="509" y="242" text-anchor="middle" fill="currentColor" fill-opacity="0.6" font-size="12px">1000 ms</text>
 </svg>
-<figcaption><em>Median of 60 interleaved rounds, 31 July 2026. All three green bars are the same request in every way that matters.</em></figcaption>
+<figcaption><em>Median of 60 interleaved rounds, 25 October 2026. Green bars skip the gateway; purple bars go through it.</em></figcaption>
 </figure>
 
-The three green bars cluster together around 750–770 ms — OpenAI direct, and both
-BYO variants, tracing on or off. The two gateway paths sit further out, and that
-gap is what the rest of this post is about.
+Four bars sit between 620 and 640 ms: OpenAI direct, both BYO variants, and the
+local gateway. Only the hosted gateway sits further out. The rest of this post
+explains both results.
 
-## The gateway's software costs 42 ms
+## The gateway's own code adds no measurable time
 
 Start with the clean comparison — OpenAI direct versus the same call through a
 gateway on the same machine. Same machine means the gateway's call to OpenAI
@@ -103,14 +104,15 @@ cancels any blip they shared:
 
 | comparison | median gap | 95% confidence interval |
 |---|--:|---|
-| Local gateway − OpenAI direct | **+42 ms** | +17 ms to +81 ms |
+| Local gateway − OpenAI direct | **+9 ms** | −15 ms to +28 ms |
 
-That's it: **~40 milliseconds** for routing, resolving your model name, applying
-your key, recording the call, and accounting the cost. On a request that already
-takes ~750 ms of model time, the gateway is roughly **5%** of what you were
-already going to wait.
+The interval crosses zero. Routing, resolving your model name, applying your key,
+recording the call, and accounting the cost add no time that 60 rounds can
+separate from network noise. The upper bound is **28 ms**, under 5% of a ~640 ms
+call. The gap moves by tens of milliseconds from one run to the next, so read the
+interval, not the single median.
 
-## Skipping the gateway saves that, and nothing else
+## Skipping the gateway doesn't make the call faster
 
 Hand the SDK a `provider` config and it posts to OpenAI directly — your provider
 key never reaches our servers, and there is no hop:
@@ -128,12 +130,12 @@ having no SDK at all**:
 
 | comparison | median gap | 95% confidence interval |
 |---|--:|---|
-| BYO (no trace) − OpenAI direct | −8.5 ms | −41.6 ms to +14.2 ms |
+| BYO (no trace) − OpenAI direct | −5 ms | −29 ms to +21 ms |
 
 The interval straddles zero. Read it the honest way: **the SDK adds nothing
-measurable to a direct provider call.** The saving over the gateway is real but
-small — you get back the ~40 ms you were paying for routing and accounting, and
-that's the whole prize.
+measurable to a direct provider call.** The local gateway doesn't either, so on
+the same machine BYO saves no measurable time. The reason to choose BYO is that
+your provider key stays on your own machines.
 
 **Tracing never blocks the response either way.** The SDK reports its own trace
 in the background — a queue that drains after `hub.gateway.chat()` has already handed the
@@ -142,14 +144,14 @@ makes no measurable difference to the request:
 
 | comparison | median gap | 95% confidence interval |
 |---|--:|---|
-| BYO (tracing on) − BYO (no trace) | +25 ms | −29 ms to +77 ms |
+| BYO (tracing on) − BYO (no trace) | −15 ms | −41 ms to +15 ms |
 
 That interval crosses zero too: tracing on and tracing off are, statistically,
 the same request.
 
 :::tip
 Both takeaways here are portable, and neither is the raw millisecond count. The
-gateway's code costs tens of milliseconds. A hop across the internet costs
+gateway's code costs tens of milliseconds at most. A hop across the internet costs
 hundreds — so anything your application doesn't read back synchronously has no
 reason to travel synchronously either.
 :::
@@ -160,11 +162,11 @@ Medians tell you the typical case, but users remember the slow one:
 
 | Path | median | p95 | p99 |
 |---|--:|--:|--:|
-| BYO, no trace | 753 ms | 996 ms | 1468 ms |
-| OpenAI direct | 757 ms | 1137 ms | 2812 ms |
-| BYO, tracing on | 766 ms | 1409 ms | 2423 ms |
-| Local gateway | 825 ms | 1159 ms | 4237 ms |
-| Hosted gateway | 1320 ms | 1458 ms | 2001 ms |
+| BYO, tracing on | 621 ms | 783 ms | 832 ms |
+| Local gateway | 632 ms | 919 ms | 1012 ms |
+| BYO, no trace | 634 ms | 845 ms | 1075 ms |
+| OpenAI direct | 639 ms | 753 ms | 891 ms |
+| Hosted gateway | 1176 ms | 1376 ms | 1526 ms |
 
 The tail is wider than the median suggests for every path — plan for the p99,
 not the median, when a call like this sits on a user-facing route. With only 60
@@ -179,12 +181,10 @@ request from the one in this post.
 
 ## What this means for you
 
-- **The gateway's software cost is small** — about 40 ms, a few percent of a
-  typical model call, in exchange for provider routing, cost tracking, caching,
-  budgets, and fallback.
-- **Skipping the gateway saves exactly that** — worth having if you want your
-  provider key to stay on your own machines, but on its own it was never a big
-  performance win.
+- **The gateway's own code adds no measurable time** — at most 28 ms in this
+  run, for provider routing, cost tracking, caching, budgets, and fallback.
+- **Skipping the gateway is about where your key lives, not speed** — BYO keeps
+  your provider key on your own machines, and saves no measurable time.
 - **Tracing costs nothing extra on the BYO path** — it runs on a background
   queue, so leaving it on doesn't change what your user waits on.
 - **Most real-world latency is network distance**, which you control by
@@ -198,8 +198,9 @@ For the other side of the trade, see
 [routing your calls through the gateway](https://docs.acruxcore.com/docs/guides/route-calls-through-the-gateway).
 
 :::note
-Want to reproduce this? Every path used the same model, key, prompt, and
-parameters shown above, over pooled connections, 60 interleaved rounds with a
-rotating order — the same shape of harness works against any gateway and
-provider.
+Want to reproduce this? The
+[benchmark script, its `results.json` and `summarize.mjs`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/llm-gateway-overhead/typescript)
+are on GitHub. `summarize.mjs` turns any run's `results.json` into the tables above.
+Every path used the same model, key, prompt, and parameters, over pooled
+connections, 60 interleaved rounds with a rotating order.
 :::

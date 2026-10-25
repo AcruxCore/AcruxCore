@@ -268,7 +268,7 @@ for the screenshot.
 
 | Feature | MLflow | AcruxCore |
 |---|---|---|
-| LLM-as-judge | Built-in judges, plus custom code judges | Not built in |
+| LLM-as-judge | Built-in judges, plus custom code judges | Built-in judge on experiment runs and live traffic, or your own judge prompt; code scorers in the SDK |
 | Dataset creation | UI form, or "Add to dataset" from any trace | Span-level trace feedback, manual entry, API, or a CSV/JSON file |
 | Datasets list page | Confirmed bug: didn't show a dataset that existed server-side | Not applicable |
 
@@ -418,8 +418,8 @@ contributors. If you already run MLflow for classical ML, nothing here suggests 
 
 As an *LLM gateway*, it has the same design as ours, so the measured numbers can be
 compared directly: its AI Gateway added +135 to
-+225 ms across three 100-round runs and never once crossed zero, where ours added +21 to
-+43 ms in the same runs. Two identical designs, about 5× apart.
++225 ms across three 100-round runs and never crossed zero in those runs, where ours added
++21 to +43 ms in the same runs. Two identical designs, about 4× to 11× apart.
 
 What you would give up is real. MLflow has Safety and PII guardrails on every gateway
 endpoint and enforced spend Budgets with a reset period and an on-exceeded action. We have

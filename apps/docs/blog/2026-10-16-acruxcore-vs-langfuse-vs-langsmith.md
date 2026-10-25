@@ -1,6 +1,7 @@
 ---
 title: "AcruxCore vs Langfuse vs LangSmith: one app tested end to end on all three"
-description: "AcruxCore vs Langfuse vs LangSmith: license, self-hosting, price, retention, gateway, evaluations, review queues and SSO side by side, the pros and cons of each, and one app measured on all three."
+description: "AcruxCore vs Langfuse vs LangSmith: license, self-hosting, price, gateway, evaluations and review queues compared, with one app measured on all three."
+title_meta: "AcruxCore vs Langfuse vs LangSmith: One App, Tested"
 slug: acruxcore-vs-langfuse-vs-langsmith
 date: 2026-10-16
 authors: [acrux]
@@ -8,7 +9,7 @@ tags: [llmops-comparison, prompt-management, llm-tracing]
 image: /img/blog/acruxcore-vs-langfuse-vs-langsmith/header.webp
 keywords: [acruxcore vs langfuse vs langsmith, llm observability comparison, prompt management, llm evaluation, llm tracing]
 last_update:
-  date: 2026-10-18
+  date: 2026-10-25
 ---
 
 ![AcruxCore vs Langfuse vs LangSmith, one app tested on all three. AcruxCore: open source with every feature, gateway built in, no review queue. Langfuse: open core with a big community, review queue, no gateway. LangSmith: closed platform, review queue, Go and Java SDKs](/img/blog/acruxcore-vs-langfuse-vs-langsmith/header.webp)
@@ -17,6 +18,9 @@ This post compares AcruxCore, Langfuse and LangSmith on the things a developer c
 choosing one. We also ran one app on all three platforms, with the same code, data, prompts and
 model, and measured each step. The app is a small agent that reads a client's email, checks
 each request against a signed project scope, prices the extra work, and writes a reply.
+
+We build AcruxCore, one of the three tools compared here. We ran all three ourselves, and the
+scripts for every leg are linked below.
 
 <!-- truncate -->
 
@@ -77,8 +81,6 @@ MCP pages on 18 October 2026, and everything else on 17 October 2026.
   Langfuse and LangSmith.
 - The Traces list shows each trace's name, not the user's message, so finding one message
   means opening rows.
-- The SDK has no experiment runner. Your code loops over the test messages and stores the
-  results with 3 REST calls.
 - It has no SSO, and the hosted service does not state its data region.
 - No price is published for after the beta.
 - The community is small: 11 GitHub stars.
@@ -266,8 +268,8 @@ messages. The table shows how each platform handled that.
 | | AcruxCore | Langfuse | LangSmith |
 |---|---|---|---|
 | Upload the 30 test messages | 1 call, 1.0 s | 30 calls, 7.3 s | 1 call, 2.2 s |
-| Run your own app code as an experiment | Yes, a local run: your code runs the app, and 3 REST calls store the results | Yes, `run_experiment` | Yes, `evaluate` |
-| Experiment runner in the SDK | No; your code loops over the test messages | Yes; a plain function runs one message at a time | Yes; a plain function runs 4 at a time |
+| Run your own app code as an experiment | Yes, `run_local`; our test made the same 3 REST calls itself | Yes, `run_experiment` | Yes, `evaluate` |
+| Experiment runner in the SDK | Yes, `run_local`; a plain function runs 4 at a time by default | Yes; a plain function runs one message at a time | Yes; a plain function runs 4 at a time |
 | Clicks to the comparison of two runs | 3, from the Evaluations page | 4, from the dataset page | 4, from the dataset page |
 | See only the messages whose score changed | Yes, the comparison opens that way | No; scan all 30 rows | Yes, one click |
 

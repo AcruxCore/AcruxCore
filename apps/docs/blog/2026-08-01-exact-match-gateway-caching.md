@@ -17,8 +17,8 @@ sent each of 15 prompts four times, caching cut spend by 75%.
 A gateway [virtual key](https://docs.acruxcore.com/docs/guides/scope-access-with-virtual-keys)
 can be given a cache window: set
 [`cacheTtlSeconds`](https://docs.acruxcore.com/api-reference/gateway/keys) and
-an **exact-match** repeat of a call — same model, same messages, same
-`temperature`/`max_tokens`/`top_p`/`stop` — is served from Postgres instead
+an **exact-match** repeat of a call — same model, same messages, same sampling
+parameters, tools and response format — is served from Postgres instead
 of the provider. We ran the same fixed set of prompts through it repeatedly
 to see what a hit is actually worth, in milliseconds and in dollars.
 
@@ -90,8 +90,12 @@ price is.
 ## What actually gets cached
 
 The cache key is a hash of `model`, `messages` (in order), `temperature`,
-`max_tokens`, `top_p`, and `stop` — nothing more, nothing less. A few
-specifics worth knowing before you rely on it:
+`max_tokens`, `top_p`, `stop`, `response_format`, `tools`, `tool_choice` and,
+when set, `reasoning_effort`. A call that differs in any one of these is a
+separate cache entry. Because the whole message list is in the key, a hit needs
+the exact same conversation. For a long system prompt that repeats with different
+user messages, use the provider's prompt caching, which the gateway passes through.
+A few specifics worth knowing before you rely on it:
 
 - **`temperature` must be explicitly `0`.** An omitted temperature is never
   cached, on purpose — the assumption is that if you didn't pin the

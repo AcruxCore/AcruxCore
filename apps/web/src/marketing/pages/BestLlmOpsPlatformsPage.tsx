@@ -143,8 +143,8 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
             so each finding carries the date we checked it.
           </p>
           <p style={cssToStyle('margin:0 0 12px;')}>
-            AcruxCore&rsquo;s gateway added about 42 ms per call compared with calling OpenAI
-            directly. The confidence interval is +17 ms to +81 ms. The{' '}
+            AcruxCore&rsquo;s gateway added a median of 9 ms per call compared with calling OpenAI
+            directly. The 95% confidence interval is &minus;15 ms to +28 ms. The{' '}
             <a href={`${BLOG_URL}/llm-gateway-overhead`} target="_blank" rel="noreferrer">
               gateway latency benchmark
             </a>{' '}

@@ -39,7 +39,7 @@ price change there is one edit instead of three.
 |---|---|---|---|
 | Prompt templating | Flat `{{variable}}` substitution only | Real nunjucks `{% if %}` / `{% for %}` logic | AcruxCore |
 | Playground | No cost/latency shown inline | Cost, cache, latency shown inline | AcruxCore |
-| Tracing depth | Span tree via client-side OTel instrumentation | Single automatic span | Langfuse |
+| Tracing depth | Span tree via client-side OTel instrumentation | One automatic span per gateway call; trees through SDK steps or OTel framework instrumentors | Langfuse |
 | Request-path gateway | None — ingests a trace after your own call | Built in — routing, caching, budgets | AcruxCore |
 | Tool catalog | A schema saved from the Playground, never executed | Versioned catalog, real executed calls, analytics | AcruxCore |
 | Dataset creation | Manual entry, API, or from a trace | Span-level trace feedback, manual entry, API, or a CSV/JSON file | AcruxCore |
@@ -102,8 +102,9 @@ same inputs.
 
 ## Tracing & observability
 
-Same call, two different trace shapes. AcruxCore's trace is one span, written as a
-side effect of the gateway call itself. Langfuse's is a two-level tree — a parent
+Same call, two different trace shapes. For this one call, AcruxCore's trace is one span,
+written as a side effect of the gateway call itself. SDK steps or an OTel framework
+instrumentor nest it inside a larger tree. Langfuse's is a two-level tree — a parent
 span wrapping the generation — because its SDK instruments the call rather than
 routing it.
 
@@ -117,7 +118,7 @@ routing it.
 
 | Feature | Langfuse | AcruxCore |
 |---|---|---|
-| Trace shape | Span tree (request + generation) | Single span per gateway call |
+| Trace shape | Span tree (request + generation) | One span per gateway call; SDK steps or OTel instrumentors add a tree around it |
 | How it's produced | Client-side OTel instrumentation | Automatic — a side effect of the gateway call |
 | Links back to prompt version | Not surfaced in this run | Yes — "View traces for this prompt version" |
 
@@ -307,8 +308,9 @@ carry the same bias any of our own feature list would.
 **Monitors — automated alerts on cost, quality, or latency, wired to Slack, Webhooks,
 or GitHub Actions.** Set a threshold once and get notified when a metric moves outside
 it, with the notification routed to a channel your team already watches. AcruxCore
-has budgets that cut off spend, but no equivalent alerting surface across cost,
-quality, and latency together.
+emails you when a budget passes 80% or runs out, and when a live evaluation rule scores
+below its threshold. AcruxCore has no latency alerts and no Slack, webhook or GitHub
+Actions delivery.
 
 <details>
 <summary>Show screenshot: Monitors & alerts setup on Langfuse</summary>
@@ -329,7 +331,7 @@ saved from a Playground dropdown that never executes; and its datasets are hand-
 pulled from a trace, while AcruxCore can also build one from feedback your users already gave.
 
 For observability on its own, Langfuse is more mature than we are, with a much larger
-framework-integration surface and threshold alerting we do not have. RBAC and audit sit
+framework-integration surface, and latency alerts and Slack delivery that we do not have. RBAC and audit sit
 behind its paid tiers, which is worth checking against your own plan before comparing.
 
 If you want the gateway but would rather keep Langfuse for tracing, that works: we accept
@@ -340,7 +342,7 @@ OTel-instrumented traces directly on an OTLP endpoint.
 | | Langfuse | AcruxCore |
 |---|---|---|
 | Strongest at | Tracing depth, org/project structure, threshold alerting | A request-path gateway with routing, caching, and budgets on every call; tools that actually execute and get measured, not just described; datasets built straight from real production feedback |
-| Weakest at | No request-path gateway; tools are a schema in a Playground dropdown, not a catalog; RBAC and audit gated behind paid tiers | No cost/quality/latency alerting |
+| Weakest at | No request-path gateway; tools are a schema in a Playground dropdown, not a catalog; RBAC and audit gated behind paid tiers | Alerts by email only, and none on latency |
 | Pick it if | You want mature, OTel-native observability layered onto a client you already own, with automated alerting | You want the provider call itself — gateway, tools, feedback-driven datasets, and a rule-based judge scoring live traffic — traced for free, with nothing bolted on after the fact; AcruxCore also takes your own OTel-instrumented traces directly via its OTLP endpoint |
 
 Tracing depth and threshold-based alerting are real Langfuse wins (**Tracing &
