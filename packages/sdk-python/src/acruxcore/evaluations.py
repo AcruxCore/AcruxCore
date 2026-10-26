@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, Iterable, List, Optional
 from urllib.parse import quote
 
 if TYPE_CHECKING:
@@ -12,6 +12,7 @@ from .eval_types import (
     AddExamplesResult,
     BuildFromFeedbackResult,
     CandidateDetail,
+    CommitCandidateResult,
     DatasetDto,
     DatasetExampleDto,
     DatasetWithExamples,
@@ -25,7 +26,14 @@ from .eval_types import (
     StartRunResult,
     RejudgeRunResult,
 )
-from .local_experiments import LocalRunResult, run_local_experiment
+from .local_experiments import (
+    LocalComparison,
+    LocalRunResult,
+    Score,
+    compare_local_variants,
+    make_judge_scorer,
+    run_local_experiment,
+)
 
 
 class DatasetsNamespace:
@@ -282,6 +290,7 @@ class ExperimentsNamespace:
         primary_score: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
         concurrency: int = 4,
+        prompt_overrides: Optional[Dict[str, int]] = None,
     ) -> LocalRunResult:
         """Run your own code over a dataset and upload the outcome as a run.
 
@@ -314,6 +323,11 @@ class ExperimentsNamespace:
             is refused.
         :param metadata: Any JSON you want stored with the experiment, e.g. a git SHA.
         :param concurrency: Examples in flight at once (at least 1).
+        :param prompt_overrides: ``{prompt_name: version_number}``. While the task
+            runs, ``prompts.render`` and ``prompts.get_by_alias`` return that version
+            for that prompt, whatever alias your code asks for — so your app runs on a
+            version no alias points at yet, with no code change. The alias still
+            decides the tools. Stored in the run's metadata.
         :returns: The run's id, URL, final status, every item and a per-score summary.
         :raises AcruxCoreError: Creating the run failed (unknown dataset, bad name),
             or results could not be uploaded after retries. When the loop fails this
@@ -330,6 +344,85 @@ class ExperimentsNamespace:
             primary_score=primary_score,
             metadata=metadata,
             concurrency=concurrency,
+            prompt_overrides=prompt_overrides,
+        )
+
+    async def compare_local(
+        self,
+        dataset_id: str,
+        *,
+        task: Callable[..., Any],
+        variants: Dict[str, Optional[Dict[str, int]]],
+        scorers: Iterable[Callable[..., Any]] = (),
+        model: Optional[str] = None,
+        primary_score: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        concurrency: int = 4,
+    ) -> LocalComparison:
+        """Run your app once per variant, at the same time, and compare them.
+
+        Each variant is a name and its ``prompt_overrides`` (``None`` for none)::
+
+            await hub.experiments.compare_local(
+                dataset.id, task=agent, scorers=[hub.experiments.judge("gpt-4o-mini")],
+                variants={"production": None, "candidate-B": {"support-agent": 7}},
+            )
+
+        Every variant becomes its own run, named after the variant. They run in
+        parallel, so a vector store or database that changes over time changes for
+        all of them alike, and the difference between the runs is the prompt.
+
+        :param variants: ``{run_name: prompt_overrides}``, in order; the first is the
+            baseline the compare links start from.
+        :returns: One :class:`LocalRunResult` per variant, and a Compare per example
+            link from the baseline to each other variant.
+        :raises ValueError: ``variants`` is empty or holds an invalid version.
+        :raises AcruxCoreError: A variant's run failed to create or upload.
+        """
+        return await compare_local_variants(
+            self._client,
+            dataset_id,
+            task=task,
+            scorers=scorers,
+            variants=variants,
+            model=model,
+            primary_score=primary_score,
+            metadata=metadata,
+            concurrency=concurrency,
+        )
+
+    def judge(
+        self,
+        model: str,
+        *,
+        judge_prompt_id: Optional[str] = None,
+        judge_prompt_version: Optional[int] = None,
+        name: str = "judge",
+    ) -> Callable[..., Awaitable[Score]]:
+        """A scorer that grades each output with the LLM judge, for :meth:`run_local`.
+
+        The judge runs on the server, against the example's ``criteria`` and the
+        dataset's overall feedback as they were when the run started — the same
+        rubric a server-side run or an optimize run grades with. So a dataset built
+        from feedback can grade your whole app, not only one stored prompt.
+
+        :param model: The judge model, a name under Gateway → Models.
+        :param judge_prompt_id: Grade with one of your judge prompts instead.
+        :param judge_prompt_version: The version of ``judge_prompt_id`` to grade with,
+            instead of the one its ``production`` alias serves when the run's first
+            output is graded. Pass the version an optimize run graded with, so a
+            pipeline test's scores compare with the run's.
+        :param name: The score's name (default ``"judge"``).
+        :returns: An async scorer to put in ``scorers=``.
+        :raises ValueError: When ``model`` is empty, or ``judge_prompt_version`` is
+            given without ``judge_prompt_id``.
+        """
+        return make_judge_scorer(
+            self._client,
+            model,
+            judge_prompt_id=judge_prompt_id,
+            judge_prompt_version=judge_prompt_version,
+            name=name,
         )
 
 
@@ -457,6 +550,27 @@ class RunsNamespace:
             self._client._parse_json_or_throw(response, "getting candidate")
         )
 
+    async def commit_candidate(self, run_id: str, candidate_id: str) -> CommitCandidateResult:
+        """Commit an optimizer candidate as a prompt version, without moving any alias.
+
+        Use it to run your whole app on the candidate before promoting it: pass
+        ``{result.prompt_name: result.version_number}`` as ``prompt_overrides``.
+        Calling it again returns the same version, and a later
+        :meth:`promote_candidate` moves the alias to that same version.
+
+        :raises AcruxCoreError: 404 if the candidate is not from this run; 403 for a
+            role below editor.
+        """
+        response = await self._client._request(
+            "POST",
+            f"/runs/{quote(run_id, safe='')}/candidates/{quote(candidate_id, safe='')}/commit",
+            None,
+            "committing candidate",
+        )
+        return CommitCandidateResult.from_dict(
+            self._client._parse_json_or_throw(response, "committing candidate")
+        )
+
     async def promote_candidate(
         self,
         run_id: str,
@@ -494,6 +608,7 @@ class OptimizeNamespace:
         draft_count: Optional[int] = None,
         alias: Optional[str] = None,
         judge_prompt_id: Optional[str] = None,
+        optimizer_model: Optional[str] = None,
     ) -> StartOptimizeResult:
         """Start an optimize run.
 
@@ -504,6 +619,9 @@ class OptimizeNamespace:
         ``judge_prompt_id`` is a prompt of yours that grades instead of the built-in
         judge. The run uses its ``production`` version (else its latest), and the
         optimizer is shown it too.
+
+        ``optimizer_model`` is the model that writes the rewrites, a name under Gateway
+        → Models. Omitted, the first of ``models`` writes them.
         """
         body: Dict[str, Any] = {
             "dataset_id": dataset_id,
@@ -516,6 +634,8 @@ class OptimizeNamespace:
             body["alias"] = alias
         if judge_prompt_id is not None:
             body["judge_prompt_id"] = judge_prompt_id
+        if optimizer_model is not None:
+            body["optimizer_model"] = optimizer_model
         response = await self._client._request(
             "POST",
             f"/prompts/{quote(prompt_id, safe='')}/optimize",

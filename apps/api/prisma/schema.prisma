@@ -465,6 +465,8 @@ model PromptVersion {
   gatewayRequests GatewayRequest[]
   spans           Span[]
   datasetExamples DatasetExample[]
+  /// Optimizer candidates committed as this version (phase-5 FAQ Q58).
+  promptCandidates PromptCandidate[]
 
   /// Enforces per-prompt sequential numbering.
   @@unique([promptId, versionNumber], name: "uq_prompt_versions_prompt_version")
@@ -1205,14 +1207,21 @@ model PromptCandidate {
   /// The optimizer's short rationale for this rewrite (shown as promote evidence).
   rationale       String?
   label           String // e.g. "candidate-A" — the variantLabel in the report.
+  /// The prompt version this candidate was committed as, set the first time it is
+  /// committed (to test it in a pipeline, or to promote it). Committing again reuses
+  /// it, so the version a team tested is the version it promotes (phase-5 FAQ Q58).
+  versionId       String?  @map("version_id") @db.Uuid
   createdBy       String?  @map("created_by") @db.Uuid
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  team   Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  prompt Prompt         @relation(fields: [promptId], references: [id], onDelete: Cascade)
-  run    ExperimentRun? @relation(fields: [experimentRunId], references: [id], onDelete: SetNull)
+  team    Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  prompt  Prompt         @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  run     ExperimentRun? @relation(fields: [experimentRunId], references: [id], onDelete: SetNull)
+  version PromptVersion? @relation(fields: [versionId], references: [id], onDelete: SetNull)
 
   @@index([experimentRunId], map: "idx_prompt_candidates_run")
+  /// ON DELETE SET NULL finds a deleted version's candidates through this.
+  @@index([versionId], map: "idx_prompt_candidates_version")
   @@map("prompt_candidates")
 }
 

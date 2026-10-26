@@ -1,0 +1,34 @@
+{
+  "BR-1042": {
+    "customer": "Ana",
+    "delivered_on": "2026-09-14",
+    "status": "delivered",
+    "items": [{ "name": "Fellow Ode Gen 2 grinder", "category": "grinder", "used": true, "price_eur": 345 }]
+  },
+  "BR-1077": {
+    "customer": "Malik",
+    "delivered_on": "2026-10-20",
+    "status": "delivered",
+    "items": [{ "name": "Niche Zero grinder", "category": "grinder", "used": true, "price_eur": 649 }]
+  },
+  "BR-1088": {
+    "customer": "Sofia",
+    "delivered_on": "2026-10-02",
+    "status": "delivered",
+    "items": [{ "name": "Hario Buono kettle", "category": "accessory", "used": false, "price_eur": 49 }]
+  },
+  "BR-1101": {
+    "customer": "Tom",
+    "delivered_on": null,
+    "status": "shipped",
+    "shipped_on": "2026-10-23",
+    "destination": "United Kingdom",
+    "items": [{ "name": "Acaia Pearl scale", "category": "accessory", "used": false, "price_eur": 159 }]
+  },
+  "BR-0954": {
+    "customer": "Lena",
+    "delivered_on": "2025-06-30",
+    "status": "delivered",
+    "items": [{ "name": "Gaggia Classic Pro espresso machine", "category": "espresso machine", "used": true, "price_eur": 449 }]
+  }
+}

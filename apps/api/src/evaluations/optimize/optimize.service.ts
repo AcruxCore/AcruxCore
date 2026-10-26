@@ -4,7 +4,7 @@ import { DatasetsRepository } from '../datasets/datasets.repository';
 import { DatasetsService } from '../datasets/datasets.service';
 import { RunsRepository } from '../runs/runs.repository';
 import { PromptsRepository } from '../../prompts/prompts.repository';
-import { OptimizeRepository } from './optimize.repository';
+import { OptimizeRepository, type CandidateForRun } from './optimize.repository';
 import { VersionsService } from '../../prompts/versions/versions.service';
 import { AliasesService } from '../../prompts/aliases/aliases.service';
 import { getOptimizeQueue, type OptimizeJobData } from '../queue';
@@ -44,6 +44,15 @@ export interface StartOptimizeResult {
    */
   optimizerModel: string;
   promptMismatchWarning?: PromptMismatchWarning;
+}
+
+/** Response DTO for `POST /runs/:id/candidates/:candidateId/commit` (phase-5 FAQ Q58). */
+export interface CommitCandidateResult {
+  /** The prompt's name, which is what an app passes to render it. */
+  promptName: string;
+  version: VersionDetail;
+  /** True when this call committed the version; false when it already existed. */
+  created: boolean;
 }
 
 /** Response DTO for `POST /runs/:id/promote` (E6 Task 5). */
@@ -231,8 +240,10 @@ export class OptimizeService {
    * Promotes one optimizer-drafted candidate to a real, immutable
    * `PromptVersion` and moves an alias (default `production`) to point at
    * it — the human-in-the-loop capstone of the optimize loop (E6 Task 5).
-   * This is the ONLY path in the codebase that turns a disposable
-   * `PromptCandidate` into a real version; nothing promotes automatically.
+   * Nothing promotes automatically. A candidate already committed by
+   * {@link commitCandidate} (to test it in the team's own pipeline) is not
+   * committed again: the alias moves to that same version, so what was tested
+   * is what ships (phase-5 FAQ Q58).
    * Reuses `VersionsService.commitVersion` and `AliasesService.promoteAlias`
    * verbatim — both already carry their own audit trail
    * (`version_committed`, `alias_promoted` audit events) and business rules
@@ -248,8 +259,9 @@ export class OptimizeService {
    *   promoted through this run's endpoint.
    * @param dto - Validated body: which candidate to promote, and which
    *   alias to move (defaults to `'production'`).
-   * @returns The newly committed version, carrying the baseline version's
-   *   default model, and the alias's new state.
+   * @returns The candidate's version (committed now, or earlier by
+   *   {@link commitCandidate}), carrying the baseline version's default model,
+   *   and the alias's new state.
    * @throws {NotFoundError} If the run does not exist for this team, or the
    *   candidate does not exist, belongs to another team, or was drafted for
    *   a different run than `runId`.
@@ -266,20 +278,7 @@ export class OptimizeService {
     const candidate = await this.optimizeRepo.getCandidateForRun(teamId, runId, dto.prompt_candidate_id);
     if (!candidate) throw new NotFoundError('Prompt candidate not found for this run.');
 
-    // The optimizer rewrites the template only, so the new version keeps the default model
-    // of the version it was scored against. Without it, callers that run the prompt without
-    // naming a model lose their model the moment a rewrite ships.
-    const baselineCell = (run.grid as unknown as RunGridCell[]).find(
-      (cell) => cell.isProductionBaseline && cell.promptVersionId,
-    );
-    const baselineModel = baselineCell?.promptVersionId
-      ? (await this.versionsService.getVersionById(baselineCell.promptVersionId, teamId)).model
-      : null;
-
-    const { version } = await this.versionsService.commitVersion(candidate.promptId, teamId, userId, {
-      messages: candidate.messages as unknown as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-      ...(baselineModel ? { model: baselineModel } : {}),
-    });
+    const { version } = await this.commitOnce(teamId, userId, run.grid, candidate);
 
     const alias = await this.aliasesService.promoteAlias(
       candidate.promptId,
@@ -290,6 +289,88 @@ export class OptimizeService {
     );
 
     return { version, alias };
+  }
+
+  /**
+   * Commits one optimizer-drafted candidate as a real prompt version without
+   * moving any alias, so a team can run its whole app on it before promoting
+   * (phase-5 FAQ Q58). The version is immutable and nothing resolves to it
+   * until an app pins it — `prompt_overrides` in a local experiment, or
+   * `version` on a render or a gateway prompt reference.
+   *
+   * Idempotent: the first call commits and records the version on the
+   * candidate; later calls (and a later promote) return that same version, so
+   * clicking the button twice never leaves two copies in the prompt's history.
+   *
+   * @param teamId - Isolation boundary.
+   * @param userId - The acting user, stored as the version's `createdBy`.
+   * @param runId - The optimize run the candidate was drafted for.
+   * @param candidateId - `prompt_candidates` row UUID.
+   * @returns The prompt's name (what an app asks for), the version, and
+   *   whether this call created it.
+   * @throws {NotFoundError} If the run or the candidate is not found for this
+   *   team and run.
+   */
+  async commitCandidate(
+    teamId: string,
+    userId: string,
+    runId: string,
+    candidateId: string,
+  ): Promise<CommitCandidateResult> {
+    const run = await this.runsRepo.getRunById(teamId, runId);
+    if (!run) throw new NotFoundError('Run not found.');
+
+    const candidate = await this.optimizeRepo.getCandidateForRun(teamId, runId, candidateId);
+    if (!candidate) throw new NotFoundError('Prompt candidate not found for this run.');
+
+    const { version, created } = await this.commitOnce(teamId, userId, run.grid, candidate);
+    return { promptName: candidate.prompt.name, version, created };
+  }
+
+  /**
+   * The candidate's version: the one it was committed as before, or a new one.
+   * A new version keeps the default model of the version the candidate was
+   * scored against, because the optimizer rewrites the template only — without
+   * it, callers that run the prompt without naming a model would lose their model.
+   *
+   * Every read happens before the candidate's lock is taken; under the lock
+   * only the insert runs, on the lock's own connection (see
+   * `OptimizeRepository.commitVersionOnce`).
+   */
+  private async commitOnce(
+    teamId: string,
+    userId: string,
+    grid: Prisma.JsonValue,
+    candidate: CandidateForRun,
+  ): Promise<{ version: VersionDetail; created: boolean }> {
+    // Committed before this request read the candidate. The version belongs to
+    // this candidate's prompt: the foreign key clears version_id if that version
+    // is ever deleted.
+    if (candidate.version) {
+      const version = await this.versionsService.getVersion(candidate.promptId, teamId, candidate.version.versionNumber);
+      return { version, created: false };
+    }
+
+    const baselineCell = (grid as unknown as RunGridCell[]).find(
+      (cell) => cell.isProductionBaseline && cell.promptVersionId,
+    );
+    const baselineModel = baselineCell?.promptVersionId
+      ? (await this.versionsService.getVersionById(baselineCell.promptVersionId, teamId)).model
+      : null;
+    const prepared = await this.versionsService.prepareVersion(candidate.promptId, teamId, {
+      messages: candidate.messages as unknown as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+      ...(baselineModel ? { model: baselineModel } : {}),
+    });
+
+    const made: { version?: VersionDetail } = {};
+    const { versionNumber, created } = await this.optimizeRepo.commitVersionOnce(teamId, candidate.id, async (tx) => {
+      ({ version: made.version } = await this.versionsService.insertVersion(prepared, teamId, userId, tx));
+      return made.version;
+    });
+    if (made.version) return { version: made.version, created };
+
+    // Another caller committed it between this request's read and its lock.
+    return { version: await this.versionsService.getVersion(candidate.promptId, teamId, versionNumber), created };
   }
 
   /**
@@ -328,6 +409,7 @@ export class OptimizeService {
       rationale: candidate.rationale,
       label: candidate.label,
       createdAt: candidate.createdAt,
+      versionNumber: candidate.version?.versionNumber ?? null,
     };
   }
 }

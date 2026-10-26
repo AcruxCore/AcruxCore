@@ -1,9 +1,40 @@
+import type { Prisma } from '@prisma/client';
 import request from 'supertest';
 import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
 import { signupTestUserWithApiKey } from '../../test-utils';
 
 const app = createApp();
+
+/**
+ * Runs `act` while another transaction holds an open insert of a row that
+ * references the parent: a foreign-key insert takes FOR KEY SHARE on the parent
+ * row until that transaction ends. Returns whether `act` finished before the
+ * other transaction did.
+ */
+async function finishesWhileChildInsertIsOpen(insertChild: (tx: Prisma.TransactionClient) => Promise<unknown>, act: () => Promise<unknown>): Promise<boolean> {
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => (release = resolve));
+  let inserted!: () => void;
+  const ready = new Promise<void>((resolve) => (inserted = resolve));
+  const held = prisma.$transaction(
+    async (tx) => {
+      await insertChild(tx);
+      inserted();
+      await released;
+      throw new Error('rolled back on purpose');
+    },
+    { timeout: 30_000 },
+  ).catch(() => undefined);
+  await ready;
+  const finished = await Promise.race([
+    act().then(() => true),
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 1_500)),
+  ]);
+  release();
+  await held;
+  return finished;
+}
 
 async function createTool(apiKey: string, name = `get_weather_${Date.now()}`): Promise<string> {
   const r = await request(app).post('/api/v1/tools').set('Authorization', `Bearer ${apiKey}`).send({ name }).expect(201);
@@ -31,6 +62,43 @@ describe('tool versions', () => {
     expect(res.body.aliases.map((a: { alias: string }) => a.alias).sort()).toEqual(['production', 'staging']);
     const aliasRows = await prisma.toolAlias.findMany({ where: { toolId } });
     expect(aliasRows).toHaveLength(2);
+  });
+
+  it('gives each of several concurrent commits its own version number', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const toolId = await createTool(apiKey);
+
+    const results = await Promise.all(
+      [1, 2, 3, 4, 5].map((i) =>
+        request(app)
+          .post(`/api/v1/tools/${toolId}/versions`)
+          .set('Authorization', `Bearer ${apiKey}`)
+          .send({ parametersSchema: paramsSchema, executor: clientExecutor, changelog: `v${i}` }),
+      ),
+    );
+
+    expect(results.map((r) => r.status)).toEqual([201, 201, 201, 201, 201]);
+    expect(results.map((r) => r.body.versionNumber).sort()).toEqual([1, 2, 3, 4, 5]);
+    expect(results.filter((r) => r.body.aliases).length).toBe(1);
+    expect(await prisma.toolAlias.count({ where: { toolId } })).toBe(2);
+  });
+
+  it('commits while another transaction inserts a row that references the tool', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const toolId = await createTool(apiKey);
+    const commit = () =>
+      request(app)
+        .post(`/api/v1/tools/${toolId}/versions`)
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ parametersSchema: paramsSchema, executor: clientExecutor })
+        .expect(201);
+    const v1 = (await commit()).body;
+
+    const finished = await finishesWhileChildInsertIsOpen(
+      (tx) => tx.toolAlias.create({ data: { toolId, alias: 'held-open', versionId: v1.id } }),
+      commit,
+    );
+    expect(finished).toBe(true);
   });
 
   it('increments the version number and does NOT re-create aliases on v2', async () => {

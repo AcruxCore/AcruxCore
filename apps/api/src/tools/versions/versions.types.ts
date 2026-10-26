@@ -136,10 +136,12 @@ export type ListToolVersionsQueryDto = z.infer<typeof ListToolVersionsQuerySchem
 
 // ── Service input type ────────────────────────────────────────────────────────
 
-/** Input passed from ToolVersionsService into ToolVersionsRepository.create(). */
+/**
+ * Input passed into ToolVersionsRepository.createNext(). No version number: the
+ * repository assigns it under a lock.
+ */
 export interface CreateToolVersionInput {
   toolId: string;
-  versionNumber: number;
   description?: string;
   changelog?: string;
   source: ToolVersionSourceValue;

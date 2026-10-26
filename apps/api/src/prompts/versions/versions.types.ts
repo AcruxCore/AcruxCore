@@ -100,15 +100,33 @@ export type ListVersionsQueryDto = z.infer<typeof ListVersionsQuerySchema>;
 
 // ── Service input type ────────────────────────────────────────────────────────
 
-/** Input passed from VersionsService into VersionsRepository.create(). */
+/**
+ * Input passed from VersionsService into VersionsRepository.createNext(). No
+ * version number: the repository assigns it under a lock (#742).
+ */
 export interface CreateVersionInput {
   promptId: string;
-  versionNumber: number;
   messages: StoredMessage[];
   variables: string[];
   createdBy: string;
   /** Resolved GatewayModel id for the default model, or null if unbound (#12). */
   modelId?: string | null;
+}
+
+/**
+ * A version that passed every check a commit makes (prompt access, template
+ * syntax, default model), ready to insert. Produced by
+ * `VersionsService.prepareVersion` so a caller can run the checks before it
+ * takes a lock and do only the insert while holding it.
+ */
+export interface PreparedVersion {
+  promptId: string;
+  messages: StoredMessage[];
+  variables: string[];
+  /** Resolved GatewayModel id, or null when no default model is bound. */
+  modelId: string | null;
+  /** The default model's public name, as the caller sent it, or null. */
+  model: string | null;
 }
 
 // ── Response types ────────────────────────────────────────────────────────────

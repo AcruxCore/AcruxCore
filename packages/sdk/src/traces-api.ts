@@ -209,8 +209,9 @@ export class TracesNamespace {
   /**
    * Team-wide feedback feed, newest-first, paginated. Wraps `GET /traces/feedback`.
    *
-   * @param options - Optional `page`/`limit` (limit capped at 100 server-side).
-   * @returns `{ data, total, page, limit }` — every feedback row across the team,
+   * @param options - Optional `page`/`limit` (limit capped at 100 server-side), and
+   *   `rating`/`promptId` to keep only, say, the thumbs-down on one prompt's traces.
+   * @returns `{ data, total, page, limit }` — the team's feedback rows that match,
    *   not scoped to one trace (see {@link getTraceFeedback} for that).
    * @throws {acruxcoreError} API_ERROR for a non-2xx response.
    */
@@ -218,6 +219,8 @@ export class TracesNamespace {
     const params = new URLSearchParams();
     if (options?.page !== undefined) params.set('page', String(options.page));
     if (options?.limit !== undefined) params.set('limit', String(options.limit));
+    if (options?.rating !== undefined) params.set('rating', options.rating);
+    if (options?.promptId !== undefined) params.set('prompt_id', options.promptId);
 
     const qs = params.toString();
     const response = await this.client._request(

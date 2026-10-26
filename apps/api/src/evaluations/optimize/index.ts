@@ -15,6 +15,7 @@ export {
   OptimizeService,
   type StartOptimizeResult,
   type PromoteCandidateResult,
+  type CommitCandidateResult,
 } from './optimize.service';
 export { OptimizeController } from './optimize.controller';
 export { optimizeRouter } from './optimize.router';

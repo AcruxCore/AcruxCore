@@ -701,3 +701,98 @@ describe('GET /api/v1/prompt-versions?name=&alias=', () => {
     expect(res.body.error.code).toBe('NOT_FOUND');
   });
 });
+
+// Pinning a version (phase-5 FAQ Q58): an app tests a version no alias points at
+// yet, without moving the alias. The alias keeps deciding the tools.
+describe('pinning a version on render and on GET /prompt-versions', () => {
+  it('renders the pinned version through the alias, keeps the alias tools, and leaves the alias where it was', async () => {
+    const { apiKey, promptId, promptName } = await setupPromptWithVersions(2);
+    const auth = { Authorization: `Bearer ${apiKey}` };
+
+    const t = await request(app).post('/api/v1/tools').set(auth).send({ name: 'lookup', description: 'l' }).expect(201);
+    await request(app)
+      .post(`/api/v1/tools/${t.body.id}/versions`)
+      .set(auth)
+      .send({ description: 'l', parametersSchema: { type: 'object', properties: {} }, executor: { type: 'client' } })
+      .expect(201);
+    // Bound to production only, so a render through staging would carry no tools.
+    await request(app)
+      .put(`/api/v1/prompts/${promptId}/aliases/production/tools/${t.body.id}`)
+      .set(auth)
+      .send({ tool_alias: 'production' })
+      .expect(200);
+
+    const pinned = await request(app)
+      .post(`/api/v1/prompts/${promptName}/production/render`)
+      .set(auth)
+      .send({ variables: { name: 'Al' }, version: 2 })
+      .expect(200);
+    expect(pinned.body.messages[0].content).toBe('Version 2 content for Al');
+    expect(pinned.body.versionNumber).toBe(2);
+    expect(pinned.body.tools.map((x: { function: { name: string } }) => x.function.name)).toEqual(['lookup']);
+
+    // Without the pin, production still renders version 1: nothing moved.
+    const unpinned = await request(app)
+      .post(`/api/v1/prompts/${promptName}/production/render`)
+      .set(auth)
+      .send({ variables: { name: 'Al' } })
+      .expect(200);
+    expect(unpinned.body.messages[0].content).toBe('Version 1 content for Al');
+
+    const byNumber = await request(app)
+      .get('/api/v1/prompt-versions')
+      .query({ name: promptName, version: 2 })
+      .set(auth)
+      .expect(200);
+    expect(byNumber.body.versionNumber).toBe(2);
+    expect(byNumber.body.messages[0].content).toBe('Version 2 content for {{ name }}');
+  });
+
+  it('checks a named alias on a pinned read the same way a pinned render does', async () => {
+    const { apiKey, promptName } = await setupPromptWithVersions(2);
+    const auth = { Authorization: `Bearer ${apiKey}` };
+
+    // A misspelled alias: the render refuses it, so the read must too, or the
+    // SDK's pinned get_by_alias and its pinned render disagree on one call.
+    await request(app)
+      .post(`/api/v1/prompts/${promptName}/prodution/render`)
+      .set(auth)
+      .send({ variables: { name: 'Al' }, version: 2 })
+      .expect(404);
+    const read = await request(app)
+      .get('/api/v1/prompt-versions')
+      .query({ name: promptName, alias: 'prodution', version: 2 })
+      .set(auth)
+      .expect(404);
+    expect(read.body.error.code).toBe('NOT_FOUND');
+
+    // A real alias with a pin still returns the pinned version, not the alias's.
+    const pinned = await request(app)
+      .get('/api/v1/prompt-versions')
+      .query({ name: promptName, alias: 'production', version: 2 })
+      .set(auth)
+      .expect(200);
+    expect(pinned.body.versionNumber).toBe(2);
+  });
+
+  it('answers 404 for a version the prompt does not have, and 400 for a version that is not a number', async () => {
+    const { apiKey, promptName } = await setupPromptWithVersions(1);
+    const auth = { Authorization: `Bearer ${apiKey}` };
+
+    const render = await request(app)
+      .post(`/api/v1/prompts/${promptName}/production/render`)
+      .set(auth)
+      .send({ variables: { name: 'Al' }, version: 9 })
+      .expect(404);
+    expect(render.body.error.code).toBe('NOT_FOUND');
+    expect(render.body.error.message).toContain('Version 9');
+
+    await request(app).get('/api/v1/prompt-versions').query({ name: promptName, version: 9 }).set(auth).expect(404);
+    const bad = await request(app)
+      .get('/api/v1/prompt-versions')
+      .query({ name: promptName, version: 'two' })
+      .set(auth)
+      .expect(400);
+    expect(bad.body.error.code).toBe('VALIDATION_ERROR');
+  });
+});

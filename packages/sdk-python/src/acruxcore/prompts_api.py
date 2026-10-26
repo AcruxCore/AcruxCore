@@ -11,12 +11,14 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 from urllib.parse import quote, urlencode
 
 from .cache import CacheEntry, _LRUCache, get_cache
+from .prompt_overrides import pinned_version
 from .errors import (
     API_ERROR,
     MISSING_VARIABLES,
     NETWORK_ERROR,
     VALIDATION_ERROR,
     AcruxCoreError,
+    server_detail,
 )
 from .types import (
     AliasDetail,
@@ -391,13 +393,18 @@ class PromptsNamespace:
         aliases, read the version.
 
         :param name: The prompt's exact name.
-        :param alias: The alias to resolve, e.g. ``"production"``.
+        :param alias: The alias to resolve, e.g. ``"production"``. Inside
+            :func:`~acruxcore.pin_prompts` (or a local experiment run with
+            ``prompt_overrides=``), a version pinned for ``name`` is returned instead;
+            the alias must still exist, as it must for a pinned render.
         :returns: The version, with ``messages``, ``variables`` and ``model``.
         :raises AcruxCoreError: ``API_ERROR`` 404 if no prompt has that name, or the
-            prompt has no such alias.
+            prompt has no such alias. ``API_ERROR`` if a pinned read comes back with
+            another version, which a server from before pinned reads does.
         :raises AcruxCoreError: ``NETWORK_ERROR`` if the API is unreachable after retries.
         """
-        key = json.dumps([name, alias])
+        pinned = pinned_version(name)
+        key = json.dumps([name, alias] if pinned is None else [name, alias, pinned])
         now = time.time() * 1000
         hit = self._alias_versions.get(key)
         if hit is not None and now - hit.fetched_at < self._cache_ttl:
@@ -405,22 +412,34 @@ class PromptsNamespace:
             # next caller is handed.
             return copy.deepcopy(cast(VersionDetail, hit.value))
 
+        query = {"name": name, "alias": alias} if pinned is None else {"name": name, "alias": alias, "version": pinned}
         response = await self._client._request(
-            "GET", f"/prompt-versions?{urlencode({'name': name, 'alias': alias})}", None,
+            "GET", f"/prompt-versions?{urlencode(query)}", None,
             "fetching prompt version by alias",
         )
-        if response.status_code == 404 and not _error_code(response):
+        if response.status_code == 404 and not _error_code(response) and pinned is None:
             # No route matched: a server older than this endpoint. Resolve it in three.
             version = await self._get_by_alias_in_steps(name, alias)
         elif response.status_code == 404:
+            wanted = f'an alias "{alias}"' if pinned is None else f"a version {pinned} (pinned)"
             raise AcruxCoreError(
-                f'acruxcore: no prompt "{name}" with an alias "{alias}"', API_ERROR, 404,
+                f'acruxcore: no prompt "{name}" with {wanted}', API_ERROR, 404,
                 _json_or_none(response),
             )
         else:
             version = VersionDetail.from_dict(
                 self._client._parse_json_or_throw(response, "fetching prompt version by alias")
             )
+            if pinned is not None and version.version_number != pinned:
+                # A server from before pinned reads ignores `version` and returns the alias's.
+                raise AcruxCoreError(
+                    f'acruxcore: "{name}" is pinned to version {pinned}, but the server '
+                    f"returned version {version.version_number}. This server does not "
+                    "support pinned reads; upgrade it, or remove the pin.",
+                    API_ERROR,
+                    response.status_code,
+                    _json_or_none(response),
+                )
         if self._cache_ttl > 0:
             self._alias_versions.set(key, CacheEntry(value=copy.deepcopy(version), fetched_at=now))
         return version
@@ -830,7 +849,10 @@ class PromptsNamespace:
         nothing is stored, which also gives up that serve-stale behaviour.
 
         :param name: Prompt name (slug, not id).
-        :param alias: Alias to resolve (e.g. ``production``).
+        :param alias: Alias to resolve (e.g. ``production``). Inside
+            :func:`~acruxcore.pin_prompts` (or a local experiment run with
+            ``prompt_overrides=``), the version pinned for ``name`` is rendered instead;
+            the alias still decides the tools.
         :param variables: Template variables.
         :returns: A :class:`~acruxcore.types.RenderResult`; ``tools`` is ``[]`` if the
             alias binds none, ``model`` is the version's bound default model (or
@@ -841,13 +863,16 @@ class PromptsNamespace:
             API is unreachable and no stale entry exists.
         """
         variables = variables or {}
+        pinned = pinned_version(name)
 
         if self._cache_ttl <= 0:
-            return await self._fetch_and_cache(name, alias, variables, None)
+            return await self._fetch_and_cache(name, alias, variables, None, pinned)
 
         cache = get_cache(self._max_cache_size)
+        # A pinned render is its own entry: it must never be served to unpinned code.
+        pin_part = "" if pinned is None else f"@v{pinned}"
         cache_key = (
-            f"{self._client._api_key_fingerprint()}:{name}:{alias}:{_hash_variables(variables)}"
+            f"{self._client._api_key_fingerprint()}:{name}:{alias}{pin_part}:{_hash_variables(variables)}"
         )
         now = time.time() * 1000
 
@@ -856,17 +881,22 @@ class PromptsNamespace:
             age = now - cached.fetched_at
             if age < self._cache_ttl:
                 return cast(RenderResult, cached.value)
-            self._spawn_background_refresh(name, alias, variables, cache_key)
+            self._spawn_background_refresh(name, alias, variables, cache_key, pinned)
             return cast(RenderResult, cached.value)
 
-        return await self._fetch_and_cache(name, alias, variables, cache_key)
+        return await self._fetch_and_cache(name, alias, variables, cache_key, pinned)
 
     def _spawn_background_refresh(
-        self, name: str, alias: str, variables: Dict[str, Any], cache_key: str
+        self,
+        name: str,
+        alias: str,
+        variables: Dict[str, Any],
+        cache_key: str,
+        pinned: Optional[int] = None,
     ) -> None:
         try:
             task = asyncio.ensure_future(
-                self._fetch_and_cache(name, alias, variables, cache_key)
+                self._fetch_and_cache(name, alias, variables, cache_key, pinned)
             )
         except RuntimeError:
             return
@@ -882,12 +912,20 @@ class PromptsNamespace:
         task.add_done_callback(_done)
 
     async def _fetch_and_cache(
-        self, name: str, alias: str, variables: Dict[str, Any], cache_key: Optional[str]
+        self,
+        name: str,
+        alias: str,
+        variables: Dict[str, Any],
+        cache_key: Optional[str],
+        pinned: Optional[int] = None,
     ) -> RenderResult:
         path = f"/prompts/{quote(name, safe='')}/{quote(alias, safe='')}/render"
+        body: Dict[str, Any] = {"variables": variables}
+        if pinned is not None:
+            body["version"] = pinned
         try:
             response = await self._client._request(
-                "POST", path, {"variables": variables}, f'fetching "{name}/{alias}"'
+                "POST", path, body, f'fetching "{name}/{alias}"'
             )
         except Exception as err:
             raise AcruxCoreError(
@@ -916,13 +954,25 @@ class PromptsNamespace:
                         body,
                     )
             raise AcruxCoreError(
-                f'acruxcore API error {response.status_code} for "{name}/{alias}"',
+                f'acruxcore API error {response.status_code} for "{name}/{alias}"'
+                f"{server_detail(body)}",
                 API_ERROR,
                 response.status_code,
                 body,
             )
 
         data = response.json()
+        if pinned is not None and data.get("versionNumber") != pinned:
+            # A server from before pinned renders drops the `version` key and renders
+            # the alias's version. Running that would compare a prompt with itself.
+            raise AcruxCoreError(
+                f'acruxcore: "{name}" is pinned to version {pinned}, but the server '
+                f"rendered version {data.get('versionNumber')}. This server does not "
+                "support pinned renders; upgrade it, or remove the pin.",
+                API_ERROR,
+                response.status_code,
+                data,
+            )
         value = RenderResult(
             messages=data.get("messages", []),
             tools=data.get("tools") or [],

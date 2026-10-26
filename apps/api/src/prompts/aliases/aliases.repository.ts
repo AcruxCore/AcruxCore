@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import prisma from '../../shared/db/client';
 import type { AliasDetail, AliasWithVersion } from './aliases.types';
 import type { TemplateContent } from '../versions/nunjucks.utils';
@@ -13,10 +14,13 @@ export class AliasesRepository {
    *
    * @param promptId - UUID of the parent prompt.
    * @param versionId - UUID of the first prompt_versions row.
+   * @param tx - Writes on this transaction, which then makes the pair atomic,
+   *   instead of a batch transaction of its own.
    * @returns Array of two AliasDetail objects (production, staging).
    */
-  async autoCreateAliases(promptId: string, versionId: string): Promise<AliasDetail[]> {
-    const versionRow = await prisma.promptVersion.findUnique({
+  async autoCreateAliases(promptId: string, versionId: string, tx?: Prisma.TransactionClient): Promise<AliasDetail[]> {
+    const client = tx ?? prisma;
+    const versionRow = await client.promptVersion.findUnique({
       where: { id: versionId },
       select: { versionNumber: true },
     });
@@ -24,14 +28,11 @@ export class AliasesRepository {
     const versionNumber = versionRow?.versionNumber ?? 1;
     const now = new Date();
 
-    const [production, staging] = await prisma.$transaction([
-      prisma.promptAlias.create({
-        data: { promptId, alias: 'production', versionId, updatedAt: now },
-      }),
-      prisma.promptAlias.create({
-        data: { promptId, alias: 'staging', versionId, updatedAt: now },
-      }),
-    ]);
+    const create = (alias: 'production' | 'staging') =>
+      client.promptAlias.create({ data: { promptId, alias, versionId, updatedAt: now } });
+    const [production, staging] = tx
+      ? [await create('production'), await create('staging')]
+      : await prisma.$transaction([create('production'), create('staging')]);
 
     return [production, staging].map((r) => ({
       id: r.id,
@@ -112,6 +113,28 @@ export class AliasesRepository {
       variables: row.version.variables as string[],
       model: row.version.model?.publicName ?? null,
     };
+  }
+
+  /**
+   * Finds an alias by prompt name without loading its version's template: for a
+   * caller that pins another version and only needs the alias to exist and to
+   * know which prompt it belongs to.
+   *
+   * @param teamId - Isolation boundary.
+   * @param promptName - The prompt's exact name; a deleted prompt does not match.
+   * @param alias - The alias name, e.g. `production`.
+   * @returns The alias row's id, prompt id and current version number, or null.
+   */
+  async findAliasTarget(
+    teamId: string,
+    promptName: string,
+    alias: string,
+  ): Promise<{ aliasId: string; promptId: string; versionNumber: number } | null> {
+    const row = await prisma.promptAlias.findFirst({
+      where: { alias, prompt: { teamId, name: promptName, deletedAt: null } },
+      select: { id: true, promptId: true, version: { select: { versionNumber: true } } },
+    });
+    return row ? { aliasId: row.id, promptId: row.promptId, versionNumber: row.version.versionNumber } : null;
   }
 
   /**

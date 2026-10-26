@@ -46,9 +46,15 @@ The hardest two. Both build on everything above and add either multi-agent orche
 - **[Build a supervisor multi-agent system](/docs/tutorials/build-a-supervisor-multi-agent-system)** — a router that classifies a request and hands it to one of three specialist subagents, all in one trace. Introduces: the **supervisor/router** pattern, multi-agent hand-off, `response_format` used for the routing decision itself, and the `@acrux.tool` decorator.
 - **[Build a Medical-Information QA agent](/docs/tutorials/build-a-medical-information-qa-agent)** — a typed, cited, policy-aware agent that refuses off-label questions and escalates adverse events, with every answer forced into one JSON shape. Introduces: `response_format` for a **typed answer**, citations, refusal/escalation policy, and mixed code/dashboard tool-description ownership. Fully keyless.
 
+### Level 5 — Improve an agent you already run
+
+Your agent is live and users tell you when it is wrong. This tutorial turns that feedback into a better prompt and tests it on the whole agent first.
+
+- **[Improve a RAG agent from user feedback](/docs/tutorials/improve-a-rag-agent-from-feedback)** — a shop's support agent with a policy search and an order lookup. You mark wrong answers, let the optimizer draft rewrites, then run the whole agent on each rewrite before you promote one. Introduces: **feedback datasets**, the **optimize run**, **prompt overrides** and **`compare_local`**.
+
 ## Already building with LangChain, CrewAI or the OpenAI Agents SDK?
 
-The eight tutorials above all build the agent loop on top of AcruxCore's own gateway or SDK.
+The tutorials above all build the agent loop on top of AcruxCore's own gateway or SDK.
 If you're instead using a framework that has its **own** agents and its own way of tracing
 itself — CrewAI, the OpenAI Agents SDK, LangChain, LlamaIndex — you don't rebuild anything.
 Those frameworks speak [OpenTelemetry](https://opentelemetry.io/) (OTel), the same wire
@@ -147,7 +153,7 @@ The options above aren't equally right for every situation. Each is a real decis
 
 ## Concepts you'll meet
 
-Recurring terms across the eight tutorials. Each is introduced in-line on first use; this is the one-line index, with a link to the deeper guide where one exists.
+Recurring terms across these tutorials. Each is introduced in-line on first use; this is the one-line index, with a link to the deeper guide where one exists.
 
 - **Tool-calling loop** — the model calls a tool, your code (or the gateway) runs it, the result goes back to the model, repeat until the model can answer. Introduced in **#1**.
 - **HTTP tool vs client tool** — an HTTP tool runs on the gateway (you describe a request once; #1); a client tool runs in your process (the platform stores only its schema; #2 onward).

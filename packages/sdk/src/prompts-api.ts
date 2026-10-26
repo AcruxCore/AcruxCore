@@ -26,8 +26,9 @@ import type {
   VersionListResult,
 } from './types';
 import type { NamespaceHost } from './host';
-import { acruxcoreError } from './error';
+import { acruxcoreError, serverDetail } from './error';
 import { getCache } from './cache';
+import { pinnedVersion } from './prompt-overrides';
 import { LRUCache } from 'lru-cache';
 import { fetchWithRetry } from './fetch';
 
@@ -334,27 +335,42 @@ export class PromptsNamespace {
    *
    * @param name - The prompt's exact name. Matching is exact, not the substring match
    *   `list({ search })` does.
-   * @param alias - The alias to resolve, e.g. `'production'`.
+   * @param alias - The alias to resolve, e.g. `'production'`. Inside {@link pinPrompts} (or
+   *   a local experiment run with `promptOverrides`), a version pinned for `name` is
+   *   returned instead; the alias must still exist, as it must for a pinned render.
    * @returns The version, with `messages`, `variables` and `model`.
    * @throws {acruxcoreError} API_ERROR 404 if no prompt has that name, or the prompt has
-   *   no such alias.
+   *   no such alias. API_ERROR if a pinned read comes back with another version, which
+   *   a server from before pinned reads does.
    * @throws {acruxcoreError} NETWORK_ERROR if the API is unreachable after retries.
    */
   async getByAlias(name: string, alias: string): Promise<VersionDetail> {
-    const key = JSON.stringify([name, alias]);
+    const pin = pinnedVersion(name);
+    const key = JSON.stringify(pin === undefined ? [name, alias] : [name, alias, pin]);
     const hit = this.aliasVersions.get(key);
     if (hit && Date.now() - hit.fetchedAt < this.cacheTtl) return structuredClone(hit.value);
 
-    const query = new URLSearchParams({ name, alias }).toString();
+    const query = new URLSearchParams(pin === undefined ? { name, alias } : { name, alias, version: String(pin) }).toString();
     const response = await this.client._request('GET', `/prompt-versions?${query}`, undefined, 'fetching prompt version by alias');
     let version: VersionDetail;
     if (response.status === 404) {
       const body = await response.json().catch(() => undefined) as { error?: { code?: unknown } } | undefined;
+      const wanted = pin === undefined ? `an alias "${alias}"` : `a version ${pin} (pinned)`;
       // No error code means no route matched: a server older than this endpoint.
-      if (typeof body?.error?.code !== 'string') version = await this._getByAliasInSteps(name, alias);
-      else throw new acruxcoreError(`acruxcore: no prompt "${name}" with an alias "${alias}"`, 'API_ERROR', 404, body);
+      if (typeof body?.error?.code !== 'string' && pin === undefined) version = await this._getByAliasInSteps(name, alias);
+      else throw new acruxcoreError(`acruxcore: no prompt "${name}" with ${wanted}`, 'API_ERROR', 404, body);
     } else {
       version = await this.client._parseJsonOrThrow(response, 'fetching prompt version by alias') as VersionDetail;
+      if (pin !== undefined && version.versionNumber !== pin) {
+        // A server from before pinned reads ignores `version` and returns the alias's.
+        throw new acruxcoreError(
+          `acruxcore: "${name}" is pinned to version ${pin}, but the server returned version ` +
+            `${version.versionNumber}. This server does not support pinned reads; upgrade it, or remove the pin.`,
+          'API_ERROR',
+          response.status,
+          version,
+        );
+      }
     }
     if (this.cacheTtl > 0) this.aliasVersions.set(key, { value: structuredClone(version), fetchedAt: Date.now() });
     return version;
@@ -710,7 +726,9 @@ export class PromptsNamespace {
    * - API unreachable + cold cache: throws NETWORK_ERROR after retries.
    *
    * @param name - The prompt name (slug, not ID).
-   * @param alias - The alias to resolve (e.g. 'production', 'staging').
+   * @param alias - The alias to resolve (e.g. 'production', 'staging'). Inside
+   *   {@link pinPrompts} (or a local experiment run with `promptOverrides`), the version
+   *   pinned for `name` is rendered instead; the alias still decides the tools.
    * @param variables - Template variables to pass to the render endpoint.
    * @returns A {@link RenderResult}: the rendered messages, the alias's tools (`[]` when it
    *   binds none), the resolved version, and the `variables` echoed back so a caller
@@ -724,12 +742,15 @@ export class PromptsNamespace {
     alias: string,
     variables: Record<string, unknown> = {},
   ): Promise<RenderResult> {
+    const pin = pinnedVersion(name);
     if (this.cacheTtl <= 0) {
-      return this._fetchAndCache(name, alias, variables, null);
+      return this._fetchAndCache(name, alias, variables, null, pin);
     }
 
     const cache = getCache(this.maxCacheSize);
-    const cacheKey = `${this.client._apiKeyFingerprint()}:${name}:${alias}:${hashVariables(variables)}`;
+    // A pinned render is its own entry: it must never be served to unpinned code.
+    const pinPart = pin === undefined ? '' : `@v${pin}`;
+    const cacheKey = `${this.client._apiKeyFingerprint()}:${name}:${alias}${pinPart}:${hashVariables(variables)}`;
     const now = Date.now();
 
     const cached = cache.get(cacheKey);
@@ -740,7 +761,7 @@ export class PromptsNamespace {
         return cached.value;
       }
 
-      this._backgroundRefresh(name, alias, variables, cacheKey).catch((err: unknown) => {
+      this._backgroundRefresh(name, alias, variables, cacheKey, pin).catch((err: unknown) => {
         console.warn(
           `[acruxcore] Background refresh failed for "${name}/${alias}" — continuing to serve stale`,
           err instanceof Error ? err.message : err,
@@ -750,7 +771,7 @@ export class PromptsNamespace {
       return cached.value;
     }
 
-    return this._fetchAndCache(name, alias, variables, cacheKey);
+    return this._fetchAndCache(name, alias, variables, cacheKey, pin);
   }
 
   /** @internal */
@@ -759,8 +780,9 @@ export class PromptsNamespace {
     alias: string,
     variables: Record<string, unknown>,
     cacheKey: string,
+    pin?: number,
   ): Promise<void> {
-    await this._fetchAndCache(name, alias, variables, cacheKey);
+    await this._fetchAndCache(name, alias, variables, cacheKey, pin);
   }
 
   /** @internal */
@@ -769,11 +791,12 @@ export class PromptsNamespace {
     alias: string,
     variables: Record<string, unknown>,
     cacheKey: string | null,
+    pin?: number,
   ): Promise<RenderResult> {
     const response = await this.client._request(
       'POST',
       `/prompts/${encodeURIComponent(name)}/${encodeURIComponent(alias)}/render`,
-      { variables },
+      pin === undefined ? { variables } : { variables, version: pin },
       `fetching "${name}/${alias}"`,
     );
 
@@ -797,7 +820,7 @@ export class PromptsNamespace {
       }
 
       throw new acruxcoreError(
-        `acruxcore API error ${response.status} for "${name}/${alias}"`,
+        `acruxcore API error ${response.status} for "${name}/${alias}"${serverDetail(body)}`,
         'API_ERROR',
         response.status,
         body,
@@ -812,6 +835,18 @@ export class PromptsNamespace {
       versionId?: string | null;
       versionNumber?: number | null;
     };
+    if (pin !== undefined && data.versionNumber !== pin) {
+      // A server from before pinned renders drops the `version` key and renders the
+      // alias's version. Running that would compare a prompt with itself.
+      throw new acruxcoreError(
+        `acruxcore: "${name}" is pinned to version ${pin}, but the server rendered version ` +
+          `${data.versionNumber ?? 'unknown'}. This server does not support pinned renders; ` +
+          'upgrade it, or remove the pin.',
+        'API_ERROR',
+        response.status,
+        data,
+      );
+    }
     const value: RenderResult = {
       messages: data.messages,
       tools: data.tools ?? [],

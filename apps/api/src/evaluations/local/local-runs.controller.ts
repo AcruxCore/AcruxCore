@@ -1,6 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import { LocalRunsService } from './local-runs.service';
-import { CreateLocalExperimentSchema, FinishLocalRunSchema, SubmitLocalResultsSchema } from './local-runs.types';
+import {
+  CreateLocalExperimentSchema,
+  FinishLocalRunSchema,
+  JudgeLocalOutputSchema,
+  SubmitLocalResultsSchema,
+} from './local-runs.types';
 import { RunsService } from '../runs/runs.service';
 import { ValidationError, firstIssueMessage } from '../../shared/errors';
 
@@ -45,6 +50,17 @@ export class LocalRunsController {
       if (!parsed.success) throw new ValidationError(firstIssueMessage(parsed.error.issues));
       await this.service.finishRun(req.teamId!, req.params.id, parsed.data);
       res.status(200).json(await this.runs.getRun(req.teamId!, req.params.id));
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /** POST /api/v1/runs/:id/judge — grade one local-run output with the LLM judge (phase-5 FAQ Q59). */
+  judge = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const parsed = JudgeLocalOutputSchema.safeParse(req.body);
+      if (!parsed.success) throw new ValidationError(firstIssueMessage(parsed.error.issues));
+      res.status(200).json(await this.service.judgeOutput(req.teamId!, req.params.id, parsed.data));
     } catch (err) {
       next(err);
     }

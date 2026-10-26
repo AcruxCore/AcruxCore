@@ -331,6 +331,8 @@ class RunDetailDto:
     #: Optimize runs only: why each rewrite the optimizer wrote but the run dropped
     #: was dropped. None for other runs and on servers older than the field.
     optimizer_rejections: Optional[List[str]] = None
+    #: The dataset the run graded — what a local run must use to be compared with it.
+    dataset_id: Optional[str] = None
     raw: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -347,6 +349,7 @@ class RunDetailDto:
             example_count=d.get("exampleCount", 0),
             results=d.get("results") or {},
             optimizer_rejections=d.get("optimizerRejections"),
+            dataset_id=d.get("datasetId"),
             raw=d,
         )
 
@@ -426,6 +429,8 @@ class CandidateDetail:
     rationale: Optional[str]
     label: str
     created_at: Optional[str]
+    #: The prompt version it was committed as (to test or to promote), else ``None``.
+    version_number: Optional[int] = None
     raw: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -437,6 +442,36 @@ class CandidateDetail:
             rationale=d.get("rationale"),
             label=d.get("label") or "",
             created_at=d.get("createdAt"),
+            version_number=d.get("versionNumber"),
+            raw=d,
+        )
+
+
+@dataclass
+class CommitCandidateResult:
+    """A candidate committed as a prompt version, with no alias moved.
+
+    Pin ``version_number`` under ``prompt_name`` to run your app on it:
+    ``prompt_overrides={result.prompt_name: result.version_number}``.
+    ``created`` is ``False`` when the candidate had been committed before.
+    """
+
+    prompt_name: str
+    version_number: int
+    version_id: str
+    created: bool
+    version: Dict[str, Any] = field(default_factory=dict)
+    raw: Dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "CommitCandidateResult":
+        version = d.get("version") or {}
+        return cls(
+            prompt_name=d.get("promptName") or "",
+            version_number=int(version.get("versionNumber") or 0),
+            version_id=version.get("id") or "",
+            created=bool(d.get("created")),
+            version=version,
             raw=d,
         )
 

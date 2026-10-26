@@ -273,6 +273,8 @@ class TracesNamespace:
         *,
         page: Optional[int] = None,
         limit: Optional[int] = None,
+        rating: Optional[Literal["up", "down", "none"]] = None,
+        prompt_id: Optional[str] = None,
     ) -> FeedbackListResult:
         """Team-wide feedback feed, newest-first, paginated. Wraps
         ``GET /traces/feedback``.
@@ -280,6 +282,9 @@ class TracesNamespace:
         :param page: 1-based page number. Defaults server-side to 1.
         :param limit: Page size, capped at 100 server-side. Defaults
             server-side to 20.
+        :param rating: ``"up"`` (rating above 0), ``"down"`` (below 0), or
+            ``"none"`` (no rating).
+        :param prompt_id: Only feedback on traces that ran a version of this prompt.
         :returns: :class:`~acruxcore.types.FeedbackListResult` — every feedback
             row across the team, not scoped to one trace (see
             :meth:`get_trace_feedback` for that).
@@ -290,6 +295,10 @@ class TracesNamespace:
             params["page"] = str(page)
         if limit is not None:
             params["limit"] = str(limit)
+        if rating is not None:
+            params["rating"] = rating
+        if prompt_id is not None:
+            params["prompt_id"] = prompt_id
 
         qs = urlencode(params)
         path = f"/traces/feedback?{qs}" if qs else "/traces/feedback"

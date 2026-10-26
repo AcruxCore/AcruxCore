@@ -90,6 +90,41 @@ export const FinishLocalRunSchema = z.object({
 export type FinishLocalRunDto = z.infer<typeof FinishLocalRunSchema>;
 
 /**
+ * Payload for `POST /runs/:id/judge` (phase-5 FAQ Q59): grade one output a
+ * local run produced against the example's criteria and the dataset's overall
+ * feedback, with the same judge a server-side run uses. `model` is the judge
+ * model, a name registered under Gateway → Models; `judge_prompt_id` swaps in a
+ * team's own judge prompt, and `judge_prompt_version` names the exact version of
+ * it to grade with instead of the one `production` serves — what a pipeline test
+ * passes, so it grades like the optimize run it follows (phase-5 FAQ Q58).
+ */
+export const JudgeLocalOutputSchema = z.object({
+  example_id: z.string().uuid(),
+  output: z
+    .unknown()
+    .refine(
+      (value) => value === undefined || Buffer.byteLength(JSON.stringify(value), 'utf8') <= MAX_LOCAL_OUTPUT_BYTES,
+      { message: `output must serialize to at most ${MAX_LOCAL_OUTPUT_BYTES} bytes` },
+    ),
+  model: z.string({ required_error: 'model is required: the judge model, from Gateway → Models.' }).trim().min(1),
+  judge_prompt_id: z.string().uuid().optional(),
+  judge_prompt_version: z.number().int().positive().optional(),
+}).refine((body) => body.judge_prompt_version === undefined || body.judge_prompt_id !== undefined, {
+  message: 'judge_prompt_version needs judge_prompt_id: it names a version of that judge prompt.',
+});
+
+/** Validated judge payload. */
+export type JudgeLocalOutputDto = z.infer<typeof JudgeLocalOutputSchema>;
+
+/** Response of `POST /runs/:id/judge`. `score` is 0–100, or null when not graded. */
+export interface JudgeLocalOutputResponse {
+  score: number | null;
+  passed: boolean | null;
+  reason: string | null;
+  judge_trace_id: string | null;
+}
+
+/**
  * A stored named score: the wire shape with `passed` and `reason` always
  * present. `passed` is filled from the score (`>= 50`) when the scorer gave none.
  */
@@ -106,6 +141,18 @@ export interface LocalExperimentConfig {
   model: string;
   primaryScore?: string;
   metadata?: Record<string, unknown>;
+}
+
+/**
+ * `experiment_runs.grading_snapshot` of a local run: the grading inputs frozen
+ * so every output of the run is graded the same way (phase-5 FAQ Q5).
+ * `overallFeedback` is set at create; a run created before that has no key.
+ * `judgePromptVersions` maps a judge prompt id to the version the run first
+ * graded with, filled on that judge prompt's first judge call.
+ */
+export interface LocalGradingSnapshot {
+  overallFeedback?: string | null;
+  judgePromptVersions?: Record<string, string>;
 }
 
 /** One frozen example as the SDK needs it to run the task and the scorers. */

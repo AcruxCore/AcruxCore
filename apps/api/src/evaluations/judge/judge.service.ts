@@ -99,7 +99,44 @@ export class JudgeService {
     const criteria = frozen ? frozen.criteria : result.example.criteria;
     const overallFeedback = frozen ? frozen.overallFeedback : result.example.dataset.overallFeedback;
     const history = frozen ? frozen.history ?? null : (result.example.history as unknown as ChatMessage[] | null);
-    const gradingInput = { output: result.output, criteria, overallFeedback, history, images: frozen?.images ?? null };
+    const verdict = await this.grade(
+      teamId,
+      judgeModel,
+      { output: result.output, criteria, overallFeedback, history, images: frozen?.images ?? null },
+      judgePromptVersionId,
+    );
+    await runsRepo.writeVerdict(resultId, verdict);
+  }
+
+  /**
+   * Grades one output and returns the verdict without storing it — the shared
+   * core of {@link scoreResult} (a server-side run's result) and of the judge
+   * call a local run's SDK makes for its own outputs (phase-5 FAQ Q59).
+   *
+   * Always returns *something*: a numeric verdict, or a null score with a
+   * `reason` saying why there is none (no rubric to grade against, a judge
+   * prompt that is missing or fails to render, or two unparseable replies).
+   *
+   * @param teamId - Isolation boundary; the judge call is billed to this team.
+   * @param judgeModel - A model registered under Gateway → Models.
+   * @param input - The output to grade and what to grade it against.
+   * @param judgePromptVersionId - A custom judge prompt version, or absent for the built-in judge.
+   * @returns Score 0–100 (or null), pass/fail, reason, and the judge call's trace id.
+   * @throws Rethrows gateway errors (budget, rate limit, provider failure) unchanged.
+   */
+  async grade(
+    teamId: string,
+    judgeModel: string,
+    input: {
+      output: unknown;
+      criteria: string | null;
+      overallFeedback: string | null;
+      history: ChatMessage[] | null;
+      images?: ImageContentPart[] | null;
+    },
+    judgePromptVersionId?: string | null,
+  ): Promise<JudgeVerdict> {
+    const gradingInput = { ...input, images: input.images ?? null };
 
     let messages: ChatMessage[];
     if (judgePromptVersionId) {
@@ -117,29 +154,22 @@ export class JudgeService {
           })
         : 'the judge prompt version was not found.';
       if (typeof rendered === 'string') {
-        await runsRepo.writeVerdict(resultId, {
-          score: null,
-          passed: null,
-          reason: `judge prompt error: ${rendered}`,
-          judgeTraceId: null,
-        });
-        return;
+        return { score: null, passed: null, reason: `judge prompt error: ${rendered}`, judgeTraceId: null };
       }
       messages = rendered;
     } else {
-      if (criteria === null && overallFeedback === null) {
+      if (gradingInput.criteria === null && gradingInput.overallFeedback === null) {
         // The built-in judge has no rubric of its own, so there is nothing to
-        // grade against. Still write a marker (score/passed stay null; only
+        // grade against. Still return a marker (score/passed stay null; only
         // `reason` is set) so finalize.processor's readiness check can
         // distinguish "judged, intentionally not scored" from "judge job
-        // hasn't run yet" — see this method's own docstring.
-        await runsRepo.writeVerdict(resultId, {
+        // hasn't run yet" — see scoreResult's docstring.
+        return {
           score: null,
           passed: null,
           reason: 'not judged: no criteria or overall feedback to grade against',
           judgeTraceId: null,
-        });
-        return;
+        };
       }
       messages = compileEvaluatePrompt(gradingInput);
     }
@@ -158,23 +188,22 @@ export class JudgeService {
     };
 
     const first = await attempt();
-    if (first.verdict) {
-      await runsRepo.writeVerdict(resultId, { ...first.verdict, judgeTraceId: first.traceId });
-      return;
-    }
+    if (first.verdict) return { ...first.verdict, judgeTraceId: first.traceId };
 
     // Retry once with a fresh call before giving up.
     const retry = await attempt();
-    if (retry.verdict) {
-      await runsRepo.writeVerdict(resultId, { ...retry.verdict, judgeTraceId: retry.traceId });
-      return;
-    }
+    if (retry.verdict) return { ...retry.verdict, judgeTraceId: retry.traceId };
 
-    await runsRepo.writeVerdict(resultId, {
-      score: null,
-      passed: null,
-      reason: 'judge parse error',
-      judgeTraceId: retry.traceId,
-    });
+    return { score: null, passed: null, reason: 'judge parse error', judgeTraceId: retry.traceId };
   }
+}
+
+/** What {@link JudgeService.grade} decided about one output. */
+export interface JudgeVerdict {
+  /** 0–100, or null when the output was not graded (see `reason`). */
+  score: number | null;
+  passed: boolean | null;
+  reason: string | null;
+  /** The judge call's trace, or null when no model was called. */
+  judgeTraceId: string | null;
 }

@@ -132,6 +132,35 @@ describe('POST /api/v1/gateway/chat/completions — prompt reference lineage', (
     expect(rows[0].promptVersionId).not.toBe(v1Id);
   });
 
+  // phase-5 FAQ Q58: a test run pins a version that no alias points at yet.
+  it('renders a pinned prompt.version through the alias and stamps that version, without moving the alias', async () => {
+    const { agent, promptId, v1Id } = await arrangeOwnerWithPrompt();
+    const v2 = await agent
+      .post(`/api/v1/prompts/${promptId}/versions`)
+      .send({ messages: [{ role: 'system', content: 'Candidate greeting for {{ name }}' }] })
+      .expect(201);
+
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({
+        model: 'gpt-4o-mini',
+        prompt: { name: 'greeting', alias: 'production', version: 2, variables: { name: 'Cy' } },
+      })
+      .expect(200);
+    expect(capturedProviderBody?.messages[0].content).toBe('Candidate greeting for Cy');
+    const pinned = await prisma.gatewayRequest.findFirst({ orderBy: { createdAt: 'desc' } });
+    expect(pinned?.promptVersionId).toBe(v2.body.id);
+
+    // The same call without the pin still gets production's version 1.
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({ model: 'gpt-4o-mini', prompt: { name: 'greeting', alias: 'production', variables: { name: 'Cy' } } })
+      .expect(200);
+    expect(capturedProviderBody?.messages[0].content).toBe('Hello Cy');
+    const unpinned = await prisma.gatewayRequest.findFirst({ orderBy: { createdAt: 'desc' } });
+    expect(unpinned?.promptVersionId).toBe(v1Id);
+  });
+
   it('stamps a client-supplied prompt_version_id when the caller rendered the prompt itself', async () => {
     const { agent, v1Id } = await arrangeOwnerWithPrompt();
 

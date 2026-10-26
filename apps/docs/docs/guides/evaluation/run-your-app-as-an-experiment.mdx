@@ -491,6 +491,103 @@ The **Score** picker sets which scorer's pass or fail is compared. On `categoryE
 two account tickets improved. On `teamExact`, no ticket changed in the Node runs, because both
 versions sent every ticket to the right team.
 
+## Run a stored prompt version without changing your app
+
+The app in this guide keeps its prompts in code, so `v1` and `v2` are a script argument. Many
+apps render a prompt that is stored in AcruxCore instead, by name and alias. To test another
+version of that prompt, you pin it for the length of one run. Your app's code stays the same.
+
+Pass `prompt_overrides` (Python) or `promptOverrides` (Node) as `{prompt name: version number}`.
+While the run is active, `prompts.render` and `prompts.get_by_alias` (`getByAlias` in Node)
+return the pinned version of that prompt, whichever alias the app asks for. The alias still
+decides which tools are attached to the prompt. Renders outside the run are not affected.
+
+`compare_local` (Python) or `compareLocal` (Node) runs several variants of the same app at the
+same time, one local run each. `null` or `None` means no pin. The first variant is the base for
+the compare links. `experiments.judge` is an LLM judge scorer. It grades each output against the
+example's criteria and the dataset's overall feedback, on the server, with a model from your
+**Models** list. To grade with one exact version of your own judge prompt, pass
+`judge_prompt_id` and `judge_prompt_version` next to the model (`judgePromptId` and
+`judgePromptVersion` in Node):
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python">
+
+```python
+comparison = await hub.experiments.compare_local(
+    dataset_id,
+    task=my_agent,  # renders "support-agent" by alias, as in production
+    scorers=[hub.experiments.judge("gpt-4.1")],
+    variants={
+        "production": None,
+        "v7": {"support-agent": 7},
+    },
+)
+print(comparison)  # pass rate per variant, then one compare link per variant
+```
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+```typescript
+const comparison = await hub.experiments.compareLocal(datasetId, {
+  task: myAgent, // renders "support-agent" by alias, as in production
+  scorers: [hub.experiments.judge('gpt-4.1')],
+  variants: {
+    production: null,
+    v7: { 'support-agent': 7 },
+  },
+});
+console.log(comparison.compareUrls); // { v7: '…/compare?target_run=…' }
+```
+
+</TabItem>
+</Tabs>
+
+For a single variant, pass the same pin to `run_local(..., prompt_overrides={"support-agent": 7})`
+or `runLocal(datasetId, { ..., promptOverrides: { 'support-agent': 7 } })`.
+
+A pin changes only the prompts the SDK renders. If your app sends the prompt to the gateway as a
+`prompt` reference, the gateway renders the prompt on the server, where the SDK's pin does not
+reach. Such an app reads the pinned version with `pinned_version` (Python) or `pinnedVersion`
+(Node) and sends it as the `version` field of the `prompt` reference. Outside a pinned run, `pinned_version` and `pinnedVersion` return no
+version, and the gateway renders the alias's version. The gateway rejects `"version": null`, so
+in Python add the key only when a pin exists:
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python">
+
+```python
+from acruxcore import pinned_version
+
+ref = {"name": "support-agent", "alias": "production", "variables": {"question": "Where is my order?"}}
+if (version := pinned_version("support-agent")) is not None:
+    ref["version"] = version
+```
+
+</TabItem>
+<TabItem value="node" label="Node">
+
+```typescript
+import { pinnedVersion } from '@acruxcoreai/sdk';
+
+// JSON.stringify leaves out a version that is undefined.
+const ref = {
+  name: 'support-agent',
+  alias: 'production',
+  version: pinnedVersion('support-agent'),
+  variables: { question: 'Where is my order?' },
+};
+```
+
+</TabItem>
+</Tabs>
+
+The usual source of a version to pin is an optimize run. **Test in your pipeline** on a
+candidate commits the candidate as a version without moving an alias, and shows this code with
+the version filled in. [Improve a RAG agent from user feedback](/docs/tutorials/improve-a-rag-agent-from-feedback)
+walks through that with an agent that searches documents and calls a tool.
+
 ## What to read next
 
 - [Local experiments API](/api-reference/local-experiments) lists the three endpoints the

@@ -276,7 +276,70 @@ judge's own trace.
 Read two or three cells of your top candidate before promoting it. You are checking that it
 passed *for the right reason* — the judge is a model reading your criteria, not a compiler.
 
-## 5. Promote it — this part is yours
+## 5. Test it in your app, if the prompt drives tools or retrieval
+
+The run scores each example with one model call: the rendered prompt, plus any earlier turns
+replayed as recorded. That call offers no tools and runs no retrieval. For a prompt that only
+classifies or writes text, that is the whole job, and you can skip to step 6.
+
+An agent is different. A rewrite can change which tools the model calls and what it searches
+for, and the run cannot see either. So run your own app on the candidate before you promote it.
+Click **Test in your pipeline** in the candidate's cell. The dialog commits the candidate as a
+prompt version, and no alias moves. Then it gives you the code that runs your app on
+`production` and on the candidate side by side:
+
+![The Test in your pipeline dialog: committed as brewline-support v2, with a Python compare_local snippet](/img/tutorials/improve-a-rag-agent-from-feedback/test-in-your-pipeline.png)
+
+<Tabs groupId="lang">
+<TabItem value="node" label="Node (SDK)">
+
+```typescript
+const committed = await hub.runs.commitCandidate('<run-id>', '<candidate-id>');
+
+const comparison = await hub.experiments.compareLocal('<dataset-id>', {
+  task: myAgent, // your app: async (input, ctx) => answer
+  scorers: [hub.experiments.judge('gpt-4.1')],
+  variants: {
+    production: null,
+    candidate: { [committed.promptName]: committed.version.versionNumber },
+  },
+});
+console.log(comparison.compareUrls);
+```
+
+</TabItem>
+<TabItem value="python" label="Python (SDK)">
+
+```python
+committed = await hub.runs.commit_candidate("<run-id>", "<candidate-id>")
+
+comparison = await hub.experiments.compare_local(
+    "<dataset-id>",
+    task=my_agent,  # your app: async def my_agent(input, ctx) -> answer
+    scorers=[hub.experiments.judge("gpt-4.1")],
+    variants={
+        "production": None,
+        "candidate": {committed.prompt_name: committed.version_number},
+    },
+)
+print(comparison)
+```
+
+</TabItem>
+</Tabs>
+
+Inside the candidate variant, every SDK render of that prompt returns the committed version, so your
+app's code does not change. An app that sends the prompt to the gateway as a `prompt` reference
+needs one more line, shown in
+[Run your app as an experiment](./run-your-app-as-an-experiment#run-a-stored-prompt-version-without-changing-your-app). `judge` grades each answer with the run's criteria, so the scores
+compare with the run's. Each variant becomes a local run, and the printed links open
+**Compare per example** from production to the candidate.
+
+Promoting later reuses the committed version, so the wording that ships is the wording your app
+ran. [Improve a RAG agent from user feedback](/docs/tutorials/improve-a-rag-agent-from-feedback)
+does this end to end for an agent with a policy search and an order lookup.
+
+## 6. Promote it — this part is yours
 
 Nothing is promoted automatically. Click **Promote to production** on the candidate you chose
 and you get a review step: the optimizer's rationale, the current production template beside
@@ -332,9 +395,12 @@ Confirming commits the candidate as a real, immutable prompt version — the sam
 would get by editing the prompt by hand, with the same audit trail — and moves the
 `production` alias to it. **Only that alias moves.** Anything on `staging` stays where it was.
 
+If you committed the candidate in step 5, promoting reuses that version instead of committing a
+second copy.
+
 ![The prompt page showing production on the new version and staging still on the old one](/img/tutorials/feedback-optimize-loop/07-v2-on-production.png)
 
-## 6. Verify on the inputs that started this
+## 7. Verify on the inputs that started this
 
 The scoreboard said the rewrite is better. Confirm it on the actual traffic by re-sending the
 original tickets through the gateway — `production` now resolves to the new version, so no

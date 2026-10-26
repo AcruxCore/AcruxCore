@@ -112,4 +112,6 @@ export interface CandidateDetail {
   rationale: string | null;
   label: string;
   createdAt: Date;
+  /** The version number it was committed as, or null if never committed (phase-5 FAQ Q58). */
+  versionNumber: number | null;
 }

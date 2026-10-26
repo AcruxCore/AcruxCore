@@ -841,6 +841,7 @@ export class GatewayService {
         req.prompt.name,
         req.prompt.alias,
         req.prompt.variables,
+        req.prompt.version,
       );
       // Roles were validated at version-commit time, so the widening cast is safe.
       req.messages = rendered.messages as ChatMessage[];
@@ -1202,6 +1203,7 @@ export class GatewayService {
         req.prompt.name,
         req.prompt.alias,
         req.prompt.variables,
+        req.prompt.version,
       );
       req.messages = rendered.messages as ChatMessage[];
       promptVersionId = rendered.versionId;

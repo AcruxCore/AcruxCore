@@ -12,6 +12,35 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+### Added
+
+- `experiments.runLocal(datasetId, { ..., promptOverrides: { 'support-agent': 7 } })` pins a prompt
+  version for one run: `prompts.render` and `prompts.getByAlias` of that prompt return v7 inside it.
+- `pinPrompts({...}, fn)` pins the same way around any async function of your own.
+- `pinnedVersion(name)` reads the current pin, for an app that renders the prompt another way, such
+  as a gateway request with a `prompt` reference, which the server renders and no pin reaches.
+- A pinned render throws `API_ERROR` when the server renders another version, which a server
+  older than pinned renders does, instead of quietly running the alias's version.
+- A pinned `getByAlias` still sends the alias, so a misspelled alias fails as it does on render,
+  and throws `API_ERROR` when the server returns another version.
+- `experiments.compareLocal(datasetId, { task, variants })` runs one local run per variant at the
+  same time and resolves to a `LocalComparison` with each run and `compareUrls`.
+- `experiments.judge(model, { judgePromptId, judgePromptVersion, name })`: an LLM judge scorer for
+  local runs. It grades on the server with the run's criteria and overall feedback;
+  `judgePromptVersion` grades with that exact version of the judge prompt in every run.
+- `traces.listFeedback({ rating, promptId })` keeps only feedback with that rating, or on traces
+  that ran a version of that prompt.
+- `runs.commitCandidate(runId, candidateId)` commits an optimizer candidate as a version without
+  moving an alias. Returns `CommitCandidateResult`; `CandidateDetail.versionNumber` reports it.
+- `StartOptimizeParams.optimizerModel` chooses the model that drafts the rewrites.
+- `RunDetailDto.datasetId`.
+
+### Fixed
+
+- A failed `prompts.render` now carries the server's reason in its message, as every other call
+  does. A pin to a version that does not exist read only `API error 404 for "name/alias"`; it
+  now ends with `Version 999 not found for prompt "name"`.
+
 ## 0.19.0 — 2026-10-22
 
 ### Added

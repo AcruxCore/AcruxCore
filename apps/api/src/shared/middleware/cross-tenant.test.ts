@@ -372,6 +372,14 @@ function probesFor(a: Fixture, b: Fixture): Record<string, Probe> {
       body: { results: [{ example_id: ghostUuid, output: 'x' }] },
     },
     'POST /api/v1/runs/:id/finish': { url: `/api/v1/runs/${a.runId}/finish`, body: {} },
+    'POST /api/v1/runs/:id/judge': {
+      url: `/api/v1/runs/${a.runId}/judge`,
+      body: { example_id: ghostUuid, output: 'x', model: b.modelName },
+    },
+    'POST /api/v1/runs/:id/candidates/:candidateId/commit': {
+      url: `/api/v1/runs/${a.runId}/candidates/${ghostUuid}/commit`,
+      body: {},
+    },
     'POST /api/v1/runs/:id/rejudge': { url: `/api/v1/runs/${a.runId}/rejudge`, body: {} },
     'POST /api/v1/runs/:id/promote': {
       url: `/api/v1/runs/${a.runId}/promote`,

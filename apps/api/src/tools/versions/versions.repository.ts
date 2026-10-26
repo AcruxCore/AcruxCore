@@ -12,6 +12,8 @@ export class ToolVersionsRepository {
   /**
    * Computes the next sequential version_number for a tool.
    * Uses MAX(version_number) + 1, returning 1 for the first version.
+   * A read only: to insert a version use `createNext`, which holds the lock that
+   * keeps this number from going stale.
    *
    * @param toolId - UUID of the tool.
    * @returns The next version number to use (1-based).
@@ -25,19 +27,32 @@ export class ToolVersionsRepository {
   }
 
   /**
-   * Inserts a new tool_versions row (immutable once created).
+   * Inserts a new tool_versions row (immutable once created), numbered
+   * MAX(version_number) + 1 (1 for the first version).
    *
-   * @param input - All fields required to create the version.
+   * The tool row is locked for the transaction, so concurrent commits to one
+   * tool — from `POST /tools/:id/versions`, `POST /tools/sync`, or both — run one
+   * after another and each reads the number the previous one wrote. Without the
+   * lock they read the same MAX and all but one insert failed the
+   * (tool_id, version_number) unique index with a 500. NO KEY UPDATE, so an
+   * insert that only references the tool (an alias, a binding) neither waits
+   * for a commit nor makes one wait.
+   *
+   * @param input - All fields of the version except its number.
    * @param tx - Optional transaction client. `POST /tools/sync` creates the tool,
    *   the version and the alias move in one transaction, so it must be able to
-   *   hand its own client in rather than committing each step separately.
+   *   hand its own client in rather than committing each step separately. The
+   *   lock then lasts until that transaction ends.
    * @returns The newly inserted row.
    */
-  async create(input: CreateToolVersionInput, tx?: Prisma.TransactionClient): Promise<ToolVersionRow> {
-    return (tx ?? prisma).toolVersion.create({
+  async createNext(input: CreateToolVersionInput, tx?: Prisma.TransactionClient): Promise<ToolVersionRow> {
+    if (!tx) return prisma.$transaction((own) => this.createNext(input, own));
+    await tx.$queryRaw`SELECT id FROM tools WHERE id = ${input.toolId}::uuid FOR NO KEY UPDATE`;
+    const versionNumber = await this.computeNextVersionNumber(input.toolId, tx);
+    return tx.toolVersion.create({
       data: {
         toolId: input.toolId,
-        versionNumber: input.versionNumber,
+        versionNumber,
         description: input.description ?? null,
         changelog: input.changelog ?? null,
         source: input.source,

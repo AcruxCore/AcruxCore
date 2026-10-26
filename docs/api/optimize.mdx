@@ -651,6 +651,69 @@ curl -X POST $ACRUXCORE_BASE_URL/runs/97584f62-79ca-4575-ab68-34c6ae5ada03/promo
 
 ---
 
+### POST /api/v1/runs/:id/candidates/:candidateId/commit
+
+Commits one candidate as a prompt version and moves **no** alias, so production keeps
+serving what it serves now. Use it to run your own app on the candidate before you promote
+it: pin the returned version number with `prompt_overrides` (Python) or `promptOverrides`
+(Node). A later `POST /runs/:id/promote` of the same candidate reuses this version instead of
+committing a copy. Editor role or above required. No body.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/runs/2323a9c1-ed47-4637-b555-6e310f3b624b/candidates/e30218ff-1516-4a48-9aea-77b0508c6722/commit \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+Response (status 201) — the first commit creates the version:
+
+```json
+{
+    "promptName": "brewline-support",
+    "version": {
+        "id": "6bc88dbb-46f9-486a-803f-6faa328fc920",
+        "promptId": "d20a0c1d-ea29-43a6-8a0a-9a1eb68f6a37",
+        "versionNumber": 14,
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are the customer support assistant for Brewline, an online shop for coffee grinders, espresso machines and brewing gear. Today is {{ today }}.\n\nBe friendly and provide a specific answer based on Brewline's policies. Always reference the relevant policy and the necessary next steps for the customer. Use the tools to search for policies and lookup orders before answering."
+            },
+            {
+                "role": "user",
+                "content": "{{ question }}"
+            }
+        ],
+        "variables": [
+            "question",
+            "today"
+        ],
+        "createdBy": "c372740d-88a4-41fe-9370-bda0b55f0468",
+        "createdAt": "2026-10-25T21:04:49.430Z",
+        "model": "gpt-4o-mini"
+    },
+    "created": true
+}
+```
+
+The aliases did not move. `GET /prompts/d20a0c1d-ea29-43a6-8a0a-9a1eb68f6a37/aliases` still
+returned `production` and `staging` on v1.
+
+The same call again returns the same version with status 200 and `"created": false`. The
+SDKs call this endpoint as `runs.commit_candidate` (Python) and `runs.commitCandidate` (Node).
+
+Candidate id that does not belong to this run (status 404):
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/runs/b1c4002c-cd74-47ee-b95e-a050e881b5d5/candidates/00000000-0000-0000-0000-000000000000/commit \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+```json
+{"error":{"code":"NOT_FOUND","message":"Prompt candidate not found for this run."}}
+```
+
+---
+
 ### GET /api/v1/runs/:id/candidates/:candidateId
 
 Reads one optimizer-drafted candidate's own template (`messages`) and the
@@ -685,6 +748,29 @@ Response (status 200):
   "rationale": "Revised the template to emphasize that the response should consist of exactly one word.",
   "label": "candidate-A",
   "createdAt": "2026-07-08T11:25:57.547Z"
+}
+```
+
+The body also carries `versionNumber`: the version the candidate was committed as, by
+[commit](#post-apiv1runscandidatescommit) or promote, or `null` before either.
+For the candidate committed above:
+
+```bash
+curl -H "Authorization: Bearer $ACRUXCORE_API_KEY" $ACRUXCORE_BASE_URL/runs/2323a9c1-ed47-4637-b555-6e310f3b624b/candidates/e30218ff-1516-4a48-9aea-77b0508c6722
+```
+
+```json
+{
+  "id": "e30218ff-1516-4a48-9aea-77b0508c6722",
+  "promptId": "d20a0c1d-ea29-43a6-8a0a-9a1eb68f6a37",
+  "messages": [
+    { "role": "system", "content": "You are the customer support assistant for Brewline, an online shop for coffee grinders, espresso machines and brewing gear. Today is {{ today }}.\n\nBe friendly and provide a specific answer based on Brewline's policies. Always reference the relevant policy and the necessary next steps for the customer. Use the tools to search for policies and lookup orders before answering." },
+    { "role": "user", "content": "{{ question }}" }
+  ],
+  "rationale": "The rewrite emphasizes the need to provide specific answers based on Brewline's policies, ensuring that the responses include clear next steps for the customer and requires the use of the appropriate tools.",
+  "label": "candidate-A",
+  "createdAt": "2026-10-25T21:04:31.078Z",
+  "versionNumber": 14
 }
 ```
 

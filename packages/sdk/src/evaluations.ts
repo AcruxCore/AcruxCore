@@ -27,9 +27,14 @@ import type {
   StartOptimizeResult,
   RunLocalOptions,
   LocalRunResult,
+  CompareLocalOptions,
+  LocalComparison,
+  JudgeScorerOptions,
+  Scorer,
+  CommitCandidateResult,
 } from './eval-types';
 import type { NamespaceHost } from './host';
-import { runLocalExperiment } from './local-experiment';
+import { compareLocalVariants, makeJudgeScorer, runLocalExperiment } from './local-experiment';
 
 export type EvaluationsHost = NamespaceHost;
 
@@ -196,6 +201,52 @@ export class ExperimentsNamespace {
   async runLocal<O>(datasetId: string, options: RunLocalOptions<O>): Promise<LocalRunResult<O>> {
     return runLocalExperiment(this.client, datasetId, options);
   }
+
+  /**
+   * Runs your app once per variant, at the same time, and returns one run each.
+   *
+   * Each variant is a run name and its `promptOverrides` (`null` for none). Every variant
+   * runs in parallel, so a vector store or database that changes over time changes for
+   * all of them alike, and the difference between the runs is the prompt.
+   *
+   * @param datasetId - The dataset every variant runs over.
+   * @param options - `runLocal`'s options, with `variants` in place of `name`.
+   * @returns One run per variant, and a Compare per example link from the first
+   *   (baseline) variant to each other one.
+   * @throws {acruxcoreError} VALIDATION_ERROR for no variants or a bad version number;
+   *   API_ERROR / NETWORK_ERROR when a variant's run fails.
+   *
+   * @example
+   * ```typescript
+   * const cmp = await hub.experiments.compareLocal(datasetId, {
+   *   task: agent,
+   *   scorers: [hub.experiments.judge('gpt-4o-mini')],
+   *   variants: { production: null, 'candidate-B': { 'support-agent': 7 } },
+   * });
+   * console.log(cmp.compareUrls['candidate-B']);
+   * ```
+   */
+  async compareLocal<O>(datasetId: string, options: CompareLocalOptions<O>): Promise<LocalComparison<O>> {
+    return compareLocalVariants(this.client, datasetId, options);
+  }
+
+  /**
+   * A scorer that grades each output with the LLM judge, for {@link runLocal}.
+   *
+   * The judge runs on the server, against the example's `criteria` and the dataset's
+   * overall feedback as they were when the run started — the rubric an optimize run
+   * grades with. So a dataset built from feedback can grade your whole app.
+   *
+   * @param model - The judge model, a name under Gateway → Models.
+   * @param options - `judgePromptId` to grade with your own judge prompt, `judgePromptVersion`
+   *   to grade with one exact version of it; `name` for the score.
+   * @returns A scorer to put in `scorers`.
+   * @throws {acruxcoreError} VALIDATION_ERROR when `model` is empty, or `judgePromptVersion`
+   *   is given without `judgePromptId`.
+   */
+  judge<O = unknown>(model: string, options: JudgeScorerOptions = {}): Scorer<O> {
+    return makeJudgeScorer<O>(this.client, model, options);
+  }
 }
 
 // ── Runs ──
@@ -278,6 +329,29 @@ export class RunsNamespace {
     return this.client._parseJsonOrThrow(response, 'getting candidate') as Promise<CandidateDetail>;
   }
 
+  /**
+   * Commits an optimizer candidate as a prompt version, without moving any alias, so
+   * your whole app can run on it before you promote it: pass
+   * `{ [result.promptName]: result.version.versionNumber }` as `promptOverrides`.
+   * Calling it again returns the same version, and a later {@link promoteCandidate}
+   * moves the alias to that same version.
+   *
+   * @param id - The optimize run.
+   * @param candidateId - The candidate drafted by that run.
+   * @returns The prompt name, the version, and whether this call created it.
+   * @throws {acruxcoreError} API_ERROR 404 if the candidate is not from this run; 403 for
+   *   a role below editor.
+   */
+  async commitCandidate(id: string, candidateId: string): Promise<CommitCandidateResult> {
+    const response = await this.client._request(
+      'POST',
+      `/runs/${encodeURIComponent(id)}/candidates/${encodeURIComponent(candidateId)}/commit`,
+      undefined,
+      'committing candidate',
+    );
+    return this.client._parseJsonOrThrow(response, 'committing candidate') as Promise<CommitCandidateResult>;
+  }
+
   async promoteCandidate(id: string, params: PromoteCandidateParams): Promise<PromoteResult> {
     const body: Record<string, unknown> = { prompt_candidate_id: params.promptCandidateId };
     if (params.alias !== undefined) body['alias'] = params.alias;
@@ -304,6 +378,7 @@ export class OptimizeNamespace {
     if (params.draftCount !== undefined) body['draft_count'] = params.draftCount;
     if (params.alias !== undefined) body['alias'] = params.alias;
     if (params.judgePromptId !== undefined) body['judge_prompt_id'] = params.judgePromptId;
+    if (params.optimizerModel !== undefined) body['optimizer_model'] = params.optimizerModel;
     const response = await this.client._request('POST', `/prompts/${encodeURIComponent(promptId)}/optimize`, body, 'starting optimize');
     const data = await this.client._parseJsonOrThrow(response, 'starting optimize') as { run_id: string; status: string; prompt_mismatch_warning?: StartOptimizeResult['promptMismatchWarning'] };
     return { runId: data.run_id, status: data.status, promptMismatchWarning: data.prompt_mismatch_warning };

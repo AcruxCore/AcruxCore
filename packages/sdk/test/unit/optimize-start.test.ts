@@ -51,4 +51,18 @@ describe('optimize.start', () => {
     const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
     expect(JSON.parse(init.body as string)).not.toHaveProperty('judge_prompt_id');
   });
+
+  it('sends optimizerModel as optimizer_model', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ run_id: 'run-1', status: 'queued' }, 202));
+
+    await hub.optimize.start('prompt-1', {
+      datasetId: 'ds-1',
+      models: ['gpt-4o-mini'],
+      judgeModel: 'gpt-4o-mini',
+      optimizerModel: 'gpt-4.1',
+    });
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toMatchObject({ optimizer_model: 'gpt-4.1' });
+  });
 });

@@ -67,6 +67,21 @@ export class PromptsRepository {
   }
 
   /**
+   * Finds an active (non-deleted) prompt by its exact name within a team — the
+   * key an app uses, since apps ask for prompts by name rather than by id.
+   *
+   * @param name - The prompt's exact name.
+   * @param teamId - Isolation boundary.
+   * @returns The prompt, or undefined if the team has none by that name.
+   */
+  async findByName(name: string, teamId: string): Promise<Prompt | undefined> {
+    const row = await prisma.prompt.findFirst({
+      where: { name, teamId, deletedAt: null },
+    });
+    return row ?? undefined;
+  }
+
+  /**
    * Loads what an online evaluation rule needs to grade with its custom judge
    * prompt, in one call: the `production` alias's messages and the latest
    * version's messages, so the caller can prefer the first.

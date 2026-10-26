@@ -1329,6 +1329,17 @@ export interface CandidateDetail {
   rationale: string | null;
   label: string;
   createdAt: string;
+  /** The version it was committed as, to test or to promote; null until then. Absent on older APIs. */
+  versionNumber?: number | null;
+}
+
+/** POST /runs/:id/candidates/:candidateId/commit — a candidate committed as a version, no alias moved. */
+export interface CommitCandidateResult {
+  /** The prompt's name — the key an app renders it by. */
+  promptName: string;
+  version: VersionDetail;
+  /** False when it had been committed before; the same version comes back. */
+  created: boolean;
 }
 
 /** Dimension GET /traces/feedback/summary is grouped by. */

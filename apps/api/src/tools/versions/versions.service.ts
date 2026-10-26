@@ -141,10 +141,8 @@ export class ToolVersionsService {
     await this.assertToolAccessible(toolId, teamId);
     await this.assertExecutorDeepValid(dto.executor, teamId);
 
-    const versionNumber = await this.versionsRepo.computeNextVersionNumber(toolId);
-    const row = await this.versionsRepo.create({
+    const row = await this.versionsRepo.createNext({
       toolId,
-      versionNumber,
       description: dto.description,
       changelog: dto.changelog,
       source: dto.source,
@@ -167,7 +165,7 @@ export class ToolVersionsService {
     };
 
     let aliases: AliasDetail[] | undefined;
-    if (versionNumber === 1) {
+    if (row.versionNumber === 1) {
       aliases = await this.aliasesRepo.autoCreateAliases(toolId, row.id);
     }
 
@@ -175,7 +173,7 @@ export class ToolVersionsService {
       teamId,
       actorId: userId,
       event: 'tool_version_committed',
-      metadata: { toolId, versionNumber },
+      metadata: { toolId, versionNumber: row.versionNumber },
     });
 
     // The resolver reads `version.description ?? tool.description`. A version with a

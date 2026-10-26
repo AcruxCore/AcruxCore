@@ -79,6 +79,16 @@ runsRouter.get('/runs/:id/compare', requireAnyAuth, controller.compare);
 // candidate does not require promote-right, only actually promoting it does.
 runsRouter.get('/runs/:id/candidates/:candidateId', requireAnyAuth, promoteController.getCandidate);
 
+// Commit a candidate as a prompt version without moving any alias, so the team
+// can pin it in its own pipeline before promoting (phase-5 FAQ Q58). It writes a
+// version, so it carries the same editor-and-above guard as promote.
+runsRouter.post(
+  '/runs/:id/candidates/:candidateId/commit',
+  requireAnyAuth,
+  requireRole('owner', 'admin', 'editor'),
+  promoteController.commit,
+);
+
 // Promote a winning optimizer-drafted candidate to a real version — editor
 // and above only, same guard as the prompt-alias promote route and the
 // version-commit route (`requireRole('owner', 'admin', 'editor')`).

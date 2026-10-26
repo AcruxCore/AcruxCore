@@ -109,6 +109,7 @@ export async function renderHandler(
       req.params['name']!,
       req.params['alias']!,
       body.data.variables,
+      body.data.version,
     );
 
     res.status(200).json(result);
@@ -149,7 +150,12 @@ export async function getVersionByAliasHandler(
       });
       return;
     }
-    const version = await service.getVersionByAlias(req.teamId!, query.data.name, query.data.alias);
+    const version = await service.getVersionByAlias(
+      req.teamId!,
+      query.data.name,
+      query.data.alias,
+      query.data.version,
+    );
     res.status(200).json(version);
   } catch (err) {
     next(err);

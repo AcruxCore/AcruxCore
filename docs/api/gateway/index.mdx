@@ -432,6 +432,40 @@ Response (status 200) — the bound `get_weather` was attached without being nam
 }
 ```
 
+Add `version` to the `prompt` object to render that version number instead of the alias's.
+The alias still decides the attached tools, and the trace's LLM span records the pinned
+version's id. The SDKs send it while a run pins the prompt with `prompt_overrides` /
+`promptOverrides`:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-4o-mini","prompt":{"name":"brewline-support","alias":"production","version":3,"variables":{"question":"In five words or fewer: who are you?","today":"2026-10-26"}}}'
+```
+
+Response (status 200):
+
+```json
+{
+  "id": "chatcmpl-EczhSb8X7DvcRI3mzAMaAAbVRr7My",
+  "model": "gpt-4o-mini-2024-07-18",
+  "object": "chat.completion",
+  "created": 1792962346,
+  "choices": [
+    {
+      "index": 0,
+      "message": { "role": "assistant", "content": "Brewline customer support assistant." },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": { "prompt_tokens": 116, "completion_tokens": 7, "total_tokens": 123 }
+}
+```
+
+A version the prompt does not have answers 404:
+`{"error":{"code":"NOT_FOUND","message":"Version 99 not found for prompt \"brewline-support\""}}`.
+
 **`tool_refs`** — name catalog tools by name when you send your own `messages`.
 Each ref follows an `alias` (default `production`) **or** pins one exact
 `version`; both on one ref is a 400. The gateway resolves them to schemas and

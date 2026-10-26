@@ -340,4 +340,248 @@ describe('local experiments (phase-5 FAQ Q46)', () => {
       expect(res.body.error.code).toBe('SCORE_NOT_FOUND');
     });
   });
+
+  // phase-5 FAQ Q59: a local run on a dataset built from feedback is graded by the
+  // same judge, against the same criteria and overall feedback, as an optimize run.
+  describe('POST /runs/:id/judge', () => {
+    // Restored here, not after the request: a failed assertion would skip an inline
+    // restore and leave the fake judge answering every later test.
+    afterEach(() => jest.restoreAllMocks());
+
+    it('grades a local output against the frozen criteria and overall feedback, and stores nothing', async () => {
+      const { agent } = await authedAgent(app);
+      const conn = await agent
+        .post('/api/v1/gateway/connections')
+        .send({ provider: 'openai', label: 'judge', apiKey: 'sk-test-000000000000AB12', config: {} })
+        .expect(201);
+      await agent
+        .post('/api/v1/gateway/models')
+        .send({ publicName: 'gpt-4o-mini', upstreamModel: 'gpt-4o-mini', credentialId: conn.body.id })
+        .expect(201);
+      const dataset = (
+        await agent
+          .post('/api/v1/datasets')
+          .send({ name: 'routing', overall_feedback: 'Tone never sets the priority.' })
+          .expect(201)
+      ).body;
+      await agent
+        .post(`/api/v1/datasets/${dataset.id}/examples`)
+        .send({ input: { ticket: 'Locked out of my account' }, criteria: 'Correct answer: account, P0.' })
+        .expect(201);
+      const run = await startLocal(agent, dataset.id, 'candidate');
+      // Edited after the run started: the judge must still read the frozen text.
+      await agent.patch(`/api/v1/datasets/${dataset.id}`).send({ overall_feedback: 'changed later' }).expect(200);
+
+      let judgeMessages = '';
+      jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
+        judgeMessages = typeof init?.body === 'string' ? init.body : '';
+        const content = JSON.stringify({ score: 90, passed: true, reason: 'account and P0, as required' });
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: 'chatcmpl-judge',
+              object: 'chat.completion',
+              created: 1751536800,
+              model: 'gpt-4o-mini',
+              choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }],
+              usage: { prompt_tokens: 30, completion_tokens: 10, total_tokens: 40 },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          ),
+        );
+      });
+
+      const res = await agent
+        .post(`/api/v1/runs/${run.run_id}/judge`)
+        .send({ example_id: run.examples[0].id, output: { category: 'account', priority: 'P0' }, model: 'gpt-4o-mini' })
+        .expect(200);
+
+      expect(res.body).toEqual({
+        score: 90,
+        passed: true,
+        reason: 'account and P0, as required',
+        judge_trace_id: expect.any(String),
+      });
+      expect(judgeMessages).toContain('Correct answer: account, P0.');
+      expect(judgeMessages).toContain('Tone never sets the priority.');
+      expect(judgeMessages).not.toContain('changed later');
+      expect(judgeMessages).toContain('P0');
+      // Grading is a read: the result is uploaded later as one of the scorer's scores.
+      expect(await prisma.evalResult.count({ where: { experimentRunId: run.run_id } })).toBe(0);
+    });
+
+    it('keeps grading with the judge prompt version the run first used, after a newer one is promoted', async () => {
+      const { agent } = await authedAgent(app);
+      const conn = await agent
+        .post('/api/v1/gateway/connections')
+        .send({ provider: 'openai', label: 'judge', apiKey: 'sk-test-000000000000AB12', config: {} })
+        .expect(201);
+      await agent
+        .post('/api/v1/gateway/models')
+        .send({ publicName: 'gpt-4o-mini', upstreamModel: 'gpt-4o-mini', credentialId: conn.body.id })
+        .expect(201);
+      const dataset = (await agent.post('/api/v1/datasets').send({ name: 'routing' }).expect(201)).body;
+      await agent
+        .post(`/api/v1/datasets/${dataset.id}/examples/bulk`)
+        .send({ examples: [{ input: { ticket: 'a' }, criteria: 'P0.' }, { input: { ticket: 'b' }, criteria: 'P1.' }] })
+        .expect(201);
+      const judgePrompt = (await agent.post('/api/v1/prompts').send({ name: 'house-judge' }).expect(201)).body;
+      await agent
+        .post(`/api/v1/prompts/${judgePrompt.id}/versions`)
+        .send({ messages: [{ role: 'user', content: 'RUBRIC-ONE {{ criteria }} {{ output }}' }] })
+        .expect(201);
+      const run = await startLocal(agent, dataset.id, 'candidate');
+
+      const sent: string[] = [];
+      jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
+        sent.push(typeof init?.body === 'string' ? init.body : '');
+        const content = JSON.stringify({ score: 90, passed: true, reason: 'ok' });
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: 'chatcmpl-judge',
+              object: 'chat.completion',
+              created: 1751536800,
+              model: 'gpt-4o-mini',
+              choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }],
+              usage: { prompt_tokens: 30, completion_tokens: 10, total_tokens: 40 },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          ),
+        );
+      });
+      const judge = (exampleId: string) =>
+        agent
+          .post(`/api/v1/runs/${run.run_id}/judge`)
+          .send({ example_id: exampleId, output: 'P0', model: 'gpt-4o-mini', judge_prompt_id: judgePrompt.id })
+          .expect(200);
+
+      await judge(run.examples[0].id);
+      // Promoted mid-run: the rest of the run must not switch rubric.
+      await agent
+        .post(`/api/v1/prompts/${judgePrompt.id}/versions`)
+        .send({ messages: [{ role: 'user', content: 'RUBRIC-TWO {{ criteria }} {{ output }}' }] })
+        .expect(201);
+      await agent.post(`/api/v1/prompts/${judgePrompt.id}/aliases/production/promote`).send({ version_number: 2 }).expect(200);
+      await judge(run.examples[1].id);
+
+      expect(sent).toHaveLength(2);
+      expect(sent[0]).toContain('RUBRIC-ONE');
+      expect(sent[1]).toContain('RUBRIC-ONE');
+      expect(sent[1]).not.toContain('RUBRIC-TWO');
+    });
+
+    it('grades with the judge prompt version the caller names, in every run, whatever production serves', async () => {
+      const { agent } = await authedAgent(app);
+      const conn = await agent
+        .post('/api/v1/gateway/connections')
+        .send({ provider: 'openai', label: 'judge', apiKey: 'sk-test-000000000000AB12', config: {} })
+        .expect(201);
+      await agent
+        .post('/api/v1/gateway/models')
+        .send({ publicName: 'gpt-4o-mini', upstreamModel: 'gpt-4o-mini', credentialId: conn.body.id })
+        .expect(201);
+      const dataset = (await agent.post('/api/v1/datasets').send({ name: 'routing' }).expect(201)).body;
+      await agent
+        .post(`/api/v1/datasets/${dataset.id}/examples`)
+        .send({ input: { ticket: 'a' }, criteria: 'P0.' })
+        .expect(201);
+      const judgePrompt = (await agent.post('/api/v1/prompts').send({ name: 'house-judge' }).expect(201)).body;
+      for (const rubric of ['RUBRIC-ONE', 'RUBRIC-TWO']) {
+        await agent
+          .post(`/api/v1/prompts/${judgePrompt.id}/versions`)
+          .send({ messages: [{ role: 'user', content: `${rubric} {{ criteria }} {{ output }}` }] })
+          .expect(201);
+      }
+      // The optimize run graded with v1; production has moved on to v2 since.
+      await agent.post(`/api/v1/prompts/${judgePrompt.id}/aliases/production/promote`).send({ version_number: 2 }).expect(200);
+      const production = await startLocal(agent, dataset.id, 'production');
+      const candidate = await startLocal(agent, dataset.id, 'candidate-B');
+
+      const sent: string[] = [];
+      jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
+        sent.push(typeof init?.body === 'string' ? init.body : '');
+        const content = JSON.stringify({ score: 90, passed: true, reason: 'ok' });
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: 'chatcmpl-judge',
+              object: 'chat.completion',
+              created: 1751536800,
+              model: 'gpt-4o-mini',
+              choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }],
+              usage: { prompt_tokens: 30, completion_tokens: 10, total_tokens: 40 },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          ),
+        );
+      });
+      const judge = (run: { run_id: string; examples: Array<{ id: string }> }, extra: Record<string, unknown>) =>
+        agent
+          .post(`/api/v1/runs/${run.run_id}/judge`)
+          .send({ example_id: run.examples[0].id, output: 'P0', model: 'gpt-4o-mini', judge_prompt_id: judgePrompt.id, ...extra });
+
+      await judge(production, { judge_prompt_version: 1 }).expect(200);
+      await judge(candidate, { judge_prompt_version: 1 }).expect(200);
+      expect(sent).toHaveLength(2);
+      expect(sent.every((body) => body.includes('RUBRIC-ONE'))).toBe(true);
+
+      // A run graded with v1 cannot switch to v2 halfway: its scores would mix two rubrics.
+      const mixed = await judge(candidate, { judge_prompt_version: 2 }).expect(409);
+      expect(mixed.body.error.code).toBe('JUDGE_PROMPT_VERSION_MISMATCH');
+
+      const unknown = await judge(candidate, { judge_prompt_version: 9 }).expect(400);
+      expect(unknown.body.error.message).toContain('has no version 9');
+      const orphan = await agent
+        .post(`/api/v1/runs/${candidate.run_id}/judge`)
+        .send({ example_id: candidate.examples[0].id, output: 'P0', model: 'gpt-4o-mini', judge_prompt_version: 1 })
+        .expect(400);
+      expect(orphan.body.error.message).toContain('judge_prompt_version needs judge_prompt_id');
+      expect(sent).toHaveLength(2);
+    });
+
+    it('answers a malformed run id with 400, like the other run routes', async () => {
+      const { agent } = await authedAgent(app);
+      const res = await agent
+        .post('/api/v1/runs/not-a-uuid/judge')
+        .send({ example_id: '00000000-0000-4000-8000-000000000000', output: 'x', model: 'gpt-4o-mini' })
+        .expect(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('refuses a server-side run, an unknown example, and an unregistered judge model', async () => {
+      const { agent, datasetId } = await arrange();
+      const run = await startLocal(agent, datasetId, 'v1');
+
+      const unknown = await agent
+        .post(`/api/v1/runs/${run.run_id}/judge`)
+        .send({ example_id: '00000000-0000-4000-8000-000000000000', output: 'x', model: 'gpt-4o-mini' })
+        .expect(400);
+      expect(unknown.body.error.message).toContain('is not an example of this run');
+
+      const model = await agent
+        .post(`/api/v1/runs/${run.run_id}/judge`)
+        .send({ example_id: run.examples[0].id, output: 'x', model: 'not-registered' })
+        .expect(400);
+      expect(model.body.error.message).toContain("Model 'not-registered' is not registered");
+
+      const missing = await agent
+        .post(`/api/v1/runs/${run.run_id}/judge`)
+        .send({ example_id: run.examples[0].id, output: 'x' })
+        .expect(400);
+      expect(missing.body.error.message).toContain('model is required');
+
+      // What a server-side run looks like to this check: a grid with no local cell.
+      const serverRun = await startLocal(agent, datasetId, 'v2');
+      await prisma.experimentRun.update({
+        where: { id: serverRun.run_id },
+        data: { grid: [{ cellKey: 'v1|m', variantKind: 'version', variantLabel: 'v1', model: 'm', isProductionBaseline: true }] },
+      });
+      const conflict = await agent
+        .post(`/api/v1/runs/${serverRun.run_id}/judge`)
+        .send({ example_id: serverRun.examples[0].id, output: 'x', model: 'gpt-4o-mini' })
+        .expect(409);
+      expect(conflict.body.error.code).toBe('RUN_NOT_LOCAL');
+    });
+  });
 });

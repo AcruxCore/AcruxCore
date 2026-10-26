@@ -11,6 +11,7 @@ export type { IngestOptions, TracesNamespaceHost } from './traces-api';
 export type { Step, StepOptions } from './steps';
 export { SessionsNamespace } from './sessions-api';
 export { PromptsNamespace } from './prompts-api';
+export { pinPrompts, pinnedVersion } from './prompt-overrides';
 export { withToolOverride } from './tool-override';
 export type { ToolOverrideSource, ToolOverrideResult } from './tool-override';
 export { GatewayNamespace } from './gateway-api';
@@ -151,6 +152,7 @@ export type {
   RunCellExampleDto,
   RunCellDetailDto,
   CandidateDetail,
+  CommitCandidateResult,
   PromoteCandidateParams,
   PromoteResult,
   StartOptimizeParams,
@@ -170,4 +172,7 @@ export type {
   LocalRunItem,
   LocalScoreSummary,
   LocalRunResult,
+  CompareLocalOptions,
+  LocalComparison,
+  JudgeScorerOptions,
 } from './eval-types';

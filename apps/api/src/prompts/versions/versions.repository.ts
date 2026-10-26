@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import prisma from '../../shared/db/client';
 import type { PromptVersionRow, CreateVersionInput } from './versions.types';
 
@@ -7,31 +8,38 @@ import type { PromptVersionRow, CreateVersionInput } from './versions.types';
  */
 export class VersionsRepository {
   /**
-   * Computes the next sequential version_number for a prompt.
-   * Uses MAX(version_number) + 1, returning 1 for the first version.
+   * Inserts a new prompt_versions row numbered MAX(version_number) + 1 (1 for
+   * the first version).
    *
-   * @param promptId - UUID of the prompt.
-   * @returns The next version number to use (1-based).
-   */
-  async computeNextVersionNumber(promptId: string): Promise<number> {
-    const result = await prisma.promptVersion.aggregate({
-      where: { promptId },
-      _max: { versionNumber: true },
-    });
-    return (result._max.versionNumber ?? 0) + 1;
-  }
-
-  /**
-   * Inserts a new prompt_versions row.
+   * The prompt row is locked for the transaction, so concurrent commits to one
+   * prompt run one after another and each reads the number the previous one
+   * wrote. Without the lock they all read the same MAX, and every insert but
+   * one failed the (prompt_id, version_number) unique index with a 500 (#742).
+   * Commits to different prompts do not wait for each other. NO KEY UPDATE rather
+   * than UPDATE: it still makes commits wait for each other, but not for the
+   * FOR KEY SHARE lock that inserting any row referencing the prompt takes (a
+   * candidate, an alias, a tool binding), and those inserts do not wait for it.
    *
-   * @param data - All fields required to create the version.
+   * @param data - All fields of the version except its number.
+   * @param tx - Runs on this transaction instead of a new one, so a caller that
+   *   holds a lock of its own inserts on the connection it already has.
    * @returns The newly inserted row.
    */
-  async create(data: CreateVersionInput): Promise<PromptVersionRow> {
-    return prisma.promptVersion.create({
+  async createNext(data: CreateVersionInput, tx?: Prisma.TransactionClient): Promise<PromptVersionRow> {
+    return tx ? this.insertNext(data, tx) : prisma.$transaction((own) => this.insertNext(data, own));
+  }
+
+  /** The lock, the MAX and the insert of {@link createNext}, on one transaction. */
+  private async insertNext(data: CreateVersionInput, tx: Prisma.TransactionClient): Promise<PromptVersionRow> {
+    await tx.$queryRaw`SELECT id FROM prompts WHERE id = ${data.promptId}::uuid FOR NO KEY UPDATE`;
+    const result = await tx.promptVersion.aggregate({
+      where: { promptId: data.promptId },
+      _max: { versionNumber: true },
+    });
+    return tx.promptVersion.create({
       data: {
         promptId: data.promptId,
-        versionNumber: data.versionNumber,
+        versionNumber: (result._max.versionNumber ?? 0) + 1,
         messages: data.messages,
         variables: data.variables,
         createdBy: data.createdBy,

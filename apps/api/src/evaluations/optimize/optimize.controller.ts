@@ -68,6 +68,27 @@ export class OptimizeController {
   };
 
   /**
+   * POST /api/v1/runs/:id/candidates/:candidateId/commit — commit a candidate
+   * as a prompt version without moving an alias, so it can be pinned in the
+   * team's own pipeline (phase-5 FAQ Q58). 201 when this call created the
+   * version, 200 when it already existed. Behind the same editor-and-above
+   * guard as promote, since it writes a version.
+   */
+  commit = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await this.service.commitCandidate(
+        req.teamId!,
+        req.user!.id,
+        req.params.id,
+        req.params.candidateId,
+      );
+      res.status(result.created ? 201 : 200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /**
    * GET /api/v1/runs/:id/candidates/:candidateId — read one optimizer-drafted
    * candidate's template + rationale, so a promote-review UI can show what is
    * about to be promoted (E7 Task 5). Read-only: mounted behind

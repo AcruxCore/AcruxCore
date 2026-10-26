@@ -93,6 +93,14 @@ const UUID_FIELDS: Record<string, { verdict: Verdict; by: string }> = {
     verdict: 'filter-only',
     by: 'The result shape inside the batch above.',
   },
+  'evaluations/local/local-runs.types.ts:JudgeLocalOutputSchema.example_id': {
+    verdict: 'filter-only',
+    by: 'LocalRunsService.judgeOutput → findJudgeContext picks it out of the run\u2019s own frozen snapshot, 400 otherwise.',
+  },
+  'evaluations/local/local-runs.types.ts:JudgeLocalOutputSchema.judge_prompt_id': {
+    verdict: 'ownership-checked',
+    by: 'LocalRunsService.judgeOutput → resolveJudgePromptVersion → promptsRepo.findById(id, teamId), 400; later calls read it from the run\u2019s own snapshot.',
+  },
   'evaluations/local/local-runs.types.ts:LocalResultSchema.trace_id': {
     verdict: 'not-an-object-ref',
     by: 'Minted by the SDK before the trace exists; only read back through team-scoped GET /traces/:id.',

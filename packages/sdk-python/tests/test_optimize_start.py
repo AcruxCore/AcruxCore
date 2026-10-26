@@ -47,3 +47,13 @@ async def test_start_leaves_judge_prompt_id_out_by_default():
         await hub.optimize.start("prompt-1", "ds-1", ["gpt-4o-mini"], judge_model="gpt-4o-mini")
 
     assert "judge_prompt_id" not in bodies[0]
+
+
+async def test_start_sends_optimizer_model():
+    bodies: List[Dict[str, Any]] = []
+    async with make_client(recorder(bodies)) as hub:
+        await hub.optimize.start(
+            "prompt-1", "ds-1", ["gpt-4o-mini"], judge_model="gpt-4o-mini", optimizer_model="gpt-4.1"
+        )
+
+    assert bodies[0]["optimizer_model"] == "gpt-4.1"

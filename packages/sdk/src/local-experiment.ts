@@ -1,8 +1,13 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { acruxcoreError } from './error';
+import { pinPrompts, validateOverrides } from './prompt-overrides';
 import { sleep } from './fetch';
 import type { NamespaceHost } from './host';
 import type {
+  CompareLocalOptions,
+  JudgeScorerOptions,
+  LocalComparison,
   LocalExample,
   LocalRunItem,
   LocalRunResult,
@@ -14,6 +19,12 @@ import type {
   Scorer,
   ScorerReturn,
 } from './eval-types';
+
+/**
+ * The run whose example is being scored, so a judge scorer knows where to send its call
+ * without the caller passing a run id it does not have yet.
+ */
+const currentRunId = new AsyncLocalStorage<string>();
 
 /** Results per `POST /runs/:id/results` call. The server accepts up to 100. */
 export const LOCAL_RESULT_BATCH_SIZE = 20;
@@ -102,13 +113,18 @@ export async function runLocalExperiment<O>(
 ): Promise<LocalRunResult<O>> {
   const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
   validateOptions(options, concurrency);
+  const overrides = validateOverrides(options.promptOverrides);
+  const hasOverrides = Object.keys(overrides).length > 0;
   const scorers = options.scorers ?? [];
   const scorerNames = scorers.map((fn, i) => (fn.name ? fn.name : `scorer_${i}`));
 
   const createBody: Record<string, unknown> = { dataset_id: datasetId, name: options.name };
   if (options.model !== undefined) createBody['model'] = options.model;
   if (options.primaryScore !== undefined) createBody['primary_score'] = options.primaryScore;
-  if (options.metadata !== undefined) createBody['metadata'] = options.metadata;
+  if (options.metadata !== undefined || hasOverrides) {
+    // Stored with the run, so its page says which versions it ran on.
+    createBody['metadata'] = { ...(options.metadata ?? {}), ...(hasOverrides ? { prompt_overrides: overrides } : {}) };
+  }
   const createRes = await host._request('POST', '/experiments/local', createBody, 'creating local experiment');
   const created = (await host._parseJsonOrThrow(createRes, 'creating local experiment')) as CreateLocalResponse;
   const runId = created.run_id;
@@ -139,7 +155,12 @@ export async function runLocalExperiment<O>(
     for (const batch of splitIntoBatches(pending.splice(0, pending.length))) queueUpload(batch);
   };
 
-  const runOne = async (index: number): Promise<void> => {
+  // Every example runs inside the run's async context: the pins reach the app's renders,
+  // and the run id reaches a judge scorer, without leaking into a second run alongside.
+  const runOne = (index: number): Promise<void> =>
+    currentRunId.run(runId, () => pinPrompts(overrides, () => runOneExample(index)));
+
+  const runOneExample = async (index: number): Promise<void> => {
     const example = created.examples[index];
     const traceId = randomUUID();
     const startTime = new Date().toISOString();
@@ -248,6 +269,92 @@ export async function runLocalExperiment<O>(
     items: items.filter((item): item is LocalRunItem<O> => item !== undefined),
     summary: summarize(items),
   };
+}
+
+/**
+ * Runs the same task once per variant, all at the same time, one run each, so a store or
+ * database that changes over time changes for every variant alike.
+ *
+ * @param host - The client to send requests through.
+ * @param datasetId - The dataset every variant runs over.
+ * @param options - `runLocal`'s options, with `variants` in place of `name`.
+ * @returns One run per variant, and Compare per example links from the first variant.
+ * @throws {acruxcoreError} VALIDATION_ERROR for no variants or an invalid version; the
+ *   first run error otherwise, after every variant has settled.
+ */
+export async function compareLocalVariants<O>(
+  host: NamespaceHost,
+  datasetId: string,
+  options: CompareLocalOptions<O>,
+): Promise<LocalComparison<O>> {
+  const names = Object.keys(options.variants ?? {});
+  if (names.length === 0) {
+    throw new acruxcoreError(
+      "acruxcore: compareLocal needs at least one variant, e.g. { production: null }.",
+      'VALIDATION_ERROR',
+    );
+  }
+  for (const name of names) validateOverrides(options.variants[name]);
+  const { variants, ...shared } = options;
+  const settled = await Promise.allSettled(
+    names.map((name) =>
+      runLocalExperiment(host, datasetId, { ...shared, name, promptOverrides: variants[name] ?? undefined }),
+    ),
+  );
+  const failed = settled.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+  if (failed) throw failed.reason;
+  const runs: Record<string, LocalRunResult<O>> = {};
+  settled.forEach((r, i) => {
+    if (r.status === 'fulfilled') runs[names[i]] = r.value;
+  });
+  const base = runs[names[0]];
+  const compareUrls: Record<string, string> = {};
+  if (base.url) {
+    for (const name of names.slice(1)) compareUrls[name] = `${base.url}/compare?target_run=${runs[name].runId}`;
+  }
+  return { runs, compareUrls };
+}
+
+/**
+ * A scorer that grades each output with the LLM judge on the server, against the
+ * example's criteria and the dataset's overall feedback as frozen when the run started.
+ *
+ * @param host - The client to send requests through.
+ * @param model - The judge model, a name under Gateway → Models.
+ * @param options - An optional judge prompt (and version of it) and score name.
+ * @returns A scorer for `runLocal`'s `scorers`.
+ * @throws {acruxcoreError} VALIDATION_ERROR when `model` is empty, or
+ *   `judgePromptVersion` is given without `judgePromptId`.
+ */
+export function makeJudgeScorer<O>(host: NamespaceHost, model: string, options: JudgeScorerOptions = {}): Scorer<O> {
+  if (!model) {
+    throw new acruxcoreError("acruxcore: judge() needs a judge model, e.g. judge('gpt-4o-mini').", 'VALIDATION_ERROR');
+  }
+  if (options.judgePromptVersion !== undefined && options.judgePromptId === undefined) {
+    throw new acruxcoreError(
+      'acruxcore: judgePromptVersion needs judgePromptId: it names a version of that judge prompt.',
+      'VALIDATION_ERROR',
+    );
+  }
+  const name = options.name ?? 'judge';
+  const judge = async ({ output, example }: { output: O; example: LocalExample }): Promise<Score> => {
+    const runId = currentRunId.getStore();
+    if (runId === undefined) {
+      throw new acruxcoreError('acruxcore: a judge scorer only works inside experiments.runLocal.', 'VALIDATION_ERROR');
+    }
+    const body: Record<string, unknown> = { example_id: example.id, output: toWireOutput(output), model };
+    if (options.judgePromptId !== undefined) body['judge_prompt_id'] = options.judgePromptId;
+    if (options.judgePromptVersion !== undefined) body['judge_prompt_version'] = options.judgePromptVersion;
+    const res = await host._request('POST', `/runs/${encodeURIComponent(runId)}/judge`, body, 'judging local output');
+    const verdict = (await host._parseJsonOrThrow(res, 'judging local output')) as {
+      score: number | null;
+      passed: boolean | null;
+      reason: string | null;
+    };
+    return { name, score: verdict.score === null ? null : verdict.score / 100, passed: verdict.passed, reason: verdict.reason };
+  };
+  Object.defineProperty(judge, 'name', { value: name });
+  return judge;
 }
 
 /** Rejects options that would fail later, before anything is created on the server. */

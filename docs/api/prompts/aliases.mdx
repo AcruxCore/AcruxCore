@@ -332,6 +332,52 @@ Response (status 200) — v2 content rendered:
 {"error":{"code":"NOT_FOUND","message":"Prompt or alias not found"}}
 ```
 
+#### Render a pinned version
+
+Add `version` to the body to render that version number instead of the one the alias points
+at. The alias still decides which tools come back, and no alias moves. The SDKs send this field
+while a run pins the prompt with `prompt_overrides` / `promptOverrides`. The `production` alias
+of `brewline-support` points at v2 here:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/prompts/brewline-support/production/render \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"variables":{"question":"Is my grinder broken?","today":"2026-10-26"},"version":3}'
+```
+
+Response (status 200):
+
+```json
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are Brewline's friendly customer support assistant. Today's date is 2026-10-26.\n\nBefore each response, consult Brewline's official policies and use the policy search and order lookup tools for precise, up-to-date information. Provide answers in two to four sentences, clearly stating the Brewline policy that applies and how it affects this customer's order or question. Give specific next steps the customer should follow based on their situation. Do not give general or unofficial advice."
+    },
+    { "role": "user", "content": "Is my grinder broken?" }
+  ],
+  "tools": [],
+  "toolResolutions": [],
+  "model": "gpt-4o-mini",
+  "versionId": "1205ece2-44de-4b01-b401-d5a6ccf76fb3",
+  "versionNumber": 3
+}
+```
+
+404 — the prompt has no such version:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/prompts/brewline-support/production/render \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"variables":{"question":"x","today":"2026-10-26"},"version":99}'
+```
+
+```json
+{"error":{"code":"NOT_FOUND","message":"Version 99 not found for prompt \"brewline-support\""}}
+```
+
 ---
 
 ### GET /api/v1/prompt-versions?name=&alias=
@@ -340,8 +386,9 @@ Returns the version an alias points at, found by the prompt's **name**, with its
 template unrendered: `messages` keep their `{{ placeholders }}`. Use it when your app
 renders templates itself. Use [render](#post-apiv1promptsrender) when the
 server should fill them in. The body has the same shape as
-[GET /prompts/:id/versions/:n](./versions). Both query parameters are required, and the
-name must match exactly. Any role can call it, with a session or an API key.
+[GET /prompts/:id/versions/:n](./versions). `name` is required and must match exactly.
+Send `alias`, or `version` for one exact version number. With both, the alias must still exist,
+as it must on a pinned render, and the version comes from `version`. Any role can call it, with a session or an API key.
 
 ```bash
 curl "$ACRUXCORE_BASE_URL/prompt-versions?name=e2e-review2-triage&alias=production" \
@@ -389,5 +436,46 @@ curl "$ACRUXCORE_BASE_URL/prompt-versions?name=e2e-review2-triage" \
 ```
 
 ```json
-{"error":{"code":"VALIDATION_ERROR","message":"alias is required"}}
+{"error":{"code":"VALIDATION_ERROR","message":"alias or version is required"}}
+```
+
+By version number instead of alias:
+
+```bash
+curl "$ACRUXCORE_BASE_URL/prompt-versions?name=brewline-support&version=3" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+Response (status 200):
+
+```json
+{
+  "id": "1205ece2-44de-4b01-b401-d5a6ccf76fb3",
+  "promptId": "086e7d40-c76d-44f4-b395-d82a24919941",
+  "versionNumber": 3,
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are Brewline's friendly customer support assistant. Today's date is {{ today }}.\n\nBefore each response, consult Brewline's official policies and use the policy search and order lookup tools for precise, up-to-date information. Provide answers in two to four sentences, clearly stating the Brewline policy that applies and how it affects this customer's order or question. Give specific next steps the customer should follow based on their situation. Do not give general or unofficial advice."
+    },
+    { "role": "user", "content": "{{ question }}" }
+  ],
+  "variables": ["question", "today"],
+  "createdBy": "73f122c0-9260-4384-b0da-9b20d56e18c8",
+  "createdAt": "2026-10-25T20:57:00.492Z",
+  "model": "gpt-4o-mini"
+}
+```
+
+With a pin, a misspelled alias is refused, as it is on render:
+
+```bash
+curl "$ACRUXCORE_BASE_URL/prompt-versions?name=brewline-support&alias=prodution&version=3" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY"
+```
+
+Response (status 404):
+
+```json
+{"error":{"code":"NOT_FOUND","message":"Prompt or alias not found"}}
 ```

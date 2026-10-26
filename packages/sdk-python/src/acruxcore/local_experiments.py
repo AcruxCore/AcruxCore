@@ -25,6 +25,7 @@ import math
 import time
 import uuid
 import warnings
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import (
@@ -42,6 +43,7 @@ from typing import (
 from urllib.parse import quote
 
 from .errors import NETWORK_ERROR, AcruxCoreError
+from .prompt_overrides import pin_prompts, validate_overrides
 
 if TYPE_CHECKING:
     from .client import AcruxCore
@@ -74,6 +76,10 @@ _UPLOAD_RETRY_DELAYS: Sequence[float] = (0.5, 1.5)
 
 #: Keyword arguments a scorer may declare. Only the ones it declares are passed.
 _SCORER_KWARGS = ("output", "expected", "input", "criteria", "example")
+
+#: The run whose example is being scored, so a judge scorer knows where to send its
+#: call without the caller passing a run id it does not have yet.
+_CURRENT_RUN_ID: ContextVar[Optional[str]] = ContextVar("acruxcore_local_run_id", default=None)
 
 
 # ── public types ──────────────────────────────────────────────────────────────
@@ -205,6 +211,47 @@ class LocalRunResult:
         return self.format()
 
 
+@dataclass
+class LocalComparison:
+    """The outcome of :meth:`ExperimentsNamespace.compare_local`: one run per variant.
+
+    ``runs`` keeps the order the variants were given in, so the first one is the
+    baseline. ``compare_urls`` opens Compare per example from the baseline to each
+    other variant; it is empty when the server has no ``APP_URL``.
+
+    ``print(comparison)`` shows every variant's scores in one table.
+    """
+
+    runs: Dict[str, LocalRunResult] = field(default_factory=dict)
+    compare_urls: Dict[str, str] = field(default_factory=dict)
+
+    def format(self) -> str:
+        """Render the variants side by side: one row per score, one column per variant.
+
+        :returns: A multi-line string, followed by the compare links.
+        """
+        names: List[str] = []
+        for run in self.runs.values():
+            names.extend(n for n in run.summary if n not in names)
+        variants = list(self.runs)
+        width = max([len("score"), *(len(n) for n in names)])
+        cols = [max(len(v), 6) for v in variants]
+        lines = ["  ".join(["score".ljust(width), *(v.rjust(c) for v, c in zip(variants, cols))])]
+        for name in names:
+            cells = []
+            for v, c in zip(variants, cols):
+                row = self.runs[v].summary.get(name)
+                cells.append(_pct(row.pass_rate if row else None).rjust(c))
+            lines.append("  ".join([name.ljust(width), *cells]))
+        lines.append("(pass rate per score)")
+        for v, url in self.compare_urls.items():
+            lines.append(f"compare {variants[0]} → {v}: {url}")
+        return "\n".join(lines)
+
+    def __str__(self) -> str:
+        return self.format()
+
+
 #: What a scorer may return: a bool, a 0–1 number, a :class:`Score`, a dict with the
 #: same keys, or a list of those.
 ScorerReturn = Union[bool, int, float, Score, Dict[str, Any], List[Any], None]
@@ -224,6 +271,7 @@ async def run_local_experiment(
     primary_score: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
     concurrency: int = 4,
+    prompt_overrides: Optional[Dict[str, int]] = None,
 ) -> LocalRunResult:
     """Run ``task`` over every example of a dataset, score it, and upload it as a run.
 
@@ -237,6 +285,7 @@ async def run_local_experiment(
     """
     if concurrency < 1:
         raise ValueError("acruxcore: run_local concurrency must be at least 1.")
+    overrides = validate_overrides(prompt_overrides)
     scorer_list = list(scorers)
     # No default from the first scorer's __name__: a scorer may name its own scores
     # (``Score(name=...)``, a list), and a guessed name that matches none of them
@@ -248,14 +297,15 @@ async def run_local_experiment(
         body["model"] = model
     if primary_score is not None:
         body["primary_score"] = primary_score
-    if metadata is not None:
-        body["metadata"] = metadata
+    if metadata is not None or overrides:
+        # Stored with the run, so its page says which versions it ran on.
+        body["metadata"] = {**(metadata or {}), **({"prompt_overrides": overrides} if overrides else {})}
     created = client._parse_json_or_throw(
         await client._request("POST", "/experiments/local", body, "creating local experiment"),
         "creating local experiment",
     )
     run_id: str = created["run_id"]
-    runner = _Runner(client, run_id, name, task, scorer_list, concurrency)
+    runner = _Runner(client, run_id, name, task, scorer_list, concurrency, overrides)
 
     loop_error: Optional[BaseException] = None
     detail: Dict[str, Any] = {}
@@ -300,6 +350,109 @@ async def run_local_experiment(
     )
 
 
+async def compare_local_variants(
+    client: "AcruxCore",
+    dataset_id: str,
+    *,
+    task: Callable[..., Any],
+    scorers: Iterable[Callable[..., Any]] = (),
+    variants: Dict[str, Optional[Dict[str, int]]],
+    model: Optional[str] = None,
+    primary_score: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    concurrency: int = 4,
+) -> LocalComparison:
+    """Run the same task once per variant, all at the same time, one run each.
+
+    See :meth:`acruxcore.evaluations.ExperimentsNamespace.compare_local`.
+
+    :raises ValueError: No variants, or a variant's overrides are invalid.
+    :raises AcruxCoreError: Any variant's run failed to create or upload; the
+        other variants still finish first.
+    """
+    if not variants:
+        raise ValueError("acruxcore: compare_local needs at least one variant, e.g. {'baseline': None}.")
+    for overrides in variants.values():
+        validate_overrides(overrides)
+    scorer_list = list(scorers)
+    names = list(variants)
+    outcomes = await asyncio.gather(
+        *(
+            run_local_experiment(
+                client,
+                dataset_id,
+                task=task,
+                scorers=scorer_list,
+                name=variant,
+                model=model,
+                primary_score=primary_score,
+                metadata=metadata,
+                concurrency=concurrency,
+                prompt_overrides=variants[variant],
+            )
+            for variant in names
+        ),
+        return_exceptions=True,
+    )
+    for outcome in outcomes:
+        if isinstance(outcome, BaseException):
+            raise outcome
+    runs = {name: outcome for name, outcome in zip(names, outcomes) if isinstance(outcome, LocalRunResult)}
+    base = runs[names[0]]
+    compare_urls = {
+        name: f"{base.url}/compare?target_run={run.run_id}"
+        for name, run in runs.items()
+        if name != names[0] and base.url
+    }
+    return LocalComparison(runs=runs, compare_urls=compare_urls)
+
+
+def make_judge_scorer(
+    client: "AcruxCore",
+    model: str,
+    *,
+    judge_prompt_id: Optional[str] = None,
+    judge_prompt_version: Optional[int] = None,
+    name: str = "judge",
+) -> Callable[..., Awaitable[Score]]:
+    """A scorer that grades each output with the LLM judge, on the server.
+
+    See :meth:`acruxcore.evaluations.ExperimentsNamespace.judge`.
+    """
+    if not model:
+        raise ValueError("acruxcore: judge() needs a judge model, e.g. judge('gpt-4o-mini').")
+    if judge_prompt_version is not None and judge_prompt_id is None:
+        raise ValueError(
+            "acruxcore: judge_prompt_version needs judge_prompt_id: it names a version of that judge prompt."
+        )
+
+    async def judge(output: Any, example: LocalExample) -> Score:
+        run_id = _CURRENT_RUN_ID.get()
+        if run_id is None:
+            raise RuntimeError("acruxcore: a judge scorer only works inside experiments.run_local.")
+        body: Dict[str, Any] = {"example_id": example.id, "output": _jsonable_output(output), "model": model}
+        if judge_prompt_id is not None:
+            body["judge_prompt_id"] = judge_prompt_id
+        if judge_prompt_version is not None:
+            body["judge_prompt_version"] = judge_prompt_version
+        verdict = client._parse_json_or_throw(
+            await client._request(
+                "POST", f"/runs/{quote(run_id, safe='')}/judge", body, "judging local output"
+            ),
+            "judging local output",
+        )
+        score = verdict.get("score")
+        return Score(
+            name=name,
+            score=None if score is None else float(score) / 100,
+            passed=verdict.get("passed"),
+            reason=verdict.get("reason"),
+        )
+
+    judge.__name__ = name
+    return judge
+
+
 class _Runner:
     """Per-run state: the examples' items, the pending upload buffer, and its lock."""
 
@@ -311,8 +464,10 @@ class _Runner:
         task: Callable[..., Any],
         scorers: List[Callable[..., Any]],
         concurrency: int,
+        overrides: Optional[Dict[str, int]] = None,
     ) -> None:
         self._client = client
+        self._overrides = overrides or {}
         self._run_id = run_id
         self._run_name = run_name
         self._task = task
@@ -353,6 +508,13 @@ class _Runner:
             await self.flush(final=True)  # everything waiting, not only full batches
 
     async def _execute(self, example: Dict[str, Any]) -> "tuple[LocalRunItem, Dict[str, Any]]":
+        # Each example runs in its own asyncio task, so these context settings stay
+        # inside it: a second run on the same loop keeps its own pins and run id.
+        _CURRENT_RUN_ID.set(self._run_id)
+        with pin_prompts(self._overrides):
+            return await self._execute_pinned(example)
+
+    async def _execute_pinned(self, example: Dict[str, Any]) -> "tuple[LocalRunItem, Dict[str, Any]]":
         trace_id = str(uuid.uuid4())
         ctx = LocalExample(
             id=str(example.get("id")),

@@ -38,6 +38,7 @@ from .eval_types import (
     AddExamplesResult,
     BuildFromFeedbackResult,
     CandidateDetail,
+    CommitCandidateResult,
     DatasetDto,
     DatasetExampleDto,
     DatasetWithExamples,
@@ -59,12 +60,14 @@ from .evaluations import (
     RunsNamespace,
 )
 from .local_experiments import (
+    LocalComparison,
     LocalExample,
     LocalRunItem,
     LocalRunResult,
     Score,
     ScoreSummary,
 )
+from .prompt_overrides import pin_prompts, pinned_version
 from .prompts_api import PromptsNamespace
 from .response_format import pydantic_response_format
 from .tooling import ToolSpec, spec_of, tool
@@ -241,6 +244,7 @@ __all__ = [
     "AddExamplesResult",
     "BuildFromFeedbackResult",
     "CandidateDetail",
+    "CommitCandidateResult",
     "DatasetDto",
     "DatasetExampleDto",
     "DatasetWithExamples",
@@ -258,11 +262,14 @@ __all__ = [
     "ExperimentsNamespace",
     "OptimizeNamespace",
     "RunsNamespace",
+    "LocalComparison",
     "LocalExample",
     "LocalRunItem",
     "LocalRunResult",
     "Score",
     "ScoreSummary",
+    "pin_prompts",
+    "pinned_version",
     "PromptsNamespace",
     "PromptDetail",
     "PromptListItem",

@@ -6,10 +6,10 @@ import type { TemplateContent } from '../versions/nunjucks.utils';
 import { PromptToolResolver } from '../versions/prompt-tool-resolver';
 import { VersionsService } from '../versions/versions.service';
 import type { VersionDetail } from '../versions/versions.types';
-import type { AliasDetail, RenderResponse, RenderedWithVersion, PromoteAliasDto } from './aliases.types';
+import type { AliasDetail, AliasWithVersion, RenderResponse, RenderedWithVersion, PromoteAliasDto } from './aliases.types';
 import { audit } from '../../shared/audit/audit.helper';
 import prisma from '../../shared/db/client';
-import { NotFoundError } from '../../shared/errors/http-errors';
+import { NotFoundError, ValidationError } from '../../shared/errors/http-errors';
 import { AppError } from '../../shared/errors/app-error';
 
 /**
@@ -62,14 +62,32 @@ export class AliasesService {
    *
    * @param teamId - UUID of the authenticated user's team.
    * @param promptName - The prompt's exact name.
-   * @param alias - The alias to resolve, e.g. `production`.
+   * @param alias - The alias to resolve, e.g. `production`. With `version` it is
+   *   still checked, but the version comes from the pin.
+   * @param version - A version number to return instead of the alias's version, for an
+   *   app testing a version that no alias points at yet (phase-5 FAQ Q58).
    * @returns The version, in the same shape as `GET /prompts/:id/versions/:n`.
-   * @throws {NotFoundError} If the team has no prompt of that name, or it has no such alias.
+   * @throws {NotFoundError} If the team has no prompt of that name, it has no such alias,
+   *   or it has no such version.
    */
-  async getVersionByAlias(teamId: string, promptName: string, alias: string): Promise<VersionDetail> {
-    const resolved = await this.aliasesRepo.findByPromptName(teamId, promptName, alias);
-    if (!resolved) throw new NotFoundError('Prompt or alias not found');
-    return this.versions.getVersion(resolved.promptId, teamId, resolved.versionNumber);
+  async getVersionByAlias(
+    teamId: string,
+    promptName: string,
+    alias: string | undefined,
+    version?: number,
+  ): Promise<VersionDetail> {
+    if (alias === undefined) {
+      // A pin with no alias named: only the prompt has to exist.
+      if (version === undefined) throw new ValidationError('alias or version is required');
+      const prompt = await this.promptsRepo.findByName(promptName, teamId);
+      if (!prompt) throw new NotFoundError('Prompt not found');
+      return this.versions.getVersion(prompt.id, teamId, version);
+    }
+    // A named alias must exist even under a pin, as it must for a pinned render;
+    // otherwise a misspelled alias reads fine and then fails on render.
+    const target = await this.aliasesRepo.findAliasTarget(teamId, promptName, alias);
+    if (!target) throw new NotFoundError('Prompt or alias not found');
+    return this.versions.getVersion(target.promptId, teamId, version ?? target.versionNumber);
   }
 
   /**
@@ -254,6 +272,8 @@ export class AliasesService {
    * @param promptName - Mutable display name of the prompt.
    * @param alias - Alias name (e.g. 'production').
    * @param variables - Key-value map of template variable values.
+   * @param version - Optional version number whose template to render instead of the
+   *   alias's; the alias still decides the tools (see {@link resolveAndRender}).
    * @returns Rendered messages, OpenAI-shaped tools, the version's bound default
    *   `model` (or null) — ready for LLM consumption without hardcoding a model — and
    *   the `versionId`/`versionNumber` that produced them, so a caller can link a trace
@@ -267,12 +287,14 @@ export class AliasesService {
     promptName: string,
     alias: string,
     variables: Record<string, unknown>,
+    version?: number,
   ): Promise<RenderResponse> {
     const { messages, tools, toolResolutions, model, versionId, versionNumber } = await this.resolveAndRender(
       teamId,
       promptName,
       alias,
       variables,
+      version,
     );
     return { messages, tools, toolResolutions, model, versionId, versionNumber };
   }
@@ -288,8 +310,13 @@ export class AliasesService {
    * @param promptName - Mutable display name of the prompt.
    * @param alias - Alias name (e.g. 'production').
    * @param variables - Key-value map of template variable values.
+   * @param version - Optional version number to render instead of the alias's version
+   *   (phase-5 FAQ Q58). Only the template changes: tools still come from the alias,
+   *   because tool bindings are keyed by alias, not by version. So "production with
+   *   version 7 pinned" is production exactly, with version 7's template — the thing a
+   *   team wants to test before it moves production to version 7.
    * @returns Rendered messages plus the resolved versionId, versionNumber, and tools.
-   * @throws {NotFoundError} If prompt or alias not found.
+   * @throws {NotFoundError} If prompt or alias not found, or the pinned version does not exist.
    * @throws {AppError} With code 'MISSING_VARIABLES' (400) if required vars are absent.
    * @throws {AppError} With code 'TEMPLATE_RENDER_ERROR' (422) on a nunjucks runtime error.
    */
@@ -298,8 +325,12 @@ export class AliasesService {
     promptName: string,
     alias: string,
     variables: Record<string, unknown>,
+    version?: number,
   ): Promise<RenderedWithVersion> {
-    const resolved = await this.aliasesRepo.findByPromptName(teamId, promptName, alias);
+    const resolved =
+      version === undefined
+        ? await this.aliasesRepo.findByPromptName(teamId, promptName, alias)
+        : await this.pinnedVersion(teamId, promptName, alias, version);
     if (!resolved) {
       throw new NotFoundError('Prompt or alias not found');
     }
@@ -350,5 +381,33 @@ export class AliasesService {
       }
       throw err;
     }
+  }
+
+  /**
+   * The alias's resolution with another version's template, model and lineage
+   * in place of its own — the alias row itself (and so its tool bindings) is
+   * kept. The alias's own template is never loaded. Null when the alias does
+   * not exist.
+   */
+  private async pinnedVersion(
+    teamId: string,
+    promptName: string,
+    alias: string,
+    version: number,
+  ): Promise<AliasWithVersion | null> {
+    const target = await this.aliasesRepo.findAliasTarget(teamId, promptName, alias);
+    if (!target) return null;
+    const row = await this.versionsRepo.findByVersionNumber(target.promptId, version);
+    if (!row) throw new NotFoundError(`Version ${version} not found for prompt "${promptName}"`);
+    return {
+      aliasId: target.aliasId,
+      promptId: target.promptId,
+      alias,
+      versionId: row.id,
+      versionNumber: row.versionNumber,
+      messages: row.messages as Array<{ role: string; content: TemplateContent }>,
+      variables: row.variables as string[],
+      model: row.model?.publicName ?? null,
+    };
   }
 }

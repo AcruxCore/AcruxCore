@@ -11,6 +11,15 @@ export interface LocalRunHeader {
   experimentConfig: Prisma.JsonValue;
 }
 
+/** What one judge call needs from its run: never the whole example snapshot. */
+export interface LocalJudgeContext {
+  grid: Prisma.JsonValue;
+  /** `{ overallFeedback, judgePromptVersions }` frozen on the run; null on runs created before it was. */
+  gradingSnapshot: Prisma.JsonValue;
+  /** The one snapshot example with the asked-for id, or null if the run has none. */
+  example: Prisma.JsonValue;
+}
+
 /** One `eval_results` row to write for a local run. */
 export interface LocalResultRow {
   datasetExampleId: string;
@@ -50,6 +59,7 @@ export class LocalRunsRepository {
       config: Prisma.InputJsonValue;
       exampleSnapshot: Prisma.InputJsonValue;
       grid: Prisma.InputJsonValue;
+      gradingSnapshot: Prisma.InputJsonValue;
     },
   ): Promise<{ experimentId: string; runId: string }> {
     return prisma.$transaction(async (tx) => {
@@ -65,6 +75,7 @@ export class LocalRunsRepository {
           startedAt: new Date(),
           exampleSnapshot: data.exampleSnapshot,
           grid: data.grid,
+          gradingSnapshot: data.gradingSnapshot,
           createdBy,
         },
       });
@@ -82,11 +93,94 @@ export class LocalRunsRepository {
   async findRun(teamId: string, runId: string): Promise<LocalRunHeader | null> {
     const run = await prisma.experimentRun.findFirst({
       where: { id: runId, teamId },
-      select: { id: true, status: true, grid: true, exampleSnapshot: true, experiment: { select: { config: true } } },
+      select: {
+        id: true,
+        status: true,
+        grid: true,
+        exampleSnapshot: true,
+        experiment: { select: { config: true } },
+      },
     });
     if (!run) return null;
     const { experiment, ...header } = run;
     return { ...header, experimentConfig: experiment.config };
+  }
+
+  /**
+   * Reads what a judge call needs, picking the one example out of the run's
+   * snapshot inside Postgres. A judge call grades one output, and an SDK makes
+   * one call per example per variant; loading the whole snapshot each time made
+   * a call cost 21 ms on a 1-example run and 240 ms on a 10,000-example one.
+   *
+   * @param teamId - Isolation boundary.
+   * @param runId - Run UUID.
+   * @param exampleId - The snapshot example to return.
+   * @returns The run's grid, grading snapshot and that example, or null when the
+   *   run is not this team's.
+   */
+  async findJudgeContext(teamId: string, runId: string, exampleId: string): Promise<LocalJudgeContext | null> {
+    const [row] = await prisma.$queryRaw<Array<{ grid: Prisma.JsonValue; grading_snapshot: Prisma.JsonValue; example: Prisma.JsonValue }>>`
+      SELECT r.grid, r.grading_snapshot,
+        (SELECT e FROM jsonb_array_elements(r.example_snapshot) AS e WHERE e->>'exampleId' = ${exampleId} LIMIT 1) AS example
+      FROM experiment_runs r
+      WHERE r.id = ${runId}::uuid AND r.team_id = ${teamId}::uuid`;
+    return row ? { grid: row.grid, gradingSnapshot: row.grading_snapshot, example: row.example } : null;
+  }
+
+  /**
+   * The current overall feedback of a run's dataset — the judge's fallback for
+   * a local run created before overall feedback was frozen onto the run.
+   *
+   * @param teamId - Isolation boundary.
+   * @param runId - Run UUID.
+   * @returns The dataset's overall feedback, or null if it has none.
+   */
+  async findDatasetOverallFeedback(teamId: string, runId: string): Promise<string | null> {
+    const run = await prisma.experimentRun.findFirst({
+      where: { id: runId, teamId },
+      select: { experiment: { select: { dataset: { select: { overallFeedback: true } } } } },
+    });
+    return run?.experiment.dataset.overallFeedback ?? null;
+  }
+
+  /**
+   * Freezes the judge prompt version a run grades with, the first time the run
+   * is graded with that judge prompt. Later calls get the frozen version back
+   * even after a newer one is promoted, so every output of the run is graded by
+   * the same rubric (phase-5 FAQ Q5). Stored in `grading_snapshot` under
+   * `judgePromptVersions`, keyed by judge prompt id, since the SDK names the
+   * judge prompt on each judge call rather than when the run starts.
+   *
+   * @param teamId - Isolation boundary.
+   * @param runId - Run UUID; the caller has checked it is this team's local run.
+   * @param judgePromptId - The judge prompt the caller named.
+   * @param versionId - The version that judge prompt resolves to right now; kept
+   *   only if the run has none frozen for it yet.
+   * @returns The version the run grades with for this judge prompt.
+   */
+  async freezeJudgePromptVersion(
+    teamId: string,
+    runId: string,
+    judgePromptId: string,
+    versionId: string,
+  ): Promise<string> {
+    // One statement, so two first calls racing each other still agree: the
+    // second one finds the key already set and keeps it.
+    const [row] = await prisma.$queryRaw<Array<{ version_id: string }>>`
+      UPDATE experiment_runs
+      SET grading_snapshot = COALESCE(grading_snapshot, '{}'::jsonb) || jsonb_build_object(
+        'judgePromptVersions',
+        COALESCE(grading_snapshot->'judgePromptVersions', '{}'::jsonb)
+          || jsonb_build_object(${judgePromptId}::text, ${versionId}::text)
+      )
+      WHERE id = ${runId}::uuid AND team_id = ${teamId}::uuid
+        AND (grading_snapshot->'judgePromptVersions'->>${judgePromptId}::text) IS NULL
+      RETURNING grading_snapshot->'judgePromptVersions'->>${judgePromptId}::text AS version_id`;
+    if (row) return row.version_id;
+
+    const run = await prisma.experimentRun.findFirst({ where: { id: runId, teamId }, select: { gradingSnapshot: true } });
+    const frozen = run?.gradingSnapshot as { judgePromptVersions?: Record<string, string> } | null | undefined;
+    return frozen?.judgePromptVersions?.[judgePromptId] ?? versionId;
   }
 
   /**

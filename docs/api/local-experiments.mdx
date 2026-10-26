@@ -205,6 +205,104 @@ A second `finish`, or a `finish` after the stale-run sweep failed the run, answe
 
 ---
 
+### POST /api/v1/runs/:id/judge
+
+Grades one output of a local run with an LLM judge, on the server. The judge reads the
+example's criteria and the dataset's overall feedback as they were when the run started, the
+same inputs a server-side run's judge reads. Nothing is stored on the run: the SDK puts the
+returned score in the result it uploads. `experiments.judge(model)` in both SDKs is a scorer
+that calls this endpoint. Editor role or above required.
+
+Body: `example_id` (an example of this run), `output` (any JSON value), `model` (a model name
+from your **Models** list), and optionally `judge_prompt_id` to grade with one of your judge
+prompts. A run grades every output with one version of that judge prompt: by default, the
+version its `production` alias serves at the run's first judge call. `judge_prompt_version`
+names the version instead. Pass the version an optimize run graded with, and every run you
+compare against it grades the same way.
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/runs/9f351ec4-efb4-4456-9be1-e9cb2c838675/judge \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"example_id":"0253bd73-1aa8-4bd4-81cc-23da83f95a4e","output":"Yes. BR-1077 was delivered on 20 October, so the 14-day window for a used grinder is open. A used grinder is refunded as store credit, not money. Reply to your order confirmation email to start the return.","model":"gpt-4.1"}'
+```
+
+Response (status 200) — `score` is 0–100, and `judge_trace_id` is the judge's own trace:
+
+```json
+{
+  "score": 95,
+  "passed": true,
+  "reason": "The output correctly states that the 14-day window for returning a used grinder is open, specifies that the refund will be as store credit, and instructs the customer to reply to the order confirmation email to start the return. The only minor omission is not explicitly stating that the delivery was 6 days ago, but this does not affect the correctness or clarity of the answer.",
+  "judge_trace_id": "f02ae94d-c5ca-478d-bce5-138f3591e112"
+}
+```
+
+Grading with version 1 of a judge prompt, whatever `production` serves now:
+
+```bash
+curl -X POST $ACRUXCORE_BASE_URL/runs/93aef7df-009c-4159-8240-7229dbc2d897/judge \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"example_id":"79e5e814-2a72-446a-b408-9d492dc21dda","output":"Yes. The kettle from BR-1088 is unopened, so you can return it within 30 days of delivery for a full refund. Reply to your order confirmation email to start the return.","model":"gpt-4.1","judge_prompt_id":"29d3bb49-a6f4-4592-a4b1-c59d28c3aab5","judge_prompt_version":1}'
+```
+
+Response (status 200):
+
+```json
+{
+  "score": 100,
+  "passed": true,
+  "reason": "The answer correctly confirms eligibility for a full refund within the 30-day window, specifies the item is unopened, and instructs the customer to reply to the order confirmation email to start the return, matching all requirements.",
+  "judge_trace_id": "91a26e5b-421c-4ce3-bb85-5f88ea2725be"
+}
+```
+
+409 — the run already grades with another version of that judge prompt. Its scores would mix
+two rubrics, so start a new run instead:
+
+```json
+{"error":{"code":"JUDGE_PROMPT_VERSION_MISMATCH","message":"This run already grades with another version of this judge prompt. Start a new run to grade with version 2."}}
+```
+
+400 — the judge prompt has no such version:
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"Judge prompt 'brewline-judge-e2e' has no version 9."}}
+```
+
+400 — `judge_prompt_version` without `judge_prompt_id`:
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"judge_prompt_version needs judge_prompt_id: it names a version of that judge prompt."}}
+```
+
+400 — the run id in the path is not a UUID:
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"id must be a valid UUID."}}
+```
+
+409 — the run was started on the server, which grades with its own judge:
+
+```json
+{"error":{"code":"RUN_NOT_LOCAL","message":"This run was started on the server, and its own judge grades it. Only a local run takes judge calls from the SDK."}}
+```
+
+400 — the example is not part of this run:
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"example_id 00000000-0000-0000-0000-000000000000 is not an example of this run."}}
+```
+
+400 — the model is not in your **Models** list:
+
+```json
+{"error":{"code":"VALIDATION_ERROR","message":"Model 'no-such-model' is not registered. Add it under Gateway → Models."}}
+```
+
+---
+
 ### Reading a local run
 
 The read endpoints in [Experiments & Runs](./experiments.mdx) work on a local run as on any

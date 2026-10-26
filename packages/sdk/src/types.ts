@@ -1471,6 +1471,10 @@ export interface ListFeedbackOptions {
   page?: number;
   /** Capped at 100 server-side. */
   limit?: number;
+  /** `'up'` (rating above 0), `'down'` (below 0), or `'none'` (no rating). */
+  rating?: 'up' | 'down' | 'none';
+  /** Only feedback on traces that ran a version of this prompt. */
+  promptId?: string;
 }
 
 /** Result of {@link TracesNamespace.listFeedback} — team-wide, newest-first, paginated. */

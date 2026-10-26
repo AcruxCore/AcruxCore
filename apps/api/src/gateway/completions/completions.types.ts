@@ -119,6 +119,11 @@ export const PromptRefSchema = z.object({
   name: z.string().min(1, 'prompt.name is required'),
   alias: z.string().min(1, 'prompt.alias is required'),
   variables: z.record(z.unknown()).default({}),
+  /**
+   * Render this version's template instead of the alias's; the alias still decides
+   * the tools (phase-5 FAQ Q58). How a test run pins a candidate before promoting it.
+   */
+  version: z.number().int().positive('prompt.version must be a positive integer').optional(),
 });
 
 /** Validated prompt reference (G8). */

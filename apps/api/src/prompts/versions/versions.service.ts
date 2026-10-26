@@ -1,7 +1,9 @@
 import { VersionsRepository } from './versions.repository';
 import { extractVariables, NunjucksParseError } from './nunjucks.utils';
+import type { Prisma, PrismaClient } from '@prisma/client';
 import type {
   CreateVersionDto,
+  PreparedVersion,
   VersionDetail,
   VersionListItem,
   VersionByIdResponse,
@@ -93,6 +95,23 @@ export class VersionsService {
     userId: string,
     dto: CreateVersionDto,
   ): Promise<{ version: VersionDetail; aliases?: AliasDetail[] }> {
+    return this.insertVersion(await this.prepareVersion(promptId, teamId, dto), teamId, userId);
+  }
+
+  /**
+   * Steps 1–4 of {@link commitVersion}: every check a commit makes, with no
+   * write. Split out so a caller that must insert while holding a lock (the
+   * optimizer's candidate commit) can run these reads before taking it.
+   *
+   * @param promptId - UUID of the prompt.
+   * @param teamId - UUID of the authenticated user's team.
+   * @param dto - The messages and optional default model to commit.
+   * @returns The checked version, ready for {@link insertVersion}.
+   * @throws {NotFoundError} If the prompt doesn't exist or belongs to another team.
+   * @throws {AppError} With code 'TEMPLATE_PARSE_ERROR' if any message content is invalid nunjucks.
+   * @throws {ValidationError} If `model` is not registered for this team.
+   */
+  async prepareVersion(promptId: string, teamId: string, dto: CreateVersionDto): Promise<PreparedVersion> {
     await this.assertPromptAccessible(promptId, teamId);
 
     // Parse all messages upfront — fail fast on the first syntax error
@@ -118,15 +137,40 @@ export class VersionsService {
       modelId = gm.id;
     }
 
-    const versionNumber = await this.versionsRepo.computeNextVersionNumber(promptId);
-    const row = await this.versionsRepo.create({
-      promptId,
-      versionNumber,
-      messages: dto.messages,
-      variables,
-      createdBy: userId,
-      modelId,
-    });
+    return { promptId, messages: dto.messages, variables, modelId, model: dto.model ?? null };
+  }
+
+  /**
+   * Steps 5–8 of {@link commitVersion}: numbers and inserts a prepared
+   * version, creates the first version's aliases, and records the audit event.
+   *
+   * With `tx`, every write runs on that transaction's connection and the audit
+   * row is awaited inside it, so a rollback leaves no version and no audit row,
+   * and the caller never needs a second pooled connection while it holds a lock.
+   *
+   * @param prepared - The output of {@link prepareVersion}.
+   * @param teamId - UUID of the authenticated user's team.
+   * @param userId - UUID of the authenticated user (stored as createdBy).
+   * @param tx - The caller's transaction, or none for a transaction of its own.
+   * @returns The created version, plus `aliases` if this was the first version.
+   */
+  async insertVersion(
+    prepared: PreparedVersion,
+    teamId: string,
+    userId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<{ version: VersionDetail; aliases?: AliasDetail[] }> {
+    const { promptId } = prepared;
+    const row = await this.versionsRepo.createNext(
+      {
+        promptId,
+        messages: prepared.messages,
+        variables: prepared.variables,
+        createdBy: userId,
+        modelId: prepared.modelId,
+      },
+      tx,
+    );
 
     const version: VersionDetail = {
       id: row.id,
@@ -136,22 +180,25 @@ export class VersionsService {
       variables: row.variables as string[],
       createdBy: row.createdBy,
       createdAt: row.createdAt.toISOString(),
-      model: dto.model ?? null,
+      model: prepared.model,
     };
 
     // Auto-create production + staging aliases on first version
     let aliases: AliasDetail[] | undefined;
-    if (versionNumber === 1) {
-      aliases = await this.aliasesRepo.autoCreateAliases(promptId, row.id);
+    if (row.versionNumber === 1) {
+      aliases = await this.aliasesRepo.autoCreateAliases(promptId, row.id, tx);
     }
 
-    void audit(prisma, {
+    const event = {
       teamId,
       actorId: userId,
-      event: 'version_committed',
+      event: 'version_committed' as const,
       promptId,
-      metadata: { versionNumber },
-    });
+      metadata: { versionNumber: row.versionNumber },
+    };
+    // audit() takes a PrismaClient; a transaction client has the auditLog delegate it uses.
+    if (tx) await audit(tx as PrismaClient, event);
+    else void audit(prisma, event);
 
     return { version, aliases };
   }

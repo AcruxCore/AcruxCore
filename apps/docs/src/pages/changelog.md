@@ -27,11 +27,29 @@ called out in the week it ships and in the SDK release notes.
 
 ### Major
 
-- None so far this week.
+#### Test an optimizer rewrite in your own app before you promote it
+
+- **Test in your pipeline** on a candidate commits it as a version without moving an alias.
+- Pin that version in one run with `prompt_overrides` (Python) or `promptOverrides` (Node).
+- Promoting the candidate later reuses the version your app ran.
+  [Reference →](/api-reference/optimize#post-apiv1runscandidatescommit)
+
+#### Compare app variants side by side, graded by an LLM judge
+
+- `experiments.compare_local` / `compareLocal` runs one local run per variant, at the same time.
+- `experiments.judge` grades local outputs like a server run, with a judge version you pick.
+- New tutorial: [Improve a RAG agent from user feedback](/docs/tutorials/improve-a-rag-agent-from-feedback).
 
 ### Minor
 
+- Render, the gateway's `prompt` object and `GET /prompt-versions` take a `version` number.
+- `optimize.start` takes `optimizer_model` / `optimizerModel` to choose the model that drafts.
+- Run details in both SDKs include the run's dataset id.
+- `traces.list_feedback` / `listFeedback` filter feedback by `rating` (`up`, `down`) and by prompt.
+- `pinned_version` / `pinnedVersion` return the pinned version, for a gateway `prompt` object.
 - **Pricing** — hosted AcruxCore is free to use, with no end date; before, it was free during the beta.
+- **Fixed** — Committing several versions of one prompt or tool at once no longer returns 500.
+- **Fixed** — A failed SDK render now says why, such as which version was not found.
 - **Blog** — wider posts without the recent-posts sidebar; tables mark Yes and No with icons.
 - **Blog** — tool sections show strengths and limits side by side, in light and dark themes.
 - **Blog** — every post highlights one or two key points as quotes.

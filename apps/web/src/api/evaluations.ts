@@ -23,6 +23,7 @@ import type {
   Paginated,
   PromoteCandidateInput,
   PromoteCandidateResult,
+  CommitCandidateResult,
   Run,
   RunCellDetail,
   RunCompare,
@@ -492,6 +493,27 @@ export function usePromoteCandidate(runId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.run(runId) });
       qc.invalidateQueries({ queryKey: keys.runReport(runId) });
+    },
+  });
+}
+
+/**
+ * Commits an optimizer candidate as a prompt version without moving any alias, so the
+ * team can run its own app on it before promoting (phase-5 FAQ Q58). Idempotent on the
+ * server. Refreshes the candidate, whose `versionNumber` is now set.
+ *
+ * @param runId - The optimize run.
+ * @param candidateId - The candidate to commit.
+ * @returns A mutation that takes no arguments; its data is the prompt name, the
+ *   version and whether this call created it (`created: false` on a repeat).
+ */
+export function useCommitCandidate(runId: string, candidateId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api<CommitCandidateResult>(`/runs/${runId}/candidates/${candidateId}/commit`, { method: 'POST' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.runCandidate(runId, candidateId) });
     },
   });
 }

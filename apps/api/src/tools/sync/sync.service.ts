@@ -115,11 +115,9 @@ export class ToolSyncService {
         }
       }
 
-      const versionNumber = await this.versions.computeNextVersionNumber(tool.id, tx);
-      const row = await this.versions.create(
+      const row = await this.versions.createNext(
         {
           toolId: tool.id,
-          versionNumber,
           // Not `dto.description`: see the note above — a docstring-less function must
           // carry the dashboard's description forward, not blank it out.
           description: description ?? undefined,
@@ -132,7 +130,7 @@ export class ToolSyncService {
         tx,
       );
 
-      if (versionNumber === 1) {
+      if (row.versionNumber === 1) {
         // First version: `production` and `staging` are created pointing at it.
         const created = await this.aliases.autoCreateAliases(tool.id, row.id, tx);
         // ...but those are the only two names it creates, and `alias` accepts any
@@ -169,7 +167,7 @@ export class ToolSyncService {
         result: {
           toolId: tool.id,
           versionId: row.id,
-          versionNumber,
+          versionNumber: row.versionNumber,
           committed: true as const,
           alias: dto.alias,
           ...(supersededSource ? { supersededSource } : {}),

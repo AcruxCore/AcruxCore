@@ -225,6 +225,8 @@ export interface RunDetailDto {
   /** What produced the run. Absent from servers older than this field. */
   kind?: RunKind;
   experimentId: string;
+  /** The dataset the run graded — what a local run must use to be compared with it. */
+  datasetId: string;
   status: string;
   startedAt: string | null;
   endedAt: string | null;
@@ -359,6 +361,20 @@ export interface CandidateDetail {
   rationale: string | null;
   label: string;
   createdAt: string;
+  /** The prompt version it was committed as (to test or to promote), or null. */
+  versionNumber: number | null;
+}
+
+/**
+ * A candidate committed as a prompt version, with no alias moved. Pin it in your app
+ * with `promptOverrides: { [result.promptName]: result.version.versionNumber }`.
+ */
+export interface CommitCandidateResult {
+  /** The prompt's name — the key an app renders it by. */
+  promptName: string;
+  version: { id: string; versionNumber: number; messages: Array<{ role: string; content: unknown }>; model: string | null };
+  /** False when the candidate had been committed before; the same version comes back. */
+  created: boolean;
 }
 
 export interface PromoteCandidateParams {
@@ -400,6 +416,8 @@ export interface StartOptimizeParams {
    * `production` version (else its latest), and the optimizer is shown it too.
    */
   judgePromptId?: string;
+  /** The model that writes the rewrites, a name under Gateway → Models. Omitted, the first of `models` writes them. */
+  optimizerModel?: string;
 }
 
 export interface StartOptimizeResult {
@@ -501,6 +519,45 @@ export interface RunLocalOptions<O> {
   metadata?: Record<string, unknown>;
   /** How many examples run at once. Default 4. Must be a positive integer. */
   concurrency?: number;
+  /**
+   * `{ promptName: versionNumber }`. While the task runs, `prompts.render` and
+   * `prompts.getByAlias` return that version for that prompt, whatever alias your code
+   * asks for — so your app runs on a version no alias points at yet, with no code change.
+   * The alias still decides the tools. Stored in the run's metadata.
+   */
+  promptOverrides?: Record<string, number>;
+}
+
+/** Options for `experiments.compareLocal`: `runLocal`'s, with variants instead of a name. */
+export interface CompareLocalOptions<O> extends Omit<RunLocalOptions<O>, 'name' | 'promptOverrides'> {
+  /**
+   * `{ runName: promptOverrides }`, in order; `null` for no overrides. The first is the
+   * baseline the compare links start from, e.g.
+   * `{ production: null, 'candidate-B': { 'support-agent': 7 } }`.
+   */
+  variants: Record<string, Record<string, number> | null>;
+}
+
+/** What `experiments.compareLocal` resolves to: one run per variant. */
+export interface LocalComparison<O> {
+  /** Keyed by variant name, in the order the variants were given. */
+  runs: Record<string, LocalRunResult<O>>;
+  /** Compare per example from the baseline to each other variant; empty without `APP_URL`. */
+  compareUrls: Record<string, string>;
+}
+
+/** Options for `experiments.judge`. */
+export interface JudgeScorerOptions {
+  /** Grade with one of your judge prompts instead of the built-in judge. */
+  judgePromptId?: string;
+  /**
+   * The version of `judgePromptId` to grade with, instead of the one its `production`
+   * alias serves when the run's first output is graded. Pass the version an optimize run
+   * graded with, so a pipeline test's scores compare with the run's.
+   */
+  judgePromptVersion?: number;
+  /** The score's name. Default `"judge"`. */
+  name?: string;
 }
 
 /** One score as `runLocal` reports it back: always named, 0–1. */

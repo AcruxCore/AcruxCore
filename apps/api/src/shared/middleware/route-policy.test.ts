@@ -105,6 +105,8 @@ describe('route policy', () => {
       'POST /api/v1/runs/:id/rejudge': 'requireRole(owner|admin|editor)',
       'POST /api/v1/runs/:id/results': 'requireRole(owner|admin|editor)',
       'POST /api/v1/runs/:id/finish': 'requireRole(owner|admin|editor)',
+      'POST /api/v1/runs/:id/judge': 'requireRole(owner|admin|editor)',
+      'POST /api/v1/runs/:id/candidates/:candidateId/commit': 'requireRole(owner|admin|editor)',
 
       'POST /api/v1/eval-rules': 'requireRole(owner|admin)',
       'PATCH /api/v1/eval-rules/:id': 'requireRole(owner|admin)',

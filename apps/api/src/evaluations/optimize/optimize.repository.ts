@@ -1,6 +1,14 @@
 import { Prisma } from '@prisma/client';
 import prisma from '../../shared/db/client';
 
+const CANDIDATE_FOR_RUN_INCLUDE = {
+  prompt: { select: { name: true } },
+  version: { select: { versionNumber: true } },
+} satisfies Prisma.PromptCandidateInclude;
+
+/** A candidate row with its prompt's name and its committed version number, if any. */
+export type CandidateForRun = Prisma.PromptCandidateGetPayload<{ include: typeof CANDIDATE_FOR_RUN_INCLUDE }>;
+
 /**
  * Data access for the `prompt_candidates` table. The only file in this
  * domain that touches Prisma. Candidates are always created team-scoped and
@@ -87,15 +95,67 @@ export class OptimizeRepository {
    * @param teamId - Isolation boundary.
    * @param runId - The `experiment_runs` id the candidate must have been drafted for.
    * @param id - `prompt_candidates` row UUID.
-   * @returns The candidate row, or `null` if not found, owned by another team, or drafted for a different run.
+   * @returns The candidate row with its prompt's name and, once committed, its
+   *   version number (one query, so a read or a commit needs no second lookup),
+   *   or `null` if not found, owned by another team, or drafted for a different run.
    */
-  async getCandidateForRun(
-    teamId: string,
-    runId: string,
-    id: string,
-  ): Promise<Prisma.PromptCandidateGetPayload<{}> | null> {
+  async getCandidateForRun(teamId: string, runId: string, id: string): Promise<CandidateForRun | null> {
     return prisma.promptCandidate.findFirst({
       where: { id, teamId, experimentRunId: runId },
+      include: CANDIDATE_FOR_RUN_INCLUDE,
     });
+  }
+
+  /**
+   * Gives a candidate its prompt version exactly once, however many callers
+   * commit or promote it at the same moment. The candidate row is locked for
+   * the whole check-then-commit, so a second caller waits, then sees the
+   * first caller's version instead of committing its own. Without the lock,
+   * racing callers each compute the same next version number: one wins and the
+   * rest fail on the unique (prompt, version number) index, or, spread a little
+   * further apart, each leave a version in the prompt's history.
+   *
+   * `commit` gets the transaction and must write on it alone. Each caller
+   * waiting on the lock holds a pooled connection, so with as many waiters as
+   * the pool has connections, a `commit` that asked the pool for another one
+   * would wait behind them until every transaction timed out. Writing on `tx`
+   * also makes the version and the candidate's link to it one atomic change.
+   *
+   * @param teamId - Isolation boundary.
+   * @param id - `prompt_candidates` row UUID; the caller has checked it exists.
+   * @param commit - Creates the version on `tx` and returns its id and number.
+   *   Runs only when the candidate has none yet, while the lock is held, so it
+   *   must be quick: do every read before calling this.
+   * @returns The candidate's version id and number, and whether `commit` created it.
+   * @throws Whatever `commit` throws; nothing it wrote is kept.
+   */
+  async commitVersionOnce(
+    teamId: string,
+    id: string,
+    commit: (tx: Prisma.TransactionClient) => Promise<{ id: string; versionNumber: number }>,
+  ): Promise<{ versionId: string; versionNumber: number; created: boolean }> {
+    return prisma.$transaction(
+      async (tx) => {
+        const [row] = await tx.$queryRaw<Array<{ version_id: string | null }>>`
+          SELECT version_id FROM prompt_candidates
+          WHERE id = ${id}::uuid AND team_id = ${teamId}::uuid
+          FOR UPDATE`;
+        if (row?.version_id) {
+          // A statement of its own: a waiter woken by the lock re-reads only the
+          // locked row, so a join here would still miss the version just committed.
+          const version = await tx.promptVersion.findUniqueOrThrow({
+            where: { id: row.version_id },
+            select: { versionNumber: true },
+          });
+          return { versionId: row.version_id, versionNumber: version.versionNumber, created: false };
+        }
+
+        const version = await commit(tx);
+        await tx.promptCandidate.update({ where: { id }, data: { versionId: version.id } });
+        return { versionId: version.id, versionNumber: version.versionNumber, created: true };
+      },
+      // Waiting callers queue on the lock while the first one commits.
+      { maxWait: 10_000, timeout: 20_000 },
+    );
   }
 }

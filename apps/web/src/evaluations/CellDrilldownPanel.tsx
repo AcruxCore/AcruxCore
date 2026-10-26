@@ -8,6 +8,7 @@ import { useRunCell } from '@/api';
 import type { RunCellExample } from '@/api/types';
 import { scoreToGrade } from './matrix.helpers';
 import { PromoteDialog } from './PromoteDialog';
+import { PipelineTestDialog } from './PipelineTestDialog';
 import { HistoryDisclosure } from './HistoryDisclosure';
 import { NamedScoreList } from './NamedScoreList';
 
@@ -135,6 +136,7 @@ export function CellDrilldownPanel({
 }: CellDrilldownPanelProps) {
   const { canWrite } = useAuth();
   const [promoteOpen, setPromoteOpen] = useState(false);
+  const [pipelineOpen, setPipelineOpen] = useState(false);
   const detail = useRunCell(runId, cellKey);
   const title = detail.data ? `${variantLabel ?? detail.data.variantLabel} · ${detail.data.model}` : 'Cell detail';
   const description = detail.data ? `${detail.data.examples.length} example${detail.data.examples.length === 1 ? '' : 's'}` : undefined;
@@ -159,6 +161,13 @@ export function CellDrilldownPanel({
                 </Button>
               )}
               {canWrite && candidateId && (
+                /* Before promoting: the run scored each example with one tool-less call, so only the
+                   team's own app shows whether the rewrite changes what it retrieves or calls. */
+                <Button size="sm" onClick={() => setPipelineOpen(true)} data-testid="drilldown-test-pipeline">
+                  Test in your pipeline
+                </Button>
+              )}
+              {canWrite && candidateId && (
                 <Button variant="primary" size="sm" onClick={() => setPromoteOpen(true)}>
                   Promote to production
                 </Button>
@@ -174,6 +183,16 @@ export function CellDrilldownPanel({
                 <ExampleRow key={example.exampleId} example={example} />
               ))}
             </div>
+          )}
+
+          {candidateId && (
+            <PipelineTestDialog
+              key={`pipeline-${candidateId}`}
+              open={pipelineOpen}
+              onOpenChange={setPipelineOpen}
+              runId={runId}
+              candidateId={candidateId}
+            />
           )}
 
           {candidateId && cellKey && (

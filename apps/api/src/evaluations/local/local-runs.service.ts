@@ -5,13 +5,17 @@ import { loadEmailConfig } from '../../email/email.config';
 import { appLink } from '../../email/email.service';
 import { AppError, ConflictError, NotFoundError, ValidationError } from '../../shared/errors';
 import type { RunGridCell, RunSnapshotExample } from '../runs/runs.types';
+import { JudgeService, assertModelRegistered, resolveJudgePromptVersion } from '../judge';
 import {
   CreateLocalExperimentDto,
   CreateLocalExperimentResponse,
   DEFAULT_LOCAL_MODEL_LABEL,
   FinishLocalRunDto,
+  JudgeLocalOutputDto,
+  JudgeLocalOutputResponse,
   LOCAL_VARIANT_KIND,
   LocalExperimentConfig,
+  LocalGradingSnapshot,
   StoredLocalScore,
   SubmitLocalResultsDto,
   SubmitLocalResultsResponse,
@@ -30,6 +34,7 @@ export class LocalRunsService {
   constructor(
     private readonly repo: LocalRunsRepository,
     private readonly datasetsRepo: DatasetsRepository,
+    private readonly judge: JudgeService = new JudgeService(),
   ) {}
 
   /**
@@ -86,6 +91,9 @@ export class LocalRunsService {
       config: config as unknown as Prisma.InputJsonValue,
       exampleSnapshot: snapshot as unknown as Prisma.InputJsonValue,
       grid: [cell] as unknown as Prisma.InputJsonValue,
+      // Frozen like a server-side run's, so a judge call made later in the run
+      // grades against the feedback the run started with (FAQ Q5).
+      gradingSnapshot: { overallFeedback: dataset.overallFeedback ?? null },
     });
 
     return {
@@ -206,6 +214,87 @@ export class LocalRunsService {
 
     const finished = await this.repo.finishRun(teamId, runId, error ? 'failed' : 'succeeded', error);
     if (finished === 0) throw notRunning();
+  }
+
+  /**
+   * Grades one output of a local run with the LLM judge, against the example's
+   * frozen criteria and the run's frozen overall feedback (phase-5 FAQ Q59).
+   * The SDK calls it from a judge scorer, so an app tested on a dataset built
+   * from feedback is graded by the same rubric the optimizer's replay used.
+   * Nothing is stored here: the verdict comes back as one of the scorer's
+   * named scores and is uploaded with the result.
+   *
+   * @param teamId - Isolation boundary; the judge call is billed to this team.
+   * @param runId - Run UUID; must be a local run. It may have finished, so an
+   *   output can be re-graded after the fact.
+   * @param dto - The example, the output, the judge model and an optional judge prompt.
+   * @returns The verdict, with the score on the 0–100 scale.
+   * @throws {NotFoundError} If the run is not this team's.
+   * @throws {ConflictError} `RUN_NOT_LOCAL` for a server-side run, which its own judge grades.
+   * @throws {ValidationError} If the example is not in the run, the model is not
+   *   registered, or the judge prompt (or its named version) does not resolve.
+   * @throws {ConflictError} `JUDGE_PROMPT_VERSION_MISMATCH` when `judge_prompt_version`
+   *   differs from the version the run already grades with.
+   */
+  async judgeOutput(teamId: string, runId: string, dto: JudgeLocalOutputDto): Promise<JudgeLocalOutputResponse> {
+    const run = await this.repo.findJudgeContext(teamId, runId, dto.example_id);
+    if (!run) throw new NotFoundError('Run not found.');
+    if (!(run.grid as unknown as RunGridCell[]).some((c) => c.variantKind === LOCAL_VARIANT_KIND)) {
+      throw new ConflictError(
+        'RUN_NOT_LOCAL',
+        'This run was started on the server, and its own judge grades it. Only a local run takes judge calls from the SDK.',
+      );
+    }
+    const example = run.example as unknown as RunSnapshotExample | null;
+    if (!example) throw new ValidationError(`example_id ${dto.example_id} is not an example of this run.`);
+
+    await assertModelRegistered(teamId, dto.model);
+    const frozen = run.gradingSnapshot as LocalGradingSnapshot | null;
+    // The version the run first graded with, so a judge prompt promoted mid-run
+    // does not switch the rubric halfway through (phase-5 FAQ Q5).
+    let judgePromptVersionId: string | null = null;
+    if (dto.judge_prompt_id) {
+      const named =
+        dto.judge_prompt_version !== undefined
+          ? await resolveJudgePromptVersion(teamId, dto.judge_prompt_id, dto.judge_prompt_version)
+          : null;
+      judgePromptVersionId =
+        frozen?.judgePromptVersions?.[dto.judge_prompt_id] ??
+        (await this.repo.freezeJudgePromptVersion(
+          teamId,
+          runId,
+          dto.judge_prompt_id,
+          named ?? (await resolveJudgePromptVersion(teamId, dto.judge_prompt_id)),
+        ));
+      // A run whose outputs were graded with one version cannot switch to another:
+      // its pass rate would mix two rubrics.
+      if (named && named !== judgePromptVersionId) {
+        throw new ConflictError(
+          'JUDGE_PROMPT_VERSION_MISMATCH',
+          `This run already grades with another version of this judge prompt. Start a new run to grade with version ${dto.judge_prompt_version}.`,
+        );
+      }
+    }
+
+    // Checked by key: a run created before overall feedback was frozen can
+    // still carry a snapshot holding only its judge prompt versions.
+    const overallFeedback =
+      frozen && frozen.overallFeedback !== undefined
+        ? frozen.overallFeedback
+        : (await this.repo.findDatasetOverallFeedback(teamId, runId)) ?? null;
+
+    const verdict = await this.judge.grade(
+      teamId,
+      dto.model,
+      { output: dto.output ?? null, criteria: example.criteria, overallFeedback, history: example.history ?? null },
+      judgePromptVersionId,
+    );
+    return {
+      score: verdict.score,
+      passed: verdict.passed,
+      reason: verdict.reason,
+      judge_trace_id: verdict.judgeTraceId,
+    };
   }
 
   /** Loads a run and checks it is a local run that is still accepting results. */

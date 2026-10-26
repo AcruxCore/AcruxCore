@@ -12,6 +12,35 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+### Added
+
+- `experiments.run_local(..., prompt_overrides={"support-agent": 7})` pins a prompt version for
+  one run: `prompts.render` and `prompts.get_by_alias` of that prompt return v7 inside it.
+- `pin_prompts({...})`, a context manager that pins the same way around any block of your code.
+- `pinned_version(name)` reads the current pin, for an app that renders the prompt another way, such
+  as a gateway request with a `prompt` reference, which the server renders and no pin reaches.
+- A pinned render raises `API_ERROR` when the server renders another version, which a server
+  older than pinned renders does, instead of quietly running the alias's version.
+- A pinned `get_by_alias` still sends the alias, so a misspelled alias fails as it does on render,
+  and raises `API_ERROR` when the server returns another version.
+- `experiments.compare_local(dataset_id, task=..., variants={...})` runs one local run per variant
+  at the same time and returns a `LocalComparison` with each run and a compare link per variant.
+- `experiments.judge(model, judge_prompt_id=None, judge_prompt_version=None, name="judge")`: an
+  LLM judge scorer for local runs, graded on the server with the run's criteria and overall
+  feedback. `judge_prompt_version` grades with that exact judge prompt version in every run.
+- `traces.list_feedback(rating=..., prompt_id=...)` keeps only feedback with that rating, or on
+  traces that ran a version of that prompt.
+- `runs.commit_candidate(run_id, candidate_id)` commits an optimizer candidate as a version without
+  moving an alias. Returns `CommitCandidateResult`; `CandidateDetail.version_number` reports it.
+- `optimize.start(..., optimizer_model=...)` chooses the model that drafts the rewrites.
+- `RunDetailDto.dataset_id`.
+
+### Fixed
+
+- A failed `prompts.render` now carries the server's reason in its message, as every other call
+  does. A pin to a version that does not exist read only `API error 404 for "name/alias"`; it
+  now ends with `Version 999 not found for prompt "name"`.
+
 ## 0.19.0 — 2026-10-22
 
 ### Added

@@ -23,15 +23,26 @@ export type PromoteAliasDto = z.infer<typeof PromoteAliasBodySchema>;
 /** Validated request body for POST /prompts/:name/:alias/render */
 export const RenderBodySchema = z.object({
   variables: z.record(z.unknown()).default({}),
+  /**
+   * Render this version's template instead of the alias's (phase-5 FAQ Q58). The
+   * alias still decides the tools. For testing a version before an alias moves to it.
+   */
+  version: z.number().int().positive().optional(),
 });
 
 export type RenderDto = z.infer<typeof RenderBodySchema>;
 
-/** Validated query for GET /prompt-versions?name=&alias= */
-export const VersionByAliasQuerySchema = z.object({
-  name: z.string({ required_error: 'name is required' }).min(1, 'name is required'),
-  alias: z.string({ required_error: 'alias is required' }).min(1, 'alias is required'),
-});
+/** Validated query for GET /prompt-versions?name=&alias= (or &version=) */
+export const VersionByAliasQuerySchema = z
+  .object({
+    name: z.string({ required_error: 'name is required' }).min(1, 'name is required'),
+    alias: z.string().min(1, 'alias must not be empty').optional(),
+    /** A version number to return instead of an alias's version (phase-5 FAQ Q58). */
+    version: z.coerce.number().int().positive('version must be a positive integer').optional(),
+  })
+  .refine((q) => q.alias !== undefined || q.version !== undefined, {
+    message: 'alias or version is required',
+  });
 
 export type VersionByAliasQuery = z.infer<typeof VersionByAliasQuerySchema>;
 

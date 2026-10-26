@@ -1,9 +1,40 @@
+import type { Prisma } from '@prisma/client';
 import request from 'supertest';
 import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
 import { authedAgent, signupTestUserWithApiKey } from '../../test-utils';
 
 const app = createApp();
+
+/**
+ * Runs `act` while another transaction holds an open insert of a row that
+ * references the parent: a foreign-key insert takes FOR KEY SHARE on the parent
+ * row until that transaction ends. Returns whether `act` finished before the
+ * other transaction did.
+ */
+async function finishesWhileChildInsertIsOpen(insertChild: (tx: Prisma.TransactionClient) => Promise<unknown>, act: () => Promise<unknown>): Promise<boolean> {
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => (release = resolve));
+  let inserted!: () => void;
+  const ready = new Promise<void>((resolve) => (inserted = resolve));
+  const held = prisma.$transaction(
+    async (tx) => {
+      await insertChild(tx);
+      inserted();
+      await released;
+      throw new Error('rolled back on purpose');
+    },
+    { timeout: 30_000 },
+  ).catch(() => undefined);
+  await ready;
+  const finished = await Promise.race([
+    act().then(() => true),
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 1_500)),
+  ]);
+  release();
+  await held;
+  return finished;
+}
 
 // Helper: sign up, get an API key, and create a prompt.
 async function signupAndGetKey(
@@ -87,6 +118,46 @@ describe('POST /api/v1/prompts/:id/versions', () => {
 
     const dbAliases = await prisma.promptAlias.findMany({ where: { promptId } });
     expect(dbAliases).toHaveLength(2);
+  });
+
+  it('gives each of several concurrent commits its own version number (#742)', async () => {
+    const { apiKey, promptId } = await signupAndGetKey();
+
+    // Without a per-prompt lock every call computes the same MAX+1, and all but
+    // one insert hit the (prompt_id, version_number) unique index and 500.
+    const results = await Promise.all(
+      [1, 2, 3, 4, 5].map((i) =>
+        request(app)
+          .post(`/api/v1/prompts/${promptId}/versions`)
+          .set('Authorization', `Bearer ${apiKey}`)
+          .send({ messages: [{ role: 'user', content: `v${i}` }] }),
+      ),
+    );
+
+    expect(results.map((r) => r.status)).toEqual([201, 201, 201, 201, 201]);
+    expect(results.map((r) => r.body.versionNumber).sort()).toEqual([1, 2, 3, 4, 5]);
+    // Only the call that made v1 creates the aliases.
+    expect(results.filter((r) => r.body.aliases).length).toBe(1);
+    expect(await prisma.promptAlias.count({ where: { promptId } })).toBe(2);
+  });
+
+  it('commits while another transaction inserts a row that references the prompt', async () => {
+    const { apiKey, promptId } = await signupAndGetKey();
+    const commit = (content: string) =>
+      request(app)
+        .post(`/api/v1/prompts/${promptId}/versions`)
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ messages: [{ role: 'user', content }] })
+        .expect(201);
+    const v1 = (await commit('v1')).body;
+
+    // The commit lock only has to stop other commits. A row that merely points at
+    // the prompt (an alias, a candidate, a binding) must not make a commit wait.
+    const finished = await finishesWhileChildInsertIsOpen(
+      (tx) => tx.promptAlias.create({ data: { promptId, alias: 'held-open', versionId: v1.id } }),
+      () => commit('v2'),
+    );
+    expect(finished).toBe(true);
   });
 
   it('creates a second version with version_number=2 and does NOT include aliases in response', async () => {

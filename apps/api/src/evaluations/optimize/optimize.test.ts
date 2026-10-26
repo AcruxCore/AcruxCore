@@ -1,10 +1,11 @@
+import type { AddressInfo } from 'node:net';
 import request from 'supertest';
 import { UnrecoverableError } from 'bullmq';
 import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
 import { processOptimize, processCell } from '../runs';
 import { getCellsQueue, getFlowProducer, getOptimizeQueue, getRedisConnection } from '../queue';
-import { authedAgent } from '../../test-utils';
+import { authedAgent, signupTestUser } from '../../test-utils';
 
 /** One `exampleSnapshot` entry as frozen onto `ExperimentRun` (see `runs.types.ts`'s `RunSnapshotExample`). */
 interface FrozenExample {
@@ -1242,6 +1243,146 @@ describe('POST /runs/:id/promote (E6 Task 5)', () => {
       .send({ prompt_candidate_id: candidateId2 })
       .expect(404);
     expect(res.body.error.code).toBe('NOT_FOUND');
+  });
+});
+
+// phase-5 FAQ Q58: test a candidate in the team's own pipeline before promoting it.
+describe('POST /runs/:id/candidates/:candidateId/commit', () => {
+  it('commits once without moving an alias; a pinned render runs it; promote reuses that version', async () => {
+    const { agent, teamId, userId } = await authedAgent(app);
+    const { promptId, runId, candidateId } = await arrangeOptimizeRunWithCandidate(agent, teamId, userId);
+    const aliasVersion = async (alias: string): Promise<number> =>
+      (await agent.get(`/api/v1/prompts/${promptId}/aliases`).expect(200)).body.find(
+        (a: { alias: string }) => a.alias === alias,
+      ).versionNumber;
+
+    const first = await agent.post(`/api/v1/runs/${runId}/candidates/${candidateId}/commit`).expect(201);
+    expect(first.body.created).toBe(true);
+    expect(first.body.promptName).toBe('greeting');
+    expect(first.body.version.versionNumber).toBe(2);
+    expect(first.body.version.messages[0].content).toBe('Answer about {{ name }} in third person');
+    expect(await aliasVersion('production')).toBe(1);
+    expect(await aliasVersion('staging')).toBe(1);
+
+    // A second click returns the same version instead of a copy.
+    const second = await agent.post(`/api/v1/runs/${runId}/candidates/${candidateId}/commit`).expect(200);
+    expect(second.body.created).toBe(false);
+    expect(second.body.version.id).toBe(first.body.version.id);
+    const detail = await agent.get(`/api/v1/runs/${runId}/candidates/${candidateId}`).expect(200);
+    expect(detail.body.versionNumber).toBe(2);
+
+    // The team's app asks for production and pins the candidate's version.
+    const rendered = await agent
+      .post('/api/v1/prompts/greeting/production/render')
+      .send({ variables: { name: 'Al' }, version: first.body.version.versionNumber })
+      .expect(200);
+    expect(rendered.body.messages[0].content).toBe('Answer about Al in third person');
+
+    // Promoting afterwards ships the version that was tested, not a new copy of it.
+    const promoted = await agent
+      .post(`/api/v1/runs/${runId}/promote`)
+      .send({ prompt_candidate_id: candidateId })
+      .expect(200);
+    expect(promoted.body.version.id).toBe(first.body.version.id);
+    expect(await aliasVersion('production')).toBe(2);
+    const versions = (await agent.get(`/api/v1/prompts/${promptId}/versions`).expect(200)).body;
+    expect(versions.data.length).toBe(2);
+  });
+
+  it('leaves one version when commits and a promote of one candidate arrive together', async () => {
+    const { agent, teamId, userId } = await authedAgent(app);
+    const { promptId, runId, candidateId } = await arrangeOptimizeRunWithCandidate(agent, teamId, userId);
+
+    const responses = await Promise.all([
+      agent.post(`/api/v1/runs/${runId}/candidates/${candidateId}/commit`),
+      agent.post(`/api/v1/runs/${runId}/candidates/${candidateId}/commit`),
+      agent.post(`/api/v1/runs/${runId}/candidates/${candidateId}/commit`),
+      agent.post(`/api/v1/runs/${runId}/promote`).send({ prompt_candidate_id: candidateId }),
+    ]);
+
+    const ids = new Set(responses.map((res) => res.body.version.id));
+    expect(ids.size).toBe(1);
+    expect(responses.slice(0, 3).filter((res) => res.body.created).length).toBeLessThanOrEqual(1);
+    const versions = (await agent.get(`/api/v1/prompts/${promptId}/versions`).expect(200)).body;
+    expect(versions.data.length).toBe(2);
+  });
+
+  it('commits once when more callers than the connection pool holds commit at the same moment', async () => {
+    const ctx = await signupTestUser(app);
+    const agent = request.agent(app);
+    agent.set('Cookie', ctx.cookie);
+    const { promptId, runId, candidateId } = await arrangeOptimizeRunWithCandidate(agent, ctx.teamId, ctx.userId);
+    // The arrange step fakes the optimizer's model call through fetch; these
+    // requests need the real one.
+    jest.restoreAllMocks();
+
+    // Prisma's default pool is 2 x CPUs + 1. Every caller waiting on the candidate's
+    // lock holds a pooled connection, so the caller that gets the lock must commit on
+    // that same connection: asking the pool for a second one waits behind all of them.
+    // The test holds the lock until the callers have queued up, so they always do.
+    // One listening server, because supertest's server per request resets
+    // connections at this many requests before any reaches the API.
+    const callers = 60;
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => (release = resolve));
+    const locked = new Promise<void>((onLocked) => {
+      void prisma.$transaction(
+        async (tx) => {
+          await tx.$queryRaw`SELECT id FROM prompt_candidates WHERE id = ${candidateId}::uuid FOR UPDATE`;
+          onLocked();
+          await released;
+        },
+        { timeout: 30_000 },
+      );
+    });
+    await locked;
+    const server = app.listen(0);
+    try {
+      const { port } = server.address() as AddressInfo;
+      const calls = Array.from({ length: callers }, async () => {
+        const res = await fetch(`http://127.0.0.1:${port}/api/v1/runs/${runId}/candidates/${candidateId}/commit`, {
+          method: 'POST',
+          headers: { cookie: ctx.cookie },
+        });
+        return { status: res.status, body: (await res.json()) as { created?: boolean; version?: { id: string } } };
+      });
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
+      release();
+      const responses = await Promise.all(calls);
+
+      expect(responses.map((res) => res.status).filter((status) => status >= 300)).toEqual([]);
+      expect(new Set(responses.map((res) => res.body.version?.id)).size).toBe(1);
+      expect(responses.filter((res) => res.body.created).length).toBe(1);
+    } finally {
+      release();
+      await new Promise((resolve) => server.close(resolve));
+    }
+    const versions = (await agent.get(`/api/v1/prompts/${promptId}/versions`).expect(200)).body;
+    expect(versions.data.length).toBe(2);
+  }, 60_000);
+
+  it('indexes prompt_candidates.version_id, so deleting versions does not scan every candidate', async () => {
+    // ON DELETE SET NULL looks up the candidates of each deleted version. Postgres
+    // indexes the referenced side of a foreign key, never the referencing one.
+    const indexes = await prisma.$queryRaw<Array<{ indexdef: string }>>`
+      SELECT indexdef FROM pg_indexes WHERE tablename = 'prompt_candidates'`;
+    expect(indexes.some((i) => /\(version_id\)/.test(i.indexdef))).toBe(true);
+  });
+
+  it('403s for a viewer and 404s for another run\'s candidate, committing nothing', async () => {
+    const { agent, teamId, userId } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agent);
+    const { runId: runId1 } = await draftOptimizeRun(agent, teamId, userId, promptId, datasetId);
+    const { candidateId: candidateId2 } = await draftOptimizeRun(agent, teamId, userId, promptId, datasetId);
+
+    const wrongRun = await agent.post(`/api/v1/runs/${runId1}/candidates/${candidateId2}/commit`).expect(404);
+    expect(wrongRun.body.error.code).toBe('NOT_FOUND');
+
+    await prisma.teamMember.update({ where: { userId_teamId: { userId, teamId } }, data: { role: 'viewer' } });
+    await agent.post(`/api/v1/runs/${runId1}/candidates/${candidateId2}/commit`).expect(403);
+
+    const versions = (await agent.get(`/api/v1/prompts/${promptId}/versions`).expect(200)).body;
+    expect(versions.data.length).toBe(1);
   });
 });
 
