@@ -297,13 +297,13 @@ to receive alerts by email.
 
 ## Run it yourself
 
-- [The AcruxCore leg and its run log](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/acruxcore-vs-langfuse-vs-langsmith):
-  the app, [`acruxcore_sdk_leg.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/acruxcore-vs-langfuse-vs-langsmith/python/acruxcore_sdk_leg.py),
-  the dataset, both prompt versions, and the raw output of every step.
-- [The LangSmith leg](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py)
-  and its [run log](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/langfuse-vs-langsmith/RUNLOG.md).
-- [The tool-call scripts](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/python)
-  for both platforms.
+:::github
+- [`acruxcore-vs-langfuse-vs-langsmith/`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/acruxcore-vs-langfuse-vs-langsmith) — the AcruxCore leg and its run log: the app, the dataset, both prompt versions, and the raw output of every step.
+- [`acruxcore_sdk_leg.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/acruxcore-vs-langfuse-vs-langsmith/python/acruxcore_sdk_leg.py) — the AcruxCore app.
+- [`langsmith_leg.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/langfuse-vs-langsmith/python/langsmith_leg.py) — the LangSmith leg.
+- [`RUNLOG.md`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/langfuse-vs-langsmith/RUNLOG.md) — the LangSmith leg's run log.
+- [`tool-calling-traces-langsmith-vs-acruxcore/python/`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/python) — the tool-call scripts for both platforms.
+:::
 
 ## Further reading
 

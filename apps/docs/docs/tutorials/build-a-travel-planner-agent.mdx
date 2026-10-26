@@ -14,8 +14,8 @@ import TabItem from '@theme/TabItem';
 
 Every tool-calling agent rests on one decision: *should I call a tool for this?* That decision is not made by Acrux Core and it is not made by your code. The model makes it, and it makes it from the tool names, descriptions and parameter schemas it is shown, plus whatever the system prompt tells it. What the platform gives you is control over exactly those inputs — versioned, editable without a deploy — and a trace afterwards showing what the model picked. This tutorial builds an agent where all three outcomes happen for real: one tool, two tools at once, and none.
 
-:::tip[Prefer a notebook?]
-[`travel_planner_agent.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/travel-planner-agent/notebook/travel_planner_agent.ipynb)
+:::github
+**Prefer a notebook?** [`travel_planner_agent.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/travel-planner-agent/notebook/travel_planner_agent.ipynb)
 is this whole page as one runnable notebook, written for a first-timer: a preflight cell
 that checks a fresh account is ready, every tool built step by step, and four ways to get
 it wrong triggered on purpose so you can read the real error. It renders on GitHub with its
@@ -842,7 +842,10 @@ A `client` tool bound to the prompt with no entry in `client_tools` stops the ru
 The gateway accepts either a `prompt` reference or raw `messages`, never both, and a prompt reference replaces the message list. A tool loop has to own its messages, because each round appends the assistant's tool calls and the tool results. So you render first, then append. Lineage is not lost: `run_prompt_with_tools` passes the resolved `promptVersionId` through for you, and every LLM span in the trace is stamped with it.
 :::
 
-Full scripts, including the flight fixture: [`run_agent.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/travel-planner-agent/python/run_agent.py) and [`run_agent.mjs`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/travel-planner-agent/typescript/run_agent.mjs).
+:::github
+- [`run_agent.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/travel-planner-agent/python/run_agent.py) — the full Python script, including the flight fixture.
+- [`run_agent.mjs`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/travel-planner-agent/typescript/run_agent.mjs) — the full Node script, including the flight fixture.
+:::
 
 Run it:
 
@@ -916,7 +919,11 @@ Three failures look like a broken tool and are not. Two of them raise before the
 | `MISSING_DISPATCH` before any model call | a `client` tool with no entry in `client_tools`, usually a typo in the key |
 | a plausible answer, no error, your function never ran | no tool is bound to the prompt, so `render` returned none and the call became a plain completion |
 
-The last row is the one to remember. The model answers from its own knowledge, or promises to look something up and stops, and nothing in your logs says why. When a tool "does nothing", check the prompt's **Tools** tab before you start debugging your own code. The [notebook](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/travel-planner-agent/notebook/travel_planner_agent.ipynb) triggers all three for real, so you can read the exact errors once.
+The last row is the one to remember. The model answers from its own knowledge, or promises to look something up and stops, and nothing in your logs says why. When a tool "does nothing", check the prompt's **Tools** tab before you start debugging your own code. The notebook triggers all three for real, so you can read the exact errors once.
+
+:::github
+[`travel_planner_agent.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/travel-planner-agent/notebook/travel_planner_agent.ipynb) — the notebook that triggers all three failures.
+:::
 
 ## 8. Running the loop without an SDK
 

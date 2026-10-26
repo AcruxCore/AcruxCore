@@ -243,10 +243,10 @@ client = OpenAI(api_key=OPENROUTER_KEY, base_url="https://openrouter.ai/api/v1")
 # system message rendered by hand — Phoenix has no server-side prompt-render call
 ```
 
-Full script:
-[`px_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/phoenix-vs-acruxcore/python/px_trace_run.py).
-AcruxCore's leg:
-[`acx_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/phoenix-vs-acruxcore/python/acx_sdk_run.py).
+:::github
+- [`px_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/phoenix-vs-acruxcore/python/px_trace_run.py) — the Phoenix leg.
+- [`acx_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/phoenix-vs-acruxcore/python/acx_sdk_run.py) — the AcruxCore leg.
+:::
 
 <details>
 <summary>Show screenshot: SDK-produced trace on Phoenix</summary>
@@ -286,8 +286,11 @@ Phoenix's overhead lands between −14 ms and +21 ms, AcruxCore's between +11 ms
 +51 ms. Phoenix's was the lower of the two in all three runs, by roughly 30 ms —
 consistent enough to be real, and small enough that no application would notice it.
 The two are different kinds of cost: client-side OTel instrumentation pays CPU and
-serialization, an extra network hop pays routing and caching. Full script:
-[`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/phoenix-vs-acruxcore/python/latency_bench.py).
+serialization, an extra network hop pays routing and caching.
+
+:::github
+[`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/phoenix-vs-acruxcore/python/latency_bench.py) — the latency benchmark.
+:::
 
 > **Key point:** Phoenix's overhead lands between −14 ms and +21 ms, and AcruxCore's lands between
 > +11 ms and +51 ms. Phoenix's overhead was the lower of the two in all three runs.

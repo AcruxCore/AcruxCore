@@ -63,8 +63,9 @@ interval** (5,000 resamples) on the gap against the OpenAI baseline: if that
 interval crosses zero, the gap isn't distinguishable from noise at this sample
 size, and we say so rather than quoting the point estimate as if it were exact.
 
-Full script:
-[`full-cycle-latency-bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/shared/full-cycle-latency-bench.py).
+:::github
+[`full-cycle-latency-bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/shared/full-cycle-latency-bench.py) — the full benchmark script.
+:::
 
 ## Median full-cycle latency, all eight paths
 
@@ -318,11 +319,14 @@ to include — it skips a platform cleanly if its env vars aren't set. Run it wi
 bootstrap gap analysis to stdout, then writes `results.json`. Run it more than
 once before trusting any single number, for the reason above.
 
-Full script and all four runs' raw data:
-[`scripts/comparison/shared/`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/shared/full-cycle-latency-bench.py)
-on GitHub. Both charts above are generated straight from `results.json` by
-[`plot_latency_charts.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/shared/plot_latency_charts.py)
-in the same folder — point it at any run's `results.json` to regenerate them.
+Both charts above are generated straight from `results.json` by `plot_latency_charts.py`,
+which sits in the same folder as the benchmark — point it at any run's `results.json` to
+regenerate them.
+
+:::github
+- [`full-cycle-latency-bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/shared/full-cycle-latency-bench.py) — the full script; all four runs' raw data sits in the same folder.
+- [`plot_latency_charts.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/shared/plot_latency_charts.py) — draws both charts from `results.json`.
+:::
 
 For the narrower question of what AcruxCore's own gateway costs against a BYO
 call on the same machine, see

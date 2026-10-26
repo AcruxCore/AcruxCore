@@ -176,8 +176,9 @@ Both are cheap, and they are different kinds of cost: Laminar's is client-side i
 that batches spans off the hot path, ours is a real extra network hop that buys routing, budget
 enforcement, virtual keys and caching.
 
-Full script:
-[`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/laminar-vs-acruxcore/python/latency_bench.py).
+:::github
+[`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/laminar-vs-acruxcore/python/latency_bench.py) — the latency benchmark.
+:::
 
 ## Querying your trace data
 
@@ -349,10 +350,12 @@ async with AcruxCore(api_key=KEY, base_url=BASE_URL) as hub:
     result = await hub.gateway.chat(rendered.model, rendered.messages, prompt_version_id=rendered.version_id)
 ```
 
-Both scripts are committed and were run before this post linked them:
-[`lm_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/laminar-vs-acruxcore/python/lm_trace_run.py)
-and
-[`acx_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/laminar-vs-acruxcore/python/acx_sdk_run.py).
+Both scripts are committed and were run before this post linked them.
+
+:::github
+- [`lm_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/laminar-vs-acruxcore/python/lm_trace_run.py) — the Laminar run.
+- [`acx_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/laminar-vs-acruxcore/python/acx_sdk_run.py) — the AcruxCore run.
+:::
 
 | Feature | Laminar | AcruxCore |
 |---|---|---|

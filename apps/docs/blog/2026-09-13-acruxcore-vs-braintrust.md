@@ -391,12 +391,14 @@ rendered = await hub.prompts.render("vip-support-triage", "production", VARIABLE
 result = await hub.gateway.chat(rendered.model, rendered.messages, prompt_version_id=rendered.version_id)
 ```
 
-All four scripts are committed and runnable:
-[`bt_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/braintrust-vs-acruxcore/python/bt_sdk_run.py),
-[`bt_eval_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/braintrust-vs-acruxcore/python/bt_eval_run.py),
-[`bt_tool_push.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/braintrust-vs-acruxcore/python/bt_tool_push.py)
-and
-[`acx_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/braintrust-vs-acruxcore/python/acx_sdk_run.py).
+All four scripts are committed and runnable.
+
+:::github
+- [`bt_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/braintrust-vs-acruxcore/python/bt_sdk_run.py) — the Braintrust SDK run.
+- [`bt_eval_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/braintrust-vs-acruxcore/python/bt_eval_run.py) — the Braintrust evaluation.
+- [`bt_tool_push.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/braintrust-vs-acruxcore/python/bt_tool_push.py) — pushes the tool to Braintrust.
+- [`acx_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/braintrust-vs-acruxcore/python/acx_sdk_run.py) — the AcruxCore run.
+:::
 
 | Feature | Braintrust | AcruxCore |
 |---|---|---|

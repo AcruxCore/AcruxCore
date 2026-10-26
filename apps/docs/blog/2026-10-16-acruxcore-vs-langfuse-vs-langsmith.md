@@ -207,8 +207,10 @@ def make_app(alias: str = "production", only: set[str] | None = None):
 - `_create` and the `client` line are the 4 lines that Langfuse does not need. The AcruxCore
   SDK has no wrapped OpenAI client, so these lines give the SDK's chat call the OpenAI shape
   that the app expects.
-- The full file is
-  [`acruxcore_sdk_leg.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/acruxcore-vs-langfuse-vs-langsmith/python/acruxcore_sdk_leg.py).
+
+:::github
+[`acruxcore_sdk_leg.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/acruxcore-vs-langfuse-vs-langsmith/python/acruxcore_sdk_leg.py) — the full AcruxCore leg.
+:::
 
 All three platforms stored the same tree: the agent, `scope-check`, at the root, one span per step, one model
 call inside each step, and the price step marked as a tool.
@@ -252,7 +254,7 @@ An experiment answers one question: after you change a prompt, which messages go
 which got worse? We tested it like this:
 
 - **The dataset** is 30 client messages for a fictional yoga-studio website, in
-  [`messages.json`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/langfuse-vs-langsmith/data/messages.json).
+  `messages.json`.
   Each message has the expected answer: the extra-work items and the total price.
 - **Three scorers** check each answer: are the items exactly right, is the total exactly right,
   and does an LLM judge accept the reply.
@@ -277,11 +279,15 @@ messages. The table shows how each platform handled that.
 
 - We do not compare the scores across platforms. All three ran the same prompts on the same
   model, and `glm-5.3` gives a slightly different answer each time, so score gaps between
-  platforms are noise. The scores of every run are in the
-  [run log](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/acruxcore-vs-langfuse-vs-langsmith/RUNLOG.md).
+  platforms are noise. The scores of every run are in the run log.
 - AcruxCore also has a server-side experiment, which runs one stored prompt over a dataset
   with an LLM judge. That kind cannot run this app, because the app has four steps and two of
   its scorers are Python code.
+
+:::github
+- [`messages.json`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/langfuse-vs-langsmith/data/messages.json) — the 30 test messages and their expected answers
+- [`RUNLOG.md`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/acruxcore-vs-langfuse-vs-langsmith/RUNLOG.md) — the scores of every run
+:::
 
 ![AcruxCore Compare per example: base v1, target v2, Changed 4 selected, two messages improved and two regressed on the items score](/img/blog/acruxcore-vs-langfuse-vs-langsmith/acx-local-compare-per-example.jpg)
 
@@ -344,11 +350,12 @@ read the numbers back through each platform's API.
 
 ## Run it yourself
 
-- [This post's scripts on GitHub](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/acruxcore-vs-langfuse-vs-langsmith):
-  the app, the AcruxCore leg, the dataset, both prompt versions, and `RUNLOG.md` with the raw
-  output of every step.
-- [The Langfuse and LangSmith legs](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/langfuse-vs-langsmith),
-  with their own run log.
+:::github
+- [`acruxcore-vs-langfuse-vs-langsmith/`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/acruxcore-vs-langfuse-vs-langsmith) — the app, the AcruxCore leg, the dataset,
+  both prompt versions, and `RUNLOG.md` with the raw output of every step.
+- [`langfuse-vs-langsmith/`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/langfuse-vs-langsmith) — the Langfuse and LangSmith legs, with their own run log.
+:::
+
 - One platform at a time: [AcruxCore vs Langfuse](/blog/acruxcore-vs-langfuse) and
   [AcruxCore vs LangSmith](/blog/acrux-core-vs-langsmith).
 - More tools compared: [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison),

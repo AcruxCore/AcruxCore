@@ -67,8 +67,12 @@ PROMPTS = {
 ROUTES = {"billing": "finance", "bug": "engineering", "question": "support", "account": "support"}
 ```
 
-The full script for each language is in
-[`scripts/guides/run-your-app-as-an-experiment`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/guides/run-your-app-as-an-experiment).
+The full script for each language is on GitHub:
+
+:::github
+[`run-your-app-as-an-experiment`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/guides/run-your-app-as-an-experiment) — the Python and TypeScript scripts, plus their `data/` folder.
+:::
+
 Clone the repository, or download that folder, and keep its `data/` folder next to
 `python/` and `typescript/`. The snippets below are taken from the scripts. Each script
 reads the version from its first argument, so `v1` or `v2` picks the prompt.
@@ -146,9 +150,12 @@ const hub = new acruxcore();
 A code scorer compares the app's output with a reference answer. A dataset example stores
 that answer in its `expected` field. The field is optional and takes any JSON.
 
-The guide's eight tickets are in
-[`data/tickets.json`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/run-your-app-as-an-experiment/data/tickets.json).
+The guide's eight tickets are in `data/tickets.json`.
 Each ticket has an input, and an expected category and team:
+
+:::github
+[`tickets.json`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/run-your-app-as-an-experiment/data/tickets.json) — the eight tickets with their expected answers.
+:::
 
 ```json
 { "input": { "ticket": "I can't log in. The reset-password email never arrives." },
@@ -311,7 +318,9 @@ result = await hub.experiments.run_local(
 print(result.url)
 ```
 
-[Full script →](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/run-your-app-as-an-experiment/python/run_experiment.py)
+:::github
+[`run_experiment.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/run-your-app-as-an-experiment/python/run_experiment.py) — the full Python script.
+:::
 
 </TabItem>
 <TabItem value="node" label="Node">
@@ -327,7 +336,9 @@ const result = await hub.experiments.runLocal(dataset.id, {
 console.log(result.url);
 ```
 
-[Full script →](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/run-your-app-as-an-experiment/typescript/run_experiment.mjs)
+:::github
+[`run_experiment.mjs`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/run-your-app-as-an-experiment/typescript/run_experiment.mjs) — the full Node script.
+:::
 
 </TabItem>
 </Tabs>

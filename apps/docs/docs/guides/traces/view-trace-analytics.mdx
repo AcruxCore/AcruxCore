@@ -24,12 +24,12 @@ counts gateway traffic. If you also call the SDK's `trace()` to record work
 that never went through the gateway (a retrieval step, a tool call outside a
 traced loop), those spans show up here too, but not in gateway usage.
 
-:::tip[Full runnable script]
-A standalone script that ingests one trace and exercises every read in this
-guide — analytics, facets, settings, feedback, and sessions — lives at
-[scripts/guides/view-trace-analytics on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/view-trace-analytics/python/run_check.py)
-(Python) and its
-[TypeScript sibling](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/view-trace-analytics/typescript/run_check.mjs).
+:::github
+A standalone script ingests one trace and exercises every read in this guide: analytics,
+facets, settings, feedback, and sessions.
+
+- [`run_check.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/view-trace-analytics/python/run_check.py) — Python
+- [`run_check.mjs`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/view-trace-analytics/typescript/run_check.mjs) — TypeScript
 :::
 
 ## 1. Read totals for the default window

@@ -234,7 +234,10 @@ Both produced a real trace within seconds of the call returning:
 
 </details>
 
-Full scripts: [`acx_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/acruxcore-vs-langfuse/python/acx_sdk_run.py) and [`lf_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/acruxcore-vs-langfuse/python/lf_trace_run.py).
+:::github
+- [`acx_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/acruxcore-vs-langfuse/python/acx_sdk_run.py) — the AcruxCore leg.
+- [`lf_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/acruxcore-vs-langfuse/python/lf_trace_run.py) — the Langfuse leg.
+:::
 
 AcruxCore's SDK-produced trace is one sentence here; see the
 [product tour](https://docs.acruxcore.com/docs/getting-started/product-tour) for the

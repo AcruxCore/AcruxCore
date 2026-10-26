@@ -201,9 +201,12 @@ For the other side of the trade, see
 [routing your calls through the gateway](https://docs.acruxcore.com/docs/guides/route-calls-through-the-gateway).
 
 :::note
-Want to reproduce this? The
-[benchmark script, its `results.json` and `summarize.mjs`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/llm-gateway-overhead/typescript)
+Want to reproduce this? The benchmark script, its `results.json` and `summarize.mjs`
 are on GitHub. `summarize.mjs` turns any run's `results.json` into the tables above.
 Every path used the same model, key, prompt, and parameters, over pooled
 connections, 60 interleaved rounds with a rotating order.
+:::
+
+:::github
+[`llm-gateway-overhead/typescript/`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/llm-gateway-overhead/typescript) — the benchmark script, its `results.json` and `summarize.mjs`.
 :::

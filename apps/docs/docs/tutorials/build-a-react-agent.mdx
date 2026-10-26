@@ -14,8 +14,8 @@ import TabItem from '@theme/TabItem';
 
 This tutorial uses the **BYO (bring your own key)** path: model calls go straight to your provider with your own key, while AcruxCore still stores the prompt, tool catalog, and traces. Two **client tools** — `finance_research(ticker_symbol)` and `get_todays_date()` — are catalogued in AcruxCore but run by your own code.
 
-:::tip[Prefer a notebook?]
-[`react_agent.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/react-agent/notebook/react_agent.ipynb)
+:::github
+**Prefer a notebook?** [`react_agent.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/react-agent/notebook/react_agent.ipynb)
 is this whole page as one runnable notebook, written for a first-timer: a preflight cell
 that checks both keys and the Yahoo endpoint before anything else, both tools and the
 prompt created step by step, the trace read back from the API, and four ways to get it
@@ -284,7 +284,9 @@ async with AcruxCore() as hub:
     print(f"prompt_id={prompt.id} v{version.version_number}")
 ```
 
-Full script: [`setup_prompt.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/react-agent/python/setup_prompt.py).
+:::github
+[`setup_prompt.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/react-agent/python/setup_prompt.py) — the full setup script.
+:::
 
 ```json
 {"id":"53df8bc8-0d4a-4c00-91c5-bfa7e9c8bbf4","promptId":"6611c5f6-7f34-4e5e-b3b1-cb325c8070bd","versionNumber":1,"variables":["question"],"model":null,"aliases":[{"alias":"production","versionNumber":1},{"alias":"staging","versionNumber":1}]}
@@ -436,9 +438,11 @@ date -u +%F
 The full loop renders the prompt, sends each completion straight to your provider, reports the
 `llm` span itself since no gateway saw the call, runs whichever tool the model asked for
 locally, reports a `tool` span onto the same trace, and repeats until the model stops
-asking for tools — see [react_agent.sh on
-GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/react-agent/bash/react_agent.sh)
-for the complete source.
+asking for tools.
+
+:::github
+[`react_agent.sh`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/react-agent/bash/react_agent.sh) — the complete bash script.
+:::
 
 Run it:
 
@@ -520,9 +524,11 @@ The full loop does the same thing in Python: render the prompt, send each comple
 straight to your provider, report the `llm` span itself, run whichever tool the model asked for
 locally (`finance_research` calling Yahoo's own news endpoint with `requests`),
 report a `tool` span onto the same trace, and repeat until the model stops asking for
-tools — see [react_agent.py on
-GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/react-agent/python/react_agent.py)
-for the complete source.
+tools.
+
+:::github
+[`react_agent.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/react-agent/python/react_agent.py) — the complete Python script.
+:::
 
 Run it:
 

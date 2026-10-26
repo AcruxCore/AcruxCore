@@ -26,8 +26,8 @@ This page stops once the tool exists in the catalog.
 [Call a prompt's tools from the SDK](./call-a-prompts-tools-from-the-sdk) is the
 one after that.
 
-:::tip[Prefer a notebook?]
-[`define_a_tool.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/define-a-tool-in-code-or-in-the-catalog/notebook/define_a_tool.ipynb)
+:::github
+**Prefer a notebook?** [`define_a_tool.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/define-a-tool-in-code-or-in-the-catalog/notebook/define_a_tool.ipynb)
 is this whole page as one runnable notebook — both paths, a preflight cell that
 checks a fresh account is ready, and two of the traps below triggered on purpose
 so you can read the real error. It renders on GitHub with its output, so you can
@@ -214,8 +214,9 @@ One exception is worth knowing. A function with **no** docstring in Python, or n
 wording to whoever writes it in the dashboard. Supply a description in code and code
 owns it. Pick per tool which side owns the words.
 
-Full script:
-[`code_defined_tool.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/define-a-tool-in-code-or-in-the-catalog/python/code_defined_tool.py).
+:::github
+[`code_defined_tool.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/define-a-tool-in-code-or-in-the-catalog/python/code_defined_tool.py) — the full script for Path A.
+:::
 
 ## 3. Path B — the catalog owns the definition
 
@@ -334,11 +335,10 @@ Two more rules follow from the same idea, that the definition is the catalog's:
   platform and need nothing from you. A key that matches nothing bound to the
   prompt is ignored, so one app-wide map can serve several prompts.
 
-Full scripts:
-[`setup_catalog_tool.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/define-a-tool-in-code-or-in-the-catalog/python/setup_catalog_tool.py)
-does the dashboard work above over the API, if you would rather not click, and
-[`catalog_defined_tool.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/define-a-tool-in-code-or-in-the-catalog/python/catalog_defined_tool.py)
-is the run.
+:::github
+- [`setup_catalog_tool.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/define-a-tool-in-code-or-in-the-catalog/python/setup_catalog_tool.py) — does the dashboard work above over the API, if you would rather not click.
+- [`catalog_defined_tool.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/define-a-tool-in-code-or-in-the-catalog/python/catalog_defined_tool.py) — the run.
+:::
 
 ## 4. What changes when you switch owner
 

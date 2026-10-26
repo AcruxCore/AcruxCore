@@ -20,8 +20,8 @@ agent framework speaks. AcruxCore's `POST /api/v1/traces/otlp` endpoint accepts 
 directly, so pointing an already-working CrewAI app at AcruxCore is an environment-variable
 change, not a rewrite.
 
-:::tip[Prefer a notebook?]
-[`trip_planner.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/trace-a-crewai-trip-planner/notebook/trip_planner.ipynb)
+:::github
+**Prefer a notebook?** [`trip_planner.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/trace-a-crewai-trip-planner/notebook/trip_planner.ipynb)
 is this whole page as one runnable notebook, written for a first-timer: a preflight cell that
 prints every instrumentor version, the crew built step by step, a live read of both traces and the
 real Tavily queries inside them, and four real ways to get OTLP wiring wrong — including the two
@@ -101,9 +101,11 @@ list both, or your LLM spans will be missing model, tokens, and cost.
 
 The full script also threads a `session.id` across both crew runs with
 `openinference.instrumentation.using_session(session_id)`, so AcruxCore groups them as one
-conversation — see [trip_planner.py on
-GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/trace-a-crewai-trip-planner/python/trip_planner.py)
-for the complete source.
+conversation.
+
+:::github
+[`trip_planner.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/trace-a-crewai-trip-planner/python/trip_planner.py) — the complete Python script.
+:::
 
 ## 4. Run it
 

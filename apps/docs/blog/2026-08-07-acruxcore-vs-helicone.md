@@ -254,8 +254,10 @@ sentence here; see the
 [product tour](https://docs.acruxcore.com/docs/getting-started/product-tour) for the
 screenshot.
 
-Full scripts: [`acx_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/helicone-vs-acruxcore/python/acx_sdk_run.py)
-and [`hl_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/helicone-vs-acruxcore/python/hl_trace_run.py).
+:::github
+- [`acx_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/helicone-vs-acruxcore/python/acx_sdk_run.py) — the AcruxCore leg.
+- [`hl_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/helicone-vs-acruxcore/python/hl_trace_run.py) — the Helicone leg.
+:::
 
 | Feature | Helicone | AcruxCore |
 |---|---|---|
@@ -281,7 +283,9 @@ forwards to OpenAI and nothing else. It ran three times.
 −15 ms and +3 ms, AcruxCore's between +4 ms and +10 ms, and every AcruxCore interval
 crosses zero.
 
-Full script: [`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/helicone-vs-acruxcore/python/latency_bench.py).
+:::github
+[`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/helicone-vs-acruxcore/python/latency_bench.py) — the latency benchmark.
+:::
 
 The two numbers are not measuring the same amount of work, so we are calling this a
 tie rather than a Helicone win. Helicone's self-hosted gateway forwards on the provider

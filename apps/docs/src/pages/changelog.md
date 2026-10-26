@@ -35,6 +35,7 @@ called out in the week it ships and in the SDK release notes.
 - **Blog** — wider posts without the recent-posts sidebar; tables mark Yes and No with icons.
 - **Blog** — tool sections show strengths and limits side by side, in light and dark themes.
 - **Blog** — every post highlights one or two key points as quotes.
+- **Docs and blog** — links to a page's scripts and notebooks sit in one GitHub box.
 
 ---
 

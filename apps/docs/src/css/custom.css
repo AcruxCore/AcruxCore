@@ -865,3 +865,24 @@
 .blog-wrapper article .markdown .theme-admonition {
   border-radius: 12px;
 }
+
+/* `:::github` — the standard block for links to code in the repo (Admonition/Type/GitHub.tsx). */
+.theme-admonition-github {
+  --ifm-alert-background-color: var(--ifm-color-emphasis-100);
+  --ifm-alert-background-color-highlight: var(--ifm-color-emphasis-200);
+  --ifm-alert-foreground-color: var(--ifm-font-color-base);
+  --ifm-alert-border-color: var(--ifm-color-emphasis-700);
+}
+.theme-admonition-github svg {
+  fill: currentColor;
+}
+.theme-admonition-github ul {
+  margin-bottom: 0;
+}
+.theme-admonition-github a code {
+  font-weight: 600;
+}
+/* Infima upper-cases admonition headings; the brand name reads as "GitHub". */
+.theme-admonition-github > div:first-child {
+  text-transform: none;
+}

@@ -10,6 +10,7 @@ import {
   organizationHeadTag,
 } from './site-shared';
 import remarkUnescapeImageAlt from './plugins/remark-unescape-image-alt';
+import {GITHUB_ADMONITION} from './plugins/github-admonition';
 import {docsHeaderRules} from './plugins/cloudflare-headers';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
@@ -77,6 +78,7 @@ const config: Config = {
           // Tutorials + Getting Started live here, served under /docs.
           sidebarPath: './sidebars.ts',
           remarkPlugins: [remarkUnescapeImageAlt],
+          admonitions: GITHUB_ADMONITION,
         },
         // The blog moved to https://acruxcore.com/blog (docusaurus.blog.config.ts,
         // cross-cutting FAQ Q129). The posts and static/img/blog stay in this
@@ -84,6 +86,7 @@ const config: Config = {
         blog: false,
         pages: {
           remarkPlugins: [remarkUnescapeImageAlt],
+          admonitions: GITHUB_ADMONITION,
         },
         theme: {
           customCss: './src/css/custom.css',

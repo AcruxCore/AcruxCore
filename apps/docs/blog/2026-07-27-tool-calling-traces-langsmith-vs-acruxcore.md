@@ -332,9 +332,12 @@ tokens, and every request that names it is priced at those rates.
 
 Six files, exactly as executed. The shared module holds the code that the other scripts
 import. Run `setup_acruxcore.py` once before the AcruxCore agents, or create the same tool,
-prompt and binding in the dashboard. The scripts are in the repo under
-[`scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore)
-and [`scripts/blogs/shared/`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/shared).
+prompt and binding in the dashboard.
+
+:::github
+- [`tool-calling-traces-langsmith-vs-acruxcore/`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore) — the agent and setup scripts.
+- [`shared/`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/shared) — the shared module the scripts import.
+:::
 
 ```bash
 pip install acruxcore openai requests langsmith

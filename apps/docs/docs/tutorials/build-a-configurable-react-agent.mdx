@@ -36,8 +36,8 @@ want: `quick`, `deep`, a customer id, a region. Swapping which alias your code
 renders is the entire configuration mechanism: no redeploy, no code change, not even
 a restart.
 
-:::tip[Prefer a notebook?]
-[`web_research_agent.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/configurable-react-agent/notebook/web_research_agent.ipynb)
+:::github
+**Prefer a notebook?** [`web_research_agent.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/configurable-react-agent/notebook/web_research_agent.ipynb)
 is this whole page as one runnable notebook, written for a first-timer: a preflight cell
 that checks both models and the Tavily key before anything else, both prompt versions and
 both aliases created step by step, the two runs read back from the trace API to prove which
@@ -371,7 +371,11 @@ executor.
 <TabItem value="curl" label="curl">
 
 The full script loops the render → complete → run the tool cycle by hand with curl and jq, since
-curl has no `run_prompt_with_tools()`/`runPromptWithTools()` equivalent — see [web_research_agent.sh on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/configurable-react-agent/bash/web_research_agent.sh) for the complete source.
+curl has no `run_prompt_with_tools()`/`runPromptWithTools()` equivalent.
+
+:::github
+[`web_research_agent.sh`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/configurable-react-agent/bash/web_research_agent.sh) — the complete bash script.
+:::
 
 Run it once per alias — same script, same flags, only the first argument changes:
 
@@ -432,7 +436,11 @@ for you. Since `web_research` is a client tool, its implementation goes in
 Tavily configurations the source defines. The definition itself stays in the catalog, so
 the binding this alias resolved is what the model is offered.
 
-The full script uses `run_prompt_with_tools()` to drive the loop, with the `client_tools` entry calling `tavily-python`'s `AsyncTavilyClient` — see [run_agent.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/configurable-react-agent/python/run_agent.py) for the complete source.
+The full script uses `run_prompt_with_tools()` to drive the loop, with the `client_tools` entry calling `tavily-python`'s `AsyncTavilyClient`.
+
+:::github
+[`run_agent.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/configurable-react-agent/python/run_agent.py) — the complete Python script.
+:::
 
 Run it once per alias:
 
@@ -501,7 +509,11 @@ holds only its schema. The mapped function calls `@langchain/tavily`'s real
 Tavily integration for JS lives in its own `@langchain/tavily` package, same as
 Python's newer `langchain-tavily`).
 
-The full script uses `runPromptWithTools()` to drive the loop, with the `clientTools` entry calling `@langchain/tavily`'s `TavilySearch` directly — see [run_agent.mjs on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/configurable-react-agent/typescript/run_agent.mjs) for the complete source.
+The full script uses `runPromptWithTools()` to drive the loop, with the `clientTools` entry calling `@langchain/tavily`'s `TavilySearch` directly.
+
+:::github
+[`run_agent.mjs`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/configurable-react-agent/typescript/run_agent.mjs) — the complete Node script.
+:::
 
 Run it once per alias:
 

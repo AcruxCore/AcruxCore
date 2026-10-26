@@ -23,8 +23,8 @@ has to re-read to find out. This page builds exactly that: four tools that groun
 in a small, real set of drug and policy fixtures, and the gateway's `response_format`
 feature to force the final answer into one typed shape every time.
 
-:::tip[Prefer a notebook?]
-[`medical_information_qa.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/medical-information-qa/notebook/medical_information_qa.ipynb)
+:::github
+**Prefer a notebook?** [`medical_information_qa.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/medical-information-qa/notebook/medical_information_qa.ipynb)
 is this whole page as one runnable notebook, written for a first-timer. It writes the five
 fixtures itself, so it runs standalone; it checks up front whether your model really honours
 a strict schema; it verifies every citation the agent produces against the real documents;
@@ -483,7 +483,11 @@ No SDK on this tab — just `curl` + `jq` + `awk`, so the tool loop is hand-roll
 two `/gateway/chat/completions` calls on one trace: first a tool-gathering loop with the
 four tools attached, then one shaping call with `response_format` set and no tools. The
 search/policy tools are real bash + `awk` (no Python dependency) — the same token-overlap
-logic as Step 1, just shell syntax — see [run_agent.sh on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/medical-information-qa/bash/run_agent.sh) for the complete source.
+logic as Step 1, just shell syntax.
+
+:::github
+[`run_agent.sh`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/medical-information-qa/bash/run_agent.sh) — the complete bash script.
+:::
 
 ```bash
 ./run_agent.sh "What is Cortiblex approved to treat, and is it safe for someone with a fungal infection?"
@@ -559,8 +563,11 @@ field descriptions the model reads); the SDK accepts either interchangeably.
 
 The full script wires all four tools with `@acrux.tool`, defines both the dict and
 pydantic forms of `MedicalInformationAnswer`, and calls `run_tool_loop()` once with both
-`tools` and `response_format` set — see [run_agent.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/medical-information-qa/python/run_agent.py)
-for the complete source.
+`tools` and `response_format` set.
+
+:::github
+[`run_agent.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/medical-information-qa/python/run_agent.py) — the complete Python script.
+:::
 
 ```bash
 python run_agent.py "What is Cortiblex approved to treat, and is it safe for someone with a fungal infection?"
@@ -632,9 +639,11 @@ the dict form (zero dependencies) and the zod form (typed, with field descriptio
 model reads); the SDK accepts either interchangeably.
 
 The full script wires all four tools via `toolRefs` + `clientTools`, defines both the dict
-and zod forms of `MedicalInformationAnswer`, and calls `runToolLoop()` once with both set
-— see [run_agent.mjs on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/medical-information-qa/typescript/run_agent.mjs)
-for the complete source.
+and zod forms of `MedicalInformationAnswer`, and calls `runToolLoop()` once with both set.
+
+:::github
+[`run_agent.mjs`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/medical-information-qa/typescript/run_agent.mjs) — the complete Node script.
+:::
 
 ```bash
 node run_agent.mjs "What is Cortiblex approved to treat, and is it safe for someone with a fungal infection?"

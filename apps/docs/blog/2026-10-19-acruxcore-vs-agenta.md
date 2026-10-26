@@ -240,12 +240,13 @@ The AcruxCore gateway's point gap was positive in all three runs. Its overhead a
 direct OpenAI call, measured on a quieter baseline, is in the
 [gateway overhead post](/blog/llm-gateway-overhead).
 
-The raw samples for all three runs are committed, and
-[`summarize.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/agenta-vs-acruxcore/python/summarize.py)
-recomputes every number in the table from them.
+The raw samples for all three runs are committed, and `summarize.py` recomputes every number
+in the table from them.
 
-Full script:
-[`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/agenta-vs-acruxcore/python/latency_bench.py).
+:::github
+- [`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/agenta-vs-acruxcore/python/latency_bench.py) — the latency benchmark.
+- [`summarize.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/agenta-vs-acruxcore/python/summarize.py) — recomputes the table from the raw samples.
+:::
 
 ## Tracing
 
@@ -285,10 +286,12 @@ async with AcruxCore(api_key=KEY, base_url=BASE_URL) as hub:
 
 ![AcruxCore trace detail: a single LLM span with token counts, cost, and a link to the prompt version that produced it](/img/comparison/acruxcore/acx-05-trace-detail.png)
 
-Both scripts are committed and were run before this post linked them:
-[`ag_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/agenta-vs-acruxcore/python/ag_trace_run.py)
-and
-[`acx_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/agenta-vs-acruxcore/python/acx_sdk_run.py).
+Both scripts are committed and were run before this post linked them.
+
+:::github
+- [`ag_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/agenta-vs-acruxcore/python/ag_trace_run.py) — the Agenta run.
+- [`acx_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/agenta-vs-acruxcore/python/acx_sdk_run.py) — the AcruxCore run.
+:::
 
 | Feature | Agenta | AcruxCore |
 |---|---|---|

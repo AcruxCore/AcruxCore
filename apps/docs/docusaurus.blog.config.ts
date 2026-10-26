@@ -10,6 +10,7 @@ import {
   organizationHeadTag,
 } from './site-shared';
 import remarkUnescapeImageAlt from './plugins/remark-unescape-image-alt';
+import {GITHUB_ADMONITION} from './plugins/github-admonition';
 import remarkHeroImage from './plugins/remark-hero-image';
 import remarkBlogBlocks from './plugins/remark-blog-blocks';
 import {GENERATED_STATIC_DIR} from './plugins/blog-hero-image';
@@ -101,6 +102,7 @@ const config: Config = {
             // Styles the posts' recurring patterns (Yes/No cells, pros and cons) with no post edits.
             remarkBlogBlocks,
           ],
+          admonitions: GITHUB_ADMONITION,
           showReadingTime: true,
           // A post's "last updated" date, shown under the post and emitted as
           // dateModified in its BlogPosting JSON-LD and as its sitemap lastmod.

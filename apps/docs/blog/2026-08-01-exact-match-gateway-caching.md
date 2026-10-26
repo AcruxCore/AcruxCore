@@ -125,9 +125,12 @@ A few specifics worth knowing before you rely on it:
 
 :::note
 Want to reproduce this? The exact numbers above come from one live run of
-[`gateway-cache-bench.mjs`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/exact-match-gateway-caching/typescript/gateway-cache-bench.mjs)
-against a running gateway — 15 fixed prompts, 4
+`gateway-cache-bench.mjs` against a running gateway — 15 fixed prompts, 4
 passes each, a virtual key with `cacheTtlSeconds` set, reading the real
 `x-gateway-cache` and `x-gateway-cost-usd` response headers rather than
 inferring hit/miss from latency alone.
+:::
+
+:::github
+[`gateway-cache-bench.mjs`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/exact-match-gateway-caching/typescript/gateway-cache-bench.mjs) — the cache benchmark.
 :::

@@ -329,10 +329,10 @@ Real output, both platforms:
 }
 ```
 
-Full scripts:
-[`mlflow_gateway_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/mlflow-vs-acruxcore/python/mlflow_gateway_run.py)
-and
-[`acx_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/mlflow-vs-acruxcore/python/acx_sdk_run.py).
+:::github
+- [`mlflow_gateway_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/mlflow-vs-acruxcore/python/mlflow_gateway_run.py) — the MLflow run.
+- [`acx_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/mlflow-vs-acruxcore/python/acx_sdk_run.py) — the AcruxCore run.
+:::
 
 | Feature | MLflow | AcruxCore |
 |---|---|---|
@@ -360,8 +360,9 @@ any run, so it is a real cost rather than measurement noise. AcruxCore's lands b
 +21 ms and +43 ms — also real, and roughly five times smaller. Both are doing comparable
 work on the request path: resolve an endpoint, forward the call, record usage.
 
-Full script:
-[`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/mlflow-vs-acruxcore/python/latency_bench.py).
+:::github
+[`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/mlflow-vs-acruxcore/python/latency_bench.py) — the latency benchmark.
+:::
 
 ## Friction hit during this run
 

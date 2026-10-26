@@ -187,8 +187,11 @@ Both figures are checkable: the two self-contained scripts are at the end of thi
 the pair behind the first row is here. They import one shared module for the tool body and
 the question, which is
 [printed in full in the tool-call traces post](/blog/tool-calling-traces-langsmith-vs-acruxcore#run-it-yourself-the-complete-scripts).
-All four scripts in this post are in the repo under
-[`scripts/blogs/tool-agent-sdk-langchain-vs-acruxcore/`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/tool-agent-sdk-langchain-vs-acruxcore).
+All four scripts in this post are in the repo.
+
+:::github
+[`tool-agent-sdk-langchain-vs-acruxcore/`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/tool-agent-sdk-langchain-vs-acruxcore) — all four scripts in this post.
+:::
 
 <details>
 <summary><strong>tool_agent_langchain.py</strong> — LangChain's <code>create_agent</code>, 50 lines of code</summary>
@@ -411,9 +414,12 @@ buys you a versioned artifact and a cleaner trace, for the same amount of code.
 ## Run it yourself: the two complete scripts
 
 Everything above is excerpts. These two are the whole thing — no local imports, nothing to
-set up in a dashboard or a terminal first. Both files are also in the repo under
-[`scripts/blogs/tool-agent-sdk-langchain-vs-acruxcore/python/`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/tool-agent-sdk-langchain-vs-acruxcore/python). Both were executed exactly as printed, and the
+set up in a dashboard or a terminal first. Both were executed exactly as printed, and the
 output of those runs is shown underneath each one. Open either to copy it.
+
+:::github
+[`tool-agent-sdk-langchain-vs-acruxcore/python/`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/tool-agent-sdk-langchain-vs-acruxcore/python) — both standalone scripts.
+:::
 
 <details>
 <summary><strong>standalone_langchain_agent.py</strong> — LangChain + LangSmith, 40 lines</summary>

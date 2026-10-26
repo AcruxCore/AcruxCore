@@ -31,8 +31,8 @@ provider key), a **model** (a callable name pointing at that key), a **prompt**
 with the tool **attached**, and a **personal API key** so Python can authenticate.
 Then the whole run is Python.
 
-:::tip[Prefer a notebook?]
-[`weather_agent_rest.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-no-sdk/notebook/weather_agent_rest.ipynb)
+:::github
+**Prefer a notebook?** [`weather_agent_rest.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-no-sdk/notebook/weather_agent_rest.ipynb)
 is this whole page as one runnable notebook, written for a first-timer: a preflight cell
 that checks a fresh account is ready, the tool and prompt created over REST with the
 dashboard values beside each call, the trace read back from the API, and four ways to get
@@ -176,7 +176,9 @@ async with AcruxCore() as hub:
     await hub.prompts.set_tool_binding(prompt.id, tool.id, tool_alias="production")
 ```
 
-Full script: [`setup_prompt.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-no-sdk/python/setup_prompt.py).
+:::github
+[`setup_prompt.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-no-sdk/python/setup_prompt.py) — the full setup script.
+:::
 
 </TabItem>
 <TabItem value="node-sdk" label="Node (SDK)">
@@ -266,9 +268,11 @@ def complete(model, messages, tools, trace_id):
 
 The full script wires all this together — rendering the prompt, opening the trace on
 the first completion and threading it on every later one, running the tool locally,
-posting its span, and looping until the model stops asking for tools — see
-[weather_agent.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-no-sdk/python/weather_agent.py)
-for the complete source.
+posting its span, and looping until the model stops asking for tools.
+
+:::github
+[`weather_agent.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-no-sdk/python/weather_agent.py) — the complete Python script.
+:::
 
 Run it:
 
@@ -315,9 +319,11 @@ for line in resp.iter_lines(decode_unicode=True):
 ```
 
 The full script renders the same stored prompt, then sets `"stream": true` and reads the
-gateway's SSE frames as they arrive, printing each `delta.content` piece live — see
-[weather_stream.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-no-sdk/python/weather_stream.py)
-for the complete source.
+gateway's SSE frames as they arrive, printing each `delta.content` piece live.
+
+:::github
+[`weather_stream.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-no-sdk/python/weather_stream.py) — the complete streaming script.
+:::
 
 Run it and the answer prints as it's generated:
 

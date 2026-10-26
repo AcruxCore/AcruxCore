@@ -110,11 +110,15 @@ both platforms, so you can see how each platform behaves on a typical job.
 ### The app's job
 
 A freelance developer builds a website for a yoga studio at a fixed price of $4,800. The signed
-[scope](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/langfuse-vs-langsmith/data/scope.md)
-lists what the price includes: five pages, a class schedule, a contact form, and 30 days of bug
+scope lists what the price includes: five pages, a class schedule, a contact form, and 30 days of bug
 fixes. After the contract is signed, the client keeps emailing for more. The app reads each email, decides which
 requests the price already covers, and quotes the rest from a
-[price list](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/langfuse-vs-langsmith/data/rate_card.json).
+price list.
+
+:::github
+- [`scope.md`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/langfuse-vs-langsmith/data/scope.md) — the signed scope
+- [`rate_card.json`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/langfuse-vs-langsmith/data/rate_card.json) — the price list
+:::
 
 An example message and the answer the app should give:
 
@@ -149,12 +153,10 @@ We picked this app because each feature in the comparison has a real job in it:
 ### How we ran it
 
 - **The code:** the app is one file,
-  [`pipeline.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/langfuse-vs-langsmith/python/pipeline.py),
-  with no tracing code. Each platform's script passes three things to the app: a function that
+  `pipeline.py`, with no tracing code. Each platform's script passes three things to the app: a function that
   fetches a prompt, an OpenAI client, and a decorator that records each step in the trace. So
   the two runs differ only in these two scripts.
-- **The data:**
-  [30 client messages](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/langfuse-vs-langsmith/data/messages.json),
+- **The data:** 30 client messages,
   each with its expected items and total.
 - **The model:** every call, the judge included, went to the model `glm-5.3` from the provider
   z.ai, through the OpenAI Python SDK.
@@ -163,6 +165,11 @@ We picked this app because each feature in the comparison has a real job in it:
 - **The environments:** each platform's script ran in its own Python 3.12 environment, with
   `openai` 2.48.0 and either `langfuse` 4.14.1 or `langsmith` 0.10.10. Neither environment had a
   LangChain package.
+
+:::github
+- [`pipeline.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/langfuse-vs-langsmith/python/pipeline.py) — the app, with no tracing code
+- [`messages.json`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/langfuse-vs-langsmith/data/messages.json) — the 30 client messages and their expected answers
+:::
 - **One exception:** the script that pushes prompts to LangSmith needs `langchain-core`, so it
   ran in a separate environment.
 
@@ -356,9 +363,11 @@ same 10 minutes.
 
 ## Run it yourself
 
-- [The scripts folder on GitHub](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/langfuse-vs-langsmith):
-  the agent, both platform scripts, the dataset, both prompt versions, a README with the
-  commands, and `RUNLOG.md` with the raw output of every step.
+:::github
+[`langfuse-vs-langsmith/`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/langfuse-vs-langsmith) — the agent, both platform scripts, the dataset, both
+prompt versions, a README with the commands, and `RUNLOG.md` with the raw output of every step.
+:::
+
 - Both platforms against AcruxCore, on the same app:
   [AcruxCore vs Langfuse vs LangSmith](/blog/acruxcore-vs-langfuse-vs-langsmith).
 - Each platform against AcruxCore: [AcruxCore vs Langfuse](/blog/acruxcore-vs-langfuse) and

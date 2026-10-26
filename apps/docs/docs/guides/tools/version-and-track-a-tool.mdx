@@ -216,12 +216,12 @@ Promoting an alias that doesn't exist yet creates it — there's no separate
 authenticated team member; committing, promoting and deleting require `owner`,
 `admin`, or `editor`.
 
-:::tip[Runnable end-to-end scripts]
+:::github
 The whole sequence — three commits, an alias promotion, and analytics — is one
 runnable script per language:
 
-- [`run_lifecycle.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/manage-a-tools-lifecycle-via-the-sdk/python/run_lifecycle.py)
-- [`run_lifecycle.mjs`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/manage-a-tools-lifecycle-via-the-sdk/typescript/run_lifecycle.mjs)
+- [`run_lifecycle.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/manage-a-tools-lifecycle-via-the-sdk/python/run_lifecycle.py) — Python
+- [`run_lifecycle.mjs`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/manage-a-tools-lifecycle-via-the-sdk/typescript/run_lifecycle.mjs) — TypeScript
 
 Each needs only `pip install acruxcore` / `npm install @acruxcoreai/sdk` plus
 `ACRUXCORE_API_KEY` and `ACRUXCORE_BASE_URL` — no monorepo checkout required.

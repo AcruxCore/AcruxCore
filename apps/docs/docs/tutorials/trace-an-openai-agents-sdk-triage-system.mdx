@@ -27,8 +27,8 @@ The Agents SDK's signature feature, a **handoff** — one agent transferring a c
 another — also happens to produce a genuinely different-shaped trace worth seeing land
 correctly.
 
-:::tip[Prefer a notebook?]
-[`triage_system.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/trace-an-openai-agents-sdk-triage-system/notebook/triage_system.ipynb)
+:::github
+**Prefer a notebook?** [`triage_system.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/trace-an-openai-agents-sdk-triage-system/notebook/triage_system.ipynb)
 is this page's Python route as one runnable notebook, written for a first-timer: a preflight cell
 that prints every instrumentor version, the three agents built step by step, a live read of the
 handoff span next to a real tool call, and four real ways to get this wrong — including the tracing
@@ -168,10 +168,11 @@ disable step is needed.
 
 The full script threads a `session.id` across both turns of the conversation with
 `openinference.instrumentation.using_session(session_id)`, and continues the conversation
-across `Runner.run()` calls with `turn1.to_input_list() + [...]` — see
-[triage_system.py on
-GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/trace-an-openai-agents-sdk-triage-system/python/triage_system.py)
-for the complete source.
+across `Runner.run()` calls with `turn1.to_input_list() + [...]`.
+
+:::github
+[`triage_system.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/trace-an-openai-agents-sdk-triage-system/python/triage_system.py) — the complete Python script.
+:::
 
 </TabItem>
 <TabItem value="node" label="Node">
@@ -179,9 +180,11 @@ for the complete source.
 The full script threads a `session.id` across both turns of the conversation with
 `@arizeai/openinference-core`'s `context.with(setSession(context.active(), {
 sessionId }), ...)`, and continues the conversation across `run()` calls with
-`turn1.history.concat([...])` — see [triage_system.mjs on
-GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/trace-an-openai-agents-sdk-triage-system/typescript/triage_system.mjs)
-for the complete source.
+`turn1.history.concat([...])`.
+
+:::github
+[`triage_system.mjs`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/trace-an-openai-agents-sdk-triage-system/typescript/triage_system.mjs) — the complete Node script.
+:::
 
 </TabItem>
 </Tabs>

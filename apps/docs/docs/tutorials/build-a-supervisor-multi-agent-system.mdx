@@ -37,8 +37,8 @@ multi-hop, extend Step 5's loop: feed one subagent's output into a second router
 That's the hybrid-port case, not covered here.
 :::
 
-:::tip[Prefer a notebook?]
-[`supervisor_flow.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/build-a-supervisor-multi-agent-system/notebook/supervisor_flow.ipynb)
+:::github
+**Prefer a notebook?** [`supervisor_flow.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/build-a-supervisor-multi-agent-system/notebook/supervisor_flow.ipynb)
 is this whole page as one runnable notebook, written for a first-timer: a preflight cell that
 checks whether your models are on the right kind of connection, the four tools and four prompts
 built step by step, a live read of the one trace both calls land in, and four real ways to get
@@ -427,7 +427,9 @@ async with AcruxCore() as hub:
     # Repeat for general-research-agent and writing-agent...
 ```
 
-Full script (all four prompts, not just the two shown): [`setup_prompts.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/build-a-supervisor-multi-agent-system/python/setup_prompts.py).
+:::github
+[`setup_prompts.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/build-a-supervisor-multi-agent-system/python/setup_prompts.py) — the full setup script, with all four prompts, not just the two shown.
+:::
 
 The other two subagents follow the exact same shape — create the prompt shell, then commit a
 version with the system prompt, user prompt, and tool ids. Both use `{{ task }}` as the user
@@ -514,7 +516,11 @@ hardcoded, both would land on the same subagent — they don't.
 <TabItem value="curl" label="curl">
 
 The full script threads one trace across the router call and the subagent's tool
-loop — see [supervisor_flow.sh on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/build-a-supervisor-multi-agent-system/bash/supervisor_flow.sh) for the complete source.
+loop.
+
+:::github
+[`supervisor_flow.sh`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/build-a-supervisor-multi-agent-system/bash/supervisor_flow.sh) — the complete bash script.
+:::
 
 ```bash
 ./supervisor_flow.sh "Research Tesla (TSLA) latest stock news and tell me if investors should be worried."
@@ -580,7 +586,11 @@ built for multi-round tool loops. `tools=` passes the **same decorated functions
 already synced, with `sync=False` since nothing has changed since that sync.
 
 The full script threads one trace across the router call and the subagent's
-`run_tool_loop()` — see [supervisor_flow.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/build-a-supervisor-multi-agent-system/python/supervisor_flow.py) for the complete source.
+`run_tool_loop()`.
+
+:::github
+[`supervisor_flow.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/build-a-supervisor-multi-agent-system/python/supervisor_flow.py) — the complete Python script.
+:::
 
 ```bash
 python supervisor_flow.py "Research Tesla's (TSLA) latest stock news and tell me if investors should be worried."
@@ -649,7 +659,11 @@ reach Yahoo's edge (`ETIMEDOUT`/`ENETUNREACH`), even though curl and Python reac
 apart. Real, live headline data either way, just a different real source for that one tool call.
 
 The full script threads one trace across the router call and the subagent's
-`runToolLoop()` — see [supervisor_flow.mjs on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/build-a-supervisor-multi-agent-system/typescript/supervisor_flow.mjs) for the complete source.
+`runToolLoop()`.
+
+:::github
+[`supervisor_flow.mjs`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/build-a-supervisor-multi-agent-system/typescript/supervisor_flow.mjs) — the complete Node script.
+:::
 
 ```bash
 node supervisor_flow.mjs "Research Tesla's (TSLA) latest stock news and tell me if investors should be worried."

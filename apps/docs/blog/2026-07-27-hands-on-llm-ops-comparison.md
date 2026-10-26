@@ -526,13 +526,16 @@ is quoting one sample. The
 version of this measurement we've published, and it puts Opik, MLflow, Langfuse, Helicone, and
 Phoenix in one interleaved run against AcruxCore's gateway and gateway-free BYOK modes.
 
-The benchmark script for each pairing is on GitHub:
-[Phoenix](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/phoenix-vs-acruxcore/python/latency_bench.py),
-[Opik](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/opik-vs-acruxcore/python/latency_bench.py),
-[MLflow](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/mlflow-vs-acruxcore/python/latency_bench.py),
-[Helicone](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/helicone-vs-acruxcore/python/latency_bench.py),
-[Laminar](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/laminar-vs-acruxcore/python/latency_bench.py) and
-[Agenta](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/agenta-vs-acruxcore/python/latency_bench.py).
+The benchmark script for each pairing is on GitHub.
+
+:::github
+- [`phoenix-vs-acruxcore/python/latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/phoenix-vs-acruxcore/python/latency_bench.py) — Phoenix vs AcruxCore.
+- [`opik-vs-acruxcore/python/latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/opik-vs-acruxcore/python/latency_bench.py) — Opik vs AcruxCore.
+- [`mlflow-vs-acruxcore/python/latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/mlflow-vs-acruxcore/python/latency_bench.py) — MLflow vs AcruxCore.
+- [`helicone-vs-acruxcore/python/latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/helicone-vs-acruxcore/python/latency_bench.py) — Helicone vs AcruxCore.
+- [`laminar-vs-acruxcore/python/latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/laminar-vs-acruxcore/python/latency_bench.py) — Laminar vs AcruxCore.
+- [`agenta-vs-acruxcore/python/latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/agenta-vs-acruxcore/python/latency_bench.py) — Agenta vs AcruxCore.
+:::
 
 ## Evaluation
 
@@ -950,13 +953,16 @@ personally hit a BYOK wall on AcruxCore in this session — but to be clear, Acr
 gateway is BYOK too; this account just happened to already be set up.
 
 Every script from this section, plus the six latency benchmarks they feed, is committed and
-runnable — see the full source for
-[Phoenix](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/phoenix-vs-acruxcore/python/px_trace_run.py),
-[Opik](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/opik-vs-acruxcore/python/op_trace_run.py),
-[MLflow](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/mlflow-vs-acruxcore/python/mlflow_gateway_run.py),
-[Helicone](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/helicone-vs-acruxcore/python/hl_trace_run.py),
-[Laminar](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/laminar-vs-acruxcore/python/lm_trace_run.py), and
-[Agenta](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/agenta-vs-acruxcore/python/ag_trace_run.py).
+runnable.
+
+:::github
+- [`px_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/phoenix-vs-acruxcore/python/px_trace_run.py) — the Phoenix leg.
+- [`op_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/opik-vs-acruxcore/python/op_trace_run.py) — the Opik leg.
+- [`mlflow_gateway_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/mlflow-vs-acruxcore/python/mlflow_gateway_run.py) — the MLflow leg.
+- [`hl_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/helicone-vs-acruxcore/python/hl_trace_run.py) — the Helicone leg.
+- [`lm_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/laminar-vs-acruxcore/python/lm_trace_run.py) — the Laminar leg.
+- [`ag_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/agenta-vs-acruxcore/python/ag_trace_run.py) — the Agenta leg.
+:::
 
 <details>
 <summary>See the actual screens: the trace each platform's SDK script produced</summary>

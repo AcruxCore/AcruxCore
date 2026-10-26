@@ -18,8 +18,8 @@ RAG means *retrieval-augmented generation*: before you ask the model a question,
 The gateway path stores your provider key server-side and routes every call through AcruxCore — useful for budget controls, caching, and fallback routing. BYO skips that: you pass the SDK an OpenAI-compatible `base_url` and `api_key`, and it calls the endpoint directly. Your key never reaches our servers, you save a network hop, and you still get versioned prompts, a tool catalog, and full traces.
 :::
 
-:::tip[Prefer a notebook?]
-[`acrux_rag.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/rag-agent-without-the-gateway/notebook/acrux_rag.ipynb)
+:::github
+**Prefer a notebook?** [`acrux_rag.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/rag-agent-without-the-gateway/notebook/acrux_rag.ipynb)
 is this whole page as one runnable notebook, written for a first-timer: a preflight cell that
 checks both keys — including whether your provider really serves embeddings — the index built
 step by step, a live read of the traces both answering styles produce, and four real ways to get
@@ -406,8 +406,11 @@ The prompt render and trace report are ordinary `requests.post` calls against th
 ## The whole script
 
 Run `python acrux_rag.py --setup` once to create the two prompts, then
-`python acrux_rag.py "your question"` to answer with both styles. See
-[acrux_rag.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/rag-agent-without-the-gateway/python/acrux_rag.py) for the complete source.
+`python acrux_rag.py "your question"` to answer with both styles.
+
+:::github
+[`acrux_rag.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/rag-agent-without-the-gateway/python/acrux_rag.py) — the complete Python script.
+:::
 
 ## What's next
 

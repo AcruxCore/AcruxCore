@@ -34,8 +34,8 @@ a **one-time setup** — the model, the tool schema, the prompt — you do once 
 dashboard by clicking. Everything that's **code** — running the agent — you do with
 the SDK.
 
-:::tip[Prefer a notebook?]
-[`sql_analyst_agent.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/notebook/sql_analyst_agent.ipynb)
+:::github
+**Prefer a notebook?** [`sql_analyst_agent.ipynb`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/notebook/sql_analyst_agent.ipynb)
 is this whole page as one runnable notebook, written for a first-timer: a preflight cell
 that checks a fresh account is ready, the tool and prompt built step by step with the
 dashboard values beside the code, a live read of the trace the run produced, and four ways
@@ -69,9 +69,12 @@ conn.executemany("INSERT INTO products VALUES (?, ?, ?, ?, ?)", PRODUCTS)
 conn.executemany("INSERT INTO orders VALUES (?, ?, ?, ?, ?)", ORDERS)
 ```
 
-See [seed_db.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/python/seed_db.py)
-for the complete script — it drops and recreates the `products` and `orders`
+The complete script drops and recreates the `products` and `orders`
 tables, then inserts the same fixed rows this guide's answers are based on.
+
+:::github
+[`seed_db.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/python/seed_db.py) — the complete seed script.
+:::
 
 ```bash
 python seed_db.py
@@ -207,8 +210,9 @@ a trace back to the version that produced it. `run_tool_loop` takes a bare model
 and derives nothing, so passing `rendered.model` by hand runs fine and records no
 lineage at all.
 
-See
-[sql_agent_decorator_tool.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/python/sql_agent_decorator_tool.py) for the complete source (named `sql_agent.py` in this page's prose, `sql_agent_decorator_tool.py` in the repo, to distinguish it from Option B below).
+:::github
+[`sql_agent_decorator_tool.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/python/sql_agent_decorator_tool.py) — the complete source. This page calls it `sql_agent.py`; the repo name tells it apart from Option B below.
+:::
 
 :::tip
 The tool still appears in the dashboard after the run — you define it in code, not
@@ -232,8 +236,9 @@ result = await hub.gateway.run_prompt_with_tools(
 Nothing is written back to the catalog, unlike Option A. The function's parameters are
 the schema's own field names — here `sql` — because that is how it is called.
 
-See
-[sql_agent_client_tools.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/python/sql_agent_client_tools.py) for the complete source (named `sql_agent.py` in this page's prose, `sql_agent_client_tools.py` in the repo, to distinguish it from Option A above).
+:::github
+[`sql_agent_client_tools.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/python/sql_agent_client_tools.py) — the complete source. This page calls it `sql_agent.py`; the repo name tells it apart from Option A above.
+:::
 
 Both options produce the same trace. Don't do both for the same tool — a
 decorated tool's spec overwrites the dashboard's on every run. See
@@ -303,9 +308,12 @@ async for chunk in stream:
     print(chunk.delta.get("content", "") or "", end="", flush=True)
 ```
 
-See [stream_demo.py on GitHub](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/python/stream_demo.py)
-for the complete script — it opens a streamed `chat` call and prints each text
+The complete script opens a streamed `chat` call and prints each text
 delta as it arrives.
+
+:::github
+[`stream_demo.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/python/stream_demo.py) — the complete streaming script.
+:::
 
 ```bash
 python stream_demo.py
@@ -504,7 +512,9 @@ async with AcruxCore() as hub:
     print(f"prompt_id={prompt.id} v{version.version_number}")
 ```
 
-Full script: [`setup_prompt.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/python/setup_prompt.py).
+:::github
+[`setup_prompt.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/tool-calling-agent-in-python-sdk/python/setup_prompt.py) — the full setup script.
+:::
 
 </TabItem>
 <TabItem value="node-sdk" label="Node (SDK)">

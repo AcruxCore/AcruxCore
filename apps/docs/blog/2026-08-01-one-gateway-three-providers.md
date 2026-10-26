@@ -205,9 +205,13 @@ and user message (only the registered `model` name differed from the
 `"demo-model"` placeholder shown in the request bodies above). The request
 shapes themselves come from running the gateway's real, unmodified adapter
 classes directly against the one request at the top of this post, with
-[`gateway-provider-shapes.mts`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/one-gateway-three-providers/typescript/gateway-provider-shapes.mts).
+`gateway-provider-shapes.mts`.
 That script imports the adapters from the AcruxCore repo, so run it from a clone
 with `npx tsx`.
+:::
+
+:::github
+[`gateway-provider-shapes.mts`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/one-gateway-three-providers/typescript/gateway-provider-shapes.mts) — prints each provider's request shape from the real adapters.
 :::
 
 Want to try this yourself? The [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart)

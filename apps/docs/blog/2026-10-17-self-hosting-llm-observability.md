@@ -157,7 +157,11 @@ If you want to compare features rather than hosting at a glance, the [comparison
 
 ## Scripts and raw readings
 
-The harness is in [`scripts/blogs/self-hosting-llm-observability`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/self-hosting-llm-observability) on GitHub. `bench.sh` starts each stack, sends the load, and takes the memory and disk readings. `load.py` sends the OTLP traces. `space_clickhouse.sh` and `space_postgres.sh` measure the space the traces take inside each database. The `overrides/` folder holds every change we made to each official setup. The `results/` folder holds every raw reading, and `python3 summarize.py` prints the timing, memory and disk figures used in this post.
+:::github
+[`self-hosting-llm-observability/`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/self-hosting-llm-observability) — the benchmark harness and every raw reading.
+:::
+
+`bench.sh` starts each stack, sends the load, and takes the memory and disk readings. `load.py` sends the OTLP traces. `space_clickhouse.sh` and `space_postgres.sh` measure the space the traces take inside each database. The `overrides/` folder holds every change we made to each official setup. The `results/` folder holds every raw reading, and `python3 summarize.py` prints the timing, memory and disk figures used in this post.
 
 Six of these tools also have a hands-on comparison with AcruxCore that covers features rather than hosting: [Langfuse](/blog/acruxcore-vs-langfuse), [Opik](/blog/acruxcore-vs-opik), [Phoenix](/blog/acruxcore-vs-phoenix), [MLflow](/blog/acruxcore-vs-mlflow), [Laminar](/blog/acruxcore-vs-laminar) and [Agenta](/blog/acruxcore-vs-agenta).
 

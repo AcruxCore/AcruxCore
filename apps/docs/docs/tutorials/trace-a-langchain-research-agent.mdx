@@ -231,11 +231,12 @@ await context.with(setSession(context.active(), { sessionId }), async () => {
 </Tabs>
 
 The full scripts thread turn 1's real answer into turn 2, so the follow-up is a genuine
-revision rather than a second unrelated question — see
-[research_agent.py](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/trace-a-langchain-research-agent/python/research_agent.py)
-and
-[research_agent.mjs](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/trace-a-langchain-research-agent/typescript/research_agent.mjs)
-for the complete source.
+revision rather than a second unrelated question.
+
+:::github
+- [`research_agent.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/trace-a-langchain-research-agent/python/research_agent.py) — the complete Python script.
+- [`research_agent.mjs`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/tutorials/trace-a-langchain-research-agent/typescript/research_agent.mjs) — the complete Node script.
+:::
 
 ## 5. Run it
 

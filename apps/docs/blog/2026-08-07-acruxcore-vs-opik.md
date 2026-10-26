@@ -268,7 +268,10 @@ Both produced a real trace within seconds of the call returning:
 
 </details>
 
-Full scripts: [`op_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/opik-vs-acruxcore/python/op_trace_run.py) and [`acx_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/opik-vs-acruxcore/python/acx_sdk_run.py).
+:::github
+- [`op_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/opik-vs-acruxcore/python/op_trace_run.py) — the Opik leg.
+- [`acx_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/opik-vs-acruxcore/python/acx_sdk_run.py) — the AcruxCore leg.
+:::
 
 AcruxCore's SDK-produced trace is one sentence here; see the
 [product tour](https://docs.acruxcore.com/docs/getting-started/product-tour) for the
@@ -307,7 +310,9 @@ reliably distinguishable from calling the provider directly at this sample size.
 > **Key point:** Opik's overhead lands between +2 ms and +22 ms, and AcruxCore's lands between
 > +9 ms and +31 ms. Both confidence intervals cross zero in two of the three runs.
 
-Full script: [`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/opik-vs-acruxcore/python/latency_bench.py).
+:::github
+[`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/opik-vs-acruxcore/python/latency_bench.py) — the latency benchmark.
+:::
 
 For a broader run — six platforms in one interleaved benchmark, the stored-prompt fetch
 timed alongside the completion, and four independent runs to check how stable the

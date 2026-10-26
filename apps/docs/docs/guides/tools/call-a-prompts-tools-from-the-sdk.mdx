@@ -527,8 +527,10 @@ completion to inspect.
 **The smallest possible streamed loop** — a render, a stream, a `print`, and nothing
 else. Useful as the thing you copy before you have decided how to render any of it:
 
-- [Python](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/call-a-prompts-tools-from-the-sdk/python/stream_minimal.py)
-- [TypeScript](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/call-a-prompts-tools-from-the-sdk/typescript/stream_minimal.mjs)
+:::github
+- [`stream_minimal.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/call-a-prompts-tools-from-the-sdk/python/stream_minimal.py) — Python
+- [`stream_minimal.mjs`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/call-a-prompts-tools-from-the-sdk/typescript/stream_minimal.mjs) — TypeScript
+:::
 
 ```bash
 export ACRUXCORE_API_KEY=acx_sk_...
@@ -552,8 +554,10 @@ them, and a `client_tools` entry so the `client`-executor alias runs too. It pri
 after the tool returned the first word of the answer appeared, which is the part a
 blocking loop makes you wait for:
 
-- [Python](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/call-a-prompts-tools-from-the-sdk/python/stream_prompt_tools.py)
-- [TypeScript](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/call-a-prompts-tools-from-the-sdk/typescript/stream_prompt_tools.mjs)
+:::github
+- [`stream_prompt_tools.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/call-a-prompts-tools-from-the-sdk/python/stream_prompt_tools.py) — Python
+- [`stream_prompt_tools.mjs`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/call-a-prompts-tools-from-the-sdk/typescript/stream_prompt_tools.mjs) — TypeScript
+:::
 
 ```bash
 export ACRUXCORE_API_KEY=acx_sk_...
@@ -584,8 +588,10 @@ whole loop                     2977 ms
 
 **Every call on this page, side by side** against the same prompt:
 
-- [Python](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/call-a-prompts-tools-from-the-sdk/python/run_prompt_tools.py)
-- [TypeScript](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/call-a-prompts-tools-from-the-sdk/typescript/run_prompt_tools.mjs)
+:::github
+- [`run_prompt_tools.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/call-a-prompts-tools-from-the-sdk/python/run_prompt_tools.py) — Python
+- [`run_prompt_tools.mjs`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/guides/call-a-prompts-tools-from-the-sdk/typescript/run_prompt_tools.mjs) — TypeScript
+:::
 
 Both default to `weather-brief` / `get_weather` from
 [Connect a tool to a prompt](./connect-a-tool-to-a-prompt); point them at your own
