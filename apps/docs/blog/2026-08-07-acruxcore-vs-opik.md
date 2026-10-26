@@ -175,6 +175,9 @@ tab at "No traces yet" — the Playground alone does not trace. A real trace onl
 producing a two-level span tree: an outer `chat_completion_create` trace wrapping an
 inner LLM span with model, provider, tokens, and cost.
 
+> **Key point:** Opik's Playground produces no trace. A trace appears only after a call through the
+> SDK-wrapped client.
+
 <details>
 <summary>Show screenshots: trace detail on both platforms</summary>
 
@@ -300,6 +303,9 @@ Opik's overhead lands between +2 ms and +22 ms, AcruxCore's between +9 ms and +3
 Opik's was never the higher of the two, though the two were identical in the first run.
 In two of the three runs both confidence intervals cross zero, so neither path is
 reliably distinguishable from calling the provider directly at this sample size.
+
+> **Key point:** Opik's overhead lands between +2 ms and +22 ms, and AcruxCore's lands between
+> +9 ms and +31 ms. Both confidence intervals cross zero in two of the three runs.
 
 Full script: [`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/opik-vs-acruxcore/python/latency_bench.py).
 

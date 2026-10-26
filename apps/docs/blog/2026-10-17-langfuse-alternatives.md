@@ -97,6 +97,9 @@ next to Langfuse and five other self-hostable platforms, feature by feature.
 - **ClickHouse owns Langfuse.** ClickHouse acquired Langfuse in January 2026. The Langfuse core
   stays MIT, and Langfuse Cloud stays a product separate from ClickHouse Cloud.
 
+> **Key point:** Langfuse records model calls but does not route them. For a gateway, the Langfuse
+> docs put a second tool, LiteLLM, between your app and the provider.
+
 ![Five reasons teams look past Langfuse: four data stores, features behind an enterprise license, no gateway, every step billed, and a new owner, ClickHouse](/img/blog/langfuse-alternatives/02-why.webp)
 
 Sources: Langfuse [license](https://github.com/langfuse/langfuse/blob/main/LICENSE),
@@ -465,6 +468,9 @@ Start at the top and stop at the first question you answer yes to.
 | Langfuse | $29 a month | 100,000 units, unlimited users | 90 days |
 | Opik | $19 a month | 100,000 spans, up to 50 members | 60 days |
 | AcruxCore | Free | Every feature | 90 days of span content |
+
+> **Key point:** Opik is the only paid cloud plan in this list that costs less than Langfuse Core:
+> $19 a month against $29.
 
 ### Langfuse alternatives that cost more
 

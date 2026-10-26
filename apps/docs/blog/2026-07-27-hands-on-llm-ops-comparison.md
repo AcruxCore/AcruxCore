@@ -409,6 +409,9 @@ MLflow the closest match to AcruxCore's own architecture of any competitor in th
 Agenta sits in the path for one kind of call and beside it for another. Its invoke endpoint
 renders a stored prompt and calls the model. Its SDK traces a call that your own code makes.
 
+> **Key point:** MLflow, Helicone and AcruxCore sit in the request path and call the provider.
+> LangSmith, Langfuse, PromptLayer, Phoenix, Opik and Laminar sit beside the request path.
+
 Laminar is the most deliberate "beside" of the ten, and worth reading as a design position
 rather than a missing feature. We checked its server's routes directly: the only
 `/chat/completions` handling anywhere in the codebase is its own *outbound* client for its AI
@@ -495,6 +498,10 @@ Three things in that table are worth saying plainly.
 sit inside tens of milliseconds of a raw call, and each of them crossed zero in two runs out
 of three. Adding client-side tracing to a call that already takes 600 ms is not something
 your users will feel.
+
+> **Key point:** Phoenix, Opik and Laminar each add overhead within tens of milliseconds of a raw
+> call. For each one, the confidence interval of that overhead crossed zero in two runs out of
+> three.
 
 **Helicone's number is a floor, not a like-for-like.** Its gateway forwarded every round, but
 without an organization API key set it forwards *without logging* — we confirmed 0 rows in

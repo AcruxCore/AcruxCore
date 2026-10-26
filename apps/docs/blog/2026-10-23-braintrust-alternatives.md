@@ -103,6 +103,9 @@ The details are in [About AcruxCore](#about-acruxcore).
   signed up before that date keep some features that new Starter organizations lack, such as
   full role-based access.
 
+> **Key point:** Braintrust has no hard spending limit, and its spend alerts do not stop usage.
+> Self-hosting Braintrust needs an Enterprise contract.
+
 ![Five reasons teams look past Braintrust: no plan between $0 and $249, no hard spend limit, self-hosting on Enterprise only, key rotation after the May 2026 incident, and the Free plan becoming Starter](/img/blog/braintrust-alternatives/02-why.webp)
 
 Sources: [pricing](https://www.braintrust.dev/pricing),
@@ -124,6 +127,9 @@ Prices as read on the Braintrust pricing page on 21 October 2026.
 
 Every plan has unlimited users. Startups at Series A or earlier can get Pro free for 6 to 12
 months.
+
+> **Key point:** Braintrust Pro costs $249 a month and keeps data for 30 days. Every Braintrust plan
+> has unlimited users.
 
 ## How we picked and ranked
 

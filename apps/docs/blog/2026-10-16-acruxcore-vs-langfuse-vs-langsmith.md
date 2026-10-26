@@ -272,6 +272,9 @@ messages. The table shows how each platform handled that.
 | Clicks to the comparison of two runs | 3, from the Evaluations page | 4, from the dataset page | 4, from the dataset page |
 | See only the messages whose score changed | Yes, the comparison opens that way | No; scan all 30 rows | Yes, one click |
 
+> **Key point:** When you compare two experiment runs, AcruxCore and LangSmith can show only the
+> messages whose score changed. Langfuse has no such filter, so you scan all 30 rows.
+
 - We do not compare the scores across platforms. All three ran the same prompts on the same
   model, and `glm-5.3` gives a slightly different answer each time, so score gaps between
   platforms are noise. The scores of every run are in the

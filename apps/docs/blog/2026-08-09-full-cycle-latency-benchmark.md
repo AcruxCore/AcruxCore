@@ -264,6 +264,10 @@ The gateway's point estimate moves from +194ms down to 0ms and back to +63ms
 across four runs of unchanged code — only two of the four even clear statistical
 significance. **BYOK's gap crosses zero in every run it was measured.**
 
+> **Key point:** Across four runs of the same code, the AcruxCore gateway's gap to OpenAI direct
+> was +194, +53, 0 and +63 ms. The gap for AcruxCore BYOK, measured from run 2, crossed zero in all
+> three of its runs.
+
 That difference is itself informative. A 100-round bootstrap on top of a highly
 variable, 600–800ms live-network signal has real estimation width — commonly
 ±100–150ms per run at this sample size — which is enough to swallow a true

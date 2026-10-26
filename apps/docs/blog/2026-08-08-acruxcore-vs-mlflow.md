@@ -143,6 +143,9 @@ MLflow's Prompt Registry has **no "create" button anywhere in the UI** — the e
 state literally offers "Get help registering a prompt" and "Copy for coding agent."
 Every prompt starts life as a `mlflow.genai.register_prompt()` call.
 
+> **Key point:** MLflow's Prompt Registry has no create button in the UI. Every MLflow prompt
+> starts as a `mlflow.genai.register_prompt()` call.
+
 What that call can hold was the real surprise here: MLflow's templates are **full
 Jinja2**, not flat `{{variable}}` substitution. We registered the fixture's actual
 `{% if is_vip %}...{% else %}...{% endif %}` and `{% for ticket in tickets %}...{%

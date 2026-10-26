@@ -11,6 +11,7 @@ import {
 } from './site-shared';
 import remarkUnescapeImageAlt from './plugins/remark-unescape-image-alt';
 import remarkHeroImage from './plugins/remark-hero-image';
+import remarkBlogBlocks from './plugins/remark-blog-blocks';
 import {GENERATED_STATIC_DIR} from './plugins/blog-hero-image';
 import {BLOG_REDIRECTS} from './redirects';
 import {blogHeaderRules} from './plugins/cloudflare-headers';
@@ -94,7 +95,12 @@ const config: Config = {
           // The blog is the whole site here, so it sits at the base URL itself:
           // a post's path is /blog/<slug>, the same slug it had on the docs host.
           routeBasePath: '/',
-          remarkPlugins: [remarkUnescapeImageAlt, [remarkHeroImage, {siteDir: __dirname, baseUrl: '/blog/'}]],
+          remarkPlugins: [
+            remarkUnescapeImageAlt,
+            [remarkHeroImage, {siteDir: __dirname, baseUrl: '/blog/'}],
+            // Styles the posts' recurring patterns (Yes/No cells, pros and cons) with no post edits.
+            remarkBlogBlocks,
+          ],
           showReadingTime: true,
           // A post's "last updated" date, shown under the post and emitted as
           // dateModified in its BlogPosting JSON-LD and as its sitemap lastmod.
@@ -119,7 +125,7 @@ const config: Config = {
           onInlineTags: 'warn',
           onInlineAuthors: 'warn',
           onUntruncatedBlogPosts: 'warn',
-          blogSidebarCount: 'ALL',
+          blogSidebarCount: 0,
         },
         theme: {
           customCss: './src/css/custom.css',

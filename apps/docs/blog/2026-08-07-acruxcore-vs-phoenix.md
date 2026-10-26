@@ -192,6 +192,10 @@ the span's *rendered* `messages` array, not the original template variables
 prompt produced "Dataset is missing input for variables" — the captured example and
 the templated prompt don't speak the same shape without manual remapping.
 
+> **Key point:** Phoenix saved a trace into a dataset as the rendered `messages` array, not as the
+> template variables. An experiment with the saved prompt then failed with "Dataset is missing
+> input for variables".
+
 <details>
 <summary>Show screenshots: evaluators overview and the failed experiment run</summary>
 
@@ -284,6 +288,9 @@ consistent enough to be real, and small enough that no application would notice 
 The two are different kinds of cost: client-side OTel instrumentation pays CPU and
 serialization, an extra network hop pays routing and caching. Full script:
 [`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/phoenix-vs-acruxcore/python/latency_bench.py).
+
+> **Key point:** Phoenix's overhead lands between −14 ms and +21 ms, and AcruxCore's lands between
+> +11 ms and +51 ms. Phoenix's overhead was the lower of the two in all three runs.
 
 For a broader run — six platforms in one interleaved benchmark, the stored-prompt
 fetch timed alongside the completion, and four independent runs to check how stable

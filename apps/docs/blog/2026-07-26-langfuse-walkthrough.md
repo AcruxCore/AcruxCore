@@ -77,6 +77,9 @@ Langfuse's traces come from its **ingestion API**, which any app can send events
 SDKs use this API under the hood, and the account already had real trace data from that
 path.
 
+> **Key point:** A Langfuse Playground run does not create a trace. Langfuse traces come from its
+> ingestion API, which the SDKs use.
+
 ![Langfuse tracing table listing chat-completion generations and support-greeting-run spans, grouped under trace names](/img/tutorials/langfuse-walkthrough/lf-02-tracing-table.jpg)
 
 Opening one trace shows the full picture:

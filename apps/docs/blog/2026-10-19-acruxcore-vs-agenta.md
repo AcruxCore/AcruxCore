@@ -97,6 +97,9 @@ match has to be written as a code scorer in your own process.
 | Human review | Human evaluations and annotation queues | Trace feedback, with no queue |
 | Dataset from traces | "Add to testset" on a trace | A dataset from the feedback list |
 
+> **Key point:** Agenta has 11 built-in rule evaluators, and AcruxCore has none on the server.
+> A regex or an exact match in AcruxCore is a code scorer that runs in your own process.
+
 ## Prompt versions and deployment
 
 Agenta stores a prompt as an app with variants, and each variant has versions. The commit
@@ -167,6 +170,9 @@ each variable, and the render endpoint checks a request against the same list.
 | Variable that appears only inside a tag | No input field | Input field |
 | Loop variable | Listed as an input | Left out |
 | Fix when the list is wrong | Edit `input_keys` by hand | Not needed |
+
+> **Key point:** Agenta's editor gives no input field to a variable that appears only inside
+> `{% if %}` or `{% for %}`. AcruxCore gives every variable an input field.
 
 ## Where model calls run
 

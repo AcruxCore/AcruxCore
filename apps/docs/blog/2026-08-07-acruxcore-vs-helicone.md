@@ -92,6 +92,10 @@ benchmark rounds below.
 | BYOK routing (non-native provider) | 501 on the generic path; hard-forwarded to the wrong host on the named path | Worked on 100/100 benchmark rounds |
 | Caching, rate limits | Documented header controls (`Helicone-Cache-Enabled`, etc.) | Built in, applied before the provider call |
 
+> **Key point:** Routing OpenRouter through Helicone's gateway failed: the generic path returned
+> HTTP 501, and the named path forwarded to `api.openai.com`. AcruxCore's gateway routed the
+> OpenRouter call on 100 of 100 benchmark rounds.
+
 ## Prompt authoring & versioning
 
 AcruxCore's editor uses **nunjucks** — real `{% if %}` and `{% for %}` logic, so the
@@ -285,6 +289,9 @@ key alone; attributing a request to an organization — which is what makes it *
 needs a Helicone API key, and this run had none. Its ClickHouse request table held zero
 rows afterwards. So its number is the cost of forwarding, a floor, while AcruxCore's
 includes writing the span. A logged Helicone request would cost more than −15 ms.
+
+> **Key point:** Helicone's request table held zero rows after the benchmark, so its latency gap
+> covers forwarding only. AcruxCore's gap also includes writing the span.
 
 For a broader run — real OpenAI billing instead of OpenRouter, six platforms in one
 interleaved benchmark, and four independent runs to check how stable the numbers

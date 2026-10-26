@@ -158,6 +158,9 @@ none: no tracing SDK, no decorator, no span object. The gateway writes the `llm`
 because it is the thing making the provider call, and the SDK writes the `tool` span around
 your function and threads it into the same trace.
 
+> **Key point:** LangChain's trace has seven runs for one agent turn. AcruxCore's trace has three
+> spans: two `llm` spans and one `tool` span.
+
 ![The tool span from the run, showing executorType client and the tool version id](/img/blog/tool-comparison/04-client-tool-span.png)
 
 `executorType: client` is the span saying your process ran the tool, and `toolVersionId`

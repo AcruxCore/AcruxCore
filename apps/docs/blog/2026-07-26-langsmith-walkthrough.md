@@ -97,6 +97,9 @@ Each submit gave an immediate "Example added to dataset" confirmation, and the
 Examples table updated in place. Running a full **Experiment** (an evaluation
 run against the dataset) needs the same provider key as the Playground.
 
+> **Key point:** LangSmith's Playground needs your own provider API key before it executes a
+> call. A full Experiment needs the same key.
+
 With the key in place, an Experiment run against the `acruxcore-support-qa` dataset
 completed. It covered 5 examples, each with input, reference-output and actual-output
 columns. The automatic **Correctness** evaluator scored 0.80, and P50/P99 latency was

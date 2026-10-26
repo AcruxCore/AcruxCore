@@ -137,6 +137,9 @@ measurable to a direct provider call.** The local gateway doesn't either, so on
 the same machine BYO saves no measurable time. The reason to choose BYO is that
 your provider key stays on your own machines.
 
+> **Key point:** On the same machine, the SDK calling OpenAI directly (BYO) is no faster than the
+> local AcruxCore gateway. BYO keeps your provider key on your own machines.
+
 **Tracing never blocks the response either way.** The SDK reports its own trace
 in the background — a queue that drains after `hub.gateway.chat()` has already handed the
 answer back, on no fixed timer — so turning tracing on or off on the BYO path

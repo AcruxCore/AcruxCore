@@ -96,6 +96,9 @@ log the result to PromptLayer via their SDK. But what you get back by default is
 not an automatic multi-step trace. Multi-step tracing exists as an opt-in, separate feature, not the
 default behavior of "run a prompt."
 
+> **Key point:** PromptLayer logs each call as a flat Request by default. Multi-step Traces need
+> explicit `trace_id`/span instrumentation through the SDK.
+
 ## 5. Evaluation
 
 PromptLayer has two evaluation tools in the UI.

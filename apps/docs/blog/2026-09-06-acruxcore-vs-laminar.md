@@ -143,6 +143,9 @@ support your provider.
 | Can serve a cached response | No | Yes |
 | A platform outage breaks your calls | No | Yes, unless you fail open |
 
+> **Key point:** A Laminar outage cannot break your production call. An AcruxCore outage breaks
+> your calls unless you fail open.
+
 ## Latency overhead — measured
 
 100 rounds per run, interleaved in rotating order so a network blip lands on all three paths
@@ -165,6 +168,9 @@ of the three runs every confidence interval crosses zero, which means neither pa
 statistically distinguishable from calling the provider directly at this sample size. Laminar's
 median gap was the lower of the two in all three runs, by roughly 10 ms — consistent enough to
 be real, small enough that no application would notice it.
+
+> **Key point:** Laminar's overhead lands between −8 ms and +18 ms, and AcruxCore's lands between
+> +7 ms and +27 ms. Every confidence interval crosses zero in two of the three runs.
 
 Both are cheap, and they are different kinds of cost: Laminar's is client-side instrumentation
 that batches spans off the hot path, ours is a real extra network hop that buys routing, budget

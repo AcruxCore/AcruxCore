@@ -221,6 +221,9 @@ We picked this app because each feature in the comparison has a real job in it:
 | History of promotions | Not shown | Rollback list of every commit the environment pointed to |
 | SDK cache before a promotion reaches the app | 60 seconds | 5 minutes |
 
+> **Key point:** A Langfuse prompt read with no label returns the `production` version. A
+> LangSmith prompt read with no tag returns the newest commit, drafts included.
+
 ![Reading a prompt with no label: Langfuse returns the production version; LangSmith returns the newest commit, so code must ask for name:production](/img/blog/langfuse-vs-langsmith/prompt-read-no-label.webp)
 
 - After we pushed a draft v2, `pull_prompt_commit("scope-extract")` returned the draft. Code on
@@ -336,6 +339,9 @@ same 10 minutes.
 |---|---|---|---|
 | Langfuse Core ($29, 100,000 units included) | $98.36; $119.69 if each trace also gets three scores | Per unit: each trace, observation and score | 90 days |
 | LangSmith Plus ($39 a seat, 10,000 traces included) | $567 | Per trace: $0.005 for each extra trace | 14 days; 180 days costs extra |
+
+> **Key point:** For 100,000 traces a month and 3 people, Langfuse Core costs $98.36 and LangSmith
+> Plus costs $567. Langfuse keeps the data for 90 days, and LangSmith keeps it for 14 days.
 
 - Prices come from [langfuse.com/pricing](https://langfuse.com/pricing) and
   [langchain.com/pricing](https://www.langchain.com/pricing), read on 16 October 2026, using

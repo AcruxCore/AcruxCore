@@ -92,6 +92,9 @@ to six self-hostable platforms, feature by feature.
 - **The platform is not open source.** The SDKs are MIT. The server ships only as container
   images that need a license key.
 
+> **Key point:** LangSmith Plus costs $39 per seat a month. Three people pay $117 a month before
+> they pay for extra traces.
+
 LangSmith does not need LangChain for tracing. Its `traceable` decorator and its OpenTelemetry
 endpoint work with any code.
 
@@ -171,6 +174,9 @@ Opik vs LangSmith: Opik is Apache-2.0 from end to end and has the cheapest paid 
 | Self-host | Free: MySQL, Redis, ClickHouse, ZooKeeper, MinIO, three app services | Enterprise plan only |
 | Cheapest paid plan | Pro: $19 a month, 100,000 spans, up to 50 members, 60 days | Plus: $39 per seat a month |
 | Gateway | Beta, for development and testing | Beta |
+
+> **Key point:** Opik Pro costs $19 a month for up to 50 members. LangSmith Plus costs $39 per
+> seat a month.
 
 **Where Opik differs**
 

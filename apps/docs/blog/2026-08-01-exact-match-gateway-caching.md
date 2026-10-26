@@ -109,6 +109,9 @@ A few specifics worth knowing before you rely on it:
   tagged so you can tell them apart, and still shows the real token counts —
   only the cost is zero and no provider was actually called.
 
+> **Key point:** The AcruxCore gateway caches a call only when `temperature` is explicitly `0`. A
+> streamed request is never looked up in the cache and never stored.
+
 ## What this means for you
 
 - **Turn it on for a virtual key that serves repeat traffic** — the win

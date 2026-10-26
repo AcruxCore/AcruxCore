@@ -119,6 +119,9 @@ under Automations. Scoring live traffic and iterating on a dataset are two diffe
 | Scoring live production traffic | Yes, online scoring rules (Automations) | Sampled online rules |
 | Score distribution per scorer | Yes | Aggregates per run |
 
+> **Key point:** Braintrust compares each eval run with the previous experiment by default.
+> AcruxCore compares two runs only after you pick them.
+
 ## How tools are handled
 
 The Tools page answers one question before you have created anything, which is where a tool
@@ -260,6 +263,9 @@ exception and printed no warning, and the model answered plausibly.
 The cause is in the source. In `braintrust==0.39.0`, `template_format` appears only inside
 generated type stubs, and `Prompt.build()` calls `render_mustache()` unconditionally. The same
 is true in `braintrust==0.48.0`, the latest release on 25 October 2026.
+
+> **Key point:** Braintrust's Python SDK renders a nunjucks prompt with mustache and raises no
+> error. The model receives every `{% %}` block as literal text.
 
 Their Node SDK reads the same field and refuses to render rather than guessing:
 

@@ -32,6 +32,9 @@ called out in the week it ships and in the SDK release notes.
 ### Minor
 
 - **Pricing** — hosted AcruxCore is free to use, with no end date; before, it was free during the beta.
+- **Blog** — wider posts without the recent-posts sidebar; tables mark Yes and No with icons.
+- **Blog** — tool sections show strengths and limits side by side, in light and dark themes.
+- **Blog** — every post highlights one or two key points as quotes.
 
 ---
 

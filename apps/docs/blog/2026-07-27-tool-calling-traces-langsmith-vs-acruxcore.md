@@ -72,6 +72,9 @@ records the tool as a `tool` run. You add both to code you already have, and not
 in that code changes. The loop that calls the model, runs the tool and calls the model
 again is yours to write.
 
+> **Key point:** On LangSmith, a tool is a Python function in your code. The loop that calls the
+> model, runs the tool and calls the model again is yours to write.
+
 The trace from the run:
 
 ```
@@ -250,6 +253,9 @@ Add the setup to the AcruxCore agent, and the two platforms are close: 65 lines 
 and 64 on AcruxCore. On LangSmith, the loop, the tracing and the tool are in every agent
 script. On AcruxCore, the setup runs once per team, and each agent script holds a render
 and one call.
+
+> **Key point:** Counting AcruxCore's one-time setup, the code is 65 lines on LangSmith and 64 on
+> AcruxCore. The 45-line AcruxCore setup runs once per team, not in every agent script.
 
 The shared module is not counted, because scripts on both platforms import it. Three parts
 of the module are used by one platform only. The `get_weather` function is used only by the

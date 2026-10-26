@@ -142,6 +142,9 @@ The production file, `docker-compose.yml`, brings no database. You supply Postgr
 
 On memory alone, AcruxCore and Phoenix fit on a server with 1 GB. Laminar fits on 2 GB, with little memory left over. MLflow, Langfuse and Agenta need 4 GB once you allow for the operating system. Opik needs 8 GB, given how much Opik grows under load. Agenta's images also need 12.5 GB of disk before it stores anything.
 
+> **Key point:** On memory alone, AcruxCore and Phoenix fit on a 1 GB server. Opik needs 8 GB,
+> and MLflow, Langfuse and Agenta need 4 GB.
+
 The larger stacks bring a column store, an object store and background workers. Those parts use their memory and disk from the moment the stack starts, before any trace arrives.
 
 Two questions help you choose between the seven:

@@ -141,6 +141,9 @@ both take an alias. When you commit a prompt for the first time, AcruxCore point
 and a `staging` alias at version 1. Committing version 2 does not move those aliases. AcruxCore can also fill in the template variables on the server and return the
 finished messages.
 
+> **Key point:** A LangSmith SDK read with no tag returns the newest commit, even an untested one.
+> Every AcruxCore SDK read names an alias.
+
 ![AcruxCore Audit tab for scope-extract: production moved v1 → v2, then v2 → v1, each with who made the change and when](/img/blog/acruxcore-vs-langfuse-vs-langsmith/acx-audit-promote-rollback.jpg)
 
 ![LangSmith prompt page: Environments panel with Production on commit 586b51ca and a Rollback history list of two commits](/img/blog/langfuse-vs-langsmith/ls-rollback-history.jpg)

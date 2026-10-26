@@ -543,3 +543,325 @@
     align-items: center;
   }
 }
+
+/* ============================================================
+   Blog: layout and visual blocks
+   ------------------------------------------------------------
+   The posts are plain CommonMark. plugins/remark-blog-blocks.ts tags
+   their recurring patterns with `.acx-*` classes and these rules give
+   them a shape: badges in Yes/No cells, side-by-side pros and cons,
+   a summary card. All of it is scoped to `.blog-wrapper`, the class
+   Docusaurus puts on every blog page, so the docs site is untouched.
+   ============================================================ */
+:root {
+  --acx-warn: #a15c00;
+  --acx-bad: #c62828;
+  --acx-tint: color-mix(in srgb, var(--acx-accent) 7%, var(--acx-surface));
+  --acx-warn-tint: color-mix(in srgb, var(--acx-warn) 7%, var(--acx-surface));
+}
+[data-theme='dark'] {
+  --acx-warn: #f0a83a;
+  --acx-bad: #ff6b6b;
+  --acx-tint: color-mix(in srgb, var(--acx-accent) 6%, var(--acx-surface));
+  --acx-warn-tint: color-mix(in srgb, var(--acx-warn) 6%, var(--acx-surface));
+}
+
+/* The width the removed "Recent posts" sidebar used to take goes to the post. */
+.blog-wrapper .acx-blog-container {
+  max-width: 1280px;
+}
+
+.blog-post-page article .markdown {
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+/* Section headings: a short accent bar marks where each section starts. */
+.blog-wrapper article .markdown h2 {
+  margin-top: 3rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--acx-line);
+  position: relative;
+}
+.blog-wrapper article .markdown h2::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: 0;
+  width: 48px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--acx-accent);
+}
+.blog-wrapper article .markdown h3 {
+  margin-top: 2.25rem;
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--acx-accent);
+}
+
+/* Images and diagrams sit on a card, so a white diagram does not float on grey. */
+.blog-wrapper article .markdown img {
+  border: 1px solid var(--acx-line);
+  border-radius: 12px;
+  background: var(--acx-surface);
+}
+
+/* ---------- Tables ---------- */
+.blog-wrapper article .markdown table {
+  /* The border hugs the columns; a narrow table no longer trails an empty strip. */
+  width: fit-content;
+  max-width: 100%;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--acx-line);
+  border-radius: 12px;
+  background: var(--acx-surface);
+}
+.blog-wrapper article .markdown table thead tr {
+  background: var(--acx-elevated);
+  border-bottom: none;
+}
+.blog-wrapper article .markdown table th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--acx-muted);
+  text-align: left;
+  vertical-align: bottom;
+}
+.blog-wrapper article .markdown table th,
+.blog-wrapper article .markdown table td {
+  border: none;
+  border-bottom: 1px solid var(--acx-line-soft);
+  padding: 0.65rem 0.9rem;
+}
+.blog-wrapper article .markdown table tr {
+  background: transparent;
+  border: none;
+}
+.blog-wrapper article .markdown table tbody tr:last-child td {
+  border-bottom: none;
+}
+.blog-wrapper article .markdown table tbody tr:hover {
+  background: var(--acx-tint);
+}
+.blog-wrapper article .markdown table td:first-child {
+  font-weight: 600;
+  color: var(--acx-ink);
+}
+
+/* Yes / No / Partial cells: an icon before the unchanged text. */
+.blog-wrapper .acx-cell::before {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-right: 0.4rem;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: -0.28rem;
+}
+.blog-wrapper .acx-cell--yes::before {
+  content: '✓';
+  color: var(--acx-accent-ink);
+  background: var(--acx-accent);
+}
+.blog-wrapper .acx-cell--no::before {
+  content: '✕';
+  color: #fff;
+  background: var(--acx-bad);
+}
+[data-theme='dark'] .blog-wrapper .acx-cell--no::before {
+  color: var(--acx-bg);
+}
+.blog-wrapper .acx-cell--partial::before {
+  content: '~';
+  color: #fff;
+  background: var(--acx-warn);
+}
+[data-theme='dark'] .blog-wrapper .acx-cell--partial::before {
+  color: var(--acx-bg);
+}
+
+/* A short bold line straight above a table, read as its caption. */
+.blog-wrapper .acx-table-label {
+  margin: 2rem 0 0.6rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--acx-muted);
+}
+.blog-wrapper .acx-table-label strong {
+  font-weight: 600;
+}
+
+/* ---------- Cards ---------- */
+.blog-wrapper .acx-summary,
+.blog-wrapper .acx-procon__col {
+  border: 1px solid var(--acx-line);
+  border-radius: 12px;
+  padding: 1.1rem 1.25rem 0.4rem;
+  margin-bottom: var(--ifm-leading);
+}
+.blog-wrapper .acx-summary > p:first-child,
+.blog-wrapper .acx-procon__col > p:first-child {
+  margin-bottom: 0.6rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* "The short answer": the post's verdict, so it carries the accent. */
+.blog-wrapper .acx-summary {
+  background: var(--acx-tint);
+  border-color: color-mix(in srgb, var(--acx-accent) 35%, var(--acx-line));
+}
+.blog-wrapper .acx-summary > p:first-child {
+  color: var(--acx-accent);
+}
+.blog-wrapper .acx-summary ul,
+.blog-wrapper .acx-procon ul {
+  list-style: none;
+  padding-left: 0;
+}
+.blog-wrapper .acx-summary li,
+.blog-wrapper .acx-procon li {
+  position: relative;
+  padding-left: 1.6rem;
+}
+.blog-wrapper .acx-summary li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  top: 0.05rem;
+  font-weight: 700;
+  color: var(--acx-accent);
+}
+
+/* "Where X differs" next to "Limits of X". */
+.blog-wrapper .acx-procon {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: var(--ifm-leading);
+}
+.blog-wrapper .acx-procon__col {
+  margin-bottom: 0;
+  background: var(--acx-surface);
+  font-size: 0.95rem;
+}
+.blog-wrapper .acx-procon__col--pro {
+  border-top: 3px solid var(--acx-accent);
+}
+.blog-wrapper .acx-procon__col--con {
+  border-top: 3px solid var(--acx-warn);
+}
+.blog-wrapper .acx-procon__col--pro > p:first-child {
+  color: var(--acx-accent);
+}
+.blog-wrapper .acx-procon__col--con > p:first-child {
+  color: var(--acx-warn);
+}
+.blog-wrapper .acx-procon__col--pro li::before,
+.blog-wrapper .acx-procon__col--con li::before {
+  position: absolute;
+  left: 0.2rem;
+  font-weight: 700;
+}
+.blog-wrapper .acx-procon__col--pro li::before {
+  content: '+';
+  color: var(--acx-accent);
+}
+.blog-wrapper .acx-procon__col--con li::before {
+  content: '−';
+  color: var(--acx-warn);
+}
+@media (max-width: 768px) {
+  .blog-wrapper .acx-procon {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* "Best for:" under each tool's heading. */
+.blog-wrapper .acx-bestfor {
+  display: inline-block;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  background: var(--acx-tint);
+  border: 1px solid color-mix(in srgb, var(--acx-accent) 30%, var(--acx-line));
+  font-size: 0.95rem;
+}
+.blog-wrapper .acx-bestfor > strong:first-child {
+  margin-right: 0.25rem;
+  color: var(--acx-accent);
+}
+
+/* Plain quotes are text copied from somewhere else: quiet, in the muted colour. */
+.blog-wrapper article .markdown blockquote {
+  border-left: 3px solid var(--acx-line);
+  color: var(--acx-muted);
+  font-style: italic;
+}
+
+/* "> **Key point:** …" is the post's own crux: the one line a skimming reader should keep. */
+.blog-wrapper article .markdown blockquote.acx-crux {
+  margin: 2rem 0;
+  padding: 1.25rem 1.5rem;
+  border-left: 5px solid var(--acx-accent);
+  border-radius: 0 12px 12px 0;
+  background: var(--acx-tint);
+  color: var(--acx-ink);
+  font-style: normal;
+  font-size: 1.2rem;
+  font-weight: 500;
+  line-height: 1.55;
+}
+.blog-wrapper .acx-crux > p:last-child {
+  margin-bottom: 0;
+}
+.blog-wrapper .acx-crux > p:first-child > strong:first-child {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--acx-accent);
+}
+
+/* "Sources:" lines are citations, not reading text. */
+.blog-wrapper .acx-sources {
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--acx-muted);
+}
+.blog-wrapper .acx-sources a {
+  color: var(--acx-muted);
+  text-decoration: underline;
+  text-decoration-color: var(--acx-line);
+}
+
+/* "Our comparison: …" points to a deeper post. */
+.blog-wrapper .acx-related {
+  padding: 0.6rem 0.9rem;
+  border: 1px dashed var(--acx-line);
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+.blog-wrapper .acx-related a {
+  font-weight: 600;
+}
+.blog-wrapper .acx-related a::after {
+  content: ' →';
+}
+
+/* Admonitions on the blog: the same card shape as the blocks above. */
+.blog-wrapper article .markdown .theme-admonition {
+  border-radius: 12px;
+}

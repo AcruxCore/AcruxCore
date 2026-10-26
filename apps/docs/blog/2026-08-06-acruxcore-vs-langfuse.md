@@ -136,6 +136,9 @@ structural difference in what each product is, not something Langfuse does worse
 | Where it sits | Beside the request path — call providers yourself, trace is reported after | In the request path — every call routes through it |
 | BYOK, caching, budgets, virtual keys | Not applicable — no request path to apply them to | Built in, applied before the provider call |
 
+> **Key point:** Langfuse ingests a trace after your own client makes the call. AcruxCore's gateway
+> sits in the request path, and every call routes through it.
+
 ## How tools are handled — schema registry, or execution
 
 AcruxCore has a real **Tool Catalog** — callable functions, versioned like prompts,
@@ -270,6 +273,9 @@ number attached, not a measurement.
 Every interval here contains zero, so no row is a result. That includes Langfuse's
 −22 ms: it is a sample artifact, **not** evidence that wrapping a client is faster than
 calling OpenAI directly. Read those three rows as "too small to measure in this run".
+
+> **Key point:** In this run, Langfuse's overhead is −22 ms and AcruxCore's is +63 ms. Every 95%
+> confidence interval contains zero, so both numbers are too small to measure.
 
 On a call that already takes about a second, neither Langfuse's instrumentation nor our
 gateway hop is something a user would feel — and the baseline's own p99 (6402 ms) is

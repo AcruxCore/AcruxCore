@@ -178,6 +178,9 @@ passthrough:
 | Auth header | `x-api-key` + `anthropic-version` | `x-goog-api-key` | `Authorization: Bearer` |
 | `max_tokens` | **Required** — defaults to 1024 if omitted | Optional | Optional |
 
+> **Key point:** Anthropic requires `max_tokens`, and Gemini and OpenAI treat it as optional. The
+> Anthropic adapter defaults it to 1024 when a caller omits it.
+
 Whichever model you point at, your code keeps sending the one shape at the
 top of this post — the row you never have to write yourself is whichever
 one your chosen provider needs.
