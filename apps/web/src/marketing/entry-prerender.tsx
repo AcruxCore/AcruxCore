@@ -177,7 +177,7 @@ export const ROUTES: PrerenderRoute[] = [
     out: 'pricing/index.html',
     title: 'AcruxCore Pricing: Free, Open-Source LLMOps Platform',
     description:
-      'AcruxCore is free while in beta: the whole platform, with your own provider keys and no token markup. Self-hosted and enterprise options on request.',
+      'AcruxCore is free to use: the whole platform, with your own provider keys and no token markup. Self-hosted and enterprise options on request.',
     component: PricingPage,
     sourceFiles: ['src/marketing/pages/PricingPage.tsx'],
     priority: 0.7,

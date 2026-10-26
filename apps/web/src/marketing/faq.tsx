@@ -386,13 +386,13 @@ export const FAQ_GROUPS: FaqGroup[] = [
             'Self-hosted AcruxCore has no license fee, so you pay only for your own servers and for the model providers you use. The full platform is Apache 2.0, with no folder under a separate paid license.',
           ],
           [
-            'Hosted AcruxCore is free during beta, with no credit card required at sign-up.',
+            'Hosted AcruxCore is free to use, with no credit card required at sign-up.',
           ],
           [
             'AcruxCore does not mark up model tokens. Connect your own provider credentials and pay the provider’s rates. The gateway records the cost of each call and adds nothing to it.',
           ],
           [
-            'Hosted pricing after the beta is not announced yet. The ',
+            'Hosted AcruxCore has no paid plan today. If a paid plan is added, the ',
             { text: 'pricing page', to: '/pricing' },
             ' will show it first, and existing accounts get notice before any price changes.',
           ],

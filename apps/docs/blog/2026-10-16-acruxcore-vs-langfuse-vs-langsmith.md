@@ -63,7 +63,7 @@ MCP pages on 18 October 2026, and everything else on 17 October 2026.
 
 **Pros**
 
-- The hosted service is free during the beta, with no trace or seat limit.
+- The hosted service is free to use, with no trace or seat limit.
 - Every feature is open source under Apache 2.0, and self-hosting is free, with no paid features.
 - The gateway sits in the request path. It has fallbacks, a cache, budgets, rate limits and
   virtual keys (keys you give an app in place of your provider key). It traces every call with
@@ -82,7 +82,6 @@ MCP pages on 18 October 2026, and everything else on 17 October 2026.
 - The Traces list shows each trace's name, not the user's message, so finding one message
   means opening rows.
 - It has no SSO, and the hosted service does not state its data region.
-- No price is published for after the beta.
 - The community is small: 11 GitHub stars.
 - Alerts arrive by email only, and there is no Vercel AI SDK integration.
 - The SDK has no wrapped OpenAI client, so the test app needed 4 more lines than on Langfuse.
@@ -330,7 +329,7 @@ read the numbers back through each platform's API.
 
 | Plan | 3 people | Data kept |
 |---|---|---|
-| AcruxCore Beta (hosted) | $0; no price published for after the beta | Message content 90 days; tokens, cost and timing are not deleted |
+| AcruxCore (hosted) | $0; free to use, no paid plan | Message content 90 days; tokens, cost and timing are not deleted |
 | Langfuse Core | $98.36, or $119.69 when each trace also gets three scores | 90 days |
 | LangSmith Plus | $567 | 14 days; 180 days costs extra |
 

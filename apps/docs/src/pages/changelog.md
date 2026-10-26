@@ -23,6 +23,18 @@ called out in the week it ships and in the SDK release notes.
 
 ---
 
+## Week of 26 October 2026
+
+### Major
+
+- None so far this week.
+
+### Minor
+
+- **Pricing** — hosted AcruxCore is free to use, with no end date; before, it was free during the beta.
+
+---
+
 ## Week of 19 October 2026
 
 ### Major

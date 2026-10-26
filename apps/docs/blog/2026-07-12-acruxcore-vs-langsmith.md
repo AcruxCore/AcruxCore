@@ -242,7 +242,7 @@ Our test app called z.ai directly on both platforms, so neither gateway is in th
 
 | Plan | 3 people, 100,000 traces a month | Trace data kept |
 |---|---|---|
-| AcruxCore Beta (hosted) | $0; no price published for after the beta | Message content 90 days; tokens, cost and timing are not deleted |
+| AcruxCore (hosted) | $0; free to use, no paid plan | Message content 90 days; tokens, cost and timing are not deleted |
 | LangSmith Plus | $567 | 14 days; 180 days costs extra |
 
 - LangSmith's pricing calculator gave $567 on 16 October 2026: 3 seats at $39, plus 90,000
@@ -250,9 +250,8 @@ Our test app called z.ai directly on both platforms, so neither gateway is in th
   [pricing page](https://www.langchain.com/pricing) still listed $39 per seat and 10,000 included
   traces on Plus, but no longer printed the per-trace rate.
 - LangSmith bills per trace. The steps inside a trace are free.
-- The [AcruxCore pricing page](https://acruxcore.com/pricing) says the hosted service is "Free
-  while AcruxCore is in beta" and that "Post-beta pricing has not been set", as of
-  25 October 2026.
+- The [AcruxCore pricing page](https://acruxcore.com/pricing) says the hosted service is free to
+  use and that no paid plan exists, as of 26 October 2026.
 - On both platforms, you pay the model provider yourself.
 
 AcruxCore is open source under Apache 2.0, and the self-hosted version has every feature, for
@@ -269,8 +268,8 @@ add-on to the Enterprise plan.
   only.
 - **SSO and regions.** LangSmith offers custom SSO on Enterprise and four hosted regions.
   AcruxCore has no SSO and does not state its hosted region.
-- **A published price.** LangSmith's plans have prices today. AcruxCore has not set a price for
-  after the beta.
+- **Published paid plans.** LangSmith sells paid plans with published prices. AcruxCore's hosted
+  service is free and has no paid plan.
 
 ## What AcruxCore does that LangSmith doesn't
 

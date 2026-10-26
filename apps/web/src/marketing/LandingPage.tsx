@@ -75,7 +75,7 @@ const AT_A_GLANCE: { label: string; value: ReactNode }[] = [
   { label: 'SDKs', value: 'TypeScript (@acruxcoreai/sdk) and Python (acruxcore)' },
   {
     label: 'Price',
-    value: 'Self-hosted is free, always. The hosted platform is free during beta. Bring your own provider keys; no markup on tokens',
+    value: 'Self-hosted is free, always. The hosted platform is free to use. Bring your own provider keys; no markup on tokens',
   },
   {
     label: 'Audit trail',

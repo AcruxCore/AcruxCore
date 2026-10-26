@@ -52,7 +52,7 @@ const SUMMARIES: Record<string, string> = {
   '/faq':
     'Direct answers on what AcruxCore does, the measured latency cost of a gateway in the request path, and the cases where a different tool is the better choice.',
   '/pricing':
-    'Free during beta with no card and no markup on model tokens; you connect your own provider credentials and they bill you at their rates.',
+    'Free to use with no card and no markup on model tokens; you connect your own provider credentials and they bill you at their rates.',
   '/features/prompts':
     'A prompt management platform: versioned prompts with named aliases, diffs, an audit trail of who changed what, and Jinja2-style templating with conditionals and loops rendered server-side.',
   '/features/gateway':
@@ -229,7 +229,7 @@ export function buildLlmsTxt(routes: readonly PrerenderRoute[], origin: string):
     'Licence: Apache License 2.0, with no enterprise-only directory.',
     'Deployment: hosted, or self-hosted with `docker compose up` — the same code either way.',
     'SDKs: TypeScript (`@acruxcoreai/sdk`) and Python (`acruxcore`).',
-    'Status: in beta and free to use; bring your own provider keys, no markup on model tokens.',
+    'Price: free to use; bring your own provider keys, no markup on model tokens.',
     'Audit trail: on by default on every plan and when self-hosted, covering the whole team',
     'rather than one prompt at a time — API keys, members, roles, invites, provider',
     'credentials, virtual keys, budgets, gateway models, secrets, trace settings, prompts and',

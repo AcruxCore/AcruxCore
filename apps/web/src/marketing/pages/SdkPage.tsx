@@ -428,7 +428,7 @@ export function SdkPage(): ReactNode {
 
       <CtaSection
         title="Get a key and install it."
-        body="Free while AcruxCore is in beta. Bring your own provider keys and the first render is a few lines away."
+        body="AcruxCore is free to use. Bring your own provider keys and the first render is a few lines away."
       />
     </MarketingShell>
   );

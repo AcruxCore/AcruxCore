@@ -19,7 +19,7 @@ interface Plan {
   name: string;
   /** The headline figure or its honest stand-in. */
   price: string;
-  /** Qualifier under the price, e.g. "while AcruxCore is in beta". */
+  /** Qualifier under the price, e.g. "hosted by us, no credit card". */
   priceNote: string;
   blurb: string;
   features: string[];
@@ -31,15 +31,15 @@ interface Plan {
 /**
  * The public plans.
  *
- * Deliberately carries no invented dollar figures: the platform is in beta and
- * post-beta pricing has not been set, so quoting a number here would be a promise
- * we cannot keep. Each column states what is true today and what to do next.
+ * Deliberately carries no invented dollar figures: the hosted platform is free to
+ * use and no paid plan exists, so quoting a number here would be a promise we
+ * cannot keep. Each column states what is true today and what to do next.
  */
 const PLANS: Plan[] = [
   {
-    name: 'Beta',
+    name: 'Hosted',
     price: 'Free',
-    priceNote: 'while AcruxCore is in beta',
+    priceNote: 'hosted by us, no credit card',
     blurb: 'The whole platform, unlocked. You connect your own provider keys, so the only model spend is the one you already have.',
     features: [
       'Prompts, gateway, tracing, tools, evaluation, and the audit trail',
@@ -57,7 +57,7 @@ const PLANS: Plan[] = [
     priceNote: 'clone the public repo, run it yourself',
     blurb: 'AcruxCore is open source under the Apache License 2.0 — clone the repo and run the API, gateway, and dashboard against your own database. No sales call required.',
     features: [
-      'Everything in Beta, on your infrastructure',
+      'Every hosted feature, on your infrastructure',
       'Your database, your keys, your network',
       'No trace or prompt data leaves your estate',
       'Apache License 2.0, nothing gated — self-hosting guide in the README',
@@ -85,17 +85,17 @@ const FAQ: { q: string; a: ReactNode }[] = [
     q: 'What does it cost right now?',
     a: (
       <>
-        Nothing. AcruxCore is in beta and the hosted platform is free to use, with no credit card at sign-up. You still
+        Nothing. The hosted platform is free to use, with no credit card at sign-up. You still
         pay your model providers directly for the tokens you spend.
       </>
     ),
   },
   {
-    q: 'What happens when beta ends?',
+    q: 'Is a paid plan coming?',
     a: (
       <>
-        Post-beta pricing has not been set. When it is, it will be published on this page, and existing accounts will get
-        notice before anything about their plan changes.
+        No paid plan exists today. If a paid plan is added, this page will show it first. Existing accounts will get notice
+        before their pricing changes.
       </>
     ),
   },
@@ -164,7 +164,7 @@ export function PricingPage(): ReactNode {
             'font-size:clamp(30px,4.4vw,48px);line-height:1.05;letter-spacing:-.026em;font-weight:700;margin:0;text-wrap:balance;',
           )}
         >
-          Free while we are in beta.
+          Free to use, hosted or self-hosted.
         </h1>
         <p
           style={cssToStyle(

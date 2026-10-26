@@ -191,7 +191,7 @@ template via `pl_client.templates.get(...)` first and feed its rendered messages
 | Gateway | No request-routing layer — call providers yourself through their SDK wrapper, it logs the call | Gateway routes every provider call itself — one audited, cost-visible path |
 | Tracing | Multi-step tracing is a separate, opt-in SDK feature; default is a flat per-call log | Automatic the moment a call goes through the gateway |
 | Evaluation | Live, ad-hoc model-comparison tables and release-label A/B tests on live traffic | Datasets and experiments persist and build up over time, built from production feedback, by hand, or from a CSV/JSON file |
-| Hosting & pricing | Seat-based; we tested on a Team trial plan (July 2026) | Open source and self-hostable; hosted version free during beta (Oct 2026) |
+| Hosting & pricing | Seat-based; we tested on a Team trial plan (July 2026) | Open source and self-hostable; hosted version free to use (Oct 2026) |
 
 AcruxCore pricing checked 25 October 2026.
 

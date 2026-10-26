@@ -125,7 +125,7 @@ export const ACRUX_CORE = {
     source: { label: 'Invite a teammate', href: `${DOCS_URL}/docs/guides/invite-a-teammate` },
   },
   pricing: {
-    value: 'Free during beta. You bring your own provider keys, and no paid tier is published yet.',
+    value: 'Free to use. You bring your own provider keys, and there is no paid plan.',
     source: { label: 'Pricing', href: '/pricing' },
   },
   rbac: {
