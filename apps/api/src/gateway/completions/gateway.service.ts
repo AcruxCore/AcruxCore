@@ -217,9 +217,10 @@ async function renderAdhocMessages(messages: ChatMessage[], variables: Record<st
 
 /**
  * Core (non-streaming) completion pipeline. Later steps splice their stages into the
- * numbered stitch points (← Gx). G5 replaces G2's single-connection resolve+call with
- * priority/round-robin routing (`resolveConnections`) and retry/fallback
- * (`callWithFallback`), recording the served connection + attempt trail on the row.
+ * numbered stitch points (← Gx). G5 replaces G2's single-connection resolve+call with an
+ * ordered fallback chain (`resolveDeployments`) and retry/fallback (`callWithFallback`),
+ * recording the served connection + attempt trail on the row. There is no load balancing:
+ * each public model name maps to one connection.
  */
 export class GatewayService {
   private readonly cache = new CacheRepository();
