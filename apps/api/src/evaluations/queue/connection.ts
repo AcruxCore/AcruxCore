@@ -34,6 +34,23 @@ export function getRedisConnection(): IORedis {
   return redisConnection;
 }
 
+/**
+ * The key prefix every BullMQ queue, flow producer and worker uses.
+ *
+ * Production sets nothing and gets BullMQ's own default, `bull`. The API and the
+ * worker must agree on it, or jobs land under keys no worker reads, so both
+ * read the same `BULLMQ_PREFIX` variable through this function.
+ *
+ * The test suite sets a prefix per run (`jest-global-setup.ts`). Two runs on the
+ * same Redis database, or a run beside a dev worker, then cannot take or delete
+ * each other's jobs (issue #611).
+ *
+ * @returns `BULLMQ_PREFIX` when set and non-empty, otherwise `bull`.
+ */
+export function getQueuePrefix(): string {
+  return process.env.BULLMQ_PREFIX || 'bull';
+}
+
 /** Strips any `user:password@` credentials so the URL is safe to log. */
 function redactRedisUrl(url: string): string {
   try {

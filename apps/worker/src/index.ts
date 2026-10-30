@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { Sentry } from './monitoring';
 import { Worker, type Job } from 'bullmq';
 import {
+  getQueuePrefix,
   getRedisConnection,
   EVAL_CELLS_QUEUE,
   EVAL_RUNS_QUEUE,
@@ -200,12 +201,15 @@ async function waitForWorkerReady(worker: Worker, timeoutMs = 15000): Promise<vo
 
 export async function startWorkers(): Promise<EvalWorkers> {
   const connection = getRedisConnection();
+  // Must match the prefix the API enqueues under; both read BULLMQ_PREFIX.
+  const prefix = getQueuePrefix();
   const concurrency = Number(process.env.EVAL_WORKER_CONCURRENCY ?? 2);
   const judgeConcurrency = Number(process.env.EVAL_JUDGE_WORKER_CONCURRENCY ?? 2);
   const optimizeConcurrency = Number(process.env.EVAL_OPTIMIZE_WORKER_CONCURRENCY ?? 2);
 
   const cellWorker = new Worker<CellJobData>(EVAL_CELLS_QUEUE, (job) => processCell(job.data), {
     connection,
+    prefix,
     concurrency,
   });
   cellWorker.on('error', (err) => {
@@ -244,6 +248,7 @@ export async function startWorkers(): Promise<EvalWorkers> {
 
   const runWorker = new Worker<FinalizeJobData>(EVAL_RUNS_QUEUE, (job, token) => processFinalizeJob(job, token), {
     connection,
+    prefix,
     concurrency: 1,
   });
   runWorker.on('error', (err) => {
@@ -273,6 +278,7 @@ export async function startWorkers(): Promise<EvalWorkers> {
 
   const judgeWorker = new Worker<JudgeJobData>(EVAL_JUDGE_QUEUE, (job) => processJudge(job.data), {
     connection,
+    prefix,
     concurrency: judgeConcurrency,
   });
   judgeWorker.on('error', (err) => {
@@ -305,7 +311,7 @@ export async function startWorkers(): Promise<EvalWorkers> {
   const onlineEvalWorker = new Worker<OnlineEvalJobData>(
     ONLINE_EVAL_QUEUE,
     (job) => processOnlineEval(job.data),
-    { connection, concurrency: onlineEvalConcurrency },
+    { connection, prefix, concurrency: onlineEvalConcurrency },
   );
   onlineEvalWorker.on('error', (err) => {
     console.error('[online-eval-worker] error', err);
@@ -315,6 +321,7 @@ export async function startWorkers(): Promise<EvalWorkers> {
 
   const optimizeWorker = new Worker<OptimizeJobData>(EVAL_OPTIMIZE_QUEUE, (job) => processOptimize(job.data), {
     connection,
+    prefix,
     concurrency: optimizeConcurrency,
   });
   optimizeWorker.on('error', (err) => {
@@ -348,6 +355,7 @@ export async function startWorkers(): Promise<EvalWorkers> {
   // state left for BullMQ to record.
   const emailWorker = new Worker<EmailJobData>(EMAIL_QUEUE, (job) => processEmail(job.data), {
     connection,
+    prefix,
     concurrency: Number(process.env.EMAIL_WORKER_CONCURRENCY ?? 5),
   });
   emailWorker.on('error', (err) => {
@@ -365,7 +373,7 @@ export async function startWorkers(): Promise<EvalWorkers> {
   const digestWorker = new Worker<DigestJobData>(
     DIGEST_QUEUE,
     (job) => processDigest(job.name, job.data),
-    { connection, concurrency: Number(process.env.DIGEST_WORKER_CONCURRENCY ?? 2) },
+    { connection, prefix, concurrency: Number(process.env.DIGEST_WORKER_CONCURRENCY ?? 2) },
   );
   digestWorker.on('error', (err) => {
     console.error(`[${digestWorker.name}] worker error`, err);
@@ -382,7 +390,7 @@ export async function startWorkers(): Promise<EvalWorkers> {
   const retentionWorker = new Worker<RetentionJobData>(
     RETENTION_QUEUE,
     (job) => processRetentionJob(job.name, job.data, { retentionDays: retentionConfig.retentionDays }),
-    { connection, concurrency: 1 },
+    { connection, prefix, concurrency: 1 },
   );
   retentionWorker.on('error', (err) => console.error(`[${retentionWorker.name}] worker error`, err));
   await waitForWorkerReady(retentionWorker);
@@ -396,7 +404,7 @@ export async function startWorkers(): Promise<EvalWorkers> {
   const staleRunsWorker = new Worker<StaleRunsJobData>(
     STALE_RUNS_QUEUE,
     (job) => processStaleRunsJob(job.name, job.data, { staleMinutes: staleRunConfig.staleMinutes }),
-    { connection, concurrency: 1 },
+    { connection, prefix, concurrency: 1 },
   );
   staleRunsWorker.on('error', (err) => {
     console.error(`[${staleRunsWorker.name}] worker error`, err);

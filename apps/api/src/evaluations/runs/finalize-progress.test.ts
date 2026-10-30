@@ -8,6 +8,7 @@ import {
   EVAL_RUNS_QUEUE,
   getCellsQueue,
   getJudgeQueue,
+  getQueuePrefix,
   getRedisConnection,
   getRunsQueue,
   hasUnsettledJudgeJob,
@@ -94,7 +95,7 @@ function startCellStandIn(): Worker<CellJobData> {
         output: 'Hi!',
       });
     },
-    { connection: getRedisConnection(), concurrency: 1 },
+    { connection: getRedisConnection(), prefix: getQueuePrefix(), concurrency: 1 },
   );
 }
 
@@ -105,7 +106,7 @@ function startCellStandIn(): Worker<CellJobData> {
 function startFinalizeWorker(queueName: string, minStallMs?: number, maxJudgeWaitMs?: number): Worker<FinalizeJobData> {
   const opts = { minStallMs, maxJudgeWaitMs } as Parameters<typeof processFinalizeJob>[2];
   const worker = new Worker<FinalizeJobData>(queueName, (job, token) => processFinalizeJob(job, token, opts), {
-    connection: getRedisConnection(),
+    connection: getRedisConnection(), prefix: getQueuePrefix(),
     concurrency: 1,
   });
   worker.on('failed', async (job: Job<FinalizeJobData> | undefined) => {
@@ -208,7 +209,7 @@ describe('finalize waits for a run that is still making progress', () => {
     workers.push(startCellStandIn());
     const ids = await waitFor(resultIdsFor(runId), (r) => r.length === EXAMPLES, 10_000);
 
-    const queue = new Queue<FinalizeJobData>(`finalize-progress-${Date.now()}`, { connection: getRedisConnection() });
+    const queue = new Queue<FinalizeJobData>(`finalize-progress-${Date.now()}`, { connection: getRedisConnection(), prefix: getQueuePrefix() });
     extraQueues.push(queue);
     workers.push(startFinalizeWorker(queue.name, 0));
     await queue.add('finalize', { teamId, runId }, JOB_OPTS);
@@ -246,7 +247,7 @@ describe('finalize waits for a run that is still making progress', () => {
         if (job.attemptsMade < 2) throw new Error('GatewayTimeoutError: Upstream provider timed out.');
         await runsRepo.writeVerdict(job.data.resultId, { score: 100, passed: true, reason: 'late', judgeTraceId: null });
       },
-      { connection: getRedisConnection(), concurrency: 1 },
+      { connection: getRedisConnection(), prefix: getQueuePrefix(), concurrency: 1 },
     );
     workers.push(judgeWorker);
     const last = ids[ids.length - 1];
@@ -256,7 +257,7 @@ describe('finalize waits for a run that is still making progress', () => {
       { jobId: `judge-${last}`, attempts: 3, backoff: { type: 'exponential', delay: 1000 } },
     );
 
-    const queue = new Queue<FinalizeJobData>(`finalize-progress-${Date.now()}`, { connection: getRedisConnection() });
+    const queue = new Queue<FinalizeJobData>(`finalize-progress-${Date.now()}`, { connection: getRedisConnection(), prefix: getQueuePrefix() });
     extraQueues.push(queue);
     workers.push(startFinalizeWorker(queue.name, 0));
     await queue.add('finalize', { teamId, runId }, JOB_OPTS);
@@ -283,7 +284,7 @@ describe('finalize waits for a run that is still making progress', () => {
         opts: { jobId: `judge-filler-${i}` },
       })),
     );
-    const picker = new Worker<JudgeJobData>(EVAL_JUDGE_QUEUE, null, { connection: getRedisConnection() });
+    const picker = new Worker<JudgeJobData>(EVAL_JUDGE_QUEUE, null, { connection: getRedisConnection(), prefix: getQueuePrefix() });
     workers.push(picker);
 
     // A judge worker takes the target as soon as the first page has been read. Only the
@@ -324,7 +325,7 @@ describe('finalize waits for a run that is still making progress', () => {
     const last = ids[ids.length - 1];
     await getJudgeQueue().add('judge', { teamId, resultId: last }, { jobId: `judge-${last}` });
 
-    const queue = new Queue<FinalizeJobData>(`finalize-progress-${Date.now()}`, { connection: getRedisConnection() });
+    const queue = new Queue<FinalizeJobData>(`finalize-progress-${Date.now()}`, { connection: getRedisConnection(), prefix: getQueuePrefix() });
     extraQueues.push(queue);
     workers.push(startFinalizeWorker(queue.name, 0, 1500));
     await queue.add('finalize', { teamId, runId }, JOB_OPTS);
@@ -341,7 +342,7 @@ describe('finalize waits for a run that is still making progress', () => {
     const ids = await waitFor(resultIdsFor(runId), (r) => r.length === EXAMPLES, 10_000);
     await runsRepo.writeVerdict(ids[0], { score: 90, passed: true, reason: 'ok', judgeTraceId: null });
 
-    const queue = new Queue<FinalizeJobData>(`finalize-progress-${Date.now()}`, { connection: getRedisConnection() });
+    const queue = new Queue<FinalizeJobData>(`finalize-progress-${Date.now()}`, { connection: getRedisConnection(), prefix: getQueuePrefix() });
     extraQueues.push(queue);
     workers.push(startFinalizeWorker(queue.name, 0));
     await queue.add('finalize', { teamId, runId }, JOB_OPTS);

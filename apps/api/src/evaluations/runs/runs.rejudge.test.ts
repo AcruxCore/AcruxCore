@@ -9,6 +9,7 @@ import {
   EVAL_JUDGE_QUEUE,
   getFlowProducer,
   getJudgeQueue,
+  getQueuePrefix,
   getRedisConnection,
   getRunsQueue,
   judgeJobId,
@@ -165,7 +166,7 @@ async function failEveryJudgeCall(run: ArrangedRun): Promise<void> {
 async function drainJudgeQueue(resultIds: string[], score: number): Promise<Array<Record<string, unknown>>> {
   const sent = captureFetch(cannedJudge({ score, passed: true, reason: 'fine now' }));
   const connection = getRedisConnection().duplicate();
-  const worker = new Worker(EVAL_JUDGE_QUEUE, undefined, { connection, autorun: false });
+  const worker = new Worker(EVAL_JUDGE_QUEUE, undefined, { connection, prefix: getQueuePrefix(), autorun: false });
   const ran: string[] = [];
   try {
     for (;;) {
@@ -302,7 +303,7 @@ describe('POST /api/v1/runs/:id/rejudge (issue #639)', () => {
       await queue.add('judge', { teamId: run.teamId, resultId: id, judgeModel: 'stale' }, { jobId: judgeJobId(id) });
     }
     const connection = getRedisConnection().duplicate();
-    const worker = new Worker(EVAL_JUDGE_QUEUE, undefined, { connection, autorun: false });
+    const worker = new Worker(EVAL_JUDGE_QUEUE, undefined, { connection, prefix: getQueuePrefix(), autorun: false });
     for (let i = 0; i < run.resultIds.length; i++) {
       const job = await worker.getNextJob('test-token');
       await job!.moveToCompleted('done', 'test-token', false);

@@ -1,5 +1,5 @@
 import { Queue, FlowProducer } from 'bullmq';
-import { getRedisConnection } from './connection';
+import { getQueuePrefix, getRedisConnection } from './connection';
 import type { ImageContentPart } from '../../gateway/providers/types';
 
 /**
@@ -241,6 +241,7 @@ export function getFlowProducer(): FlowProducer {
   if (!flowProducer) {
     flowProducer = new FlowProducer({
       connection: getRedisConnection(),
+      prefix: getQueuePrefix(),
     });
   }
   return flowProducer;
@@ -257,6 +258,7 @@ export function getCellsQueue(): Queue<CellJobData> {
   if (!cellsQueue) {
     cellsQueue = new Queue<CellJobData>(EVAL_CELLS_QUEUE, {
       connection: getRedisConnection(),
+      prefix: getQueuePrefix(),
     });
   }
   return cellsQueue;
@@ -273,6 +275,7 @@ export function getRunsQueue(): Queue<FinalizeJobData> {
   if (!runsQueue) {
     runsQueue = new Queue<FinalizeJobData>(EVAL_RUNS_QUEUE, {
       connection: getRedisConnection(),
+      prefix: getQueuePrefix(),
     });
   }
   return runsQueue;
@@ -289,6 +292,7 @@ export function getJudgeQueue(): Queue<JudgeJobData> {
   if (!judgeQueue) {
     judgeQueue = new Queue<JudgeJobData>(EVAL_JUDGE_QUEUE, {
       connection: getRedisConnection(),
+      prefix: getQueuePrefix(),
     });
   }
   return judgeQueue;
@@ -305,6 +309,7 @@ export function getOptimizeQueue(): Queue<OptimizeJobData> {
   if (!optimizeQueue) {
     optimizeQueue = new Queue<OptimizeJobData>(EVAL_OPTIMIZE_QUEUE, {
       connection: getRedisConnection(),
+      prefix: getQueuePrefix(),
     });
   }
   return optimizeQueue;

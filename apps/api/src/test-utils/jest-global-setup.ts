@@ -1,6 +1,6 @@
 import { Client, escapeIdentifier } from 'pg';
 import type { Config } from '@jest/types';
-import { workerDatabaseName } from './worker-isolation';
+import { rememberRunQueuePrefix, testRunQueuePrefix, workerDatabaseName } from './worker-isolation';
 
 /**
  * Jest `globalSetup`: clones the test database once per extra worker.
@@ -15,7 +15,16 @@ import { workerDatabaseName } from './worker-isolation';
  * Each copy is dropped and re-created on every run. A copy left over from an
  * older schema would otherwise make a worker test against stale tables.
  *
- * A serial run (`maxWorkers` 1, which `--runInBand` implies) does nothing here.
+ * A serial run (`maxWorkers` 1, which `--runInBand` implies) skips the copies.
+ *
+ * Every run, serial or parallel, also gets its own BullMQ key prefix. Two runs
+ * on one Redis database (two worktrees, a CI retry) or a run beside a dev worker
+ * otherwise share the `bull:*` queues and take or delete each other's jobs
+ * (issue #611). It is set here, in the parent process, so every Jest worker
+ * inherits the same value; `jest-global-teardown.ts` deletes the keys after.
+ * A non-empty `BULLMQ_PREFIX` the caller exported is kept and never deleted. An
+ * empty one counts as unset, as it does in `getQueuePrefix()`: kept, it would
+ * silently put the run back on the shared `bull` prefix.
  *
  * @param globalConfig - Jest's resolved config; only `maxWorkers` is read.
  * @throws {Error} When `TEST_DATABASE_URL` is unset for a parallel run, or a
@@ -23,6 +32,11 @@ import { workerDatabaseName } from './worker-isolation';
  *   to the base database, which Postgres refuses as a template.
  */
 export default async function globalSetup(globalConfig: Config.GlobalConfig): Promise<void> {
+  if (!process.env.BULLMQ_PREFIX) {
+    process.env.BULLMQ_PREFIX = testRunQueuePrefix();
+    rememberRunQueuePrefix(process.env.BULLMQ_PREFIX);
+  }
+
   const workers = globalConfig.maxWorkers;
   if (workers <= 1) return;
 

@@ -73,3 +73,6 @@ packages = ["src/acruxcore"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "server: needs a running apps/api and its test database; set automatically in tests/conftest.py",
+]

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { Queue, type JobsOptions } from 'bullmq';
-import { getRedisConnection } from '../evaluations/queue/connection';
+import { Queue, type Job, type JobsOptions } from 'bullmq';
+import { getQueuePrefix, getRedisConnection } from '../evaluations/queue/connection';
 import type { EmailPayload } from './email.types';
 
 /** Queue name for outbound product email. */
@@ -68,7 +68,10 @@ let emailQueue: Queue<EmailJobData> | null = null;
  */
 export function getEmailQueue(): Queue<EmailJobData> {
   if (!emailQueue) {
-    emailQueue = new Queue<EmailJobData>(EMAIL_QUEUE, { connection: getRedisConnection() });
+    emailQueue = new Queue<EmailJobData>(EMAIL_QUEUE, {
+      connection: getRedisConnection(),
+      prefix: getQueuePrefix(),
+    });
   }
   return emailQueue;
 }
@@ -98,9 +101,10 @@ export async function closeEmailQueue(): Promise<void> {
  * enqueue → render → transport → `email_log` path without booting a Worker and
  * waiting on its timing. Only ever called from tests.
  *
- * The queue is shared by every process on the same Redis DB, so a second test run
- * can put its own jobs on it at any moment. Pass `teamId` to process only that
- * team's jobs and leave the rest alone; a test that counts messages should (issue #589).
+ * Each test run has its own queue prefix (`jest-global-setup.ts`, issue #611), so
+ * another run's jobs never appear here. Suites inside one run still share the
+ * queue: pass `teamId` to process only that team's jobs and leave the rest alone;
+ * a test that counts messages should (issue #589).
  *
  * @param opts.teamId - Only drain jobs for this team. Omit to drain every job.
  * @returns The number of jobs processed.
@@ -123,7 +127,11 @@ export async function drainEmailQueue(opts: { teamId?: string } = {}): Promise<n
   // directly (confirmed: `require('@acruxcore/api/email/email.processor')`
   // throws `ERR_PACKAGE_PATH_NOT_EXPORTED`).
   const { processEmail } = await import('./email.processor');
-  const all = await getEmailQueue().getJobs(['waiting', 'delayed', 'paused']);
+  // `getJobs` yields `undefined` for a job removed between reading the id list
+  // and loading the job, so drop those first (issue #611).
+  const all = (await getEmailQueue().getJobs(['waiting', 'delayed', 'paused'])).filter(
+    (job): job is Job<EmailJobData> => job !== undefined,
+  );
   const jobs = opts.teamId ? all.filter((job) => job.data.teamId === opts.teamId) : all;
   for (const job of jobs) {
     try {

@@ -1,5 +1,5 @@
 import { Queue } from 'bullmq';
-import { getRedisConnection } from '../queue/connection';
+import { getQueuePrefix, getRedisConnection } from '../queue/connection';
 
 export const ONLINE_EVAL_QUEUE = 'eval-online';
 
@@ -16,7 +16,10 @@ let onlineEvalQueue: Queue<OnlineEvalJobData> | null = null;
 /** Memoized singleton queue handle, matching the house pattern in `evaluations/queue/queues.ts`. */
 export function getOnlineEvalQueue(): Queue<OnlineEvalJobData> {
   if (!onlineEvalQueue) {
-    onlineEvalQueue = new Queue<OnlineEvalJobData>(ONLINE_EVAL_QUEUE, { connection: getRedisConnection() });
+    onlineEvalQueue = new Queue<OnlineEvalJobData>(ONLINE_EVAL_QUEUE, {
+      connection: getRedisConnection(),
+      prefix: getQueuePrefix(),
+    });
   }
   return onlineEvalQueue;
 }

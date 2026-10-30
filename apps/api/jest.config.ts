@@ -44,9 +44,16 @@ const config: Config = {
   // suite. Without it, any suite whose code path reaches `notify()` leaves an open
   // socket and Jest never exits. See the file's own docstring.
   setupFilesAfterEnv: ['<rootDir>/src/test-utils/jest-teardown.ts'],
-  // Clones the test database once per extra worker before a parallel run, and
-  // does nothing for a serial one. See `worker-isolation.ts`.
+  // Gives the run its own BullMQ key prefix, and clones the test database once
+  // per extra worker before a parallel run. See `worker-isolation.ts`.
   globalSetup: '<rootDir>/src/test-utils/jest-global-setup.ts',
+  // Deletes the BullMQ keys of this run's own prefix. See the file's docstring.
+  globalTeardown: '<rootDir>/src/test-utils/jest-global-teardown.ts',
+  // Jest's 5 s default failed whole tests on CI that take ~0.4 s locally: the
+  // runner is ~5x slower and shares its cores with Postgres and Redis, so an
+  // ordinary test with a signup and a few requests ran past 5 s now and then
+  // (issues #501, #531). 20 s still fails a genuine hang quickly.
+  testTimeout: 20_000,
   // Serial by default — each suite hits a real DB. `npm run test:parallel`
   // overrides this; each worker then gets its own database and Redis index.
   maxWorkers: 1,

@@ -1,5 +1,5 @@
 import { Queue } from 'bullmq';
-import { getRedisConnection } from '../../evaluations/queue/connection';
+import { getQueuePrefix, getRedisConnection } from '../../evaluations/queue/connection';
 
 /** Queue name for the span-payload purge schedule. */
 export const RETENTION_QUEUE = 'trace-payload-retention';
@@ -32,6 +32,7 @@ export function getRetentionQueue(): Queue<RetentionJobData> {
   if (!retentionQueue) {
     retentionQueue = new Queue<RetentionJobData>(RETENTION_QUEUE, {
       connection: getRedisConnection(),
+      prefix: getQueuePrefix(),
     });
   }
   return retentionQueue;

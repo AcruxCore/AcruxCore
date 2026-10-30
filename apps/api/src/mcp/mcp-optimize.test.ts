@@ -18,6 +18,7 @@ import {
   getFlowProducer,
   getJudgeQueue,
   getOptimizeQueue,
+  getQueuePrefix,
   getRedisConnection,
   getRunsQueue,
 } from '../evaluations/queue';
@@ -210,7 +211,7 @@ async function drainEvalQueues(): Promise<void> {
   ];
   const connection = getRedisConnection().duplicate();
   const workers = processors.map(
-    ([queue, run]) => [new Worker(queue, undefined, { connection, autorun: false }), run] as const,
+    ([queue, run]) => [new Worker(queue, undefined, { connection, prefix: getQueuePrefix(), autorun: false }), run] as const,
   );
   try {
     for (let pass = 0; pass < 20; pass++) {

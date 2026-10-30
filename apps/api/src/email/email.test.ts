@@ -9,10 +9,11 @@ import { MemoryTransport } from './memory.transport';
 import { SesTransport, type SesClientLike } from './ses.transport';
 import { ReservedDomainGuard } from './delivery-guard';
 import { EmailService } from './email.service';
-import { drainEmailQueue, getEmailQueue, toEmailJobId } from './email.queue';
+import { Queue } from 'bullmq';
+import { EMAIL_QUEUE, drainEmailQueue, getEmailQueue, toEmailJobId } from './email.queue';
 import { getMemoryTransport } from './memory.transport';
 import type { EmailPayload } from './email.types';
-import { getRedisConnection } from '../evaluations/queue/connection';
+import { getQueuePrefix, getRedisConnection } from '../evaluations/queue/connection';
 
 const app = createApp();
 const repo = new EmailRepository();
@@ -624,6 +625,48 @@ describe('EmailService enqueue → deliver', () => {
     // a stack trace per retry.
     await expect(repo.markSent(id, 'ses-message-id-gone')).resolves.toBe(false);
     await expect(repo.markFailed(id, 'transport exploded')).resolves.toBe(false);
+  });
+
+  // Issue #611. Another test run, or a dev worker, on the same Redis database
+  // uses the default `bull` key prefix. This run must neither drain nor see it.
+  it('leaves a job on another process\'s queue alone', async () => {
+    // A prefix of its own, not the shared `bull`: a dev worker on this Redis
+    // database could take a job left there, and the queue's keys would stay.
+    const otherRun = new Queue(EMAIL_QUEUE, {
+      connection: getRedisConnection(),
+      prefix: `${getQueuePrefix()}-other`,
+    });
+    const job = await otherRun.add('send', {
+      emailLogId: '00000000-0000-0000-0000-000000000000',
+      teamId: '00000000-0000-0000-0000-000000000000',
+      to: 'someone@example.com',
+      payload: payload(),
+    });
+    try {
+      expect(await drainEmailQueue()).toBe(0);
+      expect(await otherRun.getJob(job.id!)).toBeDefined();
+    } finally {
+      await otherRun.obliterate({ force: true });
+      await otherRun.close();
+    }
+  });
+
+  it('skips a job removed while the drain is reading the list', async () => {
+    const owner = await authedAgent(app, { email: 'owner@vanishedjob.test' });
+    await service.enqueue({
+      teamId: owner.teamId,
+      to: 'invitee@example.com',
+      payload: payload(),
+      dedupeKey: 'invite:vanished-job',
+    });
+    const [job] = await getEmailQueue().getJobs(['waiting']);
+
+    // What a concurrent `job.remove()` leaves behind for a moment: the id is still
+    // in the waiting list, but the job's hash is gone, so `getJobs` yields
+    // `undefined` for it.
+    await getRedisConnection().del(getEmailQueue().toKey(job.id!));
+
+    await expect(drainEmailQueue({ teamId: owner.teamId })).resolves.toBe(0);
   });
 });
 

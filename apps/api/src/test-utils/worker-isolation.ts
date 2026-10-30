@@ -71,3 +71,46 @@ export function workerRedisUrl(url: string, workerId: number): string {
   parsed.pathname = `/${index}`;
   return parsed.toString();
 }
+
+/**
+ * A BullMQ key prefix unique to one test run.
+ *
+ * The parent Jest process's pid plus the start time, so two runs that start at
+ * once still differ, and a pid the OS reuses later does not collide either.
+ *
+ * @returns A prefix such as `test-48213-1761811200000`; it holds no Redis glob
+ *   characters, so `<prefix>:*` matches exactly this run's keys.
+ */
+export function testRunQueuePrefix(): string {
+  return `test-${process.pid}-${Date.now()}`;
+}
+
+/**
+ * Where `jest-global-setup.ts` leaves the prefix it generated for
+ * `jest-global-teardown.ts`. Jest runs both hooks in the parent process and
+ * shares `globalThis` between them, but not with the test workers.
+ */
+const RUN_QUEUE_PREFIX_GLOBAL = '__acruxTestRunQueuePrefix';
+
+/**
+ * Records that this run generated `prefix`, so the teardown may delete its keys.
+ *
+ * @param prefix - The prefix from {@link testRunQueuePrefix}.
+ */
+export function rememberRunQueuePrefix(prefix: string): void {
+  (globalThis as Record<string, unknown>)[RUN_QUEUE_PREFIX_GLOBAL] = prefix;
+}
+
+/**
+ * The prefix this run generated, if it generated one.
+ *
+ * A prefix the caller exported is never returned, whatever it looks like: two
+ * processes (a local API, a worker and a Jest run, or two runs) may share one on
+ * purpose, and deleting its keys would delete their live jobs.
+ *
+ * @returns The prefix recorded by {@link rememberRunQueuePrefix}, or `undefined`.
+ */
+export function ownedRunQueuePrefix(): string | undefined {
+  const value = (globalThis as Record<string, unknown>)[RUN_QUEUE_PREFIX_GLOBAL];
+  return typeof value === 'string' ? value : undefined;
+}

@@ -1,5 +1,5 @@
 import { Queue, type JobsOptions } from 'bullmq';
-import { getRedisConnection } from '../../evaluations/queue/connection';
+import { getQueuePrefix, getRedisConnection } from '../../evaluations/queue/connection';
 // `toEmailJobId` is named for its first caller but its constraint is BullMQ's, not
 // email's: any custom job id containing exactly one `:` is rejected outright
 // (job.js:1047-1049). Every queue in this codebase that wants a readable
@@ -63,6 +63,7 @@ export function getDigestQueue(): Queue<DigestJobData> {
   if (!digestQueue) {
     digestQueue = new Queue<DigestJobData>(DIGEST_QUEUE, {
       connection: getRedisConnection(),
+      prefix: getQueuePrefix(),
     });
   }
   return digestQueue;

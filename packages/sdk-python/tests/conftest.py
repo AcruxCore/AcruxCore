@@ -15,8 +15,10 @@ give ``test_byo_integration.py`` a live server plus a fully self-provisioned tea
 but provisions its own lighter-weight team (no prompt/gateway connection) rather
 than reusing ``provisioned_env`` — see that file's module docstring.
 
-CONCURRENCY WARNING: this suite is not wired into `turbo.json` or any CI
-workflow. Its subprocess `apps/api` server points at the SAME `TEST_DATABASE_URL`
+CONCURRENCY WARNING: CI runs these tests (`.github/workflows/sdk-tests.yml`,
+`pytest -m server`) on the same database as the Node SDK integration suite,
+and is safe only because the two run one after the other. Locally, the subprocess
+`apps/api` server points at the SAME `TEST_DATABASE_URL`
 that `npm test` (apps/api's own Jest suite, run in-process via supertest) and
 `packages/sdk`'s own integration suite use. Do NOT run this suite at the same
 time as `npm test` or another live integration suite against that database —
@@ -69,6 +71,19 @@ _TEST_PASSWORD = "test-password-not-a-real-one-1234"
 
 # How long to wait for the subprocess `apps/api` server to answer its first request.
 _BOOT_TIMEOUT_S = 15.0
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Marks every test that needs a running `apps/api` as `server`.
+
+    Detected from the fixtures a test uses, directly or through another fixture,
+    so a new server-backed test is marked without anyone remembering to. CI's
+    fast job runs `pytest -m "not server"`; the job with Postgres runs
+    `pytest -m server` (issue #244).
+    """
+    for item in items:
+        if "api_server" in getattr(item, "fixturenames", ()):
+            item.add_marker(pytest.mark.server)
 
 
 def _repo_root() -> Path:

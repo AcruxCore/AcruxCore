@@ -2,8 +2,9 @@
  * Live integration test for the Evaluations SDK domain. Boots the real API
  * in-process on a free port, against the database in the repo's `.env`.
  *
- * Opt-in: npx jest test/integration/eval-live.test.ts --runInBand
- * Excluded from `npm test` and `npm run test:integration` (see package.json).
+ * Needs no provider key, so it runs in `npm test` and `npm run test:integration`
+ * like the other suites here (issue #244). Only `byo.integration` is left to
+ * `npm run test:live`.
  */
 import { acruxcore } from '../../src/client';
 import http from 'http';

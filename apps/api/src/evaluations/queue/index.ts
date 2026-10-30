@@ -1,4 +1,4 @@
-export { getRedisConnection } from './connection';
+export { getQueuePrefix, getRedisConnection } from './connection';
 export {
   EVAL_CELLS_QUEUE,
   EVAL_RUNS_QUEUE,

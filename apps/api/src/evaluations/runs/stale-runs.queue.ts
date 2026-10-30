@@ -1,5 +1,5 @@
 import { Queue } from 'bullmq';
-import { getRedisConnection } from '../queue/connection';
+import { getQueuePrefix, getRedisConnection } from '../queue/connection';
 
 /** Queue name for the stale-run sweep schedule. */
 export const STALE_RUNS_QUEUE = 'eval-stale-runs';
@@ -24,6 +24,7 @@ export function getStaleRunsQueue(): Queue<StaleRunsJobData> {
   if (!staleRunsQueue) {
     staleRunsQueue = new Queue<StaleRunsJobData>(STALE_RUNS_QUEUE, {
       connection: getRedisConnection(),
+      prefix: getQueuePrefix(),
     });
   }
   return staleRunsQueue;
