@@ -85,11 +85,10 @@ export class AliasesRepository {
     promptName: string,
     alias: string,
   ): Promise<AliasWithVersion | null> {
-    const row = await prisma.promptAlias.findFirst({
-      where: {
-        alias,
-        prompt: { teamId, name: promptName, deletedAt: null },
-      },
+    const promptId = await this.oldestPromptId(teamId, promptName);
+    if (!promptId) return null;
+    const row = await prisma.promptAlias.findUnique({
+      where: { uq_prompt_aliases_prompt_alias: { promptId, alias } },
       include: {
         version: {
           select: {
@@ -130,11 +129,26 @@ export class AliasesRepository {
     promptName: string,
     alias: string,
   ): Promise<{ aliasId: string; promptId: string; versionNumber: number } | null> {
-    const row = await prisma.promptAlias.findFirst({
-      where: { alias, prompt: { teamId, name: promptName, deletedAt: null } },
+    const promptId = await this.oldestPromptId(teamId, promptName);
+    if (!promptId) return null;
+    const row = await prisma.promptAlias.findUnique({
+      where: { uq_prompt_aliases_prompt_alias: { promptId, alias } },
       select: { id: true, promptId: true, version: { select: { versionNumber: true } } },
     });
     return row ? { aliasId: row.id, promptId: row.promptId, versionNumber: row.version.versionNumber } : null;
+  }
+
+  // Pre-uniqueness data can hold two active prompts with one name. Pick the oldest
+  // by name alone, the same choice PromptsRepository.findByName makes, and only then
+  // look at the alias: filtering on the alias first would serve a newer prompt while
+  // the oldest lacks the alias, then switch silently once it gains one.
+  private async oldestPromptId(teamId: string, promptName: string): Promise<string | null> {
+    const prompt = await prisma.prompt.findFirst({
+      where: { teamId, name: promptName, deletedAt: null },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: { id: true },
+    });
+    return prompt?.id ?? null;
   }
 
   /**

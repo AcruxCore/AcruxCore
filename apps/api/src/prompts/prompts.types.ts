@@ -26,13 +26,16 @@ export interface PromptListResponseDto {
   limit: number;
 }
 
+/** Longest prompt name the API stores; import shortens a suffixed name to fit. */
+export const MAX_PROMPT_NAME_LENGTH = 255;
+
 /** Zod schema for POST /prompts body. */
 export const CreatePromptSchema = z.object({
   name: z
     .string({ required_error: 'name is required.' })
     .trim()
     .min(1, 'name must not be empty.')
-    .max(255, 'name must be 255 characters or fewer.'),
+    .max(MAX_PROMPT_NAME_LENGTH, `name must be ${MAX_PROMPT_NAME_LENGTH} characters or fewer.`),
   description: z
     .string()
     .max(2000, 'description must be 2000 characters or fewer.')
@@ -48,7 +51,7 @@ export const UpdatePromptSchema = z
       .string()
       .trim()
       .min(1, 'name must not be empty.')
-      .max(255, 'name must be 255 characters or fewer.')
+      .max(MAX_PROMPT_NAME_LENGTH, `name must be ${MAX_PROMPT_NAME_LENGTH} characters or fewer.`)
       .optional(),
     description: z
       .string()

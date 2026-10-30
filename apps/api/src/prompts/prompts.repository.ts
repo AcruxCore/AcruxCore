@@ -1,5 +1,6 @@
-import { Prompt } from '@prisma/client';
+import { Prisma, Prompt } from '@prisma/client';
 import prisma from '../shared/db/client';
+import { LockNamespace, lockTeamName } from '../shared/db/advisory-lock';
 
 /** Parameters for creating a new prompt. */
 interface CreateParams {
@@ -36,13 +37,34 @@ interface UpdateFields {
  */
 export class PromptsRepository {
   /**
+   * Serialises every writer that claims the same `(teamId, name)`, so a
+   * check-then-insert cannot interleave with another one.
+   *
+   * Without it, two concurrent `POST /prompts` with one name both see "no such
+   * prompt" and both insert. A partial unique index would do this in the database,
+   * but Prisma's schema cannot express `WHERE deleted_at IS NULL`, so a later
+   * `prisma migrate dev` would drop it (same reasoning as tools, phase-4-faq Q47).
+   *
+   * Released automatically when the transaction commits or rolls back.
+   *
+   * @param teamId - Owning team; part of the key, so two teams never block each other.
+   * @param name - The prompt name being claimed.
+   * @param tx - The transaction to scope the lock to. Required: a lock taken outside
+   *   a transaction would be released immediately and protect nothing.
+   */
+  async lockName(teamId: string, name: string, tx: Prisma.TransactionClient): Promise<void> {
+    await lockTeamName(tx, LockNamespace.PromptName, teamId, name);
+  }
+
+  /**
    * Inserts a new prompt row and returns the created row.
    *
    * @param params - Name, optional description, team_id, created_by.
+   * @param tx - Optional transaction client, so the insert shares the name lock.
    * @returns The newly inserted prompt.
    */
-  async create(params: CreateParams): Promise<Prompt> {
-    return prisma.prompt.create({
+  async create(params: CreateParams, tx?: Prisma.TransactionClient): Promise<Prompt> {
+    return (tx ?? prisma).prompt.create({
       data: {
         name: params.name,
         description: params.description ?? null,
@@ -70,13 +92,19 @@ export class PromptsRepository {
    * Finds an active (non-deleted) prompt by its exact name within a team — the
    * key an app uses, since apps ask for prompts by name rather than by id.
    *
+   * Names are unique among active prompts now, but a team created before that can
+   * still hold two. The oldest wins, so every by-name lookup agrees on one prompt
+   * instead of taking whichever row Postgres returns first.
+   *
    * @param name - The prompt's exact name.
    * @param teamId - Isolation boundary.
+   * @param tx - Optional transaction client, for a check made under {@link lockName}.
    * @returns The prompt, or undefined if the team has none by that name.
    */
-  async findByName(name: string, teamId: string): Promise<Prompt | undefined> {
-    const row = await prisma.prompt.findFirst({
+  async findByName(name: string, teamId: string, tx?: Prisma.TransactionClient): Promise<Prompt | undefined> {
+    const row = await (tx ?? prisma).prompt.findFirst({
       where: { name, teamId, deletedAt: null },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     });
     return row ?? undefined;
   }
@@ -161,18 +189,21 @@ export class PromptsRepository {
    * @param id - Prompt UUID.
    * @param teamId - Isolation boundary — only updates prompts in this team.
    * @param fields - The fields to update; only provided fields are changed.
+   * @param tx - Optional transaction client, so a rename shares the name lock.
    */
   async update(
     id: string,
     teamId: string,
     fields: UpdateFields,
+    tx?: Prisma.TransactionClient,
   ): Promise<Prompt | undefined> {
-    const result = await prisma.prompt.updateMany({
+    const db = tx ?? prisma;
+    const result = await db.prompt.updateMany({
       where: { id, teamId, deletedAt: null },
       data: fields,
     });
     if (result.count === 0) return undefined;
-    const row = await prisma.prompt.findUnique({ where: { id } });
+    const row = await db.prompt.findUnique({ where: { id } });
     return row ?? undefined;
   }
 

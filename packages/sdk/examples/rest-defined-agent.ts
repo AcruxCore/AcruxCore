@@ -31,10 +31,10 @@
  * executable logic and fetches the rest by name.
  *
  * The setup is written as idempotent "ensure" helpers (find-by-name, create only
- * if missing) because names are NOT unique in the catalog — a naive re-run would
- * create duplicate rows and make name resolution ambiguous. Run it as many times
- * as you like; it converges to one prompt (with the three tools bound) + three
- * tools.
+ * if missing) because a name belongs to one prompt or tool per team — a naive
+ * re-run would get 409 PROMPT_NAME_TAKEN / TOOL_NAME_TAKEN on the second create.
+ * Run it as many times as you like; it converges to one prompt (with the three
+ * tools bound) + three tools.
  *
  * Run:
  *   ACRUXCORE_API_KEY=<your key> \

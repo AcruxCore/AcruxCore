@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_PROMPT_NAME_LENGTH } from '../prompts.types';
 import { CacheControlSchema, StoredPartSchema, refineImageInUserMessage } from '../versions/versions.types';
 
 /** Zod schema for a single message inside the import body. */
@@ -12,14 +13,16 @@ const MessageSchema = z.object({
 /**
  * Zod schema for the import request body.
  * `schemaVersion` must equal `1` — other values are rejected with UNSUPPORTED_SCHEMA_VERSION.
- * `prompt.name` must be a non-empty string.
+ * `prompt.name` is trimmed and must be 1–255 characters, as on create.
  * `version.messages` must be a non-empty array where each item has role and content.
  */
 export const ImportBodySchema = z.object({
   schemaVersion: z.literal(1, { errorMap: () => ({ message: 'UNSUPPORTED_SCHEMA_VERSION' }) }),
   exportedAt:    z.string().optional(),
   prompt: z.object({
-    name:        z.string().min(1, 'prompt.name must not be empty'),
+    // Same rules as POST /prompts: a padded copy of a taken name must not slip past
+    // the uniqueness check as a second prompt that looks the same in the dashboard.
+    name:        z.string().trim().min(1, 'prompt.name must not be empty').max(MAX_PROMPT_NAME_LENGTH, `prompt.name must be ${MAX_PROMPT_NAME_LENGTH} characters or fewer`),
     description: z.string().nullable().optional(),
   }),
   version: z.object({

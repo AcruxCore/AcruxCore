@@ -40,6 +40,13 @@ called out in the week it ships and in the SDK release notes.
 - `experiments.judge` grades local outputs like a server run, with a judge version you pick.
 - New tutorial: [Improve a RAG agent from user feedback](/docs/tutorials/improve-a-rag-agent-from-feedback).
 
+#### A prompt name belongs to one prompt per team
+
+- Creating or renaming onto a taken name now returns 409 `PROMPT_NAME_TAKEN`.
+- **Fixed** — two prompts with one name made render by name serve either one, with no error.
+- Teams that already hold such a pair now always get the older prompt; rename the other.
+  [Reference →](/api-reference/prompts#post-apiv1prompts)
+
 ### Minor
 
 - **New post** — [14 OpenRouter alternatives](https://acruxcore.com/blog/openrouter-alternatives), grouped by who bills you for tokens.
@@ -52,6 +59,7 @@ called out in the week it ships and in the SDK release notes.
 - **Pricing** — hosted AcruxCore is free to use, with no end date; before, it was free during the beta.
 - **Fixed** — Committing several versions of one prompt or tool at once no longer returns 500.
 - **Fixed** — A failed SDK render now says why, such as which version was not found.
+- **Fixed** — Import trims a prompt's name and refuses one over 255 characters, as create does.
 - **Blog** — wider posts without the recent-posts sidebar; tables mark Yes and No with icons.
 - **Blog** — tool sections show strengths and limits side by side, in light and dark themes.
 - **Blog** — every post highlights one or two key points as quotes.

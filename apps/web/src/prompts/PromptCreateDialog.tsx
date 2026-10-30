@@ -6,7 +6,8 @@ import { Button, Dialog, DialogFooter, Field, Input, Textarea, useToast } from '
 export interface PromptCreateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Existing prompt names in the team, for a soft duplicate warning. */
+  /** Prompt names already loaded in the list, to flag a taken name before submit. The
+   *  API stays the real check (409 PROMPT_NAME_TAKEN) — this list is one page only. */
   existingNames: string[];
 }
 
@@ -54,17 +55,16 @@ export function PromptCreateDialog({ open, onOpenChange, existingNames }: Prompt
         <Field
           label="Name"
           htmlFor="prompt-name"
-          error={error ?? undefined}
-          hint={
-            duplicate
-              ? 'A prompt with this name already exists — the SDK fetches by name, so duplicates are ambiguous.'
-              : 'Used as the SDK lookup key. Lowercase with hyphens works well.'
-          }
+          error={error ?? (duplicate ? 'A prompt with this name already exists. Pick another name.' : undefined)}
+          hint="Used as the SDK lookup key. Lowercase with hyphens works well."
         >
           <Input
             id="prompt-name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              setError(null);
+            }}
             placeholder="greeting"
             autoFocus
           />
@@ -83,7 +83,7 @@ export function PromptCreateDialog({ open, onOpenChange, existingNames }: Prompt
         <Button variant="ghost" onClick={() => onOpenChange(false)}>
           Cancel
         </Button>
-        <Button variant="primary" disabled={create.isPending} onClick={handleCreate}>
+        <Button variant="primary" disabled={create.isPending || duplicate} onClick={handleCreate}>
           {create.isPending ? 'Creating…' : 'Create prompt'}
         </Button>
       </DialogFooter>

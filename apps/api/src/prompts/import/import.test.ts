@@ -133,6 +133,67 @@ describe('POST /api/v1/prompts/import', () => {
     expect(res2.body.prompt.name).toMatch(/imported-prompt-imported-\d+/);
   });
 
+  it('gives each of several parallel imports of one name its own name', async () => {
+    const { apiKey, teamId } = await signupTestUserWithApiKey(app);
+
+    const results = await Promise.all(
+      [1, 2, 3].map(() =>
+        request(app).post('/api/v1/prompts/import').set('Authorization', `Bearer ${apiKey}`).send(validPayload),
+      ),
+    );
+
+    expect(results.map((r) => r.status)).toEqual([201, 201, 201]);
+    const names = results.map((r) => r.body.prompt.name as string);
+    expect(new Set(names).size).toBe(3);
+    const keptOriginal = await prisma.prompt.count({ where: { teamId, name: 'imported-prompt' } });
+    expect(keptOriginal).toBe(1);
+  });
+
+  it('trims the imported name, so padding cannot slip past a taken name', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const send = (name: string) =>
+      request(app)
+        .post('/api/v1/prompts/import')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ ...validPayload, prompt: { name, description: null } })
+        .expect(201);
+
+    const first = await send('  padded-prompt ');
+    const second = await send('padded-prompt  ');
+
+    expect(first.body.prompt.name).toBe('padded-prompt');
+    expect(second.body.prompt.name).toMatch(/^padded-prompt-imported-\d+$/);
+  });
+
+  it('returns 400 VALIDATION_ERROR for a name longer than 255 characters, as create does', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+
+    const res = await request(app)
+      .post('/api/v1/prompts/import')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ ...validPayload, prompt: { name: 'a'.repeat(256), description: null } })
+      .expect(400);
+
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('keeps a suffixed name within 255 characters when a long name is taken', async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const long = 'b'.repeat(255);
+    const send = () =>
+      request(app)
+        .post('/api/v1/prompts/import')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ ...validPayload, prompt: { name: long, description: null } })
+        .expect(201);
+
+    await send();
+    const second = await send();
+
+    expect(second.body.prompt.name).toMatch(/-imported-\d+$/);
+    expect(second.body.prompt.name.length).toBeLessThanOrEqual(255);
+  });
+
   it('creates production and staging aliases pointing to version 1', async () => {
     const { apiKey } = await signupTestUserWithApiKey(app);
 

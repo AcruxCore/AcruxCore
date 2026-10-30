@@ -94,18 +94,60 @@ describe('POST /api/v1/prompts', () => {
     expect(res.body.error.code).toBe('FORBIDDEN');
   });
 
-  it('allows creating two prompts with the same name in the same team', async () => {
+  it('returns 409 PROMPT_NAME_TAKEN for a name another active prompt in the team holds', async () => {
     const ctx = await signupTestUser(app);
     await request(app)
       .post('/api/v1/prompts')
       .set(authHeaders(ctx))
-      .send({ name: 'duplicate-name' })
+      .send({ name: 'support-reply' })
       .expect(201);
-    await request(app)
+
+    const conflict = await request(app)
       .post('/api/v1/prompts')
       .set(authHeaders(ctx))
-      .send({ name: 'duplicate-name' })
+      .send({ name: 'support-reply' })
+      .expect(409);
+    expect(conflict.body.error.code).toBe('PROMPT_NAME_TAKEN');
+
+    const count = await prisma.prompt.count({ where: { teamId: ctx.teamId, name: 'support-reply' } });
+    expect(count).toBe(1);
+  });
+
+  it('creates only one prompt when two creates with the same name race', async () => {
+    const ctx = await signupTestUser(app);
+    const results = await Promise.all(
+      [1, 2, 3].map(() =>
+        request(app).post('/api/v1/prompts').set(authHeaders(ctx)).send({ name: 'raced' }),
+      ),
+    );
+
+    expect(results.map((r) => r.status).sort()).toEqual([201, 409, 409]);
+    const count = await prisma.prompt.count({ where: { teamId: ctx.teamId, name: 'raced' } });
+    expect(count).toBe(1);
+  });
+
+  it('frees a prompt name for reuse once the prompt is soft-deleted', async () => {
+    const ctx = await signupTestUser(app);
+    const { body: first } = await request(app)
+      .post('/api/v1/prompts')
+      .set(authHeaders(ctx))
+      .send({ name: 'support-reply' })
       .expect(201);
+    await request(app).delete(`/api/v1/prompts/${first.id}`).set(authHeaders(ctx)).expect(204);
+
+    const { body: second } = await request(app)
+      .post('/api/v1/prompts')
+      .set(authHeaders(ctx))
+      .send({ name: 'support-reply' })
+      .expect(201);
+    expect(second.id).not.toBe(first.id);
+  });
+
+  it('lets two different teams each have a prompt with the same name', async () => {
+    const a = await signupTestUser(app);
+    const b = await signupTestUser(app);
+    await request(app).post('/api/v1/prompts').set(authHeaders(a)).send({ name: 'support-reply' }).expect(201);
+    await request(app).post('/api/v1/prompts').set(authHeaders(b)).send({ name: 'support-reply' }).expect(201);
   });
 
   it('returns 201 when authenticated with a Bearer API key instead of a session', async () => {
@@ -305,6 +347,41 @@ describe('PATCH /api/v1/prompts/:id', () => {
 
     expect(res.body.name).toBe('new-name');
     expect(res.body.description).toBe('keep me');
+  });
+
+  it('returns 409 PROMPT_NAME_TAKEN when renaming onto another active prompt name', async () => {
+    const ctx = await signupTestUser(app);
+    await request(app).post('/api/v1/prompts').set(authHeaders(ctx)).send({ name: 'taken' }).expect(201);
+    const { body: other } = await request(app)
+      .post('/api/v1/prompts')
+      .set(authHeaders(ctx))
+      .send({ name: 'free' })
+      .expect(201);
+
+    const res = await request(app)
+      .patch(`/api/v1/prompts/${other.id}`)
+      .set(authHeaders(ctx))
+      .send({ name: 'taken' })
+      .expect(409);
+    expect(res.body.error.code).toBe('PROMPT_NAME_TAKEN');
+
+    const row = await prisma.prompt.findUnique({ where: { id: other.id } });
+    expect(row!.name).toBe('free');
+  });
+
+  it('allows a PATCH that sends the prompt its own current name', async () => {
+    const ctx = await signupTestUser(app);
+    const { body: created } = await request(app)
+      .post('/api/v1/prompts')
+      .set(authHeaders(ctx))
+      .send({ name: 'same' })
+      .expect(201);
+
+    await request(app)
+      .patch(`/api/v1/prompts/${created.id}`)
+      .set(authHeaders(ctx))
+      .send({ name: 'same', description: 'now described' })
+      .expect(200);
   });
 
   it('updates description only, leaves name unchanged', async () => {

@@ -197,8 +197,8 @@ export const promptTools: AnyToolDefinition[] = [
     readOnlyHint: false,
     description:
       'Create an empty prompt container. It has no messages yet — the messages live in ' +
-      'versions, so follow this with commit_prompt_version. Fails with TOOL_NAME_TAKEN ' +
-      'style 409 semantics if the name is already used in the team.',
+      'versions, so follow this with commit_prompt_version. Fails with 409 ' +
+      'PROMPT_NAME_TAKEN if an active prompt in the team already has the name.',
     inputSchema: {
       name: z
         .string()

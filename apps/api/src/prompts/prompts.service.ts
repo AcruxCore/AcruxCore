@@ -7,9 +7,10 @@ import {
   PromptListResponseDto,
 } from './prompts.types';
 import { audit } from '../shared/audit';
-import { NotFoundError } from '../shared/errors';
+import { ConflictError, NotFoundError } from '../shared/errors';
 import prisma from '../shared/db/client';
-import { Prompt } from '@prisma/client';
+import { runInTransaction } from '../shared/db/unit-of-work';
+import { Prisma, Prompt } from '@prisma/client';
 
 /** Maps a DB row to the DTO shape returned by the API. */
 function toResponseDto(row: Prompt): PromptResponseDto {
@@ -32,23 +33,59 @@ export class PromptsService {
   constructor(private readonly repo: PromptsRepository) {}
 
   /**
+   * Rejects a name that another ACTIVE prompt in the team already holds.
+   *
+   * The name is how an app reaches a prompt — render by name, the SDK's `render()`
+   * and the gateway's stored-prompt path all resolve it. Two active prompts sharing
+   * one would let an app render a different prompt from the one just edited.
+   * Soft-deleted prompts are excluded, so deleting a prompt frees its name.
+   *
+   * Callers must hold {@link PromptsRepository.lockName} for the same name in `tx`.
+   *
+   * @param name - The name being claimed.
+   * @param teamId - Isolation boundary.
+   * @param tx - Transaction the lock and the subsequent write share.
+   * @param exceptPromptId - Prompt allowed to keep the name, for a no-op rename.
+   * @throws {ConflictError} PROMPT_NAME_TAKEN if an active prompt already holds it.
+   */
+  private async assertNameFree(
+    name: string,
+    teamId: string,
+    tx: Prisma.TransactionClient,
+    exceptPromptId?: string,
+  ): Promise<void> {
+    const existing = await this.repo.findByName(name, teamId, tx);
+    if (existing && existing.id !== exceptPromptId) {
+      throw new ConflictError('PROMPT_NAME_TAKEN', `A prompt named '${name}' already exists in this team.`);
+    }
+  }
+
+  /**
    * Creates a new prompt shell (no content yet — content is added in B3).
    * Emits a `prompt_created` audit event.
    *
    * @param userId - The creating user's ID (written to createdBy and audit).
    * @param teamId - The active team's ID.
    * @param dto - Validated body: name (required), description (optional).
+   * @throws {ConflictError} PROMPT_NAME_TAKEN if an active prompt in the team holds the name.
    */
   async create(
     userId: string,
     teamId: string,
     dto: CreatePromptDto,
   ): Promise<PromptResponseDto> {
-    const row = await this.repo.create({
-      name: dto.name,
-      description: dto.description,
-      teamId,
-      createdBy: userId,
+    const row = await runInTransaction(async (tx) => {
+      await this.repo.lockName(teamId, dto.name, tx);
+      await this.assertNameFree(dto.name, teamId, tx);
+      return this.repo.create(
+        {
+          name: dto.name,
+          description: dto.description,
+          teamId,
+          createdBy: userId,
+        },
+        tx,
+      );
     });
 
     await audit(prisma, {
@@ -113,6 +150,7 @@ export class PromptsService {
    * @param actorId - User performing the update (for audit).
    * @param dto - Validated partial update body.
    * @throws {NotFoundError} If the prompt is not found or belongs to another team.
+   * @throws {ConflictError} PROMPT_NAME_TAKEN if renaming onto another active prompt's name.
    */
   async update(
     id: string,
@@ -123,9 +161,23 @@ export class PromptsService {
     const existing = await this.repo.findById(id, teamId);
     if (!existing) throw new NotFoundError('Prompt not found.');
 
-    const updated = await this.repo.update(id, teamId, {
-      ...(dto.name !== undefined && { name: dto.name }),
-      ...(dto.description !== undefined && { description: dto.description }),
+    const updated = await runInTransaction(async (tx) => {
+      // A rename claims a name the same way a create does. A PATCH that keeps the
+      // name (the Settings dialog always sends it) claims nothing, so it skips the
+      // lock — and must, or the newer of two pre-uniqueness duplicates could never save.
+      if (dto.name !== undefined && dto.name !== existing.name) {
+        await this.repo.lockName(teamId, dto.name, tx);
+        await this.assertNameFree(dto.name, teamId, tx, id);
+      }
+      return this.repo.update(
+        id,
+        teamId,
+        {
+          ...(dto.name !== undefined && { name: dto.name }),
+          ...(dto.description !== undefined && { description: dto.description }),
+        },
+        tx,
+      );
     });
 
     if (!updated) throw new NotFoundError('Prompt not found.');

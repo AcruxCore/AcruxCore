@@ -1,5 +1,6 @@
 import { Prisma, Tool } from '@prisma/client';
 import prisma from '../shared/db/client';
+import { LockNamespace, lockTeamName } from '../shared/db/advisory-lock';
 import type { ToolReadinessDto } from './tools.types';
 
 /** Parameters for creating a new tool shell. */
@@ -29,13 +30,6 @@ interface UpdateFields {
   name?: string;
   description?: string | null;
 }
-
-/**
- * Advisory-lock namespace for tool-name serialisation. Arbitrary, but must not be
- * reused by another advisory lock in this codebase — the pair
- * `(namespace, hashtext(key))` is what Postgres actually locks on.
- */
-const TOOL_NAME_LOCK_NAMESPACE = 4271;
 
 /**
  * Data access layer for the tools domain (the mutable shell only —
@@ -68,7 +62,7 @@ export class ToolsRepository {
    *   a transaction would be released immediately and protect nothing.
    */
   async lockName(teamId: string, name: string, tx: Prisma.TransactionClient): Promise<void> {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${TOOL_NAME_LOCK_NAMESPACE}::int, hashtext(${`${teamId}:${name}`}))`;
+    await lockTeamName(tx, LockNamespace.ToolName, teamId, name);
   }
 
   /**

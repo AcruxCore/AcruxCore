@@ -796,3 +796,85 @@ describe('pinning a version on render and on GET /prompt-versions', () => {
     expect(bad.body.error.code).toBe('VALIDATION_ERROR');
   });
 });
+
+// Teams created before names were unique can still hold two active prompts with one
+// name. Every by-name lookup must then resolve to the same one — the oldest — rather
+// than to whichever row Postgres happens to return first.
+describe('by-name lookups with two active prompts sharing a name (pre-uniqueness data)', () => {
+  async function setupLegacyDuplicate(): Promise<{ apiKey: string; olderId: string }> {
+    const { apiKey, promptId: newerId, promptName } = await setupPromptWithVersions(1);
+    const newer = await prisma.prompt.findUniqueOrThrow({ where: { id: newerId } });
+
+    // Inserted second, so its alias rows sit after the first prompt's on disk, but
+    // dated earlier: an unordered lookup finds `newer`, an oldest-first one `older`.
+    const older = await prisma.prompt.create({
+      data: {
+        name: promptName,
+        teamId: newer.teamId,
+        createdBy: newer.createdBy,
+        createdAt: new Date(newer.createdAt.getTime() - 60_000),
+      },
+    });
+    await request(app)
+      .post(`/api/v1/prompts/${older.id}/versions`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ messages: [{ role: 'system', content: 'Older prompt for {{ name }}' }] })
+      .expect(201);
+
+    return { apiKey, olderId: older.id };
+  }
+
+  it('render by name serves the oldest prompt', async () => {
+    const { apiKey, olderId } = await setupLegacyDuplicate();
+    const { name } = await prisma.prompt.findUniqueOrThrow({ where: { id: olderId } });
+
+    const res = await request(app)
+      .post(`/api/v1/prompts/${name}/production/render`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ variables: { name: 'Ada' } })
+      .expect(200);
+
+    expect(JSON.stringify(res.body.messages)).toContain('Older prompt for Ada');
+  });
+
+  // The oldest prompt is picked by name first and the alias second. Filtering on the
+  // alias first would serve the newer prompt here, then switch to the older one the
+  // moment it gained a production alias.
+  it('render by name does not fall through to a newer prompt when the oldest lacks the alias', async () => {
+    const { apiKey, olderId } = await setupLegacyDuplicate();
+    const { name } = await prisma.prompt.findUniqueOrThrow({ where: { id: olderId } });
+    await prisma.promptAlias.deleteMany({ where: { promptId: olderId, alias: 'production' } });
+
+    await request(app)
+      .post(`/api/v1/prompts/${name}/production/render`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ variables: { name: 'Ada' } })
+      .expect(404);
+    await request(app)
+      .post(`/api/v1/prompts/${name}/production/render`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ variables: { name: 'Ada' }, version: 1 })
+      .expect(404);
+
+    const staging = await request(app)
+      .post(`/api/v1/prompts/${name}/staging/render`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ variables: { name: 'Ada' } })
+      .expect(200);
+    expect(JSON.stringify(staging.body.messages)).toContain('Older prompt for Ada');
+  });
+
+  it('lets the newer prompt save its description without changing its name', async () => {
+    const { apiKey, olderId } = await setupLegacyDuplicate();
+    const { name, teamId } = await prisma.prompt.findUniqueOrThrow({ where: { id: olderId } });
+    const newer = await prisma.prompt.findFirstOrThrow({ where: { teamId, name, id: { not: olderId } } });
+
+    const res = await request(app)
+      .patch(`/api/v1/prompts/${newer.id}`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ name, description: 'Edited from Settings' })
+      .expect(200);
+
+    expect(res.body.description).toBe('Edited from Settings');
+  });
+});

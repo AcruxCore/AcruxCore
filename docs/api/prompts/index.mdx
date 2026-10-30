@@ -35,6 +35,10 @@ Think of it like a Git repo: the prompt is the repo name, each version is a
 commit. Consumers reference the prompt by name and alias; you publish new
 versions without changing the prompt's identity.
 
+A name belongs to one active prompt per team, because apps render a prompt by
+its name. Creating or renaming onto a taken name returns 409
+`PROMPT_NAME_TAKEN`. Deleting a prompt frees its name.
+
 Tools are not part of a version. A version holds the template; which tools the
 prompt calls is a separate, live setting per prompt alias — see
 [Prompt Tool Bindings](/api-reference/prompts/tool-bindings).
@@ -100,6 +104,19 @@ Missing name (status 400):
 
 ```json
 { "error": { "code": "VALIDATION_ERROR", "message": "name is required." } }
+```
+
+Name already used by another prompt in the team (status 409):
+
+```bash
+curl -X POST "$ACRUXCORE_BASE_URL/prompts" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"issue-739-check"}'
+```
+
+```json
+{"error":{"code":"PROMPT_NAME_TAKEN","message":"A prompt named 'issue-739-check' already exists in this team."}}
 ```
 
 Viewer role (status 403):
@@ -272,6 +289,19 @@ Empty body (status 400):
 
 ```json
 { "error": { "code": "VALIDATION_ERROR", "message": "At least one of name or description must be provided." } }
+```
+
+Renaming onto a name another prompt in the team holds (status 409):
+
+```bash
+curl -X PATCH "$ACRUXCORE_BASE_URL/prompts/87d8332c-5316-4866-b7db-c76cd046cd6f" \
+  -H "Authorization: Bearer $ACRUXCORE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"issue-739-check"}'
+```
+
+```json
+{"error":{"code":"PROMPT_NAME_TAKEN","message":"A prompt named 'issue-739-check' already exists in this team."}}
 ```
 
 ---
