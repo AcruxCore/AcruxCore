@@ -116,7 +116,7 @@ const config: Config = {
           // topic rather than repeating the brand.
           blogTitle: 'LLMOps comparisons and benchmarks',
           blogDescription:
-            'Hands-on comparisons of LLMOps platforms, latency benchmarks run against real providers, and how to self-host LLM observability.',
+            'Hands-on comparisons of LLMOps platforms, latency benchmarks run against real providers, how to self-host LLM observability, and what published research finds about building AI agents.',
           feedOptions: {
             type: ['rss', 'atom'],
             xslt: true,

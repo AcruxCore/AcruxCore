@@ -654,6 +654,9 @@ export function MarketingHeader({ onLanding = false }: { onLanding?: boolean }):
     { label: 'How it works', to: `${home}#how`, ...toRoot },
     { label: 'Pricing', to: '/pricing' },
     { label: 'Docs', href: DOCS_URL, external: true },
+    // Same domain as the marketing site (Q129), so it opens in the same tab. It is a
+    // plain <a>, not a router <Link>: /blog is a separate static build, not an SPA route.
+    { label: 'Blog', href: DOCS.blog },
   ];
   // Desktop shows GitHub as its own icon button (`.acx-nav-github`, hidden below
   // 900px) rather than a plain-text item here, so it isn't repeated twice in the

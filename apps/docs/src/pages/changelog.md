@@ -43,6 +43,7 @@ called out in the week it ships and in the SDK release notes.
 ### Minor
 
 - **New post** — [14 OpenRouter alternatives](https://acruxcore.com/blog/openrouter-alternatives), grouped by who bills you for tokens.
+- The main navigation on acruxcore.com links to the blog, next to Docs.
 - Render, the gateway's `prompt` object and `GET /prompt-versions` take a `version` number.
 - `optimize.start` takes `optimizer_model` / `optimizerModel` to choose the model that drafts.
 - Run details in both SDKs include the run's dataset id.
