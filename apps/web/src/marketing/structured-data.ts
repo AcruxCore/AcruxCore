@@ -1,3 +1,4 @@
+import { DEMO_VIDEO } from './demo-video';
 import { FEATURE_LIST } from './features';
 
 /**
@@ -28,6 +29,34 @@ export const SOFTWARE_ID = `${SITE_ORIGIN}/#software`;
  * from the same `favicon.svg` mark the site uses.
  */
 export const LOGO_URL = `${SITE_ORIGIN}/brand/logo-512.png`;
+
+/** `@id` of the landing page's intro video. */
+const INTRO_VIDEO_ID = `${SITE_ORIGIN}/#intro-video`;
+
+/**
+ * The landing page's intro video as a VideoObject, so Google can list it in
+ * video results. `null` while {@link DEMO_VIDEO} has no URL, matching the
+ * player, which is not rendered then either.
+ */
+function introVideo(): Record<string, unknown> | null {
+  if (!DEMO_VIDEO.url) return null;
+  const minutes = Math.floor(DEMO_VIDEO.durationSeconds / 60);
+  const seconds = DEMO_VIDEO.durationSeconds % 60;
+  return {
+    '@type': 'VideoObject',
+    '@id': INTRO_VIDEO_ID,
+    name: DEMO_VIDEO.name,
+    description: DEMO_VIDEO.description,
+    thumbnailUrl: `${SITE_ORIGIN}${DEMO_VIDEO.poster}`,
+    // Google wants a time zone on uploadDate; a bare date is read as ambiguous.
+    uploadDate: `${DEMO_VIDEO.uploadDate}T00:00:00+00:00`,
+    duration: `PT${minutes ? `${minutes}M` : ''}${seconds}S`,
+    contentUrl: DEMO_VIDEO.url,
+    inLanguage: 'en',
+    publisher: { '@id': ORGANIZATION_ID },
+    about: { '@id': SOFTWARE_ID },
+  };
+}
 
 /**
  * The breadcrumb label for each non-pillar page — what the page is called in
@@ -88,7 +117,7 @@ function breadcrumbName(path: string): string {
  * Holds a WebPage for the page's own canonical URL, joined to the site-wide
  * entities by `@id` (`isPartOf` the WebSite, `about` the product, published by
  * the Organization), and — below the home page — a two-step BreadcrumbList,
- * Home then the page. There is no deeper level: `/features` has no page of its
+ * Home then the page. The home page carries the intro VideoObject instead. There is no deeper level: `/features` has no page of its
  * own (it redirects to `/#pillars`), so a pillar page is Home > pillar.
  *
  * @param route - The route's path, title, description and, when known, change date.
@@ -118,6 +147,11 @@ export function pageStructuredData(route: StructuredDataRoute): string {
   if (route.dateModified) webPage.dateModified = route.dateModified;
 
   const graph: Record<string, unknown>[] = [webPage];
+  const video = isHome ? introVideo() : null;
+  if (video) {
+    webPage.video = { '@id': INTRO_VIDEO_ID };
+    graph.push(video);
+  }
   if (!isHome) {
     graph.push({
       '@type': 'BreadcrumbList',

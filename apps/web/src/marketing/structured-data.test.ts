@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { LANDING_TITLE } from './marketing-chrome';
 import { ROUTES } from './entry-prerender';
 import { FEATURE_LIST } from './features';
+import { DEMO_VIDEO } from './demo-video';
 import {
   LOGO_URL,
   ORGANIZATION_ID,
@@ -222,5 +223,32 @@ describe('pageStructuredData', () => {
 
   it('gives the home page no breadcrumb', () => {
     expect(graphOf('/').some((node) => node['@type'] === 'BreadcrumbList')).toBe(false);
+  });
+
+  // The home page plays a one-minute intro video. Without a VideoObject Google
+  // cannot list it in video results, and the fields it needs (thumbnail,
+  // upload date, duration) exist nowhere else on the page.
+  it('describes the intro video on the home page only', () => {
+    const video = graphOf('/').find((node) => node['@type'] === 'VideoObject');
+    expect(video).toMatchObject({
+      '@id': 'https://acruxcore.com/#intro-video',
+      contentUrl: DEMO_VIDEO.url,
+      duration: 'PT1M5S',
+      publisher: { '@id': ORGANIZATION_ID },
+      about: { '@id': SOFTWARE_ID },
+    });
+    expect(video?.thumbnailUrl).toBe(`https://acruxcore.com${DEMO_VIDEO.poster}`);
+    expect(video?.uploadDate).toMatch(/^\d{4}-\d{2}-\d{2}T00:00:00\+00:00$/);
+    expect(String(video?.name).length).toBeGreaterThan(0);
+    expect(String(video?.description).length).toBeGreaterThan(0);
+    const page = graphOf('/').find((node) => node['@type'] === 'WebPage');
+    expect(page?.video).toEqual({ '@id': video?.['@id'] });
+
+    expect(graphOf('/pricing').some((node) => node['@type'] === 'VideoObject')).toBe(false);
+  });
+
+  it('points the video thumbnail at a poster that exists in public/', () => {
+    const file = fileURLToPath(new URL(`../../public${DEMO_VIDEO.poster}`, import.meta.url));
+    expect(readFileSync(file).length).toBeGreaterThan(0);
   });
 });

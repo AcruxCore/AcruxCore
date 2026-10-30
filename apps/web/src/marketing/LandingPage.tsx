@@ -20,6 +20,7 @@ import {
   btnSecondary,
   ExternalArrow,
 } from './marketing-chrome';
+import { DEMO_VIDEO } from './demo-video';
 import { FEATURE_LIST } from './features';
 
 /** The code tab shown in the "Why teams switch" panel. */
@@ -630,33 +631,6 @@ export function LandingPage(): ReactNode {
 }
 
 /**
- * Absolute URL of the demo MP4, served from object storage (Cloudflare R2).
- *
- * Deliberately **not** bundled: the file is a regenerated artifact, so committing
- * it would add a multi-megabyte blob to git history on every re-record. It is also
- * not a YouTube embed — that costs ~1.5 MB of third-party JavaScript plus cookies,
- * more page weight than the video itself, and its end screen links visitors away
- * from the page.
- *
- * Empty string = the section is not rendered at all, so the page can never ship a
- * player pointing at a URL that 404s. Set this once the object is live.
- *
- * Served from the `acruxcore-media` bucket via the `media.acruxcore.com` custom
- * domain — a **subdomain** on purpose. Connecting the bare apex to a bucket
- * replaces the root hostname route and takes the whole site offline; that is not
- * hypothetical, it happened on 2026-07-28.
- *
- * Cloudflare returns this with `max-age=14400`, so re-uploading under the same key
- * leaves stale copies at the edge for up to four hours. Either purge the cache or
- * upload under a new dated key and update this line.
- */
-const DEMO_VIDEO_URL = 'https://media.acruxcore.com/acruxcore-intro-720p.mp4';
-
-/** Poster and captions are same-origin: both are small and needed before playback. */
-const DEMO_POSTER = '/media/intro-poster.jpg';
-const DEMO_CAPTIONS = '/media/acruxcore-intro.vtt';
-
-/**
  * Click-to-play product demo.
  *
  * Native `<video>` with no JavaScript at all: it prerenders correctly in the
@@ -668,10 +642,10 @@ const DEMO_CAPTIONS = '/media/acruxcore-intro.vtt';
  * the player, and they remain a sidecar rather than burned into the picture, so they
  * stay searchable and can be turned off at all.
  *
- * @returns The player, or `null` while {@link DEMO_VIDEO_URL} is unset.
+ * @returns The player, or `null` while `DEMO_VIDEO.url` is unset.
  */
 const DemoVideo = (): ReactNode => {
-  if (!DEMO_VIDEO_URL) return null;
+  if (!DEMO_VIDEO.url) return null;
   return (
     <figure style={cssToStyle('margin:0;')}>
       <div
@@ -683,13 +657,13 @@ const DemoVideo = (): ReactNode => {
           controls
           preload="none"
           playsInline
-          poster={DEMO_POSTER}
+          poster={DEMO_VIDEO.poster}
           style={cssToStyle('display:block;width:100%;aspect-ratio:16/9;background:#000;')}
         >
-          <source src={DEMO_VIDEO_URL} type="video/mp4" />
-          <track kind="captions" src={DEMO_CAPTIONS} srcLang="en" label="English" default />
+          <source src={DEMO_VIDEO.url} type="video/mp4" />
+          <track kind="captions" src={DEMO_VIDEO.captions} srcLang="en" label="English" default />
           Your browser cannot play this video.{' '}
-          <a href={DEMO_VIDEO_URL}>Download it instead</a>.
+          <a href={DEMO_VIDEO.url}>Download it instead</a>.
         </video>
       </div>
       <figcaption style={cssToStyle('margin-top:12px;font-size:13.5px;color:var(--muted);')}>
