@@ -54,6 +54,12 @@ called out in the week it ships and in the SDK release notes.
 - **Fixed** — clients retried these calls, so each failure was logged and traced two or three times.
   [Reference →](/api-reference/gateway#error-responses)
 
+#### SDKs 0.20.0 on npm and PyPI
+
+- Both SDKs add prompt pinning (`prompt_overrides`, `pin_prompts`), `compare_local` and `judge`.
+- `traces.list` and `traces.list_feedback` take the new filters; `runs.commit_candidate` is new.
+- `@acruxcoreai/mcp-server` 0.3.1 fixes the `create_prompt` description to name `PROMPT_NAME_TAKEN`.
+
 ### Minor
 
 - **Fixed** — an experiment or optimize run on a model with a refused key retried each call three times.

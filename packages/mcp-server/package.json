@@ -1,6 +1,6 @@
 {
   "name": "@acruxcoreai/mcp-server",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Model Context Protocol server for AcruxCore — prompts, tool catalog, AI gateway, traces and evaluations as MCP tools",
   "license": "MIT",
   "keywords": [

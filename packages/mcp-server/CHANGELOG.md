@@ -7,6 +7,13 @@ package follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+## 0.3.1 — 2026-10-31
+
+### Fixed
+
+- `create_prompt`'s description names the real conflict: 409 `PROMPT_NAME_TAKEN` when an active
+  prompt in the team already has the name.
+
 ## 0.3.0 — 2026-10-22
 
 ### Added

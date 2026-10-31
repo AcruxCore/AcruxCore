@@ -12,6 +12,8 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+## 0.20.0 — 2026-10-31
+
 ### Added
 
 - `traces.list(error_type=, error_code=, has_warning=, tags=, metadata=)` sends the filters
