@@ -3,7 +3,7 @@ feedback summary/list."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Mapping, Optional, Sequence, Tuple, Union, cast
 from urllib.parse import quote, urlencode
 
 from .steps import Sink, Step, route_report
@@ -20,6 +20,7 @@ from .types import (
     TraceResult,
     TraceInput,
     TraceSettings,
+    SpanErrorType,
     SpanKind,
 )
 
@@ -432,6 +433,11 @@ class TracesNamespace:
         min_tokens: Optional[int] = None,
         q: Optional[str] = None,
         q_in: Optional[str] = None,
+        error_type: Optional[SpanErrorType] = None,
+        error_code: Optional[str] = None,
+        has_warning: Optional[bool] = None,
+        tags: Optional[Sequence[str]] = None,
+        metadata: Optional[Mapping[str, str]] = None,
         page: Optional[int] = None,
         limit: Optional[int] = None,
     ) -> ListTracesResult:
@@ -452,40 +458,61 @@ class TracesNamespace:
             searchable where payload capture was on for the trace.
         :param q_in: Narrows ``q`` to one part of the trace — ``"input"``,
             ``"output"`` or ``"name"``. Defaults to ``"all"``.
+        :param error_type: Traces with a span that failed this way — ``"transport"``,
+            ``"http_status"``, ``"tool_declared"``, ``"schema_mismatch"``,
+            ``"transform"`` or ``"provider_error"``.
+        :param error_code: Traces with a span carrying this ``error_code`` — the team's
+            own slug, as a tool declared it with ``ToolResult.error(...)``.
+        :param has_warning: ``True`` for traces with a span carrying a warning,
+            ``False`` for traces with none. A warned trace is usually ``status="ok"``,
+            so this is how to find one.
+        :param tags: Traces carrying **all** of these tags. A single string is one tag.
+        :param metadata: Traces whose metadata has every one of these key/value pairs.
         :param page: 1-based page number.
         :param limit: Page size.
         :returns: :class:`~acruxcore.types.ListTracesResult`.
         :raises AcruxCoreError: On a non-2xx response.
         """
-        params: Dict[str, str] = {}
+        params: List[Tuple[str, str]] = []
         if from_:
-            params["from"] = from_
+            params.append(("from", from_))
         if to:
-            params["to"] = to
+            params.append(("to", to))
         if status:
-            params["status"] = status
+            params.append(("status", status))
         if model:
-            params["model"] = model
+            params.append(("model", model))
         if session_id:
-            params["session_id"] = session_id
+            params.append(("session_id", session_id))
         if prompt_version_id:
-            params["prompt_version_id"] = prompt_version_id
+            params.append(("prompt_version_id", prompt_version_id))
         if prompt_id:
-            params["prompt_id"] = prompt_id
+            params.append(("prompt_id", prompt_id))
         if min_latency_ms is not None:
-            params["min_latency_ms"] = str(min_latency_ms)
+            params.append(("min_latency_ms", str(min_latency_ms)))
         if min_cost_usd is not None:
-            params["min_cost_usd"] = str(min_cost_usd)
+            params.append(("min_cost_usd", str(min_cost_usd)))
         if min_tokens is not None:
-            params["min_tokens"] = str(min_tokens)
+            params.append(("min_tokens", str(min_tokens)))
         if q:
-            params["q"] = q
+            params.append(("q", q))
         if q_in:
-            params["q_in"] = q_in
+            params.append(("q_in", q_in))
+        if error_type:
+            params.append(("error_type", error_type))
+        if error_code:
+            params.append(("error_code", error_code))
+        if has_warning is not None:
+            params.append(("has_warning", "true" if has_warning else "false"))
+        # A str is itself a Sequence[str]: iterated as given, "prod" became four tags.
+        for tag in [tags] if isinstance(tags, str) else tags or ():
+            params.append(("tags", tag))
+        for key, value in (metadata or {}).items():
+            params.append((f"metadata[{key}]", value))
         if page is not None:
-            params["page"] = str(page)
+            params.append(("page", str(page)))
         if limit is not None:
-            params["limit"] = str(limit)
+            params.append(("limit", str(limit)))
 
         qs = urlencode(params)
         path = f"/traces?{qs}" if qs else "/traces"

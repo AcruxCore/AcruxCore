@@ -163,6 +163,30 @@ describe('an optimize job queued before judges were chosen per request', () => {
 });
 
 describe('POST /prompts/:promptId/optimize + processOptimize', () => {
+  // The optimizer's own call is retried in-function (EVAL_OPTIMIZE_CALL_ATTEMPTS, 3).
+  // A refused key fails the same way each time, so it must be sent once, not three times.
+  it('sends the optimizer call once when the gateway answers a permanent 409', async () => {
+    const { agent, teamId, userId } = await authedAgent(app);
+    const { promptId, datasetId } = await arrangeOptimizeBasics(agent);
+    const run = (
+      await agent
+        .post(`/api/v1/prompts/${promptId}/optimize`)
+        .send({ dataset_id: datasetId, models: ['gpt-4o-mini'], judge_model: 'gpt-4o-mini', draft_count: 1 })
+        .expect(202)
+    ).body;
+    const experimentId = (await prisma.experimentRun.findUniqueOrThrow({ where: { id: run.run_id } })).experimentId;
+    jest.restoreAllMocks();
+    mockFetchOnce({ error: { message: 'Incorrect API key provided' } }, false, 401);
+
+    const err = await processOptimize({
+      teamId, userId, promptId, experimentId, runId: run.run_id, datasetId,
+      models: ['gpt-4o-mini'], judgeModel: 'gpt-4o-mini', draftCount: 1,
+    }).catch((e: Error) => e);
+
+    expect((err as { code?: string }).code).toBe('PROVIDER_AUTH_FAILED');
+    expect(await prisma.gatewayRequest.count({ where: { teamId } })).toBe(1);
+  });
+
   it('drafts candidates and runs them + production baseline through the grid', async () => {
     const { agent, teamId, userId } = await authedAgent(app);
     const { promptId, datasetId } = await arrangeOptimizeBasics(agent);

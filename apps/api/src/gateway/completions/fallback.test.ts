@@ -184,6 +184,47 @@ describe('gateway explicit per-model fallback / retry', () => {
     expect(meta.trail.every((t) => t.error === '500')).toBe(true);
   });
 
+  // The status says whether a retry can help. A chain whose primary failed for a
+  // passing reason can succeed on the next call, so it must stay a retriable 503 even
+  // when the backup's own failure is permanent. The code still names the backup's fault.
+  it('primary 500 + backup 401 → retriable 503 that still names PROVIDER_AUTH_FAILED', async () => {
+    const ctx = await signupTestUser(app);
+    const credA = await createCred(ctx, 'sk-a');
+    const credB = await createCred(ctx, 'sk-b');
+    const backup = await registerModel(ctx, 'backup', credB);
+    await registerModel(ctx, 'primary', credA, [backup]);
+    mockProvider({
+      'sk-a': { status: 500, body: { error: { message: 'boom' } } },
+      'sk-b': { status: 401, body: { error: { message: 'invalid key' } } },
+    });
+
+    const res = await complete(ctx, {
+      model: 'primary',
+      messages: [{ role: 'user', content: 'hi' }],
+      gateway: { maxRetries: 0 },
+    }).expect(503);
+    expect(res.body.error.code).toBe('PROVIDER_AUTH_FAILED');
+    expect(res.headers['x-should-retry']).toBeUndefined();
+  });
+
+  it('primary 401 + backup 403 → 409, since neither can succeed on a retry', async () => {
+    const ctx = await signupTestUser(app);
+    const credA = await createCred(ctx, 'sk-a');
+    const credB = await createCred(ctx, 'sk-b');
+    const backup = await registerModel(ctx, 'backup', credB);
+    await registerModel(ctx, 'primary', credA, [backup]);
+    mockProvider({
+      'sk-a': { status: 401, body: { error: { message: 'invalid key' } } },
+      'sk-b': { status: 403, body: { error: { message: 'region not supported' } } },
+    });
+
+    const res = await complete(ctx, {
+      model: 'primary',
+      messages: [{ role: 'user', content: 'hi' }],
+    }).expect(409);
+    expect(res.body.error.code).toBe('PROVIDER_FORBIDDEN');
+  });
+
   it('gateway.fallback false keeps a failing call on the primary and surfaces its error', async () => {
     const ctx = await signupTestUser(app);
     const badCred = await createCred(ctx, 'sk-bad');
@@ -199,8 +240,8 @@ describe('gateway explicit per-model fallback / retry', () => {
       model: 'primary',
       messages: [{ role: 'user', content: 'hi' }],
       gateway: { fallback: false },
-    }).expect(503);
-    expect(res.body.error.code).toBe('PROVIDER_ERROR');
+    }).expect(409);
+    expect(res.body.error.code).toBe('PROVIDER_AUTH_FAILED');
     expect(spy).toHaveBeenCalledTimes(1); // the backup was never called
 
     const row = await latestRow(ctx.teamId);

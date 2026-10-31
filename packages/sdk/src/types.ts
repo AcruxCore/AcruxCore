@@ -1198,6 +1198,18 @@ export interface ListTracesResult {
 /** Which part of a trace {@link ListTracesOptions.q} searches. */
 export type TraceSearchScope = 'all' | 'input' | 'output' | 'name';
 
+/**
+ * What kind of failure a span recorded — the platform's own classification, filtered on
+ * with {@link ListTracesOptions.errorType}.
+ */
+export type SpanErrorType =
+  | 'transport'
+  | 'http_status'
+  | 'tool_declared'
+  | 'schema_mismatch'
+  | 'transform'
+  | 'provider_error';
+
 /** Query params for {@link acruxcore.listTraces}. All optional. */
 export interface ListTracesOptions {
   from?: string;
@@ -1223,6 +1235,22 @@ export interface ListTracesOptions {
   q?: string;
   /** Narrows {@link ListTracesOptions.q} to one side of the exchange. Default `all`. */
   qIn?: TraceSearchScope;
+  /** Traces with a span that failed this way. */
+  errorType?: SpanErrorType;
+  /**
+   * Traces with a span carrying this `errorCode` — the team's own slug, as a tool
+   * declared it with `ToolResult.error(...)`.
+   */
+  errorCode?: string;
+  /**
+   * `true` for traces with a span carrying a warning, `false` for traces with none. A
+   * warned trace is usually `status: 'ok'`, so this is how to find one.
+   */
+  hasWarning?: boolean;
+  /** Traces carrying **all** of these tags. */
+  tags?: string[];
+  /** Traces whose metadata has every one of these key/value pairs. */
+  metadata?: Record<string, string>;
   page?: number;
   limit?: number;
 }

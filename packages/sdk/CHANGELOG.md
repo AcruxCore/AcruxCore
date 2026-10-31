@@ -14,6 +14,9 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ### Added
 
+- `traces.list({ errorType, errorCode, hasWarning, tags, metadata })` sends the filters `GET /traces`
+  already took, so a script can pull the failed, warned or tagged runs the dashboard shows.
+  `hasWarning: false` is sent too: it finds runs with no warning. `SpanErrorType` is exported.
 - `experiments.runLocal(datasetId, { ..., promptOverrides: { 'support-agent': 7 } })` pins a prompt
   version for one run: `prompts.render` and `prompts.getByAlias` of that prompt return v7 inside it.
 - `pinPrompts({...}, fn)` pins the same way around any async function of your own.

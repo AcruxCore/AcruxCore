@@ -101,7 +101,9 @@ describe('a base_url is guarded at request time, not only at save time', () => {
       .set('Authorization', `Bearer ${virtualKey}`)
       .send({ model: 'internal-model', messages: [{ role: 'user', content: 'hello' }] });
 
-    expect(res.status).toBe(503);
+    // 409, not 5xx: the address stays blocked until the team edits the connection,
+    // so a retry can never succeed (issue #737).
+    expect(res.status).toBe(409);
     // A code of its own, not the catch-all `PROVIDER_ERROR`: this is a fault in the
     // team's own connection, which they can fix, and every other such case in
     // `mapProviderError` is already told apart from an upstream having a bad day.

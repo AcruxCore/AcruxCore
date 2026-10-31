@@ -21,6 +21,10 @@ except ImportError:  # pragma: no cover
 
 SpanKind = Literal["llm", "tool", "retrieval", "embedding", "agent", "chain", "other"]
 SpanStatus = Literal["ok", "error", "unset"]
+#: How a span failed, as ``traces.list(error_type=...)`` filters it.
+SpanErrorType = Literal[
+    "transport", "http_status", "tool_declared", "schema_mismatch", "transform", "provider_error"
+]
 Role = Literal["system", "user", "assistant", "tool"]
 #: Which prompt→tool binding decided a resolved tool: the prompt alias's own row
 #: (``"alias"``) or the prompt default it would otherwise inherit (``"default"``).

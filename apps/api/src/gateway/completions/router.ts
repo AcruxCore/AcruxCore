@@ -185,6 +185,12 @@ export class FallbackExhaustedError extends Error {
     public readonly lastError: ProviderError,
     public readonly meta: FallbackMeta,
     public readonly lastDeployment: ResolvedDeployment | null,
+    /**
+     * True when calling the whole chain again could succeed: some attempt failed for a
+     * passing reason (429, 5xx, network, timeout), or the deadline stopped the chain
+     * before every deployment was tried. False when every attempt failed permanently.
+     */
+    public readonly retriable = false,
   ) {
     super(lastError.message);
     this.name = 'FallbackExhaustedError';
@@ -222,7 +228,7 @@ export class FallbackExhaustedError extends Error {
  * @param opts - Retry depth, timeout budget and chain deadline overrides.
  * @returns The successful response, the serving deployment, and the attempt trail.
  * @throws {FallbackExhaustedError} On a provider 400 (immediate) or when the whole
- *   chain fails; carries `lastError`, `meta`, and `lastDeployment`.
+ *   chain fails; carries `lastError`, `meta`, `lastDeployment`, and `retriable`.
  */
 export async function callWithFallback(
   deployments: ResolvedDeployment[],
@@ -247,11 +253,19 @@ export async function callWithFallback(
   // error the team can act on — so it must not be buried by whatever the last
   // deployment in the chain happened to say.
   let blockedAddressError: ProviderError | undefined;
+  // Whether a later call of the same chain could succeed. The answer's status is
+  // read from this, not from whichever error is reported, so a backup's permanent
+  // failure cannot turn a primary's passing outage into a "do not retry".
+  let retriable = false;
 
   for (const deployment of deployments) {
     // Out of time: answer with what the chain has seen rather than start a model
-    // that could not finish before the proxies give up.
-    if (attempts > 0 && pastDeadline()) break;
+    // that could not finish before the proxies give up. The models left untried
+    // might have answered, so the failure is not a permanent one.
+    if (attempts > 0 && pastDeadline()) {
+      retriable = true;
+      break;
+    }
     lastDeployment = deployment;
     const entry = {
       modelId: deployment.model.id,
@@ -291,6 +305,7 @@ export async function callWithFallback(
         if (!(err instanceof ProviderError)) throw err; // real bug — never swallow
         lastError = err;
         connError = err;
+        if (err.retriable) retriable = true;
         if (!blockedAddressError && err.providerCode === 'SSRF_BLOCKED') blockedAddressError = err;
 
         // A model that does not take `reasoning_effort` refused it: retry it once
@@ -345,5 +360,6 @@ export async function callWithFallback(
     blockedAddressError ?? lastError!,
     { attempts, trail },
     lastDeployment ?? null,
+    retriable,
   );
 }

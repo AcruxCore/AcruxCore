@@ -580,13 +580,14 @@ describe('gateway trace hook — failed rounds', () => {
     const res = await agent
       .post('/api/v1/gateway/chat/completions')
       .send({ model: 'gpt-4o-mini', stream, messages: [{ role: 'user', content: 'Say hi.' }] })
-      .expect(503);
+      // A refused key is a 409, not a 5xx, so clients do not retry it (issue #737).
+      .expect(409);
 
     const span = await prisma.span.findFirstOrThrow({ where: { kind: 'llm' } });
     expect(res.headers['x-gateway-trace-id']).toBe(span.traceId);
     expect(res.headers['x-gateway-span-id']).toBe(span.spanRef);
     expect(res.headers['x-gateway-request-id']).toBe(span.gatewayRequestId);
-    expect(res.body.error).toMatchObject({ code: 'PROVIDER_ERROR', traceId: span.traceId });
+    expect(res.body.error).toMatchObject({ code: 'PROVIDER_AUTH_FAILED', traceId: span.traceId });
   }, 20000);
 });
 

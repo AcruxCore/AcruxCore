@@ -14,6 +14,11 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ### Added
 
+- `traces.list(error_type=, error_code=, has_warning=, tags=, metadata=)` sends the filters
+  `GET /traces` already took, so a script can pull the failed, warned or tagged runs the dashboard
+  shows. `has_warning=False` is sent too: it finds runs with no warning.
+- `error_type` is typed `SpanErrorType` (exported), so a typo fails the type check. `tags="prod"`
+  is one tag; a plain string is not split into letters.
 - `experiments.run_local(..., prompt_overrides={"support-agent": 7})` pins a prompt version for
   one run: `prompts.render` and `prompts.get_by_alias` of that prompt return v7 inside it.
 - `pin_prompts({...})`, a context manager that pins the same way around any block of your code.

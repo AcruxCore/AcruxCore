@@ -48,6 +48,8 @@ import { recordGatewaySpan, recordGatewayErrorSpan } from '../../traces/ingest/g
 import {
   AppError,
   ProviderFailedError,
+  ProviderPermanentError,
+  type ProviderPermanentCode,
   ProviderRateLimitedError,
   ProviderTimeoutError,
   ForbiddenError,
@@ -823,6 +825,10 @@ export class GatewayService {
    *   400 PROVIDER_BAD_REQUEST when the provider rejects the request.
    * @throws {ProviderFailedError} 503 PROVIDER_ERROR when all candidate connections fail.
    * @throws {ProviderTimeoutError} 503 PROVIDER_TIMEOUT on a provider timeout.
+   * @throws {ProviderPermanentError} 409 when every candidate failed in a way no retry
+   *   can fix (refused key, provider 403, blocked address, other non-retriable failure).
+   *   A chain where some attempt failed for a passing reason answers 503 with that code
+   *   instead (see `mapProviderError`).
    */
   async complete(ctx: GatewayCallContext, req: GatewayCompletionRequest, opts?: CompleteOptions): Promise<GatewayResult> {
     // 1. Validate — done at the controller boundary (Zod).
@@ -1051,12 +1057,13 @@ export class GatewayService {
         // nothing at all for a failed round, so an agent loop's trace simply stopped mid-run
         // with every span green (issue #452).
         const traced = await recordGatewayErrorSpan({ ctx, request: req, gatewayRequestId: errorRow.id });
-        // The caller does get `PROVIDER_ADDRESS_BLOCKED` here, but an unattended
-        // agent loop reads a 5xx and retries. Same notice, same dedupe key.
+        // The caller is told `PROVIDER_ADDRESS_BLOCKED`, but an unattended agent loop
+        // may not read the code, and a mixed chain still answers a retriable 503. The
+        // team owner gets the notice either way. Same notice, same dedupe key.
         const blockedOnFailure = this.blockedConnectionsIn(err.meta.trail);
         if (blockedOnFailure.length > 0)
           await this.notifyBlockedConnections(ctx.teamId, blockedOnFailure, false);
-        throw this.mapProviderError(err.lastError).withTrace({ ...traced, requestId: errorRow.id });
+        throw this.mapProviderError(err.lastError, err.retriable).withTrace({ ...traced, requestId: errorRow.id });
       }
       throw err;
     }
@@ -1183,6 +1190,8 @@ export class GatewayService {
    * @throws {RateLimitedError} RPM/TPM exceeded (no stream opened).
    * @throws {AppError} 400 NO_CONNECTION when no connection can serve the model.
    * @throws {ProviderFailedError} Every candidate provider failed before the first chunk.
+   * @throws {ProviderPermanentError} 409 when every candidate failed before the first
+   *   chunk in a way no retry can fix, as for `complete()`.
    */
   async completeStream(
     ctx: GatewayCallContext,
@@ -1317,6 +1326,9 @@ export class GatewayService {
     // refused target address is a fault in the team's own connection, and it
     // must not be buried by whatever the last deployment in the chain said.
     let streamBlockedError: ProviderError | null = null;
+    // Whether calling the same chain again could succeed: some deployment failed for a
+    // passing reason, or the deadline left one untried. Mirrors `callWithFallback`.
+    let streamRetriable = false;
     // Connections this chain was refused for, in order. Read after the loop
     // whether or not anything answered.
     const streamBlocked: { credentialId: string; reason: string }[] = [];
@@ -1329,7 +1341,10 @@ export class GatewayService {
 
     deployments: for (const deployment of scopedDeployments) {
       // Out of time: answer with the last error rather than open another model.
-      if (lastProviderError && Date.now() >= chainDeadlineAt) break;
+      if (lastProviderError && Date.now() >= chainDeadlineAt) {
+        streamRetriable = true;
+        break;
+      }
       let attemptReq: NormalizedRequest = { ...normalized, model: deployment.model.upstreamModel };
       const attemptDropped: string[] = [];
       for (;;) {
@@ -1391,6 +1406,7 @@ export class GatewayService {
           // Nothing sent yet → fall through to the next deployment, unless the
           // caller asked for this model or nothing (`gateway.fallback: false`).
           lastProviderError = err;
+          if (err.retriable) streamRetriable = true;
           if (err.providerCode === 'SSRF_BLOCKED') {
             if (!streamBlockedError) streamBlockedError = err;
             if (!streamBlocked.some((b) => b.credentialId === deployment.credential.id)) {
@@ -1446,7 +1462,7 @@ export class GatewayService {
       // pre-minted id the row above was written under.
       const traced = await recordGatewayErrorSpan({ ctx, request: req, gatewayRequestId: requestId });
       const failure = terminalStreamError
-        ? this.mapProviderError(terminalStreamError)
+        ? this.mapProviderError(terminalStreamError, streamRetriable)
         : new ProviderFailedError('All providers failed before streaming started.');
       throw failure.withTrace({ ...traced, requestId });
     }
@@ -1744,9 +1760,9 @@ export class GatewayService {
    * one opaque sentence and no way to tell two different mistakes apart (issue #356).
    *
    * A 5xx stays flattened: the provider is describing its own internals there, which are
-   * neither the caller's business nor useful to them. So do 401 and 403 — those are about
-   * the *team's stored credential*, not about the request, and a provider 401 body can
-   * echo a masked copy of the key it was sent.
+   * neither the caller's business nor useful to them. So does a 401 — it is about the
+   * *team's stored credential*, not about the request, and a provider 401 body can echo
+   * a masked copy of the key it was sent.
    *
    * A 429 is the exception among those: it is neither our fault nor a secret. Flattening
    * it to a 502 left the caller unable to tell "you are out of quota" (fix the billing
@@ -1755,27 +1771,24 @@ export class GatewayService {
    * limit. So it forwards the provider's own reason and its `Retry-After`, under a code
    * distinct from our own limiter's `RATE_LIMITED`.
    *
-   * `SSRF_BLOCKED` is the one case here that never reached a provider at all: the
-   * team's own `base_url` resolved to an address the gateway will not call, and the
-   * request was refused before the socket opened. Flattening it to `PROVIDER_ERROR`
-   * told an operator their provider had a bad day, when what they have is a
-   * connection to fix — the same distinction the 400 and 429 branches above exist to
-   * preserve. It stays a {@link ProviderFailedError} (503), since the refusal is ours
-   * and the caller's own request was well formed; only the code becomes specific.
+   * Every other failure the provider marked as not retriable fails the same way on each
+   * attempt, so it gets a named code from {@link permanentFailure}. The status depends on
+   * the whole chain, not on this one error: a 409 when no retry can help, so the SDKs and
+   * the OpenAI clients do not send it again (issue #737); a 503 when some other attempt
+   * failed for a passing reason, since the next call may then succeed. The code is the
+   * same either way, so the team still learns which connection to fix.
    *
-   * @param err - The last provider error carried by `FallbackExhaustedError`.
-   * @returns 400 PROVIDER_BAD_REQUEST for a provider 400 (caller's fault); 429
-   *   PROVIDER_RATE_LIMITED for a provider 429; 503 PROVIDER_TIMEOUT for a 504/408;
-   *   503 PROVIDER_ADDRESS_BLOCKED when the target address was refused; else 503
+   * @param err - The error `FallbackExhaustedError` reports: a blocked address when the
+   *   chain saw one, otherwise the last error.
+   * @param chainRetriable - Whether calling the chain again could succeed (see
+   *   `FallbackExhaustedError.retriable`).
+   * @returns 400 PROVIDER_BAD_REQUEST for a provider 400 (caller's fault), or a
+   *   404/413/422 that says why; 429 PROVIDER_RATE_LIMITED for a provider 429; 503
+   *   PROVIDER_TIMEOUT for a 504/408; for a permanent failure, its
+   *   {@link ProviderPermanentCode} as a 409, or as a 503 when `chainRetriable`; else 503
    *   PROVIDER_ERROR. Never 502/504: see {@link ProviderFailedError}.
    */
-  private mapProviderError(err: ProviderError): AppError {
-    if (err.providerCode === 'SSRF_BLOCKED') {
-      return new ProviderFailedError(
-        'PROVIDER_ADDRESS_BLOCKED',
-        `${err.message}. Check this connection's base URL — it must be a public address.`,
-      );
-    }
+  private mapProviderError(err: ProviderError, chainRetriable: boolean): AppError {
     if (err.status === 400) {
       return new AppError(
         `Provider rejected the request (400): ${err.detail ?? err.message}`,
@@ -1801,6 +1814,47 @@ export class GatewayService {
         'PROVIDER_BAD_REQUEST',
       );
     }
+    const permanent = permanentFailure(err);
+    if (permanent) {
+      return chainRetriable
+        ? new ProviderFailedError(permanent.code, permanent.message)
+        : new ProviderPermanentError(permanent.code, permanent.message);
+    }
     return new ProviderFailedError(`Provider error (${err.status}): ${err.message}`);
   }
+}
+
+/**
+ * Name a provider failure that will fail the same way on every attempt, or return null
+ * for one a retry may fix.
+ *
+ * `SSRF_BLOCKED` never reached a provider: the team's own `base_url` resolved to an
+ * address the gateway will not call. Flattening it to `PROVIDER_ERROR` told an operator
+ * their provider had a bad day, when what they have is a connection to fix.
+ *
+ * A 401 keeps the flat message, since its body can echo a masked key. A 403 forwards the
+ * provider's reason: it is not always about the key (OpenRouter sends it for flagged
+ * input, OpenAI for an unsupported region), and only the reason says which. Any other
+ * non-retriable 4xx forwards its reason too, for the reason a 400 does; a non-retriable
+ * 5xx (a missing base URL, an unknown provider) is our own message, not the provider's.
+ *
+ * @param err - A terminal provider error.
+ * @returns The code and message for the caller, or null when `err.retriable`.
+ */
+function permanentFailure(err: ProviderError): { code: ProviderPermanentCode; message: string } | null {
+  if (err.providerCode === 'SSRF_BLOCKED') {
+    return {
+      code: 'PROVIDER_ADDRESS_BLOCKED',
+      message: `${err.message}. Check this connection's base URL — it must be a public address.`,
+    };
+  }
+  if (err.retriable) return null;
+  if (err.status === 401) {
+    return { code: 'PROVIDER_AUTH_FAILED', message: `Provider error (401): ${err.message}` };
+  }
+  if (err.status === 403) {
+    return { code: 'PROVIDER_FORBIDDEN', message: `Provider refused the request (403): ${err.detail ?? err.message}` };
+  }
+  const reason = err.status < 500 ? (err.detail ?? err.message) : err.message;
+  return { code: 'PROVIDER_REJECTED', message: `Provider error (${err.status}): ${reason}` };
 }

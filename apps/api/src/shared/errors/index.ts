@@ -1,5 +1,6 @@
 export { AppError } from './app-error';
 export type { ErrorTraceRef } from './app-error';
+export type { ProviderPermanentCode } from './http-errors';
 export {
   ValidationError,
   UnauthorizedError,
@@ -12,6 +13,7 @@ export {
   ProviderRateLimitedError,
   ProviderFailedError,
   ProviderTimeoutError,
+  ProviderPermanentError,
   PROVIDER_FAILURE_STATUS,
   PayloadTooLargeError,
   UnprocessableError,

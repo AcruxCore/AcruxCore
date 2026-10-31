@@ -197,7 +197,7 @@ curl -X POST "$ACRUXCORE_BASE_URL/gateway/chat/completions" \
 ```
 
 ```json
-{"error":{"code":"PROVIDER_ERROR","message":"Provider error (401): OpenAI request failed with status 401","traceId":"04f48268-5a62-44d4-86b1-e19c1f9b5101"}}
+{"error":{"code":"PROVIDER_AUTH_FAILED","message":"Provider error (401): OpenAI request failed with status 401","traceId":"fa239891-ff7b-406c-a948-4e21d6b40880"}}
 ```
 
 </TabItem>
@@ -219,8 +219,8 @@ except AcruxCoreError as err:
 ```
 
 ```text
-503 API_ERROR
-acruxcore API error 503 calling chat completions: Provider error (401): OpenAI request failed with status 401
+409 API_ERROR
+acruxcore API error 409 calling chat completions: Provider error (401): OpenAI request failed with status 401
 ```
 
 </TabItem>
@@ -245,14 +245,14 @@ try {
 ```
 
 ```text
-503 API_ERROR
-acruxcore API error 503 calling chat completions: Provider error (401): OpenAI request failed with status 401
+409 API_ERROR
+acruxcore API error 409 calling chat completions: Provider error (401): OpenAI request failed with status 401
 ```
 
 </TabItem>
 </Tabs>
 
-The status is `503`, and the message carries the revoked credential's own `401`. From
+The status is `409`, and the message carries the revoked credential's own `401`. From
 either SDK the call raises instead of returning, so a caller that ignores the return
 value still cannot miss it. The same call without the `gateway` object is answered by
 `mistral-small` with a `200`, and nothing in that response says a different model wrote

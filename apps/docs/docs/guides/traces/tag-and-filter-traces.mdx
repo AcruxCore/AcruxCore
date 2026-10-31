@@ -566,9 +566,8 @@ This means you can set base tags once (e.g. `prod`) and add per-request tags
 | Discover metadata values | `GET /traces/facets/values?key=<key>` |
 | Group traces under a session | `x-session-id: <id>` header (gateway) or `sessionId` / `session_id` in trace input (SDK) |
 
-:::note[SDK filtering gap]
-The Python and Node.js SDKs forward tags and metadata to the gateway on
-`chat()` and `runToolLoop()` calls, but `list_traces()` / `listTraces()`
-do not yet accept tag or metadata filter parameters. Use the REST API
-directly for filtering until SDK support is added.
+:::note[Filtering from an SDK]
+SDK 0.19.0 cannot filter `traces.list()` by tags or metadata. The next release
+adds `tags` and `metadata`, plus the failure filters, to `traces.list()` in both
+SDKs. Until then, call `GET /traces` directly.
 :::

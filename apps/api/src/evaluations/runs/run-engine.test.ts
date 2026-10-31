@@ -504,6 +504,31 @@ describe('processCell', () => {
     expect(result!.errorMessage).toBe('Provider error (502): boom');
   });
 
+  // A refused key fails the same way on every attempt. Retried by BullMQ, the cell
+  // wrote one gateway row and one red trace per attempt (3 by default) for nothing.
+  it('fails at once, not retried, when the gateway answers a permanent 409 (refused key)', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const { promptVersionId, exampleId, experimentId } = await arrangeBasics(agent);
+    const run = await createRun(teamId, experimentId, promptVersionId, exampleId);
+
+    mockFetchOnce({ error: { message: 'Incorrect API key provided' } }, false, 401);
+
+    const failure = await processCell({
+      teamId,
+      runId: run.id,
+      cellKey: 'v1|gpt-4o-mini',
+      variantKind: 'version',
+      promptVersionId,
+      variantLabel: 'v1',
+      model: 'gpt-4o-mini',
+      exampleId,
+    }).catch((err: unknown) => err);
+
+    expect(failure).toBeInstanceOf(UnrecoverableError);
+    expect((failure as Error).message).toContain('401');
+    expect(isTerminalCellFailure(1, 3, failure as Error)).toBe(true);
+  });
+
   it('throws and writes nothing when promptVersionId belongs to a different team than data.teamId', async () => {
     // Team A owns the run; team B owns the prompt version. A CellJobData like
     // this should never occur once Task 5's grid-building lands (it always
@@ -766,6 +791,45 @@ describe('processJudge (E4 wiring)', () => {
 
     const updatedRun = await prisma.experimentRun.findUnique({ where: { id: run.id } });
     expect(updatedRun!.status).toBe('succeeded');
+  });
+});
+
+describe('processJudge on a permanent gateway failure', () => {
+  // Same reason as the cell job: the judge job runs at EVAL_JUDGE_JOB_ATTEMPTS (3),
+  // and each retry of a refused key was one more gateway row and red trace.
+  it('fails at once, not retried, when the judge model answers a permanent 409', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const { promptVersionId, exampleId, experimentId } = await arrangeBasics(agent);
+    const run = await runsRepo.createRun(teamId, experimentId, {
+      exampleSnapshot: [{ exampleId, input: { name: 'Al' }, criteria: 'reply in third person' }],
+      grid: [{ cellKey: 'v1|gpt-4o-mini', variantKind: 'version', promptVersionId, versionLabel: 'v1', model: 'gpt-4o-mini' }],
+    });
+    mockFetchOnce(CANNED_OPENAI);
+    await processCell({
+      teamId,
+      runId: run.id,
+      cellKey: 'v1|gpt-4o-mini',
+      variantKind: 'version',
+      promptVersionId,
+      variantLabel: 'v1',
+      model: 'gpt-4o-mini',
+      exampleId,
+    });
+    const result = await prisma.evalResult.findFirstOrThrow({ where: { experimentRunId: run.id } });
+
+    jest.restoreAllMocks();
+    mockFetchOnce({ error: { message: 'Incorrect API key provided' } }, false, 401);
+    const failure = await processJudge({
+      teamId,
+      resultId: result.id,
+      judgeModel: 'gpt-4o-mini',
+      criteria: 'reply in third person',
+      overallFeedback: null,
+      history: null,
+    }).catch((err: unknown) => err);
+
+    expect(failure).toBeInstanceOf(UnrecoverableError);
+    expect((failure as Error).message).toContain('401');
   });
 });
 

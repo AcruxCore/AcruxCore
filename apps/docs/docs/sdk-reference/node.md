@@ -617,6 +617,11 @@ const page = await hub.traces.list({ status: 'error', minLatencyMs: 2000, limit:
 | `minCostUsd` | `number` | Minimum cost. |
 | `minTokens` | `number` | Minimum total tokens. |
 | `q` | `string` | Free-text search. |
+| `errorType` | `SpanErrorType` | Traces with a span that failed this way, e.g. `'tool_declared'`. Not in 0.19.0; comes in the next release. |
+| `errorCode` | `string` | Traces with a span carrying this declared error code. Not in 0.19.0; comes in the next release. |
+| `hasWarning` | `boolean` | `true` for traces with a warning, `false` for none. Not in 0.19.0; comes in the next release. |
+| `tags` | `string[]` | Traces carrying all of these tags. Not in 0.19.0; comes in the next release. |
+| `metadata` | `Record<string, string>` | Traces whose metadata has every one of these pairs. Not in 0.19.0; comes in the next release. |
 | `page` / `limit` | `number` | Pagination (1-based page). |
 
 `traces.get` returns `{ trace: TraceSummary, spans: TraceSpan[] }`; `traces.list`

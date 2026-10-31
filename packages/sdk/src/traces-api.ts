@@ -436,6 +436,11 @@ export class TracesNamespace {
     if (options.minTokens !== undefined) params.set('min_tokens', String(options.minTokens));
     if (options.q) params.set('q', options.q);
     if (options.qIn) params.set('q_in', options.qIn);
+    if (options.errorType) params.set('error_type', options.errorType);
+    if (options.errorCode) params.set('error_code', options.errorCode);
+    if (options.hasWarning !== undefined) params.set('has_warning', String(options.hasWarning));
+    for (const tag of options.tags ?? []) params.append('tags', tag);
+    for (const [key, value] of Object.entries(options.metadata ?? {})) params.set(`metadata[${key}]`, value);
     if (options.page !== undefined) params.set('page', String(options.page));
     if (options.limit !== undefined) params.set('limit', String(options.limit));
 

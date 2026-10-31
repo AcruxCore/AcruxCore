@@ -13,7 +13,7 @@ import type { GatewayCallContext } from '../../gateway/completions/completions.t
 import type { ChatMessage, ImageContentPart } from '../../gateway/providers/types';
 import { UnrecoverableError } from 'bullmq';
 import { imagePartsOf } from '../../gateway/completions/rendered-images';
-import { NotFoundError, ValidationError } from '../../shared/errors';
+import { NotFoundError, ProviderPermanentError, ValidationError } from '../../shared/errors';
 
 const runsRepo = new RunsRepository();
 const versionsRepo = new VersionsRepository();
@@ -143,7 +143,8 @@ export async function resolveCellMessages(
  *   exists but belongs to a different team than `data.teamId` (treated
  *   identically to "doesn't exist" to prevent cross-tenant reads).
  * @throws {UnrecoverableError} When the gateway refuses the request as invalid
- *   (`ValidationError`), which no retry can change; see {@link isTerminalCellFailure}.
+ *   (`ValidationError`) or the provider failure is permanent (`ProviderPermanentError`),
+ *   which no retry can change; see {@link isTerminalCellFailure}.
  * @throws Rethrows any other error from `renderMessages` or `GatewayService.complete`
  *   unchanged so BullMQ retries the job. Terminal-failure recording
  *   (`writeResultError`) is the worker's failed-job handler's job (Task 6),
@@ -180,9 +181,13 @@ export async function processCell(data: CellJobData): Promise<void> {
   try {
     gatewayResult = await gateway.complete(ctx, { model: data.model, messages: finalMessages });
   } catch (err) {
-    // A request the gateway refuses (a bad image URL in the example, say) is refused the same way
-    // on every retry, so the cell fails now instead of after EVAL_CELL_JOB_ATTEMPTS tries.
-    if (err instanceof ValidationError) throw new UnrecoverableError(err.message);
+    // A request the gateway refuses (a bad image URL in the example, say), or a provider failure
+    // no retry can fix (a refused key, issue #737), fails the same way on every retry. So the
+    // cell fails now instead of after EVAL_CELL_JOB_ATTEMPTS tries, each one a gateway row and
+    // a red trace.
+    if (err instanceof ValidationError || err instanceof ProviderPermanentError) {
+      throw new UnrecoverableError(err.message);
+    }
     throw err;
   }
   const output = gatewayResult.body.choices[0]?.message.content ?? '';

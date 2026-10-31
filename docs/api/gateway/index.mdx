@@ -668,24 +668,41 @@ Response (status 400):
 {"error":{"code":"PROVIDER_BAD_REQUEST","message":"Provider rejected the request (400): Invalid schema for response_format 'x': In context=(), 'additionalProperties' is required to be supplied and to be false."}}
 ```
 
-**Which statuses forward the provider's message, and which do not.** A 400, 404, 413,
-422 or 429 describes something you can act on — your request, or the upstream's rate
-limit — so the provider's own message is passed through. A 401, 403 or any 5xx
-describes the connection instead: its credential or the provider's own internals,
-neither of which the caller of this gateway can do anything about, and a provider's
-401 body can echo a masked copy of the key it was sent. Those are summarised:
+**Which statuses forward the provider's message, and which do not.** A 400, 403, 404,
+413, 422 or 429 describes something you can act on — your request, the upstream's rate
+limit, or why the provider refused the call — so the provider's own message is passed
+through. A 401 or any 5xx describes the connection instead: its credential or the
+provider's own internals, neither of which the caller of this gateway can do anything
+about, and a provider's 401 body can echo a masked copy of the key it was sent. Those
+are summarised:
 
 ```json
-{"error":{"code":"PROVIDER_ERROR","message":"Provider error (401): OpenAI request failed with status 401","traceId":"172dcb43-39b1-4934-9b9c-e03af727ae7e"}}
+{"error":{"code":"PROVIDER_AUTH_FAILED","message":"Provider error (401): OpenAI request failed with status 401","traceId":"93358165-db28-45a4-a4a1-c78c9eb07be7"}}
 ```
 
-That one answers **503 `PROVIDER_ERROR`**, and a provider timeout answers **503
-`PROVIDER_TIMEOUT`**. If you see a 401 here, the gateway connection's stored key is
-the thing to check, not the request.
+**Whether a retry can help.** A failure that will happen again on every attempt answers
+**409**, and `error.code` says why:
 
-`PROVIDER_ERROR`, `PROVIDER_TIMEOUT` and `PROVIDER_ADDRESS_BLOCKED` all answer 503, never
-502 or 504. A provider 400 stays a 400 (`PROVIDER_BAD_REQUEST`), and a provider 429 stays a
-429 (`PROVIDER_RATE_LIMITED`). Proxies and CDNs such as Cloudflare replace a 502 or 504
+| Code | Cause |
+|------|-------|
+| `PROVIDER_AUTH_FAILED` | The provider refused the connection's stored key (401). |
+| `PROVIDER_FORBIDDEN` | The provider answered 403. That can be the key, but OpenRouter also sends it for flagged input and OpenAI for an unsupported region. The message carries the provider's reason. |
+| `PROVIDER_ADDRESS_BLOCKED` | The connection's base URL points at an address the gateway will not call ([below](#a-base-url-the-gateway-will-not-call)). |
+| `PROVIDER_REJECTED` | Any other failure the provider will repeat, such as OpenRouter's 402 when the account has no credits. |
+
+A 409 also carries the header `x-should-retry: false`. Neither SDK retries a 409. The
+OpenAI clients do retry a 409 by default, and this header is what stops them.
+
+A provider 5xx or an unreachable provider answers **503 `PROVIDER_ERROR`**, and a
+provider timeout answers **503 `PROVIDER_TIMEOUT`**. Both may succeed on a retry.
+
+When the model has fallbacks, the status describes the whole chain. If any model in it
+failed for a reason that may pass, the answer is a 503, even when the last failure was
+a permanent one, because the next call may be answered. `error.code` still names the
+permanent failure, so you know which connection to fix.
+
+No provider failure answers 502 or 504. A provider 400 stays a 400
+(`PROVIDER_BAD_REQUEST`), and a provider 429 stays a 429 (`PROVIDER_RATE_LIMITED`). Proxies and CDNs such as Cloudflare replace a 502 or 504
 with their own HTML error page, which would hide this JSON body and its `traceId`. Branch
 on `error.code`, not on the status.
 
@@ -707,18 +724,19 @@ curl -s -D - -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
   -d '{"model":"revoked-mini","messages":[{"role":"user","content":"hi"}]}'
 ```
 
-Response (status 503):
+Response (status 409):
 
 ```
-HTTP/1.1 503 Service Unavailable
-x-gateway-request-id: d5276a65-2c60-406e-8c3c-efcda15990bd
-x-gateway-trace-id: 172dcb43-39b1-4934-9b9c-e03af727ae7e
-x-gateway-span-id: 09f1135f-4245-417a-95c6-dfc06331c5f8
+HTTP/1.1 409 Conflict
+x-should-retry: false
+x-gateway-request-id: f27a20c7-69db-44d2-afd6-f0428aec18f6
+x-gateway-trace-id: 93358165-db28-45a4-a4a1-c78c9eb07be7
+x-gateway-span-id: d45f394d-975d-4a55-803c-25e7c0969f64
 
-{"error":{"code":"PROVIDER_ERROR","message":"Provider error (401): OpenAI request failed with status 401","traceId":"172dcb43-39b1-4934-9b9c-e03af727ae7e"}}
+{"error":{"code":"PROVIDER_AUTH_FAILED","message":"Provider error (401): OpenAI request failed with status 401","traceId":"93358165-db28-45a4-a4a1-c78c9eb07be7"}}
 ```
 
-`GET /api/v1/traces/172dcb43-39b1-4934-9b9c-e03af727ae7e` then returns that trace with
+`GET /api/v1/traces/93358165-db28-45a4-a4a1-c78c9eb07be7` then returns that trace with
 `status: "error"` and one `llm` span whose `spanId` is the `x-gateway-span-id` above. A
 streaming call that fails before its first chunk answers the same way. Both SDKs keep
 the parsed error body, so the id is at `error.body.error.traceId`.
@@ -737,21 +755,24 @@ curl -i -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
   -d '{"model":"internal-model","messages":[{"role":"user","content":"hello"}]}'
 ```
 
-Response (status 503):
+Response (status 409):
 
 ```json
-{"error":{"code":"PROVIDER_ADDRESS_BLOCKED","message":"OpenAI request blocked: target address is not allowed. Check this connection's base URL — it must be a public address.","traceId":"432ed956-e711-4c4a-822a-381f2f0fed2d"}}
+{"error":{"code":"PROVIDER_ADDRESS_BLOCKED","message":"OpenAI request blocked: target address is not allowed. Check this connection's base URL — it must be a public address.","traceId":"ee3ac3fc-08fd-45a3-a413-5dc8b67442ff"}}
 ```
 
 Nothing is sent upstream — the request is refused before the connection opens, so this
-is never a sign the provider is down. Point the connection at a public address.
+is never a sign the provider is down. Point the connection at a public address. It is a
+409 with `x-should-retry: false`, not a 5xx, so clients do not retry a call that is
+refused the same way every time.
 
 If the model has fallbacks, the chain still runs and a working fallback answers the call
 normally — the response is an ordinary 200. The rescue is recorded on the call's trace
 rather than in the response: the `llm` span carries a `warning` of type `model_fallback`
 saying which model answered instead and why. You get the error above once every deployment
 has failed, and you get it even when a later one failed for some other reason, because a
-blocked address is the one fault in that list you can fix yourself.
+blocked address is the one fault in that list you can fix yourself. If one of those other
+failures may pass, the status is 503 rather than 409, for the reason given above.
 
 ### Upstream rate limits
 
@@ -838,10 +859,10 @@ curl -X POST $ACRUXCORE_BASE_URL/gateway/chat/completions \
   -d '{"model":"unstable-4o-mini","messages":[{"role":"user","content":"Say OK"}],"max_tokens":5,"gateway":{"fallback":false}}'
 ```
 
-Response (status 503):
+Response (status 409):
 
 ```json
-{"error":{"code":"PROVIDER_ERROR","message":"Provider error (401): OpenAI request failed with status 401","traceId":"04f48268-5a62-44d4-86b1-e19c1f9b5101"}}
+{"error":{"code":"PROVIDER_AUTH_FAILED","message":"Provider error (401): OpenAI request failed with status 401","traceId":"fa239891-ff7b-406c-a948-4e21d6b40880"}}
 ```
 
 #### What a rescued call leaves behind

@@ -527,17 +527,60 @@ describe('POST /api/v1/gateway/chat/completions (adapter-mocked)', () => {
       return { res, teamId };
     }
 
-    it('provider 401 (bad stored key) → 503 PROVIDER_ERROR JSON with the traceId', async () => {
+    // A bad key fails the same way on every attempt, so it must not be a 5xx: both SDKs
+    // and the OpenAI clients retry every 5xx, and each retry wrote one more error row
+    // and one more red trace (issue #737). 409, as for CREDENTIAL_UNUSABLE.
+    it('provider 401 (bad stored key) → 409 PROVIDER_AUTH_FAILED JSON with the traceId', async () => {
       const { res, teamId } = await failingCall(() =>
         mockFetchOnce({ error: { message: 'Incorrect API key provided' } }, false, 401),
       );
 
-      expect(res.status).toBe(503);
+      expect(res.status).toBe(409);
       expect(res.headers['content-type']).toMatch(/application\/json/);
-      expect(res.body.error.code).toBe('PROVIDER_ERROR');
+      expect(res.body.error.code).toBe('PROVIDER_AUTH_FAILED');
       expect(res.body.error.message).toContain('401');
+      // The OpenAI clients retry 409 by default; this header is what stops them.
+      expect(res.headers['x-should-retry']).toBe('false');
       const trace = await prisma.trace.findFirst({ where: { teamId } });
       expect(res.body.error.traceId).toBe(trace?.id);
+    });
+
+    // A 403 is not always about the key: OpenRouter answers 403 when moderation flags
+    // the input, OpenAI for an unsupported region. So it gets its own code, and the
+    // provider's reason is forwarded rather than a "check your key" hint.
+    it('provider 403 → 409 PROVIDER_FORBIDDEN carrying the provider reason', async () => {
+      const { res } = await failingCall(() =>
+        mockFetchOnce({ error: { message: 'Input flagged by moderation: violence' } }, false, 403),
+      );
+
+      expect(res.status).toBe(409);
+      expect(res.headers['x-should-retry']).toBe('false');
+      expect(res.body.error.code).toBe('PROVIDER_FORBIDDEN');
+      expect(res.body.error.message).toContain('403');
+      expect(res.body.error.message).toContain('Input flagged by moderation');
+    });
+
+    // Any other failure the provider marks as not worth retrying fails the same way
+    // every time: OpenRouter's 402 for an empty balance is the common one.
+    it('provider 402 (no credits) → 409 PROVIDER_REJECTED, sent once', async () => {
+      const { res, teamId } = await failingCall(() =>
+        mockFetchOnce({ error: { message: 'Insufficient credits' } }, false, 402),
+      );
+
+      expect(res.status).toBe(409);
+      expect(res.headers['x-should-retry']).toBe('false');
+      expect(res.body.error.code).toBe('PROVIDER_REJECTED');
+      expect(res.body.error.message).toContain('Insufficient credits');
+      expect(await prisma.gatewayRequest.count({ where: { teamId } })).toBe(1);
+    });
+
+    it('a retriable failure (503) carries no x-should-retry header', async () => {
+      const { res } = await failingCall(() =>
+        mockFetchOnce({ error: { message: 'overloaded' } }, false, 503),
+      );
+
+      expect(res.status).toBe(503);
+      expect(res.headers['x-should-retry']).toBeUndefined();
     });
 
     it('provider timeout → 503 PROVIDER_TIMEOUT JSON', async () => {

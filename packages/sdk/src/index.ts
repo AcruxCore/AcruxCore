@@ -60,6 +60,7 @@ export type {
   GetTraceResult,
   ListTracesOptions,
   TraceSearchScope,
+  SpanErrorType,
   ListTracesResult,
   ToolVersionSource,
   ToolSyncResult,

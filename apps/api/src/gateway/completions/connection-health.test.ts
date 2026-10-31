@@ -206,7 +206,7 @@ describe('a connection the gateway cannot call is reported, even when the call s
       messages: [{ role: 'user', content: 'hello' }],
     });
 
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('PROVIDER_ADDRESS_BLOCKED');
 
     const emails = await healthEmails(ctx.teamId);
@@ -267,7 +267,7 @@ describe('a connection the gateway cannot call is reported, even when the call s
       stream: true,
     });
 
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('PROVIDER_ADDRESS_BLOCKED');
   });
 });

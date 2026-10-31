@@ -631,6 +631,11 @@ print(page.data, page.total)
 | `min_cost_usd` | `float` | Minimum cost. |
 | `min_tokens` | `int` | Minimum total tokens. |
 | `q` | `str` | Free-text search. |
+| `error_type` | `SpanErrorType` | Traces with a span that failed this way, e.g. `'tool_declared'`. Not in 0.19.0; comes in the next release. |
+| `error_code` | `str` | Traces with a span carrying this declared error code. Not in 0.19.0; comes in the next release. |
+| `has_warning` | `bool` | `True` for traces with a warning, `False` for none. Not in 0.19.0; comes in the next release. |
+| `tags` | `Sequence[str]` | Traces carrying all of these tags. Not in 0.19.0; comes in the next release. |
+| `metadata` | `Mapping[str, str]` | Traces whose metadata has every one of these pairs. Not in 0.19.0; comes in the next release. |
 | `page` / `limit` | `int` | Pagination (1-based page). |
 
 `traces.get` returns `GetTraceResult(trace, spans)`; `traces.list` returns

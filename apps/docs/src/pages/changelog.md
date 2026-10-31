@@ -47,8 +47,16 @@ called out in the week it ships and in the SDK release notes.
 - Teams that already hold such a pair now always get the older prompt; rename the other.
   [Reference →](/api-reference/prompts#post-apiv1prompts)
 
+#### A provider failure that can never succeed answers 409, not 503
+
+- A bad key, a provider 403, a blocked `base_url` or an empty balance return 409 with a named code.
+- The 409 carries `x-should-retry: false`, so our SDKs and the OpenAI clients send it once.
+- **Fixed** — clients retried these calls, so each failure was logged and traced two or three times.
+  [Reference →](/api-reference/gateway#error-responses)
+
 ### Minor
 
+- **Fixed** — an experiment or optimize run on a model with a refused key retried each call three times.
 - **New post** — [14 OpenRouter alternatives](https://acruxcore.com/blog/openrouter-alternatives), grouped by who bills you for tokens.
 - The main navigation on acruxcore.com links to the blog, next to Docs.
 - The home page's one-minute intro video is described in its structured data, for video search.
@@ -56,6 +64,7 @@ called out in the week it ships and in the SDK release notes.
 - `optimize.start` takes `optimizer_model` / `optimizerModel` to choose the model that drafts.
 - Run details in both SDKs include the run's dataset id.
 - `traces.list_feedback` / `listFeedback` filter feedback by `rating` (`up`, `down`) and by prompt.
+- `traces.list` in both SDKs filters by `tags`, `metadata`, error type, error code and warnings.
 - `pinned_version` / `pinnedVersion` return the pinned version, for a gateway `prompt` object.
 - **Pricing** — hosted AcruxCore is free to use, with no end date; before, it was free during the beta.
 - **Fixed** — Committing several versions of one prompt or tool at once no longer returns 500.

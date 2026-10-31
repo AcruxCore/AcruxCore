@@ -233,14 +233,56 @@ describe('POST /gateway/chat/completions (stream)', () => {
         stream: true,
         gateway: { fallback: false },
       })
-      .expect(503);
+      .expect(409);
 
-    expect(res.body.error.code).toBe('PROVIDER_ERROR');
+    expect(res.body.error.code).toBe('PROVIDER_AUTH_FAILED');
     expect(spy).toHaveBeenCalledTimes(1); // the backup was never opened
 
     const rows = await prisma.gatewayRequest.findMany({ where: { teamId } });
     expect(rows).toHaveLength(1);
     expect(rows[0]?.status).toBe('error');
+  });
+
+  // Same rule as the blocking path: a primary that failed for a passing reason keeps the
+  // answer a retriable 503, even when the backup's own failure is permanent.
+  it('primary 500 + backup 401 before the first chunk → retriable 503 naming PROVIDER_AUTH_FAILED', async () => {
+    const { agent } = await authedAgent(app);
+    const flaky = await agent
+      .post('/api/v1/gateway/connections')
+      .send({ provider: 'openai', label: 'flaky', apiKey: 'sk-flaky', config: {} })
+      .expect(201);
+    const bad = await agent
+      .post('/api/v1/gateway/connections')
+      .send({ provider: 'openai', label: 'bad', apiKey: 'sk-bad', config: {} })
+      .expect(201);
+    const backup = await agent
+      .post('/api/v1/gateway/models')
+      .send({ publicName: 'backup', upstreamModel: 'gpt-4o-mini', credentialId: bad.body.id })
+      .expect(201);
+    await agent
+      .post('/api/v1/gateway/models')
+      .send({
+        publicName: 'primary',
+        upstreamModel: 'gpt-4o-mini',
+        credentialId: flaky.body.id,
+        fallbackModelIds: [backup.body.id],
+      })
+      .expect(201);
+
+    jest.spyOn(global, 'fetch').mockImplementation(async (_input, init) => {
+      const auth = new Headers(init?.headers as Record<string, string> | undefined).get('authorization') ?? '';
+      return auth.includes('sk-bad')
+        ? new Response('{"error":{"message":"invalid key"}}', { status: 401 })
+        : new Response('{"error":{"message":"boom"}}', { status: 500 });
+    });
+
+    const res = await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({ model: 'primary', messages: [{ role: 'user', content: 'hi' }], stream: true })
+      .expect(503);
+
+    expect(res.body.error.code).toBe('PROVIDER_AUTH_FAILED');
+    expect(res.headers['x-should-retry']).toBeUndefined();
   });
 
   it('a non-provider exception before the first chunk still credits the budget reservation back in full (no permanent leak)', async () => {

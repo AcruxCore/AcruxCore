@@ -108,7 +108,9 @@ export class ProviderRateLimitedError extends AppError {
 }
 
 /**
- * The HTTP status for every upstream provider failure: 503, not the textbook 502/504.
+ * The HTTP status for an upstream provider failure that a retry may fix: 503, not the
+ * textbook 502/504. A failure no retry can fix is a 409 {@link ProviderPermanentError}
+ * instead, so that retry-on-5xx clients do not send it again (issue #737).
  *
  * The hosted gateway sits behind Cloudflare, which replaces any origin 502 or 504 with
  * its own HTML error page. The caller then loses our JSON body — the `code` that tells
@@ -149,6 +151,36 @@ export class ProviderTimeoutError extends AppError {
 export class PayloadTooLargeError extends AppError {
   constructor(message = 'Payload too large.') {
     super(message, 413, 'PAYLOAD_TOO_LARGE');
+  }
+}
+
+/** The `code` of a {@link ProviderPermanentError}: which permanent provider failure it was. */
+export type ProviderPermanentCode =
+  | 'PROVIDER_AUTH_FAILED'
+  | 'PROVIDER_ADDRESS_BLOCKED'
+  | 'PROVIDER_FORBIDDEN'
+  | 'PROVIDER_REJECTED';
+
+/**
+ * 409 — Every provider attempt failed in a way a retry cannot fix. `code` says how:
+ * `PROVIDER_AUTH_FAILED` (the provider refused the stored key, 401),
+ * `PROVIDER_ADDRESS_BLOCKED` (the connection's `base_url` points at an address the
+ * gateway will not call), `PROVIDER_FORBIDDEN` (a provider 403, which is not always
+ * about the key: OpenRouter sends it for flagged input, OpenAI for an unsupported
+ * region), or `PROVIDER_REJECTED` (any other failure the provider marked as not
+ * retriable, such as OpenRouter's 402 for an empty balance).
+ *
+ * Deliberately **not** a 5xx, unlike {@link ProviderFailedError}. Both SDKs retry every
+ * 5xx, so each such failure was recorded twice: two error rows, two red traces (issue
+ * #737). The OpenAI clients retry a 409 too, so the controller also sends
+ * `x-should-retry: false`, which they obey. 409 for the same reason as
+ * {@link CredentialUnusableError}: the request is well formed, something on the
+ * provider side must change first. Cloudflare passes a 409 through, so the JSON body
+ * survives (issue #732).
+ */
+export class ProviderPermanentError extends AppError {
+  constructor(code: ProviderPermanentCode, message: string) {
+    super(message, 409, code);
   }
 }
 

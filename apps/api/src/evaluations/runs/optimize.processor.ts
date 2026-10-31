@@ -15,7 +15,7 @@ import { GatewayRepository } from '../../gateway/completions/gateway.repository'
 import { ConnectionsRepository } from '../../gateway/connections/connections.repository';
 import type { GatewayCallContext } from '../../gateway/completions/completions.types';
 import { getFlowProducer, EVAL_CELLS_QUEUE, EVAL_RUNS_QUEUE, finalizeJobOpts, type OptimizeJobData, type CellJobData } from '../queue';
-import { NotFoundError } from '../../shared/errors';
+import { NotFoundError, ProviderPermanentError } from '../../shared/errors';
 import type { RunGridCell, RunSnapshotExample } from './runs.types';
 
 /**
@@ -57,7 +57,9 @@ const OPTIMIZE_CALL_ATTEMPTS = Number(process.env.EVAL_OPTIMIZE_CALL_ATTEMPTS ??
  * duplicates), so the flaky-provider retry FAQ Q13 wants is applied narrowly
  * to the one call that precedes any DB write, rather than via BullMQ job
  * attempts. Rethrows the last error once attempts are exhausted so the
- * optimize worker's `'failed'` handler still marks the run `failed`.
+ * optimize worker's `'failed'` handler still marks the run `failed`. A
+ * `ProviderPermanentError` (409) is rethrown at once: it fails the same way on
+ * every attempt, and each one was a gateway row and a red trace (issue #737).
  *
  * @param fn - The async operation to attempt.
  * @param attempts - Max attempts (>=1); each retry waits `1s * 2^(n-1)`.
@@ -70,6 +72,7 @@ async function retryGatewayCall<T>(fn: () => Promise<T>, attempts: number): Prom
       return await fn();
     } catch (err) {
       lastErr = err;
+      if (err instanceof ProviderPermanentError) break;
       if (attempt < attempts) {
         await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** (attempt - 1)));
       }
