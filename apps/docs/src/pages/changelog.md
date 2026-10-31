@@ -54,6 +54,20 @@ called out in the week it ships and in the SDK release notes.
 - **Fixed** — clients retried these calls, so each failure was logged and traced two or three times.
   [Reference →](/api-reference/gateway#error-responses)
 
+#### OTLP traces in the OpenTelemetry GenAI conventions get kinds, models and cost
+
+- `gen_ai.operation.name` now sets the kind: `llm`, `retrieval`, `tool`, `agent`, `chain` and more.
+- Model, provider and token counts are read from `gen_ai.*`, so these spans are priced.
+- Message content moves to the span payload, where capture settings and redaction apply.
+  [Reference →](/api-reference/traces/otlp#opentelemetry-genai-semantic-conventions)
+
+#### Google ADK's legacy `call_llm` spans are LLM spans, counted once
+
+- `call_llm` is now an `llm` span, with the provider read from the model, not `gcp.vertex.agent`.
+- Its tokens are counted once, on the `generate_content` child span ADK sends with it.
+- ADK request, response and tool content moves to the span payload, out of `attributes`.
+  [Reference →](/api-reference/traces/otlp#google-adks-legacy-span-schema)
+
 #### SDKs 0.20.0 on npm and PyPI
 
 - Both SDKs add prompt pinning (`prompt_overrides`, `pin_prompts`), `compare_local` and `judge`.
@@ -62,6 +76,7 @@ called out in the week it ships and in the SDK release notes.
 
 ### Minor
 
+- **Fixed** — an OTLP span with an odd kind value such as `constructor` failed its whole batch.
 - **Fixed** — an experiment or optimize run on a model with a refused key retried each call three times.
 - **New post** — [14 OpenRouter alternatives](https://acruxcore.com/blog/openrouter-alternatives), grouped by who bills you for tokens.
 - The main navigation on acruxcore.com links to the blog, next to Docs.

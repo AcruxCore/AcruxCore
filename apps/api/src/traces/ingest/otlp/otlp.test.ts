@@ -180,6 +180,202 @@ describe('POST /api/v1/traces/otlp', () => {
     expect(spans[0].kind).toBe('llm');
   });
 
+  it('ingests GenAI-semconv (gen_ai.*) spans as llm/retrieval spans with model, tokens, cost and session (issue #757)', async () => {
+    const { agent } = await authedAgent(app);
+    const str = (key: string, value: string) => ({ key, value: { stringValue: value } });
+    const int = (key: string, value: number) => ({ key, value: { intValue: String(value) } });
+    const traceIdHex = '75'.repeat(16);
+    const payload = {
+      resourceSpans: [
+        {
+          resource: { attributes: [str('service.name', 'otel-genai-app')] },
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  traceId: traceIdHex,
+                  spanId: '1'.repeat(16),
+                  name: 'chat gpt-4o-mini',
+                  startTimeUnixNano: '1700000000000000000',
+                  endTimeUnixNano: '1700000000400000000',
+                  attributes: [
+                    str('gen_ai.operation.name', 'chat'),
+                    str('gen_ai.provider.name', 'openai'),
+                    str('gen_ai.request.model', 'gpt-4o-mini'),
+                    int('gen_ai.usage.input_tokens', 1000),
+                    int('gen_ai.usage.output_tokens', 200),
+                    str('gen_ai.conversation.id', 'conv-757'),
+                    str('gen_ai.input.messages', '[{"role":"user","parts":[{"type":"text","content":"hi"}]}]'),
+                  ],
+                },
+                {
+                  traceId: traceIdHex,
+                  spanId: '2'.repeat(16),
+                  parentSpanId: '1'.repeat(16),
+                  name: 'retrieval docs',
+                  startTimeUnixNano: '1700000000000000000',
+                  attributes: [str('gen_ai.operation.name', 'retrieval')],
+                },
+                {
+                  // Agent spans carry the summed usage of their child llm calls (spec). It
+                  // must not be counted again on top of the chat span above.
+                  traceId: traceIdHex,
+                  spanId: '3'.repeat(16),
+                  name: 'invoke_agent helper',
+                  startTimeUnixNano: '1700000000000000000',
+                  attributes: [
+                    str('gen_ai.operation.name', 'invoke_agent'),
+                    str('gen_ai.request.model', 'gpt-4o-mini'),
+                    int('gen_ai.usage.input_tokens', 1000),
+                    int('gen_ai.usage.output_tokens', 200),
+                  ],
+                },
+                {
+                  // The spec gives embeddings only an input count.
+                  traceId: traceIdHex,
+                  spanId: '4'.repeat(16),
+                  parentSpanId: '1'.repeat(16),
+                  name: 'embeddings text-embedding-3-small',
+                  startTimeUnixNano: '1700000000000000000',
+                  attributes: [
+                    str('gen_ai.operation.name', 'embeddings'),
+                    str('gen_ai.request.model', 'text-embedding-3-small'),
+                    int('gen_ai.usage.input_tokens', 50),
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    await agent.post('/api/v1/traces/otlp').set('Content-Type', 'application/json').send(payload).expect(200);
+
+    const chat = await prisma.span.findFirstOrThrow({ where: { spanRef: '1'.repeat(16) }, include: { payload: true } });
+    expect(chat.kind).toBe('llm');
+    expect(chat.model).toBe('gpt-4o-mini');
+    expect(chat.provider).toBe('openai');
+    expect(chat.promptTokens).toBe(1000);
+    expect(chat.completionTokens).toBe(200);
+    expect(chat.totalTokens).toBe(1200);
+    // Priced from the built-in registry, so it now counts in cost analytics.
+    expect(chat.costUsd).not.toBeNull();
+    expect(Number(chat.costUsd)).toBeGreaterThan(0);
+    // Message content went through the payload channel, not the raw attributes.
+    expect(JSON.stringify(chat.attributes)).not.toContain('gen_ai.input.messages');
+    expect(chat.payload?.input).toBe('[{"role":"user","parts":[{"type":"text","content":"hi"}]}]');
+
+    const agentSpan = await prisma.span.findFirstOrThrow({ where: { spanRef: '3'.repeat(16) } });
+    expect(agentSpan.kind).toBe('agent');
+    expect(agentSpan.totalTokens).toBeNull();
+    expect(agentSpan.costUsd).toBeNull();
+
+    const embedding = await prisma.span.findFirstOrThrow({ where: { spanRef: '4'.repeat(16) } });
+    expect(embedding.kind).toBe('embedding');
+    // completion 0 is what makes it priceable; the built-in registry lists no embedding
+    // models, so the cost itself comes from a team model price when one exists.
+    expect(embedding.completionTokens).toBe(0);
+    expect(embedding.totalTokens).toBe(50);
+
+    const retrieval = await prisma.span.findFirstOrThrow({ where: { spanRef: '2'.repeat(16) } });
+    expect(retrieval.kind).toBe('retrieval');
+
+    const trace = await prisma.trace.findUniqueOrThrow({ where: { id: toUuid(traceIdHex) } });
+    expect(trace.sessionId).toBe('conv-757');
+    // chat 1200 + embedding 50; the agent span's aggregate is not added a second time.
+    expect(trace.totalTokens).toBe(1250);
+  });
+
+  it("ingests Google ADK's legacy call_llm span as one llm call, counted once, with its content in the payload (issue #773)", async () => {
+    const { agent } = await authedAgent(app);
+    const str = (key: string, value: string) => ({ key, value: { stringValue: value } });
+    const int = (key: string, value: number) => ({ key, value: { intValue: String(value) } });
+    const traceIdHex = '77'.repeat(16);
+    const llmRequest = '{"model": "gemini-3.8-flash", "contents": [{"parts": [{"text": "What is the weather in Lahore?"}], "role": "user"}]}';
+    // Shapes from a real google-adk 2.13.0 run with ADK_TELEMETRY_SCHEMA_VERSION_OPT_IN=1.
+    const payload = {
+      resourceSpans: [
+        {
+          resource: { attributes: [str('service.name', 'adk-agent')] },
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  traceId: traceIdHex,
+                  spanId: 'c'.repeat(16),
+                  name: 'call_llm',
+                  startTimeUnixNano: '1700000000000000000',
+                  endTimeUnixNano: '1700000000900000000',
+                  attributes: [
+                    str('gen_ai.system', 'gcp.vertex.agent'),
+                    str('gen_ai.request.model', 'gemini-3.8-flash'),
+                    str('gcp.vertex.agent.session_id', 'adk-session-1'),
+                    str('gcp.vertex.agent.llm_request', llmRequest),
+                    str('gcp.vertex.agent.llm_response', '{"content":{"parts":[{"text":"Sunny, 24C."}],"role":"model"}}'),
+                    int('gen_ai.usage.input_tokens', 93),
+                    int('gen_ai.usage.output_tokens', 47),
+                  ],
+                },
+                {
+                  // ADK's own child span for the same model call, with the same counts.
+                  traceId: traceIdHex,
+                  spanId: 'd'.repeat(16),
+                  parentSpanId: 'c'.repeat(16),
+                  name: 'generate_content gemini-3.8-flash',
+                  startTimeUnixNano: '1700000000100000000',
+                  endTimeUnixNano: '1700000000800000000',
+                  attributes: [
+                    str('gen_ai.system', 'gemini'),
+                    str('gen_ai.operation.name', 'generate_content'),
+                    str('gen_ai.request.model', 'gemini-3.8-flash'),
+                    int('gen_ai.usage.input_tokens', 93),
+                    int('gen_ai.usage.output_tokens', 47),
+                  ],
+                },
+                {
+                  traceId: traceIdHex,
+                  spanId: 'e'.repeat(16),
+                  name: 'execute_tool get_weather',
+                  startTimeUnixNano: '1700000001000000000',
+                  attributes: [
+                    str('gen_ai.operation.name', 'execute_tool'),
+                    str('gen_ai.tool.name', 'get_weather'),
+                    str('gcp.vertex.agent.llm_request', '{}'),
+                    str('gcp.vertex.agent.llm_response', '{}'),
+                    str('gcp.vertex.agent.tool_call_args', '{"city": "Lahore"}'),
+                    str('gcp.vertex.agent.tool_response', '{"forecast": "sunny, 24C"}'),
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    await agent.post('/api/v1/traces/otlp').set('Content-Type', 'application/json').send(payload).expect(200);
+
+    const callLlm = await prisma.span.findFirstOrThrow({ where: { spanRef: 'c'.repeat(16) }, include: { payload: true } });
+    expect(callLlm.kind).toBe('llm');
+    expect(callLlm.model).toBe('gemini-3.8-flash');
+    expect(callLlm.provider).toBe('gemini');
+    expect(callLlm.totalTokens).toBeNull();
+    expect(callLlm.costUsd).toBeNull();
+    expect(callLlm.payload?.input).toBe(llmRequest);
+    expect(JSON.stringify(callLlm.attributes)).not.toContain('Lahore');
+
+    const tool = await prisma.span.findFirstOrThrow({ where: { spanRef: 'e'.repeat(16) }, include: { payload: true } });
+    expect(tool.kind).toBe('tool');
+    expect(tool.payload?.input).toBe('{"city": "Lahore"}');
+    expect(tool.payload?.output).toBe('{"forecast": "sunny, 24C"}');
+    expect(JSON.stringify(tool.attributes)).not.toContain('Lahore');
+
+    const trace = await prisma.trace.findUniqueOrThrow({ where: { id: toUuid(traceIdHex) } });
+    // 93 + 47 from the generate_content child alone, not doubled by call_llm.
+    expect(trace.totalTokens).toBe(140);
+  });
+
   it('is safe to retry the exact same export batch (idempotent — no 500, no duplicate span)', async () => {
     const { agent } = await authedAgent(app);
     const body = await encodeRequest(crewAiPayload('1'.repeat(32), '2'.repeat(16)));

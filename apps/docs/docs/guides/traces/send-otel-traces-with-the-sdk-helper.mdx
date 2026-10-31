@@ -114,9 +114,11 @@ none:
 }
 ```
 
-A span with no OpenInference span-kind attribute lands as `"other"` — set
-`openinference.span.kind` yourself (`"CHAIN"`, `"RETRIEVER"`, ...) if you want a
-more specific kind than that.
+A span with no recognized kind attribute lands as `"other"`. For a more specific kind, set
+either `openinference.span.kind` (`"CHAIN"`, `"RETRIEVER"`, ...) or the OpenTelemetry GenAI
+attribute `gen_ai.operation.name` (`"chat"`, `"retrieval"`, `"execute_tool"`, ...). The
+[OTLP API reference](/api-reference/traces/otlp#opentelemetry-genai-semantic-conventions) lists
+how each value maps.
 
 ## 2. Auto-instrument one framework
 
