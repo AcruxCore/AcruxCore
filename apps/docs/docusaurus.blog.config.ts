@@ -61,14 +61,21 @@ const config: Config = {
     // The same Organization entity as acruxcore.com; each post's BlogPosting
     // names it as publisher by @id (src/theme/BlogPostPage/StructuredData).
     organizationHeadTag(),
+    // The blog shares acruxcore.com with the marketing site, and Google picks
+    // one site name per host, not per folder. So the blog repeats the
+    // homepage's WebSite entity (same @id, name and url, see apps/web/index.html)
+    // instead of naming itself "AcruxCore Blog"; a second name made Google fall
+    // back to showing the bare domain.
     {
       tagName: 'script',
       attributes: {type: 'application/ld+json'},
       innerHTML: JSON.stringify({
         '@context': 'https://schema.org',
         '@type': 'WebSite',
-        name: 'AcruxCore Blog',
-        url: BLOG_URL,
+        '@id': 'https://acruxcore.com/#website',
+        name: 'AcruxCore',
+        alternateName: 'Acrux Core',
+        url: 'https://acruxcore.com/',
         publisher: {'@id': ORGANIZATION_ID},
       }),
     },
@@ -182,6 +189,8 @@ const config: Config = {
 
   themeConfig: {
     image: 'img/social-card.png',
+    // Same site name as the homepage's og:site_name (see the WebSite note above).
+    metadata: [{property: 'og:site_name', content: 'AcruxCore'}],
     colorMode: {
       respectPrefersColorScheme: true,
     },

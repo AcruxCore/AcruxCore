@@ -96,6 +96,7 @@ called out in the week it ships and in the SDK release notes.
 - **Blog** — every post highlights one or two key points as quotes.
 - **Docs and blog** — links to a page's scripts and notebooks sit in one GitHub box.
 - **Docs** — the notebook link at the top of a tutorial or guide is now one line.
+- **Fixed** — blog pages named the site "AcruxCore Blog", so Google showed the bare domain.
 
 ---
 

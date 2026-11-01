@@ -65,6 +65,26 @@ describe('blog build', () => {
     });
   }
 
+  // Google picks one site name per host, not per folder. The blog shares
+  // acruxcore.com with the marketing site, so it must name the same WebSite
+  // ("AcruxCore", @id .../#website) or Google falls back to the bare domain.
+  for (const page of ['index.html', `${slugs[0]}.html`]) {
+    it(`gives ${page} the same site name as acruxcore.com`, () => {
+      const html = read(page);
+      const blocks = [...html.matchAll(/<script[^>]*ld\+json[^>]*>(.*?)<\/script>/gs)].map((m) =>
+        JSON.parse(m[1]),
+      );
+      const sites = blocks.filter((b) => b['@type'] === 'WebSite');
+      assert.equal(sites.length, 1, 'exactly one WebSite block');
+      assert.equal(sites[0]['@id'], 'https://acruxcore.com/#website');
+      assert.equal(sites[0].name, 'AcruxCore');
+      assert.equal(sites[0].url, 'https://acruxcore.com/');
+      assert.deepEqual(attrValues(html, `meta[^>]*property=["']?og:site_name["']?`, 'content'), [
+        'AcruxCore',
+      ]);
+    });
+  }
+
   it('serves the index at /blog/', () => {
     assert.equal(canonicalOf(read('index.html')), `${BLOG_URL}/`);
   });
