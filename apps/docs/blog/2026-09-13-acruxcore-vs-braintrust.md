@@ -1,23 +1,24 @@
 ---
 title: "AcruxCore vs Braintrust: when the platform runs your tool code"
-description: "AcruxCore vs Braintrust, tested hands-on with one prompt and one tool. Braintrust runs your tool code, and its Python SDK renders nunjucks as mustache."
+description: "AcruxCore vs Braintrust on one prompt and one tool: Braintrust runs your tool code on its servers, and its Python SDK renders nunjucks prompts as mustache."
 slug: acruxcore-vs-braintrust
 date: 2026-09-13
 authors: [acrux]
 tags: [llmops-comparison, prompt-management]
-image: /img/social-card.png
+image: /img/blog/acruxcore-vs-braintrust/header.webp
 keywords: [AcruxCore vs braintrust, braintrust vs AcruxCore, llm ops comparison, llm evaluation platform, tool calling platform, prompt versioning]
 last_update:
-  date: 2026-10-25
+  date: 2026-11-02
 ---
+
+![Braintrust is strongest at evaluation, with declarative evals, auto-comparison, scorers as a resource and SQL over the results; AcruxCore at controls in the request path, with budgets, per-key rate limits, gateway controls and self-hosting](/img/blog/acruxcore-vs-braintrust/header.webp)
 
 Braintrust is a hosted LLM evaluation platform that **runs your tool code instead of only
 storing the tool's schema**. Braintrust takes your Python, bundles it, and runs it on its own
-infrastructure. That one decision sets the Python version you may use, sets whether your handler
-can open a file, and sets where your data has to live. This comparison is built around that
-decision.
+infrastructure. That one decision sets the Python version you may use, whether your handler can
+open a file, and where your data has to live. This comparison is built around that decision.
 To compare Braintrust with all the other alternatives at once, see
-[10 Braintrust alternatives](/blog/braintrust-alternatives).
+[9 Braintrust alternatives](/blog/braintrust-alternatives).
 
 Braintrust is not open source, and self-hosting needs the Enterprise plan. There is no free
 self-hosted install to test against, so everything below ran on their hosted Starter tier.
@@ -26,44 +27,45 @@ The short answer: if your main job is to measure prompt quality against a datase
 does it better. AcruxCore is stronger on controls in the request path: budgets that refuse the
 call, per-key rate limits, and tool code that stays in your own process.
 
-We build AcruxCore. We ran every tool ourselves, and the scripts are linked below.
+AcruxCore is our product. All four scripts from this comparison are linked in the SDK section.
 
 <!-- truncate -->
 
-:::note[Same example, both sides]
-Every paired screenshot below comes from the same prompt and the same customer message. The
-prompt is `vip-support-triage`: a support agent that changes tone for VIP customers and lists
-their open tickets.
+## How we tested
 
-The tool sections use one more shared example: `search_flights`, from the
-[travel-planner tutorial](https://docs.acruxcore.com/docs/tutorials/build-a-travel-planner-agent). That tool reads a
-committed JSON file of flights and needs no API key.
-
-License, self-hosting, plans and access control are in this post, not on the
-[compare page](https://acruxcore.com/compare), which covers open-source alternatives only.
-:::
+- **Prompt:** `vip-support-triage`, a support agent that changes tone for VIP customers and
+  lists their open tickets, with the same customer message on both platforms.
+- **Tool:** `search_flights`, from the
+  [travel-planner tutorial](https://docs.acruxcore.com/docs/tutorials/build-a-travel-planner-agent). It reads a
+  committed JSON file of flights and needs no API key.
+- **Braintrust plan:** the hosted Starter tier. License, self-hosting, plans and access
+  control are covered in this post, because the [compare page](https://acruxcore.com/compare)
+  covers open-source alternatives only.
+- **Dates:** hands-on steps and screenshots on 13 September 2026. Braintrust pricing checked on
+  25 October 2026, and the Python SDK source re-checked on 2 November 2026.
 
 ### At a glance
 
-| Aspect | Braintrust | AcruxCore | Winner |
-|---|---|---|---|
-| Evaluation and datasets | `Eval()` declares data, task and scorers; the CLI runs it and auto-compares against the previous experiment, with per-row deltas | Server-side runs, LLM judges, plus sampled rules that score live production spans | Braintrust |
-| How tools are handled | Braintrust stores the handler and runs it, in a sandbox, on a Python version Braintrust chooses | AcruxCore stores the contract; a `client` executor keeps code and data in your process, an `http` executor calls upstream | Depends |
-| Prompt authoring and versioning | Real nunjucks in the web UI, and a whole-object YAML diff across any two versions. The Python SDK then renders with a different engine | Immutable versions, `production`/`staging` aliases, a diff tab, one renderer server-side | Depends |
-| Sending a live call | Playground runs the stored prompt with variables; telemetry is one click away, not inline | Cost, cache and latency shown inline on the run | AcruxCore |
-| Tracing and observability | Explicit `init_logger()` plus `wrap_openai()`; a manual parent span records only the fields you write to it | The gateway writes the span server-side, with prompt-version lineage, and no tracing code in the script | AcruxCore |
-| Where the platform sits | An AI proxy you can opt into, and an ingest path that works without the proxy | Always in the request path, so routing, caching, budgets and virtual keys apply before the provider | Depends |
-| SDK and developer experience | `braintrust push` bundles and uploads code; `braintrust eval` runs experiments; two SDKs disagree on templating | Fetch a stored prompt and send it through the gateway with no tracing code | Depends |
-| Querying your own data | A SQL sandbox over experiments, logs and datasets | Fixed analytics pages, no query editor | Braintrust |
-| MCP server | [Hosted only](https://www.braintrust.dev/docs/reference/mcp): SQL queries over your data, create a prompt, run an eval | [Hosted or local](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client): commit and promote prompts, run a stored prompt through the gateway, run experiments | Depends |
-| Spend and rate controls | Spend alerts on the invoice, informational only; the proxy caches and load balances | Budgets that refuse the call at the cap, plus per-key RPM and TPM limits | AcruxCore |
-| Self-hosting | Enterprise plan only; the Docker data plane runs but cannot be connected | Apache 2.0, `docker compose up` | AcruxCore |
+| Aspect | Braintrust | AcruxCore |
+|---|---|---|
+| Evaluation and datasets | `Eval()` declares data, task and scorers; the CLI compares each run with the previous one | Server-side runs, LLM judges, sampled rules on live spans |
+| How tools are handled | Braintrust runs your handler in a sandbox, on a Python version it chooses | AcruxCore stores the contract; your process or an upstream service runs the code |
+| Prompt authoring and versioning | Nunjucks in the web UI and a whole-object diff; the Python SDK renders mustache | Versions, aliases, a message-text diff, one renderer server-side |
+| Sending a live call | Playground runs the stored prompt with variables; telemetry is one click away, not inline | Cost, cache and latency shown inline on the run |
+| Tracing and observability | `init_logger()` plus `wrap_openai()` | The gateway writes the span, with prompt-version lineage |
+| Where the platform sits | An optional AI proxy, or ingest only | Always in the request path |
+| SDK and developer experience | `braintrust push` and `braintrust eval` CLIs; two SDKs disagree on templating | Render and send through the gateway, no tracing code, no CLI |
+| Querying your own data | A SQL sandbox over experiments, logs and datasets | Fixed analytics pages, no query editor |
+| MCP server | [Hosted by Braintrust, nothing to install](https://docs.braintrust.dev/reference/mcp): SQL queries over your data, create a prompt, run an eval | [Hosted or local](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client): commit and promote prompts, run a stored prompt through the gateway, run experiments |
+| Spend and rate controls | Spend alerts on the invoice, informational only; the proxy caches and load balances | Budgets that refuse the call at the cap, plus per-key RPM and TPM limits |
+| Self-hosting | Enterprise plan only; the Docker data plane runs but cannot be connected | Apache 2.0, `docker compose up` |
 
-Full breakdown, screenshots, and the verdict below.
+- **Pick Braintrust if** your bottleneck is measuring quality, you want tools callable with
+  nothing of yours deployed, and hosted-only is fine.
+- **Pick AcruxCore if** you need self-hosting, tools that reach your own data, or gateway
+  controls that apply whether or not the caller asks.
 
 ## Evaluation and datasets
-
-Evaluation is what Braintrust is built for, and it shows most clearly here.
 
 An evaluation declares the data, the task and the scorers in one place, and the CLI runs it:
 
@@ -78,11 +80,9 @@ Eval(
 
 `mentions_every_ticket` is ordinary Python that checks whether the reply names each of the row's
 open ticket numbers. `Factuality` is an LLM judge from `autoevals`, Braintrust's own scorer
-library. Both kinds of scorer are declared the same way in the same list, so the cheap check
-costs no more effort to add than the paid judge does.
+library. The cheap check and the paid judge are declared the same way, in the same list.
 
-Running `braintrust eval` prints a summary that compares the run against the previous experiment.
-You do not ask for the comparison; it is the default output:
+By default, `braintrust eval` prints a comparison against the previous experiment:
 
 ```text
 vip-support-triage-a64bd2f5 compared to vip-support-triage-55989b5e:
@@ -93,23 +93,37 @@ vip-support-triage-a64bd2f5 compared to vip-support-triage-55989b5e:
 In the dashboard every run of this eval appears on one trend line, and the table below it
 carries every scorer as its own column.
 
+<details>
+<summary>Show screenshot: Braintrust experiments list</summary>
+
 ![Braintrust experiments list: a trend chart of three runs rising from 40% to 100%, above a table with Factuality, All scores and mentions_every_ticket columns](/img/comparison/braintrust/bt-08-experiments-list.png)
 
-Opening a run shows the per-row scores beside a score distribution for each scorer. The column
-header carries the delta against the base experiment, `+53%` and `+67%` here.
+</details>
+
+A run shows per-row scores beside a score distribution for each scorer, with the delta against
+the base experiment in the column header.
+
+<details>
+<summary>Show screenshot: Braintrust experiment comparison</summary>
 
 ![Braintrust experiment comparison: three rows each scoring 100%, with Factuality and mentions_every_ticket distributions in the left panel and green deltas against the base experiment](/img/comparison/braintrust/bt-09-experiment-compare.png)
 
-Scorers are also a resource with their own page, and a scorer can be created in the UI, either
-as an LLM judge or as code, with six templates ready to use. Tools cannot, as the next section
-shows.
+</details>
+
+Scorers are a resource with their own page. You can create one in the UI as an LLM judge or as
+code, starting from six templates.
+
+<details>
+<summary>Show screenshot: Braintrust scorers page</summary>
 
 ![Braintrust scorers page: buttons for LLM judge scorer and Code scorer, above templates for Factuality, Closed Q&A, Security, Possible, Summary and ExactMatch](/img/comparison/braintrust/bt-15-scorers.png)
+
+</details>
 
 AcruxCore runs evaluations server-side against a stored dataset, or from your own code on your
 machine with the SDK's `run_local`. AcruxCore has no CLI command for it. Both platforms also score
 live production traffic: AcruxCore with sampled online rules, Braintrust with online scoring rules
-under Automations. Scoring live traffic and iterating on a dataset are two different jobs.
+under Automations.
 
 | Feature | Braintrust | AcruxCore |
 |---|---|---|
@@ -119,15 +133,17 @@ under Automations. Scoring live traffic and iterating on a dataset are two diffe
 | Scoring live production traffic | Yes, online scoring rules (Automations) | Sampled online rules |
 | Score distribution per scorer | Yes | Aggregates per run |
 
-> **Key point:** Braintrust compares each eval run with the previous experiment by default.
-> AcruxCore compares two runs only after you pick them.
-
 ## How tools are handled
 
 The Tools page answers one question before you have created anything, which is where a tool
 can be written:
 
+<details>
+<summary>Show screenshot: Braintrust tools page before pushing a tool</summary>
+
 ![Braintrust tools page, empty: "No tools in this project yet. Currently, tools can only be created via code."](/img/comparison/braintrust/bt-01-tools-empty.png)
+
+</details>
 
 So the tool is declared in a file and pushed:
 
@@ -161,21 +177,23 @@ on Braintrust's infrastructure and returns the rows:
   "flights": [ { "flight_no": "KL1693", "airline": "KLM", "price_eur": 189 }, … ] }
 ```
 
-The tool page shows the uploaded source. Two lines on that page say what running on someone
-else's infrastructure costs you.
+The tool page shows the uploaded source, with two notices:
+
+<details>
+<summary>Show screenshot: Braintrust tool detail</summary>
 
 ![Braintrust tool detail: the pushed search_flights source, with a notice that the function was bundled and uploaded so it cannot be edited here, and a line saying code runs in a sandboxed environment with restrictions on imports and filesystem access](/img/comparison/braintrust/bt-03-tool-detail.png)
+
+</details>
 
 > This function was bundled and uploaded, so you cannot edit it here.
 
 > Code runs in a sandboxed environment with restrictions on imports and filesystem access
 
-That sandbox has two consequences. The first is that the flight inventory had to be **inlined
-into the pushed file** instead of read from `../data/flights.json`, because the handler does not
-run where the data is. In the tutorial version, the same function reads that file without trouble,
-because the function runs in your process.
-
-The second consequence is the pinned runtime, and the push is refused outright:
+The sandbox had two effects. The flight inventory had to be **inlined into the pushed file**
+instead of read from `../data/flights.json`, because the handler does not run where the data is.
+In the tutorial, the same function reads that file from your own process. And the runtime is
+pinned, so a push from Python 3.14 is refused:
 
 ```text
 Unsupported python version "3.14". Supported versions: 3.8, 3.9, 3.10, 3.11, 3.12, 3.13
@@ -192,56 +210,69 @@ flights.
 search_flights() missing 2 required positional arguments: 'destination' and 'departure_date'
 ```
 
+<details>
+<summary>Show screenshot: Braintrust tool test run with an error</summary>
+
 ![Braintrust tool Run panel: a YAML input of departure_date, destination and origin, and a red error reading search_flights() missing 2 required positional arguments](/img/comparison/braintrust/bt-05-tool-test-run.png)
 
-The panel passes the whole input object as one positional argument. The API spreads that same
-object into keyword arguments. A test button that calls the handler differently from the real path
-is worse than no test button, because a green result would prove nothing.
+</details>
+
+The panel passes the whole input object as one positional argument, and the API spreads the same
+object into keyword arguments. Because the button calls the handler differently from the real
+path, a green result from it would prove nothing.
 
 AcruxCore stores the contract and leaves the choice of runner to you. A `client` executor keeps
 both the code and the data in your process, and the platform holds only the name, description and
 schema. An `http` executor calls an upstream service server-side instead. The catalog then
 reports per-tool volume, error rate and latency.
 
-![AcruxCore tool analytics: per-tool call volume, error rate and P50/P95 latency](/img/comparison/acruxcore/acx-08-tool-analytics.png)
-
 Neither choice is wrong. Braintrust's choice is better when you want a tool to be callable by
 anything that can reach the platform, with nothing of yours deployed. AcruxCore's choice is better
 when the tool needs your database, your filesystem, your VPC or your Python version, which is the
 usual case for a tool built in-house.
+
+![Who runs the tool handler: Braintrust runs it in a sandbox, so the data must travel with the code and Braintrust picks the interpreter, which suits tools with nothing of yours deployed; AcruxCore leaves it to your process or an upstream service, so data stays wherever it already is and you keep your Python version, which suits tools that need your database and filesystem](/img/blog/acruxcore-vs-braintrust/who-runs-the-tool.webp)
 
 | Feature | Braintrust | AcruxCore |
 |---|---|---|
 | Create a tool in the UI | No — "tools can only be created via code" | Yes, or by code |
 | Who runs the handler | Braintrust, in a sandbox | Your process (`client`) or an upstream service (`http`) |
 | Where the tool's data lives | Must travel with the code | Stays wherever it already is |
-| Runtime version | Braintrust's — 3.13 max at time of writing | Yours |
+| Runtime version | Braintrust's: 3.13 max on 13 September 2026 | Yours |
 | Filesystem and imports | Restricted | Unrestricted |
-| Per-tool analytics | Not found | Volume, error rate, P50/P95 |
+| Per-tool analytics | No: none found | Yes: volume, error rate, P50/P95 |
 
 ## Prompt authoring and versioning
 
-Braintrust's authoring UI is ahead of ours. Braintrust's Python SDK then renders the result with
-a different engine from the one the prompt declares.
+Braintrust's authoring UI is ahead of ours.
 
 Each prompt picks its own template engine: Mustache, Jinja, or no templating at all. The editor
-notes that the web runtime uses nunjucks wherever a prompt says Jinja. The "no templating" option is one we do not have. In
-AcruxCore, a prompt full of JSON examples or LaTeX has to have its braces escaped by hand.
+notes that the web runtime uses nunjucks wherever a prompt says Jinja. AcruxCore has no "no
+templating" option, so a prompt full of JSON examples or LaTeX needs its braces escaped by hand.
 
 Because the engine is real nunjucks, the `vip-support-triage` prompt went in **verbatim**: the
 conditionals and the `{% for %}` loop over tickets, unchanged.
 
+<details>
+<summary>Show screenshot: Braintrust prompt editor</summary>
+
 ![Braintrust prompt editor: the vip-support-triage system message with syntax-highlighted nunjucks conditionals and loop, a GPT-4o mini model picker, and a Jinja template-format selector](/img/comparison/braintrust/bt-10-prompt-editor.png)
+
+</details>
 
 The version history is better than ours in one specific way. The diff covers the **entire prompt
 object**: the model, the params, `endpoint_name` and `template_format` all appear in it, not only
 the message text. You can also restore any version with "Set as editor contents".
 
+<details>
+<summary>Show screenshot: Braintrust prompt version diff</summary>
+
 ![Braintrust prompt version diff: a YAML diff of the whole prompt object with a version-pair selector, showing the changed instruction line in red and green, with template_format nunjucks visible](/img/comparison/braintrust/bt-11-prompt-diff.png)
 
+</details>
+
 A model change alters behaviour without changing a word of the message, so our message-text diff
-would miss that edit. The whole-object diff and the any-two-versions comparison are both on the
-list of things to borrow from Braintrust.
+would miss that edit.
 
 **Then the Python SDK renders that prompt with a different engine.** Loading the same stored
 prompt through the Python SDK and calling `build()` produces this:
@@ -262,10 +293,7 @@ exception and printed no warning, and the model answered plausibly.
 
 The cause is in the source. In `braintrust==0.39.0`, `template_format` appears only inside
 generated type stubs, and `Prompt.build()` calls `render_mustache()` unconditionally. The same
-is true in `braintrust==0.48.0`, the latest release on 25 October 2026.
-
-> **Key point:** Braintrust's Python SDK renders a nunjucks prompt with mustache and raises no
-> error. The model receives every `{% %}` block as literal text.
+is true in `braintrust==0.49.1`, the latest release on 2 November 2026.
 
 Their Node SDK reads the same field and refuses to render rather than guessing:
 
@@ -274,18 +302,23 @@ Error: Nunjucks templating requires @braintrust/template-nunjucks.
 Install and import it to enable templateFormat: 'nunjucks'.
 ```
 
-Refusing is better than rendering with an engine the prompt never asked for. The package that
-message names currently 404s on npm, so the instruction it gives cannot be followed today.
+Refusing is better than rendering with an engine the prompt never asked for. But the package that
+message names returned 404 on npm on 2 November 2026, so the instruction cannot be followed.
 
 AcruxCore renders nunjucks server-side in `prompts.render()`, so there is one renderer and no
 client-side engine that can disagree with it. The diff is narrower than Braintrust's: it covers
 message text only, between any two versions.
 
-![AcruxCore diff tab: a unified diff between two prompt versions](/img/comparison/acruxcore/acx-03-diff-tab.png)
+<details>
+<summary>Show screenshot: AcruxCore Diff tab</summary>
+
+![AcruxCore's Diff tab comparing v2 and v3 of vip-support-triage: only the changed instruction line is marked, because the diff covers message text and not model settings](/img/comparison/acruxcore/acx-03-diff-tab.png)
+
+</details>
 
 | Feature | Braintrust | AcruxCore |
 |---|---|---|
-| Conditionals and loops in the UI | Yes, real nunjucks | Yes, real nunjucks |
+| Conditionals and loops in the UI | Yes, nunjucks | Yes, nunjucks |
 | "No templating" mode | Yes | No |
 | Diff scope | Whole prompt object, any two versions | Message text, any two versions |
 | Restore an old version | One click | Promote by alias |
@@ -299,14 +332,24 @@ and `tickets.length` without being told. Filling the panel in and sending produc
 completion, and in this screenshot the web runtime renders the nunjucks correctly, naming both
 tickets:
 
+<details>
+<summary>Show screenshot: Braintrust prompt playground</summary>
+
 ![Braintrust prompt playground: a YAML variables panel with company, customer_message, is_vip and two tickets, and an assistant reply naming ticket #4821 and ticket #4790](/img/comparison/braintrust/bt-16-playground.png)
+
+</details>
 
 That reply and the SDK output above came from the same stored prompt with the same variables.
 
 The playground does not show what the call cost. Tokens, cost and duration are one click away
 behind "View trace". AcruxCore shows all three on the run itself.
 
-![AcruxCore playground run: the stored prompt executed, with Gateway Telemetry showing cost, cache status and latency inline](/img/comparison/acruxcore/acx-04-playground-run.png)
+<details>
+<summary>Show screenshot: AcruxCore Playground run</summary>
+
+![AcruxCore's Playground running the stored vip-support-triage prompt on its production alias, with provider, model, cost, cache status, latency and tokens in the Gateway Telemetry bar under the run](/img/comparison/acruxcore/acx-04-playground-run.png)
+
+</details>
 
 | Feature | Braintrust | AcruxCore |
 |---|---|---|
@@ -327,7 +370,12 @@ client = wrap_openai(OpenAI(base_url="https://api.braintrust.dev/v1/proxy", api_
 With those two lines the model call is captured in full: the system message, the user message,
 the tokens, the cost and the duration.
 
+<details>
+<summary>Show screenshot: Braintrust trace detail</summary>
+
 ![Braintrust trace detail: a vip-support-triage root span with a GPT-4o mini child, and a right panel showing the System and User messages, 167 tokens, under $0.001, 2.9s](/img/comparison/braintrust/bt-07-trace-detail.png)
+
+</details>
 
 A parent span you create yourself behaves differently. Wrapping the call in
 `logger.start_span()` produces a root span whose input reads `null`, because a manual span records
@@ -338,12 +386,15 @@ The log view carries a duration histogram over time, p50 columns for duration, L
 time to first token, and failures highlighted in red. The failed `search_flights` test from
 earlier appears in the log list as a trace of its own.
 
+<details>
+<summary>Show screenshot: Braintrust logs with a failed tool run</summary>
+
 ![Braintrust logs: two traces, the vip-support-triage LLM call and a failed search_flights tool run in red, with duration, LLM duration and time-to-first-token p50 columns](/img/comparison/braintrust/bt-06-logs.png)
+
+</details>
 
 AcruxCore writes the span from the gateway, server-side, so the script contains no tracing code.
 The span also carries a link back to the prompt version that produced it.
-
-![AcruxCore trace detail: a single LLM span with token counts, cost, and a link to the prompt version that produced it](/img/comparison/acruxcore/acx-05-trace-detail.png)
 
 | Feature | Braintrust | AcruxCore |
 |---|---|---|
@@ -354,16 +405,14 @@ The span also carries a link back to the prompt version that produced it.
 
 ## Where the platform sits
 
-A platform can sit in the request path, or beside it and only receive what the application
-reports. Braintrust offers both and makes you choose. Its AI proxy at
+Braintrust can sit in the request path or beside it, and you choose. Its AI proxy at
 `api.braintrust.dev/v1/proxy` sits in the request path, and that proxy resolved `gpt-4o-mini`
 against the org's OpenRouter credential while the script never knew which provider would serve the
 call. But `wrap_openai()` around a direct client works too, and then Braintrust only receives.
 
-AcruxCore is always in the request path, and for completions there is no beside-it option.
-Routing, caching, budgets and virtual keys apply because the call goes through the gateway. The
-cost of always being in the path is a hop you cannot skip. The benefit is that those controls
-apply whether or not the application remembered to ask for them.
+AcruxCore is always in the request path for completions. Routing, caching, budgets and virtual
+keys apply because the call goes through the gateway, whether or not the application asked for
+them. The cost is a hop you cannot skip.
 
 | Feature | Braintrust | AcruxCore |
 |---|---|---|
@@ -375,14 +424,16 @@ apply whether or not the application remembered to ask for them.
 
 Both platforms' Python SDKs completed every task in this post. The Braintrust CLI does more:
 `braintrust push` bundles Python and uploads it, and `braintrust eval` runs experiments and prints
-a comparison. Those two commands are also where the friction was.
+a comparison. `braintrust push` also caused three small problems that together cost about twenty
+minutes:
 
-`braintrust push` needs the `[cli]` extra for `uv`. The same command refuses to run from a path
-whose folder names contain hyphens, because it turns that path into a dotted module name. And it
-refuses Python 3.14. Each of those three is small, and together they cost about twenty minutes.
+- It needs the `[cli]` extra for `uv`.
+- It refuses to run from a path whose folder names contain hyphens, because it turns the path
+  into a dotted module name.
+- It refuses Python 3.14.
 
-The templating mismatch above is the larger cost, and it is a developer-experience problem as much
-as a rendering one: the surface you author on and the surface you deploy from disagree.
+The templating mismatch above costs more, because the surface you author on and the surface you
+deploy from disagree.
 
 The AcruxCore script is shorter, because rendering and tracing both happen server-side:
 
@@ -390,8 +441,6 @@ The AcruxCore script is shorter, because rendering and tracing both happen serve
 rendered = await hub.prompts.render("vip-support-triage", "production", VARIABLES)
 result = await hub.gateway.chat(rendered.model, rendered.messages, prompt_version_id=rendered.version_id)
 ```
-
-All four scripts are committed and runnable.
 
 :::github
 - [`bt_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/braintrust-vs-acruxcore/python/bt_sdk_run.py) — the Braintrust SDK run.
@@ -403,7 +452,7 @@ All four scripts are committed and runnable.
 | Feature | Braintrust | AcruxCore |
 |---|---|---|
 | Push runnable code to the platform | Yes, `braintrust push` | No |
-| Run experiments from the CLI | Yes, `braintrust eval` | No CLI; `run_local` in your code, or server-side runs |
+| Run experiments from the CLI | Yes, `braintrust eval` | No: no CLI; `run_local` in your code, or server-side runs |
 | Tracing code in the script | `init_logger()` plus `wrap_openai()` | None |
 | SDKs agree on template rendering | No — Python renders mustache, Node refuses | One renderer, server-side |
 
@@ -411,60 +460,58 @@ All four scripts are committed and runnable.
 
 **There is no benchmark number in this post.**
 
-A fair overhead benchmark runs both products on the same machine, for example a self-hosted
-competitor and AcruxCore both on localhost. Braintrust cannot be self-hosted on a Starter account, so any timing would
-measure the round trip to their datacenter against a loopback call. Such a timing measures the
-distance between the two machines, not either product's overhead. Interleaving the runs does not
-remove that distance; it only spreads it evenly.
-
-Their Docker data plane does run locally, but it cannot be attached to a Starter organization. The
-next section shows the setting that would attach it. So a Starter reader could not reproduce a
-benchmark here even if this post published one.
+A fair overhead benchmark runs both products on the same machine. Braintrust cannot be
+self-hosted on a Starter account, so any timing would compare a round trip to their datacenter
+with a loopback call, which measures distance, not either product's overhead. Their Docker data
+plane runs locally but cannot be attached to a Starter organization (see the next section), so a
+Starter reader could not reproduce such a benchmark either.
 
 ## License, self-hosting and plans
 
-**Braintrust is not open source.** Parts of the tooling around it are published: the JavaScript
-SDK is Apache-2.0 and `autoevals` is MIT. The hosted platform itself is not something you can read
-or fork. AcruxCore is Apache-2.0 in full.
+**Braintrust is not open source.** The JavaScript SDK is Apache-2.0 and `autoevals` is MIT, but
+the hosted platform is proprietary. AcruxCore is Apache-2.0 in full.
 
-**Self-hosting is Enterprise-only, and the product says so itself.** The containers are not the
-obstacle. `braintrustdata/braintrust-deployment` brings up Redis, Postgres and a `standalone-api`
-container, all healthy in about 25 seconds, with no license key and no S3 bucket, and
-`GET :8000/status` returns a real Braintrust `ForbiddenError`, so the API is live.
+**Self-hosting is Enterprise-only.** The containers are not the obstacle:
+`braintrustdata/braintrust-deployment` brought up Redis, Postgres and a `standalone-api`
+container in about 25 seconds, with no license key, and `GET :8000/status` answered. But those
+containers are only the **data plane**. The UI, authentication and metadata stay on
+braintrust.dev, and attaching your own data plane needs a custom API URL on the organization. On
+a Starter account that setting is read-only:
 
-The deployment is still unusable, because those containers are only the **data plane**. The UI,
-authentication and metadata stay on braintrust.dev. The only way to attach your own data plane is
-to set a custom API URL on the organization, and on a Starter account that setting is not a field
-at all:
+<details>
+<summary>Show screenshot: Braintrust data plane settings</summary>
 
 ![Braintrust data plane settings: a notice reading "This organization is hosted by Braintrust on the US data plane. Interested in self-hosting? Contact us." above a read-only API URL of https://api.braintrust.dev](/img/comparison/braintrust/bt-17-selfhost-gate.png)
 
-Their docs state the restriction twice more: "Self-hosting is only available on the Enterprise
-plan" and
-"Configuring custom data plane URLs is only available on the Enterprise plan."
+</details>
 
-**Access control starts at $249/month.** The Starter tier has no roles at all. RBAC appears as
-"Basic roles" on Pro, and as custom roles on Enterprise. Audit logs are Enterprise-only, which the
-dashboard states plainly:
+Their docs say the same: "Self-hosting is only available on the Enterprise plan."
+
+**Access control starts at $249/month.** Starter has no roles. Pro has "Basic roles" and
+Enterprise has custom roles. Audit logs are Enterprise-only:
+
+<details>
+<summary>Show screenshot: Braintrust audit log on Enterprise only</summary>
 
 ![Braintrust audit log page with an ENTERPRISE badge, reading "Audit logs are available on Enterprise plans" above an Upgrade to Enterprise button](/img/comparison/braintrust/bt-18-audit-enterprise.png)
 
-**Environments** is Pro and above. Environments lets you tag a prompt version as production,
-staging or development and then pull it by name, which is the same job AcruxCore's `production`
-and `staging` aliases do. Our aliases are in the free self-hosted product.
+</details>
+
+**Environments** is Pro and above. It tags a prompt version as production, staging or development
+so you can pull it by name, the same job AcruxCore's aliases do.
 
 | | Braintrust | AcruxCore |
 |---|---|---|
 | License | Proprietary. JS SDK Apache-2.0, `autoevals` MIT | Apache-2.0, all of it |
 | Self-host | Enterprise plan only; the Docker data plane runs but cannot be attached | `docker compose up` |
-| Free tier | $0: 1 GB processed data, 10k scores, $10 model credits, 14-day retention, unlimited users | Self-host, no limits |
+| Starter | $0: 1 GB processed data, 10k scores, $10 model credits, 14-day retention, unlimited users | The hosted platform is free to use; self-hosting is Apache-2.0 |
 | Next tier | Pro, $249/mo: 5 GB, 50k scores, 30-day retention, RBAC, environments, custom charts | — |
-| Roles | None on Starter; basic roles on Pro; custom on Enterprise | One role per member, free |
-| Audit log | Enterprise only | Per-prompt audit tab, free |
-| Prompt environments/aliases | Pro and above | Free |
+| Roles | None on Starter; basic roles on Pro; custom on Enterprise | One role per member |
+| Audit log | Enterprise only | Team audit trail and a per-prompt audit tab, with no export |
+| Prompt environments/aliases | Pro and above | Included |
 
 Sources: [braintrust.dev/pricing](https://www.braintrust.dev/pricing), prices checked
-25 October 2026, and the organization settings pages above, checked 2026-09-13.
+25 October 2026, and the organization settings pages above, checked on 13 September 2026.
 
 ## What Braintrust does that AcruxCore doesn't
 
@@ -480,45 +527,48 @@ FROM experiment('a14e0c95-5d81-411b-b2d6-b3856df5bcf7')
 WHERE scores.Factuality IS NOT NULL
 ```
 
+<details>
+<summary>Show screenshot: Braintrust SQL sandbox result</summary>
+
 ![Braintrust SQL sandbox: the query above returning 3 rows in 0.41s with a factuality column of 1.00](/img/comparison/braintrust/bt-14-sql-result.png)
 
-Our analytics pages answer a fixed set of questions, and you cannot write your own query against
-the underlying data. Braintrust's schema does take learning, though. Scores and inputs sit on
-different rows of the same experiment, so a query that selects both at once returns half-empty
-columns until you know that.
+</details>
+
+AcruxCore's analytics pages answer a fixed set of questions, and you cannot query the underlying
+data. Braintrust's schema takes learning: scores and inputs sit on different rows of the same
+experiment, so a query that selects both returns half-empty columns until you know that.
 
 ### Loop, an agent inside the dashboard
 
 An earlier attempt at that query failed, and the error came with a **Fix with Loop** button. Loop
-took the broken query as context and said what it intended to do. Loop then called its own tools
-to inspect the project and proposed a rewrite as a red/green diff, with Accept, Skip and an
-auto-accept toggle.
+took the broken query as context, called its own tools to inspect the project, and proposed a
+rewrite as a red/green diff with Accept, Skip and an auto-accept toggle.
+
+<details>
+<summary>Show screenshot: Braintrust Loop agent panel</summary>
 
 ![Braintrust Loop agent panel: the failing SQL query as context, a BTQL query suggestion shown as a red/green diff, and Accept / Skip buttons with an auto-accept toggle](/img/comparison/braintrust/bt-13-loop-agent.png)
 
-The answer was wrong. Loop's rewrite dropped the `FROM` clause, and the query it produced failed
-in a new way. Braintrust's own error message then named the BTQL syntax the query needed, which
-made the error more useful than the agent. The interaction is still worth copying: propose,
-show a diff, ask before applying. AcruxCore has nothing that works that way.
+</details>
 
-### And several more, not driven here
+The answer was wrong: the rewrite dropped the `FROM` clause and failed in a new way, and
+Braintrust's own error message then named the BTQL syntax the query needed. The pattern of
+proposing a diff and asking before applying it has no counterpart in AcruxCore.
 
-Their project sidebar also carries Patterns, Topics, a human Review queue, Automations, Remote
-evals, Preprocessors, Span iframes and a project-level MCP page. AcruxCore has an equivalent for
-two of the eight. Automations overlaps our online evaluation rules, and AcruxCore has its own MCP
-server. AcruxCore has nothing for the other six. All eight are listed rather than described, because none of them was driven hands-on for
-this post.
+### Several more, not tested here
+
+The project sidebar also lists Patterns, Topics, a human Review queue, Automations, Remote evals,
+Preprocessors, Span iframes and a project MCP page. Of these eight, AcruxCore has an equivalent
+only for Automations (its online evaluation rules) and the MCP page.
 
 ## What AcruxCore does that Braintrust doesn't
 
-Braintrust's proxy and AcruxCore's gateway both sit in the request path, so the fair question is
-what each one is allowed to do while it is there. Two controls are in AcruxCore and not in
-Braintrust. Both were checked against Braintrust's own documentation rather than against our
-feature list, which would have turned up only what we already build.
+Braintrust's proxy and AcruxCore's gateway both sit in the request path. Two controls are in
+AcruxCore and not in Braintrust, checked against Braintrust's own documentation.
 
 ### Budgets that stop the call
 
-An AcruxCore budget is a cap in dollars, set per virtual key and per period. The gateway reserves
+An AcruxCore budget is a cap in dollars, set per team or per virtual key, for a period. The gateway reserves
 the estimated cost of a call before the provider is contacted, and a request that would cross the
 cap is refused with `402 BUDGET_EXCEEDED` rather than sent.
 
@@ -526,9 +576,9 @@ Braintrust has spend alerts, and their documentation says plainly what those do:
 
 > Spend alerts are informational-only and do not interrupt or limit your usage.
 
-Their alerts also watch a different number. They fire on the Braintrust invoice for the whole
-organization, at up to three thresholds, by email or Slack. An AcruxCore budget caps model spend
-on one key.
+Their alerts also watch a different number: the Braintrust invoice for the whole organization,
+at up to three thresholds, by email or Slack (re-checked on 2 November 2026). An AcruxCore budget
+caps model spend on one key.
 
 ### Per-key request and token limits
 
@@ -543,44 +593,64 @@ than your spend. Their organization settings expose no rate limit you can set on
 
 ### What was checked and ruled out
 
-Four controls that look like ours alone are not. Braintrust's AI proxy caches responses, and their
-documentation puts it as "The proxy automatically caches results and reuses them when possible".
-The same proxy issues temporary credentials that do the job virtual keys do, and it load balances
-across several keys for one model. Braintrust organizations hold provider credentials and
-per-function environment variables. None of those four belongs in this section.
+Four controls that look like ours alone are not. Braintrust's AI proxy caches responses ("The
+proxy automatically caches results and reuses them when possible"). It issues temporary
+credentials that do the job virtual keys do, and it load balances across several keys for one
+model. Organizations also hold provider credentials and per-function environment variables.
 
 Sources: [the AI proxy guide](https://www.braintrust.dev/docs/guides/proxy),
 [spend alerts](https://www.braintrust.dev/docs/admin/billing/monitor-usage) and
-[organization settings](https://www.braintrust.dev/docs/reference/organizations), all checked
-2026-09-13.
+[organization settings](https://www.braintrust.dev/docs/reference/organizations), all checked on
+13 September 2026.
 
 ## Verdict
 
 | | Braintrust | AcruxCore |
 |---|---|---|
-| Strongest at | Evaluation: declarative evals, auto-comparison against the last run, scorers as a real resource, SQL over the results | Controls in the request path: budgets that refuse the call, per-key rate limits, and tool code that stays in your process |
+| Strongest at | Evaluation: declarative evals, auto-comparison against the last run, scorers as a resource, SQL over the results; a prompt editor ahead of ours | Controls in the request path: budgets that refuse the call, per-key rate limits, and tool code that stays in your process |
 | Weakest at | The gap between its own surfaces: a prompt the UI authors correctly, the Python SDK renders differently | No query editor, and no SQL over your own trace data |
-| Pick it if | Your bottleneck is measuring quality, you want tools callable with nothing of yours deployed, and hosted-only is fine | You need self-hosting, tools that reach your own data, or gateway controls that apply whether or not the caller asks |
 
-If the job is to iterate on prompt quality against a dataset, Braintrust does it better than we
-do. Braintrust's [evaluation model](#evaluation-and-datasets) is the part of this comparison we
-learned most from, and its [prompt authoring UI](#prompt-authoring-and-versioning) is ahead of
-ours as well.
-
-One thing holds that authoring win back. Most calls reach a platform through its SDK, and
-Braintrust's Python SDK renders a stored prompt with an engine the prompt does not declare,
-deleting data as it goes and raising no error. Until the SDK reads `template_format`, the better
-editor only helps on the screen where the prompt was written.
-
-[Tools](#how-tools-are-handled) are the row where the two products differ most and neither is
-behind. Braintrust's answer costs you a sandbox, a chosen interpreter and a copy of your data, and
-buys a tool anything can call with nothing of yours deployed. Ours costs you the work of running
-the tool, and buys a tool that still reaches your own database and filesystem.
+If the job is iterating on prompt quality against a dataset, Braintrust does it better than we
+do. The Python SDK limits that lead: until it reads `template_format`, a prompt authored in
+nunjucks renders as mustache, drops data and raises no error. On [tools](#how-tools-are-handled),
+neither product is behind. Braintrust's choice buys a tool anything can call with nothing of
+yours deployed, and AcruxCore's keeps the tool next to your own database and filesystem.
 
 The [compare page](https://acruxcore.com/compare) puts the open-source alternatives side by side.
 
-To compare more tools, see [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison),
-[8 LangSmith alternatives](/blog/langsmith-alternatives), [8 Langfuse alternatives](/blog/langfuse-alternatives)
-and [10 Braintrust alternatives](/blog/braintrust-alternatives).
+> **Key point:** Choose by where your work is hardest. Braintrust's strength is the loop from
+> dataset to scored experiment. AcruxCore's strength is what the gateway enforces on each live
+> call, and where your tool code runs.
 
-Start here if you want to try AcruxCore: [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart).
+## FAQ
+
+### Is Braintrust open source?
+
+No. Parts of its tooling are published, such as the JavaScript SDK (Apache-2.0) and `autoevals`
+(MIT), but the hosted platform is proprietary.
+
+### Can Braintrust be self-hosted?
+
+Only on the Enterprise plan. Its Docker data plane starts locally, but a Starter organization has
+no setting to attach it, and the UI, authentication and metadata stay on braintrust.dev.
+
+### How much does Braintrust cost?
+
+Starter is $0, with 1 GB of processed data, 10k scores and 14-day retention. Pro is $249 a month
+and adds basic roles and environments. Audit logs are Enterprise-only.
+
+### Does Braintrust run tools?
+
+Yes. `braintrust push` uploads your Python handler, and Braintrust runs it in a sandbox with
+restricted imports and filesystem access, on a Python version it chooses. Tools can only be
+created in code.
+
+### Does Braintrust have spend limits?
+
+It has spend alerts on the Braintrust invoice, by email or Slack, and its docs say they are
+informational-only and do not limit usage. AcruxCore's budgets refuse a call with
+`402 BUDGET_EXCEEDED` before it reaches the provider.
+
+Nine more options are ranked in [9 Braintrust alternatives](/blog/braintrust-alternatives), and
+the open-source field is in [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison).
+To try AcruxCore, start with the [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart).

@@ -1,7 +1,7 @@
 ---
-title: "14 OpenRouter alternatives: gateways, resellers and local models (2026)"
-description: "Fourteen OpenRouter alternatives compared on fees, bring-your-own-key support, self-hosting and routing: gateways you run with your own keys, hosted resellers, cloud catalogs and local models."
-title_meta: "14 Best OpenRouter Alternatives in 2026 (Fees Compared)"
+title: "13 OpenRouter alternatives: gateways, resellers and local models (2026)"
+description: "Thirteen OpenRouter alternatives compared on fees, BYOK, self-hosting and routing: self-run gateways, hosted resellers, cloud catalogs and local models."
+title_meta: "13 Best OpenRouter Alternatives in 2026 (Fees Compared)"
 slug: openrouter-alternatives
 date: 2026-10-28
 authors: [acrux]
@@ -9,12 +9,12 @@ tags: [llm-gateway, llmops-comparison]
 image: /img/blog/openrouter-alternatives/01-header.webp
 keywords: [openrouter alternatives, openrouter alternative, openrouter vs litellm, openrouter pricing comparison, openrouter vs ollama, sites like openrouter, openrouter competitors, self-hosted openrouter alternative, open source openrouter alternative]
 last_update:
-  date: 2026-10-28
+  date: 2026-11-02
 ---
 
-![Fourteen OpenRouter alternatives in four columns: Your own keys (AcruxCore (ours), LiteLLM, Portkey, Kong AI Gateway, Helicone), One bill (Vercel AI Gateway, Cloudflare AI Gateway, Requesty, Eden AI, NanoGPT), Cloud catalogs (Amazon Bedrock, Together AI, Hugging Face) and Local models (Ollama)](/img/blog/openrouter-alternatives/01-header.webp)
+![OpenRouter alternatives in four columns: Your own keys (LiteLLM, Kong AI Gateway, Helicone, Portkey, AcruxCore (ours)), One bill (Vercel AI Gateway, Cloudflare AI Gateway, Requesty, Eden AI, NanoGPT), Cloud catalogs (Amazon Bedrock, Together AI, Hugging Face) and Local models (Ollama)](/img/blog/openrouter-alternatives/01-header.webp)
 
-This post compares fourteen OpenRouter alternatives on fees, bring-your-own-key support,
+This post compares thirteen OpenRouter alternatives on fees, bring-your-own-key support,
 self-hosting and routing. After it, you can tell whether you need a reseller, a gateway you run
 yourself, a cloud catalog or a local runtime.
 
@@ -30,16 +30,16 @@ yourself sends calls with your own provider keys, and each provider bills you.
 
 ![Who bills you for tokens in each group: a gateway with your own keys means your provider bills you, a hosted reseller bills you from credits, a cloud catalog bills through your cloud account, and local models need no bill](/img/blog/openrouter-alternatives/02-who-bills.webp)
 
-- **If you want a gateway you run with your own keys:** AcruxCore (ours) or LiteLLM.
-  AcruxCore's gateway has spend budgets, rate limits and fallbacks, and the same app holds
-  prompt versions, traces and evals. AcruxCore is Apache-2.0 and self-hosts for free on
-  Postgres and Redis. LiteLLM is a gateway only, with the most routing options. LiteLLM is MIT,
-  has 61,735 GitHub stars and balances load across deployments.
+- **If you want a gateway you run with your own keys:** LiteLLM. It is MIT, has 61,735 GitHub
+  stars, has the most routing options and balances load across deployments. LiteLLM is a
+  gateway only.
 - **If you want one bill with no fee on tokens:** Vercel AI Gateway. It charges no markup, with
   or without your own keys, though card processing fees may apply.
 - **If you are on AWS:** Amazon Bedrock bills through your AWS account and does not share
   prompts with model providers.
 - **If prompts must stay on your own hardware:** Ollama runs open models locally for free.
+- **Not ranked:** AcruxCore (ours), a gateway with your own keys plus prompt versions, traces and
+  evals, described in [About AcruxCore](#about-acruxcore).
 
 ## OpenRouter competitors at a glance
 
@@ -48,11 +48,10 @@ yourself sends calls with your own provider keys, and each provider bills you.
 | Tool | Group | Who bills you for tokens | Fee on top of token prices | Bring your own keys | Self-host |
 |---|---|---|---|---|---|
 | **OpenRouter** | Hosted reseller | OpenRouter, from credits | 5.5% on credit purchases (8% on Business) | Yes; 5% fee after $25,000 a month | No |
-| AcruxCore (ours) | Gateway, your keys | Your provider | None | Yes; your keys only | Free, Apache-2.0 |
 | LiteLLM | Gateway, your keys | Your provider | None | Yes; your keys only | Free, MIT core |
-| Portkey | Gateway, your keys | Your provider | None | Yes; your keys only | Free, MIT gateway |
 | Kong AI Gateway | Gateway, your keys | Your provider | None | Yes; your keys only | Free, Apache-2.0 core |
 | Helicone | Gateway, both | Your provider, or Helicone credits | 0% markup on credits | Yes | Free, Apache-2.0 |
+| Portkey | Gateway, your keys | Your provider | None | Yes; your keys only | Free, MIT gateway; no commit since 25 May 2026 |
 | Vercel AI Gateway | Hosted reseller | Vercel, from credits | None; card fees may apply | Yes, no fee | No |
 | NanoGPT | Hosted reseller | NanoGPT, from a balance | None by default; 5% to pin a specific provider | Yes; 5% fee | No |
 | Requesty | Hosted reseller | Requesty, from a balance | 5% on top-ups | Yes | No |
@@ -62,6 +61,7 @@ yourself sends calls with your own provider keys, and each provider bills you.
 | Together AI | Cloud catalog | Together, prepaid | Not applicable | No | No |
 | Hugging Face Inference Providers | Cloud catalog | Hugging Face | No markup | Yes, no fee | No |
 | Ollama | Local models | Nobody, when local | Not applicable | Not applicable | Free, MIT |
+| AcruxCore (ours) | Gateway, your keys | Your provider | None | Yes; your keys only | Free, Apache-2.0 |
 
 **Bring your own keys (BYOK)** means the tool sends your calls with an API key from your own
 provider account. A **reseller** buys model access in bulk and sells it to you from one balance.
@@ -71,11 +71,10 @@ provider account. A **reseller** buys model access in bulk and sells it to you f
 | Tool | Fallbacks | Load balancing | Response cache | Spend budget that stops calls | Rate limits |
 |---|---|---|---|---|---|
 | **OpenRouter** | Yes | Across providers, by price | Yes | Yes, on paid plans | 20 a minute on free models |
-| AcruxCore (ours) | Yes | No | Exact match | Yes, per team or key | Per key, requests and tokens |
 | LiteLLM | Yes | Yes, six strategies | Exact and semantic | Yes, per key, user or team | Per key and team |
-| Portkey | Yes | Yes | Exact; semantic on a paid plan | Enterprise and some Pro | Enterprise and some Pro |
 | Kong AI Gateway | Yes | Enterprise | Semantic, Enterprise | Enterprise | Requests only in the free core |
-| Helicone | Yes | Across providers, by cost | Exact match | Not stated | By requests or cost |
+| Helicone | Yes | Across providers, by cost | Exact match | Partial: a rate-limit policy counted in cents | By requests or cost |
+| Portkey | Yes | Yes | Exact; semantic on a paid plan | Enterprise and some Pro | Enterprise and some Pro |
 | Vercel AI Gateway | Yes | Not stated | Provider prompt caching only | Yes | None on paid requests |
 | NanoGPT | Yes | Not stated | Provider prompt caching only | Daily cap per key | 25 a second |
 | Requesty | Yes | Yes | Provider prompt caching only | Yes | 200 a day on free |
@@ -85,22 +84,15 @@ provider account. A **reseller** buys model access in bulk and sells it to you f
 | Together AI | Not documented | Not stated | Not stated | Not stated | Not stated |
 | Hugging Face | Yes, with `provider="auto"` | Picks the fastest or cheapest provider | Not stated | Not stated | Not stated |
 | Ollama | Not documented | Not applicable | Not applicable | Not applicable | Not applicable |
+| AcruxCore (ours) | Yes | No | Exact match | Yes, per team or key | Per key, requests and tokens |
 
 A **fallback** sends the call to another model or provider when the first one fails. A
 **response cache** returns a stored reply for an identical request without calling the
 provider. **Provider prompt caching** is different: the provider reuses the start of a long
-prompt and charges less for it, but still runs the model.
-
-:::tip[Our product: AcruxCore]
-
-We build AcruxCore, so we do not rank it. AcruxCore is a gateway you run with your own provider
-keys, and the same app versions prompts, traces calls and runs evals. AcruxCore is Apache-2.0
-and self-hosts for free on Postgres and Redis. It fits a team that has provider keys and wants
-spend budgets on its own servers. It does not fit a team that wants one bill and no provider
-accounts, because AcruxCore does not sell model access. The details are in
-[About AcruxCore](#about-acruxcore).
-
-:::
+prompt and charges less for it, but still runs the model. OpenRouter has both. Its response
+cache is turned on per request with the `X-OpenRouter-Cache: true` header, keeps a reply for
+5 minutes by default and up to 24 hours, and does not bill cache hits.
+([response caching](https://openrouter.ai/docs/guides/features/response-caching))
 
 ## Why look for OpenRouter alternatives?
 
@@ -115,8 +107,9 @@ accounts, because AcruxCore does not sell model access. The details are in
 - **OpenRouter is not self-hostable.** Every call goes through OpenRouter's servers. In-region
   routing to the EU is on the Business and Enterprise plans only.
 
-> **Key point:** OpenRouter charges a fee of 5.5% on every credit purchase on Standard, and 8%
-> on Business. Past $25,000 of bring-your-own-key use a month, it charges 5% of each call's normal price.
+> **Key point:** The fees matter only if OpenRouter bills you. A gateway you run uses your own
+> provider keys, a cloud catalog bills through your cloud account, and a local runtime needs no
+> bill at all.
 
 Sources: [OpenRouter pricing](https://openrouter.ai/pricing),
 [OpenRouter FAQ](https://openrouter.ai/docs/faq),
@@ -128,12 +121,13 @@ Sources: [OpenRouter pricing](https://openrouter.ai/pricing),
 
 | Plan | Platform fee | Models | BYOK | Workspaces |
 |---|---|---|---|---|
-| Free | None | 25+ free models, 50 requests a day | No | 5 |
-| Standard | 5.5% on credit purchases | 500+ | $25,000 a month free, then 5% | 5 |
-| Business | 8% on credit purchases | 500+ | $25,000 a month free, then 5% | 1,000 |
-| Enterprise | Fee discounts | 500+ | Custom | Custom |
+| Free | None | 25+ free models, 50 requests a day | Not included | 5 |
+| Standard | 5.5% on credit purchases | 600+ | $25,000 a month free, then 5% | 5 |
+| Business | 8% on credit purchases | 600+ | $25,000 a month free, then 5% | 1,000 |
+| Enterprise | Fee discounts | 600+ | Custom | Custom |
 
-The table uses the pricing page's counts, which differ from the models API. On 21 October 2026,
+The table uses the pricing page's counts, which differ from the models API. On 2 November 2026,
+the pricing page lists 600+ models and 80+ providers on each paid plan. On 21 October 2026,
 the models API listed 468 models from 113 providers, and 17 of those model ids end in `:free`.
 
 OpenRouter does not store prompts or replies unless you opt in. You can require Zero Data
@@ -162,9 +156,6 @@ LiteLLM is a proxy you run yourself with your own keys.
 | Where prompts go | Through OpenRouter; not stored unless you opt in | Through your own server |
 | Added latency, as the vendor states it | "minimal latency", with no number | 8 ms at the 95th percentile at 1,000 requests a second, on a mock provider |
 
-> **Key point:** OpenRouter bills you from credits, with a 5.5% fee on credit purchases. LiteLLM
-> sends calls with your own keys, each provider bills you, and the open-source proxy adds no fee.
-
 Choose OpenRouter if you want one balance and no provider accounts. Choose LiteLLM if you
 already have provider keys and want the proxy on your own servers. LiteLLM needs Postgres for
 keys and spend tracking, and Redis once you run more than one instance.
@@ -182,21 +173,22 @@ Sources: [LiteLLM README](https://github.com/BerriAI/litellm),
 - **Groups follow who bills you for tokens.** Gateways you run with your own keys come first,
   then hosted resellers, then single-cloud catalogs, then local models.
 - **Inside the gateway group, more gateway controls in the free version rank higher:** budgets,
-  rate limits, load balancing and a cache. A tool in maintenance mode ranks last in its group.
+  rate limits, load balancing and a cache. A tool in maintenance mode, or whose open-source
+  repository has had no commit for five months, ranks last in its group. When two tools meet
+  that rule, the one with more gateway controls in its free version ranks higher. We checked
+  repository activity again on 2 November 2026.
 - **Inside the reseller group, a lower fee on tokens ranks higher.** At the same fee, more
   controls for teams rank higher.
 - **Every fact comes from the vendor:** the pricing page, the docs, the license file or the
   vendor's own API, read on 21 October 2026. GitHub stars come from the GitHub API on the same
   day. We do not use other comparison lists as sources.
-- **AcruxCore is not ranked.** We build it, so it has its own section after the ranked tools.
+- **AcruxCore is not ranked.** It has its own section after the ranked tools.
 
 ## Gateways you run with your own keys
 
 These four tools sit between your app and the providers. You add your own provider keys, and
 each provider bills you at its own prices. Each tool has a free version you can run on your own
-servers. Helicone's hosted gateway can also bill you from Helicone credits. AcruxCore (ours)
-also works this way: it uses your own keys and is free to self-host. AcruxCore is not ranked,
-because we build it; it is described in [About AcruxCore](#about-acruxcore).
+servers. Helicone's hosted gateway can also bill you from Helicone credits.
 
 ### 1. LiteLLM
 
@@ -208,7 +200,7 @@ with your own keys. Budgets, rate limits and load balancing are free in the open
 | | LiteLLM | OpenRouter |
 |---|---|---|
 | License | MIT; `enterprise/` folder commercial | Closed source |
-| Self-host | Docker image; Postgres for keys and spend, Redis for more than one instance | No |
+| Self-host | Docker image; Postgres for keys and spend, Redis for more than one instance | Not offered |
 | Fee | None for the open-source proxy | 5.5% on credit purchases |
 | GitHub stars | 61,735 | Not open source |
 
@@ -238,44 +230,7 @@ Sources: [license](https://github.com/BerriAI/litellm/blob/main/LICENSE),
 [caching](https://docs.litellm.ai/docs/proxy/caching),
 [security update](https://docs.litellm.ai/blog/security-update-march-2026).
 
-### 2. Portkey
-
-Portkey vs OpenRouter: Portkey is an MIT gateway you can run with one `npx` command, plus a
-hosted platform with logs and prompt templates. Palo Alto Networks completed its acquisition of
-Portkey on 29 May 2026.
-
-**Best for:** teams that want a light gateway with fallbacks and load balancing in the free
-version.
-
-| | Portkey | OpenRouter |
-|---|---|---|
-| License | MIT gateway | Closed source |
-| Self-host | `npx @portkey-ai/gateway`, Docker or Cloudflare Workers | No |
-| Hosted free plan | Developer: 10,000 logs a month, kept 3 days | Free models only |
-| Cheapest paid plan | Production: $49 a month, 100,000 logs | Pay as you go, 5.5% fee |
-| GitHub stars | 13,244 | Not open source |
-
-**Where Portkey differs**
-
-- Fallbacks, load balancing and conditional routing are on every plan.
-- The README lists retries, request timeouts and guardrails in the open-source gateway.
-- The hosted plans add logs, traces and versioned prompt templates.
-
-**Limits of Portkey**
-
-- Budgets and rate limits per key are on Enterprise and some Pro plans only.
-- The open-source repository's last commit was on 25 May 2026, and its last release was v1.15.2
-  in January 2026.
-- The docs put semantic caching on Enterprise, and the pricing page puts it on the Production
-  plan.
-
-Sources: [license](https://github.com/Portkey-AI/gateway/blob/main/LICENSE),
-[pricing](https://portkey.ai/pricing),
-[budget limits](https://portkey.ai/docs/product/ai-gateway/virtual-keys/budget-limits),
-[caching](https://portkey.ai/docs/product/ai-gateway/cache-simple-and-semantic),
-[acquisition](https://www.paloaltonetworks.com/company/press/2026/palo-alto-networks-completes-acquisition-of-portkey-to-secure-ai-agents).
-
-### 3. Kong AI Gateway
+### 2. Kong AI Gateway
 
 Kong vs OpenRouter: Kong is an Apache-2.0 API gateway with AI plugins. It sends LLM calls in the
 OpenAI format to 20 providers.
@@ -285,7 +240,7 @@ OpenAI format to 20 providers.
 | | Kong AI Gateway | OpenRouter |
 |---|---|---|
 | License | Apache-2.0 core; advanced AI plugins need Enterprise | Closed source |
-| Self-host | Postgres or no database | No |
+| Self-host | Postgres or no database | Not offered |
 | Cheapest hosted plan | Konnect Plus: from $25 a month, plus usage | Pay as you go, 5.5% fee |
 | GitHub stars | 44,290 | Not open source |
 
@@ -309,7 +264,7 @@ Sources: [license](https://github.com/Kong/kong/blob/master/LICENSE),
 [AI Proxy Advanced](https://developer.konghq.com/plugins/ai-proxy-advanced/),
 [pricing](https://konghq.com/pricing).
 
-### 4. Helicone
+### 3. Helicone
 
 Helicone vs OpenRouter: Helicone is an Apache-2.0 observability platform with a gateway. The
 hosted gateway takes your own keys first, then falls back to Helicone credits at 0% markup.
@@ -319,7 +274,7 @@ hosted gateway takes your own keys first, then falls back to Helicone credits at
 | | Helicone | OpenRouter |
 |---|---|---|
 | License | Apache-2.0 | Closed source |
-| Self-host | Web, a proxy worker, Express API, Supabase, ClickHouse, MinIO | No |
+| Self-host | Web, a proxy worker, Express API, Supabase, ClickHouse, MinIO | Not offered |
 | Who bills you for tokens | Your provider, or Helicone credits at 0% markup | OpenRouter, with a 5.5% fee |
 | Hosted free plan | Hobby: 10,000 requests a month, kept 7 days | Free models only |
 | Cheapest paid plan | Pro: $79 a month | Pay as you go, 5.5% fee |
@@ -333,19 +288,61 @@ hosted gateway takes your own keys first, then falls back to Helicone credits at
 
 **Limits of Helicone**
 
-- Mintlify acquired Helicone in March 2026 and said Helicone would run in maintenance mode.
-  In October 2026, Helicone's website says the company is no longer part of Mintlify, with no
-  other details.
+- Mintlify acquired Helicone in March 2026, and Mintlify said Helicone would run in maintenance
+  mode, with security updates, bug fixes and new models. On 2 November 2026, a banner on
+  Helicone's website reads "Helicone is no longer part of Mintlify. Details to come soon."
+  Because of the maintenance-mode statement, Helicone ranks below LiteLLM and Kong.
 - A self-hosted install runs six services, including ClickHouse.
 - The docs describe rate limits by cost, but no separate spend budget that stops calls.
 
-Our comparison: [AcruxCore vs Helicone](/blog/acruxcore-vs-helicone).
+Our head-to-head: [AcruxCore vs Helicone](/blog/acruxcore-vs-helicone).
 
 Sources: [license](https://github.com/Helicone/helicone/blob/main/LICENSE),
 [gateway](https://docs.helicone.ai/gateway/overview),
 [provider routing](https://docs.helicone.ai/gateway/provider-routing),
 [pricing](https://www.helicone.ai/pricing),
-[Mintlify post](https://www.mintlify.com/blog/mintlify-acquires-helicone).
+[Mintlify post](https://www.mintlify.com/blog/mintlify-acquires-helicone),
+[Helicone website](https://www.helicone.ai/).
+
+### 4. Portkey
+
+Portkey vs OpenRouter: Portkey is an MIT gateway you can run with one `npx` command, plus a
+hosted platform with logs and prompt templates. Palo Alto Networks completed its acquisition of
+Portkey on 29 May 2026.
+
+**Best for:** teams that want a light gateway with fallbacks and load balancing in the free
+version.
+
+| | Portkey | OpenRouter |
+|---|---|---|
+| License | MIT gateway | Closed source |
+| Self-host | `npx @portkey-ai/gateway`, Docker or Cloudflare Workers | Not offered |
+| Hosted free plan | Developer: 10,000 logs a month, kept 3 days | Free models only |
+| Cheapest paid plan | Production: $49 a month, 100,000 logs | Pay as you go, 5.5% fee |
+| GitHub stars | 13,244 | Not open source |
+
+**Where Portkey differs**
+
+- Fallbacks, load balancing and conditional routing are on every plan.
+- The README lists retries, request timeouts and guardrails in the open-source gateway.
+- The hosted plans add logs, traces and versioned prompt templates.
+
+**Limits of Portkey**
+
+- Budgets and rate limits per key are on Enterprise and some Pro plans only.
+- The open-source repository's last commit was on 25 May 2026, and its last release was v1.15.2
+  in January 2026 (checked on 2 November 2026). Because the repository has had no commit for five
+  months, Portkey ranks last in this group. Helicone also meets that rule. It ranks above
+  Portkey because its docs describe rate limits, which Portkey keeps for Enterprise and some
+  Pro plans.
+- The docs put semantic caching on Enterprise, and the pricing page puts it on the Production
+  plan.
+
+Sources: [license](https://github.com/Portkey-AI/gateway/blob/main/LICENSE),
+[pricing](https://portkey.ai/pricing),
+[budget limits](https://portkey.ai/docs/product/ai-gateway/virtual-keys/budget-limits),
+[caching](https://portkey.ai/docs/product/ai-gateway/cache-simple-and-semantic),
+[acquisition](https://www.paloaltonetworks.com/company/press/2026/palo-alto-networks-completes-acquisition-of-portkey-to-secure-ai-agents).
 
 ## Hosted resellers: one bill, no provider accounts
 
@@ -646,8 +643,6 @@ Sources: [license](https://github.com/ollama/ollama/blob/main/LICENSE),
 
 ## About AcruxCore
 
-AcruxCore is our own product, so it has no rank in this list.
-
 AcruxCore vs OpenRouter: AcruxCore is an Apache-2.0 platform with a gateway, prompt versions,
 tracing and evals. It does not sell model access, so you bring your own provider keys.
 
@@ -658,9 +653,9 @@ prompt versions, traces and evals in the same app.
 |---|---|---|
 | License | Apache-2.0, with no enterprise folder | Closed source |
 | Who bills you for tokens | Your provider, at its own prices | OpenRouter, with a 5.5% fee on credits |
-| Self-host | Postgres, Redis, API, worker, web | No |
+| Self-host | Postgres, Redis, API, worker, web | Not offered |
 | Providers | OpenAI, Anthropic and Gemini, plus any OpenAI-compatible base URL | 468 models from 113 providers |
-| Cheapest paid plan | None; the hosted plan is free | Pay as you go, 5.5% fee |
+| Cheapest paid plan | None; the hosted platform is free to use | Pay as you go, 5.5% fee |
 
 **Where AcruxCore differs**
 
@@ -673,9 +668,10 @@ prompt versions, traces and evals in the same app.
   9 ms at the median and a miss took 902 ms.
 - Every gateway call writes a trace span with tokens, cost and latency. The same app versions
   prompts, runs experiments on datasets and scores live traffic with online rules.
-- In our July measurement, a local AcruxCore gateway added 42 ms at the median over a direct
-  OpenAI call. In our August benchmark of six platforms, the gateway added tens of
-  milliseconds, a gap too small to pin to an exact number.
+- In our [gateway overhead benchmark](/blog/llm-gateway-overhead) of 25 October 2026, a local
+  AcruxCore gateway added a median of 9 ms to a direct OpenAI call over 60 interleaved rounds.
+  The 95% confidence interval ran from −15 ms to +28 ms, so the test could not tell the gateway
+  apart from a direct call.
 - AcruxCore can send calls to OpenRouter as one of its providers, through an OpenAI-compatible
   connection. The [gateway guide](https://docs.acruxcore.com/docs/guides/route-calls-through-the-gateway) uses OpenRouter
   as its example.
@@ -691,7 +687,7 @@ prompt versions, traces and evals in the same app.
 - The built-in price list covers a few models. To track cost for other models, OpenRouter's
   included, you enter their prices yourself.
 - AcruxCore has no semantic cache.
-- The repository went public in August 2026 and has 11 GitHub stars.
+- The repository went public in August 2026 and had 12 GitHub stars on 2 November 2026.
 
 Our measurements: [gateway overhead](/blog/llm-gateway-overhead),
 [full-cycle latency across six platforms](/blog/full-cycle-latency-benchmark),
@@ -704,19 +700,16 @@ Sources: [license](https://github.com/AcruxCore/AcruxCore/blob/main/LICENSE),
 
 ## Which OpenRouter alternative should you pick?
 
-Start at the top and stop at the first question you answer yes to.
-
-![Decision flow with five questions: prompts must stay on your hardware leads to Ollama; one bill and no provider accounts leads to Vercel AI Gateway; prompts, traces and evals too leads to AcruxCore; load balancing across deployments leads to LiteLLM; already on AWS leads to Amazon Bedrock; otherwise LiteLLM](/img/blog/openrouter-alternatives/03-decision.webp)
-
 ### If prompts must not leave your machine
 
 - **Ollama** runs open models locally for free.
 
 ### Best self-hosted OpenRouter alternative
 
-- **AcruxCore** (ours) or **LiteLLM**. AcruxCore runs the gateway plus prompt versions, traces
-  and evals, on Postgres and Redis. LiteLLM is a gateway only, with load balancing across
-  deployments.
+- **LiteLLM** is a gateway only, with load balancing across deployments.
+- **Kong AI Gateway** if you already run Kong for your other APIs.
+- AcruxCore (ours) is not ranked. It runs the gateway plus prompt versions, traces and evals, on
+  Postgres and Redis; see [About AcruxCore](#about-acruxcore).
 
 ### Best OpenRouter alternative for one bill
 
@@ -746,8 +739,8 @@ month, then cost 5%.
 ### Can you self-host OpenRouter?
 
 OpenRouter publishes no self-hosted version. Its GitHub organization holds SDKs and
-integrations, not the gateway. AcruxCore (ours), Kong, LiteLLM and Portkey are gateways you can
-run on your own servers.
+integrations, not the gateway. LiteLLM, Kong, Helicone and Portkey are gateways you can run on
+your own servers, and so is AcruxCore (ours).
 ([OpenRouterTeam on GitHub](https://github.com/OpenRouterTeam))
 
 ### Does OpenRouter store my prompts?
@@ -756,45 +749,17 @@ Not by default. OpenRouter stores prompts only if you opt in, and it always stor
 such as token counts and latency.
 ([data collection](https://openrouter.ai/docs/guides/privacy/data-collection))
 
+### OpenRouter vs LiteLLM: what is the difference?
+
+OpenRouter is a hosted service that resells model access from credits, with a 5.5% fee on
+credit purchases. LiteLLM is an MIT proxy you run yourself with your own provider keys, and each
+provider bills you.
+
 ### OpenRouter vs Ollama: what is the difference?
 
 OpenRouter is a hosted service for hundreds of models, closed ones included, and charges per
 token. Ollama runs open models on your own machine, for free and offline. Both have an
 OpenAI-compatible API, so the same client code works with either.
-
-### OpenRouter vs Requesty?
-
-Both resell model access. Requesty charges 5% on top-ups and OpenRouter 5.5% on credit
-purchases. Requesty's free plan allows 200 requests a day, and OpenRouter's allows 50.
-([Requesty pricing](https://www.requesty.ai/pricing))
-
-### OpenRouter vs Together AI?
-
-OpenRouter routes calls to many providers. Together runs open-weight models on its own GPUs and
-serves no Claude or GPT chat models. ([Together models](https://docs.together.ai/docs/serverless-models))
-
-### OpenRouter vs Amazon Bedrock?
-
-Bedrock bills through your AWS account and keeps prompts inside AWS. It routes across AWS
-Regions but does not fall back to another model, while OpenRouter falls back across providers
-and models. ([cross-Region inference](https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html))
-
-### OpenRouter vs Hugging Face Inference Providers?
-
-Hugging Face passes provider prices through with no markup, and OpenRouter charges 5.5% on
-credits. Hugging Face routes to 18 partners, mostly for open-weight models.
-([pricing](https://huggingface.co/docs/inference-providers/pricing))
-
-### OpenRouter vs NanoGPT?
-
-NanoGPT charges no fee on tokens by default and takes crypto with no account. OpenRouter charges
-5.5% on credit purchases. ([NanoGPT pricing](https://nano-gpt.com/pricing))
-
-### OpenRouter vs Portkey?
-
-Portkey is a gateway you run with your own keys, and OpenRouter resells model access. Portkey's
-budgets and rate limits per key need the Enterprise plan or some Pro plans.
-([budget limits](https://portkey.ai/docs/product/ai-gateway/virtual-keys/budget-limits))
 
 ## Related posts
 
@@ -806,5 +771,5 @@ budgets and rate limits per key need the Enterprise plan or some Pro plans.
   cache on.
 - [One gateway, three providers](/blog/one-gateway-three-providers): the request shape for
   OpenAI, Anthropic and Gemini through one gateway.
-- [AcruxCore vs Helicone](/blog/acruxcore-vs-helicone): one prompt rebuilt on each, and 300
-  benchmark rounds through both gateways.
+- [AcruxCore vs Helicone](/blog/acruxcore-vs-helicone): two request-path gateways compared,
+  with per-user rate limits, alerts and budgets.

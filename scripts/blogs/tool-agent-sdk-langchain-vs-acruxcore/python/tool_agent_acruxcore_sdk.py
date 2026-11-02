@@ -1,9 +1,8 @@
 """SDK leg: the same get_weather agent using the `acruxcore` Python SDK.
 
-This is the third way to write the run, after the raw-REST/OpenAI-client legs.
 `run_tool_loop` owns the entire loop — call the model, run the tool calls, append
-results, repeat — and reports one trace covering all of it. Three things disappear
-compared to `tool_agent_acruxcore.py`:
+results, repeat — and reports one trace covering all of it. Compared with writing
+the loop yourself against the gateway, three things disappear:
 
 * No registration step: `@acrux.tool` is the tool definition, and the loop
   reconciles it with the catalog on its first call. Re-running with an unchanged

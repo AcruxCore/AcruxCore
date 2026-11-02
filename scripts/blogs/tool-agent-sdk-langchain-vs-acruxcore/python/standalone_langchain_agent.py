@@ -12,8 +12,8 @@ embedded in the blog post, kept here so it can be run and stay honest.
 import os
 
 # Must be set before LangChain is imported — the tracer reads them at import time.
-os.environ["LANGCHAIN_TRACING_V2"] = "true"
-os.environ["LANGCHAIN_PROJECT"] = "weather-agent-standalone"
+os.environ["LANGSMITH_TRACING"] = "true"
+os.environ["LANGSMITH_PROJECT"] = "weather-agent-standalone"
 
 import requests
 from langchain.agents import create_agent
@@ -63,7 +63,7 @@ def main() -> None:
     )
 
     print(result["messages"][-1].content)
-    print(f"\nTrace: smith.langchain.com → project '{os.environ['LANGCHAIN_PROJECT']}'")
+    print(f"\nTrace: smith.langchain.com → project '{os.environ['LANGSMITH_PROJECT']}'")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,15 @@
+langfuse 5.1.0 openai 3.42.1 host https://cloud.langfuse.com
+== 1. two versions, a custom label
+created version 1, labels ['production', 'latest']
+created version 2, labels ['candidate', 'latest']
+get_prompt(label=None) -> version 1, labels ['production']
+get_prompt(label='production') -> version 1, labels ['production']
+get_prompt(label='candidate') -> version 2, labels ['candidate', 'latest']
+get_prompt(label='latest') -> version 2, labels ['candidate', 'latest']
+== 2. prompt reference
+stored text as served: 'Price each request with this rate card:\nExtra page: $300. Extra language: $400. Newsletter signup: $150.\n\nRequest: {{request}}'
+compiled: 'Price each request with this rate card:\nExtra page: $300. Extra language: $400. Newsletter signup: $150.\n\nRequest: Add a Spanish version'
+== 3. Jinja-style text in compile()
+compiled: '{% if vip %}VIP customer. {% endif %}Hello Ada.'
+== 4. drop-in OpenAI wrapper, no context manager
+(check 4 stopped here: the OpenAI key in .env was rejected with 401. It was re-run through OpenRouter; see 02-langfuse-wrapper-trace.txt.)

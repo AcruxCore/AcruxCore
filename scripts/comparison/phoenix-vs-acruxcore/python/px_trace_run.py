@@ -4,12 +4,12 @@ traced by Phoenix's OTel instrumentation (`arize-phoenix-otel` +
 
 Contrast with `acx_sdk_run.py`: AcruxCore's SDK renders a *stored* prompt
 server-side (`hub.prompts.render()`) and the gateway writes the trace with no
-tracing code in the caller at all. Phoenix has no stored-prompt-render call in
-its Python SDK — the caller renders the Mustache template locally, sends a
-plain OpenAI-shaped request, and Phoenix's OTel instrumentor auto-wraps the
-OpenAI client to emit the span. The Mustache conditionals/loops used in the
-Phoenix Playground UI are reproduced here by hand, in Python, because there is
-no server-side render endpoint to call instead.
+tracing code in the caller at all. Phoenix renders prompts client-side: its
+client can pull a stored prompt by name, version or tag
+(`client.prompts.get(...)`) and fill it with `prompt.format(variables=...)`.
+This script does not use that path. It renders the system message by hand in
+Python, sends a plain OpenAI-shaped request, and Phoenix's OTel instrumentor
+auto-wraps the OpenAI client to emit the span.
 
 Run:
   export OPENROUTER_KEY=sk-or-v1-...
@@ -57,9 +57,8 @@ VARIABLES = {
 def render_system_message(variables: dict) -> str:
     """Hand-rolled equivalent of the Mustache template built in the Phoenix Playground.
 
-    Phoenix's Python SDK has no prompt-render call, so this logic — which
-    AcruxCore's gateway applies server-side from one stored nunjucks template
-    — has to be duplicated here in the caller.
+    Phoenix's client could pull the stored prompt and call `prompt.format()`
+    instead; this script keeps the logic inline so the run needs no stored prompt.
     """
     lines = [f"You are a support triage agent for {variables['company']}."]
     if variables["is_vip"]:

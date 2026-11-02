@@ -4,11 +4,13 @@ description: A step-by-step, screenshot-backed walkthrough of creating a prompt,
 slug: langsmith-hands-on-walkthrough
 authors: [acrux]
 tags: [prompt-management, llm-tracing]
-image: /img/social-card.png
+image: /img/blog/langsmith-hands-on-walkthrough/header.webp
 keywords: [langsmith walkthrough, langsmith tracing, langsmith prompt hub, langsmith evaluation, llm ops]
 last_update:
-  date: 2026-10-25
+  date: 2026-11-02
 ---
+
+![The LangSmith walkthrough in four steps: Prompt Hub with commit history and environments, the Playground with an inputs panel and provider key, span-based tracing with a tool call, and datasets with a correctness evaluator and pairwise experiments](/img/blog/langsmith-hands-on-walkthrough/header.webp)
 
 We logged into the real, hosted version of LangSmith (US region) and worked through
 the same four steps we're using across every platform in this comparison: create a
@@ -29,7 +31,12 @@ gets a **commit history** — every save is a new commit with a hash, similar to
 Our test prompt (`acruxcore-support-assistant`) already had two commits: an initial
 version and a follow-up edit ("v2: mention product area by name, friendlier tone").
 
+<details>
+<summary>Show screenshot: LangSmith prompt detail with two commits</summary>
+
 ![LangSmith prompt detail page showing two commits in the history, the system/user message editor, and model configuration (ChatOpenAI, gpt-5.6-terra)](/img/tutorials/langsmith-walkthrough/ls-02-prompt-versions.png)
+
+</details>
 
 LangSmith also shows **Environments** (Production/Staging) at the top of the prompt
 page, ready to accept a deployed version — but on this account nothing had been
@@ -41,24 +48,45 @@ Clicking "Playground" opens the prompt with its system/user messages and model
 config pre-loaded, plus an **Inputs** panel for the prompt's variables (here, a
 single `question` variable).
 
+<details>
+<summary>Show screenshot: prompt loaded in the LangSmith Playground</summary>
+
 ![LangSmith Playground with the acruxcore-support-assistant prompt loaded, showing System and Human messages, model gpt-5.6-terra, and an Inputs panel for the question variable](/img/tutorials/langsmith-walkthrough/ls-03-playground-loaded.png)
 
-LangSmith's Playground needs **your own provider API key** (a BYOK model — bring
-your own key) before it will execute a call. Without a key, the Playground asks for one:
+</details>
+
+On our account in July 2026, LangSmith's Playground needed **our own provider API key** (a BYOK
+model — bring your own key) before it executed a call. Without a key, the Playground asked for
+one:
+
+<details>
+<summary>Show screenshot: LangSmith Playground asking for an OpenAI API key</summary>
 
 ![LangSmith Playground showing a "Secrets & API keys" panel requesting an OPENAI_API_KEY before the prompt can be run](/img/tutorials/langsmith-walkthrough/ls-04-playground-needs-api-key.png)
+
+</details>
 
 You add the key under **Settings → Provider secrets → Browser Secrets**, the store the
 Playground reads from. With an OpenAI key there, the Playground calls the model and
 returns an answer:
 
+<details>
+<summary>Show screenshot: completed run in the LangSmith Playground</summary>
+
 ![LangSmith Playground showing a completed run: the question "What is prompt versioning in one sentence?" and a real generated answer beginning "Prompt versioning is the practice of tracking, managing..."](/img/tutorials/langsmith-walkthrough/ls-live-01-playground-run-success.jpg)
+
+</details>
 
 That run produced a trace. A `RunnableSequence` parent holds a `RunnableLambda`, three
 `ChatPromptTemplate` spans, and the `gpt-5.6-terra` model call. The model call span shows
 its latency (2.69s) and token count (59).
 
+<details>
+<summary>Show screenshot: LangSmith trace span tree for the Playground run</summary>
+
 ![LangSmith trace detail showing a RunnableSequence span tree with RunnableLambda and ChatPromptTemplate child spans feeding into a gpt-5.6-terra span, with 2.69s latency and 59 tokens, and the real generated output text](/img/tutorials/langsmith-walkthrough/ls-live-02-trace-span-tree.png)
+
+</details>
 
 ## 3. Tracing: span-based, not proxy-based
 
@@ -66,7 +94,12 @@ The account's existing trace history shows LangSmith's tracing model most clearl
 The **Tracing** section lists projects (LangSmith's word for a trace-collection
 bucket), each showing trace count, latency percentiles, and cost.
 
+<details>
+<summary>Show screenshot: LangSmith Tracing projects overview</summary>
+
 ![LangSmith Tracing overview listing four projects (default, flowise_project, playground, django_blog) with trace counts and P50/P99 latency columns](/img/tutorials/langsmith-walkthrough/ls-05-tracing-projects.png)
+
+</details>
 
 Opening a real trace confirms LangSmith is **span-based**: the trace isn't just
 "one LLM call logged," it's a tree. Our `AcruxCoreSupportBot` trace has a
@@ -75,12 +108,19 @@ and a `gpt-4o-mini` LLM call — each with its own latency, so you can see exact
 where time and tokens went inside a multi-step chain, not just the final model
 call.
 
+<details>
+<summary>Show screenshot: LangSmith trace waterfall with child spans</summary>
+
 ![LangSmith trace view showing a waterfall with a parent AcruxCoreSupportBot span containing two child spans: lookup_product_docs (a tool call) and gpt-4o-mini (the LLM call), plus Input/Output panels](/img/tutorials/langsmith-walkthrough/ls-07-trace-span-view.png)
+
+</details>
 
 This is the core structural difference between span-based and proxy-based
 tracing: a proxy only ever sees the calls that were routed through it (so a
 non-LLM tool call would be invisible), while a span-based SDK can capture every
 step you explicitly instrument, chain logic included.
+
+![Span-based tracing captures chain logic, tool calls and LLM calls you instrument; proxy-based tracing sees only the LLM call routed through the proxy, so a non-LLM tool call is invisible](/img/blog/langsmith-hands-on-walkthrough/span-vs-proxy.webp)
 
 ## 4. Datasets and evaluation
 
@@ -91,21 +131,34 @@ experiment runs side by side). We opened an existing dataset
 paste JSON into an **Inputs** box, JSON into a **Reference Outputs** box, pick a
 split (`base` by default), and submit.
 
+<details>
+<summary>Show screenshot: LangSmith Add Example to dataset dialog</summary>
+
 ![LangSmith "Add Example to dataset" dialog with Dataset Splits, Inputs, and Reference Outputs JSON editors](/img/tutorials/langsmith-walkthrough/ls-08-dataset-examples.png)
+
+</details>
 
 Each submit gave an immediate "Example added to dataset" confirmation, and the
 Examples table updated in place. Running a full **Experiment** (an evaluation
-run against the dataset) needs the same provider key as the Playground.
+run against the dataset) needed the same provider key as the Playground.
 
-> **Key point:** LangSmith's Playground needs your own provider API key before it executes a
-> call. A full Experiment needs the same key.
+> **Key point:** On our account in July 2026, LangSmith's Playground needed our own provider API
+> key before it executed a call, and a full Experiment needed the same key. Since then,
+> [Gateway Credits](https://docs.langchain.com/langsmith/llm-gateway-credits) let paid plans other
+> than Enterprise call LangChain-hosted models with no provider key. On 2 November 2026 those
+> were two Kimi models, not any model you pick.
 
 With the key in place, an Experiment run against the `acruxcore-support-qa` dataset
 completed. It covered 5 examples, each with input, reference-output and actual-output
 columns. The automatic **Correctness** evaluator scored 0.80, and P50/P99 latency was
 around 0.99s.
 
+<details>
+<summary>Show screenshot: LangSmith experiment results grid</summary>
+
 ![LangSmith experiment results grid for acruxcore-support-assistant-v2-gpt4o-mini showing 5 rows with Inputs, Reference Outputs, and generated Outputs columns](/img/tutorials/langsmith-walkthrough/ls-live-03-experiment-results.jpg)
+
+</details>
 
 ## Doing this from code
 
@@ -155,7 +208,12 @@ call; the `@traceable` decorator adds an outer span (named
 trace's root, not just the model call inside it. Both spans, with real token
 count and latency, showed up immediately in the **default** project:
 
+<details>
+<summary>Show screenshot: LangSmith trace from the SDK script</summary>
+
 ![LangSmith trace detail for explain-prompt-versioning, showing a root span with a nested ChatOpenAI/gpt-4o-mini child span, 45 tokens, under $0.0001 cost, and the real generated output text in the Output panel](/img/tutorials/langsmith-walkthrough/ls-sdk-01-trace-from-script.jpg)
+
+</details>
 
 No LangChain/LangGraph required for this — `wrap_openai` and `@traceable` work
 against a plain OpenAI client.
@@ -179,8 +237,8 @@ against a plain OpenAI client.
 
 LangSmith's tracing is genuinely deep (real span trees, not just LLM call logs),
 and its prompt commit history plus Environments give a clean, git-like way to
-version and promote prompts. Playground runs and Experiments both need your own
-model provider key. You add the key once. With it in place, Playground runs, traces and
+version and promote prompts. In our July 2026 run, Playground runs and Experiments
+both needed our own model provider key. You add the key once. With it in place, Playground runs, traces and
 dataset Experiments all worked.
 
 ## LangSmith vs AcruxCore
@@ -189,14 +247,15 @@ dataset Experiments all worked.
 | --- | --- | --- |
 | Framework integration | Deep LangChain/LangGraph-native instrumentation, plus a dedicated Studio for LangGraph agents | Framework-agnostic — plain REST or either published SDK, no LangChain dependency |
 | Prompt management | Git-like prompt commits with named Environments (Production/Staging) | Immutable versions with alias promotion (`production`/`staging`), no redeploy |
-| Gateway | LLM Gateway in beta (as of 25 October 2026): spend and rate limits; no fallbacks or cache documented | Gateway sits in front of every provider call — one audited, cost-visible path |
-| Tool calling | Traces tool calls made through LangChain | First-class, versioned tool catalog, callable via a client-side tool loop in either SDK |
+| Gateway | LLM Gateway in beta (as of 2 November 2026): model fallbacks, spend and rate limits, data policies; no response cache documented | Gateway sits in front of every provider call — one audited, cost-visible path |
+| Tool calling | Traces tool calls from any code with `@traceable(run_type="tool")`, with or without LangChain | First-class, versioned tool catalog, callable via a client-side tool loop in either SDK |
 | Evaluation | Rich, mature evaluation suite with many built-in evaluators and a Pairwise Experiments UI | Datasets built from real production feedback, typed by hand, or imported from a CSV/JSON file |
 | Hosting & pricing | Self-hosting is an enterprise add-on | Open source and self-hostable by default |
 
 [Langfuse vs LangSmith](/blog/langfuse-vs-langsmith) runs one app end to end on LangSmith and
 Langfuse. [AcruxCore vs Langfuse vs LangSmith](/blog/acruxcore-vs-langfuse-vs-langsmith) builds
 the same app on all three platforms and measures each step.
+[7 LangSmith alternatives](/blog/langsmith-alternatives) compares the tools teams move to.
 
 Want to see the same loop on AcruxCore? The
 [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart) gets you from sign-up to a traced,

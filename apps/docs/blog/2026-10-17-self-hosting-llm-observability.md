@@ -8,7 +8,7 @@ tags: [llmops-comparison, llm-tracing]
 image: /img/blog/self-hosting-llm-observability/header.png
 keywords: [self-hosted llm observability, self-host langfuse, self-host opik, self-host phoenix, self-host mlflow, self-host agenta, self-host laminar, open source llm observability, llm observability docker compose, clickhouse disk usage]
 last_update:
-  date: 2026-10-25
+  date: 2026-11-02
 ---
 
 ![Bar chart of idle memory for seven self-hosted LLM observability stacks: AcruxCore 0.39 GiB, Phoenix 0.47, Laminar 1.11, MLflow 2.33, Langfuse 2.60, Agenta 2.62, Opik 3.69](/img/blog/self-hosting-llm-observability/header.png)
@@ -28,7 +28,7 @@ We build AcruxCore. We ran every tool ourselves, and the scripts are linked belo
 - **Idle memory runs from 0.39 GiB to 3.69 GiB.** AcruxCore and Phoenix use the least. AcruxCore and Phoenix store traces in Postgres, as MLflow and Agenta do. Opik uses the most, and after 1,000 traces it holds 4.5 GiB.
 - **The databases use memory before any trace arrives.** Three of the seven ship a column store called ClickHouse. ClickHouse holds 0.6 to 1.1 GiB in each of those stacks before any trace arrives.
 - **Trace data is small, and the disk grows for other reasons.** The 1,000 traces take 0.8 to 1.1 MiB in the three ClickHouse stacks and 4.6 to 13.5 MiB in the four Postgres stacks. Opik's disk still grew by about 170 MiB, because ClickHouse logs its own activity by default. Laminar ships a config that turns those logs off.
-- **Only Langfuse documents hardware.** Langfuse asks for 4 cores, 16 GiB of memory and 100 GiB of disk. The other six publish no hardware numbers.
+- **Two publish hardware numbers.** Langfuse's Docker Compose page recommends at least 4 cores and 16 GiB of memory, with 100 GiB of disk as its example. Opik's scaling guide sizes its services at 4 vCPU and 8 GB for development, and ClickHouse separately at 4 cores and 16 GiB. The other five publish none.
 - **Agenta has the largest install.** It runs 14 containers from 12.5 GB of images, and 6.9 GB of that is the image for its agent runner.
 
 ## At a glance
@@ -134,8 +134,8 @@ The production file, `docker-compose.yml`, brings no database. You supply Postgr
 
 ### Langfuse, Opik and Phoenix
 
-- **Langfuse** is the only one of the seven whose docs state hardware: at least 4 cores, 16 GiB of memory and 100 GiB of disk on a VM. Langfuse marks 14 lines in its compose file with `# CHANGEME`, which are its default secrets. Its docs say the compose setup has no high availability, no scaling and no backups, and point to Kubernetes for production.
-- **Opik** loads a demo project with 156 traces on first start. Its docs say the compose setup "is not meant for production deployments." Opik has no login screen in self-hosted mode, so anyone who can reach the port can read every trace.
+- **Langfuse**'s [Docker Compose page](https://langfuse.com/self-hosting/deployment/docker-compose) states hardware for a single VM: at least 4 cores and 16 GiB of memory, and 100 GiB of disk as an example. Langfuse marks 14 lines in its compose file with `# CHANGEME`, which are its default secrets. Its docs say the compose setup has no high availability, no scaling and no backups, and point to Kubernetes for production.
+- **Opik**'s [scaling guide](https://www.comet.com/docs/opik/self-host/scaling) sizes its services at 4 vCPU and 8 GB for development and 13 vCPU and 32 GB for production. ClickHouse is sized separately, at 4 cores and 16 GiB for development. Opik loads a demo project with 156 traces on first start. Its docs say the compose setup "is not meant for production deployments." Opik has no login screen in self-hosted mode, so anyone who can reach the port can read every trace.
 - **Phoenix**'s license is the Elastic License 2.0, which is source-available, not open source. Phoenix has authentication off by default, and you turn it on with `PHOENIX_ENABLE_AUTH`. Phoenix's docs also show a single-container option on SQLite, which we did not measure. We measured the Postgres setup, because that is the setup you would keep running.
 
 ## Which tool fits which server
@@ -165,7 +165,7 @@ If you want to compare features rather than hosting at a glance, the [comparison
 
 Six of these tools also have a hands-on comparison with AcruxCore that covers features rather than hosting: [Langfuse](/blog/acruxcore-vs-langfuse), [Opik](/blog/acruxcore-vs-opik), [Phoenix](/blog/acruxcore-vs-phoenix), [MLflow](/blog/acruxcore-vs-mlflow), [Laminar](/blog/acruxcore-vs-laminar) and [Agenta](/blog/acruxcore-vs-agenta).
 
-For license, price and features across more tools, read [8 Langfuse alternatives](/blog/langfuse-alternatives) and [8 LangSmith alternatives](/blog/langsmith-alternatives). [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison) shows screenshots of each tool, and [Langfuse vs LangSmith](/blog/langfuse-vs-langsmith) runs one app on both.
+For license, price and features across more tools, read [7 Langfuse alternatives](/blog/langfuse-alternatives) and [7 LangSmith alternatives](/blog/langsmith-alternatives). [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison) shows screenshots of each tool, and [Langfuse vs LangSmith](/blog/langfuse-vs-langsmith) runs one app on both.
 
 ## FAQ
 

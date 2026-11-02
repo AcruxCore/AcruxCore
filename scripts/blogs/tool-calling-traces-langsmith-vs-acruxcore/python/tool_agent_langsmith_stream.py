@@ -36,8 +36,7 @@ from weather_tool_shared import (  # noqa: E402
 
 PROJECT = "weather-tool-agent"
 
-os.environ["LANGCHAIN_TRACING_V2"] = "true"
-os.environ["LANGCHAIN_PROJECT"] = PROJECT
+os.environ["LANGSMITH_TRACING"] = "true"
 os.environ["LANGSMITH_PROJECT"] = PROJECT
 
 if not os.environ.get("LANGSMITH_API_KEY"):

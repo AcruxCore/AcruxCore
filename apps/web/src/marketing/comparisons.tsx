@@ -170,10 +170,10 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     bestFor:
       'Teams that need an organization layer above the project, and the largest community here.',
     limitations:
-      'Not in the request path, so it cannot enforce a budget, serve a cache hit, or issue a virtual key. Variable substitution only, with no conditionals or loops. The audit log needs the $2,499/mo Enterprise plan, even if you self-host. One folder in the repository, ee/, is under a separate enterprise licence.',
+      'Not in the request path, so it cannot enforce a budget, serve a cache hit, or issue a virtual key. Variable substitution only, with no conditionals or loops. The audit log needs the $2,499/mo Enterprise plan, even if you self-host. The ee/ folders in the repository are under a separate enterprise licence.',
     license: {
       value:
-        'MIT, except for the ee/ folder. A separate Enterprise License covers that folder, so the features in it are not MIT. AcruxCore has no such folder.',
+        'MIT, except for the ee/ folders. A separate Enterprise License covers those folders, so the features in them are not MIT. AcruxCore has no such folder.',
       source: { label: 'LICENSE', href: 'https://github.com/langfuse/langfuse/blob/main/LICENSE' },
       acruxWins: true,
     },
@@ -200,7 +200,9 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
       source: { label: 'langfuse.com/pricing', href: 'https://langfuse.com/pricing' },
     },
     rbac: {
-      value: 'Two levels of role, one on the organization and one on the project. On the account we checked, the project role showed "N/A on plan".',
+      value: 'Organization roles on every plan. Project-level roles need Pro with the Teams add-on or Enterprise on Langfuse Cloud, and a licence key when self-hosted.',
+      source: { label: 'langfuse.com/pricing', href: 'https://langfuse.com/pricing' },
+      checkedOn: '2026-11-02',
     },
     auditLog: {
       value: 'The audit log is in the UI. It needs the Enterprise plan at $2,499/mo, whether you use hosted Langfuse or self-host it.',
@@ -220,11 +222,11 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     },
     mcpServer: {
       value:
-        'Langfuse\'s hosted server has 90 tools for prompts, datasets, scores, annotation queues, and dashboards. Sixteen of those tools are off by default, including the trace tools. A feature flag or a project setting turns those 16 tools on. Some tools create prompts and move prompt labels, but no tool runs a stored prompt.',
+        'Langfuse\'s hosted server has about 95 tools for prompts, datasets, experiments, evaluators, scores, annotation queues, dashboards and traces. Read and write tools are on by default. Some tools create prompts and move prompt labels, but no tool runs a stored prompt.',
       source: { label: 'Langfuse MCP server', href: 'https://langfuse.com/docs/api-and-data-platform/features/mcp-server' },
-      checkedOn: '2026-10-18',
+      checkedOn: '2026-11-02',
     },
-    communityStars: '32,617',
+    communityStars: '36,886',
   },
 
   phoenix: {
@@ -237,7 +239,7 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     bestFor:
       'Tracing and evaluation on one machine, from a notebook, with nothing to set up and no account to create.',
     limitations:
-      'Elastic License 2.0 is source-available rather than OSI-approved. The local open-source version has no teams or user management. Nothing sits in the request path, and there is no tool catalog.',
+      'Elastic License 2.0 is source-available rather than OSI-approved. There are no teams, and users and roles need authentication switched on. Nothing sits in the request path, and there is no tool catalog.',
     license: {
       value: 'Elastic License 2.0. Source-available, not OSI-approved, and not permissive.',
       source: { label: 'LICENSE', href: 'https://github.com/Arize-ai/phoenix/blob/main/LICENSE' },
@@ -258,19 +260,26 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
       acruxWins: true,
     },
     teamStructure: {
-      value: 'No teams and no user management in the local open-source version. Opening /account with authentication switched off throws an error.',
+      value: 'No teams. Users and three instance-wide roles when authentication is on.',
       acruxWins: true,
+      checkedOn: '2026-11-02',
     },
     pricingSummary: {
       value: 'Phoenix itself is free. Arize AX, Arize\'s hosted product, costs $0–$50/mo.',
       source: { label: 'arize.com/pricing', href: 'https://arize.com/pricing/' },
     },
-    rbac: { value: 'Not found. The local open-source version has no teams and no users.', acruxWins: true },
+    rbac: {
+      value: 'Three roles (admin, member, viewer) once you set PHOENIX_ENABLE_AUTH and PHOENIX_SECRET; authentication is off by default.',
+      source: { label: 'Authentication', href: 'https://arize.com/docs/phoenix/self-hosting/features/authentication' },
+      acruxWins: true,
+      checkedOn: '2026-11-02',
+    },
     auditLog: { value: 'Not found in any settings page we checked.', acruxWins: true },
     promptTemplating: {
-      value: 'Variable substitution only, in mustache or f-string form. There is no syntax for conditionals or loops.',
-      source: { label: 'Using the Playground', href: 'https://arize.com/docs/phoenix/prompt-engineering/how-to-prompts/using-the-playground' },
+      value: 'Mustache (full syntax, including sections and inverted sections), f-string, or none. There is no Jinja-style if/for syntax.',
+      source: { label: 'Prompts concepts', href: 'https://arize.com/docs/phoenix/prompt-engineering/concepts-prompts/prompts-concepts' },
       acruxWins: true,
+      checkedOn: '2026-11-02',
     },
     promptOptimizer: {
       value:
@@ -281,7 +290,7 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     },
     mcpServer: {
       value:
-        'Phoenix\'s local server has 27 tools for prompts and traces. The hosted server can call any REST endpoint, including chat completions, and can be set read-only. No tool runs a stored prompt.',
+        'Phoenix\'s local server has 27 tools for prompts, traces, spans, sessions, datasets and experiments. The hosted server can call any REST endpoint, including chat completions, and can be set read-only. No tool runs a stored prompt.',
       source: { label: 'Phoenix MCP server source', href: 'https://github.com/Arize-ai/phoenix/blob/main/src/phoenix/server/mcp_server.py' },
       checkedOn: '2026-10-18',
     },
@@ -298,7 +307,7 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     bestFor:
       'Evaluation work with datasets, experiments and online scoring rules, under the same Apache 2.0 terms as AcruxCore.',
     limitations:
-      'No teams, members or invites when self-hosted, because members are a Cloud-tier feature. Nothing in the request path, and no tool catalog. Mustache substitution by default, with playground conditionals still an open feature request.',
+      'No teams, members or invites when self-hosted, because members are a Cloud-tier feature. Nothing in the request path, and no tool catalog. Opik also offers an LLM Gateway in beta, which its docs say is for development and testing. Mustache substitution by default, with playground conditionals still an open feature request.',
     license: {
       value: 'Apache License 2.0, and no part of the repository is under a different license. The same terms as AcruxCore.',
       source: { label: 'LICENSE', href: 'https://github.com/comet-ml/opik/blob/main/LICENSE' },
@@ -311,8 +320,10 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     },
     gateway: {
       value:
-        'Not in the request path. Opik receives a trace after your own client has called the provider, so it cannot enforce a budget, serve a cache hit, or issue a virtual key.',
+        'Not in the request path. Opik receives a trace after your own client has called the provider, so it cannot enforce a budget, serve a cache hit, or issue a virtual key. Opik also offers an LLM Gateway in beta, which its docs say is for development and testing.',
+      source: { label: 'Opik LLM Gateway', href: 'https://www.comet.com/docs/opik/integrations/opik-llm-gateway' },
       acruxWins: true,
+      checkedOn: '2026-11-02',
     },
     toolCatalog: {
       value: 'No tool catalog. Opik\'s "Agent playground" attaches to your own running code for debugging, rather than letting you define a tool schema.',
@@ -341,10 +352,9 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     },
     mcpServer: {
       value:
-        'Opik has a hosted server and a local server, and both run the same 5 tools from one codebase. The 5 tools save prompt versions and read traces and experiments, but cannot move a prompt label or run a stored prompt.',
-      source: { label: 'comet-ml/opik-mcp', href: 'https://github.com/comet-ml/opik-mcp' },
-      acruxWins: true,
-      checkedOn: '2026-10-18',
+        'Read and write traces, scores, prompt versions, test suites and experiment records; no delete.',
+      source: { label: 'Opik MCP tools', href: 'https://www.comet.com/docs/opik/mcp-server/tools' },
+      checkedOn: '2026-11-02',
     },
     communityStars: '21,169',
   },
@@ -357,9 +367,9 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     githubHref: 'https://github.com/Helicone/helicone',
     checkedOn: '2026-08-07',
     bestFor:
-      'A small request-path proxy in front of a native provider key, for teams that mainly want per-user metrics.',
+      'A request-path gateway for teams that want rate limits, metrics and alerts per end user, or one bill for 100+ providers.',
     limitations:
-      'In maintenance mode since the Mintlify acquisition. A key from a provider Helicone does not support natively failed in our test. OpenRouter either returned a 501 or reached a provider we had not asked for. The member-invite dialog has no role field, and there is no tool catalog.',
+      'In maintenance mode since the Mintlify acquisition. Prompt variables are flat, with no conditionals or loops, and there is no tool catalog.',
     license: {
       value: 'Apache License 2.0, and no part of the repository is under a different license. The same terms as AcruxCore.',
       source: { label: 'LICENSE', href: 'https://github.com/Helicone/helicone/blob/main/LICENSE' },
@@ -372,22 +382,34 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     },
     gateway: {
       value:
-        'In the request path, same as AcruxCore. On a native OpenAI key, Helicone forwarded all 300 calls in our benchmark. A key from a provider Helicone does not support natively failed. In our test OpenRouter either returned a 501 or reached a provider we had not asked for. Until you set a Helicone organization key, Helicone forwards calls but logs nothing.',
+        'In the request path, same as AcruxCore. The hosted AI Gateway lists 100+ providers and can bill you from Helicone credits. In our self-hosted benchmark it forwarded all 300 calls to OpenAI.',
+      source: { label: 'AI Gateway', href: 'https://docs.helicone.ai/gateway/overview' },
       tie: true,
+      checkedOn: '2026-11-02',
     },
     toolCatalog: {
-      value: 'No tool catalog in self-hosted Helicone. There is no schema builder and no record of a tool call.',
+      value: 'No tool catalog. A prompt version\'s body takes the OpenAI chat-request shape, which includes tools, per Helicone\'s prompt API docs and source (not tested).',
+      source: { label: 'Create a prompt', href: 'https://docs.helicone.ai/rest/prompts/post-v1prompt-2025' },
       acruxWins: true,
+      checkedOn: '2026-11-02',
     },
     teamStructure: {
-      value: 'One organization level, with no project layer below it. The "Add New Member" dialog takes an email address and has no role field.',
+      value: 'One organization level, with no project layer below it. Members are invited by email, and an admin sets each role in the members list.',
+      checkedOn: '2026-11-02',
     },
     pricingSummary: {
       value: 'Free Hobby tier, then $79–$799/mo',
       source: { label: 'helicone.ai/pricing', href: 'https://www.helicone.ai/pricing' },
     },
-    rbac: { value: 'No role picker anywhere in the member-invite flow we checked.', acruxWins: true },
-    auditLog: { value: 'Not found in any settings page we checked.', acruxWins: true },
+    rbac: {
+      value: 'Three roles: owner, admin and member. An admin changes a role in the members list, not in the invite dialog.',
+      source: {
+        label: 'orgMemberItem.tsx',
+        href: 'https://github.com/Helicone/helicone/blob/main/web/components/templates/organization/orgMemberItem.tsx',
+      },
+      checkedOn: '2026-11-02',
+    },
+    auditLog: { value: 'Not found in any settings page we checked, or in the Helicone source.', acruxWins: true, checkedOn: '2026-11-02' },
     promptTemplating: {
       value: 'Variable substitution only, through a prompt_id and its inputs. There is no templating logic.',
       source: { label: 'Prompt Management', href: 'https://docs.helicone.ai/gateway/prompt-integration' },
@@ -422,7 +444,7 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     bestFor:
       'Teams already running MLflow for classic ML. In a tool they already operate, they get a prompt registry, tracing, full Jinja2 templating, and a request-path gateway with PII and safety guardrails on each endpoint.',
     limitations:
-      'No auth, teams, members or roles in the self-hosted open-source version, and no login screen. Its MCP Registry catalogs whole servers rather than individual tools. A single tool has no version history, and nothing runs a tool call.',
+      'Login, roles and Workspaces are all opt-in and off by default. Its MCP Registry catalogs whole servers rather than individual tools. A single tool has no version history, and nothing runs a tool call.',
     license: {
       value: 'Apache License 2.0, and no part of the repository is under a different license. The same terms as AcruxCore.',
       source: { label: 'LICENSE', href: 'https://github.com/mlflow/mlflow/blob/main/LICENSE' },
@@ -443,14 +465,19 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
       acruxWins: true,
     },
     teamStructure: {
-      value: 'No teams, members, invites, or organizations. The self-hosted open-source version has no login screen.',
-      acruxWins: true,
+      value: 'Optional Workspaces (off by default) let teams share one deployment, with roles scoped per workspace. No hard isolation between workspaces.',
+      source: { label: 'Workspaces', href: 'https://mlflow.org/docs/latest/self-hosting/workspaces/' },
+      checkedOn: '2026-11-02',
     },
     pricingSummary: {
       value: 'MLflow itself is free. Managed MLflow, hosted by Databricks, is priced by usage in DBUs, with no flat price published.',
       source: { label: 'databricks.com/product/managed-mlflow', href: 'https://www.databricks.com/product/managed-mlflow' },
     },
-    rbac: { value: 'Not found. The self-hosted open-source version has no authentication. We checked every Settings page.', acruxWins: true },
+    rbac: {
+      value: 'Optional login (--app-name basic-auth), off by default. Roles group READ, USE, EDIT and MANAGE permissions on experiments, models, prompts, scorers and gateway resources; every user starts with READ. With Workspaces on, roles are scoped per workspace.',
+      source: { label: 'Role-based access control', href: 'https://mlflow.org/docs/latest/self-hosting/security/role-based-access-control/' },
+      checkedOn: '2026-11-02',
+    },
     auditLog: { value: 'Not found. Settings has only General, LLM Connections, and Webhooks.', acruxWins: true },
     promptTemplating: {
       value: 'Full Jinja2. {% if %} conditionals and {% for %} loops both render natively. There is also a version diff, plus @production and @staging aliases. MLflow is the one competitor that matches AcruxCore\'s own templates.',
@@ -464,10 +491,9 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     },
     mcpServer: {
       value:
-        'MLflow\'s local server is experimental and has 26 tools for traces, scorers, experiments, and runs. The tools can evaluate traces, but none reads or changes a prompt.',
+        'Experimental. The default genai group has tools for traces, scorers, experiments and runs, and an optional ml group has experiments, runs, models and deployments. There are no Prompt Registry tools.',
       source: { label: 'MLflow MCP server', href: 'https://mlflow.org/docs/latest/genai/mcp/' },
-      acruxWins: true,
-      checkedOn: '2026-10-18',
+      checkedOn: '2026-11-02',
     },
     communityStars: '27,416',
   },
@@ -528,7 +554,7 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
       acruxWins: true,
       checkedOn: '2026-10-18',
     },
-    communityStars: '3,230',
+    communityStars: '3,470',
     communityNote:
       'Y Combinator S24. On the date we checked it had 29 contributors and release v0.2.3. It ships a PII redaction toggle and an LLM-watched Signals engine. AcruxCore has no equivalent of either.',
   },
@@ -541,7 +567,7 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     githubHref: 'https://github.com/Agenta-AI/agenta',
     checkedOn: '2026-10-18',
     bestFor:
-      'Evaluation with people and rules in the loop: 15 built-in evaluator types, human and live evaluations, and annotation queues. It has roles at organization, workspace, and project level in the open-source version.',
+      'Evaluation with people and rules in the loop: 11 built-in evaluator types (plus five regex presets), human and live evaluations, and annotation queues. It has roles at organization, workspace, and project level in the open-source version.',
     limitations:
       'No spend cap, response cache, or virtual keys on its invoke endpoint. You cannot define your own tool and keep versions of it. A Jinja2 variable that appears only inside {% if %} or {% for %} gets no input field in the editor. Audit logs need the Enterprise plan, and the ee/ folder is under a separate license.',
     license: {

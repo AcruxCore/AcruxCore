@@ -4,11 +4,13 @@ description: We benchmarked five ways to reach the same OpenAI model — gateway
 slug: llm-gateway-overhead
 authors: [acrux]
 tags: [llm-gateway, llm-latency]
-image: /img/social-card.png
+image: /img/blog/llm-gateway-overhead/header.webp
 keywords: [llm gateway latency, ai gateway overhead, openai proxy latency, byok latency, AcruxCore gateway, llm ops performance]
 last_update:
   date: 2026-10-25
 ---
+
+![Five paths from the same prompt to gpt-4o-mini: OpenAI direct, BYO with tracing off and BYO with tracing on skip the gateway, while the local gateway and the hosted gateway go through it](/img/blog/llm-gateway-overhead/header.webp)
 
 An AcruxCore gateway running on the same machine as your app added a median of
 **9 ms** to an OpenAI call that takes about 640 ms. The 95% confidence interval
@@ -91,6 +93,10 @@ spikes that actually annoy users.
 Four bars sit between 620 and 640 ms: OpenAI direct, both BYO variants, and the
 local gateway. Only the hosted gateway sits further out. The rest of this post
 explains both results.
+
+Each comparison below subtracts one path from another, so each pair isolates one part of the call.
+
+![Each comparison isolates one part of the call: local gateway vs OpenAI direct isolates the gateway's own code, BYO without tracing vs direct isolates the SDK, tracing on vs off isolates tracing, and hosted gateway vs BYO isolates network distance](/img/blog/llm-gateway-overhead/where-time-goes.webp)
 
 ## The gateway's own code adds no measurable time
 

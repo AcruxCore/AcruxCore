@@ -9,7 +9,7 @@ tags: [llmops-comparison, prompt-management, llm-tracing]
 image: /img/blog/acruxcore-vs-langfuse-vs-langsmith/header.webp
 keywords: [acruxcore vs langfuse vs langsmith, llm observability comparison, prompt management, llm evaluation, llm tracing]
 last_update:
-  date: 2026-10-25
+  date: 2026-11-02
 ---
 
 ![AcruxCore vs Langfuse vs LangSmith, one app tested on all three. AcruxCore: open source with every feature, gateway built in, no review queue. Langfuse: open core with a big community, review queue, no gateway. LangSmith: closed platform, review queue, Go and Java SDKs](/img/blog/acruxcore-vs-langfuse-vs-langsmith/header.webp)
@@ -24,15 +24,29 @@ scripts for every leg are linked below.
 
 <!-- truncate -->
 
+## Which one to choose
+
+Five features separate the three.
+
+![Feature grid. Gateway: AcruxCore yes, Langfuse no, LangSmith beta. Review queue: AcruxCore no, Langfuse and LangSmith yes. Changed-score filter: AcruxCore and LangSmith yes, Langfuse no. Free self-host with all features: AcruxCore yes, Langfuse core only, LangSmith no. SSO: AcruxCore no, Langfuse paid add-on on Cloud, free self-hosted, LangSmith Enterprise](/img/blog/acruxcore-vs-langfuse-vs-langsmith/who-has-what.webp)
+
+- **AcruxCore** if you want a free hosted service or a free self-host with every feature,
+  including a gateway and an audit log, and you can work without a review queue or SSO.
+- **Langfuse** if you want an open-source platform with a large community, a review queue and a
+  low, known price.
+- **LangSmith** if you want a review queue and the filter for changed scores in one product, or
+  need Go or Java. At our profile of 100,000 traces a month and 3 people, it cost $567 a month,
+  against $98.36 on Langfuse.
+
 ## Differences at a glance
 
 | | AcruxCore | Langfuse | LangSmith |
 |---|---|---|---|
 | License | Apache 2.0, every feature | MIT core; some features under a commercial license | SDKs MIT; the platform is not open source |
-| Self-hosting | Free, every feature | Free core; roles, audit log and retention policies need a license | Enterprise plan only |
-| Hosted price, 100,000 traces a month, 3 people | $0 during the beta; later price not set | $98.36 on the Core plan | $567 on the Plus plan |
-| Hosted free plan | The whole beta; no trace or seat limit on the pricing page | 50,000 units a month, 2 users (a unit is a trace, a step or a score) | 5,000 traces a month, 1 seat |
-| Data kept on that hosted plan | Message content 90 days; tokens, cost and timing are not deleted | 90 days | 14 days; 180 days costs extra |
+| Self-hosting | Free, every feature | Free core with organization-level roles; project-level roles, audit log and retention policies need a license | Enterprise plan only |
+| Hosted price, 100,000 traces a month, 3 people | $0; the hosted platform is free to use, with no paid plan | $98.36 on the Core plan | $567 on the Plus plan |
+| Hosted free plan | The whole hosted platform; the pricing page states no trace or seat limit | 50,000 units a month, 2 users (a unit is a trace, a step or a score) | 5,000 traces a month, 1 seat |
+| Data kept on the plan priced above | Message content 90 days; tokens, cost and timing are not deleted | 90 days | 14 days; 180 days costs extra |
 | Hosted regions | Not stated; no choice | US, EU, Japan | US, EU, Asia-Pacific |
 | SDK languages | Python, TypeScript | Python, TypeScript | Python, TypeScript, Go, Java |
 | OpenTelemetry ingest | Yes | Yes | Yes |
@@ -42,10 +56,10 @@ scripts for every leg are linked below.
 | Evaluations: datasets, LLM judge, your own code, live traffic | Yes | Yes | Yes |
 | MCP server for coding assistants | [Yes](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client): prompts (write and run), traces, experiments, tool catalog | Yes: prompts, traces, datasets, scores, review queues | Yes: prompts, traces, deployments, sandboxes |
 | Review queue for people | No | Yes | Yes |
-| Alerts | Email: budgets, evaluation rules, weekly digest | Cost, latency, scores; Slack, webhook | Cost, errors, latency, feedback; Slack, PagerDuty, webhook |
-| SSO | No | Pro with the Teams add-on, or Enterprise | Enterprise |
+| Alerts | Email: budgets, evaluation rules, weekly digest | Cost, latency, scores; Slack, webhook, GitHub Actions | Cost, errors, latency, feedback; Slack, PagerDuty, webhook |
+| SSO | No | Hosted: Pro ($199 a month) plus the Teams add-on ($300 a month), or Enterprise. Self-hosted: no licence key needed | Enterprise |
 | Audit log | Every plan, also self-hosted | Enterprise | Enterprise |
-| GitHub stars, 17 October 2026 | 11 | 35,935 | No public platform repository |
+| GitHub stars, 2 November 2026 | 12 | 36,883 | No public platform repository |
 
 Sources: the Langfuse [license](https://github.com/langfuse/langfuse/blob/main/LICENSE),
 [pricing](https://langfuse.com/pricing), [self-hosting](https://langfuse.com/self-hosting/license-key)
@@ -57,13 +71,13 @@ and [alerts](https://langfuse.com/docs/observability/features/alerts) pages; the
 [Langfuse MCP](https://langfuse.com/docs/api-and-data-platform/features/mcp-server) and
 [LangSmith MCP](https://docs.langchain.com/langsmith/langsmith-remote-mcp) pages; and
 [acruxcore.com/pricing](https://acruxcore.com/pricing). The prices were read on 16 October 2026, the
-MCP pages on 18 October 2026, and everything else on 17 October 2026.
+MCP pages on 18 October 2026, the star counts on 2 November 2026, and everything else on 17 October 2026.
 
 ## AcruxCore
 
 **Pros**
 
-- The hosted service is free to use, with no trace or seat limit.
+- The hosted service is free to use, and the pricing page states no trace or seat limit.
 - Every feature is open source under Apache 2.0, and self-hosting is free, with no paid features.
 - The gateway sits in the request path. It has fallbacks, a cache, budgets, rate limits and
   virtual keys (keys you give an app in place of your provider key). It traces every call with
@@ -77,12 +91,12 @@ MCP pages on 18 October 2026, and everything else on 17 October 2026.
 
 **Cons**
 
-- It has no review queue. In our test, reviewing one reply by hand took 4 clicks, and 2 on
+- It has no review queue. In our test, reviewing one reply by hand took 4 clicks, against 2 on
   Langfuse and LangSmith.
 - The Traces list shows each trace's name, not the user's message, so finding one message
   means opening rows.
 - It has no SSO, and the hosted service does not state its data region.
-- The community is small: 11 GitHub stars.
+- The community is small: 12 GitHub stars.
 - Alerts arrive by email only, and there is no Vercel AI SDK integration.
 - The SDK has no wrapped OpenAI client, so the test app needed 4 more lines than on Langfuse.
 - A model call links to its prompt version but does not print the prompt's name or version
@@ -95,7 +109,7 @@ MCP pages on 18 October 2026, and everything else on 17 October 2026.
 - Our app needed the fewest lines of tracing code: 11.
 - It has a review queue: 2 clicks per reply.
 - The core is MIT-licensed and free to self-host.
-- It has the largest community of the three: 35,935 GitHub stars.
+- It has the largest community of the three: 36,883 GitHub stars.
 - For 100,000 traces a month and 3 people, it costs $98.36 a month and keeps data for 90 days.
 - A model call shows its prompt name and version as a link.
 - Its MCP server works with prompts, traces, datasets, scores and review queues.
@@ -106,7 +120,8 @@ MCP pages on 18 October 2026, and everything else on 17 October 2026.
 - Its comparison of two experiment runs cannot hide the test messages whose score stayed the
   same.
 - It bills each step and each score, so the bill grows with the number of steps in a trace.
-- SSO and project roles need the paid Teams add-on, and the audit log needs Enterprise.
+- On Langfuse Cloud, SSO and project roles need the paid Teams add-on, and the audit log needs
+  Enterprise. Self-hosted, SSO needs no licence key, and project roles and the audit log need one.
 - A promotion asks for no confirmation, and the prompt page does not show past promotions.
 - An experiment with a plain Python function runs one test message at a time.
 
@@ -132,19 +147,6 @@ MCP pages on 18 October 2026, and everything else on 17 October 2026.
 - A prompt read with no tag returns the newest commit, not the production one, so a draft can
   reach users. Langfuse returns the production version.
 - The SDK caches a prompt for 5 minutes, so a promotion takes up to 5 minutes to arrive.
-
-## Which one to choose
-
-Five features separate the three.
-
-![Feature grid. Gateway: AcruxCore yes, Langfuse no, LangSmith beta. Review queue: AcruxCore no, Langfuse and LangSmith yes. Changed-score filter: AcruxCore and LangSmith yes, Langfuse no. Free self-host with all features: AcruxCore yes, Langfuse core only, LangSmith no. SSO: AcruxCore no, Langfuse paid add-on, LangSmith Enterprise](/img/blog/acruxcore-vs-langfuse-vs-langsmith/who-has-what.webp)
-
-- **AcruxCore** if you want a free hosted service or a free self-host with every feature,
-  including a gateway and an audit log, and you can work without a review queue or SSO.
-- **Langfuse** if you want an open-source platform with a large community, a review queue and a
-  low, known price.
-- **LangSmith** if you want a review queue and the filter for changed scores in one product, or
-  need Go or Java, and $567 a month fits your budget.
 
 ## How we tested
 
@@ -201,7 +203,9 @@ def make_app(alias: str = "production", only: set[str] | None = None):
   `build_app` is the shared app in `pipeline.py`, the same for all three platforms.
 - `AcruxCoreSync` is the SDK's blocking client, for code that is not async.
 - The `provider` setting gives the SDK our z.ai URL and key, so each model call goes straight
-  to z.ai, as on the other two platforms.
+  to z.ai, as on the other two platforms. `hub.gateway.chat` is the SDK's chat method. With a
+  `provider` set, it calls that provider directly and records the call as a span, so the call
+  does not pass through the AcruxCore gateway.
 - `traces.step` is the decorator. Each step becomes a span, and each model call becomes a span
   under its step.
 - `_create` and the `client` line are the 4 lines that Langfuse does not need. The AcruxCore
@@ -215,9 +219,14 @@ def make_app(alias: str = "production", only: set[str] | None = None):
 All three platforms stored the same tree: the agent, `scope-check`, at the root, one span per step, one model
 call inside each step, and the price step marked as a tool.
 
+<details>
+<summary>Show screenshots: AcruxCore trace tree and LLM span panel</summary>
+
 ![AcruxCore trace for one message: scope-check at the root, with extract, classify once for each of the two requests, a price tool and reply, each step holding a glm-5.3 LLM span, and 2,132 tokens and $0.00285 in the header](/img/blog/acruxcore-vs-langfuse-vs-langsmith/acx-trace-tree.jpg)
 
 ![AcruxCore LLM span panel showing model glm-5.3, provider api.z.ai, 791 tokens of which 704 cached prompt tokens, cost $0.000461, latency 1.93 s, and the links View traces for this prompt version and Open in Playground](/img/blog/acruxcore-vs-langfuse-vs-langsmith/acx-llm-span-prompt-link.jpg)
+
+</details>
 
 The AcruxCore gateway is an OpenAI-compatible endpoint in the request path:
 
@@ -246,7 +255,12 @@ The AcruxCore gateway is an OpenAI-compatible endpoint in the request path:
 - `hub.prompts.get_by_alias(name, alias)` returns the version that the alias points to. AcruxCore
   can also fill in the variables on the server and return the finished messages.
 
+<details>
+<summary>Show screenshot: AcruxCore audit tab with promote and rollback</summary>
+
 ![AcruxCore Audit tab for scope-extract: production moved v1 → v2, then v2 → v1, each with who made the change and when](/img/blog/acruxcore-vs-langfuse-vs-langsmith/acx-audit-promote-rollback.jpg)
+
+</details>
 
 ## Experiments over the dataset
 
@@ -274,9 +288,6 @@ messages. The table shows how each platform handled that.
 | Clicks to the comparison of two runs | 3, from the Evaluations page | 4, from the dataset page | 4, from the dataset page |
 | See only the messages whose score changed | Yes, the comparison opens that way | No; scan all 30 rows | Yes, one click |
 
-> **Key point:** When you compare two experiment runs, AcruxCore and LangSmith can show only the
-> messages whose score changed. Langfuse has no such filter, so you scan all 30 rows.
-
 - We do not compare the scores across platforms. All three ran the same prompts on the same
   model, and `glm-5.3` gives a slightly different answer each time, so score gaps between
   platforms are noise. The scores of every run are in the run log.
@@ -289,7 +300,12 @@ messages. The table shows how each platform handled that.
 - [`RUNLOG.md`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/acruxcore-vs-langfuse-vs-langsmith/RUNLOG.md) — the scores of every run
 :::
 
+<details>
+<summary>Show screenshot: AcruxCore v1 vs v2 comparison per example</summary>
+
 ![AcruxCore Compare per example: base v1, target v2, Changed 4 selected, two messages improved and two regressed on the items score](/img/blog/acruxcore-vs-langfuse-vs-langsmith/acx-local-compare-per-example.jpg)
+
+</details>
 
 ## Reviewing replies by hand
 
@@ -320,7 +336,7 @@ read the numbers back through each platform's API.
 
 - The latency is almost all model time, because all three called the same z.ai endpoint.
 - We sent this traffic on 16 October 2026, 17:18–17:22 UTC. The model's speed changes during the
-  day. At 06:03 UTC the same app had a p50 of about 16.9 s on Langfuse and LangSmith
+  day. At 06:03 UTC the same app had a p50 of 16.8 s on Langfuse and 16.9 s on LangSmith
   ([Langfuse vs LangSmith](/blog/langfuse-vs-langsmith#live-traffic)), so compare the columns
   with each other, not with latencies from another hour.
 - The model cost is z.ai's bill for one message, not a platform fee. It differs because the
@@ -332,13 +348,18 @@ read the numbers back through each platform's API.
 - AcruxCore's Dashboards page splits requests, errors, tokens, cost and latency by day, model,
   session, prompt version or step.
 
+<details>
+<summary>Show screenshot: AcruxCore Traces page for the live run</summary>
+
 ![AcruxCore Traces page for the live run: each scope-check row shows its spans, tokens, cost and duration](/img/blog/acruxcore-vs-langfuse-vs-langsmith/acx-traces-latency-cost.jpg)
+
+</details>
 
 ## Price for 100,000 traces a month
 
 | Plan | 3 people | Data kept |
 |---|---|---|
-| AcruxCore (hosted) | $0; free to use, no paid plan | Message content 90 days; tokens, cost and timing are not deleted |
+| AcruxCore (hosted) | $0; the hosted platform is free to use, with no paid plan | Message content 90 days; tokens, cost and timing are not deleted |
 | Langfuse Core | $98.36, or $119.69 when each trace also gets three scores | 90 days |
 | LangSmith Plus | $567 | 14 days; 180 days costs extra |
 
@@ -347,6 +368,40 @@ read the numbers back through each platform's API.
 - On all three, you pay the model provider yourself.
 - Langfuse bills every step in a trace, so its price grows with the number of steps. LangSmith
   bills per trace.
+- LangSmith's $567 is 3 seats at $39 plus 90,000 traces above the included 10,000 at 0.005 LSU
+  ($0.005) each. These are base traces, kept for 14 days. Keeping traces for 180 days costs an
+  extra fee that the pricing page does not state.
+
+> **Key point:** All three platforms stored the same trace tree for our app, and their median
+> latencies on live traffic were within 0.5 s of each other. The three differ in the gateway
+> (AcruxCore, and LangSmith in beta), the review queue (Langfuse and LangSmith) and the price.
+
+## FAQ
+
+### Is AcruxCore free?
+
+Yes. The hosted platform is free to use, with no paid plan. Self-hosting is also free, and every
+feature is open source under Apache 2.0.
+
+### Which of the three has a review queue?
+
+Langfuse and LangSmith have a review queue, and AcruxCore does not. In our test, reviewing one
+reply took 2 clicks on Langfuse and LangSmith, and 4 clicks on AcruxCore.
+
+### Which of the three has a gateway?
+
+AcruxCore has a gateway in the request path, with fallbacks, a cache, budgets and rate limits.
+LangSmith has a gateway in beta. Langfuse has no gateway.
+
+### Is LangSmith open source?
+
+No. The LangSmith SDKs are MIT-licensed, but the platform is not open source, and self-hosting
+needs the Enterprise plan.
+
+### Which is cheaper, Langfuse or LangSmith?
+
+For 100,000 traces a month and 3 people, Langfuse Core cost $98.36 a month and LangSmith Plus
+cost $567. Langfuse keeps the data 90 days on that plan, and LangSmith keeps base traces 14 days.
 
 ## Run it yourself
 
@@ -359,4 +414,4 @@ read the numbers back through each platform's API.
 - One platform at a time: [AcruxCore vs Langfuse](/blog/acruxcore-vs-langfuse) and
   [AcruxCore vs LangSmith](/blog/acrux-core-vs-langsmith).
 - More tools compared: [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison),
-  [8 LangSmith alternatives](/blog/langsmith-alternatives) and [8 Langfuse alternatives](/blog/langfuse-alternatives).
+  [7 LangSmith alternatives](/blog/langsmith-alternatives) and [7 Langfuse alternatives](/blog/langfuse-alternatives).

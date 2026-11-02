@@ -1,200 +1,186 @@
 ---
 title: "AcruxCore vs Arize Phoenix: OTel tracing vs a gateway"
-description: "AcruxCore vs Arize Phoenix tested hands-on — one prompt rebuilt on Phoenix and AcruxCore, with real screenshots, an SDK trace and a latency benchmark."
+description: "AcruxCore vs Arize Phoenix: OTel span detail and client-side Mustache prompts against a request-path gateway with server-side Nunjucks rendering."
 slug: acruxcore-vs-phoenix
 authors: [acrux]
 tags: [llmops-comparison, llm-tracing]
-image: /img/social-card.png
+image: /img/blog/acruxcore-vs-phoenix/header.webp
 keywords: [AcruxCore vs arize phoenix, phoenix vs AcruxCore, llm ops comparison, prompt versioning, ai gateway, llm tracing, openinference]
 last_update:
-  date: 2026-10-25
+  date: 2026-11-02
 ---
 
-Arize Phoenix is an OTel-native tracing and evaluation project that many teams try
-first. We built the same prompt on both platforms. The prompt is `vip-support-triage`, a
-support agent that changes tone for VIP customers and lists their open tickets. On each
-platform we created the prompt, versioned it, sent a live call, inspected the trace,
-built a dataset, ran an experiment, and called it from an SDK script.
+![Phoenix is strongest at per-span trace attributes, LLM and code evaluators, a built-in dashboard assistant and notebook-based analysis; AcruxCore at a request-path gateway, tools that execute, server-side prompt rendering and no tracing code](/img/blog/acruxcore-vs-phoenix/header.webp)
 
-The short answer: for running an LLM app, AcruxCore covers more. It has a request-path
-gateway, a tool catalog that runs tools, and server-side prompt rendering. Phoenix shows
-more detail per span and has a built-in assistant, and if your work happens inside a
-notebook, Phoenix is the better fit.
+Arize Phoenix is a tracing and evaluation tool built on OpenTelemetry and OpenInference. Its
+source is public on GitHub under the Elastic License 2.0 (checked on 2 November 2026). It records what your own client sends to a model provider. AcruxCore puts the
+call itself through a gateway. To see what that difference changes, we rebuilt one support
+prompt, `vip-support-triage`, on a self-hosted Phoenix and on AcruxCore. The prompt changes its
+tone for VIP customers and lists their open tickets. On each side we took it from the
+Playground through a trace, a dataset, an experiment and an SDK script.
 
-We build AcruxCore. We ran every tool ourselves, and the scripts are linked below.
+The short answer: Phoenix shows more detail per span, has a built-in assistant, and suits work
+that happens in a notebook. AcruxCore puts a gateway in the request path, runs the tools in its
+catalog, and renders stored prompts on the server. Phoenix renders a pulled prompt in your own
+process with `prompt.format()`.
+
+AcruxCore is our product. The scripts for both legs are linked in the sections below.
 
 <!-- truncate -->
 
-:::note[Same example, both sides]
-Every paired screenshot below comes from the exact same prompt and the exact same
-customer message, sent through the exact same downstream model
-(`openai/gpt-4o-mini` via OpenRouter, configured as a Custom AI Provider in Phoenix) on
-both platforms. Where a step is genuinely one-sided — no equivalent screen exists on
-the other product — we say so instead of padding it out. License, pricing, team
-structure, and community stats live on the [compare page](https://acruxcore.com/compare) instead of
-here — they were always tables, and a price change there is one edit instead of three.
-:::
+## How we tested
+
+- **Phoenix:** self-hosted at `http://localhost:6006` with authentication off, which is the
+  default ("By default Phoenix deploys with authentication disabled", Phoenix docs, checked on
+  2 November 2026). Phoenix version not recorded.
+- **Provider:** OpenRouter, set up in Phoenix as a Custom AI Provider. Both sides sent the same
+  prompt and customer message to `openai/gpt-4o-mini`.
+- **Dates:** hands-on steps and screenshots on 7 August 2026. Latency from three benchmark runs
+  committed on 7 September 2026.
+- **AcruxCore in the benchmark:** a local gateway on the loopback interface
+  (`http://localhost:3001`), so its leg adds no internet hop of its own. Hardware not recorded.
 
 ### At a glance
 
-| Aspect | Phoenix | AcruxCore | Winner |
-|---|---|---|---|
-| Tracing depth | Single span, OTel semantic conventions, rich attribute tabs | One automatic span per gateway call; trees through SDK steps or OTel framework instrumentors | Phoenix |
-| Prompt templating | Mustache — `{{#section}}` doubles as both if *and* for | Real nunjucks `{% if %}` / `{% for %}` logic | AcruxCore |
-| Playground | Cost, tokens, latency shown inline | Cost, cache, latency shown inline | Tie |
-| Request-path gateway | None — Playground calls proxy through a GraphQL mutation, SDK calls go direct | Built in — routing, caching, budgets | AcruxCore |
-| Tool catalog | Ad-hoc per-prompt tool JSON, no catalog page | Versioned catalog, real executed calls, analytics | AcruxCore |
-| Dataset creation | From a trace span, or manually | Span-level trace feedback, manual entry, API, or a CSV/JSON file | Tie |
-| SDK trace capture | Instrument a client + call the provider yourself | Automatic side effect of the gateway call | AcruxCore |
-| Measured overhead | −14 to +21 ms across three 100-round runs | +11 to +51 ms across the same three runs | Phoenix, barely |
-| Time-to-first-trace | SDK setup (register + instrument) before anything lands | Zero code, first gateway call | AcruxCore |
-| MCP server | [A local program](https://github.com/Arize-ai/phoenix/tree/main/js/packages/phoenix-mcp), plus a hosted endpoint that exposes every REST route, SQL analytics and GraphQL | [Hosted or local](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client): commit and promote prompts, run a stored prompt through the gateway, run experiments, use the tool catalog | Depends |
+| Aspect | Phoenix | AcruxCore |
+|---|---|---|
+| Tracing depth | One span per call in this run, with OTel semantic-convention attributes and Info, Attributes and Events tabs | One automatic span per gateway call; trees through SDK steps or OTel framework instrumentors |
+| Prompt templating | Mustache, where `{{#section}}` serves as both if *and* for; F-String; or no templating | Nunjucks `{% if %}` / `{% for %}` logic |
+| Prompt rendering in code | Pull by name, version or tag, then `prompt.format()` in your process | `prompts.render()` on the server, or a `prompt` reference in the gateway call |
+| Playground | Cost, tokens, latency shown inline | Cost, cache, latency shown inline |
+| Request-path gateway | None. Playground calls go through a GraphQL mutation, SDK calls go direct | Built in: routing, caching, budgets |
+| Tool catalog | Tool JSON saved with each prompt version, no catalog page | Versioned catalog, executed calls, analytics |
+| Dataset creation | From a trace span, or manually | Span-level trace feedback, manual entry, API, or a CSV/JSON file |
+| Time-to-first-trace | SDK setup (register + instrument) before anything lands | No code, first gateway call |
+| MCP server | A hosted endpoint built into Phoenix that exposes its REST operations, read-only SQL and GraphQL, plus a [local package](https://github.com/Arize-ai/phoenix/tree/main/js/packages/phoenix-mcp) now in maintenance mode | [Hosted or local](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client): commit and promote prompts, run a stored prompt through the gateway, run experiments, use the tool catalog |
+
+- **Pick Phoenix if** you want OTel-native tracing and evals added to a client you already own,
+  your work happens in a notebook, and three user roles without teams are enough.
+- **Pick AcruxCore if** you want the provider call itself to go through a gateway, with tools
+  that run, datasets built from feedback, server-side prompt rendering and a team model.
+  AcruxCore also accepts your own OTel-instrumented traces on its OTLP endpoint.
 
 License, pricing, team structure, security, and community stats: see
 [AcruxCore vs Phoenix on the compare page](https://acruxcore.com/compare).
 
-Full breakdown, screenshots, and the verdict below.
-
 ## Tracing & observability
 
-The same call produced a richer trace view on Phoenix. Its Info, Attributes and Events
-tabs, per-span cost and token counts, and OTel semantic-convention attributes show
-more than AcruxCore shows for the same span.
+The same call produced a richer trace view on Phoenix. Its Info, Attributes and Events tabs,
+per-span cost and token counts, and OTel semantic-convention attributes show more than
+AcruxCore shows for the same span.
 
 <details>
 <summary>Show screenshots: trace detail on both platforms</summary>
 
 ![Phoenix's trace detail: ChatCompletion span showing status, total cost, latency, and the full input/output messages — including the "- #: " blank ticket line from the Playground's flat-input bug](/img/comparison/phoenix/px-05-trace-detail.png)
-![AcruxCore's trace detail: one LLM span with model, provider, tokens, cost, and latency, linked back to the exact gateway request and prompt version](/img/comparison/acruxcore/acx-05-trace-detail.png)
+![AcruxCore trace for the same support message: one LLM span with model, provider, 175 tokens, cost and 3.10 s latency, and a "View traces for this prompt version" link](/img/comparison/acruxcore/acx-05-trace-detail.png)
 
 </details>
 
 | Feature | Phoenix | AcruxCore |
 |---|---|---|
-| Trace shape | Single span, rich attribute/event tabs | One span per gateway call; SDK steps or OTel instrumentors add a tree around it |
-| How it's produced | Client-side OTel instrumentation (Playground calls proxy through Phoenix's own GraphQL backend) | Automatic — a side effect of the gateway call |
-| Links back to prompt version | Not surfaced in this run | Yes — "View traces for this prompt version" |
+| Trace shape | One span per call in this run, with attribute and event tabs | One span per gateway call; SDK steps or OTel instrumentors add a tree around it |
+| How it's produced | Client-side OTel instrumentation (Playground calls go through Phoenix's own GraphQL backend) | Automatic, as part of the gateway call |
+| Links back to prompt version | Not surfaced in this run | A "View traces for this prompt version" link |
 
 ## Prompt authoring & versioning
 
-Phoenix's Prompts feature only exists inside the Playground — there is no standalone
-"create prompt" form, you build it live and save it from there. Its templating engine
-is **Mustache**, selectable alongside F-String and no-templating. Mustache has no
-separate if-statement: `{{#is_vip}}...{{/is_vip}}` is the *same* section syntax used
-for looping over `tickets`, so a truthy scalar and an array are handled by one
-construct, not two. That's a real difference from nunjucks, where `{% if %}` and
-`{% for %}` are distinct.
+Phoenix's Prompts feature lives inside the Playground. There is no standalone "create prompt"
+form: you build the prompt live and save it from there. Its templating engine is **Mustache**,
+selectable alongside F-String and no templating. Mustache has no separate if-statement:
+`{{#is_vip}}...{{/is_vip}}` is the same section syntax used to loop over `tickets`, so one
+construct handles a truthy scalar and an array. In Nunjucks, `{% if %}` and `{% for %}` are two
+different tags.
 
 <details>
 <summary>Show screenshots: prompt editor, detail, and diff view</summary>
 
-![Phoenix's Playground with the vip-support-triage prompt loaded, showing Mustache section syntax for the VIP conditional and the tickets loop, tagged "production", with real cost/token/latency telemetry from a live run](/img/comparison/phoenix/px-01-prompt-editor.png)
+![Phoenix's Playground with the vip-support-triage prompt loaded, showing Mustache section syntax for the VIP conditional and the tickets loop, tagged "production", with cost/token/latency telemetry from a live run](/img/comparison/phoenix/px-01-prompt-editor.png)
 ![Phoenix's prompt detail page — version 1 tagged "production" in the Latest Versions panel, separate from the prompt-level Labels field which reads "No Labels"](/img/comparison/phoenix/px-02-prompt-detail.png)
 ![Phoenix's version diff view — a second version highlighted in green for the one added line, with the version list and its "staging" tag alongside](/img/comparison/phoenix/px-03-diff-tab.png)
-![AcruxCore's Diff tab showing a real unified diff between prompt version 2 and version 3](/img/comparison/acruxcore/acx-03-diff-tab.png)
+![AcruxCore's prompt editor for vip-support-triage, with the VIP branch written as {% if is_vip %} and the ticket list as {% for ticket in tickets %}, and staging and production alias badges above the editor](/img/comparison/acruxcore/acx-01-prompt-editor.png)
 
 </details>
 
-AcruxCore's own prompt editor — real nunjucks conditionals and loops rendering VIP
-status and the ticket list inline — is one sentence here rather than another
-screenshot; see the [dashboard tour](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#prompts)
-for the picture.
-
-Phoenix also has a separate diff view between versions. Its Playground has a
-structural gap: the input fields are flat text boxes. Typing a JSON array into the `tickets` field for the Mustache loop to consume
-doesn't parse it — Mustache treats the whole string as one truthy value, the loop runs
-once with no bound fields, and the ticket lines render blank (`- #: `) with no error.
-The SDK renders it correctly (see **SDK & DX** below) because there the array is a real
-Python list, not a string typed into a box — so this is a Playground-input limitation,
-not a templating-engine one.
+Phoenix also has a diff view between versions. Its Playground has one gap: the input fields are
+flat text boxes. If you type a JSON array into the `tickets` field for the Mustache loop,
+Phoenix does not parse it. Mustache treats the whole string as one truthy value, the loop runs
+once with no bound fields, and the ticket lines render blank (`- #: `) with no error. The SDK
+renders the loop correctly (see **SDK & DX** below), because there the array is a real Python
+list. So the gap is in the Playground's inputs, not in the templating engine.
 
 | Feature | Phoenix | AcruxCore |
 |---|---|---|
-| Conditional templating | Mustache sections — same syntax for if and for, verified hands-on | Real nunjucks `{% if %}`/`{% for %}`, rendered server-side |
-| Version comparison | Real **Diff** toggle between any two versions | Standing **Diff** tab, unified diff between any two versions |
-| Live/staging labels | `production` / `staging` **tags** on a version | `production` / `staging` **aliases** your app fetches at runtime |
-| Structured variables in Playground | Flat text input only — arrays/objects don't parse, fail silently | Typed variable schema |
+| Conditional templating | Mustache sections, one syntax for if and for, verified hands-on | Nunjucks `{% if %}`/`{% for %}`, rendered server-side |
+| Version comparison | **Diff** toggle between any two versions | **Diff** tab, unified diff between any two versions |
+| Live/staging labels | `production` / `staging` **tags** on a version; the client can pull a prompt by tag | `production` / `staging` **aliases**, resolved by `prompts.render()` or the gateway |
+| Structured variables in Playground | Flat text input only: arrays and objects don't parse, and fail silently | Typed variable schema |
 
 ## Sending a live call
 
-Both need a real connected model before anything runs. Phoenix required one extra
-setup step: OpenAI-compatible providers with a custom base URL live under **Custom AI
-Providers**, separate from the built-in OpenAI/Anthropic/Bedrock/Gemini list, and we
-had to switch its API Type from "Responses" to "Chat Completions" for OpenRouter to
-accept the request.
+Both need a connected model before anything runs. Phoenix needed one extra setup step:
+OpenAI-compatible providers with a custom base URL live under **Custom AI Providers**, separate
+from the built-in OpenAI, Anthropic, Bedrock and Gemini list. We also had to switch its API Type
+from "Responses" to "Chat Completions" for OpenRouter to accept the request.
 
 <details>
-<summary>Show screenshots: Playground run on both platforms</summary>
+<summary>Show screenshot: Playground run on Phoenix</summary>
 
-![Phoenix's Playground run: the saved vip-support-triage prompt, Mustache inputs filled in, and a real completion with 1.9s latency, 122 tokens, and <$0.01 cost shown inline](/img/comparison/phoenix/px-04-playground-run.png)
-![AcruxCore Playground's Stored-prompt tab, showing the same completion plus a Gateway Telemetry panel with provider, cost, cache status, and latency](/img/comparison/acruxcore/acx-04-playground-run.png)
+![Phoenix's Playground run: the saved vip-support-triage prompt, Mustache inputs filled in, and a completion with 1.9s latency, 122 tokens, and <$0.01 cost shown inline](/img/comparison/phoenix/px-04-playground-run.png)
 
 </details>
 
 | Feature | Phoenix | AcruxCore |
 |---|---|---|
 | Playground | Runs against a saved prompt version, cost/tokens/latency shown inline | Runs against a **stored prompt reference**, shows cost/cache/latency inline |
-| Custom OpenAI-compatible providers | Yes — separate "Custom AI Providers" section, needs the right API Type set | Native — any OpenAI-compatible base URL |
+| Custom OpenAI-compatible providers | In a separate "Custom AI Providers" section that needs the right API Type | Any OpenAI-compatible base URL |
 
-## Where the platform sits — in the request path, or beside it
+## Where Phoenix sits in a call
 
-AcruxCore's gateway sits **in the request path**: every call is routed through it, so
-BYOK provider selection, caching, budgets, and virtual keys all apply before the
-provider is ever called. Phoenix sits **beside** the request path, on purpose — its
-Playground's "Run" button doesn't call the provider from your browser at all; network
-inspection during a real run showed the call going out as a single `POST /graphql` to
-Phoenix's own backend, a UI-only relay with no routing, caching, or budget logic
-behind it. Its SDK path (see **SDK & DX** below) skips that relay entirely and calls
-the provider directly. That's a legitimate design choice — it works with any provider
-without changing your call site — not a missing feature.
+Phoenix records calls and does not route them. When we pressed **Run** in its Playground, the
+browser did not call the provider. Network inspection showed one `POST /graphql` to Phoenix's
+own backend, which made the provider call. That relay has no routing, caching or budget logic.
+From code, the SDK path (see **SDK & DX** below) skips the relay and calls the provider
+directly. This design works with any provider without changing your call site.
 
-| Feature | Phoenix | AcruxCore |
-|---|---|---|
-| Where it sits | Beside the request path — Playground proxies via GraphQL, SDK calls go direct | In the request path — every call routes through it |
-| BYOK, caching, budgets, virtual keys | Not applicable — no persistent request path to apply them to | Built in, applied before the provider call |
+AcruxCore's gateway is in the request path, so BYOK provider selection, caching, budgets and
+virtual keys apply before the provider is called. The price is the extra hop, measured in
+**Latency overhead** below.
 
-## How tools are handled — schema registry, or execution
-
-AcruxCore has a real **Tool Catalog** — callable functions, versioned like prompts,
-with their own analytics page. Phoenix has no equivalent nav item at all: the closest
-thing is a "+ Tool" control inside the Playground's message editor, which defines a
-JSON Schema function for that one prompt run. There's no catalog, no versioning, and
-nothing gets executed or measured — the schema is registered, never run.
-
-<details>
-<summary>Show screenshot: tool analytics on AcruxCore</summary>
-
-![AcruxCore's per-tool analytics: volume, error rate, and P50/P95 latency](/img/comparison/acruxcore/acx-08-tool-analytics.png)
-
-</details>
-
-AcruxCore's Tools page — a dozen versioned tools with real execution history — is one
-sentence here; see the
-[dashboard tour](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#tools) for the
-screenshot.
+![Phoenix sits beside the request path and records the call your client makes to the provider; AcruxCore sits in the request path, so BYOK, caching, budgets and virtual keys are applied before the provider call](/img/blog/acruxcore-vs-phoenix/where-the-call-runs.webp)
 
 | Feature | Phoenix | AcruxCore |
 |---|---|---|
-| Tool definition | Ad-hoc JSON Schema per prompt, in the Playground | Versioned catalog entry, reusable across prompts |
-| Execution & analytics | Not found | Real executed calls, volume/error-rate/P50-P95 per tool |
+| Where it sits | Beside the request path. Playground relays through GraphQL, SDK calls go direct | In the request path. Every call routes through it |
+| BYOK, caching, budgets, virtual keys | No request path to apply them to | Applied before the provider call |
+
+## Tools: saved with the prompt, or kept in a catalog
+
+AcruxCore has a **Tool Catalog**: callable functions, versioned like prompts, with their own
+analytics page. Phoenix has no nav item for tools. The closest thing is a "+ Tool" control in
+the Playground's message editor, which defines a JSON Schema function for that prompt. Phoenix's
+docs list tools as one part of a prompt, and "each time you save a prompt in Phoenix, Phoenix
+saves a snapshot of it as a prompt version" (checked on 2 November 2026). So a tool is versioned
+together with its prompt. No catalog is shared across prompts, and in our run Phoenix did not
+execute the tool or measure its calls.
+
+| Feature | Phoenix | AcruxCore |
+|---|---|---|
+| Tool definition | JSON Schema saved with each prompt version, defined in the Playground | Versioned catalog entry, reusable across prompts |
+| Execution & analytics | Not found | Executed calls, volume/error-rate/P50-P95 per tool |
 
 ## Evaluation & datasets
 
-Phoenix's dataset flow starts from a real trace: select a span, "Add to Dataset,"
-name it, done — genuinely as smooth as AcruxCore's. Its Evaluators page also draws a
-clear diagram distinguishing **LLM evaluators** (AI-judged) from **Code evaluators**
-(deterministic checks like `exact_match` and regex) — a distinction AcruxCore doesn't
-surface as its own category, worth crediting.
+Phoenix's dataset flow starts from a trace: select a span, "Add to Dataset", name it. It is as
+quick as AcruxCore's. Its Evaluators page also draws a diagram that separates **LLM evaluators**
+(AI-judged) from **Code evaluators** (deterministic checks like `exact_match` and regex).
+AcruxCore does not show that split as its own category.
 
-Running an experiment against that dataset is where it broke down: the dataset stored
-the span's *rendered* `messages` array, not the original template variables
-(`company`, `is_vip`, `tickets`, `question`). Pointing the experiment at our saved
-prompt produced "Dataset is missing input for variables" — the captured example and
-the templated prompt don't speak the same shape without manual remapping.
-
-> **Key point:** Phoenix saved a trace into a dataset as the rendered `messages` array, not as the
-> template variables. An experiment with the saved prompt then failed with "Dataset is missing
-> input for variables".
+Running an experiment against that dataset failed. The dataset stored the span's *rendered*
+`messages` array, not the original template variables (`company`, `is_vip`, `tickets`,
+`question`). Pointing the experiment at our saved prompt produced "Dataset is missing input for
+variables". The captured example and the templated prompt need manual remapping before they
+fit together.
 
 <details>
 <summary>Show screenshots: evaluators overview and the failed experiment run</summary>
@@ -204,29 +190,21 @@ the templated prompt don't speak the same shape without manual remapping.
 
 </details>
 
-AcruxCore's dataset (built from trace feedback) and its experiment run report are one
-sentence each here; see the walkthrough's
-[dataset](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#feedback)
-and
-[run-history](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#datasets-and-runs)
-sections for the screenshots.
-
 | Feature | Phoenix | AcruxCore |
 |---|---|---|
-| Dataset from a trace | Yes — select a span, add to dataset | Yes — from real span-level trace feedback |
-| Evaluator types | LLM evaluators and deterministic Code evaluators, distinct paths | LLM-judged evaluation |
-| Running a templated prompt against a trace-sourced dataset | Broke — dataset stores rendered messages, not template variables | Not attempted in this comparison |
+| Dataset from a trace | Yes: select a span, add to dataset | Yes, from span-level trace feedback |
+| Evaluator types | LLM evaluators and deterministic Code evaluators, shown as two paths | LLM judges on the server; code scorers in your own process through the SDK |
 
 ## SDK & DX
 
-AcruxCore's SDK renders a *stored* prompt server-side
-(`hub.prompts.render()`) and the gateway writes the trace with no tracing code in the
-caller at all. Phoenix's Python SDK has no equivalent render call — there's no
-server-side templating endpoint to hit, so the Mustache logic built in the Playground
-had to be **hand-duplicated in Python** in our script. The upside: once instrumented,
-`OpenAIInstrumentor` auto-wraps the OpenAI client and the trace lands correctly —
-including the ticket loop rendering right, unlike the Playground's flat-input bug,
-because here `tickets` is a real Python list.
+AcruxCore's SDK renders a stored prompt on the server with `hub.prompts.render()`, and the
+gateway writes the trace, so the caller has no tracing code. Phoenix renders on the client. Its
+docs show the client pulling a prompt by name, version or tag, for example
+`client.prompts.get(prompt_identifier="my-prompt-name", tag="staging")`, and then filling it with
+`prompt.format(variables=...)` (checked on 2 November 2026). Our script did not use that path:
+it built the system message by hand in Python, so the Phoenix leg here shows tracing, not
+prompt fetching. Once instrumented, `OpenAIInstrumentor` wraps the OpenAI client and the trace
+lands correctly. The ticket loop renders right here, because `tickets` is a real Python list.
 
 ```python
 from phoenix.otel import register
@@ -240,7 +218,7 @@ tracer_provider = register(
 OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
 client = OpenAI(api_key=OPENROUTER_KEY, base_url="https://openrouter.ai/api/v1")
-# system message rendered by hand — Phoenix has no server-side prompt-render call
+# this script builds the system message by hand; Phoenix's client can also pull the prompt and call prompt.format()
 ```
 
 :::github
@@ -255,26 +233,16 @@ client = OpenAI(api_key=OPENROUTER_KEY, base_url="https://openrouter.ai/api/v1")
 
 </details>
 
-AcruxCore's SDK-produced trace, with prompt-version lineage attached automatically, is
-one sentence here; see the
-[product tour](https://docs.acruxcore.com/docs/getting-started/product-tour) for the
-screenshot.
-
 | Feature | Phoenix | AcruxCore |
 |---|---|---|
-| Prompt rendering | No server-side render call — caller re-implements the template logic | `hub.prompts.render()` — one call, server-side |
-| Tracing | Manual instrument step (`register` + `OpenAIInstrumentor`), then automatic | Automatic side effect of `hub.gateway.chat()`, zero tracing code |
+| Prompt rendering | Client-side: pull the prompt, then `prompt.format(variables=...)` | Server-side: `hub.prompts.render()` |
+| Tracing | Manual instrument step (`register` + `OpenAIInstrumentor`), then automatic | Automatic with `hub.gateway.chat()`, no tracing code |
 
 ## Latency overhead — measured
 
-100 interleaved rounds, three legs, rotating order, warm-up discarded. `phoenix_otel` wraps a raw OpenAI client
-with `openinference-instrumentation-openai`; `acx_gateway` is a raw POST to a local
-AcruxCore gateway. Every leg ends at `gpt-4o-mini` on `api.openai.com` with the same
-key and body, and the script refuses to start unless the gateway model resolves to a
-native OpenAI credential — so all three provably share one upstream.
-
-One run is not a result: the median gap moves enough between runs that a single
-number would mislead. So it ran three times.
+The `phoenix_otel` leg wraps the OpenAI client with `openinference-instrumentation-openai`. The
+`acx_gateway` leg posts to the local AcruxCore gateway. Both were timed against a direct call to
+`gpt-4o-mini` on `api.openai.com`, in 100 interleaved rounds per run, over three runs.
 
 | Run | Direct-call median | Phoenix gap | AcruxCore gap |
 |---|---|---|---|
@@ -282,48 +250,44 @@ number would mislead. So it ran three times.
 | 2 | 630 ms | −14 ms, CI [−30, +5] | +11 ms, CI [−3, +24] |
 | 3 | 615 ms | +8 ms, CI [−11, +30] | +38 ms, CI [+16, +58] |
 
-Phoenix's overhead lands between −14 ms and +21 ms, AcruxCore's between +11 ms and
-+51 ms. Phoenix's was the lower of the two in all three runs, by roughly 30 ms —
-consistent enough to be real, and small enough that no application would notice it.
-The two are different kinds of cost: client-side OTel instrumentation pays CPU and
-serialization, an extra network hop pays routing and caching.
+- Phoenix's median gap was the lower of the two in all three runs, by 25 to 30 ms.
+- Several intervals cross zero, so three runs are not enough to put a firm number on either
+  path.
+- The two are different kinds of cost: client-side instrumentation pays CPU and serialization,
+  and an extra network hop pays for routing and caching.
+
+AcruxCore's own figure moves between benchmarks. Our newest measurement of a local gateway on its own,
+on 25 October 2026, found a median of +9 ms against a direct OpenAI call, with a 95% interval
+of −15 to +28 ms. The method is in
+[How much overhead does an LLM gateway add?](/blog/llm-gateway-overhead). In our August
+[full-cycle benchmark](/blog/full-cycle-latency-benchmark), which also times the prompt fetch,
+Phoenix's gap was 0 ms with an interval of −122 to +101 ms.
 
 :::github
 [`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/phoenix-vs-acruxcore/python/latency_bench.py) — the latency benchmark.
 :::
 
-> **Key point:** Phoenix's overhead lands between −14 ms and +21 ms, and AcruxCore's lands between
-> +11 ms and +51 ms. Phoenix's overhead was the lower of the two in all three runs.
-
-For a broader run — six platforms in one interleaved benchmark, the stored-prompt
-fetch timed alongside the completion, and four independent runs to check how stable
-the numbers are — see
-[full-cycle latency across six LLM-ops platforms](/blog/full-cycle-latency-benchmark).
-
 ## Friction hit during this run
 
-Setting up the Custom AI Provider was straightforward once we found it under
-Settings → AI Providers rather than the API Keys popover. Real friction we hit in this
-run: the Playground's flat-text variable inputs silently mis-render structured data
-(see **Prompt authoring & versioning** above); a dataset built from a trace can't drive
-an experiment against a templated prompt without remapping (see **Evaluation &
-datasets** above); and visiting `/account` on this no-auth local install crashes with
-"Something went wrong" rather than a graceful empty state.
+Setting up the Custom AI Provider was simple once we found it under Settings → AI Providers
+rather than the API Keys popover. Two problems cost time:
+
+- 👎 The Playground's flat-text variable inputs mis-render structured data with no error (see
+  **Prompt authoring & versioning** above).
+- 👎 A dataset built from a trace can't drive an experiment against a templated prompt without
+  remapping (see **Evaluation & datasets** above).
 
 | Feature | Phoenix | AcruxCore |
 |---|---|---|
-| Time-to-first-trace | Requires `register()` + `instrument()` before any call | Zero code — first gateway call traces itself |
-| Custom provider setup | Real feature, one extra field (API Type) to get right | Native BYOK, no extra step |
+| Time-to-first-trace | Requires `register()` + `instrument()` before any call | No code: the first gateway call traces itself |
+| Custom provider setup | One extra field (API Type) to get right | BYOK, no extra step |
 
 ## What Phoenix does that AcruxCore doesn't
 
-Sourced from Phoenix's own dashboard and docs, not from this post's earlier aspects —
-those carry the same bias any of our own feature list would.
-
-**PXI, a built-in assistant docked in the dashboard.** A chat panel lives in every
-Phoenix page, seeded with suggestions like "Find critical issues" and "Explain a
-concept," and it can answer questions about your own traces, not just about Phoenix in
-general. AcruxCore has no equivalent — no in-dashboard assistant at all.
+**PXI, a built-in assistant docked in the dashboard.** A chat panel lives on every Phoenix page,
+seeded with suggestions like "Find critical issues" and "Explain a concept". It can answer
+questions about your own traces, not only about Phoenix in general. AcruxCore has no
+in-dashboard assistant.
 
 <details>
 <summary>Show screenshot: PXI, Phoenix's built-in assistant</summary>
@@ -332,17 +296,17 @@ general. AcruxCore has no equivalent — no in-dashboard assistant at all.
 
 </details>
 
-**Per-project data retention on a schedule, plus typed annotation configs.** Project
-Settings lets you set a retention policy with an actual schedule (this instance's
-default runs "At 12:00 AM, only on Sunday (UTC)"), and define named annotation types
-(here, a Categorical `user_feedback` config) rather than a single free-form rating.
-AcruxCore's payload capture is one team-wide on/off switch; it has no per-project
-retention schedule and no typed-annotation configuration.
+**Per-project data retention on a schedule, plus typed annotation configs.** Project Settings
+lets you set a retention policy with a schedule (this instance's default runs "At 12:00 AM, only
+on Sunday (UTC)"). You can also define named annotation types, here a Categorical
+`user_feedback` config, instead of a single free-form rating. AcruxCore's payload capture is one
+team-wide on/off switch, with no per-project retention schedule and no typed-annotation
+configuration.
 
 <details>
 <summary>Show screenshot: per-project retention and annotation config on Phoenix</summary>
 
-![Phoenix's per-project Config tab: a retention policy with a real schedule, and an Annotation Configs table defining a Categorical "user_feedback" type](/img/comparison/phoenix/px-14-project-config.png)
+![Phoenix's per-project Config tab: a retention policy with a schedule, and an Annotation Configs table defining a Categorical "user_feedback" type](/img/comparison/phoenix/px-14-project-config.png)
 
 </details>
 
@@ -350,40 +314,61 @@ retention schedule and no typed-annotation configuration.
 
 For running an LLM app, yes. For notebook-based analysis, no.
 
-Phoenix has no request-path gateway, its "tool" is an unversioned JSON Schema saved per
-prompt that never executes, and the self-hosted install has roles (admin, member, viewer)
-only after you turn authentication on, with no teams and no audit log. Check that first if
-more than one person needs access.
+Phoenix has no request-path gateway, and it saves tools as JSON Schemas inside each prompt
+version without executing them. Its self-hosted install has three roles (admin, member, viewer)
+once you turn authentication on, and its docs describe no teams and no audit log (checked on
+2 November 2026). Check that first if more than one person needs access.
 
-Phoenix's per-span attribute depth is genuinely better than ours, and PXI, its docked
-assistant, has no equivalent here. If your work happens inside a notebook and OTel-native
-tracing is the whole job, Phoenix is the better fit.
+Phoenix's per-span attribute depth is better than ours, and AcruxCore has nothing like PXI. If
+your work happens inside a notebook and OTel-native tracing is the whole job, Phoenix is the
+better fit.
 
-We also accept OTel-instrumented traces on an OTLP endpoint, so keeping Phoenix's
-instrumentation while moving the calls themselves to our gateway is a supported combination
-rather than a fork in the road.
-
-## Verdict
+The two also combine: AcruxCore accepts OTel-instrumented traces on an OTLP endpoint, so you can
+keep Phoenix's instrumentation and send the calls themselves through our gateway.
 
 | | Phoenix | AcruxCore |
 |---|---|---|
-| Strongest at | Rich per-span trace attributes, a genuine LLM-vs-code evaluator split, a built-in dashboard assistant | A request-path gateway with routing, caching, and budgets on every call; tools that actually execute and get measured; server-side prompt rendering with zero tracing code |
-| Weakest at | No request-path gateway; auth off by default; no teams or audit log; Playground's flat inputs silently mis-render structured template data | No in-dashboard assistant; narrower eval-evaluator taxonomy; no audit export |
-| Pick it if | You want OTel-native tracing and evals layered onto a client you already own, and don't need teams or an audit log | You want the provider call itself — gateway, tools, feedback-driven datasets — traced for free, with a real team model, nothing bolted on after the fact; AcruxCore also accepts your own OTel-instrumented traces directly via its OTLP endpoint |
+| Strongest at | Per-span trace attributes, a split between LLM and code evaluators, a built-in dashboard assistant | A request-path gateway with routing, caching and budgets on every call; tools that execute and get measured; server-side prompt rendering with no tracing code |
+| Weakest at | No request-path gateway; auth off by default; no teams or audit log in its docs; flat Playground inputs mis-render structured template data | No in-dashboard assistant; no code evaluators on the server; a team audit trail with no export |
 
-Phoenix's tracing depth and its LLM/code evaluator split (**Tracing & observability**,
-**Evaluation & datasets** above) are real strengths, and so is PXI, its built-in
-assistant (**What Phoenix does that AcruxCore doesn't**). But on the loop that
-actually runs a production LLM app day to day, this comparison landed on AcruxCore's
-side each time: Phoenix has no request-path gateway at all (**Where the platform sits**
-above), its "tool" is an unversioned JSON Schema saved per-prompt, never executed or
-measured (**How tools are handled** above), and its self-hosted install has roles only
-once you turn authentication on, and no teams or audit log. AcruxCore does all three natively, in one
-integrated flow. See the full picture, including license, pricing, and team structure,
-on the [compare page](https://acruxcore.com/compare).
+> **Key point:** The choice turns on where the call runs. Phoenix observes a call your own client
+> makes and renders prompts in your process. AcruxCore makes the call through its gateway, so
+> budgets, caching and tool execution apply before the provider answers.
 
-To compare more tools, see [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison),
-[8 LangSmith alternatives](/blog/langsmith-alternatives) and [8 Langfuse alternatives](/blog/langfuse-alternatives).
+## FAQ
 
-Want to run this yourself? The [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart) gets you
-from sign-up to a traced, gateway-routed call in about ten minutes.
+### Can Arize Phoenix be self-hosted?
+
+Yes. We ran a self-hosted Phoenix at `localhost:6006` for this comparison, from source published
+under the Elastic License 2.0. Authentication is off by default and has to be turned on before
+users get roles.
+
+### Does Phoenix have an AI gateway?
+
+No. Phoenix sits beside the request path. Its Playground relays calls through its own GraphQL
+backend, and SDK calls go straight to the provider, so there is no routing, caching or budget
+step.
+
+### Can Phoenix render a stored prompt from code?
+
+Yes, on the client. Phoenix's client pulls a prompt by name, version or tag and fills it with
+`prompt.format(variables=...)`. AcruxCore renders the stored prompt on the server instead.
+
+### What template syntax does Phoenix use for prompts?
+
+Mustache, F-String, or no templating. In Mustache, one section syntax handles both conditionals
+and loops, where Nunjucks uses separate `{% if %}` and `{% for %}` tags.
+
+### Does Phoenix have user roles and audit logs?
+
+With authentication on, Phoenix has three roles: admin, member and viewer. Its docs describe no
+teams and no audit log.
+
+### Can I use Phoenix and AcruxCore together?
+
+Yes. AcruxCore accepts OTel-instrumented traces on its OTLP endpoint, so Phoenix's
+instrumentation can stay while the provider calls go through AcruxCore's gateway.
+
+Other head-to-heads: [AcruxCore vs Opik](/blog/acruxcore-vs-opik) and
+[AcruxCore vs MLflow](/blog/acruxcore-vs-mlflow). For a wider field, see
+[10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison).

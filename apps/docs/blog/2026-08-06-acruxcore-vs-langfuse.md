@@ -1,380 +1,362 @@
 ---
-title: "AcruxCore vs Langfuse: one prompt built and tested on both"
-description: "AcruxCore vs Langfuse tested hands-on — the same prompt rebuilt and run on both, with real screenshots, an SDK trace and a measured latency benchmark."
+title: "AcruxCore vs Langfuse: one app measured on both platforms"
+description: "AcruxCore vs Langfuse: one agent run on both, with tracing code, prompt diffs, experiments, review queues, live latency and the price of 100,000 traces."
 slug: acruxcore-vs-langfuse
 authors: [acrux]
 tags: [llmops-comparison, prompt-management, llm-tracing]
-image: /img/social-card.png
-keywords: [AcruxCore vs langfuse, langfuse vs AcruxCore, llm ops comparison, prompt versioning, ai gateway, llm tracing]
+image: /img/blog/acruxcore-vs-langfuse/header.webp
+keywords: [AcruxCore vs langfuse, langfuse vs AcruxCore, langfuse pricing, prompt versioning, llm gateway, llm tracing]
 last_update:
-  date: 2026-10-25
+  date: 2026-11-02
 ---
 
-Langfuse is the LLM-ops platform we get compared to most often, and it deserves a real
-answer, not a table copied from two docs sites. So we built the same prompt —
-`vip-support-triage`, a support agent that changes tone for VIP customers and lists
-their open tickets — on both platforms, then ran the identical sequence on each: create
-the prompt, version it, send a live call, inspect the trace, build a dataset, run an
-experiment, and call it from an SDK script.
+![AcruxCore vs Langfuse at a glance: license, self-hosting, gateway, review queue, alert channels and audit log for each product in a matched grid](/img/blog/acruxcore-vs-langfuse/header.webp)
 
-We build AcruxCore. We ran every tool ourselves, and the scripts are linked below.
+Choose Langfuse if your team reviews model output by hand in a queue, wants cost or latency
+alerts in Slack, builds on the Vercel AI SDK, or wants the largest open-source community in this
+space. Choose AcruxCore if you want a gateway in the request path, versioned tools that the
+platform runs, and an audit log, all free and open source, hosted or self-hosted, and your team
+can review replies on the trace page.
+
+The test app, its data, its prompts and its model were identical on Langfuse and AcruxCore. The
+sections below give what we measured for tracing, prompts, experiments, review and live traffic,
+and then list what each platform has that the other lacks.
+
+We build AcruxCore. The scripts and run logs for both legs are in the repo, linked at the end.
 
 <!-- truncate -->
 
-:::note[Same example, both sides]
-Every paired screenshot below comes from the exact same prompt and the exact same
-customer message, sent through the exact same downstream model
-(`openai/gpt-4o-mini` via OpenRouter) on both platforms. The latency benchmark further
-down is separate: every leg of it goes straight to `api.openai.com`, so the two sections
-quote different upstreams on purpose. Where a step is genuinely
-one-sided — no equivalent screen exists on the other product — we say so instead of
-padding it out. License, pricing, team structure, and community stats live on the
-[compare page](https://acruxcore.com/compare) instead of here — they were always tables, and a
-price change there is one edit instead of three.
-:::
+## Differences at a glance
 
-### At a glance
+| | AcruxCore | Langfuse |
+|---|---|---|
+| License | Apache 2.0, every feature | MIT core; some features under a commercial license |
+| Self-hosting | Free, every feature | Free core; project roles, audit log and retention policies need a license |
+| Services to run when self-hosting | API, worker and web containers, Postgres, Redis | Web and worker containers, Postgres, ClickHouse, Redis or Valkey, S3-compatible storage |
+| Hosted price, 100,000 traces a month, 3 people | $0; the hosted platform is free to use | $98.36 on the Core plan |
+| Hosted free plan | The whole platform; no trace or seat limit is listed | 50,000 units a month, 2 users (a unit is a trace, a step or a score) |
+| Gateway in the request path | Yes: fallbacks, cache, budgets, rate limits, virtual keys | No |
+| Review queue for people | No | Yes: 1 queue on the free plan, 3 on Core, unlimited on Pro |
+| Alerts | Email: budgets, evaluation rules, weekly digest | Cost, latency and scores; Slack, webhook, GitHub Actions |
+| Vercel AI SDK integration | No | Yes |
+| Roles | Owner, admin, editor and viewer on each team | Organization roles on every plan; project roles on Pro with the Teams add-on, or Enterprise |
+| SSO | No | Hosted: Pro with the Teams add-on ($300 a month), or Enterprise. Self-hosted: Google, GitHub, Okta, Azure AD or a custom OAuth provider, and SSO is not on the licence-key list |
+| Audit log | Every plan, also self-hosted | Enterprise |
+| GitHub stars, 2 November 2026 | 12 | 36,881 |
 
-| Aspect | Langfuse | AcruxCore | Winner |
-|---|---|---|---|
-| Prompt templating | Flat `{{variable}}` substitution only | Real nunjucks `{% if %}` / `{% for %}` logic | AcruxCore |
-| Playground | No cost/latency shown inline | Cost, cache, latency shown inline | AcruxCore |
-| Tracing depth | Span tree via client-side OTel instrumentation | One automatic span per gateway call; trees through SDK steps or OTel framework instrumentors | Langfuse |
-| Request-path gateway | None — ingests a trace after your own call | Built in — routing, caching, budgets | AcruxCore |
-| Tool catalog | A schema saved from the Playground, never executed | Versioned catalog, real executed calls, analytics | AcruxCore |
-| Dataset creation | Manual entry, API, or from a trace | Span-level trace feedback, manual entry, API, or a CSV/JSON file | AcruxCore |
-| SDK trace capture | Wrap a client + open an observation context | Automatic side effect of the gateway call | AcruxCore |
-| Measured overhead | −22 ms, CI crosses zero | +63 ms, CI crosses zero | Tie |
-| Time-to-first-trace | Only via the SDK path, after setup | Zero code, first call | AcruxCore |
-| MCP server | [Hosted in the app](https://langfuse.com/docs/api-and-data-platform/features/mcp-server): tools for prompts and labels, datasets, scores, annotation queues and dashboards | [Hosted or local](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client): prompts and aliases, plus running a stored prompt through the gateway, experiments and the tool catalog | Depends |
+Sources, read 2 November 2026: Langfuse [pricing](https://langfuse.com/pricing),
+[self-hosting](https://langfuse.com/self-hosting),
+[license](https://github.com/langfuse/langfuse/blob/main/LICENSE),
+[alerts](https://langfuse.com/docs/observability/features/alerts) and
+[Vercel AI SDK](https://langfuse.com/integrations/frameworks/vercel-ai-sdk),
+[self-hosted SSO](https://langfuse.com/self-hosting/security/authentication-and-sso) and
+[licence key](https://langfuse.com/self-hosting/license-key) pages, and
+[acruxcore.com/pricing](https://acruxcore.com/pricing). The $98.36 figure comes from Langfuse's
+pricing calculator on 16 October 2026. The [price section](#price-and-hosting) explains it.
 
-License, pricing, team structure, security, and community stats: see
-[AcruxCore vs Langfuse on the compare page](https://acruxcore.com/compare).
+## How we tested
 
-Full breakdown, screenshots, and the verdict below.
+The app is a small agent that reads a client's email. It checks each request against a signed
+project scope, prices the extra work, and writes a reply. It runs in four steps: extract,
+classify, price and reply.
 
-## Prompt authoring & versioning
+- **Data:** 30 client messages, each with the expected items and total price.
+- **Scorers:** exact items, exact total, and an LLM judge that reads the reply.
+- **Prompts:** two versions. Version 2 rewrites the extract and classify prompts.
+- **Model:** every call, the judge included, went to z.ai `glm-5.3` with `reasoning_effort="low"`,
+  straight from the app.
+- **Platforms:** Langfuse Cloud, EU region, free plan, `langfuse` 4.14.1. AcruxCore on
+  acruxcore.com, `acruxcore` 0.18.0.
+- **Dates:** 16 and 17 October 2026 for the app. On 2 November 2026 we added four checks on
+  Langfuse Cloud (web app v4.72.0, `langfuse` 5.1.0): two prompt versions and the diff view, a
+  prompt reference, `{% if %}` in a template, and the drop-in OpenAI wrapper.
 
-AcruxCore's editor uses **nunjucks** — real `{% if %}` and `{% for %}` logic, so the
-VIP branch and the ticket list live in the template itself. Langfuse's templating is
-flat `{{variable}}` substitution only, so we had to pre-render the VIP note and the
-ticket list into plain strings before the prompt ever saw them — Langfuse's own commit
-message on the recreated prompt says so explicitly.
+The same app also ran on LangSmith. That three-way result is in
+[AcruxCore vs Langfuse vs LangSmith](https://acruxcore.com/blog/acruxcore-vs-langfuse-vs-langsmith).
+
+## Tracing
+
+| | AcruxCore | Langfuse |
+|---|---|---|
+| Lines of tracing and prompt-fetching code for this app | 15 | 11 |
+| Wrapped OpenAI client | No | Yes, `from langfuse.openai import openai` |
+| Decorator that makes a function a step | `traces.step` | `@observe` |
+| A model call shows its prompt version | As a link, "View traces for this prompt version", without the prompt's name or number | As a link, "prompt: scope-extract - v1" |
+| Calls recorded with no code in your app | Through the gateway | No |
+
+Both platforms stored the same tree for one message. The agent, named `scope-check`, sat at the
+root. Under it came one span per step and one model call inside each step, and the price step was
+marked as a tool.
 
 <details>
-<summary>Show screenshots: prompt editor, versions, and the diff tab</summary>
+<summary>Show screenshots: the same message traced in AcruxCore and Langfuse</summary>
 
-![Langfuse's create-prompt screen for the recreated vip-support-triage prompt, with a commit message noting it was adapted from AcruxCore's nunjucks template since Langfuse only supports flat variable substitution](/img/comparison/langfuse/lf-01-prompt-editor.png)
-![Langfuse's prompt versions list showing a single version — no diff or compare control anywhere in the version history UI](/img/comparison/langfuse/lf-02-versions.png)
-![AcruxCore's Diff tab showing a real unified diff between prompt version 2 and version 3](/img/comparison/acruxcore/acx-03-diff-tab.png)
+![AcruxCore trace for one message: scope-check at the root, with extract, classify once for each of the two requests, a price tool and reply, each step holding a glm-5.3 LLM span, and 2,132 tokens and $0.00285 in the header](/img/blog/acruxcore-vs-langfuse-vs-langsmith/acx-trace-tree.jpg)
+
+![Langfuse trace for the same message: scope-check at the root, with extract, two classify spans, a price tool and reply, each holding an OpenAI generation](/img/blog/langfuse-vs-langsmith/lf-trace-tree.jpg)
 
 </details>
 
-AcruxCore's own prompt editor — real nunjucks conditionals and loops rendering VIP
-status and the ticket list inline — is one sentence here; see the
-[dashboard tour](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#prompts)
-for the picture.
+The Langfuse leg needed 4 fewer lines. The AcruxCore SDK has no wrapped OpenAI client, so 4 of
+its 15 lines adapt the SDK's chat call to the `client.chat.completions.create` call that the app
+makes.
 
-| Feature | Langfuse | AcruxCore |
+For a single call, Langfuse needs no tracing code beyond the import. On 2 November 2026 we sent
+one call through the drop-in wrapper, with no decorator and no context manager, and Langfuse
+stored it as its own trace within 5 seconds. A decorator or a context manager is needed only to
+group several calls into one trace, as the four-step app does.
+
+On AcruxCore, a call through the gateway is traced with no SDK at all. You point the OpenAI
+client at the gateway, and each call arrives as a priced span. Our test app called z.ai directly
+on both platforms, so the gateway is not in the numbers in this post.
+
+## Prompts: versions, diffs, promotion and rollback
+
+| | AcruxCore | Langfuse |
 |---|---|---|
-| Conditional templating | Flat `{{variable}}` only — verified hands-on, no `{% if %}`/`{% for %}` | Real nunjucks `{% if %}`/`{% for %}`, rendered server-side |
-| Version comparison | No diff/compare control found in the version history UI | Standing **Diff** tab, unified diff between any two versions |
-| Live/staging labels | `production` / `latest` labels on a version | `production` / `staging` **aliases** your app fetches at runtime |
+| How a chat prompt is stored | A list of role and content messages | A list of role and content messages |
+| Template logic | `{{ }}` variables, plus `if` and `for` blocks | `{{variable}}` substitution; `{% if %}` stays as plain text |
+| Reuse one prompt inside another | No | Yes, a prompt reference in a text prompt |
+| Names for the live version | `production` and `staging` aliases | `production`, `latest`, and labels you name yourself |
+| SDK read without naming a label | No: every read names an alias | Returns the `production` version |
+| Compare two versions | Diff tab: a unified diff between any two versions you pick | "Compare with selected prompt": the two versions side by side |
+| Promote a version | 4 clicks, with a confirmation | 3 clicks, no confirmation |
+| Roll back | 2 clicks on the same tab | 4 clicks |
+| History of promotions | Audit tab: who moved the alias, from which version to which | Not shown on the prompt page |
+| SDK cache before a promotion reaches a running app | 60 seconds | 60 seconds |
 
-## Sending a live call
+On 2 November 2026 we created two versions of the extract prompt on Langfuse Cloud: version 1
+with the `production` label and version 2 with a label we named `candidate`. A read with no label
+returned version 1, and reads of `candidate` and `latest` returned version 2. So on Langfuse, code
+that does not name a label gets the production version, not a draft.
 
-Both need a real connected model before anything runs — neither offers a free trial
-call. With that in place, both Playgrounds render the exact same reply from the exact
-same inputs.
+The Langfuse diff view showed the two stored versions side by side, with the removed text in red
+and the added text in green, and a separate section for changes to the model config.
 
 <details>
-<summary>Show screenshots: Playground run on both platforms</summary>
+<summary>Show screenshot: Langfuse v1 to v2 prompt diff</summary>
 
-![Langfuse Playground with the recreated prompt loaded, showing the real completion in the Output panel](/img/comparison/langfuse/lf-03-playground-run.png)
-![AcruxCore Playground's Stored-prompt tab, showing the same completion plus a Gateway Telemetry panel with provider, cost, cache status, and latency](/img/comparison/acruxcore/acx-04-playground-run.png)
+![Langfuse "Changes v1 → v2" view for the extract prompt: version 1 on the left with "Return" marked as removed, version 2 on the right with the new paragraph about one request per kind of work marked as added, and Config: No changes](/img/blog/acruxcore-vs-langfuse/lf-prompt-diff-v1-v2.jpg)
 
 </details>
 
-| Feature | Langfuse | AcruxCore |
-|---|---|---|
-| Playground | Runs against any connected model, no telemetry shown inline | Runs against a **stored prompt reference**, shows cost/cache/latency inline |
-| Requires a real key | Yes | Yes |
-
-## Tracing & observability
-
-Same call, two different trace shapes. For this one call, AcruxCore's trace is one span,
-written as a side effect of the gateway call itself. SDK steps or an OTel framework
-instrumentor nest it inside a larger tree. Langfuse's is a two-level tree — a parent
-span wrapping the generation — because its SDK instruments the call rather than
-routing it.
+AcruxCore's Diff tab shows a unified diff between the two versions you pick in "From" and "To".
+This screenshot is from an earlier test prompt, so its text differs from the one above.
 
 <details>
-<summary>Show screenshots: trace detail on both platforms</summary>
+<summary>Show screenshot: AcruxCore Diff tab</summary>
 
-![Langfuse's trace detail: a two-node span tree (request span + generation span), 1.81s latency, $0.000048 cost, 154 total tokens](/img/comparison/langfuse/lf-04-trace-detail.png)
-![AcruxCore's trace detail: one LLM span with model, provider, tokens, cost, and latency, linked back to the exact gateway request and prompt version](/img/comparison/acruxcore/acx-05-trace-detail.png)
+![AcruxCore Diff tab for the vip-support-triage prompt: From v2 To v3, a unified diff in which the line "Keep the reply under 5 sentences." gains "Be concise and specific."](/img/comparison/acruxcore/acx-03-diff-tab.png)
 
 </details>
 
-| Feature | Langfuse | AcruxCore |
-|---|---|---|
-| Trace shape | Span tree (request + generation) | One span per gateway call; SDK steps or OTel instrumentors add a tree around it |
-| How it's produced | Client-side OTel instrumentation | Automatic — a side effect of the gateway call |
-| Links back to prompt version | Not surfaced in this run | Yes — "View traces for this prompt version" |
-
-## Where the platform sits — in the request path, or beside it
-
-AcruxCore's gateway sits **in the request path**: every call is routed through it, so
-BYOK provider selection, caching, budgets, and virtual keys all apply before the
-provider is ever called, and the trace is a side effect of that same hop. Langfuse
-sits **beside** the request path — it ingests a trace *after* your own client made the
-call — so there's nothing to route, cache, or budget against on its side. That's a
-structural difference in what each product is, not something Langfuse does worse.
-
-| Feature | Langfuse | AcruxCore |
-|---|---|---|
-| Where it sits | Beside the request path — call providers yourself, trace is reported after | In the request path — every call routes through it |
-| BYOK, caching, budgets, virtual keys | Not applicable — no request path to apply them to | Built in, applied before the provider call |
-
-> **Key point:** Langfuse ingests a trace after your own client makes the call. AcruxCore's gateway
-> sits in the request path, and every call routes through it.
-
-## How tools are handled — schema registry, or execution
-
-AcruxCore has a real **Tool Catalog** — callable functions, versioned like prompts,
-with their own analytics page. Langfuse has nothing like it: the closest thing is a
-"Create new tool" button tucked inside the Playground, which just defines a JSON
-Schema for function-calling and saves it project-wide — we made one, reloaded the page
-in a fresh window, and it was still there, offered back to us in the same combobox. So
-it persists, but that's all it does: no catalog page, no list view outside that one
-dropdown, no version history, no analytics, and nothing actually *executes* it —
-Langfuse hands the schema to the model and stops there. AcruxCore's tools are wired
-into the gateway, so a call is a real, traced execution with its own cost and latency,
-not just a shape the model is told about.
+The template engines differ. A Langfuse template fills `{{variables}}`. When we compiled the text
+`{% if vip %}VIP customer. {% endif %}Hello {{name}}.`, Langfuse returned the `{% if %}` part
+unchanged, so a branch like that has to be decided in your code before the call. Langfuse can
+instead put one prompt inside another: a text prompt that contained
+`@@@langfusePrompt:name=acxlf-rate-card|label=production@@@` came back from the SDK with the rate
+card already filled in. AcruxCore templates take `if` and `for` blocks, and the server can fill in
+the variables and return the finished messages.
 
 <details>
-<summary>Show screenshots: tool creation on Langfuse, tool analytics on AcruxCore</summary>
+<summary>Show screenshot: AcruxCore audit tab with promote and rollback</summary>
 
-![Langfuse's Create LLM Tool dialog in the Playground, defining get_ticket_priority with a JSON Schema parameter](/img/comparison/langfuse/lf-13-tool-create.png)
-![Langfuse's saved tool re-appearing in the Playground's tool picker after a full page reload, confirming it's stored project-wide, not per-session](/img/comparison/langfuse/lf-15-tool-persists.png)
-![AcruxCore's Tool analytics page — call volume, error rate, and P50/P95 latency per tool, aggregated from traced executions](/img/comparison/acruxcore/acx-08-tool-analytics.png)
+![AcruxCore Audit tab for scope-extract: production moved v1 → v2, then v2 → v1, each with who made the change and when](/img/blog/acruxcore-vs-langfuse-vs-langsmith/acx-audit-promote-rollback.jpg)
 
 </details>
 
-AcruxCore's Tools page — a dozen real, versioned tools including
-`get_order_status`, `query_database`, and `get_weather` — is one sentence here; see the
-[dashboard tour](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#tools) for the
-screenshot.
+## Experiments over the dataset
 
-| Feature | Langfuse | AcruxCore |
+An experiment answers one question: after you change a prompt, which messages got better and
+which got worse? We ran the app over the 30 messages with version 1, then with version 2, and
+opened each platform's comparison of the two runs.
+
+| | AcruxCore | Langfuse |
 |---|---|---|
-| Tool catalog | A schema saved from the Playground, reusable project-wide, but no dedicated page or list view | Persistent, versioned catalog with its own page |
-| Execution | None — the schema is shown to the model, never run | Real, gateway-executed calls |
-| Tool analytics | Not available | Calls, error rate, and latency per tool |
+| Upload the 30 test messages | 1 call, 1.0 s | 30 calls, 7.3 s |
+| Run your own app code as an experiment | Yes, `run_local` | Yes, `run_experiment` |
+| A plain Python `def` as the task | 4 messages at a time by default | One message at a time in `langfuse` 4.14.1, even with `max_concurrency=4`; an `async` task runs in parallel |
+| Clicks to the comparison of two runs | 3, from the Evaluations page | 4, from the dataset page |
+| Show only the messages whose score changed | Yes, the comparison opens that way | We found no such filter; we scanned all 30 rows |
 
-## Evaluation & datasets
-
-Both build datasets and run experiments against them. Langfuse lets you type a dataset
-item by hand or pull one from a trace. AcruxCore builds datasets from real feedback on a
-trace, from rows typed by hand, or from a CSV or JSON file. The feedback path takes only
-**span-level** feedback, so a single-span trace's own thumbs-up can't be turned into a
-dataset (we hit this directly and had to reuse a trace with more than one span).
+On AcruxCore, version 2 fixed 2 messages on the items score and broke 2 others, and the
+comparison page opened on those 4 messages. Langfuse's comparison showed both runs' scores side by
+side for all 30 messages, with averages and up and down counts at the top.
 
 <details>
-<summary>Show screenshots: dataset item and experiment result on Langfuse</summary>
+<summary>Show screenshots: v1 vs v2 comparison in AcruxCore and Langfuse</summary>
 
-![Langfuse's Create dataset item dialog, with the flattened input variables and a hand-written expected output](/img/comparison/langfuse/lf-06-dataset-item.png)
-![Langfuse's experiment result row: real input/output pairs, but Total Cost showing $0.00 for a custom model without registered pricing](/img/comparison/langfuse/lf-08-experiment-result.png)
+![AcruxCore Compare per example: base v1, target v2, Changed 4 selected, two messages improved and two regressed on the items score](/img/blog/acruxcore-vs-langfuse-vs-langsmith/acx-local-compare-per-example.jpg)
+
+![Langfuse comparison of the v2 run against the v1 run: a summary with averages, deltas and up/down counts, and rows with both runs' scores side by side](/img/blog/langfuse-vs-langsmith/lf-compare.jpg)
 
 </details>
 
-AcruxCore's dataset (built from trace feedback) and its experiment run report are one
-sentence each here; see the walkthrough's
-[dataset](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#feedback) and
-[run-history](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#datasets-and-runs) sections
-for the screenshots.
+We do not compare the scores across the two platforms. `glm-5.3` gives a slightly different
+answer each time, so a score gap between platforms is noise.
 
-| Feature | Langfuse | AcruxCore |
+## Reviewing replies by hand
+
+We asked one question about each of the 30 replies: "Would you send this reply to the client as
+is?"
+
+| | AcruxCore | Langfuse |
 |---|---|---|
-| Dataset creation | Manual entry, API, or from a trace | Span-level trace feedback, manual entry, API, or a CSV/JSON file |
-| Experiments | Prompt × model matrix, evaluator step in the wizard | Version × model sweep with an automatic baseline |
-| Cost accounting we actually saw | $0.00 for an unregistered custom model | Real per-call cost, computed inline |
-
-## SDK & developer experience
-
-Same call, two SDK philosophies. AcruxCore's SDK has dedicated surfaces —
-`hub.prompts.render()` then `hub.gateway.chat()` — and the trace is automatic.
-Langfuse wraps a client you already own; the trace only appears once you open an
-explicit observation context around the call.
-
-```python title="acx_sdk_run.py"
-rendered = await hub.prompts.render("vip-support-triage", "production", VARIABLES)
-result = await hub.gateway.chat(
-    rendered.model, rendered.messages,
-    temperature=0, max_tokens=256,
-    prompt_version_id=rendered.version_id,
-)
-```
-
-```python title="lf_trace_run.py"
-with langfuse.start_as_current_observation(name="vip-support-triage-request", as_type="span"):
-    response = client.chat.completions.create(
-        model="openai/gpt-4o-mini",
-        messages=[{"role": "system", "content": system_prompt},
-                  {"role": "user", "content": user_message}],
-    )
-```
-
-Both produced a real trace within seconds of the call returning:
+| Review queue | No | Yes |
+| Clicks per reply | 4: open the trace, open the reply step, ▲ or ▼, go back | 2: a verdict and "Mark Completed" |
+| The verdict names the question | No; a ▲/▼ rating on the step | Yes, a score configuration |
+| Fix a wrong answer | A comment and a label on the trace | "Correct output" saves your text |
 
 <details>
-<summary>Show screenshot: SDK-produced trace on Langfuse</summary>
+<summary>Show screenshot: Langfuse annotation queue</summary>
 
-![Langfuse's trace for the script-generated call: same VIP reply, 1.81s latency, $0.000048, OpenTelemetry SDK metadata visible](/img/comparison/langfuse/lf-09-sdk-trace.png)
+![Langfuse annotation queue: the message, output and reply as text on the left, True and False buttons for human_reply_ok on the right, and Mark Completed at the bottom](/img/blog/langfuse-vs-langsmith/lf-annotation-queue.jpg)
 
 </details>
 
-:::github
-- [`acx_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/acruxcore-vs-langfuse/python/acx_sdk_run.py) — the AcruxCore leg.
-- [`lf_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/acruxcore-vs-langfuse/python/lf_trace_run.py) — the Langfuse leg.
-:::
+Langfuse's queue moves to the next reply after each verdict. On AcruxCore, a reviewer works from
+the Traces list, which shows each trace's name rather than the client's message, so finding one
+message means opening rows.
 
-AcruxCore's SDK-produced trace is one sentence here; see the
-[product tour](https://docs.acruxcore.com/docs/getting-started/product-tour) for the
-screenshot.
+## Live traffic
 
-| Feature | Langfuse | AcruxCore |
+We sent the 30 messages to both platforms in the same five minutes, one at a time, on
+16 October 2026 between 17:17 and 17:22 UTC. Then we read the numbers back through each
+platform's API.
+
+| | AcruxCore | Langfuse |
 |---|---|---|
-| SDK model | Wrap your own client (`langfuse.openai`) | Dedicated `hub.prompts` / `hub.gateway` surface |
-| Getting a trace | Requires an explicit observation context | Automatic side effect of `hub.gateway.chat()` |
+| Latency p50 / p95 | 7.7 s / 10.6 s | 7.2 s / 10.8 s |
+| Model cost per trace, paid to z.ai | $0.0016 | $0.0015 |
 
-## Latency overhead — measured
+The latency is almost all model time, because both apps called the same z.ai endpoint. The model
+cost is z.ai's bill for one message, not a platform fee. It differs because the model wrote
+replies of different lengths.
 
-Langfuse's overhead is client-side instrumentation; ours is an extra network hop that
-buys routing, caching and budgets. Those are two different kinds of cost, so this is not
-a head-to-head — it is two numbers measured the same way, in the same run.
+## Price and hosting
 
-Both come from our
-[full-cycle benchmark](/blog/full-cycle-latency-benchmark): eight paths interleaved in
-rotating order, 100 rounds each, repeated four independent times, with **every leg ending
-at `gpt-4o-mini` on `api.openai.com`**. It times the *full cycle* — resolve or fetch the
-stored prompt, then complete it — rather than the completion alone, which is the honest
-unit when a platform needs two round trips to answer one request.
+| Plan | 3 people, 100,000 traces a month | Trace data kept |
+|---|---|---|
+| AcruxCore (hosted) | $0; the hosted platform is free to use | Message content 90 days; tokens, cost and timing are not deleted |
+| Langfuse Core | $98.36; $119.69 if each trace also gets three scores | 90 days |
 
-The last column is the one that decides each row. A gap only counts if its 95%
-confidence interval stays clear of zero. When the interval contains zero, "no
-difference at all" is one of the answers the data allows — so the gap is noise with a
-number attached, not a measurement.
+- Langfuse bills units. Each trace, each step inside it and each score is one unit. Our live
+  traces averaged 9.67 units, so 100,000 traces are 967,000 units.
+- Core costs $29 a month with 100,000 units included. Further units cost $8 per 100,000 up to
+  1 million and $7 per 100,000 from 1 million to 10 million. 967,000 units cost $29 plus
+  $69.36, which is $98.36. With three scores per trace, 1,267,000 units cost $29 plus $90.69,
+  which is $119.69. The calculator gave these figures on 16 October 2026, and the rates were
+  the same on 2 November 2026.
+- The Langfuse bill grows with the steps in a trace. An agent with 30 steps per trace would use
+  about 3.1 million units for the same 100,000 traces.
+- Core has unlimited users, so 3 people cost nothing extra. The free plan keeps data for 30 days.
+- The [AcruxCore pricing page](https://acruxcore.com/pricing) says the hosted platform is free to
+  use and that no paid plan exists today.
+- On both platforms, you pay the model provider yourself.
 
-| Path | median | gap vs. baseline | 95% CI | Distinguishable from zero? |
-|---|--:|--:|---|:--:|
-| OpenAI direct (baseline) | 978 ms | — | — | — |
-| Langfuse OTel SDK | 954 ms | −22 ms | [−95, +84] | No |
-| AcruxCore BYOK (gateway-free) | 1022 ms | +39 ms | [−1, +155] | No |
-| AcruxCore gateway | 1032 ms | +63 ms | [−19, +172] | No |
-
-Every interval here contains zero, so no row is a result. That includes Langfuse's
-−22 ms: it is a sample artifact, **not** evidence that wrapping a client is faster than
-calling OpenAI directly. Read those three rows as "too small to measure in this run".
-
-> **Key point:** In this run, Langfuse's overhead is −22 ms and AcruxCore's is +63 ms. Every 95%
-> confidence interval contains zero, so both numbers are too small to measure.
-
-On a call that already takes about a second, neither Langfuse's instrumentation nor our
-gateway hop is something a user would feel — and the baseline's own p99 (6402 ms) is
-worse than either platform's, which is a useful reminder that raw OpenAI with nothing in
-front of it has the widest tail here.
-
-That benchmark ran four times precisely because one 100-round run against a live
-third-party API is not enough to trust a single figure. All 800 rounds are plotted in the
-[full write-up](/blog/full-cycle-latency-benchmark).
-
-## Friction hit during this run
-
-Real friction hit while doing this comparison, not a symmetric wish list.
-
-**Langfuse**
-- 👍 Self-hosting was fast — one `docker compose up`, working on first login.
-- 👍 The experiment wizard validates your dataset variables against the prompt *before* it spends a call.
-- 👎 Flat templating pushed the VIP-branch and ticket-list logic back onto the caller (see **Prompt authoring & versioning** above).
-- 👎 The Playground doesn't produce a trace — only a scripted SDK call does.
-- 👎 A doc example called `start_as_current_span`, which doesn't exist on SDK 4.14.1; the real method is `start_as_current_observation`.
-
-**AcruxCore**
-- 👍 Nothing to instrument — `hub.gateway.chat()` (or the Playground) writes the trace as a side effect, no wrapper client.
-- 👍 Nunjucks conditionals and loops are real template logic, not something you flatten by hand first.
-- 👎 A model with no registered per-1M rate shows a blank `—` cost instead of `$0` or an estimate, until you register one.
-
-**Time-to-first-trace:** AcruxCore gets there on the first call with zero
-tracing-specific code. Langfuse gets there too, but only through the SDK path, and only
-after wrapping a client and opening an observation context.
+Both platforms can be self-hosted for free. AcruxCore runs on Postgres and Redis, and every
+feature is under Apache 2.0. Langfuse also needs ClickHouse and S3-compatible storage, and its
+project roles, audit log and retention policies need a license key. SSO is not on Langfuse's
+licence-key list: a self-hosted instance sets up Google, GitHub, Okta, Azure AD or a custom OAuth
+provider through environment variables.
 
 ## What Langfuse does that AcruxCore doesn't
 
-Sourced from Langfuse's own dashboard, not from this post's earlier aspects — those
-carry the same bias any of our own feature list would.
+- 👎 **A review queue.** Reviewers see one reply at a time, answer a named question, and move to the
+  next with one click. The queue can be worked from the keyboard. AcruxCore has no queue.
+- 👎 **Alerts on cost, latency and scores, sent to Slack, a webhook or GitHub Actions.** The free
+  plan has 2 alerts and Core has 20. AcruxCore alerts by email only, on budgets and evaluation
+  rules, and has no latency alerts.
+- 👎 **A Vercel AI SDK integration**, through the `@langfuse/vercel-ai-sdk` package. AcruxCore has
+  none.
+- 👎 **A much larger community:** 36,881 GitHub stars on 2 November 2026, against 12 for
+  AcruxCore.
+- 👎 **Prompt references**, so one shared snippet can sit inside many prompts.
+- 👎 **SSO**, on hosted Pro with the Teams add-on or on Enterprise, and on a self-hosted instance
+  without a licence key. AcruxCore has no SSO.
+- 👎 **A choice of hosted region:** US, EU or Japan. AcruxCore does not state its hosted region.
 
-**Monitors — automated alerts on cost, quality, or latency, wired to Slack, Webhooks,
-or GitHub Actions.** Set a threshold once and get notified when a metric moves outside
-it, with the notification routed to a channel your team already watches. AcruxCore
-emails you when a budget passes 80% or runs out, and when a live evaluation rule scores
-below its threshold. AcruxCore has no latency alerts and no Slack, webhook or GitHub
-Actions delivery.
+## What AcruxCore does that Langfuse doesn't
 
-<details>
-<summary>Show screenshot: Monitors & alerts setup on Langfuse</summary>
+- 👍 **A gateway in the request path**, hosted or self-hosted, with
+  [fallbacks](https://docs.acruxcore.com/docs/guides/automatic-model-fallbacks),
+  [budgets and per-key limits](https://docs.acruxcore.com/docs/guides/set-spend-limits-with-gateway-budgets-and-rate-limits),
+  virtual keys and an exact-match cache. Every call through it is traced and priced with no code
+  in your app. Langfuse records the calls that your own code makes.
+- 👍 **A versioned tool catalog.** You define a tool, version it and bind it to a prompt, and the
+  gateway can run it. Each tool span records the tool version that ran.
+- 👍 **An audit log on every plan**, which shows who moved each alias and between which versions.
+  The [audit trail guide](https://docs.acruxcore.com/docs/guides/read-the-team-audit-trail)
+  shows it.
+- 👍 **Free self-hosting with every feature**, with Postgres and Redis as the only data services.
 
-![Langfuse's Monitors setup: "Catch issues before they impact your users," with Connect Slack / Connect Webhooks / Connect GitHub Actions options and a Create Monitor button](/img/comparison/langfuse/lf-17-monitors-alerts.png)
+## Which one to choose
 
-</details>
+**Choose Langfuse** if people on your team review replies by hand every day, if you want alerts
+in Slack, if you build on the Vercel AI SDK, or if you need SSO or a chosen data region. Plan for
+about $98 a month at 100,000 traces of a four-step agent on Core, and more if your traces have
+more steps.
 
-We also checked for SSO/SCIM, expected from the pricing page's Enterprise tier — this
-self-hosted organization's Settings has no SSO or SCIM section at all, consistent with
-it being a paid-plan feature rather than something to demo locally.
+**Choose AcruxCore** if you want the gateway, the tool catalog and the audit log without a paid
+plan, or you must self-host with every feature. Expect to review replies on the trace page and to
+receive alerts by email.
 
-## Is AcruxCore a Langfuse alternative?
+![Choose Langfuse if you review replies by hand, want alerts in Slack, build on the Vercel AI SDK or need SSO; choose AcruxCore if you want the gateway, tool catalog, audit log and free self-hosting](/img/blog/acruxcore-vs-langfuse/choose.webp)
 
-For the prompt-and-call half of the job, yes. Langfuse has no request-path gateway, so
-routing, caching, budgets and rate limits have no call to act on; its "tool" is a JSON schema
-saved from a Playground dropdown that never executes; and its datasets are hand-authored or
-pulled from a trace, while AcruxCore can also build one from feedback your users already gave.
+AcruxCore also accepts OpenTelemetry traces on an
+[OTLP endpoint](https://docs.acruxcore.com/docs/guides/send-otel-traces-with-the-sdk-helper),
+so an app that is already instrumented with OpenTelemetry can send its traces there.
 
-For observability on its own, Langfuse is more mature than we are, with a much larger
-framework-integration surface, and latency alerts and Slack delivery that we do not have. RBAC and audit sit
-behind its paid tiers, which is worth checking against your own plan before comparing.
+> **Key point:** The Langfuse bill depends on how many steps and scores each trace has, while the
+> hosted AcruxCore platform is free to use. Langfuse is ahead on human review, alerts and community,
+> and AcruxCore is ahead on calls that need to pass through a gateway.
 
-If you want the gateway but would rather keep Langfuse for tracing, that works: we accept
-OTel-instrumented traces directly on an OTLP endpoint.
+## FAQ
 
-## Verdict
+### How much does Langfuse cost for 100,000 traces?
 
-| | Langfuse | AcruxCore |
-|---|---|---|
-| Strongest at | Tracing depth, org/project structure, threshold alerting | A request-path gateway with routing, caching, and budgets on every call; tools that actually execute and get measured, not just described; datasets built straight from real production feedback |
-| Weakest at | No request-path gateway; tools are a schema in a Playground dropdown, not a catalog; RBAC and audit gated behind paid tiers | Alerts by email only, and none on latency |
-| Pick it if | You want mature, OTel-native observability layered onto a client you already own, with automated alerting | You want the provider call itself — gateway, tools, feedback-driven datasets, and a rule-based judge scoring live traffic — traced for free, with nothing bolted on after the fact; AcruxCore also takes your own OTel-instrumented traces directly via its OTLP endpoint |
+For our four-step agent, 100,000 traces were 967,000 units, which cost $98.36 a month on the Core
+plan. With three scores per trace, the same traffic was 1,267,000 units and cost $119.69.
 
-Tracing depth and threshold-based alerting are real Langfuse wins (**Tracing &
-observability** and **What Langfuse does that AcruxCore doesn't** above). But on the
-three things that make up the actual day-to-day loop of running an LLM app — the
-gateway, the tool catalog, and building datasets from feedback — this comparison came
-down in AcruxCore's favor every time, not just "different shape." Langfuse has no
-request-path gateway at all (**Where the platform sits** above), its "tool" is a
-schema saved from a Playground dropdown that's never actually executed (**How tools
-are handled** above), and its datasets are built by hand or pulled from a trace, not
-generated from feedback your users already gave (**Evaluation & datasets** above).
-AcruxCore does all three natively, in one integrated flow. See the full picture,
-including license, pricing, and team structure, on the
-[compare page](https://acruxcore.com/compare).
+### How does Langfuse count units?
 
-LangSmith is in the picture too? [AcruxCore vs Langfuse vs LangSmith](/blog/acruxcore-vs-langfuse-vs-langsmith)
-builds one app on all three and measures it.
+Each trace, each step inside it and each score is one unit. Core includes 100,000 units for $29 a
+month, and further units cost $8 per 100,000 up to 1 million and $7 per 100,000 after that.
 
-Want to run this yourself? The [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart) gets you
-from sign-up to a traced, gateway-routed call in about ten minutes.
+### Can you self-host Langfuse for free?
 
-To compare more than two tools, [8 best Langfuse alternatives for startups](/blog/langfuse-alternatives)
-covers MLflow, OpenLIT, Laminar, Opik, Arize Phoenix, LangSmith and Braintrust as well.
+Yes. The self-hosted core is MIT licensed, and it needs Postgres, ClickHouse, Redis or Valkey and
+S3-compatible storage. Project roles, the audit log and retention policies need a licence key.
 
-To compare Langfuse and LangSmith with each other, [Langfuse vs LangSmith](/blog/langfuse-vs-langsmith)
-runs one app end to end on both.
+### Does Langfuse have a review queue?
+
+Yes. Langfuse's annotation queue shows one reply at a time with a named score, and the free plan
+has 1 queue, Core 3 and Pro unlimited. AcruxCore has no review queue.
+
+### What is the difference between Langfuse labels and AcruxCore aliases?
+
+Both point a name at a prompt version. Langfuse has `production`, `latest` and labels you name
+yourself, and a read with no label returns `production`. AcruxCore has `production` and `staging`
+aliases, and every read names one.
+
+### Is AcruxCore free?
+
+The hosted AcruxCore platform is free to use, and no paid plan exists today. You pay your model
+provider yourself, as you do with Langfuse.
+
+## Run it yourself
+
+:::github
+- [`acruxcore-vs-langfuse/`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/acruxcore-vs-langfuse) — the 2 November checks on Langfuse Cloud and their run log.
+- [`acruxcore-vs-langfuse-vs-langsmith/`](https://github.com/AcruxCore/AcruxCore/tree/main/scripts/blogs/acruxcore-vs-langfuse-vs-langsmith) — the app, the AcruxCore leg, the dataset, both prompt versions, and the raw output of every step.
+- [`langfuse_leg.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/langfuse-vs-langsmith/python/langfuse_leg.py) — the Langfuse leg.
+- [`RUNLOG.md`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/langfuse-vs-langsmith/RUNLOG.md) — the Langfuse leg's run log.
+:::
+
+## Further reading
+
+- [AcruxCore vs Langfuse vs LangSmith](https://acruxcore.com/blog/acruxcore-vs-langfuse-vs-langsmith)
+  adds LangSmith to the same test.
+- [Langfuse vs LangSmith](https://acruxcore.com/blog/langfuse-vs-langsmith) runs the app on those
+  two platforms only.
+- [Langfuse alternatives](https://acruxcore.com/blog/langfuse-alternatives) covers more tools.

@@ -152,7 +152,7 @@ const EXTERNAL_SECTION = {
     {
       title: `A hands-on test of ${countWord(HANDS_ON_PLATFORM_COUNT)} LLM-ops platforms`,
       url: `${BLOG_URL}/hands-on-llm-ops-comparison`,
-      summary: 'The same example rebuilt on every platform, self-hosted, with screenshots from the real sessions.',
+      summary: 'One section per feature, each with a table of which tools support it and what we saw when we ran them, with screenshots.',
     },
     {
       title: 'Every blog post',

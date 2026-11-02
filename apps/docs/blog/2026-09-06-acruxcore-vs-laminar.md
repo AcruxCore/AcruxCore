@@ -1,63 +1,71 @@
 ---
 title: "AcruxCore vs Laminar: SQL over traces vs a prompt gateway"
-description: "AcruxCore vs Laminar tested hands-on — one example on self-hosted Laminar and AcruxCore, with real screenshots from both and a 100-round latency benchmark."
+description: "AcruxCore vs Laminar: SQL over agent traces, dashboards and labeling queues against prompt versions and a gateway that enforces spend caps."
 slug: acruxcore-vs-laminar
 date: 2026-09-06
 authors: [acrux]
 tags: [llmops-comparison, llm-tracing, llm-latency]
-image: /img/social-card.png
+image: /img/blog/acruxcore-vs-laminar/header.webp
 keywords: [AcruxCore vs laminar, laminar vs AcruxCore, llm ops comparison, agent observability, sql over traces, opentelemetry llm tracing]
 last_update:
-  date: 2026-10-25
+  date: 2026-11-02
 ---
 
-Laminar (`lmnr`) is a Y Combinator S24 project that calls itself observability **purpose-built
-for AI agents** — a Rust ingest server, ClickHouse for spans, Quickwit for search, and an
-OpenTelemetry SDK that instruments fifteen-plus agent frameworks from one line of code — Vercel
-AI SDK, Claude Agent SDK, OpenAI Agents SDK, LangChain DeepAgents, Mastra, Pydantic AI, Browser
-Use, Stagehand, Playwright, LiteLLM, OpenCode and OpenHands among them. Its project sidebar has
-dashboards, traces, evaluations, datasets, labeling, a SQL editor, playgrounds, a debugger and
-settings — and **no prompt registry anywhere**. That is not an oversight; it is the product
-being about agent runs rather than about the calls inside them. Both projects are Apache 2.0,
-so this is a comparison of shape, not of who is open.
+![Laminar starts at the trace with SQL over spans, custom dashboards, labeling queues and transcript views; AcruxCore starts at the prompt with prompt versions and aliases, templates, spend caps and a tool catalog](/img/blog/acruxcore-vs-laminar/header.webp)
 
-The short answer: Laminar is stronger at digging into an agent run, with SQL over spans,
-custom dashboards and labeling queues. AcruxCore covers what happens before the call:
-prompt versions and aliases, and a gateway that can refuse a call over budget. The two
-can run together.
+Laminar (`lmnr`) describes itself as an "open-source observability platform purpose-built for
+AI agents", and its GitHub page lists it as a Y Combinator S24 company (checked on 2 November
+2026).
 
-We build AcruxCore. We ran every tool ourselves, and the scripts are linked below.
+The short answer: both show an agent run as a tree of nested spans. Laminar is stronger at
+analysing those runs, with SQL over spans, custom dashboards and labeling queues. AcruxCore covers what happens before the call: prompt
+versions and aliases, and a gateway that can refuse a call over budget. The two can run
+together.
+
+Laminar is built from a Rust ingest server, ClickHouse for spans, Quickwit for search, and an
+OpenTelemetry SDK. Its integrations page lists 31 integrations, from LLM SDKs and agent
+frameworks to coding agents and browser agents (checked on 2 November 2026). In the build we
+ran, its project sidebar had dashboards, traces, evaluations, datasets, labeling, a SQL editor,
+playgrounds, a debugger and settings, and no prompt store that your code fetches at runtime. Both projects are
+Apache 2.0.
+
+AcruxCore is our product. We ran both platforms on one prompt, and every script is linked.
 
 <!-- truncate -->
 
-:::note[Same example, both sides]
-Every paired screenshot below comes from the same prompt — `vip-support-triage`, a support
-agent that changes tone for VIP customers and lists their open tickets — and the same customer
-message. Both SDK runs end at the same downstream model, `gpt-4o-mini` on OpenAI, so the
-generated text is comparable. Laminar's **playground** was configured with a direct OpenAI key
-and run for real, so its screenshot below is a completion rather than an empty state. The
-latency benchmark uses SDK paths on all three legs, every one of them ending at
-`api.openai.com`. License, pricing,
-team structure and community stats live on the [compare page](https://acruxcore.com/compare)
-rather than here.
-:::
+## How we tested
+
+- **Prompt:** `vip-support-triage`, a support agent that changes tone for VIP customers and
+  lists their open tickets, with the same customer message on both platforms.
+- **Model:** both SDK runs call `gpt-4o-mini` on OpenAI, so the generated text is comparable.
+  Laminar's playground was set up with a direct OpenAI key and run, so its screenshot shows a
+  completion.
+- **Laminar:** the self-hosted "lite" stack from `docker compose up -d`, at repo commit
+  `f0d19c93` (30 August 2026), served at `http://localhost:5667`. AcruxCore ran locally, with
+  its API at `http://localhost:3001`.
+- **Dates:** hands-on steps and screenshots on 6 September 2026. Latency from three benchmark
+  runs committed on 7 September 2026.
+- **Latency:** the benchmark uses SDK paths on all three legs, and every leg ends at
+  `api.openai.com`. Hardware not recorded.
 
 ### At a glance
 
-| Aspect | Laminar | AcruxCore | Winner |
-|---|---|---|---|
-| Tracing an agent run | OTel-native, nested spans, tree and transcript views, cost heatmap, 15+ framework integrations | Nested OTel spans on an OTLP receiver, five frameworks from one `register()` call, plus an automatic gateway span carrying prompt-version lineage | Laminar, on breadth and views |
-| Where the platform sits | Beside the request path, on purpose — works with any provider, no proxy to configure | In the request path — routing, caching, budgets and virtual keys apply before the provider | Depends |
-| Latency overhead, measured | −8 to +18 ms across three 100-round runs | +7 to +27 ms across the same three runs | Laminar, barely |
-| Querying your trace data | Real SQL editor over spans, plus a drag-and-drop custom dashboard builder | Fixed analytics page, four `group_by` options, nothing composable | Laminar |
-| Prompt authoring and versioning | None — a playground is one mutable row of messages, no versions, aliases or variables | Immutable versions, `production`/`staging` aliases, a diff tab, real `{% if %}` and `{% for %}` | AcruxCore |
-| Sending a live call | Playground runs, but only against seven named providers, and reports tokens without cost | Any OpenAI-compatible provider, with cost, cache and latency shown inline | AcruxCore |
-| How tools are handled | Tool schemas are a JSONB field on a playground row; tool calls show up as spans | Versioned Tool Catalog that the gateway actually executes, with its own analytics | AcruxCore |
-| Evaluation and datasets | Code-first: your data, your executor, your scorers, run locally or in CI | Server-side runs, LLM judges, plus sampled rules that score live production spans | Depends |
-| SDK and developer experience | One line auto-instruments your client; a CLI and skill onboard a coding agent | Fetch a stored prompt and send it through the gateway with no tracing code, or one `register()` call to instrument a framework | Depends |
-| MCP server | [Hosted, three read-only tools](https://laminar.sh/docs/platform/mcp): run SQL over spans, fetch one trace's context, ask a built-in agent | [Hosted or local](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client): read and commit prompts, promote an alias, run a stored prompt, read traces, run experiments | AcruxCore |
+| Aspect | Laminar | AcruxCore |
+|---|---|---|
+| Tracing an agent run | OTel-native, nested spans, tree and transcript views, cost heatmap, 31 integrations listed | Nested OTel spans on an OTLP receiver, five frameworks from one `register()` call, plus an automatic gateway span carrying prompt-version lineage |
+| Where the platform sits | Beside the request path, on purpose — works with any provider, no proxy to configure | In the request path — routing, caching, budgets and virtual keys apply before the provider |
+| Querying your trace data | Real SQL editor over spans, plus a drag-and-drop custom dashboard builder | Fixed analytics page, four `group_by` options, nothing composable |
+| Prompt authoring and versioning | No prompt store your code fetches; in our run a playground held one set of messages, with no aliases or template variables | Immutable versions, `production`/`staging` aliases, a diff tab, `{% if %}` and `{% for %}` |
+| Sending a live call | In the build we ran, the playground called seven named providers and showed tokens without cost | Any OpenAI-compatible provider, with cost, cache and latency shown inline |
+| How tools are handled | Tool schemas are a JSONB field on a playground row; tool calls show up as spans | Versioned Tool Catalog that the gateway actually executes, with its own analytics |
+| Evaluation and datasets | Code-first: your data, your executor, your scorers, run locally or in CI | Server-side runs, LLM judges, plus sampled rules that score live production spans |
+| SDK and developer experience | One line auto-instruments your client; a CLI and skill onboard a coding agent | Fetch a stored prompt and send it through the gateway with no tracing code, or one `register()` call to instrument a framework |
+| MCP server | [Hosted, three read-only tools](https://laminar.sh/docs/platform/mcp): run SQL over spans, fetch one trace's context, ask a built-in agent | [Hosted or local](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client): read and commit prompts, promote an alias, run a stored prompt, read traces, run experiments |
 
-Full breakdown, screenshots, and the verdict below.
+- **Pick Laminar if** you are shipping an agent on a framework, and your hard problem is
+  understanding its behaviour.
+- **Pick AcruxCore if** your prompts change often, several people edit them, and cost or
+  access needs a control point.
 
 ## Tracing an agent run
 
@@ -78,12 +86,22 @@ def triage(message: str) -> str:
 The span view carries the full system and user messages, token counts, cost, and an "Experiment
 in playground" button that lifts the call straight into their playground.
 
+<details>
+<summary>Show screenshot: Laminar span detail with the LLM messages</summary>
+
 ![Laminar span detail: a tree with vip_support_triage above an openai.chat child, and a right panel showing System, User and Assistant messages with 158 tokens and $0.0001](/img/comparison/laminar/lm-04-span-llm-messages.png)
+
+</details>
 
 AcruxCore has two ways in. The gateway writes a span server-side, with no tracing code in the
 script at all, and links it back to the prompt version that produced it.
 
+<details>
+<summary>Show screenshot: AcruxCore trace detail</summary>
+
 ![AcruxCore trace detail: a single LLM span with token counts, cost, and a link to the prompt version that produced it](/img/comparison/acruxcore/acx-05-trace-detail.png)
+
+</details>
 
 For the run's *shape* there is an OTLP/HTTP receiver — `POST /api/v1/traces/otlp`, protobuf or
 JSON, gzip accepted — that takes nested OTel spans from your process, the same way Laminar's
@@ -101,23 +119,28 @@ and any other OTel or OpenInference instrumentor can be wired to the same provid
 CrewAI crew traced this way arrives as a real tree: a `Crew.kickoff` root, one agent span per
 crew member, with tool and LLM spans nested underneath.
 
+<details>
+<summary>Show screenshot: AcruxCore trace tree from a CrewAI crew</summary>
+
 ![AcruxCore trace tree from a CrewAI crew: a Crew.kickoff chain root, an agent span for Destination Researcher containing an LLM span and three Tavily Search tool spans, then a sibling agent span for Itinerary Planner](/img/tutorials/trace-a-crewai-trip-planner/03-trace-tree.png)
 
-So the difference is breadth and reading, not whether the run is visible. Laminar ships three
-times the integrations and reads them back as a transcript, a cost heatmap and a realtime feed.
-We ship five named frameworks, a span tree with a latency waterfall, and prompt-version lineage
-on the gateway span — and unlike theirs, ours exists even when the caller sends no spans at all.
+</details>
+
+So the difference is breadth and reading, not whether the run is visible. Laminar lists 31
+integrations and reads a run back as a transcript, a cost heatmap and a realtime feed.
+AcruxCore names five frameworks and shows a span tree with a latency waterfall. Its gateway
+span carries prompt-version lineage and is written even when the caller sends no spans.
 
 | Feature | Laminar | AcruxCore |
 |---|---|---|
 | Span source | Your process, via OpenTelemetry | The gateway server-side, or your process over OTLP |
 | Code needed to get a trace | One `initialize()` call, plus decorators for structure | None for a gateway call; one `register()` for a framework |
 | Nested agent structure | Yes, arbitrary depth | Yes, arbitrary depth, over the OTLP receiver |
-| Prompt-version lineage on the span | No prompt registry to link to | Automatic |
+| Prompt-version lineage on the span | No: no stored prompt to link to | Yes: from the gateway call |
 | Views | Tree, transcript, cost heatmap, realtime | Span tree with a latency waterfall, payloads per span |
-| Framework integrations | 15+, including Vercel AI SDK, Claude Agent SDK, Browser Use, Stagehand, Mastra, Pydantic AI | 5 via `register()`, plus any OTel instrumentor wired by hand |
+| Framework integrations | 31 listed, including Vercel AI SDK, Claude Agent SDK, Browser Use, Stagehand, Mastra, Pydantic AI | 5 via `register()`, plus any OTel instrumentor wired by hand |
 
-## Where the platform sits — in the request path, or beside it
+## Where Laminar sits: beside the call
 
 Laminar sits beside the request path. Its Rust `app-server` receives spans; it never receives
 your model call. We checked the server's routes: the only `/chat/completions` handling in the
@@ -137,25 +160,17 @@ support your provider.
 | Feature | Laminar | AcruxCore |
 |---|---|---|
 | Position | Beside the request path | In the request path |
-| Works with any provider, unmodified | Yes | Only providers the gateway supports |
+| Works with any provider, unmodified | Yes | Partial: only providers the gateway supports |
 | Can enforce a spend cap before the call | No | Yes, `402 BUDGET_EXCEEDED` |
 | Can rate-limit a key before the call | No | Yes, `429 RATE_LIMITED`, per virtual key |
 | Can serve a cached response | No | Yes |
 | A platform outage breaks your calls | No | Yes, unless you fail open |
 
-> **Key point:** A Laminar outage cannot break your production call. An AcruxCore outage breaks
-> your calls unless you fail open.
-
 ## Latency overhead — measured
 
-100 rounds per run, interleaved in rotating order so a network blip lands on all three paths
-equally, three warm-up rounds discarded, every leg ending at `gpt-4o-mini` on `api.openai.com`
-with the same key and the same body. A gateway model is only a public name pointing at a
-credential, so the script resolves ours before it starts and refuses to run unless it refers to a
-native OpenAI credential — that way all three legs provably share one upstream.
-
-A single run is not a result here: the median gap moves enough between runs that one number
-would be misleading. So it ran three times.
+Laminar's leg is the OpenAI client instrumented by `Laminar.initialize()`. AcruxCore's leg is
+the call through the local gateway. Both were timed against a direct call to `gpt-4o-mini` on
+`api.openai.com`, in 100 interleaved rounds per run, over three runs.
 
 | Run | Direct-call median | Laminar gap | AcruxCore gap |
 |---|---|---|---|
@@ -163,18 +178,17 @@ would be misleading. So it ran three times.
 | 2 | 603 ms | +18 ms, CI [+2, +46] | +27 ms, CI [+11, +50] |
 | 3 | 643 ms | −4 ms, CI [−28, +15] | +7 ms, CI [−19, +29] |
 
-Laminar's overhead lands between −8 ms and +18 ms, AcruxCore's between +7 ms and +27 ms. In two
-of the three runs every confidence interval crosses zero, which means neither path is
-statistically distinguishable from calling the provider directly at this sample size. Laminar's
-median gap was the lower of the two in all three runs, by roughly 10 ms — consistent enough to
-be real, small enough that no application would notice it.
+- Laminar's median gap was −8 to +18 ms, and AcruxCore's was +7 to +27 ms.
+- In runs 1 and 3 every interval crosses zero, so neither path can be told apart from a direct
+  call in those runs.
+- Laminar's median gap was the lower of the two in each run, by 9 to 15 ms. The intervals
+  overlap, so three runs do not show that difference is stable.
 
-> **Key point:** Laminar's overhead lands between −8 ms and +18 ms, and AcruxCore's lands between
-> +7 ms and +27 ms. Every confidence interval crosses zero in two of the three runs.
-
-Both are cheap, and they are different kinds of cost: Laminar's is client-side instrumentation
-that batches spans off the hot path, ours is a real extra network hop that buys routing, budget
-enforcement, virtual keys and caching.
+The two are different kinds of cost. Laminar's is client-side instrumentation that batches
+spans off the hot path. AcruxCore's is an extra network hop that pays for routing, budget
+checks, virtual keys and caching. Our newest measurement of a local AcruxCore gateway on its own, on
+25 October 2026, found a median of +9 ms against a direct OpenAI call, with a 95% interval of
+−15 to +28 ms ([method](/blog/llm-gateway-overhead)).
 
 :::github
 [`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/laminar-vs-acruxcore/python/latency_bench.py) — the latency benchmark.
@@ -186,12 +200,22 @@ Laminar's SQL editor is the feature we most wish we had. It is not a filter buil
 over the ClickHouse span store, with table, JSON and chart output, saved queries, an "Ask AI"
 button that writes the query for you, and CSV export.
 
+<details>
+<summary>Show screenshot: Laminar SQL editor</summary>
+
 ![Laminar SQL editor running SELECT name, model, input_tokens, output_tokens, total_cost, duration FROM spans, returning the openai.chat and vip_support_triage rows](/img/comparison/laminar/lm-06-sql-editor.png)
+
+</details>
 
 The dashboard is composable in the same spirit: drag-and-drop cards, resizable, each one backed
 by a metric or a custom SQL query. After the benchmark run it had 135 spans to chart.
 
+<details>
+<summary>Show screenshot: Laminar dashboards</summary>
+
 ![Laminar dashboards page with twelve resizable cards — top spans, top model cost, latency by model p90, trace status, total tokens and total cost](/img/comparison/laminar/lm-09-dashboards.png)
+
+</details>
 
 AcruxCore has neither. Our analytics page groups by exactly one of `day`, `model`, `session` or
 `prompt_version` and renders a fixed set of tiles and charts; the state lives in the URL, so you
@@ -207,30 +231,42 @@ arbitrary question.
 
 ## Prompt authoring and versioning
 
-Here the shapes diverge completely. Laminar has no prompt registry — we checked the database
-schema rather than only the sidebar, and there is no prompts table at all. The nearest thing is
+Here the shapes differ most. In the build we ran, Laminar had no prompt registry. We checked the
+database schema rather than only the sidebar, and there was no prompts table. The nearest thing is
 `playgrounds`, one row per playground holding `prompt_messages` as a mutable JSONB blob. Editing
-it overwrites it. There are no version numbers, no aliases, no diff, and no template variables:
-their only templating dependency, `mustache`, is used for rendering span previews, not prompts.
+it overwrote it, with no version numbers, no aliases, no diff and no template variables. The
+only templating dependency, `mustache`, rendered span previews, not prompts.
+
+Laminar's current docs have no prompt-management page either (checked on 2 November 2026). Two
+related features exist. The playground docs say you can "save versions to revisit later". And
+since August 2026 the open-source server has an optional system-prompt versioning pipeline, off
+by default, that groups the system prompts it sees in traces into versions
+([PR #2200](https://github.com/lmnr-ai/lmnr/pull/2200)). We did not test either. Neither one
+stores a prompt that your code fetches at runtime.
 
 So the fixture prompt had to be flattened by hand for Laminar — the `{% if is_vip %}`
 branch resolved to its VIP text, and the `{% for ticket in tickets %}` loop
 expanded into a literal list of two tickets. That flattened string is what `lm_trace_run.py`
 inlines, because there is nothing on the platform to fetch it from.
 
-On AcruxCore the same prompt is three immutable versions with `production` on v3 and `staging` on
-v2, a unified diff between any two, and the conditionals and loop rendered by nunjucks at request
-time.
+On AcruxCore the same prompt is three immutable versions with `production` and `staging`
+aliases, a unified diff between any two, and the conditionals and loop rendered by nunjucks at
+request time.
 
-![AcruxCore diff tab showing a unified diff between v2 and v3 of vip-support-triage, with the nunjucks conditional and for-loop intact](/img/comparison/acruxcore/acx-03-diff-tab.png)
+<details>
+<summary>Show screenshot: AcruxCore Versions tab with aliases</summary>
+
+![AcruxCore's Versions tab for vip-support-triage: v1, v2 and v3, each with a View traces link, production and staging alias badges on v3, and promote buttons on the older versions](/img/comparison/acruxcore/acx-02-versions-promoted.png)
+
+</details>
 
 | Feature | Laminar | AcruxCore |
 |---|---|---|
-| Prompt registry | None | Yes |
-| Version history | None — the playground row is overwritten | Immutable, numbered |
+| Prompt store fetched at runtime | None | Supported |
+| Version history | Playground docs say you can "save versions to revisit later"; in our run, editing a playground overwrote its row | Immutable, numbered |
 | Environment aliases | None | `production`, `staging`, promotable |
 | Diff between versions | None | Unified diff, any two versions |
-| Template logic | None — no variables in prompts at all | `{% if %}`, `{% for %}`, filters |
+| Template logic | None in the playground we ran | `{% if %}`, `{% for %}`, filters |
 | Runtime "render this stored prompt" call | None | `prompts.render(name, alias, variables)` |
 
 ## Sending a live call
@@ -249,24 +285,30 @@ no variables — the VIP sentence and the ticket list are pre-rendered by hand, 
 flattening described above. And the footer reports **input, output and total tokens, but no
 cost** — no latency and no cache status either.
 
+<details>
+<summary>Show screenshot: Laminar playground run</summary>
+
 ![Laminar playground running the flattened vip-support-triage prompt on GPT-4o mini, with the completion in the Output pane and a footer reading Input Tokens 99, Output Tokens 50, Total Tokens 149](/img/comparison/laminar/lm-05-playground-run.png)
 
-The limitation that stands is the provider list: seven named vendors and no custom base URL, so
-your own gateway, a relay or a local model server cannot be called from it at all.
+</details>
+
+In that build, the provider list was the larger limit: seven named vendors and no custom base
+URL, so the playground could not call your own gateway, a relay or a local model server.
+Laminar's current playground docs say models come from "LLM profiles" and that the History tab
+shows "latency, tokens, cost" for each run (checked on 2 November 2026). We have not re-tested
+the playground since 6 September 2026.
 
 AcruxCore's playground runs the stored prompt against any model the gateway knows, and shows cost,
 cache status and latency inline with the response.
 
-![AcruxCore playground running the stored vip-support-triage prompt, with a Gateway Telemetry panel showing cost, cache status and latency](/img/comparison/acruxcore/acx-04-playground-run.png)
-
 | Feature | Laminar | AcruxCore |
 |---|---|---|
-| Runs a stored prompt | No stored prompts to run | Yes, by name and alias |
-| Provider choice | Seven named providers, no custom base URL | Any OpenAI-compatible provider |
-| Variables in the playground | None — messages are typed in flat | `{{ }}` filled from a variables panel |
+| Runs a stored prompt | No: no stored prompts to run | Yes, by name and alias |
+| Provider choice | Seven named providers, no custom base URL, in the build we ran | Any OpenAI-compatible provider |
+| Variables in the playground | No — messages are typed in flat | `{{ }}` filled from a variables panel |
 | Tokens shown inline | Yes — input, output, total | Yes |
-| Cost shown inline | No | Yes |
-| Cache status shown inline | No cache | Yes |
+| Cost shown inline | No, in the build we ran | Yes |
+| Cache status shown inline | No: no cache | Yes |
 | Open from a trace span | Yes, "Experiment in playground" | Re-run from the trace |
 
 ## How tools are handled
@@ -278,8 +320,6 @@ beside the request path.
 
 AcruxCore's Tool Catalog is the opposite: a tool is a first-class, versioned resource that the
 gateway itself calls, with a page measuring per-tool volume, error rate and P50/P95.
-
-![AcruxCore tool analytics showing per-tool call volume, error rate and P50/P95 latency](/img/comparison/acruxcore/acx-08-tool-analytics.png)
 
 | Feature | Laminar | AcruxCore |
 |---|---|---|
@@ -306,12 +346,22 @@ evaluate(
 The results view puts the per-row scores beside the trace of each datapoint, with the evaluator
 functions themselves showing up as spans under the executor.
 
+<details>
+<summary>Show screenshot: Laminar evaluation results</summary>
+
 ![Laminar evaluation results for vip-triage-v1: average scores of 1 for both evaluators, three scored rows, and a trace tree with executor and evaluator spans](/img/comparison/laminar/lm-10-evaluation-run.png)
+
+</details>
 
 Datasets are built from the traces you already have — "Add to dataset" on a span turns it into a
 Data/Target row with no manual copying.
 
+<details>
+<summary>Show screenshot: Laminar dataset built from a span</summary>
+
 ![Laminar dataset vip-triage-cases holding one datapoint, its Data column the system and user messages and its Target column the assistant response, both taken from the span](/img/comparison/laminar/lm-07-dataset-from-span.png)
+
+</details>
 
 AcruxCore runs evaluations server-side instead — datasets, LLM judges and experiment runs from the
 dashboard, plus **rules** that score live production spans automatically. A rule is plain-English
@@ -319,7 +369,7 @@ criteria plus a judge model, matched against incoming `llm` spans by prompt, ali
 sampled (10% by default) and capped at a daily limit, producing a 0–100 score with a reason and
 emailing owners when a score drops below a threshold.
 
-The honest difference: Laminar's scorers are arbitrary code and can assert anything, but somebody
+The difference: Laminar's scorers are arbitrary code and can assert anything, but somebody
 has to run them. Ours run themselves against real traffic, but they are LLM judges producing a
 sampled numeric score, not arbitrary assertions.
 
@@ -339,7 +389,12 @@ a prompt to paste into your coding agent; `npx lmnr-cli setup` authenticates, wr
 to `.env` and installs a "Laminar skill"; and the CLI can query your traces in SQL so the agent
 can verify its own instrumentation.
 
+<details>
+<summary>Show screenshot: Laminar onboarding integrations</summary>
+
 ![Laminar onboarding: a grid of integrations including Vercel AI SDK, Claude Agent SDK, OpenAI Agents SDK, Browser Use and Stagehand, beside a "Get started in one prompt" panel for a coding agent](/img/comparison/laminar/lm-01-onboarding-integrations.png)
+
+</details>
 
 AcruxCore's SDK is aimed at a different job — the prompt lives on the platform, so the script
 fetches and fills it, sends it through the gateway, and never mentions tracing:
@@ -350,8 +405,6 @@ async with AcruxCore(api_key=KEY, base_url=BASE_URL) as hub:
     result = await hub.gateway.chat(rendered.model, rendered.messages, prompt_version_id=rendered.version_id)
 ```
 
-Both scripts are committed and were run before this post linked them.
-
 :::github
 - [`lm_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/laminar-vs-acruxcore/python/lm_trace_run.py) — the Laminar run.
 - [`acx_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/laminar-vs-acruxcore/python/acx_sdk_run.py) — the AcruxCore run.
@@ -360,10 +413,10 @@ Both scripts are committed and were run before this post linked them.
 | Feature | Laminar | AcruxCore |
 |---|---|---|
 | Lines to start tracing | One `initialize()` | Zero for a gateway call, one `register()` for a framework |
-| Framework auto-instrumentation | 15+ frameworks | 5 — OpenAI, OpenAI Agents SDK, CrewAI, LangChain, LlamaIndex |
+| Framework auto-instrumentation | 31 integrations listed | 5 — OpenAI, OpenAI Agents SDK, CrewAI, LangChain, LlamaIndex |
 | CLI | Yes, including SQL over traces | No |
 | MCP access for a coding agent | Yes, read-only | Yes, reads and writes |
-| Fetch a stored prompt at runtime | No prompts to fetch | Yes |
+| Fetch a stored prompt at runtime | No: no prompts to fetch | Yes |
 
 Both MCP servers let a coding agent read your traces. Through Laminar's server, a coding agent can
 also run SQL over your spans. AcruxCore's server has no SQL tool. Through AcruxCore's server, a
@@ -382,20 +435,31 @@ has trace feedback — a human can score a trace from −1 to 5 with a label and
 is no queue: no assignment to a reviewer, no next-unlabelled-item workflow, no rubric, no
 completion tracking.
 
+<details>
+<summary>Show screenshot: Laminar labeling queue</summary>
+
 ![Laminar labeling queue triage-quality-review with one item, showing the Data panel from the span, a Target panel and an annotation schema](/img/comparison/laminar/lm-08-labeling-queue.png)
+
+</details>
 
 **Signals.** You describe a behaviour in plain English, give it a structured output schema, and an
 LLM watches traces for it — with templates for failure, logic, task, user friction, hallucination
 and intent, a trigger on trace or span completion, filters, and sampling. Matching events are
-grouped into clusters and can page you in Slack.
+grouped into clusters. Laminar's README says it "pings you in Slack" when a matching behaviour
+happens (checked on 2 November 2026).
+
+<details>
+<summary>Show screenshot: Laminar Create Signal panel</summary>
 
 ![Laminar's Create Signal panel: name, six behaviour templates, a prompt, a structured output schema, trigger options, filters and a sampling toggle](/img/comparison/laminar/lm-11-signal-builder.png)
 
-This one needs a caveat we will not soften. AcruxCore's online evaluation rules cover much of the
+</details>
+
+AcruxCore's online evaluation rules cover much of the
 same ground — plain-English criteria, an LLM judge, automatic matching against live spans,
 sampling, daily caps and email alerts — so this is *not* a capability we lack. What we lack is the
 event-and-cluster model on top: their output is a structured event that gets clustered into
-behavioural patterns, ours is a 0–100 score with a reason. Also worth saying plainly: on the lite
+behavioural patterns, ours is a 0–100 score with a reason. On the lite
 self-hosted stack, after enabling Signals and running a fresh trace through it, **no event was
 produced within our observation window**. The builder is real and we screenshotted it; the
 end-to-end result we could not confirm.
@@ -405,7 +469,12 @@ change the code and re-run with cached state — the iteration loop owned by the
 by you. AcruxCore has nothing equivalent. AcruxCore's MCP server lets a coding agent read a trace
 and run a stored prompt, but that server cannot re-run your agent with cached state.
 
+<details>
+<summary>Show screenshot: Laminar debugger sessions</summary>
+
 ![Laminar debugger sessions page explaining the LMNR_DEBUG=1 loop where a coding agent runs, inspects and re-runs your agent with cached state](/img/comparison/laminar/lm-13-debugger.png)
+
+</details>
 
 **PII redaction.** A project-level toggle runs every ingested span through a PII redactor before
 storage, replacing detected names, emails and phone numbers. AcruxCore always scrubs a fixed set
@@ -413,50 +482,67 @@ of secret patterns — API keys, bearer tokens, AWS access keys and email addres
 team-level switch to stop capturing payloads at all, but nothing that detects names, phone
 numbers or addresses.
 
-Two more worth naming without a screenshot, because they are structural: Laminar delivers alerts
-to **Slack**, while AcruxCore's only notification channel is email; and Laminar records
+Two more without a screenshot. Laminar sends alerts to **Slack**, while AcruxCore's only
+notification channel is email. And Laminar records
 **browser-agent sessions** for Browser Use, Stagehand and Playwright, which we have no answer for
 at all. Our "Sessions" means traces grouped by a caller-supplied session id — a conversation
 thread, not a recording.
 
 ## Is AcruxCore a Laminar alternative?
 
-For part of what Laminar does, no — and that is the most useful thing this comparison found.
-Both of us take nested OTel spans, so seeing an agent run is not the dividing line. Digging into
-one is: SQL over your own span store, a composable dashboard, labeling queues, a transcript view,
-and three times the framework integrations. We do not replace that depth, and this post does not
-pretend otherwise.
+For seeing an agent run, yes. Both products take nested OTel spans and show the run as a tree.
+For analysing runs, no. Laminar adds SQL over your own span store, a composable dashboard,
+labeling queues, a transcript view, and many more integrations. AcruxCore does not replace that.
 
-Where we are a genuine alternative is everything that happens *before* the call. Laminar has
-no prompt registry, no request path, and therefore no way to enforce a spend cap or serve a
-cached response. If those are the things going wrong for you, that is the swap worth making.
+For what happens before the call, yes. Laminar has no prompt store that your code fetches, and
+no request path, so it cannot enforce a spend cap or serve a cached response. The two also
+combine: point your client at AcruxCore's gateway and keep Laminar's SDK instrumenting the run.
 
-They also compose, which is the answer most people actually want: point your client at our
-gateway and keep Laminar's SDK instrumenting the run. Nothing about the two conflicts.
+To choose, start at the top and stop at the first question you answer yes to.
 
-## Verdict
+![Laminar or AcruxCore? A decision flow: if you need SQL, dashboards or labeling queues over your traces, pick Laminar; if cost or access needs a control point, pick AcruxCore; the two can also run together](/img/blog/acruxcore-vs-laminar/decision.webp)
 
 | | Laminar | AcruxCore |
 |---|---|---|
-| Strongest at | Digging into an agent run — SQL, dashboards, labeling, transcript views | Managing the prompts and calls that produce the run |
-| Weakest at | Anything before the call — no prompt registry, no request path, no spend control — and a playground that reaches only seven named providers, with no custom base URL | Asking arbitrary questions of your own trace data |
-| Pick it if | You are shipping an agent on a framework, and your hard problem is understanding its behaviour | Your prompts change often, several people edit them, and cost or access needs a control point |
+| Strongest at | Analysing agent runs: SQL, dashboards, labeling, transcript views, signals, a debugger | Managing the prompts and calls that produce the run: versions, aliases, templates, a gateway that can refuse a call over budget |
+| Weakest at | Anything before the call: no runtime prompt store, no request path, no spend control | Asking arbitrary questions of your own trace data |
 
-These two tools barely overlap. Laminar
-starts at the trace and builds upward — SQL, dashboards, labeling, signals, a debugger — and it
-beats us clearly on [querying trace data](#querying-your-trace-data), and on the breadth and
-reading of [traces](#tracing-an-agent-run) — both platforms take nested OTel spans, but they
-have three times the integrations and far more ways to read them back. On
-[measured latency](#latency-overhead--measured) the two are close — both sit within tens of
-milliseconds of a direct call, with Laminar consistently the lower of the two by about 10 ms.
-AcruxCore starts at the prompt and
-the request — versions, aliases, templates, a gateway that can refuse a call that would blow a
-budget — and Laminar has no answer for any of that, by design.
+License, pricing, team model, security and community stats for both, with a source link and a
+checked-on date for every fact, are on the [compare page](https://acruxcore.com/compare).
 
-License, pricing, team model, security and community stats for both — with a source link and a
-checked-on date for every fact — are on the [compare page](https://acruxcore.com/compare).
+> **Key point:** Laminar starts at the trace and builds upward, and AcruxCore starts at the
+> prompt and the request. Teams that need both can send calls through AcruxCore's gateway and keep
+> Laminar's SDK on the same run.
 
-To compare more tools, see [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison),
-[8 LangSmith alternatives](/blog/langsmith-alternatives) and [8 Langfuse alternatives](/blog/langfuse-alternatives).
+## FAQ
 
-Start here if you want to try the other side: [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart).
+### Is Laminar open source?
+
+Yes. Laminar is Apache 2.0, and we ran its self-hosted lite stack with `docker compose up -d`.
+
+### Does Laminar have prompt management?
+
+Not as a store your code fetches at runtime. Its playground docs say you can save versions to
+revisit later, and an optional server pipeline groups system prompts seen in traces into
+versions. Neither one serves a stored prompt to your code.
+
+### Does Laminar support SQL over traces?
+
+Yes. Laminar's SQL editor runs queries over its ClickHouse span store, with saved queries, an
+"Ask AI" button and CSV export. Its MCP server also exposes read-only SQL to a coding agent.
+
+### Does Laminar sit in the request path?
+
+No. Laminar receives spans from your process and never receives the model call. So it cannot
+enforce a spend cap, rate-limit a key or serve a cached response.
+
+### Can I use Laminar and AcruxCore together?
+
+Yes. You can point your client at AcruxCore's gateway and keep Laminar's SDK instrumenting the
+agent run.
+
+Other head-to-heads: [AcruxCore vs Langfuse](/blog/acruxcore-vs-langfuse) and
+[AcruxCore vs Braintrust](/blog/acruxcore-vs-braintrust). Laminar is also covered in
+[7 Langfuse alternatives](/blog/langfuse-alternatives) and
+[10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison). To try AcruxCore, start with the
+[Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart).

@@ -3,7 +3,7 @@
 The counterpart to `tool_agent_acruxcore_sdk.py`. LangChain's `create_agent`
 owns the loop, `@tool` turns a plain function into a tool with a schema derived
 from its type hints and docstring, and tracing needs no code at all — importing
-LangChain with `LANGCHAIN_TRACING_V2=true` set is enough.
+LangChain with `LANGSMITH_TRACING=true` set is enough.
 
 Run:
   export LANGSMITH_API_KEY=lsv2_pt_...
@@ -20,8 +20,7 @@ import sys
 PROJECT = "weather-tool-agent-langchain"
 
 # Must be set before LangChain is imported — the tracer reads them at import time.
-os.environ["LANGCHAIN_TRACING_V2"] = "true"
-os.environ["LANGCHAIN_PROJECT"] = PROJECT
+os.environ["LANGSMITH_TRACING"] = "true"
 os.environ["LANGSMITH_PROJECT"] = PROJECT
 
 if not os.environ.get("LANGSMITH_API_KEY"):

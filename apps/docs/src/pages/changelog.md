@@ -23,6 +23,27 @@ called out in the week it ships and in the SDK release notes.
 
 ---
 
+## Week of 2 November 2026
+
+### Major
+
+- None this week.
+
+### Minor
+
+- **Fixed** — six blog posts got Langfuse, Opik, Phoenix, PromptLayer or Helicone features wrong.
+- AcruxCore vs Langfuse is rewritten around one app, with a Langfuse prompt diff test.
+- AcruxCore vs Helicone now covers per-user rate limits, alerts and budgets, cited to Helicone's docs.
+- The LLM observability tools post is shorter, with a feature table leading each section.
+- Comparison posts drop the "Winner" column and copied text for "Pick X if" guidance.
+- Blog tables no longer show a lone tick or cross beside a plain answer, so no row reads one-sided.
+- **Fixed** — 14 posts and the compare page re-checked against vendor docs; gaps seen only in our tests now say so.
+- Platform screenshots and long run output in 14 blog posts now open from a toggle.
+- 18 older blog posts get their own header image and one diagram, replacing the default card.
+- Blog posts now show "Published" and "Updated" dates under the title.
+
+---
+
 ## Week of 26 October 2026
 
 ### Major

@@ -5,21 +5,25 @@ slug: tool-agent-sdk-langchain-vs-acruxcore
 date: 2026-07-27
 authors: [acrux]
 tags: [llmops-comparison, llm-tracing]
-image: /img/social-card.png
+image: /img/blog/tool-agent-sdk-langchain-vs-acruxcore/header.webp
 keywords: [AcruxCore vs langchain, langchain create_agent, langchain vs acruxcore sdk, run_tool_loop, agent sdk comparison, langchain tool tracing, python llm agent sdk]
 last_update:
-  date: 2026-10-25
+  date: 2026-11-02
 ---
+
+![LangChain builds the agent from a decorated function, runs the loop as a graph, records its graph nodes and has a large ecosystem; AcruxCore uses the same decorator, owns the whole loop, records only model and tool calls and keeps a versioned tool schema](/img/blog/tool-agent-sdk-langchain-vs-acruxcore/header.webp)
 
 This post compares the code you write for a tool-calling agent when the tool is a function
 in your own app. We built the agent twice: once with LangChain's `create_agent`, and once with
 the AcruxCore SDK's `run_tool_loop`. Both use the same tool, the same question and the same
-model (`openai/gpt-4o-mini` via OpenRouter), and both ran live.
+model (`openai/gpt-4o-mini` via OpenRouter), and both ran live. The run date and the
+`langchain`, `langgraph` and `acruxcore` versions were not recorded. The AcruxCore leg ran on
+hosted acruxcore.com, as the trace link in its output shows.
 
 A [separate post](/blog/tool-calling-traces-langsmith-vs-acruxcore) compares how LangSmith and
 AcruxCore trace the same agent.
 
-We build AcruxCore. We ran every tool ourselves, and the scripts are linked below.
+We build AcruxCore. Both agents' scripts are printed in full at the end of the post.
 
 <!-- truncate -->
 
@@ -46,7 +50,7 @@ agent = create_agent(model=model, tools=[get_weather_tool], system_prompt=SYSTEM
 result = agent.invoke({"messages": [{"role": "user", "content": QUESTION}]})
 ```
 
-Tracing needs **zero** lines. Set `LANGCHAIN_TRACING_V2=true` before the import and every
+Tracing needs **zero** lines. Set `LANGSMITH_TRACING=true` before the import and every
 run reports itself. That is the strongest thing about the LangChain/LangSmith pairing: if
 you are already on LangChain, observability costs you an environment variable.
 
@@ -108,10 +112,13 @@ version only when the spec changed, and commits nothing on a re-run — so it is
 top of a long-running service. We verified the idempotency: run the script twice and the
 version count stays at 1.
 
-So the tool exists in two places at once, deliberately. The catalog owns the **contract**
-that the model is shown, and your function owns the **body**. Any other service, in any
-language, can resolve that contract and call the tool; and you can promote a new version
-from the dashboard without touching this file.
+So the tool exists in two places. The catalog owns the **contract** that the model is shown,
+and your function owns the **body**. Another service, in any language, can read the same
+versioned schema. It cannot run this tool, because the version's executor is `client`: only
+the process that holds the function runs the body. A version with an `http` executor is one
+the platform can run for any caller.
+
+![A synced tool lives in two places: the catalog owns the contract the model is shown, with name, description, argument schema and version number, while your function owns the body and runs in your process](/img/blog/tool-agent-sdk-langchain-vs-acruxcore/contract-and-body.webp)
 
 ### Two ways in, and why this post uses one of them
 
@@ -153,15 +160,21 @@ weather-agent-standalone      3 spans   371 tokens   ok
 └─ llm  (openai/gpt-4o-mini)  1746ms   240
 ```
 
-Three spans, one per thing that actually happened. The client-side tracing code for this is
-none: no tracing SDK, no decorator, no span object. The gateway writes the `llm` spans
-because it is the thing making the provider call, and the SDK writes the `tool` span around
-your function and threads it into the same trace.
+Three spans, one per model call or tool call. The script has no tracing-specific code: no
+trace id, no span object, no tracing environment variable. The gateway writes the `llm`
+spans because it makes the provider call, and the SDK writes the `tool` span around the
+function that `@acrux.tool` decorates and puts it in the same trace.
 
-> **Key point:** LangChain's trace has seven runs for one agent turn. AcruxCore's trace has three
-> spans: two `llm` spans and one `tool` span.
+> **Key point:** Both frameworks derive the tool schema from the same function and run the loop
+> for you. The trace shape is where they differ: LangGraph records its graph nodes, and
+> AcruxCore records only the model and tool calls.
+
+<details>
+<summary>Show screenshot: the client tool span in AcruxCore</summary>
 
 ![The tool span from the run, showing executorType client and the tool version id](/img/blog/tool-comparison/04-client-tool-span.png)
+
+</details>
 
 `executorType: client` is the span saying your process ran the tool, and `toolVersionId`
 names the exact contract version the model was shown — the thing a decorated local function
@@ -175,7 +188,7 @@ real code, excluding docstrings, comments and blank lines:
 
 | | LangChain + LangSmith | AcruxCore SDK |
 |---|---|---|
-| Agent with tracing | **50** | **36** |
+| Agent with tracing | **49** | **36** |
 | Complete self-contained script (the two at the end of this post) | **40** | **40** |
 
 The first row differs because the LangChain leg wires the model client itself —
@@ -194,7 +207,7 @@ All four scripts in this post are in the repo.
 :::
 
 <details>
-<summary><strong>tool_agent_langchain.py</strong> — LangChain's <code>create_agent</code>, 50 lines of code</summary>
+<summary><strong>tool_agent_langchain.py</strong> — LangChain's <code>create_agent</code>, 49 lines of code</summary>
 
 ```python title="tool_agent_langchain.py"
 """SDK leg: the same get_weather agent using LangChain + LangSmith.
@@ -202,7 +215,7 @@ All four scripts in this post are in the repo.
 The counterpart to `tool_agent_acruxcore_sdk.py`. LangChain's `create_agent`
 owns the loop, `@tool` turns a plain function into a tool with a schema derived
 from its type hints and docstring, and tracing needs no code at all — importing
-LangChain with `LANGCHAIN_TRACING_V2=true` set is enough.
+LangChain with `LANGSMITH_TRACING=true` set is enough.
 
 Run:
   export LANGSMITH_API_KEY=lsv2_pt_...
@@ -219,8 +232,7 @@ import sys
 PROJECT = "weather-tool-agent-langchain"
 
 # Must be set before LangChain is imported — the tracer reads them at import time.
-os.environ["LANGCHAIN_TRACING_V2"] = "true"
-os.environ["LANGCHAIN_PROJECT"] = PROJECT
+os.environ["LANGSMITH_TRACING"] = "true"
 os.environ["LANGSMITH_PROJECT"] = PROJECT
 
 if not os.environ.get("LANGSMITH_API_KEY"):
@@ -294,10 +306,9 @@ if __name__ == "__main__":
 ```python title="tool_agent_acruxcore_sdk.py"
 """SDK leg: the same get_weather agent using the `acruxcore` Python SDK.
 
-This is the third way to write the run, after the raw-REST/OpenAI-client legs.
 `run_tool_loop` owns the entire loop — call the model, run the tool calls, append
-results, repeat — and reports one trace covering all of it. Three things disappear
-compared to `tool_agent_acruxcore.py`:
+results, repeat — and reports one trace covering all of it. Compared with writing
+the loop yourself against the gateway, three things disappear:
 
 * No registration step: `@acrux.tool` is the tool definition, and the loop
   reconciles it with the catalog on its first call. Re-running with an unchanged
@@ -378,10 +389,9 @@ if __name__ == "__main__":
 
 </details>
 
-The 40 lines give you different things. LangChain gives you a graph and a large
-ecosystem of components. AcruxCore gives you a versioned catalog artifact your other
-services can call, in any language, and a version you can promote without redeploying the
-caller.
+The 40 lines give you different things. LangChain gives you a graph and a large ecosystem
+of components. AcruxCore gives you a versioned tool schema in its catalog, and a tool span
+that names the version the model was shown.
 
 ## Is AcruxCore a LangChain alternative?
 
@@ -391,11 +401,13 @@ integrations, no.
 **On tool ergonomics they are the same.** Both decorators read the schema off your type
 hints and docstring, and neither needs a separate registration step.
 
-**AcruxCore wins on the loop and the trace.** One call replaces the loop, parallel tool
-calls are dispatched concurrently for you, and the trace has one span per real event
-instead of a graph node per framework abstraction. Schema drift also cannot happen: the
-model is handed whatever `production` points at, so the definition cannot fall out of step
-with the code the way a hand-maintained schema can.
+**On the loop they are the same.** `create_agent` and `run_tool_loop` each run the whole
+loop in one call. LangGraph's tool node manages parallel tool execution, and `run_tool_loop`
+runs a round's tool calls concurrently, so neither has an edge there.
+
+**AcruxCore differs on the trace and the tool record.** Its trace has three spans, one per
+model or tool call, where LangChain's has seven runs that include LangGraph's own nodes. Each
+tool call is stored against a versioned catalog entry.
 
 **LangChain wins on reach.** If your agent needs retrievers, memory, a vector store and
 four integrations, that ecosystem exists and ours does not.
@@ -405,10 +417,9 @@ AcruxCore SDK needs nothing, because the trace is a property of the gateway call
 than something a client library has to be told to emit.
 
 :::tip[If you are choosing today]
-Already committed to LangChain? Stay there and turn on LangSmith — the marginal cost of
-observability is one environment variable. Building services in more than one language, or
-wanting to change a tool without redeploying its callers? The catalog plus `run_tool_loop`
-buys you a versioned artifact and a cleaner trace, for the same amount of code.
+If you already use LangChain, stay there and turn on LangSmith: tracing costs one
+environment variable. If you want a versioned record of each tool's schema and a trace with
+only the model and tool calls, `run_tool_loop` gives you that for the same amount of code.
 :::
 
 ## Run it yourself: the two complete scripts
@@ -446,8 +457,8 @@ embedded in the blog post, kept here so it can be run and stay honest.
 import os
 
 # Must be set before LangChain is imported — the tracer reads them at import time.
-os.environ["LANGCHAIN_TRACING_V2"] = "true"
-os.environ["LANGCHAIN_PROJECT"] = "weather-agent-standalone"
+os.environ["LANGSMITH_TRACING"] = "true"
+os.environ["LANGSMITH_PROJECT"] = "weather-agent-standalone"
 
 import requests
 from langchain.agents import create_agent
@@ -497,7 +508,7 @@ def main() -> None:
     )
 
     print(result["messages"][-1].content)
-    print(f"\nTrace: smith.langchain.com → project '{os.environ['LANGCHAIN_PROJECT']}'")
+    print(f"\nTrace: smith.langchain.com → project '{os.environ['LANGSMITH_PROJECT']}'")
 
 
 if __name__ == "__main__":
@@ -612,7 +623,32 @@ Trace: https://acruxcore.com/traces/d29ff672-a065-4e7a-877f-104d4dce5685
 
 </details>
 
-The difference in what you had to write is the whole comparison in one place. LangChain: a
-decorated function and three lines of wiring. AcruxCore: a decorated function and three
-lines of wiring — plus a versioned catalog artifact your other services can call and a
-version you can promote without touching this code.
+## FAQ
+
+### Can AcruxCore replace LangChain for a tool-calling agent?
+
+Yes: both build the tool schema from a decorated function and run the
+loop for you. For an agent that needs LangChain's retrievers, memory and integrations, no.
+
+### How does LangChain's create_agent trace tool calls?
+
+With `LANGSMITH_TRACING=true` set before LangChain is imported, every run reports itself to
+LangSmith with no tracing code. One agent turn in this test produced seven runs, including
+LangGraph's `model` and `tools` nodes.
+
+### What does run_tool_loop do?
+
+`run_tool_loop` in the AcruxCore Python SDK calls the model, runs the tool calls, appends the
+results and repeats until the model answers. It reports one trace for the whole loop.
+
+### Do I need to register a tool before using run_tool_loop?
+
+No. On its first call the loop sends the schema from `@acrux.tool` to the catalog, creating the
+tool or committing a new version only when the schema changed. A second run with an unchanged
+function commits nothing.
+
+### How many lines of code does each agent take?
+
+The complete self-contained scripts are 40 lines each. With shared helpers, the LangChain agent
+with tracing is 49 lines and the AcruxCore agent is 36, because the LangChain leg sets up the
+model client itself.

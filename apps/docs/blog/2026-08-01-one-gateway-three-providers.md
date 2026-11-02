@@ -4,11 +4,13 @@ description: The same chat request, translated into Anthropic, Gemini, and OpenA
 slug: one-gateway-three-providers
 authors: [acrux]
 tags: [llm-gateway]
-image: /img/social-card.png
+image: /img/blog/one-gateway-three-providers/header.webp
 keywords: [anthropic api vs openai api, gemini api shape, llm provider comparison, unified llm api, chat completions translation]
 last_update:
   date: 2026-10-25
 ---
+
+![One OpenAI-shaped request enters the gateway, whose adapters rewrite it: for Anthropic the system message is hoisted out and tools are renamed, for Gemini the model goes in the URL and sampling params nest, and for OpenAI the shape is close to a passthrough](/img/blog/one-gateway-three-providers/header.webp)
 
 Anthropic, Gemini, and OpenAI each expect a different request: a different auth
 header, a different place for sampling parameters, and a different key for the
@@ -52,6 +54,10 @@ That's the whole client-facing contract, regardless of which model answers
 it. Below is what each adapter actually builds from it, captured by running
 the gateway's own adapter code directly against this exact request.
 
+Before the details, here is where the three shapes differ.
+
+![Where the three request shapes differ: Gemini puts the model name in the URL path, Anthropic and Gemini hoist the system message, Gemini renames the assistant role and nests sampling params, and OpenAI keeps everything inline](/img/blog/one-gateway-three-providers/shapes.webp)
+
 ## Anthropic: system hoisted out, tools renamed, no `Authorization` header
 
 ```json
@@ -87,9 +93,14 @@ A live call through the gateway to an Anthropic-backed model with this same
 system and user message came back through the same normalization path as
 the other two:
 
+<details>
+<summary>Show output: the response from the Anthropic-backed model</summary>
+
 ```json
 {"id":"msg_011CdbQLdD7d1TBhx2cp7izz","model":"claude-haiku-4-5-20251001","object":"chat.completion","created":1785558766,"choices":[{"index":0,"message":{"role":"assistant","content":"I'd be happy to help you look up your order! Could you please provide me with your order ID? You can usually find this in your confirmation email or account."},"finish_reason":"stop"}],"usage":{"prompt_tokens":584,"completion_tokens":37,"total_tokens":621}}
 ```
+
+</details>
 
 ## Gemini: model in the URL, messages become `contents`, sampling params nest
 
@@ -127,9 +138,14 @@ system and user message came back through the same normalization path as
 the other two. `gemini-3.6-flash` is a thinking model, so `completion_tokens`
 includes its reasoning, which `reasoning_tokens` also reports:
 
+<details>
+<summary>Show output: the response from gemini-3.6-flash</summary>
+
 ```json
 {"id":"chatcmpl-8794e3b4-4e8d-48eb-9b52-f0f8c3156d4c","model":"gemini-3.6-flash","object":"chat.completion","created":1792949745,"choices":[{"index":0,"message":{"role":"assistant","content":"I'd be happy to help check on your order! Could you please provide your order ID?"},"finish_reason":"stop"}],"usage":{"prompt_tokens":70,"completion_tokens":115,"total_tokens":185,"reasoning_tokens":95,"completion_tokens_details":{"reasoning_tokens":95}}}
 ```
+
+</details>
 
 ## OpenAI: the gateway's own shape, close to a passthrough
 
@@ -162,9 +178,14 @@ is the standard header. Two things change. `max_tokens` is sent as
 this same system and user message came back exactly as you'd expect from that
 passthrough:
 
+<details>
+<summary>Show output: the response from gpt-4o-mini</summary>
+
 ```json
 {"id":"chatcmpl-EcwMIJOD35Up0SNP0MUPnhgHli0oQ","model":"gpt-4o-mini-2024-07-18","object":"chat.completion","created":1792949502,"choices":[{"index":0,"message":{"role":"assistant","content":"Please provide me with your order ID so I can look it up for you."},"finish_reason":"stop"}],"usage":{"prompt_tokens":68,"completion_tokens":17,"total_tokens":85}}
 ```
+
+</details>
 
 ## Side by side
 

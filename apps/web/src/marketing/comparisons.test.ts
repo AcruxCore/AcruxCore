@@ -60,14 +60,16 @@ describe('comparison data', () => {
 
   // Every competitor here ships an MCP server (Agenta's searches only its docs), so the
   // row can only ever compare what the servers do. A win is recorded only where ours covers everything theirs does;
-  // Langfuse's and Phoenix's servers have tools ours lacks, so those are differences.
+  // Langfuse's, Phoenix's, Opik's and MLflow's servers have tools ours lacks (Opik writes traces and
+  // comments; MLflow has model and deployment tools), so those are differences.
   it('scores the MCP server row only where AcruxCore covers every capability', () => {
     const winners = COMPARISON_LIST.filter((c) => c.mcpServer.acruxWins).map((c) => c.slug);
-    expect(winners.sort()).toEqual(['agenta', 'helicone', 'laminar', 'mlflow', 'opik']);
+    expect(winners.sort()).toEqual(['agenta', 'helicone', 'laminar']);
     for (const competitor of COMPARISON_LIST) {
       expect(competitor.mcpServer.competitorWins, competitor.name).toBeUndefined();
       expect(competitor.mcpServer.source, `${competitor.name} MCP fact has no source`).toBeDefined();
-      expect(competitor.mcpServer.checkedOn).toBe('2026-10-18');
+      // Rows re-checked in the 2 November 2026 claim sweep carry that date; the rest keep 18 October.
+      expect(['2026-10-18', '2026-11-02']).toContain(competitor.mcpServer.checkedOn);
       // The row compares what a server does, never whether one exists.
       expect(competitor.mcpServer.value).not.toMatch(/no MCP server|lacks an MCP/i);
     }

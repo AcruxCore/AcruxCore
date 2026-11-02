@@ -1,236 +1,253 @@
 ---
-title: "AcruxCore vs Helicone: two request-path proxies, measured"
-description: "AcruxCore vs Helicone: both sit in the request path. We rebuilt one prompt on each, and timed 300 benchmark rounds through both gateways."
+title: "AcruxCore vs Helicone: two request-path gateways compared"
+description: "AcruxCore vs Helicone: two gateways in the request path, compared on prompts, caching, rate limits, alerts, tools and evals, with latency measured."
 slug: acruxcore-vs-helicone
 authors: [acrux]
 tags: [llmops-comparison, llm-gateway, llm-tracing]
-image: /img/social-card.png
+image: /img/blog/acruxcore-vs-helicone/header.webp
 keywords: [AcruxCore vs helicone, helicone vs AcruxCore, llm ops comparison, ai gateway, llm proxy, prompt versioning, llm tracing]
 last_update:
-  date: 2026-10-25
+  date: 2026-11-02
 ---
 
-Helicone is a proxy-first LLM observability tool. You point your API base URL at it, and
-it sits in the request path, like AcruxCore's own gateway. On 3 March 2026 Helicone
-[joined Mintlify](https://www.mintlify.com/blog/mintlify-acquires-helicone),
-and its services now run in maintenance mode. Helicone says security updates, new
-models, and bug and performance fixes keep shipping.
+![Helicone is strongest at rate limits per user, user metrics, Slack alerts and moderation headers; AcruxCore at prompt templates with logic, a versioned tool catalog, datasets and experiments, and spend budgets](/img/blog/acruxcore-vs-helicone/header.webp)
 
-We built the same prompt on self-hosted Helicone and on AcruxCore. The prompt is
-`vip-support-triage`, a support agent that changes tone for VIP customers and lists
-their open tickets. On each tool we created the prompt, sent a live call, inspected the
-trace, built a dataset, and called it from a script. On this self-hosted Helicone build,
-three of those steps failed with reproducible errors before we got a trace, and we
-show those errors below.
+Helicone is an LLM gateway and observability tool. You point your OpenAI client at its base
+URL, and it logs each call, caches responses and applies rate limits. AcruxCore also puts a
+gateway in the request path, and adds versioned prompts, a tool catalog and evaluations around
+it. We rebuilt the support prompt `vip-support-triage` on a self-hosted Helicone and on
+AcruxCore, and timed both gateways against a direct call to OpenAI.
 
-The short answer: the two gateways tied on latency. Prompts and tools decide the choice.
-Helicone has flat variable substitution and we found no tool catalog, while AcruxCore has
-`{% if %}` / `{% for %}` templates and a versioned tool catalog that the gateway runs.
-Helicone can scope a rate limit to one end user, and AcruxCore cannot.
+The short answer: the two gateways added about the same small delay. Helicone is ahead on
+controls per end user: rate limits per user, user metrics, and alerts on error rate or latency
+sent to Slack. AcruxCore is ahead on what sits around the call: prompt templates with
+`{% if %}` and `{% for %}`, a versioned tool catalog, datasets and experiments, and spend
+budgets that refuse a call before it reaches the provider.
 
-We build AcruxCore. We ran every tool ourselves, and the scripts are linked below.
+AcruxCore is our product. Each script we ran is linked next to its result.
 
 <!-- truncate -->
 
-:::note[Same example, both sides]
-Every paired screenshot below comes from the exact same prompt and the exact same
-customer message, aimed at the exact same downstream model (`openai/gpt-4o-mini` via
-OpenRouter) on both platforms. Where Helicone's own request path or logging pipeline
-failed before completing that call, we show the real error instead of a trace — that
-failure **is** the finding for that aspect, not a gap we padded over. License,
-pricing, team structure, and community stats live on the
-[compare page](https://acruxcore.com/compare) instead of here — they were always tables, and a
-price change there is one edit instead of three.
+:::note[Helicone's status]
+On 3 March 2026 [Mintlify acquired Helicone](https://www.mintlify.com/blog/mintlify-acquires-helicone)
+and said it would run in maintenance mode: "security updates, bug fixes, and new models will
+keep shipping." On 2 November 2026, a banner on [helicone.ai](https://www.helicone.ai/) reads
+"Helicone is no longer part of Mintlify. Details to come soon."
 :::
+
+## How we tested
+
+- **Helicone:** self-hosted with its `docker compose` setup, in August 2026. We have no Helicone
+  Cloud account. Where this post describes a Helicone feature we did not run, it links the
+  Helicone docs page, read on 2 November 2026.
+- **Model:** `openai/gpt-4o-mini` through OpenRouter for the prompt work, and `gpt-4o-mini` on
+  `api.openai.com` for the latency benchmark.
+- **Setup errors on our self-hosted install:** the Playground's Run returned "Invalid session",
+  and the manual logging endpoint returned HTTP 500 "Region is missing", because our compose
+  file set no `S3_REGION`. These came from our install, so we do not count them against
+  Helicone, and they do not appear in the tables below.
+- **AcruxCore in the benchmark:** a local gateway. Hardware not recorded.
 
 ### At a glance
 
-| Aspect | Helicone | AcruxCore | Winner |
-|---|---|---|---|
-| Request-path gateway | Real design (caching, rate limits) but BYOK routing to a non-native provider 501s / hard-forwards to the wrong host | Routed our OpenRouter call successfully, every time | Depends |
-| Prompt templating | Flat `{{ hc:var:type }}` substitution only | Real nunjucks `{% if %}` / `{% for %}` logic | AcruxCore |
-| Playground | `/generate` returns 401 "Invalid session" on every attempt | Runs, shows cost/cache/latency inline | AcruxCore |
-| Tracing pipeline | Manual-log endpoint 500s — self-host missing `S3_REGION` | Automatic single span, always written | AcruxCore |
-| Tool catalog | No tool-catalog concept found anywhere in the nav | Versioned catalog, real executed calls, analytics | AcruxCore |
-| Dataset creation | Built from Request rows — none existed, since no call ever logged | From real span-level trace feedback | AcruxCore |
-| SDK & DX | Direct-call script ran; the log-to-Helicone call it makes 500s | Automatic side effect of `hub.gateway.chat()` | AcruxCore |
-| Measured overhead | −15 to +3 ms, but forwarding only — nothing was logged | +4 to +10 ms, logging included | Tie |
-| Real friction hit | Auth + config bugs blocked the Playground and manual logging; the gateway itself was fine | Nothing to instrument, zero extra code | AcruxCore |
-| MCP server | [Local program, three tools](https://github.com/Helicone/helicone/tree/main/helicone-mcp): query requests and sessions, send raw messages through the gateway | [Hosted or local](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client): commit, promote and run stored prompts, read traces, run experiments | AcruxCore |
+| Aspect | Helicone | AcruxCore |
+|---|---|---|
+| Request-path gateway | Yes: base URL change; the hosted gateway lists 100+ providers | Yes: OpenAI, Anthropic, Gemini, and any OpenAI-compatible base URL |
+| Pays the provider for you | Yes: Helicone credits on the hosted gateway | No: every call uses your own provider key |
+| Prompt templating | Partial: flat `{{hc:name:type}}` variables, no conditionals or loops | Yes: Nunjucks `{% if %}` / `{% for %}`, Diff tab |
+| Response cache | Yes: per request, with several replies per request if you want | Yes: per virtual key with a TTL, one reply per exact request |
+| Rate limits | Yes: by request or cost, globally, per user or per custom property | Partial: requests and tokens per virtual key, nothing per user |
+| Spend budgets | Partial: a rate-limit policy can count cents | Yes: per team or key, refuses the call with a 402 |
+| Per-user metrics | Yes: one `Helicone-User-Id` header | No: a user id in trace metadata can be filtered, with no metrics page |
+| Alerts | Yes: error rate, cost, latency, tokens, requests; email or Slack | Partial: email only, on budgets and online eval scores |
+| Tool catalog | No: none found in the navigation | Yes: versioned tools, executed by the gateway, with analytics |
+| Datasets and experiments | Partial: datasets curated from logged requests; experiments not tested | Yes: datasets, version × model experiments, online eval rules |
+| MCP server | Partial: three tools, all read or send | Yes: also commits and promotes prompts and runs experiments |
+| Self-hosting | Yes: several services, ClickHouse among them | Yes: Postgres and Redis |
+
+- **Pick Helicone if** you need rate limits per end user, user metrics, Slack alerts, or one bill
+  for 100+ providers through Helicone credits.
+- **Pick AcruxCore if** your prompts need branches, versions and aliases, or you want a tool
+  catalog, evaluations and spend budgets on the same gateway.
 
 License, pricing, team structure, security, and community stats: see
 [AcruxCore vs Helicone on the compare page](https://acruxcore.com/compare).
 
-Full breakdown, screenshots, and the verdict below.
+## Where the platform sits
 
-## Where the platform sits — in the request path, or beside it
+Both tools sit in the request path. Your app sends the call to the gateway, and the gateway
+calls the provider.
 
-Unlike most LLM observability tools, Helicone is a request-path product
-by design: its Providers page lets you register 20+ providers for its "AI Gateway",
-and its Cache and Rate Limits pages document real header-controlled response caching
-(`Helicone-Cache-Enabled`) and rate limiting. Hands-on, routing a **non-native**
-provider through it failed two different ways: `POST /v1/gateway/oai/v1/chat/
-completions` forwards the `Authorization` header straight to `api.openai.com`
-regardless of the OpenRouter key registered in Settings, and the generic
-multi-provider path (`/v1/gateway/gateway/...`) returns a flat `HTTP 501 "Not
-implemented"` — confirmed by reading the self-hosted `jawn` service's own compiled
-source, where that handler is a stub. AcruxCore's gateway sits **in the request
-path** too, and routed our OpenRouter call successfully on every one of the 100
-benchmark rounds below.
+On Helicone, you change the base URL to `https://ai-gateway.helicone.ai` and pass a Helicone
+API key ([Helicone quickstart](https://docs.helicone.ai/getting-started/quick-start)). Headers
+then switch features on for each call: `Helicone-Cache-Enabled`, `Helicone-RateLimit-Policy`,
+`Helicone-Session-Id` and others
+([header directory](https://docs.helicone.ai/helicone-headers/header-directory)). The hosted
+gateway can also bill you from Helicone credits, with Helicone managing the provider keys
+([Helicone gateway](https://docs.helicone.ai/gateway/overview)).
+
+On AcruxCore, you add a provider credential and register each model once. Your app then sends
+calls with a virtual key. Most settings live on that key, not on each request: the models it
+may call, its request and token limits, and its cache TTL
+([virtual keys](https://docs.acruxcore.com/docs/guides/scope-access-with-virtual-keys)).
+AcruxCore does not sell model access.
 
 <details>
-<summary>Show screenshots: gateway provider setup on Helicone, telemetry on AcruxCore</summary>
+<summary>Show screenshot: gateway provider setup on Helicone</summary>
 
-![Helicone's Providers page with OpenRouter registered and "Enable for AI Gateway (BYOK)" checked — the feature the request-path proxy is supposed to use](/img/comparison/helicone/hl-04-gateway-provider.png)
-![AcruxCore's Gateway Telemetry panel — provider, model, cost, cache status, and latency, all computed inline before the response is returned](/img/comparison/acruxcore/acx-04-playground-run.png)
+![Helicone's Providers page with OpenRouter registered and "Enable for AI Gateway (BYOK)" checked](/img/comparison/helicone/hl-04-gateway-provider.png)
 
 </details>
 
 | Feature | Helicone | AcruxCore |
 |---|---|---|
-| Where it sits | In the request path — caching and rate-limit headers are real, documented features | In the request path — every call routes through it |
-| BYOK routing (non-native provider) | 501 on the generic path; hard-forwarded to the wrong host on the named path | Worked on 100/100 benchmark rounds |
-| Caching, rate limits | Documented header controls (`Helicone-Cache-Enabled`, etc.) | Built in, applied before the provider call |
-
-> **Key point:** Routing OpenRouter through Helicone's gateway failed: the generic path returned
-> HTTP 501, and the named path forwarded to `api.openai.com`. AcruxCore's gateway routed the
-> OpenRouter call on 100 of 100 benchmark rounds.
+| Where settings live | Partial: mostly in headers on each call | Yes: on the virtual key, with a few per-call overrides |
+| Retries and fallbacks | Yes: `Helicone-Retry-Enabled`, `Helicone-Fallbacks` header | Yes: retries on by default, fallback models set once on the model |
+| Leave payloads out of the log | Yes: request and response separately | Partial: both bodies together, per call or as a team default |
 
 ## Prompt authoring & versioning
 
-AcruxCore's editor uses **nunjucks** — real `{% if %}` and `{% for %}` logic, so the
-VIP branch and the ticket list live in the template itself. Helicone's Playground
-templating is flat `{{ hc:var:type }}` substitution with a type annotation per
-variable, so we had to flatten the VIP note and the ticket list into plain text before
-saving the prompt.
-Saving created a single `v0`, auto-labeled `production`; a second version never got
-created because the next step (a live Run) is the one that's broken on this build.
+Helicone prompt variables use the format `{{hc:name:type}}`, such as `{{hc:company:string}}`
+([Helicone prompts](https://docs.helicone.ai/features/advanced-usage/prompts/overview)). We found
+no conditionals or loops. To rebuild `vip-support-triage`, we flattened its VIP branch and its
+list of open tickets into plain text variables. Saving created `v0`, labeled `production`.
+
+AcruxCore templates use Nunjucks. The VIP branch stays a `{% if %}` and the ticket list stays a
+`{% for %}` in the template
+([conditional logic](https://docs.acruxcore.com/docs/guides/use-conditional-logic-in-prompt-templates)).
+The first commit creates `production` and `staging` aliases, and the Diff tab compares any two
+versions.
 
 <details>
-<summary>Show screenshots: prompt editor and versions on both platforms</summary>
+<summary>Show screenshots: prompt editor on both platforms</summary>
 
-![Helicone's Playground with the recreated vip-support-triage system message, showing the flat {{ hc:company:string }} variable syntax and the Save Prompt dialog with our commit message about flattening the nunjucks logic](/img/comparison/helicone/hl-01-prompt-editor.png)
-![Helicone's saved prompt detail page: v0, auto-labeled "production", model gpt-4o-mini, no second version or diff control visible with only one version saved](/img/comparison/helicone/hl-02-versions.png)
-![AcruxCore's Diff tab showing a real unified diff between prompt version 2 and version 3](/img/comparison/acruxcore/acx-03-diff-tab.png)
-
-</details>
-
-AcruxCore's own prompt editor — real nunjucks conditionals and loops rendering VIP
-status and the ticket list inline — is one sentence here; see the
-[dashboard tour](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#prompts)
-for the picture.
-
-| Feature | Helicone | AcruxCore |
-|---|---|---|
-| Conditional templating | Flat `{{ hc:var:type }}` only — verified hands-on, no `{% if %}`/`{% for %}` | Real nunjucks `{% if %}`/`{% for %}`, rendered server-side |
-| Version comparison | Not reached — only one version exists on this build | Standing **Diff** tab, unified diff between any two versions |
-| Live label | `production` auto-applied to the first version | `production` / `staging` **aliases** your app fetches at runtime |
-
-## Sending a live call
-
-This is where the run stopped producing new evidence and started producing bugs.
-Clicking **Run** in Helicone's Playground returns `{"error":"Invalid session","trace":
-"isAuthenticated.error"}` every time, on every model, after a fresh login, and after
-clearing local storage. Network inspection shows why: the request to
-`/v1/playground/generate` carries a `helicone-authorization` header with an **empty
-JWT token** (`"token":""`). AcruxCore's Playground, by contrast, ran the same prompt
-and rendered the completion inline with cost, cache, and latency.
-
-<details>
-<summary>Show screenshots: Playground run — blocked on Helicone, working on AcruxCore</summary>
-
-![Helicone's Playground after clicking Run: the response panel shows the literal JSON error {"error":"Invalid session","trace":"isAuthenticated.error"} instead of a completion](/img/comparison/helicone/hl-03-playground-blocked.png)
-![AcruxCore Playground's Stored-prompt tab, showing the same completion plus a Gateway Telemetry panel with provider, cost, cache status, and latency](/img/comparison/acruxcore/acx-04-playground-run.png)
+![Helicone's Playground with the rebuilt prompt, showing the flat {{ hc:company:string }} variable syntax and the Save Prompt dialog](/img/comparison/helicone/hl-01-prompt-editor.png)
+![Helicone's saved prompt page: v0, labeled production, model gpt-4o-mini](/img/comparison/helicone/hl-02-versions.png)
+![AcruxCore's prompt editor for vip-support-triage, keeping the VIP branch and the ticket loop as {% if %} and {% for %}, with staging and production alias badges](/img/comparison/acruxcore/acx-01-prompt-editor.png)
 
 </details>
 
 | Feature | Helicone | AcruxCore |
 |---|---|---|
-| Playground | `Run` 401s with an empty auth token on this self-hosted build | Runs against a **stored prompt reference**, shows cost/cache/latency inline |
-| Requires a real key | Yes (OpenRouter, registered in Settings → Providers) | Yes |
+| Conditional templating | No: flat `{{hc:name:type}}` substitution | Yes: Nunjucks `{% if %}` / `{% for %}`, rendered server-side |
+| Environments | Yes: `development`, `staging`, `production` | Yes: `production` / `staging` aliases your code fetches |
+| Use a stored prompt in a call | Yes: `prompt_id` and `inputs` in the body | Yes: a `prompt` reference in the gateway call |
 
 ## Tracing & observability
 
-With the Playground blocked, we fell back to Helicone's other documented path:
-call the provider directly, then POST the request/response pair to its manual-logging
-endpoint (`/v1/trace/custom/log` self-hosted; `api.worker.helicone.ai/custom/v1/log` on
-Helicone Cloud). The direct OpenRouter call succeeded. The log call returned
-`HTTP 500 {"details":"Region is missing"}` — the self-hosted docker-compose ships its
-`jawn` service without an `S3_REGION` env var, so its S3 client fails to construct
-before the trace ever reaches ClickHouse. AcruxCore's trace, meanwhile, is written
-automatically as a side effect of the gateway call — nothing to log by hand at all.
+Helicone logs each call that passes through its gateway. A `Helicone-Session-Id` header groups
+calls into a session, and `Helicone-Session-Path` places each call in a parent and child tree
+([Helicone sessions](https://docs.helicone.ai/features/sessions)). `Helicone-Property-<Name>`
+headers add custom properties you can filter on.
+
+AcruxCore writes one span for each gateway call, with model, tokens, cost and latency.
+`x-session-id` groups calls into a session, the same `x-trace-id` on several calls puts them in
+one trace, and `x-trace-metadata` adds key and value pairs you can filter on
+([tags and metadata](https://docs.acruxcore.com/docs/guides/tag-and-filter-traces)).
 
 <details>
-<summary>Show screenshot: trace detail on AcruxCore</summary>
+<summary>Show screenshot: an AcruxCore trace</summary>
 
-![AcruxCore's trace detail: one LLM span with model, provider, tokens, cost, and latency, linked back to the exact gateway request and prompt version](/img/comparison/acruxcore/acx-05-trace-detail.png)
+![AcruxCore trace from the SDK script: one LLM span on openai/gpt-4o-mini with tokens, cost, latency and the linked gateway request id](/img/comparison/acruxcore/acx-09-sdk-trace.png)
 
 </details>
 
 | Feature | Helicone | AcruxCore |
 |---|---|---|
-| Trace shape | Not reached — the logging call 500s on this build | Single span per gateway call |
-| How it's produced | Manual logging call, which failed on a missing S3 config | Automatic — a side effect of the gateway call |
-| Links back to prompt version | Not reached | Yes — "View traces for this prompt version" |
+| Sessions | Yes: session id, name and path tree | Yes: session id, plus a shared trace id across calls |
+| Custom properties | Yes: one header per property | Yes: one JSON header, plus tags |
+| Per-user view | Yes: user metrics from `Helicone-User-Id` | No: filter traces by a user id in metadata |
 
-## How tools are handled — schema registry, or execution
+## Rate limits, budgets and alerts
 
-We checked every nav section — Segments (Sessions, Properties, Users, Cache, HQL),
-Improve (Prompts, Datasets, Playground), Monitor (Rate Limits, Alerts) — and found no
-tool-catalog concept anywhere in self-hosted Helicone: no schema builder, no execution
-record, nothing. AcruxCore has a real **Tool Catalog** — callable functions, versioned
-like prompts, with their own analytics page, wired into the gateway so a call is a
-real, traced execution.
+This is where Helicone does more.
+
+`Helicone-RateLimit-Policy: 1000;w=86400;s=user` gives each end user 1,000 requests a day. The
+segment can also be a custom property, and the unit can be cents
+([Helicone rate limits](https://docs.helicone.ai/features/advanced-usage/custom-rate-limits)).
+Helicone alerts watch error rate, cost, latency, tokens and request count, and notify by email
+or Slack ([Helicone alerts](https://docs.helicone.ai/features/alerts)). Helicone's pricing page
+lists alerts on Pro, at $79 a month.
+
+AcruxCore limits requests and tokens per virtual key, with no limit per end user. It adds spend
+budgets per team or per key, by day, week, month or in total. A call over budget gets a 402
+before it reaches the provider
+([budgets and rate limits](https://docs.acruxcore.com/docs/guides/set-spend-limits-with-gateway-budgets-and-rate-limits)).
+AcruxCore sends email when a budget passes 80% or runs out, and when an online eval rule's daily
+mean score falls below its threshold. It has no Slack alerts and no alerts on error rate or
+latency.
 
 <details>
-<summary>Show screenshot: tool analytics on AcruxCore</summary>
+<summary>Show screenshots: rate limit rules, per-user tracking and alerts on Helicone</summary>
 
-![AcruxCore's Tool analytics page — call volume, error rate, and P50/P95 latency per tool, aggregated from traced executions](/img/comparison/acruxcore/acx-08-tool-analytics.png)
+![Helicone's Rate Limit Rules tab with a Create Rule button](/img/comparison/helicone/hl-14-rate-limit-rules.png)
+![Helicone's per-user tracking empty state, which asks for one header: Helicone-User-Id](/img/comparison/helicone/hl-15-per-user-tracking.png)
+![Helicone's Alerts empty state: "Receive real-time notifications in Slack or via email when something goes wrong"](/img/comparison/helicone/hl-16-alerts.png)
 
 </details>
 
-AcruxCore's Tools page — a dozen real, versioned tools — is one sentence here; see the
-[dashboard tour](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#tools) for the
-screenshot.
+| Feature | Helicone | AcruxCore |
+|---|---|---|
+| Rate limit per end user | Yes: `s=user` or a custom property | No |
+| Rate limit per key | Yes: global policy | Yes: requests and tokens per minute on each virtual key |
+| Spend cap that stops calls | Partial: a rate-limit policy counted in cents | Yes: team and key budgets, 402 before the provider call |
+| Alerts on error rate or latency | Yes: email or Slack | No |
+
+> **Key point:** Helicone can limit each end user and send alerts to Slack. AcruxCore limits each
+> virtual key, caps spend with budgets, and sends alerts by email only.
+
+## Tools
+
+We checked every section of Helicone's navigation (Segments, Improve and Monitor) and found no
+tool catalog: no place to define a tool's schema, and no record of tool executions.
+
+AcruxCore has a Tool Catalog. You define the tools a model can call, version them like prompts,
+and the gateway runs them. Each tool has its own page with calls, error rate and latency
+([create a tool](https://docs.acruxcore.com/docs/guides/create-a-tool)).
 
 | Feature | Helicone | AcruxCore |
 |---|---|---|
-| Tool catalog | Not found in any nav section checked | Persistent, versioned catalog with its own page |
-| Execution | Not applicable — no catalog object to execute | Real, gateway-executed calls |
-| Tool analytics | Not available | Calls, error rate, and latency per tool |
+| Tool catalog | No: none found in the navigation | Yes: versioned catalog with its own page |
+| Tool analytics | No | Yes: calls, error rate and latency per tool |
 
 ## Evaluation & datasets
 
-Helicone's Datasets page is explicit about where rows come from: "Create Your First
-Dataset" links straight to the Requests page, meaning a dataset is curated from real
-logged requests. Because no request of ours ever landed in Helicone (see **Tracing &
-observability** above), the Requests table held nothing but static preview data, and
-there was nothing to curate into a dataset. AcruxCore builds datasets from real
-span-level trace feedback.
+Helicone's Datasets page builds a dataset from logged requests: "Create Your First Dataset"
+links to the Requests page. We did not test Helicone's experiments or scoring.
+
+AcruxCore builds datasets from trace feedback, manual entry, the API or a CSV or JSON file.
+Experiments run several prompt versions on several models against a baseline, and online rules
+score a sample of live calls
+([evaluate a prompt](https://docs.acruxcore.com/docs/guides/evaluate-a-prompt)).
 
 <details>
-<summary>Show screenshot: empty Datasets page on Helicone</summary>
+<summary>Show screenshot: Datasets page on Helicone</summary>
 
-![Helicone's empty Datasets page: "Create Your First Dataset — Curate your dataset from requests data," with a Go to requests button, since no request rows exist](/img/comparison/helicone/hl-06-datasets-empty.png)
+![Helicone's empty Datasets page: "Create Your First Dataset — Curate your dataset from requests data," with a Go to requests button](/img/comparison/helicone/hl-06-datasets-empty.png)
 
 </details>
 
-AcruxCore's dataset — built from a real feedback row, since the vip-support-triage
-trace's own single-span feedback wasn't eligible — is one sentence here; see the
-[dashboard tour](https://docs.acruxcore.com/docs/getting-started/dashboard-tour#feedback)
-for the screenshot.
-
 | Feature | Helicone | AcruxCore |
 |---|---|---|
-| Dataset creation | From real Request rows only — none existed on this run | Span-level trace feedback, manual entry, API, or a CSV/JSON file |
-| Experiments | Not reached | Version × model sweep with an automatic baseline |
+| Dataset creation | Yes: curated from logged requests | Yes: trace feedback, manual entry, API, or a CSV/JSON file |
+| Experiments | Not tested | Yes: version × model sweep with a baseline |
+| Online scoring of live calls | Not tested | Yes: rules with a built-in or custom judge |
 
 ## SDK & developer experience
 
-AcruxCore's SDK has dedicated surfaces — `hub.prompts.render()` then
-`hub.gateway.chat()` — and the trace is automatic. Helicone has no stored-prompt SDK
-call to make in this situation, so our script calls OpenRouter directly with `requests`
-and then attempts Helicone's manual-log call — which is the same call that 500s above.
+Both tools work with the OpenAI client you already use. On Helicone, the change is the base URL
+and the key:
+
+```python title="Helicone"
+client = OpenAI(
+    api_key=os.environ["HELICONE_API_KEY"],
+    base_url="https://ai-gateway.helicone.ai",
+)
+```
+
+On AcruxCore, the same OpenAI client works with the gateway's base URL and a virtual key. The
+AcruxCore SDK also has its own calls for stored prompts: `hub.prompts.render()`, then
+`hub.gateway.chat()`, which writes the trace and links it to the prompt version.
 
 ```python title="acx_sdk_run.py"
 rendered = await hub.prompts.render("vip-support-triage", "production", VARIABLES)
@@ -241,37 +258,21 @@ result = await hub.gateway.chat(
 )
 ```
 
-```python title="hl_trace_run.py"
-res = requests.post("https://openrouter.ai/api/v1/chat/completions", ..., json=body)
-log_res = requests.post(f"{HELICONE_BASE_URL}/v1/trace/custom/log", ..., json=log_body)
-# log_res.status_code == 500 — "Region is missing"
-```
-
-The AcruxCore call produced a real trace within seconds. The Helicone script's
-completion succeeded; its logging call reproduced the exact 500 from **Tracing &
-observability** above, every time we ran it. AcruxCore's SDK-produced trace is one
-sentence here; see the
-[product tour](https://docs.acruxcore.com/docs/getting-started/product-tour) for the
-screenshot.
+Helicone's [MCP server](https://github.com/Helicone/helicone/tree/main/helicone-mcp) has three
+tools: send a request through the gateway, query requests and query sessions. AcruxCore's
+[MCP server](https://docs.acruxcore.com/docs/guides/connect-an-mcp-client) can also commit and
+promote prompts, run a stored prompt and run experiments.
 
 :::github
 - [`acx_sdk_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/helicone-vs-acruxcore/python/acx_sdk_run.py) — the AcruxCore leg.
 - [`hl_trace_run.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/helicone-vs-acruxcore/python/hl_trace_run.py) — the Helicone leg.
 :::
 
-| Feature | Helicone | AcruxCore |
-|---|---|---|
-| SDK model | Call the provider yourself, then manually log the pair | Dedicated `hub.prompts` / `hub.gateway` surface |
-| Getting a trace | Manual-log call 500s on this self-hosted build | Automatic side effect of `hub.gateway.chat()` |
-
 ## Latency overhead — measured
 
-We timed the identical fixed call three ways, interleaved in rotating order over 100
-rounds: a raw direct call to the provider (baseline), the same call through Helicone's
-`/v1/gateway/oai` proxy, and the same call through AcruxCore's gateway. Both are the
-cost of an extra network hop rather than client-side instrumentation. Every leg ends at
-`gpt-4o-mini` on `api.openai.com`, because Helicone's `/v1/gateway/oai` endpoint
-forwards to OpenAI and nothing else. It ran three times.
+We timed the same `gpt-4o-mini` call three ways, in rotating order over 100 rounds: a direct
+call to OpenAI, the call through a self-hosted Helicone's OpenAI proxy (`/v1/gateway/oai`), and
+the call through AcruxCore's gateway. We ran the benchmark three times.
 
 | Run | Direct-call median | Helicone gap | AcruxCore gap |
 |---|---|---|---|
@@ -279,139 +280,79 @@ forwards to OpenAI and nothing else. It ran three times.
 | 2 | 629 ms | −8 ms, CI [−27, +19] | +7 ms, CI [−9, +28] |
 | 3 | 617 ms | +3 ms, CI [−19, +23] | +10 ms, CI [−7, +32] |
 
-**Every round on every leg succeeded — 300 of 300.** Helicone's overhead lands between
-−15 ms and +3 ms, AcruxCore's between +4 ms and +10 ms, and every AcruxCore interval
-crosses zero.
+- All 300 rounds on every leg succeeded.
+- Every AcruxCore interval crosses zero. Helicone's interval crosses zero in runs 2 and 3.
+- The Helicone leg ran without a Helicone API key, so Helicone logged none of those calls. Its
+  number covers forwarding only, while AcruxCore's includes writing the trace.
+
+On 25 October 2026 we re-timed a local AcruxCore gateway on its own: +9 ms at the median over a
+direct OpenAI call, 95% interval −15 to +28 ms ([method](/blog/llm-gateway-overhead)). We have
+not timed Helicone Cloud. On either tool, the added time is small next to a 600 ms model call.
 
 :::github
 [`latency_bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/helicone-vs-acruxcore/python/latency_bench.py) — the latency benchmark.
 :::
 
-The two numbers are not measuring the same amount of work, so we are calling this a
-tie rather than a Helicone win. Helicone's self-hosted gateway forwards on the provider
-key alone; attributing a request to an organization — which is what makes it *logged* —
-needs a Helicone API key, and this run had none. Its ClickHouse request table held zero
-rows afterwards. So its number is the cost of forwarding, a floor, while AcruxCore's
-includes writing the span. A logged Helicone request would cost more than −15 ms.
-
-> **Key point:** Helicone's request table held zero rows after the benchmark, so its latency gap
-> covers forwarding only. AcruxCore's gap also includes writing the span.
-
-For a broader run — real OpenAI billing instead of OpenRouter, six platforms in one
-interleaved benchmark, and four independent runs to check how stable the numbers
-are — see
-[full-cycle latency across six LLM-ops platforms](/blog/full-cycle-latency-benchmark).
-
-## Friction hit during this run
-
-Real friction hit while doing this comparison, not a symmetric wish list.
-
-**Helicone**
-- 👍 Registering a provider key for its "AI Gateway" (Settings → Providers) took one
-  form and immediately showed "1 key configured" — the UI itself is polished.
-- 👍 Response caching and rate limiting are real, documented, header-controlled
-  features — not something we had to infer.
-- 👎 The Playground's `Run` button 401s with an **empty JWT token** in its own auth
-  header, on every attempt, on a fresh login.
-- 👎 The generic multi-provider gateway route returns a hardcoded `"Not implemented"`
-  — a stub, not a partial implementation.
-- 👎 The manual-logging endpoint 500s on a missing `S3_REGION` env var that the
-  self-hosted `docker-compose` never sets.
-- 👎 "Add New Member" has no role selector at all — just an email field.
-
-**AcruxCore**
-- 👍 Nothing to instrument — `hub.gateway.chat()` (or the Playground) writes the trace
-  as a side effect, no wrapper client, no manual logging call.
-- 👍 Every gateway call in the 100-round benchmark succeeded — no auth or config
-  surprises.
-- 👎 A model with no registered per-1M rate shows a blank `—` cost instead of `$0` or
-  an estimate, until you register one.
-
 ## What Helicone does that AcruxCore doesn't
 
-Sourced from Helicone's own dashboard, not from this post's earlier aspects — those
-carry the same bias any of our own feature list would, and this run's bugs shouldn't
-be read as "Helicone has nothing real to offer."
+Each item is on Helicone, according to the linked Helicone page, and is not on AcruxCore.
 
-**Rate Limit Rules — a real rule builder, separate from the broken BYOK gateway
-path.** Monitor → Rate Limits has two tabs: Rate Limited Requests (a live chart) and
-Rate Limit Rules, where "Create Rule" opens a genuine rule builder. AcruxCore enforces
-RPM and TPM limits per virtual key, but has no rule object that can scope a limit to an
-individual end user the way a Helicone rule can.
-
-<details>
-<summary>Show screenshot: Rate Limit Rules on Helicone</summary>
-
-![Helicone's Rate Limit Rules tab: "No rate limits defined yet. Create your first rate limit rule to get started," with a Create Rule button](/img/comparison/helicone/hl-14-rate-limit-rules.png)
-
-</details>
-
-**Per-user request tracking via a single header.** The Users page tracks per-user
-request volumes and usage patterns the moment a caller adds one header
-(`Helicone-User-Id: user-123`) to a request — no separate user-management setup.
-AcruxCore's tracing has no per-end-user dimension at all today.
-
-<details>
-<summary>Show screenshot: per-user request tracking on Helicone</summary>
-
-![Helicone's "Start Tracking User Metrics" empty state: "Start tracking per-user request volumes and usage patterns with a simple header: Helicone-User-Id: john@doe.com"](/img/comparison/helicone/hl-15-per-user-tracking.png)
-
-</details>
-
-**Alerts — real-time Slack or email notifications on error-rate or other
-thresholds.** "Create Your First Alert" wires a threshold directly to a Slack channel
-or an email address. AcruxCore sends email alerts when a gateway budget passes 80% or
-runs out, and when a live evaluation rule scores below its threshold. AcruxCore has no
-Slack alerts and no alerts on error rate or latency.
-
-<details>
-<summary>Show screenshot: Alerts on Helicone</summary>
-
-![Helicone's Alerts empty state: "Create Your First Alert — Receive real-time notifications in Slack or via email when something goes wrong," with a Create Alert button](/img/comparison/helicone/hl-16-alerts.png)
-
-</details>
-
-All three are genuinely useful, and none of them touched the bugs we hit elsewhere in
-this post — Rate Limit Rules and Alerts are configuration surfaces, not request-path
-code, so they didn't need the same `S3_REGION` or BYOK routing to work correctly.
+- 👎 **Rate limits per end user or per custom property,** counted in requests or in cents.
+- 👎 **User metrics** from one `Helicone-User-Id` header: active users, session length and request
+  frequency ([Helicone user metrics](https://docs.helicone.ai/features/advanced-usage/user-metrics)).
+- 👎 **Alerts on error rate, latency, tokens and request count,** sent to Slack or email.
+- 👎 **A hosted gateway with 100+ providers** that can bill you from Helicone credits.
+- 👎 **Moderation and prompt-injection checks,** switched on per call with
+  `Helicone-Moderations-Enabled` and `Helicone-LLM-Security-Enabled`
+  ([header directory](https://docs.helicone.ai/helicone-headers/header-directory)).
+- 👎 **Several cached replies per request,** with `Helicone-Cache-Bucket-Max-Size`.
 
 ## Is AcruxCore a Helicone alternative?
 
-Yes. Both tools sit in the request path and do the same job, so one can replace the other. Helicone's gateway forwarded all 300 benchmark rounds
-here and its rate-limit rule builder is real and works, so this is not a case of one tool
-being broken.
+For a gateway with prompts, tools and evaluations around it, yes. For per-user controls, no.
 
-What decides it is prompts and tools. Helicone's templating is flat `{{ hc:var:type }}`
-substitution with no conditionals, and we found no tool-catalog concept anywhere in its
-navigation. If you use Helicone purely as a logging proxy and your prompts live in your code,
-it does that job. If your prompts need versions, aliases and real `{% if %}` logic, or you
-want the gateway to execute and measure tools, that is what moving buys you.
+Both tools sit in the request path and added a similar, small delay. If you use Helicone to
+limit and watch each of your end users, or to get Slack alerts, AcruxCore does not replace that
+today. If your prompts live in code because Helicone's templates cannot branch, or you want the
+gateway to run tools and score calls, AcruxCore covers that.
 
-One thing to check before you switch: Helicone can scope a rate limit to an individual end
-user, where ours stops at the virtual key.
+To choose, start at the top and stop at the first question you answer yes to.
 
-## Verdict
+![Helicone or AcruxCore? A decision flow: rate limits per end user lead to Helicone; if not, Slack alerts lead to Helicone; if not, prompts that need branches lead to AcruxCore; if not, a gateway that runs tools leads to AcruxCore](/img/blog/acruxcore-vs-helicone/decision.webp)
 
 | | Helicone | AcruxCore |
 |---|---|---|
-| Strongest at | A genuinely proxy-first design with real caching/rate-limit controls; per-user request tracking via one header; real-time Slack/email alerting; a gateway hop that costs nothing measurable | Every live-call path worked first time — Playground, SDK, gateway, and the trace written without extra code |
-| Weakest at | On this self-hosted build: Playground auth and manual logging fail with real, reproducible errors, and the gateway only forwards to its native providers | No per-user tracking dimension; no rate-limit-rule object; alerts by email only, none on error rate or latency |
-| Pick it if | You want a proxy-first tool with per-user tracking and alerting, and can either use its native providers or debug the BYOK path yourself on self-host | You want every step — prompt, call, trace, dataset — to work the first time, with nothing to route around |
+| Strongest at | Rate limits and metrics per end user, Slack alerts, 100+ providers with one bill, moderation headers | Prompt templates with logic and aliases, a versioned tool catalog, datasets and experiments, spend budgets that stop calls |
+| Weakest at | Flat prompt variables, no tool catalog | Limits and metrics stop at the virtual key; alerts by email only |
 
-The honest headline of this comparison isn't "AcruxCore wins every row" — it doesn't;
-Helicone's rate-limit rules, per-user tracking, alerting (**What Helicone does that
-AcruxCore doesn't** above) and a gateway hop with no measurable cost are real strengths
-AcruxCore either lacks or only matches. It's that on a **self-hosted build acquired
-mid-transition to maintenance mode**, two independent, verifiable bugs — an empty auth
-token in the Playground and a missing `S3_REGION` env var — blocked the Playground and
-the manual-logging path. Its AI Gateway itself is sound: it served 300 of 300 rounds
-here. What it will not do is route to a provider it does not natively support, which is
-the constraint to plan around. AcruxCore's equivalent paths (**Sending a live call**,
-**Tracing & observability**, **Latency overhead** above) all worked too. See the full
-picture, including license, pricing, and team structure, on the
-[compare page](https://acruxcore.com/compare).
+## FAQ
 
-To compare more tools, see [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison).
+### Is Helicone still maintained?
 
-Want to run this yourself? The [Quickstart](https://docs.acruxcore.com/docs/getting-started/quickstart) gets you
-from sign-up to a traced, gateway-routed call in about ten minutes.
+Yes, in maintenance mode. Mintlify acquired Helicone on 3 March 2026 and said security updates,
+bug fixes and new models would keep shipping. On 2 November 2026, Helicone's website says
+Helicone is no longer part of Mintlify, with details to come.
+
+### Can AcruxCore rate limit each end user like Helicone?
+
+No. AcruxCore limits requests and tokens per virtual key and caps spend per team or per key.
+Helicone's `Helicone-RateLimit-Policy` can limit each user or each custom property.
+
+### Do Helicone prompts support conditionals?
+
+We found none. Helicone variables use the flat `{{hc:name:type}}` format. AcruxCore templates
+use Nunjucks, with `{% if %}` and `{% for %}`.
+
+### Does Helicone have a tool catalog?
+
+We found none in its navigation. AcruxCore has a versioned tool catalog that its gateway runs.
+
+### Which gateway adds less latency?
+
+Neither by a clear margin. In 300 rounds, Helicone's gap ranged from −15 to +3 ms and
+AcruxCore's from +4 to +10 ms, and Helicone's figure did not include logging.
+
+Other head-to-heads: [AcruxCore vs MLflow](/blog/acruxcore-vs-mlflow), which compares two
+gateways, and [AcruxCore vs Langfuse](/blog/acruxcore-vs-langfuse). Helicone is also ranked in
+[13 OpenRouter alternatives](/blog/openrouter-alternatives), among gateways you run with your own
+keys.

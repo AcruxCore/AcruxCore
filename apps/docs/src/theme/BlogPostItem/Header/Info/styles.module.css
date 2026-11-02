@@ -1,0 +1,8 @@
+.container {
+  font-size: 0.9rem;
+}
+
+/* Keeps each item ("Updated <date>", "N min read") whole when the line wraps on a phone. */
+.noWrap {
+  white-space: nowrap;
+}

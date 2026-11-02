@@ -8,7 +8,7 @@ tags: [llmops-comparison, prompt-management, llm-tracing]
 image: /img/blog/langfuse-vs-langsmith/header.webp
 keywords: [langfuse vs langsmith, langsmith vs langfuse, langfuse or langsmith, langsmith without langchain, langfuse pricing, langsmith pricing, llm observability comparison, prompt management, llm evaluation]
 last_update:
-  date: 2026-10-25
+  date: 2026-11-02
 ---
 
 ![Langfuse vs LangSmith, one app tested on both. Langfuse: open core and free to self-host, draft-safe prompt reads, no gateway. LangSmith: closed with Enterprise-only self-hosting, a changed-score filter, a gateway in beta](/img/blog/langfuse-vs-langsmith/header.webp)
@@ -19,8 +19,9 @@ measured each step. The app is a small agent that reads a client's email, checks
 against a signed project scope, prices the extra work, and writes a reply.
 
 Pick Langfuse if you want an open-source platform that you can self-host for free, a large
-community, and 90 days of data at a low price. Pick LangSmith if you compare experiment runs often, need Go or Java, or
-want a gateway from the same vendor, and $567 a month fits your budget.
+community, and 90 days of data at a low price. Pick LangSmith if you compare experiment runs
+often, need Go or Java, or want a gateway from the same vendor. At our profile of 100,000 traces a
+month and 3 people, LangSmith Plus cost $567 a month and Langfuse Core cost $98.36.
 
 We build AcruxCore, a third tool in this space that this post does not test. We ran Langfuse and
 LangSmith ourselves, and the scripts are linked below.
@@ -32,7 +33,7 @@ LangSmith ourselves, and the scripts are linked below.
 | | Langfuse | LangSmith |
 |---|---|---|
 | License | MIT core; some features under a commercial license | SDKs MIT; the platform is not open source |
-| Self-hosting | Free core; roles, audit log and retention policies need a license | Enterprise plan only |
+| Self-hosting | Free core with organization-level roles; project-level roles, audit log and retention policies need a license | Enterprise plan only |
 | Hosted price, 100,000 traces a month, 3 people | $98.36 on the Core plan | $567 on the Plus plan |
 | Data kept on that paid plan | 90 days | 14 days; 180 days costs extra |
 | Hosted free plan | 50,000 units a month (a unit is a trace, a step or a score), 2 users, 30 days of data | 5,000 traces a month, 1 seat |
@@ -43,8 +44,8 @@ LangSmith ourselves, and the scripts are linked below.
 | Gateway: your model calls pass through it | No | Yes, in beta: routing, spend and rate limits |
 | MCP server for coding assistants | Yes: prompts, traces, datasets, scores, review queues | Yes: prompts, traces, deployments, sandboxes |
 | Review queue for people | Yes | Yes |
-| Alerts | Cost, latency, scores; Slack, webhook | Cost, errors, latency, feedback; Slack, PagerDuty, webhook |
-| SSO | Pro plan with the Teams add-on ($300 a month), or Enterprise | Enterprise |
+| Alerts | Cost, latency, scores; Slack, webhook, GitHub Actions | Cost, errors, latency, feedback; Slack, PagerDuty, webhook |
+| SSO | Hosted: Pro ($199 a month) plus the Teams add-on ($300 a month), or Enterprise. Self-hosted: no licence key needed | Enterprise |
 | Audit log | Enterprise | Enterprise |
 | GitHub stars, 25 October 2026 | 36,448 | No public platform repository |
 | LangChain needed | No | Not for tracing; pushing a prompt from code needs `langchain-core` |
@@ -66,10 +67,6 @@ everything else on 17 October 2026.
 **Pros**
 
 - Our app needed fewer lines of tracing and prompt-fetching code: 11, against 18 on LangSmith.
-- The core is MIT-licensed and free to self-host.
-- It has the larger community: 36,448 GitHub stars on 25 October 2026.
-- 100,000 traces of our app cost $98.36 a month, less than a fifth of the LangSmith price.
-- It keeps data for 90 days at that price.
 - A model call shows its prompt name and version as a link.
 - A prompt read with no label returns the `production` version, so a draft does not reach users.
 
@@ -80,7 +77,6 @@ everything else on 17 October 2026.
 - An experiment with a plain Python function runs one example at a time.
 - The bill grows with the number of steps in each trace.
 - A promotion asks for no confirmation, and the prompt page does not show past promotions.
-- SSO needs a paid add-on, and the audit log needs Enterprise.
 
 ## LangSmith
 
@@ -88,17 +84,11 @@ everything else on 17 October 2026.
 
 - Its comparison of two runs filters to the examples whose score changed, in one click.
 - An experiment with a plain Python function runs several examples at a time.
-- It has SDKs for Go and Java as well as Python and TypeScript.
-- It has a gateway, in beta.
 - A promotion asks for a confirmation, and the prompt page keeps a rollback history.
-- Alerts reach Slack, PagerDuty and webhooks.
 
 **Cons**
 
-- 100,000 traces of our app cost $567 a month.
-- It keeps data for 14 days on that plan.
-- The platform is not open source, and self-hosting needs the Enterprise plan.
-- Pushing a prompt from code needs the `langchain-core` package.
+- 100,000 traces of our app cost $567 a month, and base traces are kept for 14 days.
 - A prompt read with no tag returns the newest commit, so a draft can reach users.
 - The SDK caches a prompt for 5 minutes, so a promotion takes up to 5 minutes to arrive.
 
@@ -166,12 +156,13 @@ We picked this app because each feature in the comparison has a real job in it:
   `openai` 2.48.0 and either `langfuse` 4.14.1 or `langsmith` 0.10.10. Neither environment had a
   LangChain package.
 
+- **One exception:** the script that pushes prompts to LangSmith needs `langchain-core`, so it
+  ran in a separate environment.
+
 :::github
 - [`pipeline.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/langfuse-vs-langsmith/python/pipeline.py) — the app, with no tracing code
 - [`messages.json`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/blogs/langfuse-vs-langsmith/data/messages.json) — the 30 client messages and their expected answers
 :::
-- **One exception:** the script that pushes prompts to LangSmith needs `langchain-core`, so it
-  ran in a separate environment.
 
 ## Tracing
 
@@ -191,6 +182,9 @@ We picked this app because each feature in the comparison has a real job in it:
   keys `lc_hub_repo` and `lc_hub_commit_hash`, as LangSmith's own `pull_prompt` does, so each
   model call shows the prompt name and commit as plain text.
 
+<details>
+<summary>Show screenshots: the same message traced in Langfuse and LangSmith</summary>
+
 ![Langfuse trace for one message: scope-check at the root, with extract, two classify spans, a price tool and reply, each holding an OpenAI-generation](/img/blog/langfuse-vs-langsmith/lf-trace-tree.jpg)
 
 ![LangSmith trace for the same message: scope-check at the root, with extract, two classify runs, a price tool and reply, each holding a glm-5.3 model call](/img/blog/langfuse-vs-langsmith/ls-trace-tree.jpg)
@@ -198,6 +192,8 @@ We picked this app because each feature in the comparison has a real job in it:
 ![Langfuse generation header showing the model glm-5.3 and a link reading prompt: scope-extract - v1](/img/blog/langfuse-vs-langsmith/lf-generation-prompt-link.jpg)
 
 ![LangSmith run attributes listing lc_hub_commit_hash and lc_hub_repo scope-extract as plain metadata values](/img/blog/langfuse-vs-langsmith/ls-run-metadata-prompt.jpg)
+
+</details>
 
 ## Do you need LangChain to use LangSmith?
 
@@ -228,9 +224,6 @@ We picked this app because each feature in the comparison has a real job in it:
 | History of promotions | Not shown | Rollback list of every commit the environment pointed to |
 | SDK cache before a promotion reaches the app | 60 seconds | 5 minutes |
 
-> **Key point:** A Langfuse prompt read with no label returns the `production` version. A
-> LangSmith prompt read with no tag returns the newest commit, drafts included.
-
 ![Reading a prompt with no label: Langfuse returns the production version; LangSmith returns the newest commit, so code must ask for name:production](/img/blog/langfuse-vs-langsmith/prompt-read-no-label.webp)
 
 - After we pushed a draft v2, `pull_prompt_commit("scope-extract")` returned the draft. Code on
@@ -238,9 +231,14 @@ We picked this app because each feature in the comparison has a real job in it:
 - The app code did not change for the promotion, and the next run used v2 on both platforms.
 - The cache times are the defaults in the SDK code installed by pip.
 
+<details>
+<summary>Show screenshots: production label in LangSmith and Langfuse</summary>
+
 ![LangSmith prompt page: Environments panel with Production on commit 586b51ca and a Rollback history list of two commits](/img/blog/langfuse-vs-langsmith/ls-rollback-history.jpg)
 
 ![Langfuse prompt page: version 2 carries the production label, and version 1 has none](/img/blog/langfuse-vs-langsmith/lf-promoted-production.jpg)
+
+</details>
 
 ## Experiments over the dataset
 
@@ -285,9 +283,14 @@ async def task(*, item, **kwargs):
   filter the table.
 - The Langfuse averages above the table cover only the 20 rows on the first page.
 
+<details>
+<summary>Show screenshots: v1 vs v2 comparison in LangSmith and Langfuse</summary>
+
 ![LangSmith comparison of v2 and v1 filtered to two rows, with v1's items_exact cells in red at 0.00 and v2's at 1.00](/img/blog/langfuse-vs-langsmith/ls-compare-filtered.jpg)
 
 ![Langfuse comparison of the v2 run against the v1 run: a summary with averages, deltas and up/down counts, and rows with both runs' scores side by side](/img/blog/langfuse-vs-langsmith/lf-compare.jpg)
+
+</details>
 
 ## Human review
 
@@ -309,9 +312,14 @@ this reply to the client as is?"
 - The total scorer agreed with us. Every reply with a wrong price failed it, and we marked each
   of those replies as needing a fix.
 
+<details>
+<summary>Show screenshots: annotation queues in LangSmith and Langfuse</summary>
+
 ![LangSmith annotation queue: the message and the agent's output on the left, the "send as is" and "needs a fix" verdict and the automatic scores on the right](/img/blog/langfuse-vs-langsmith/ls-annotation-queue.jpg)
 
 ![Langfuse annotation queue: the message, output and reply as text on the left, True and False buttons for human_reply_ok on the right, and Mark Completed at the bottom](/img/blog/langfuse-vs-langsmith/lf-annotation-queue.jpg)
+
+</details>
 
 ## Live traffic
 
@@ -336,9 +344,14 @@ same 10 minutes.
 - Both platforms have dashboards that work with no setup. Langfuse's home page shows latency percentiles per trace, per model call and per step.
   LangSmith's trace table shows latency and cost in each row.
 
+<details>
+<summary>Show screenshots: latency and cost views in LangSmith and Langfuse</summary>
+
 ![LangSmith trace table for the live run: each row shows the message, the reply, latency, tokens and cost](/img/blog/langfuse-vs-langsmith/ls-traces-latency-cost.jpg)
 
 ![Langfuse home dashboard: latency percentiles p50 to p99 per trace name, per generation and per observation](/img/blog/langfuse-vs-langsmith/lf-dashboard-latency.jpg)
+
+</details>
 
 ## What 100,000 traces a month costs
 
@@ -347,19 +360,58 @@ same 10 minutes.
 | Langfuse Core ($29, 100,000 units included) | $98.36; $119.69 if each trace also gets three scores | Per unit: each trace, observation and score | 90 days |
 | LangSmith Plus ($39 a seat, 10,000 traces included) | $567 | Per trace: $0.005 for each extra trace | 14 days; 180 days costs extra |
 
-> **Key point:** For 100,000 traces a month and 3 people, Langfuse Core costs $98.36 and LangSmith
-> Plus costs $567. Langfuse keeps the data for 90 days, and LangSmith keeps it for 14 days.
-
 - Prices come from [langfuse.com/pricing](https://langfuse.com/pricing) and
   [langchain.com/pricing](https://www.langchain.com/pricing), read on 16 October 2026, using
   each page's own calculator.
+- LangSmith Plus costs $39 a seat and includes 10,000 base traces a month. Each further trace
+  costs 0.005 LSU, and 1 LSU is $1, so the 90,000 extra traces cost $450. With 3 seats at $39,
+  the total is $117 plus $450, which is $567.
+- These are base traces, which LangSmith keeps for 14 days. Keeping a trace for 180 days makes it
+  an extended trace, which costs an extra fee that the pricing page does not state. On
+  2 November 2026, the LangSmith calculator still showed "0.005 LSU / additional trace".
 - Langfuse calls each step and each model call an observation. Our live traces averaged 9.67
   units: 1 trace and 8.67 observations. 100,000 traces are 967,000 units.
+- Langfuse Core costs $29 and includes 100,000 units. The other 867,000 units cost $8 per
+  100,000, which is $69.36, so the total is $98.36.
+- With three scores per trace, the same 100,000 traces are 1,267,000 units. The 900,000 units
+  up to 1 million cost $8 per 100,000 ($72), and the 267,000 units above 1 million cost $7 per
+  100,000 ($18.69). With the $29 plan fee, the total is $119.69.
 - Our live traces had no scores. Scores were added only in the experiments.
 - The Langfuse bill grows with the observations in a trace. An agent with 30 observations per
   trace would use about 3.1 million units for the same 100,000 traces.
 - Free plans: Langfuse Hobby has 50,000 units a month, 2 users and 30 days of data. LangSmith
   Developer has 5,000 traces a month and 1 seat.
+
+> **Key point:** Both platforms traced our app as the same tree. They differ in what a prompt read
+> with no label returns, in how quickly you find the examples a prompt change fixed or broke, and
+> in how the bill grows: per unit on Langfuse, per trace and per seat on LangSmith.
+
+## FAQ
+
+### Does LangSmith need LangChain?
+
+Not for tracing: `wrap_openai` and `@traceable` work without LangChain. Pushing a prompt from code
+with `push_prompt` needs the `langchain-core` package.
+
+### Is Langfuse free?
+
+The core is MIT-licensed and free to self-host. The hosted Hobby plan is free for 50,000 units a
+month, 2 users and 30 days of data.
+
+### Which is cheaper, Langfuse or LangSmith?
+
+For 100,000 traces of our app a month and 3 people, Langfuse Core cost $98.36 and LangSmith Plus
+cost $567. Langfuse bills every step and score, so an app with more steps per trace pays more.
+
+### Can you self-host LangSmith?
+
+Only on the Enterprise plan. Langfuse's core is free to self-host, but project-level roles, the
+audit log and retention policies need a license.
+
+### Which one has a gateway?
+
+LangSmith has a gateway in beta, with routing, spend limits and rate limits. Langfuse has no
+gateway, so it cannot route model calls or stop them at a spend limit.
 
 ## Run it yourself
 
@@ -373,7 +425,7 @@ prompt versions, a README with the commands, and `RUNLOG.md` with the raw output
 - Each platform against AcruxCore: [AcruxCore vs Langfuse](/blog/acruxcore-vs-langfuse) and
   [AcruxCore vs LangSmith](/blog/acrux-core-vs-langsmith).
 - More tools compared: [10 LLM observability tools tested hands-on](/blog/hands-on-llm-ops-comparison),
-  [8 LangSmith alternatives](/blog/langsmith-alternatives) and [8 Langfuse alternatives](/blog/langfuse-alternatives).
+  [7 LangSmith alternatives](/blog/langsmith-alternatives) and [7 Langfuse alternatives](/blog/langfuse-alternatives).
 - What self-hosting Langfuse takes next to six other self-hosted tools:
   [Self-hosting LLM observability tools: seven measured, six open source](/blog/self-hosting-llm-observability).
 - At a glance: the [comparison page](https://acruxcore.com/compare) puts AcruxCore next to Langfuse and five other

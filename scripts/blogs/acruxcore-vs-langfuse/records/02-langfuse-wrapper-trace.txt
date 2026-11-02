@@ -1,0 +1,4 @@
+langfuse 5.1.0 openai 3.42.1 host https://cloud.langfuse.com
+== 4. drop-in OpenAI wrapper, no context manager
+reply: OK.
+trace found: f70444df876283b891144a096e7f8488 name acxlf-wrapper-check observations 1

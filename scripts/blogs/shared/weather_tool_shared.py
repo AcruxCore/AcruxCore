@@ -1,8 +1,11 @@
-"""The one tool and the one agent loop that both platform demos share.
+"""The tool, the system prompt, the question and the streaming helpers the weather demos share.
 
-`tool_agent_langsmith.py` and `tool_agent_acruxcore.py` (in scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/python/) both
-import from here, so the two runs differ ONLY in where the LLM call goes and
-how the run is traced — never in what the tool does or how the loop is shaped.
+The LangSmith scripts and `setup_acruxcore.py` (in
+scripts/blogs/tool-calling-traces-langsmith-vs-acruxcore/python/) import from here, and so do
+the SDK scripts in scripts/blogs/tool-agent-sdk-langchain-vs-acruxcore/python/. The tool does
+the same thing on every leg. Where it lives differs: the LangSmith scripts run `get_weather`
+and the loop in your process, while on AcruxCore the tool and the prompt are stored on the
+platform and the SDK runs the loop.
 
 The tool is `get_weather(city)`, backed by the public wttr.in JSON endpoint. It
 needs no API key, which is what makes it registerable as an AcruxCore `http`
@@ -88,11 +91,11 @@ QUESTION = "Should I go for a run in Lahore this evening?"
 
 
 def get_weather(city: str) -> dict[str, Any]:
-    """Fetch current weather for a city and shrink wttr.in's payload to four fields.
+    """Fetch current weather for a city and shrink wttr.in's payload to five fields.
 
     The trimming matters for the comparison: it is exactly what the AcruxCore
     tool version does in its `responseTransform`, so both legs feed the model the
-    same small JSON instead of wttr.in's ~40KB forecast blob.
+    same small JSON instead of wttr.in's ~39KB forecast blob.
     """
     res = requests.get(
         WTTR_URL.format(city=city),
@@ -127,9 +130,11 @@ class ToolCallAccumulator:
 
     Streaming splits one tool call across many SSE frames: the id and function
     name usually arrive in the first frame for a given `index`, then the JSON
-    arguments arrive a few characters at a time. Nothing in either platform does
-    this for you — it is the caller's job on both legs, which is why it lives in
-    the shared module rather than in one of them.
+    arguments arrive a few characters at a time. On the LangSmith leg this is the
+    caller's job, because `wrap_openai` traces the stream but does not hand back an
+    assembled tool call. Only `tool_agent_langsmith_stream.py` uses this class. The
+    AcruxCore leg does not need it, because `run_prompt_with_tools(stream=True)`
+    yields each tool call already joined.
     """
 
     def __init__(self) -> None:

@@ -1,8 +1,7 @@
 """Leg 1 of 2: run the shared get_weather agent and trace it to LangSmith.
 
-The tool lives in the script (LangSmith has no tool registry — a tool is a
-decorated Python function), and `@traceable(run_type="tool")` is what turns the
-call into its own span. `wrap_openai` patches the client so every completion is
+The tool lives in the script as a decorated Python function, and
+`@traceable(run_type="tool")` is what turns the call into its own span. `wrap_openai` patches the client so every completion is
 an `llm` span with token counts.
 
 Run:
@@ -36,8 +35,7 @@ from weather_tool_shared import (
 PROJECT = "weather-tool-agent"
 
 # Tracing is opt-in via env, so set it before the first traced call is made.
-os.environ["LANGCHAIN_TRACING_V2"] = "true"
-os.environ["LANGCHAIN_PROJECT"] = PROJECT
+os.environ["LANGSMITH_TRACING"] = "true"
 os.environ["LANGSMITH_PROJECT"] = PROJECT
 
 if not os.environ.get("LANGSMITH_API_KEY"):

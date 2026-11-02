@@ -70,7 +70,7 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
           has a prompt registry, tracing, and a gateway, and many teams already run it for
           classic ML. <strong>Opik</strong> is built around datasets, experiments, and online
           scoring rules. <strong>Laminar</strong> traces agent runs, with SQL over spans and
-          three workspace roles. <strong>Agenta</strong> has 15 built-in evaluator types,
+          three workspace roles. <strong>Agenta</strong> has 11 built-in evaluator types plus five regex presets,
           annotation queues, and an agent builder. AcruxCore has the smallest community here, a single team layer with
           no organization above it, and one role per member.
         </p>
@@ -199,12 +199,12 @@ export const DECISION_POINTS: { question: string; answer: string }[] = [
   {
     question: 'Can you update prompts without deploying code?',
     answer:
-      'Every platform here except Laminar has a prompt registry, so you can change a prompt without redeploying code. The registries differ in templating. AcruxCore, MLflow, and Agenta support Jinja2 conditionals and loops, so a prompt can branch on its inputs. Langfuse, Phoenix, Opik, and Helicone substitute variables only, and any branching logic stays in your application code. Laminar’s playground had no prompt versions, aliases, or variables.',
+      'Every platform here except Laminar has a prompt registry, so you can change a prompt without redeploying code. The registries differ in templating. AcruxCore, MLflow, and Agenta support Jinja2 conditionals and loops, so a prompt can branch on its inputs. Langfuse, Opik, and Helicone substitute variables only, and any branching logic stays in your application code. Phoenix uses Mustache, which has sections but no Jinja-style if/for syntax. Laminar’s playground had no prompt versions, aliases, or variables.',
   },
   {
     question: 'What team structure and permissions do you need?',
     answer:
-      'AcruxCore has members, invites, and roles inside a single team, with nothing above it, and one role per member. In the self-hosted versions we tested, Langfuse and Laminar had an organization or workspace layer above projects. Laminar had three workspace roles. Agenta had organizations, workspaces, and projects, with six roles. Phoenix, Opik, and MLflow had no team, member, or invite management, and MLflow had no login screen. Helicone had one organization tier and no role field in its invite dialog.',
+      'AcruxCore has members, invites, and roles inside a single team, with nothing above it, and one role per member. In the self-hosted versions we tested, Langfuse and Laminar had an organization or workspace layer above projects. Laminar had three workspace roles. Agenta had organizations, workspaces, and projects, with six roles. Phoenix, Opik, and MLflow had no team, member, or invite management on our installs, where login was off. Per their docs, Phoenix has three roles once authentication is on, and MLflow has opt-in roles and Workspaces. Helicone had one organization tier with owner, admin and member roles, set in its members list.',
   },
   {
     question: 'Can you see who changed what and when, and does it cost extra?',

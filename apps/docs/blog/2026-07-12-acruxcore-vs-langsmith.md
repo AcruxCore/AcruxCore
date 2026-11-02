@@ -4,21 +4,23 @@ description: "AcruxCore vs LangSmith: one agent run on both, with tracing code, 
 slug: acrux-core-vs-langsmith
 authors: [acrux]
 tags: [llmops-comparison, prompt-management, llm-tracing]
-image: /img/social-card.png
-keywords: [AcruxCore vs langsmith, langsmith alternative, langsmith pricing, llm gateway, prompt management, llm tracing, llm evaluation]
+image: /img/blog/acrux-core-vs-langsmith/header.webp
+keywords: [AcruxCore vs langsmith, langsmith pricing, llm gateway, prompt management, llm tracing, llm evaluation]
 last_update:
-  date: 2026-10-25
+  date: 2026-11-02
 ---
 
+![AcruxCore vs LangSmith at a glance: license, self-hosting, gateway, review queue, SDK languages and SSO for each product in a matched grid](/img/blog/acrux-core-vs-langsmith/header.webp)
+
 Choose LangSmith if your team reviews model output by hand in a queue, needs a Go or Java SDK,
-or needs custom SSO, and $567 a month for 100,000 traces and three people fits your budget.
+or needs custom SSO. On its Plus plan, 100,000 traces a month for three people cost $567.
 Choose AcruxCore if you want a gateway, versioned tools and an audit log in a free, open-source
 platform that you can also self-host, and your team can review replies on the trace page.
 
 We ran the same agent on both platforms, with the same code, data, prompts and model. This post
 gives the measured numbers for each step, then the features that only one of the two has.
 
-We build AcruxCore. We ran every tool ourselves, and the scripts are linked below.
+We build AcruxCore. The scripts and run logs for both platforms are linked at the end of the post.
 
 <!-- truncate -->
 
@@ -28,27 +30,32 @@ We build AcruxCore. We ran every tool ourselves, and the scripts are linked belo
 |---|---|---|
 | License | Apache 2.0, every feature | SDKs MIT; the platform is not open source |
 | Self-hosting | Free, every feature | Enterprise plan only |
-| Hosted price, 100,000 traces a month, 3 people | $0 during the beta; later price not set | $567 on the Plus plan |
-| Hosted free plan | The whole beta; no trace or seat limit is listed | 5,000 traces a month, 1 seat |
+| Hosted price, 100,000 traces a month, 3 people | $0; the hosted platform is free to use | $567 on the Plus plan |
+| Hosted free plan | The whole platform; no trace or seat limit is listed | 5,000 traces a month, 1 seat |
 | Trace data kept on the hosted plan | Message content 90 days; tokens, cost and timing are not deleted | 14 days; 180 days costs extra |
 | Hosted regions | Not stated | GCP US, GCP EU, GCP APAC, AWS US |
 | SDK languages | Python, TypeScript | Python, TypeScript, Go, Java |
-| Gateway in the request path | Yes: fallbacks, cache, budgets, rate limits, virtual keys | Yes, in beta: spend limits, rate limits |
+| Gateway in the request path | Yes: fallbacks, cache, budgets, rate limits, virtual keys | Yes, in beta: fallbacks, spend limits, rate limits, data policies |
 | Review queue for people | No | Yes |
 | Alerts | Email: budgets, evaluation rules, weekly digest | Slack, PagerDuty, Dynatrace, webhook |
 | SSO | No | Google and GitHub sign-in; custom SSO on Enterprise |
-| Versioned tool catalog that the platform runs | Yes | No |
+| Tool catalog that the platform runs | Yes, versioned | Partial: Fleet agents use built-in tool integrations and tools on MCP servers you connect; the Playground's tool registry keeps one current copy of each tool, with no version history |
 
 Sources, read 25 October 2026: LangSmith [pricing](https://www.langchain.com/pricing),
 [self-hosting](https://docs.langchain.com/langsmith/self-hosted),
 [regions](https://docs.langchain.com/langsmith/regions-faq),
 [SDK reference](https://docs.langchain.com/langsmith/reference),
 [LLM gateway](https://docs.langchain.com/langsmith/llm-gateway),
+[gateway fallbacks](https://docs.langchain.com/langsmith/llm-gateway-fallbacks),
 [alerts](https://docs.langchain.com/langsmith/alerts) and
-[annotation queues](https://docs.langchain.com/langsmith/annotation-queues) pages; the
+[annotation queues](https://docs.langchain.com/langsmith/annotation-queues) pages
+([tool registry](https://docs.langchain.com/langsmith/use-tools),
+[Fleet tools](https://docs.langchain.com/langsmith/fleet/tools) and
+[Fleet MCP servers](https://docs.langchain.com/langsmith/fleet/remote-mcp-servers) read 2 November 2026); the
 [`langsmith-sdk` repository](https://github.com/langchain-ai/langsmith-sdk) for the SDK license; and
 [acruxcore.com/pricing](https://acruxcore.com/pricing). The $567 figure comes from LangSmith's
-pricing calculator on 16 October 2026. The [price section](#price-and-hosting) explains it.
+pricing calculator on 16 October 2026, and the calculator gave the same rate on 2 November 2026.
+The [price section](#price-and-hosting) explains it.
 
 ## How we tested
 
@@ -64,6 +71,8 @@ classify, price and reply.
 - **Platforms:** LangSmith on its hosted EU region, free plan, `langsmith` 0.10.10. AcruxCore on
   acruxcore.com, `acruxcore` 0.18.0.
 - **Date:** 16 and 17 October 2026.
+- **Client machine and location:** not recorded. The latency below is mostly model time, so
+  this matters little for the comparison.
 
 The same app also ran on Langfuse. That three-way result is in
 [AcruxCore vs Langfuse vs LangSmith](https://acruxcore.com/blog/acruxcore-vs-langfuse-vs-langsmith).
@@ -82,9 +91,14 @@ Both platforms stored the same tree for one message. The agent, named `scope-che
 root. Under it came one span per step and one model call inside each step, and the price step was
 marked as a tool.
 
+<details>
+<summary>Show screenshots: the same message traced in AcruxCore and LangSmith</summary>
+
 ![AcruxCore trace for one message: scope-check at the root, with extract, classify once for each of the two requests, a price tool and reply, each step holding a glm-5.3 LLM span, and 2,132 tokens and $0.00285 in the header](/img/blog/acruxcore-vs-langfuse-vs-langsmith/acx-trace-tree.jpg)
 
 ![LangSmith trace for the same message: scope-check at the root, with extract, two classify runs, a price tool and reply, each holding a glm-5.3 model call](/img/blog/langfuse-vs-langsmith/ls-trace-tree.jpg)
+
+</details>
 
 The LangSmith code is 18 lines, and 6 of those lines read the prompt. Our app does not install
 `langchain-core`, so LangSmith returns each prompt as a serialized LangChain object. The 6 lines
@@ -109,12 +123,12 @@ prompt and makes one call.
 
 | | AcruxCore | LangSmith |
 |---|---|---|
-| Lines in the agent script | 19 | 65 |
-| Lines in the streaming agent script | 25 | 70 |
+| Lines in the agent script | 19 | 64 |
+| Lines in the streaming agent script | 25 | 69 |
 | One-time setup | 45 lines, or none in the dashboard | None |
 | Cost of one run, as each platform priced it | $0.0000846 for 381 tokens | $0.0000822 for 377 tokens |
 
-With the setup added, the two totals are close: 64 lines on AcruxCore and 65 on LangSmith. The
+With the setup added, the two totals are even: 64 lines on each platform. The
 AcruxCore setup runs once per team. Each AcruxCore tool span also records the tool version that
 ran. The full write-up is in
 [Tool-call traces: LangSmith vs AcruxCore](https://acruxcore.com/blog/tool-calling-traces-langsmith-vs-acruxcore).
@@ -125,7 +139,7 @@ ran. The full write-up is in
 |---|---|---|
 | How a chat prompt is stored | A list of role and content messages | A serialized LangChain object |
 | Push a prompt from code | Python or TypeScript SDK, or REST | Needs the `langchain-core` package |
-| SDK read without naming a label | Not offered; every read names an alias | Returns the newest commit, even an untested one |
+| SDK read without naming a label | Not possible: every read names an alias | Returns the newest commit, even an untested one |
 | Promote a version | 4 clicks, with a confirmation | 3 clicks, with a confirmation |
 | Roll back | 2 clicks on the same tab | 3 clicks |
 | History of promotions | Audit tab: who moved the alias, from which version to which | Rollback list of past commits |
@@ -141,12 +155,14 @@ both take an alias. When you commit a prompt for the first time, AcruxCore point
 and a `staging` alias at version 1. Committing version 2 does not move those aliases. AcruxCore can also fill in the template variables on the server and return the
 finished messages.
 
-> **Key point:** A LangSmith SDK read with no tag returns the newest commit, even an untested one.
-> Every AcruxCore SDK read names an alias.
+<details>
+<summary>Show screenshots: AcruxCore audit tab and LangSmith rollback history</summary>
 
 ![AcruxCore Audit tab for scope-extract: production moved v1 → v2, then v2 → v1, each with who made the change and when](/img/blog/acruxcore-vs-langfuse-vs-langsmith/acx-audit-promote-rollback.jpg)
 
 ![LangSmith prompt page: Environments panel with Production on commit 586b51ca and a Rollback history list of two commits](/img/blog/langfuse-vs-langsmith/ls-rollback-history.jpg)
+
+</details>
 
 The cache times come from each SDK's source. In LangSmith 0.10.10,
 `DEFAULT_PROMPT_CACHE_TTL_SECONDS` is `5 * 60`. In the AcruxCore SDKs, `cache_ttl` defaults to
@@ -168,9 +184,14 @@ opened each platform's comparison of the two runs.
 On AcruxCore, version 2 fixed 2 messages on the items score and broke 2 others. The comparison
 page opened on those 4 messages, with no further click.
 
+<details>
+<summary>Show screenshots: v1 vs v2 comparison in AcruxCore and LangSmith</summary>
+
 ![AcruxCore Compare per example: base v1, target v2, Changed 4 selected, two messages improved and two regressed on the items score](/img/blog/acruxcore-vs-langfuse-vs-langsmith/acx-local-compare-per-example.jpg)
 
 ![LangSmith comparison of v2 and v1 filtered to two rows, with v1's items_exact cells in red at 0.00 and v2's at 1.00](/img/blog/langfuse-vs-langsmith/ls-compare-filtered.jpg)
+
+</details>
 
 We do not compare the scores across the two platforms. `glm-5.3` gives a slightly different
 answer each time, so a score gap between platforms is noise.
@@ -193,10 +214,16 @@ is?"
 | The verdict names the question | No; a ▲/▼ rating on the step | Yes, a feedback key |
 | Fix a wrong answer | A comment and a label on the trace | "Add to Dataset" adds your edited version to the dataset |
 
+<details>
+<summary>Show screenshot: LangSmith annotation queue</summary>
+
 ![LangSmith annotation queue: the message and the agent's output on the left, the "send as is" and "needs a fix" verdict and the automatic scores on the right](/img/blog/langfuse-vs-langsmith/ls-annotation-queue.jpg)
 
+</details>
+
 LangSmith's queue shows the next reply after each verdict, so a reviewer does not go back to a
-list. On AcruxCore, a reviewer works from the Traces list, which shows each trace's input.
+list. On AcruxCore, a reviewer works from the Traces list, which shows each trace's name rather
+than the client's message, so finding one message means opening rows.
 
 ## Live traffic
 
@@ -222,7 +249,7 @@ $0.088 at the full input rate.
 A gateway sits between your app and the model providers. Your app sends every model call to one
 endpoint, and the gateway forwards it, records it and applies limits.
 
-AcruxCore's gateway is an OpenAI-compatible endpoint. It is included in the hosted beta and in
+AcruxCore's gateway is an OpenAI-compatible endpoint. It is included in the hosted platform and in
 the self-hosted version. You register your own provider keys and the model names your app may
 call. The gateway then gives you:
 
@@ -235,7 +262,9 @@ call. The gateway then gives you:
 LangSmith's [LLM gateway](https://docs.langchain.com/langsmith/llm-gateway) is in beta, as of
 25 October 2026. It takes Chat Completions, Messages and Responses requests with one LangSmith
 API key, and every call appears as a LangSmith trace. Its governance controls are spend limits,
-rate limits and data policies. The page does not mention fallbacks or a response cache.
+rate limits and data policies. Model fallbacks have their own
+[page](https://docs.langchain.com/langsmith/llm-gateway-fallbacks). The gateway docs do not
+describe a response cache; they pass through the provider's own prompt caching.
 LangSmith's gateway runs on LangSmith Cloud in every region, and on self-hosted LangSmith when an
 administrator turns it on.
 
@@ -245,13 +274,18 @@ Our test app called z.ai directly on both platforms, so neither gateway is in th
 
 | Plan | 3 people, 100,000 traces a month | Trace data kept |
 |---|---|---|
-| AcruxCore (hosted) | $0; free to use, no paid plan | Message content 90 days; tokens, cost and timing are not deleted |
+| AcruxCore (hosted) | $0; the hosted platform is free to use | Message content 90 days; tokens, cost and timing are not deleted |
 | LangSmith Plus | $567 | 14 days; 180 days costs extra |
 
-- LangSmith's pricing calculator gave $567 on 16 October 2026: 3 seats at $39, plus 90,000
-  traces above the included 10,000. On 25 October 2026, the
-  [pricing page](https://www.langchain.com/pricing) still listed $39 per seat and 10,000 included
-  traces on Plus, but no longer printed the per-trace rate.
+- LangSmith's pricing calculator gave $567 on 16 October 2026. Plus costs $39 a seat and
+  includes 10,000 base traces a month. Each further trace costs 0.005 LSU, and 1 LSU is $1, so
+  the 90,000 extra traces cost $450. With 3 seats at $39, the total is $117 plus $450, which is
+  $567.
+- These are base traces, which LangSmith keeps for 14 days. Keeping a trace for 180 days makes it
+  an extended trace. Per the pricing page, the upgrade costs 0.0025 LSU ($0.0025) a trace on top
+  of the base rate.
+- On 2 November 2026, the [pricing page](https://www.langchain.com/pricing) calculator still
+  showed "$39 / seat / mo · includes 10K traces total · 0.005 LSU / additional trace".
 - LangSmith bills per trace. The steps inside a trace are free.
 - The [AcruxCore pricing page](https://acruxcore.com/pricing) says the hosted service is free to
   use and that no paid plan exists, as of 26 October 2026.
@@ -263,26 +297,29 @@ add-on to the Enterprise plan.
 
 ## What LangSmith does that AcruxCore doesn't
 
-- **A review queue.** Reviewers see one reply at a time, answer a named question, and can add the
+- 👎 **A review queue.** Reviewers see one reply at a time, answer a named question, and can add the
   reply to a dataset in one click. AcruxCore has no queue.
-- **More SDK languages.** LangSmith has SDKs for Go and Java as well as Python and TypeScript.
-- **More alert channels.** LangSmith alerts on run count, cost, errors, feedback score and
+- 👎 **More SDK languages.** LangSmith has SDKs for Go and Java as well as Python and TypeScript.
+- 👎 **More alert channels.** LangSmith alerts on run count, cost, errors, feedback score and
   latency, and sends them to Slack, PagerDuty, Dynatrace or a webhook. AcruxCore alerts by email
   only.
-- **SSO and regions.** LangSmith offers custom SSO on Enterprise and four hosted regions.
+- 👎 **SSO and regions.** LangSmith offers custom SSO on Enterprise and four hosted regions.
   AcruxCore has no SSO and does not state its hosted region.
-- **Published paid plans.** LangSmith sells paid plans with published prices. AcruxCore's hosted
-  service is free and has no paid plan.
+- **Published paid plans.** LangSmith sells paid plans with published prices. The hosted AcruxCore
+  platform is free to use, and no paid plan exists today.
 
 ## What AcruxCore does that LangSmith doesn't
 
-- **Free self-hosting with every feature**, under Apache 2.0.
-- **A gateway with fallbacks and a response cache**, hosted or self-hosted, and not in beta.
-- **A versioned tool catalog.** You define a tool, version it and bind it to a prompt, and the
-  gateway can run it. Each tool span records the tool version that ran.
-- **An audit log on every plan**, which shows who moved each alias and between which versions. The
+- 👍 **Free self-hosting with every feature**, under Apache 2.0.
+- 👍 **A gateway with a response cache, and not in beta.**
+- 👍 **A tool catalog that the platform runs.** You define a tool, version it and bind it to a
+  prompt, and the gateway can run it. Each tool span records the tool version that ran.
+  LangSmith's Fleet agents call built-in tool integrations and tools on remote MCP servers you
+  connect. Its Playground saves tool definitions to a workspace registry, but the registry
+  overwrites a tool in place rather than keeping versions.
+- 👍 **An audit log on every plan**, which shows who moved each alias and between which versions. The
   [audit trail guide](https://docs.acruxcore.com/docs/guides/read-the-team-audit-trail) shows it.
-- **A prompt read that always names an alias**, so code cannot serve an untested version by
+- 👍 **A prompt read that always names an alias**, so code cannot serve an untested version by
   default.
 
 ## Which one to choose
@@ -294,6 +331,46 @@ and three people, and 14 days of trace data.
 **Choose AcruxCore** if you want the gateway, the tool catalog and the audit log without a paid
 plan, or you must self-host with every feature. Expect to review replies on the trace page, and
 to receive alerts by email.
+
+![Choose LangSmith if you review replies by hand, need Go or Java, custom SSO or a chosen data region; choose AcruxCore if you want the gateway, tool catalog, audit log and free self-hosting](/img/blog/acrux-core-vs-langsmith/choose.webp)
+
+> **Key point:** In this test the two platforms needed about the same tracing code and had similar live
+> latency. The choice comes down to features and price: LangSmith has the review queue,
+> Go and Java SDKs and SSO, and AcruxCore has the gateway, the tool catalog and free self-hosting.
+
+## FAQ
+
+### How much does LangSmith cost for 100,000 traces a month?
+
+On the Plus plan, 100,000 traces a month for three people cost $567: $117 for three seats at $39
+and $450 for the 90,000 traces above the 10,000 included. These are base traces, kept for 14
+days.
+
+### Is LangSmith open source?
+
+The LangSmith SDKs are MIT licensed, but the platform itself is not open source. AcruxCore is
+open source under Apache 2.0, with every feature.
+
+### Can you self-host LangSmith?
+
+Yes, but self-hosted LangSmith is an add-on to the Enterprise plan. AcruxCore can be self-hosted
+for free with every feature.
+
+### How long does LangSmith keep trace data?
+
+LangSmith keeps base traces for 14 days. Keeping a trace for 180 days makes it an extended trace.
+Per the pricing page, the upgrade costs 0.0025 LSU ($0.0025) a trace on top of the base rate.
+
+### Does LangSmith have an LLM gateway?
+
+Yes. LangSmith's LLM gateway was in beta on 2 November 2026, with model fallbacks, spend limits,
+rate limits and data policies. Its docs do not describe a response cache, which AcruxCore's
+gateway has.
+
+### Is AcruxCore free?
+
+The hosted AcruxCore platform is free to use, and no paid plan exists today. You pay your model
+provider yourself, as you do with LangSmith.
 
 ## Run it yourself
 

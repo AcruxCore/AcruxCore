@@ -6,11 +6,13 @@ slug: full-cycle-latency-benchmark
 date: 2026-08-11
 authors: [acrux]
 tags: [llmops-comparison, llm-latency, llm-gateway]
-image: /img/social-card.png
+image: /img/blog/full-cycle-latency-benchmark/header.webp
 keywords: [llm ops latency comparison, opik latency, mlflow ai gateway latency, langfuse latency, helicone latency, phoenix latency, full cycle latency benchmark]
 last_update:
   date: 2026-10-25
 ---
+
+![The eight paths in the full-cycle benchmark: the OpenAI direct baseline, Opik tracked SDK, MLflow AI Gateway, Langfuse OTel SDK, Helicone AI Gateway, Phoenix OTel SDK, AcruxCore gateway and AcruxCore BYOK, each timed as prompt fetch plus completion on gpt-4o-mini](/img/blog/full-cycle-latency-benchmark/header.webp)
 
 Opik, MLflow, Langfuse, Helicone, Phoenix, and AcruxCore all landed within about
 220 ms of each other on the median, between 810 ms and 1032 ms for a prompt fetch
@@ -62,6 +64,8 @@ Connections are pooled. We report **medians with a 95% bootstrap confidence
 interval** (5,000 resamples) on the gap against the OpenAI baseline: if that
 interval crosses zero, the gap isn't distinguishable from noise at this sample
 size, and we say so rather than quoting the point estimate as if it were exact.
+
+![How the benchmark tests a gap: discard warm-up rounds, run the paths in rotating order, take the gap per round against the baseline, bootstrap a confidence interval, and call a gap statistically real only when the interval does not cross zero](/img/blog/full-cycle-latency-benchmark/method.webp)
 
 :::github
 [`full-cycle-latency-bench.py`](https://github.com/AcruxCore/AcruxCore/blob/main/scripts/comparison/shared/full-cycle-latency-bench.py) — the full benchmark script.
