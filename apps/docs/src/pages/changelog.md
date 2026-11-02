@@ -41,6 +41,7 @@ called out in the week it ships and in the SDK release notes.
 - Platform screenshots and long run output in 14 blog posts now open from a toggle.
 - 18 older blog posts get their own header image and one diagram, replacing the default card.
 - Blog posts now show "Published" and "Updated" dates under the title.
+- **New post** — [15 LiteLLM alternatives](https://acruxcore.com/blog/litellm-alternatives): self-hosted, hosted and libraries.
 
 ---
 
