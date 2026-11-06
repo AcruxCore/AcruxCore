@@ -117,6 +117,22 @@ describe('blog posts', () => {
     });
   }
 
+  // A named author is only worth having if a crawler can tie the byline to the
+  // person's public profiles, so the Person node must carry them as sameAs.
+  it('a post by a named author has a Person with sameAs profile links', () => {
+    const post = jsonLd(read(BLOG, 'llm-as-a-judge.html')).find(
+      (n) => n['@type'] === 'BlogPosting',
+    );
+    assert.ok(post, 'no BlogPosting');
+    const authors = [post.author].flat() as Node[];
+    assert.equal(authors[0]?.['@type'], 'Person');
+    assert.equal(authors[0]?.name, 'Talha Anwar');
+    assert.deepEqual(authors[0]?.sameAs, [
+      'https://www.linkedin.com/in/chtalhaanwar/',
+      'https://scholar.google.com/citations?hl=en&user=PkY8BPwAAAAJ',
+    ]);
+  });
+
   it('keeps the latency benchmark title and description within budget', () => {
     const html = read(BLOG, 'full-cycle-latency-benchmark.html');
     assert.ok(titleOf(html).length <= 60, titleOf(html));
