@@ -30,7 +30,10 @@ The `web` image depends on that host name, so name the API service `api` in your
 ## Tags
 
 - `latest` is the release that runs on acruxcore.com today.
-- `sha-<commit>` is the build of one commit. Use it to pin a version.
+- `2026.11.1`, `2026.11.2`, … name each release: the year, the month, then a counter. Pin one of these.
+- `sha-<commit>` is the build of one commit.
+
+Each release on [GitHub](https://github.com/AcruxCore/AcruxCore/releases) lists its database migrations, new variables and SDK versions.
 
 All images are `linux/amd64`.
 

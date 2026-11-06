@@ -119,6 +119,8 @@ docker compose up --build
 
 Auth is in-app (Better Auth) — accounts, sessions and password hashes all live in your own Postgres. There's no identity vendor to sign up for, and the API applies pending migrations on boot.
 
+**Pin a release.** Both Compose files pull `latest` unless you set `ACRUXCORE_IMAGE_TAG` in `.env`, for example `ACRUXCORE_IMAGE_TAG=2026.11.1`. Each [release](https://github.com/AcruxCore/AcruxCore/releases) lists the database migrations, new environment variables and SDK versions it brings, so read the notes of every release between yours and the new one before you upgrade.
+
 ## 🧑‍💻 Contributing
 
 Working on AcruxCore itself rather than just running it? See [CONTRIBUTING.md](./CONTRIBUTING.md) for the npm-workspaces setup, running the app from source, and tests — and [CLA.md](./CLA.md) before opening a pull request.
