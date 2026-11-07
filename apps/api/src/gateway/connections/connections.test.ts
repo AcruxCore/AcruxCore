@@ -2,11 +2,14 @@
 process.env.GATEWAY_ENCRYPTION_KEY =
   process.env.GATEWAY_ENCRYPTION_KEY ?? Buffer.alloc(32, 5).toString('base64');
 
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import request from 'supertest';
 import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
 import { decryptSecret } from './crypto';
 import { authHeaders, resetAuthTables, signupTestUser } from '../../test-utils';
+import { allowLoopbackForTests, resetSsrfAllowlist } from '../../tools/execute/safe-fetch';
 
 const app = createApp();
 
@@ -402,4 +405,210 @@ describe('editing a connection keeps its other settings (issue #489)', () => {
       .send({ config: { base_url: 'http://169.254.169.254/latest' } })
       .expect(400);
   }, 60000);
+});
+
+// ── Extra provider headers (issue #790) ─────────────────────────────────────
+
+describe('openai_compatible connections send config.headers to the provider (issue #790)', () => {
+  const BASE_URL = 'https://api.example.com/v1';
+  const CANNED = {
+    id: 'c1',
+    object: 'chat.completion',
+    created: 1,
+    model: 'go-model',
+    choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+    usage: { prompt_tokens: 3, completion_tokens: 1, total_tokens: 4 },
+  };
+
+  // Not async: returning supertest's Test keeps `.expect` at the call site.
+  function createCompatible(ctx: Awaited<ReturnType<typeof signupTestUser>>, config: Record<string, unknown>): request.Test {
+    return request(app)
+      .post('/api/v1/gateway/connections')
+      .set(authHeaders(ctx))
+      .send({ provider: 'openai_compatible', label: 'OpenCode Go', apiKey: OPENAI_KEY, config: { base_url: BASE_URL, ...config } });
+  }
+
+  it('a gateway call (plain and streamed) carries the connection headers; Authorization stays the key', async () => {
+    // A stand-in for OpenCode Go: it refuses any call without `x-opencode-session`.
+    const seen: http.IncomingHttpHeaders[] = [];
+    const upstream = http.createServer((req, res) => {
+      let raw = '';
+      req.on('data', (c) => (raw += c));
+      req.on('end', () => {
+        seen.push(req.headers);
+        if (!req.headers['x-opencode-session']) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: { message: 'Request is missing x-opencode-session' } }));
+          return;
+        }
+        if (JSON.parse(raw).stream) {
+          res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+          res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'ok' }, finish_reason: 'stop' }] })}\n\n`);
+          res.end('data: [DONE]\n\n');
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(CANNED));
+      });
+    });
+    allowLoopbackForTests();
+    await new Promise<void>((resolve) => upstream.listen(0, resolve));
+    try {
+      const baseUrl = `http://localhost:${(upstream.address() as AddressInfo).port}/v1`;
+      const ctx = await signupTestUser(app);
+      const conn = await request(app)
+        .post('/api/v1/gateway/connections')
+        .set(authHeaders(ctx))
+        .send({
+          provider: 'openai_compatible',
+          label: 'OpenCode Go',
+          apiKey: OPENAI_KEY,
+          config: { base_url: baseUrl, headers: { 'x-opencode-session': 'acx-gateway' } },
+        })
+        .expect(201);
+      expect(conn.body.config.headers).toEqual({ 'x-opencode-session': 'acx-gateway' });
+      await request(app)
+        .post('/api/v1/gateway/models')
+        .set(authHeaders(ctx))
+        .send({ publicName: 'go-model', upstreamModel: 'go-model', credentialId: conn.body.id })
+        .expect(201);
+
+      await request(app)
+        .post('/api/v1/gateway/chat/completions')
+        .set(authHeaders(ctx))
+        .send({ model: 'go-model', messages: [{ role: 'user', content: 'hi' }] })
+        .expect(200);
+      const streamed = await request(app)
+        .post('/api/v1/gateway/chat/completions')
+        .set(authHeaders(ctx))
+        .send({ model: 'go-model', stream: true, messages: [{ role: 'user', content: 'hi' }] })
+        .expect(200);
+      expect(streamed.text).toContain('[DONE]');
+
+      expect(seen).toHaveLength(2);
+      for (const h of seen) {
+        expect(h['x-opencode-session']).toBe('acx-gateway');
+        expect(h.authorization).toBe(`Bearer ${OPENAI_KEY}`);
+      }
+    } finally {
+      resetSsrfAllowlist();
+      upstream.closeAllConnections();
+      await new Promise<void>((resolve) => upstream.close(() => resolve()));
+    }
+  });
+
+  it.each([['Authorization'], ['host'], ['Content-Type'], ['Cookie'], ['proxy-authorization'], ['x-api-key']])(
+    'refuses %s, which carries auth or is set by the gateway itself',
+    async (name) => {
+      const ctx = await signupTestUser(app);
+      const res = await createCompatible(ctx, { headers: { [name]: 'x' } }).expect(400);
+      expect(JSON.stringify(res.body)).toContain('headers');
+    },
+  );
+
+  it.each([['x-goog-api-key'], ['X-Auth-Token'], ['x-access-token'], ['ocp-apim-subscription-key'], ['x-client-secret']])(
+    'refuses %s, whose name says it carries a credential',
+    async (name) => {
+      const ctx = await signupTestUser(app);
+      const res = await createCompatible(ctx, { headers: { [name]: 'AIza-secret' } }).expect(400);
+      expect(JSON.stringify(res.body)).toContain('headers');
+    },
+  );
+
+  it('refuses two names that differ only in case, which fetch would join into one value', async () => {
+    const ctx = await signupTestUser(app);
+    const res = await createCompatible(ctx, { headers: { 'X-Session': 'a', 'x-session': 'b' } }).expect(400);
+    expect(JSON.stringify(res.body)).toContain('x-session');
+  });
+
+  it('a stored header that today\'s rules refuse is dropped alone; the others are still sent', async () => {
+    const seen: http.IncomingHttpHeaders[] = [];
+    const upstream = http.createServer((req, res) => {
+      req.resume();
+      req.on('end', () => {
+        seen.push(req.headers);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(CANNED));
+      });
+    });
+    allowLoopbackForTests();
+    await new Promise<void>((resolve) => upstream.listen(0, resolve));
+    try {
+      const baseUrl = `http://localhost:${(upstream.address() as AddressInfo).port}/v1`;
+      const ctx = await signupTestUser(app);
+      const conn = await createCompatible(ctx, { base_url: baseUrl, headers: { 'x-opencode-session': 'acx' } }).expect(201);
+      // A row saved before a rule was tightened: one entry now fails validation.
+      await prisma.providerConnection.update({
+        where: { id: conn.body.id },
+        data: { config: { base_url: baseUrl, headers: { 'x-opencode-session': 'acx', 'x-goog-api-key': 'old' } } },
+      });
+      await request(app)
+        .post('/api/v1/gateway/models')
+        .set(authHeaders(ctx))
+        .send({ publicName: 'go-model', upstreamModel: 'go-model', credentialId: conn.body.id })
+        .expect(201);
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+      await request(app)
+        .post('/api/v1/gateway/chat/completions')
+        .set(authHeaders(ctx))
+        .send({ model: 'go-model', messages: [{ role: 'user', content: 'hi' }] })
+        .expect(200);
+
+      expect(seen[0]['x-opencode-session']).toBe('acx');
+      expect(seen[0]['x-goog-api-key']).toBeUndefined();
+      expect(warn.mock.calls.flat().join(' ')).toContain('x-goog-api-key');
+    } finally {
+      jest.restoreAllMocks();
+      resetSsrfAllowlist();
+      upstream.closeAllConnections();
+      await new Promise<void>((resolve) => upstream.close(() => resolve()));
+    }
+  });
+
+  it('refuses a header name or value that is not valid HTTP', async () => {
+    const ctx = await signupTestUser(app);
+    await createCompatible(ctx, { headers: { 'bad name': 'x' } }).expect(400);
+    await createCompatible(ctx, { headers: { 'x-ok': 'line\r\nInjected: 1' } }).expect(400);
+    await createCompatible(ctx, { headers: { 'x-ok': 42 } }).expect(400);
+  });
+
+  it('refuses headers on a provider other than openai_compatible', async () => {
+    const ctx = await signupTestUser(app);
+    await request(app)
+      .post('/api/v1/gateway/connections')
+      .set(authHeaders(ctx))
+      .send({ provider: 'openai', label: 'OpenAI', apiKey: OPENAI_KEY, config: { headers: { 'x-a': 'b' } } })
+      .expect(400);
+
+    const openai = await request(app)
+      .post('/api/v1/gateway/connections')
+      .set(authHeaders(ctx))
+      .send({ provider: 'openai', label: 'OpenAI', apiKey: OPENAI_KEY, config: {} })
+      .expect(201);
+    await request(app)
+      .patch(`/api/v1/gateway/connections/${openai.body.id}`)
+      .set(authHeaders(ctx))
+      .send({ config: { headers: { 'x-a': 'b' } } })
+      .expect(400);
+  });
+
+  it('PATCH replaces the whole headers object, and null removes it', async () => {
+    const ctx = await signupTestUser(app);
+    const conn = await createCompatible(ctx, { headers: { 'x-a': '1', 'x-b': '2' } }).expect(201);
+
+    const replaced = await request(app)
+      .patch(`/api/v1/gateway/connections/${conn.body.id}`)
+      .set(authHeaders(ctx))
+      .send({ config: { headers: { 'x-c': '3' } } })
+      .expect(200);
+    expect(replaced.body.config).toEqual({ base_url: BASE_URL, headers: { 'x-c': '3' } });
+
+    const removed = await request(app)
+      .patch(`/api/v1/gateway/connections/${conn.body.id}`)
+      .set(authHeaders(ctx))
+      .send({ config: { headers: null } })
+      .expect(200);
+    expect(removed.body.config).toEqual({ base_url: BASE_URL });
+  });
 });

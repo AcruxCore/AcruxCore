@@ -34,7 +34,15 @@ function toNode(s: SpanRow, payload?: SpanPayloadRow): SpanNode {
     metadata: (s.metadata ?? {}) as Record<string, unknown>,
     children: [],
   };
-  if (payload) node.payload = { input: payload.input, output: payload.output, variables: payload.variables };
+  if (payload) {
+    node.payload = {
+      input: payload.input,
+      output: payload.output,
+      variables: payload.variables,
+      toolSetId: payload.toolSetId,
+      toolChoice: payload.toolChoice,
+    };
+  }
   return node;
 }
 

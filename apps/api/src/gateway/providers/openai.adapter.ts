@@ -221,6 +221,9 @@ export class OpenAiAdapter implements ProviderAdapter {
         {
           method: 'POST',
           headers: {
+            // The connection's own headers first, so the two below can never be replaced
+            // by them (they are refused at save time too). Issue #790.
+            ...creds.headers,
             'Content-Type': 'application/json',
             Authorization: `Bearer ${creds.apiKey}`,
           },
@@ -316,6 +319,9 @@ export class OpenAiAdapter implements ProviderAdapter {
         {
           method: 'POST',
           headers: {
+            // The connection's own headers first, so the two below can never be replaced
+            // by them (they are refused at save time too). Issue #790.
+            ...creds.headers,
             'Content-Type': 'application/json',
             Authorization: `Bearer ${creds.apiKey}`,
           },

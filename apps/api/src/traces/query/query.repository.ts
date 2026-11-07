@@ -127,12 +127,18 @@ export class TraceQueryRepository {
    *
    * @param teamId - Team scope.
    * @param traceId - Internal trace UUID.
-   * @returns `{ trace, spans, payloads? }`, or null if not found in this team.
+   * @returns `{ trace, spans, payloads?, toolSets }`, or null if not found in this team.
+   *   `toolSets` maps a `trace_tool_sets` id to its tool list.
    */
   async getTrace(
     teamId: string,
     traceId: string,
-  ): Promise<{ trace: TraceRow; spans: SpanRow[]; payloads?: Record<string, SpanPayloadRow> } | null> {
+  ): Promise<{
+    trace: TraceRow;
+    spans: SpanRow[];
+    payloads?: Record<string, SpanPayloadRow>;
+    toolSets: Record<string, unknown>;
+  } | null> {
     const trace = await prisma.trace.findFirst({ where: { id: traceId, teamId } });
     if (!trace) return null;
 
@@ -150,7 +156,14 @@ export class TraceQueryRepository {
         ? Object.fromEntries(payloadRows.map((p) => [p.spanId, p]))
         : undefined;
 
-    return { trace, spans, payloads };
+    // Each distinct tool list once, however many rounds sent it (PR #799 review).
+    const setRows = await prisma.traceToolSet.findMany({
+      where: { traceId, teamId },
+      select: { id: true, tools: true },
+    });
+    const toolSets = Object.fromEntries(setRows.map((t) => [t.id, t.tools]));
+
+    return { trace, spans, payloads, toolSets };
   }
 
   /**

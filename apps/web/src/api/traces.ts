@@ -24,6 +24,7 @@ import type {
   TraceSettings,
   UpdateTraceSettingsInput,
 } from './types';
+import { attachToolSets } from '@/traces/tool-sets';
 
 /**
  * Maps a camelCase TraceFilters object to the API's snake_case/bracket query params.
@@ -103,7 +104,7 @@ export function useTraces(filters: TraceFilters) {
 export function useTrace(id: string | null) {
   return useQuery({
     queryKey: keys.trace(id ?? ''),
-    queryFn: () => api<TraceDetail>(`/traces/${id}`),
+    queryFn: async () => attachToolSets(await api<TraceDetail>(`/traces/${id}`)),
     enabled: !!id,
   });
 }

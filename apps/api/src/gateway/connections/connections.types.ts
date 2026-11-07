@@ -1,6 +1,119 @@
 import { z } from 'zod';
 import { isBlockedUrlLiteral } from '../../tools/execute/safe-fetch';
 
+/**
+ * Extra HTTP headers an `openai_compatible` connection sends on every provider call
+ * (issue #790). Some OpenAI-compatible hosts refuse a call without one of their own — OpenCode
+ * Go rejects any request that lacks `x-opencode-session` — so without this such a host could
+ * not sit behind the gateway at all.
+ *
+ * Values are stored as plain connection config, readable by every team member who can list
+ * the connection, so they are for routing and identification, never for secrets: the
+ * provider key belongs in `apiKey`, which is encrypted. That is why every header that
+ * carries auth is refused (phase-2 FAQ Q32).
+ */
+
+/** Most headers one connection may set; real providers need one or two. */
+export const MAX_CONNECTION_HEADERS = 20;
+
+/**
+ * Headers a connection may not set, lower-cased. Two kinds:
+ * - auth headers: the connection's encrypted key is the one credential, and a second,
+ *   plaintext credential in config would leak through every connection listing;
+ * - headers the gateway or `fetch` own: framing, encoding and the request's own host.
+ */
+const DENIED_HEADERS: ReadonlySet<string> = new Set([
+  'authorization',
+  'proxy-authorization',
+  'x-api-key',
+  'api-key',
+  'cookie',
+  'host',
+  'content-type',
+  'content-length',
+  'content-encoding',
+  'transfer-encoding',
+  'accept-encoding',
+  'connection',
+  'keep-alive',
+  'upgrade',
+  'te',
+  'trailer',
+  'expect',
+]);
+
+/**
+ * A name that says it carries a credential: vendor key headers such as `x-goog-api-key`,
+ * `x-auth-token` or `ocp-apim-subscription-key`. A fixed list cannot name every vendor's
+ * header, so the words are matched instead. `session` is deliberately absent: OpenCode Go's
+ * `x-opencode-session` is the routing header this feature exists for.
+ */
+const CREDENTIAL_NAME = /auth|token|secret|passw|api[-_]?key|apikey|credential|signature|subscription-key|cookie/i;
+
+/** An RFC 9110 header name (a "token"). */
+const HEADER_NAME = /^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/;
+
+/** Visible ASCII, space and tab only: no CR/LF, so a value cannot inject a header. */
+const HEADER_VALUE = /^[\t\x20-\x7e]*$/;
+
+/** One header name: an HTTP token, not denied, and not a credential by its name. */
+export const ConnectionHeaderNameSchema = z
+  .string()
+  .max(100, 'A header name must be 100 characters or fewer.')
+  .regex(HEADER_NAME, 'A header name may hold only letters, digits and !#$%&\'*+.^_`|~-')
+  .refine((name) => !DENIED_HEADERS.has(name.toLowerCase()), {
+    message:
+      'This header cannot be set on a connection: auth headers belong in apiKey, and the gateway sets the rest itself.',
+  })
+  .refine((name) => !CREDENTIAL_NAME.test(name), {
+    message:
+      'This header looks like it carries a credential. Connection headers are readable by every team member, so put the key in apiKey instead.',
+  });
+
+/** One header value: printable ASCII of at most 1024 characters. */
+export const ConnectionHeaderValueSchema = z
+  .string()
+  .max(1024, 'A header value must be 1024 characters or fewer.')
+  .regex(HEADER_VALUE, 'A header value may hold only printable ASCII characters.');
+
+/**
+ * `config.headers`: a flat name → value object of at most {@link MAX_CONNECTION_HEADERS}
+ * entries, see the two entry schemas. Names are case-insensitive in HTTP, so two names
+ * that differ only in case are refused: `fetch` would send them as one comma-joined value.
+ */
+export const ConnectionHeadersSchema = z
+  .record(ConnectionHeaderNameSchema, ConnectionHeaderValueSchema)
+  .refine((headers) => Object.keys(headers).length <= MAX_CONNECTION_HEADERS, {
+    message: `A connection may set at most ${MAX_CONNECTION_HEADERS} headers.`,
+  })
+  .superRefine((headers, ctx) => {
+    const seen = new Set<string>();
+    for (const name of Object.keys(headers)) {
+      const lower = name.toLowerCase();
+      if (seen.has(lower)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [name],
+          message: `Header ${lower} is set twice. HTTP header names ignore case, so keep one.`,
+        });
+      }
+      seen.add(lower);
+    }
+  });
+
+/**
+ * Validates `config.headers` and adds its issues under `config.headers`. `null` is allowed
+ * only on update, where it removes the headers (JSON Merge Patch).
+ */
+function checkHeaders(headers: unknown, ctx: z.RefinementCtx, allowNull: boolean): void {
+  if (headers === undefined || (allowNull && headers === null)) return;
+  const parsed = ConnectionHeadersSchema.safeParse(headers);
+  if (parsed.success) return;
+  for (const issue of parsed.error.issues) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue.message, path: ['config', 'headers', ...issue.path] });
+  }
+}
+
 /** The supported provider kinds; mirrors the Prisma `provider_kind` enum. */
 export const ProviderKindSchema = z.enum(['openai', 'anthropic', 'openai_compatible', 'gemini']);
 
@@ -64,7 +177,19 @@ export const CreateConnectionSchema = z
       message: 'config.base_url must be a valid URL that does not point at an internal or reserved address.',
       path: ['config', 'base_url'],
     },
-  );
+  )
+  .superRefine((data, ctx) => {
+    // Extra headers exist for OpenAI-compatible hosts that demand their own (issue #790).
+    if (data.config['headers'] !== undefined && data.provider !== 'openai_compatible') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'config.headers is supported only on openai_compatible connections.',
+        path: ['config', 'headers'],
+      });
+      return;
+    }
+    checkHeaders(data.config['headers'], ctx, false);
+  });
 
 /** Validated create payload. */
 export type CreateConnectionDto = z.infer<typeof CreateConnectionSchema>;
@@ -115,7 +240,10 @@ export const UpdateConnectionSchema = z
       message: 'config.base_url must be a valid URL that does not point at an internal or reserved address.',
       path: ['config', 'base_url'],
     },
-  );
+  )
+  // The provider is not in this payload, so the openai_compatible-only rule is enforced in
+  // ConnectionsService.update, after the connection is loaded.
+  .superRefine((data, ctx) => checkHeaders(data.config?.['headers'], ctx, true));
 
 /** Validated update payload. */
 export type UpdateConnectionDto = z.infer<typeof UpdateConnectionSchema>;

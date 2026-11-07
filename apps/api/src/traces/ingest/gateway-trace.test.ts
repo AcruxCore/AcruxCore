@@ -56,7 +56,7 @@ function complete(agent: ReturnType<typeof request.agent>, headers: Record<strin
 }
 
 beforeEach(async () => {
-  await prisma.$executeRaw`TRUNCATE TABLE span_payloads, spans, traces, team_trace_settings, gateway_requests, gateway_model_fallbacks, gateway_models, provider_connections, prompt_aliases, prompt_versions, audit_log, prompts, api_keys, team_members, teams, users RESTART IDENTITY CASCADE`;
+  await prisma.$executeRaw`TRUNCATE TABLE span_payloads, trace_tool_sets, spans, traces, team_trace_settings, gateway_requests, gateway_model_fallbacks, gateway_models, provider_connections, prompt_aliases, prompt_versions, audit_log, prompts, api_keys, team_members, teams, users RESTART IDENTITY CASCADE`;
 });
 afterEach(() => jest.restoreAllMocks());
 afterAll(async () => {
@@ -680,5 +680,300 @@ describe('gateway trace hook — a rescued call carries a warning', () => {
 
     const span = await prisma.span.findFirstOrThrow({ where: { kind: 'llm' } });
     expect((span.attributes as { warning?: unknown }).warning).toBeUndefined();
+  }, 20000);
+});
+
+describe('tool definitions on the llm span (issues #792, #793)', () => {
+  const TOOLS = [
+    {
+      type: 'function',
+      function: {
+        name: 'get_order_status',
+        description: 'Look up the shipping status of an order by its id.',
+        parameters: { type: 'object', properties: { order_id: { type: 'string' } }, required: ['order_id'] },
+      },
+    },
+    {
+      type: 'function',
+      function: { name: 'get_refund_policy', description: 'Return the refund policy text.', parameters: { type: 'object', properties: {} } },
+    },
+  ];
+
+  function completeWithTools(agent: ReturnType<typeof request.agent>): request.Test {
+    return agent.post('/api/v1/gateway/chat/completions').send({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: 'Where is order A-1042?' }],
+      tools: TOOLS,
+      tool_choice: 'auto',
+    });
+  }
+
+  it('stores the exact tools array and tool_choice the model was sent, and returns them on the trace', async () => {
+    const { agent } = await signupOwner();
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    mockFetchOnce(CANNED_OPENAI);
+    const res = await completeWithTools(agent).expect(200);
+    const traceId = res.headers['x-gateway-trace-id'];
+
+    const detail = await agent.get(`/api/v1/traces/${traceId}`).expect(200);
+    const llm = detail.body.spans[0];
+    expect(llm.kind).toBe('llm');
+    // The list is returned once per trace, under `toolSets`, and the payload points at it.
+    expect(detail.body.toolSets[llm.payload.toolSetId]).toEqual(TOOLS);
+    expect(llm.payload.toolChoice).toBe('auto');
+    // The message list stays the message list: evals and datasets read `input` as messages.
+    expect(llm.payload.input).toEqual([{ role: 'user', content: 'Where is order A-1042?' }]);
+  }, 20000);
+
+  it('stores the tools on a failed round too, since what was asked is all a failure has', async () => {
+    const { agent } = await signupOwner();
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    mockFetchOnce({ error: { message: 'bad request' } }, false, 400);
+    await completeWithTools(agent);
+
+    const span = await prisma.span.findFirstOrThrow({ where: { kind: 'llm' } });
+    expect(span.status).toBe('error');
+    const payload = await prisma.spanPayload.findUniqueOrThrow({ where: { spanId: span.id } });
+    const set = await prisma.traceToolSet.findUniqueOrThrow({ where: { id: payload.toolSetId! } });
+    expect(set.tools).toEqual(TOOLS);
+    expect(payload.toolChoice).toBe('auto');
+  }, 20000);
+
+  it('stores no tools when payload capture is off', async () => {
+    const { agent } = await signupOwner();
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+    await agent.put('/api/v1/traces/settings').send({ capturePayloads: false }).expect(200);
+
+    mockFetchOnce(CANNED_OPENAI);
+    await completeWithTools(agent).expect(200);
+
+    const span = await prisma.span.findFirstOrThrow({ where: { kind: 'llm' } });
+    expect(await prisma.spanPayload.findUnique({ where: { spanId: span.id } })).toBeNull();
+    expect(JSON.stringify(span)).not.toContain('shipping status');
+  }, 20000);
+
+  it('leaves tools null on a call that sent none', async () => {
+    const { agent } = await signupOwner();
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    await complete(agent).expect(200);
+
+    const span = await prisma.span.findFirstOrThrow({ where: { kind: 'llm' } });
+    const payload = await prisma.spanPayload.findUniqueOrThrow({ where: { spanId: span.id } });
+    expect(payload.toolSetId).toBeNull();
+    expect(payload.toolChoice).toBeNull();
+  }, 20000);
+
+  it('stores one copy of a tool list that every round of a loop sends', async () => {
+    const { agent } = await signupOwner();
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    mockFetchOnce(CANNED_OPENAI);
+    const first = await completeWithTools(agent).expect(200);
+    const traceId = first.headers['x-gateway-trace-id'];
+    for (let round = 0; round < 2; round++) {
+      jest.restoreAllMocks();
+      mockFetchOnce(CANNED_OPENAI);
+      await completeWithTools(agent).set('x-trace-id', traceId).expect(200);
+    }
+
+    expect(await prisma.traceToolSet.count({ where: { traceId } })).toBe(1);
+    const detail = await agent.get(`/api/v1/traces/${traceId}`).expect(200);
+    expect(Object.keys(detail.body.toolSets)).toHaveLength(1);
+    const ids = new Set(detail.body.spans.map((s: { payload: { toolSetId: string } }) => s.payload.toolSetId));
+    expect(ids.size).toBe(1);
+    expect(detail.body.toolSets[[...ids][0] as string]).toEqual(TOOLS);
+  }, 20000);
+
+  it('an empty tools list stores no tool set but keeps tool_choice', async () => {
+    const { agent } = await signupOwner();
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    mockFetchOnce(CANNED_OPENAI);
+    const res = await agent
+      .post('/api/v1/gateway/chat/completions')
+      .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'Hi' }], tools: [], tool_choice: 'none' })
+      .expect(200);
+
+    const detail = await agent.get(`/api/v1/traces/${res.headers['x-gateway-trace-id']}`).expect(200);
+    expect(detail.body.spans[0].payload.toolSetId).toBeNull();
+    expect(detail.body.spans[0].payload.toolChoice).toBe('none');
+    expect(detail.body.toolSets).toEqual({});
+  }, 20000);
+});
+
+describe('a failed gateway call that joins an existing trace', () => {
+  it('applies x-trace-name and x-trace-tags, as a successful call does', async () => {
+    const { agent, teamId } = await signupOwner();
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    await complete(agent).expect(200);
+    const traceId = (await prisma.trace.findFirstOrThrow({ where: { teamId } })).id;
+
+    mockFetchOnce({ error: { message: 'upstream exploded' } }, false, 500);
+    await agent
+      .post('/api/v1/gateway/chat/completions')
+      .set('x-trace-id', traceId)
+      .set('x-trace-name', 'refund-flow')
+      .set('x-trace-tags', 'prod')
+      .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'Again.' }] });
+
+    const trace = await prisma.trace.findUniqueOrThrow({ where: { id: traceId } });
+    expect(trace.spanCount).toBe(2);
+    expect(trace.name).toBe('refund-flow');
+    expect(trace.tags).toContain('prod');
+  }, 20000);
+});
+
+describe('a step report names the trace a gateway call opened (issue #791)', () => {
+  // The shape of `hub.traces.step` with a raw `openai` client: the gateway call carries
+  // only `x-trace-id` + `x-parent-span-id`, so it reaches the server first and names the
+  // trace from the message. The step's own report arrives when the step ends.
+  const TRACE_ID = '7a1d4a8e-2f0b-4c55-9a43-0d1b2c3e4f50';
+  const STEP_ID = 'step-root-1';
+
+  function stepReport(name: string, spanName = name) {
+    return {
+      traces: [
+        {
+          traceId: TRACE_ID,
+          name,
+          spans: [
+            {
+              spanId: STEP_ID,
+              name: spanName,
+              kind: 'agent',
+              status: 'ok',
+              startTime: new Date(Date.now() - 1000).toISOString(),
+              endTime: new Date().toISOString(),
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  async function gatewayCallInStep(agent: ReturnType<typeof request.agent>, extra: Record<string, string> = {}) {
+    await complete(agent, { 'x-trace-id': TRACE_ID, 'x-parent-span-id': STEP_ID, ...extra }).expect(200);
+  }
+
+  it('the outermost step name replaces the name the gateway derived from the message', async () => {
+    const { agent } = await signupOwner();
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    await gatewayCallInStep(agent);
+    expect((await prisma.trace.findUniqueOrThrow({ where: { id: TRACE_ID } })).name).toBe('Say hi.');
+
+    await agent.post('/api/v1/traces').send(stepReport('support-agent')).expect(200);
+    expect((await prisma.trace.findUniqueOrThrow({ where: { id: TRACE_ID } })).name).toBe('support-agent');
+  }, 20000);
+
+  it('does not replace a name the caller set with x-trace-name', async () => {
+    const { agent } = await signupOwner();
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    await gatewayCallInStep(agent, { 'x-trace-name': 'refund-flow' });
+    await agent.post('/api/v1/traces').send(stepReport('support-agent')).expect(200);
+    expect((await prisma.trace.findUniqueOrThrow({ where: { id: TRACE_ID } })).name).toBe('refund-flow');
+  }, 20000);
+
+  it('a report whose name is not its root span name (a BYO default like "chat") still renames nothing', async () => {
+    const { agent } = await signupOwner();
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    await gatewayCallInStep(agent);
+    await agent.post('/api/v1/traces').send(stepReport('chat', 'gpt-4o-mini')).expect(200);
+    expect((await prisma.trace.findUniqueOrThrow({ where: { id: TRACE_ID } })).name).toBe('Say hi.');
+  }, 20000);
+
+  it('a step name with surrounding spaces still names the trace, trimmed', async () => {
+    const { agent } = await signupOwner();
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    await gatewayCallInStep(agent);
+    await agent.post('/api/v1/traces').send(stepReport('support-agent ')).expect(200);
+    expect((await prisma.trace.findUniqueOrThrow({ where: { id: TRACE_ID } })).name).toBe('support-agent');
+  }, 20000);
+
+  it("moves the trace's start back to the root step's start", async () => {
+    const { agent } = await signupOwner();
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    // The step did 1 s of other work before its first model call opened the trace.
+    await gatewayCallInStep(agent);
+    const report = stepReport('support-agent');
+    const stepStart = new Date(Date.now() - 60_000);
+    report.traces[0].spans[0].startTime = stepStart.toISOString();
+    await agent.post('/api/v1/traces').send(report).expect(200);
+
+    const trace = await prisma.trace.findUniqueOrThrow({ where: { id: TRACE_ID } });
+    expect(trace.startedAt.toISOString()).toBe(stepStart.toISOString());
+  }, 20000);
+
+  it('a step renames a pre-#791 trace whose timestamp name a library default replaced', async () => {
+    const { agent, teamId } = await signupOwner();
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    // A row written before name_is_derived existed: timestamp name, flag false.
+    const startedAt = new Date(Date.now() - 5000);
+    await prisma.trace.create({
+      data: { id: TRACE_ID, teamId, name: startedAt.toISOString(), startedAt, nameIsDerived: false },
+    });
+    await gatewayCallInStep(agent, { 'x-trace-name-if-unset': 'runToolLoop' });
+    expect((await prisma.trace.findUniqueOrThrow({ where: { id: TRACE_ID } })).name).toBe('runToolLoop');
+
+    await agent.post('/api/v1/traces').send(stepReport('support-agent')).expect(200);
+    expect((await prisma.trace.findUniqueOrThrow({ where: { id: TRACE_ID } })).name).toBe('support-agent');
+  }, 20000);
+
+  it('reports that create the same new trace at the same moment all succeed', async () => {
+    const { agent } = await signupOwner();
+    // The OTLP exporter and the SDK span queue both reach a new trace id first.
+    const reports = Array.from({ length: 6 }, (_, i) => ({
+      traces: [
+        {
+          traceId: TRACE_ID,
+          spans: [
+            {
+              spanId: `writer-${i}`,
+              name: `writer-${i}`,
+              kind: 'other',
+              startTime: new Date(Date.now() - 1000).toISOString(),
+              endTime: new Date().toISOString(),
+            },
+          ],
+        },
+      ],
+    }));
+    const results = await Promise.all(reports.map((r) => agent.post('/api/v1/traces').send(r)));
+
+    expect(results.map((r) => r.status)).toEqual(results.map(() => 200));
+    expect(await prisma.span.count({ where: { traceId: TRACE_ID } })).toBe(6);
+    expect((await prisma.trace.findUniqueOrThrow({ where: { id: TRACE_ID } })).spanCount).toBe(6);
+  }, 20000);
+
+  it('x-trace-name-if-unset on a later call still does not replace a message-derived name (Q33)', async () => {
+    const { agent } = await signupOwner();
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+
+    await gatewayCallInStep(agent);
+    await gatewayCallInStep(agent, { 'x-trace-name-if-unset': 'runToolLoop' });
+    expect((await prisma.trace.findUniqueOrThrow({ where: { id: TRACE_ID } })).name).toBe('Say hi.');
   }, 20000);
 });

@@ -6,6 +6,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { buildPrefillFromSpan } from '@/gateway/playground-prefill';
 import { formatCount, formatLatency, formatPayload, formatUsd } from './format';
 import { Collapsible } from './Collapsible';
+import { SpanTools } from './SpanTools';
 import { KeyValueRows } from './KeyValueRows';
 import { summarizeAttempts } from './attempt-trail';
 import type { Feedback, Span } from '@/api/types';
@@ -290,6 +291,7 @@ export function SpanPanel({ span, traceId, feedback }: SpanPanelProps) {
           {span.payload!.input !== undefined && (
             <MonoBlock label="Input" value={formatPayload(span.payload!.input)} />
           )}
+          <SpanTools tools={span.payload!.tools} toolChoice={span.payload!.toolChoice} />
           {span.payload!.output !== undefined && (
             <MonoBlock label="Output" value={formatPayload(span.payload!.output)} />
           )}

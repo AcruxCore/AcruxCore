@@ -12,6 +12,21 @@ import { SpanPricer } from './span-pricer';
 const MAX_SPANS_PER_BATCH = 200;
 
 /**
+ * The trace name a report states as its root step's, or `undefined`.
+ *
+ * Both SDKs' `traces.step` send the outermost step's report with `name` equal to the
+ * root span's own name. That pairing is what makes it a step naming its trace rather
+ * than a report that merely joins one: a BYO `chat()` report also carries a `name`
+ * (often the `'chat'` default), but its span is named after the model. Only this pairing
+ * may replace a name the server derived (FAQ Q48, issue #791).
+ */
+function rootStepName(trace: IngestTrace): string | undefined {
+  const name = trace.name?.trim();
+  if (!name) return undefined;
+  return trace.spans.some((s) => !s.parentSpanId && s.name.trim() === name) ? name : undefined;
+}
+
+/**
  * Ingests OTel-shaped trace batches into the T1 tables. Each trace is resolved
  * or created and its spans appended inside one `$transaction`; the request is
  * synchronous (FAQ Q6) and — unlike the gateway hook — **not** best-effort, since
@@ -157,61 +172,53 @@ export class IngestService {
 
     const traceId = await runInTransaction(async (tx) => {
       // ── Resolve or create the trace ───────────────────────────────────────
+      const fresh = {
+        teamId,
+        sessionId: trace.sessionId ?? null,
+        name: trace.name?.trim() || startedAt.toISOString(),
+        nameIsDerived: mode.derivedName || !trace.name?.trim(),
+        tags: trace.tags,
+        metadata: trace.metadata,
+        startedAt,
+      };
       let traceId: string;
       if (trace.traceId) {
-        const existing = await this.spans.findTraceById(trace.traceId, tx);
-        if (existing) {
-          if (existing.teamId !== teamId) {
-            // Never leak another team's trace, and never cross-tenant append.
-            throw new NotFoundError('Trace not found.');
-          }
-          traceId = existing.id;
+        // Insert-if-absent, not find-then-create: another writer may be opening the same
+        // new trace at this moment (the OTLP exporter and the SDK span queue, say).
+        const { trace: row, created } = await this.spans.createTraceIfAbsent(
+          { ...fresh, id: trace.traceId },
+          tx,
+        );
+        if (row.teamId !== teamId) {
+          // Never leak another team's trace, and never cross-tenant append.
+          throw new NotFoundError('Trace not found.');
+        }
+        traceId = row.id;
+        if (!created) {
           // A derived name is offered rather than asserted. OTLP batches arrive in any
           // order, so the batch that creates a trace may not be the one holding its root
           // span — this is what lets a later batch replace the timestamp fallback, while
           // still never pushing a real name back to a timestamp (issue #362).
           const derivedName = mode.derivedName ? trace.name?.trim() : undefined;
-          if (trace.tags?.length || trace.metadata || trace.sessionId || derivedName) {
-            await this.spans.mergeTraceContext(
-              traceId,
-              teamId,
-              {
-                tags: trace.tags,
-                metadata: trace.metadata,
-                sessionId: trace.sessionId,
-                ...(derivedName ? { nameIfPlaceholder: derivedName } : {}),
-              },
-              tx,
-            );
-          }
-        } else {
-          const created = await this.spans.createTrace(
+          const rootName = mode.derivedName ? undefined : rootStepName(trace);
+          await this.spans.mergeTraceContext(
+            traceId,
+            teamId,
             {
-              id: trace.traceId,
-              teamId,
-              sessionId: trace.sessionId ?? null,
-              name: trace.name?.trim() || startedAt.toISOString(),
               tags: trace.tags,
               metadata: trace.metadata,
+              sessionId: trace.sessionId,
+              ...(derivedName ? { nameIfPlaceholder: derivedName } : {}),
+              ...(rootName ? { nameIfDerived: rootName } : {}),
+              // The call that opened the trace may have started after this batch's
+              // spans did, such as a step's root span.
               startedAt,
             },
             tx,
           );
-          traceId = created.id;
         }
       } else {
-        const created = await this.spans.createTrace(
-          {
-            teamId,
-            sessionId: trace.sessionId ?? null,
-            name: trace.name?.trim() || startedAt.toISOString(),
-            tags: trace.tags,
-            metadata: trace.metadata,
-            startedAt,
-          },
-          tx,
-        );
-        traceId = created.id;
+        traceId = (await this.spans.createTrace(fresh, tx)).id;
       }
 
       // ── Validate parent references (batch spanIds ∪ already-stored refs) ──

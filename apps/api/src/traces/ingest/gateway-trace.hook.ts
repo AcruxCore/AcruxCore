@@ -11,7 +11,8 @@ import type {
   GatewayCompletionRequest,
   GatewayResult,
 } from '../../gateway/completions/completions.types';
-import type { SpanStatus } from '../../shared/db/schema';
+import type { SpanStatus, TraceRow } from '../../shared/db/schema';
+import type { Prisma } from '@prisma/client';
 import { buildFailureAttributes } from '../spans/span-failure';
 import type { ChatMessage } from '../../gateway/providers/types';
 
@@ -143,6 +144,73 @@ export function defaultLlmSpanName(
 }
 
 /**
+ * Finds or opens the trace a gateway call's `llm` span lands in. The success and the error
+ * hook share it, so a failed round names, tags and joins a trace exactly as a successful
+ * one does.
+ *
+ * - No `x-trace-id`, or one another team owns: a new trace with a server-chosen id.
+ * - An id nobody owns yet: created with that id, insert-if-absent, so a concurrent first
+ *   report of the same trace (from the SDK span queue, say) cannot make either write fail.
+ * - An id this team owns: joined, and the call's trace context merged in. `x-trace-name`
+ *   overwrites (Q11); `x-trace-name-if-unset` only fills in a timestamp name (Q33).
+ *
+ * @param ctx - The call context with its trace fields.
+ * @param request - The pipeline request; its messages name a new trace when capture is on.
+ * @param capture - Whether payload capture is on for this call.
+ * @param startedAt - The call's start, used as a new trace's start.
+ * @param tx - The hook's transaction client.
+ * @returns The trace row the span belongs to.
+ */
+async function resolveGatewayTrace(
+  ctx: GatewayCallContext,
+  request: GatewayCompletionRequest,
+  capture: boolean,
+  startedAt: Date,
+  tx: Prisma.TransactionClient,
+): Promise<TraceRow> {
+  const fresh = {
+    teamId: ctx.teamId,
+    sessionId: ctx.sessionId ?? null,
+    // Precedence on create: the caller's instruction, then a client library's default,
+    // then the request's own text (only when capture is on), then the Q12 timestamp.
+    name:
+      ctx.traceName?.trim() ||
+      ctx.traceNameIfUnset?.trim() ||
+      (capture ? deriveTraceInputName(request.messages) : null) ||
+      startedAt.toISOString(),
+    // Only `x-trace-name` is a caller's choice; everything after it is a fallback the
+    // trace's root step may still replace (FAQ Q48, issue #791).
+    nameIsDerived: !ctx.traceName?.trim(),
+    tags: ctx.traceTags,
+    metadata: ctx.traceMetadata,
+    status: 'unset' as SpanStatus,
+    startedAt,
+  };
+  if (!ctx.traceId) return spansRepo.createTrace(fresh, tx);
+
+  const { trace, created } = await spansRepo.createTraceIfAbsent({ ...fresh, id: ctx.traceId }, tx);
+  // Another team's id: never join it, and never reveal it exists.
+  if (trace.teamId !== ctx.teamId) return spansRepo.createTrace(fresh, tx);
+  if (
+    !created &&
+    (ctx.traceName?.trim() || ctx.traceNameIfUnset?.trim() || ctx.traceTags?.length || ctx.traceMetadata)
+  ) {
+    await spansRepo.mergeTraceContext(
+      trace.id,
+      ctx.teamId,
+      {
+        name: ctx.traceName?.trim(),
+        nameIfPlaceholder: ctx.traceNameIfUnset?.trim(),
+        tags: ctx.traceTags,
+        metadata: ctx.traceMetadata,
+      },
+      tx,
+    );
+  }
+  return trace;
+}
+
+/**
  * Turns a committed gateway completion into one `llm` span (FAQ Q1/Q2). Runs
  * AFTER the Phase 2 money `$transaction` has committed and is passed the already-
  * committed `gatewayRequestId` (NOT a transaction client) — it owns its OWN
@@ -195,50 +263,7 @@ export async function recordGatewaySpan(args: {
       const teamSettings = await settingsRepo.get(ctx.teamId, tx);
       const capture = shouldCapture(teamSettings?.capturePayloads ?? true, ctx.capturePayloads);
 
-      // Resolve the trace: nest under a caller-supplied trace if it exists for this
-      // team; otherwise mint one (honoring the caller's trace id when provided).
-      let trace = ctx.traceId ? await spansRepo.findTrace(ctx.traceId, ctx.teamId, tx) : null;
-      if (!trace) {
-        trace = await spansRepo.createTrace(
-          {
-            id: ctx.traceId,
-            teamId: ctx.teamId,
-            sessionId: ctx.sessionId ?? null,
-            // Precedence on create: the caller's instruction, then a client library's
-            // default, then the request's own text (only when capture is on), then the
-            // Q12 timestamp.
-            name:
-              ctx.traceName?.trim() ||
-              ctx.traceNameIfUnset?.trim() ||
-              (capture ? deriveTraceInputName(request.messages) : null) ||
-              startedAt.toISOString(),
-            tags: ctx.traceTags,
-            metadata: ctx.traceMetadata,
-            status: 'unset',
-            startedAt,
-          },
-          tx,
-        );
-      } else if (
-        ctx.traceName?.trim() ||
-        ctx.traceNameIfUnset?.trim() ||
-        ctx.traceTags?.length ||
-        ctx.traceMetadata
-      ) {
-        // `name` overwrites (Q11); `nameIfPlaceholder` only fills in a trace still
-        // carrying the Q12 timestamp, so joining cannot rename (Q33).
-        await spansRepo.mergeTraceContext(
-          trace.id,
-          ctx.teamId,
-          {
-            name: ctx.traceName?.trim(),
-            nameIfPlaceholder: ctx.traceNameIfUnset?.trim(),
-            tags: ctx.traceTags,
-            metadata: ctx.traceMetadata,
-          },
-          tx,
-        );
-      }
+      const trace = await resolveGatewayTrace(ctx, request, capture, startedAt, tx);
 
       const spanRef = args.spanRef ?? randomUUID();
       const span = await spansRepo.appendSpan(
@@ -281,7 +306,15 @@ export async function recordGatewaySpan(args: {
         await spansRepo.writePayload(
           span.id,
           ctx.teamId,
-          { input: request.messages, output: result.body, variables: promptVariables ?? null },
+          {
+            input: request.messages,
+            output: result.body,
+            variables: promptVariables ?? null,
+            // The merged list (inline + tool_refs + prompt-attached), as the provider got
+            // it: the only record of what the model could choose from (issues #792, #793).
+            tools: request.tools,
+            toolChoice: request.tool_choice,
+          },
           tx,
         );
       }
@@ -345,29 +378,10 @@ export async function recordGatewayErrorSpan(args: {
       const teamSettings = await settingsRepo.get(ctx.teamId, tx);
       const capture = shouldCapture(teamSettings?.capturePayloads ?? true, ctx.capturePayloads);
 
-      // Same trace resolution as the success hook: nest under the caller's trace when it
-      // exists for this team, otherwise mint one honoring their id. A failed round must
-      // land in the SAME trace as the rounds around it, or the loop reads as two traces.
-      let trace = ctx.traceId ? await spansRepo.findTrace(ctx.traceId, ctx.teamId, tx) : null;
-      if (!trace) {
-        trace = await spansRepo.createTrace(
-          {
-            id: ctx.traceId,
-            teamId: ctx.teamId,
-            sessionId: ctx.sessionId ?? null,
-            name:
-              ctx.traceName?.trim() ||
-              ctx.traceNameIfUnset?.trim() ||
-              (capture ? deriveTraceInputName(request.messages) : null) ||
-              startedAt.toISOString(),
-            tags: ctx.traceTags,
-            metadata: ctx.traceMetadata,
-            status: 'unset',
-            startedAt,
-          },
-          tx,
-        );
-      }
+      // The same resolution as the success hook: a failed round must land in the SAME
+      // trace as the rounds around it, named and tagged the same way, or the loop reads
+      // as two traces.
+      const trace = await resolveGatewayTrace(ctx, request, capture, startedAt, tx);
 
       const errorCode = reqRow.errorCode ?? 'PROVIDER_ERROR';
       const { attributes, status, errorMessage } = buildFailureAttributes(
@@ -406,7 +420,13 @@ export async function recordGatewayErrorSpan(args: {
         await spansRepo.writePayload(
           span.id,
           ctx.teamId,
-          { input: request.messages, output: { error: errorCode }, variables: null },
+          {
+            input: request.messages,
+            output: { error: errorCode },
+            variables: null,
+            tools: request.tools,
+            toolChoice: request.tool_choice,
+          },
           tx,
         );
       }

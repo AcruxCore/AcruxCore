@@ -78,6 +78,7 @@ model Team {
   traces              Trace[]
   spans               Span[]
   spanPayloads        SpanPayload[]
+  traceToolSets       TraceToolSet[]
   teamTraceSettings   TeamTraceSettings?
   traceFeedback       TraceFeedback[]
   defaultForUsers     User[]                   @relation("UserDefaultTeam")
@@ -915,6 +916,10 @@ model Trace {
   teamId       String      @map("team_id") @db.Uuid
   sessionId    String?     @map("session_id")
   name         String?
+  /// True while `name` is a fallback the server picked (the request's message text or
+  /// the start timestamp) rather than one a caller chose. The trace's root step may
+  /// replace such a name when its report arrives later (phase-3 FAQ Q48, issue #791).
+  nameIsDerived Boolean    @default(false) @map("name_is_derived")
   status       span_status @default(unset)
   startedAt    DateTime    @map("started_at") @db.Timestamptz(6)
   endedAt      DateTime?   @map("ended_at") @db.Timestamptz(6)
@@ -929,6 +934,7 @@ model Trace {
   spans           Span[]
   feedback        TraceFeedback[]
   datasetExamples DatasetExample[]
+  toolSets        TraceToolSet[]
 
   @@index([teamId, createdAt(sort: Desc)], map: "idx_traces_team_time")
   @@index([teamId, sessionId], map: "idx_traces_team_session")
@@ -996,12 +1002,40 @@ model SpanPayload {
   input     Json?
   output    Json?
   variables Json?
+  /// The tool list (name, description, JSON schema) the model was sent with this call,
+  /// exactly as the provider received it, stored once per trace. Null when the call sent
+  /// no tools.
+  toolSetId  String?  @map("tool_set_id") @db.Uuid
+  /// The request's `tool_choice` (e.g. "auto", or a forced function). Null when unset.
+  toolChoice Json?    @map("tool_choice")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  span Span @relation(fields: [spanId], references: [id], onDelete: Cascade)
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  span    Span          @relation(fields: [spanId], references: [id], onDelete: Cascade)
+  team    Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  toolSet TraceToolSet? @relation(fields: [toolSetId], references: [id], onDelete: SetNull)
 
+  @@index([toolSetId], map: "idx_span_payloads_tool_set")
   @@map("span_payloads")
+}
+
+/// One distinct tool list that a trace's gateway `llm` calls sent the model. A tool loop
+/// sends the same list on every round, so each span payload points at one shared row
+/// rather than repeating it (PR #799 review). `hash` is the SHA-256 of the redacted list.
+/// Deleted with its trace, and by payload retention once no payload points at it.
+model TraceToolSet {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  traceId   String   @map("trace_id") @db.Uuid
+  teamId    String   @map("team_id") @db.Uuid
+  hash      String
+  tools     Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  trace    Trace         @relation(fields: [traceId], references: [id], onDelete: Cascade)
+  team     Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  payloads SpanPayload[]
+
+  @@unique([traceId, hash])
+  @@map("trace_tool_sets")
 }
 
 /// One row per team, lazily created. `capture_payloads` is the payload-capture

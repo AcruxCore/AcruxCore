@@ -47,8 +47,12 @@ beforeEach(() => {
   resetGlobalTracerProvider();
 });
 
-afterEach(() => {
+afterEach(async () => {
   resetGlobalTracerProvider();
+  // register() installs a context manager and the step bridge process-wide; leave
+  // neither behind for the next test.
+  (await import('@opentelemetry/api')).context.disable();
+  (await import('../../src/steps')).setStepContextBridge(undefined);
   delete process.env.ACRUXCORE_API_KEY;
   delete process.env.ACRUXCORE_BASE_URL;
 });
@@ -177,5 +181,119 @@ describe('register()', () => {
     expect(SUPPORTED_FRAMEWORKS).toContain('openai');
     expect(SUPPORTED_FRAMEWORKS).toContain('openai_agents');
     expect(SUPPORTED_FRAMEWORKS).toContain('langchain');
+  });
+});
+
+describe('steps and register() share one trace (issue #789)', () => {
+  /** What a step reports and what an OTel span inside it records. */
+  interface Seen {
+    step?: { traceId: string; spanId: string };
+    inner?: { traceId: string; spanId: string };
+    otel?: { traceId: string; parentSpanId?: string };
+  }
+
+  // `parentSpanContext` on sdk-trace-base 2.x, `parentSpanId` on 1.x.
+  function parentOf(span: unknown): string | undefined {
+    const s = span as { parentSpanContext?: { spanId: string }; parentSpanId?: string };
+    return s.parentSpanContext?.spanId ?? s.parentSpanId;
+  }
+
+  afterEach(async () => {
+    const { context } = await import('@opentelemetry/api');
+    context.disable();
+    (await import('../../src/steps')).setStepContextBridge(undefined);
+  });
+
+  it('an OTel span started inside traces.step is a child of that step, in its trace', async () => {
+    const provider = await register({ apiKey: 'k', baseUrl: 'https://x/api/v1' });
+    const { runAsStep } = await import('../../src/steps');
+    const sent: Array<{ spans?: Array<{ spanId: string }> }> = [];
+    const seen: Seen = {};
+
+    await runAsStep('agent', { kind: 'agent' }, (p) => sent.push(p), {}, undefined, async (step) => {
+      seen.step = { traceId: step.traceId, spanId: step.spanId };
+      await new Promise((r) => setTimeout(r, 1)); // the context must survive an await
+      provider.getTracer('test').startActiveSpan('OpenAI Chat Completions', (span) => {
+        seen.otel = { traceId: span.spanContext().traceId, parentSpanId: parentOf(span) };
+        span.end();
+      });
+    });
+
+    expect(seen.otel!.traceId).toBe(seen.step!.traceId.replace(/-/g, ''));
+    expect(seen.otel!.parentSpanId).toBe(seen.step!.spanId);
+    // The id OTel points at is the id the step reports, so the server links the two.
+    expect(sent[0].spans!.map((s) => s.spanId)).toContain(seen.step!.spanId);
+  });
+
+  it('an OTel span inside a nested step points at the nested step', async () => {
+    const provider = await register({ apiKey: 'k', baseUrl: 'https://x/api/v1' });
+    const { runAsStep } = await import('../../src/steps');
+    const seen: Seen = {};
+    const owner = {}; // one client: only its own steps nest
+
+    await runAsStep('agent', {}, () => {}, owner, undefined, async (outer) => {
+      seen.step = { traceId: outer.traceId, spanId: outer.spanId };
+      await runAsStep('tool', { kind: 'tool' }, () => {}, owner, undefined, async (inner) => {
+        seen.inner = { traceId: inner.traceId, spanId: inner.spanId };
+        provider.getTracer('test').startActiveSpan('http', (span) => {
+          seen.otel = { traceId: span.spanContext().traceId, parentSpanId: parentOf(span) };
+          span.end();
+        });
+      });
+    });
+
+    expect(seen.inner!.traceId).toBe(seen.step!.traceId);
+    expect(seen.otel!.parentSpanId).toBe(seen.inner!.spanId);
+  });
+
+  it("a step inside a framework's own OTel span leaves that span's trace alone", async () => {
+    const provider = await register({ apiKey: 'k', baseUrl: 'https://x/api/v1' });
+    const { runAsStep } = await import('../../src/steps');
+    const tracer = provider.getTracer('test');
+    let framework: { traceId: string; spanId: string } | undefined;
+    let llm: { traceId: string; parentSpanId?: string } | undefined;
+
+    // LangChain's tool span is active, and the tool function is wrapped in a step.
+    await tracer.startActiveSpan('langchain.tool', async (toolSpan) => {
+      framework = { traceId: toolSpan.spanContext().traceId, spanId: toolSpan.spanContext().spanId };
+      await runAsStep('search', { kind: 'tool' }, () => {}, {}, undefined, async () => {
+        tracer.startActiveSpan('OpenAI Chat Completions', (span) => {
+          llm = { traceId: span.spanContext().traceId, parentSpanId: parentOf(span) };
+          span.end();
+        });
+      });
+      toolSpan.end();
+    });
+
+    expect(llm!.traceId).toBe(framework!.traceId);
+    expect(llm!.parentSpanId).toBe(framework!.spanId);
+  });
+
+  it('does not reparent OTel spans when another tracer provider owns the process', async () => {
+    const { BasicTracerProvider } = await import('@opentelemetry/sdk-trace-base');
+    const other = new BasicTracerProvider();
+    trace.setGlobalTracerProvider(other); // Sentry, say, registered first
+    const { AsyncLocalStorageContextManager } = await import('@opentelemetry/context-async-hooks');
+    const { context } = await import('@opentelemetry/api');
+    context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable());
+
+    await register({ apiKey: 'k', baseUrl: 'https://x/api/v1' }); // cannot become global
+    const { runAsStep } = await import('../../src/steps');
+    let parent: string | undefined = 'unset';
+    let stepTrace = '';
+    let spanTrace = '';
+
+    await runAsStep('job', {}, () => {}, {}, undefined, async (step) => {
+      stepTrace = step.traceId.replace(/-/g, '');
+      trace.getTracer('sentry').startActiveSpan('db.query', (span) => {
+        parent = parentOf(span);
+        spanTrace = span.spanContext().traceId;
+        span.end();
+      });
+    });
+
+    // The other tracer's span starts its own trace, as it did before the bridge existed.
+    expect(parent).toBeUndefined();
+    expect(spanTrace).not.toBe(stepTrace);
   });
 });

@@ -465,6 +465,15 @@ export interface SpanPayload {
   output?: unknown;
   /** Raw prompt variables for a prompt-ref call, if the span captured any. */
   variables?: unknown;
+  /**
+   * Key of `TraceDetail.toolSets`: the tool list a gateway call sent the model; null when
+   * it sent none.
+   */
+  toolSetId?: string | null;
+  /** That list itself, filled in from `toolSets` by `attachToolSets` after the fetch. */
+  tools?: unknown;
+  /** The gateway call's `tool_choice`; null when unset. */
+  toolChoice?: unknown;
 }
 
 /** A span as returned already-nested by GET /traces/:id (roots have parentSpanId === null). */
@@ -577,6 +586,8 @@ export interface EvalScoreDto {
 export interface TraceDetail {
   trace: TraceSummary;
   spans: Span[];
+  /** Each distinct tool list the trace's gateway calls sent, by id; absent on an older API. */
+  toolSets?: Record<string, unknown>;
   feedback: Feedback[];
   evalScores: EvalScoreDto[];
 }

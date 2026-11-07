@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { ProviderConnection, ProviderKind } from '@/api';
 import { useCreateConnection, useUpdateConnection, ApiError } from '@/api';
-import { Button, Dialog, DialogFooter, Field, Input, Select, useToast } from '@/ui';
+import { Button, Dialog, DialogFooter, Field, Input, Select, Textarea, useToast } from '@/ui';
 import { PROVIDER_LABELS } from './format';
+import { formatHeaderLines, parseHeaderLines } from './connection-headers';
 
 const PROVIDERS: ProviderKind[] = ['openai', 'anthropic', 'gemini', 'openai_compatible'];
 
@@ -28,6 +29,7 @@ export function ConnectionDialog({ open, onOpenChange, connection }: ConnectionD
   const [label, setLabel] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
+  const [headerText, setHeaderText] = useState('');
 
   // Reset the form whenever the dialog opens (fresh create, or hydrate for edit).
   useEffect(() => {
@@ -37,20 +39,30 @@ export function ConnectionDialog({ open, onOpenChange, connection }: ConnectionD
       setLabel(connection.label);
       setApiKey('');
       setBaseUrl(String(connection.config.base_url ?? ''));
+      setHeaderText(formatHeaderLines(connection.config.headers));
     } else {
       setProvider('openai');
       setLabel('');
       setApiKey('');
       setBaseUrl('');
+      setHeaderText('');
     }
   }, [open, connection]);
 
   const busy = create.isPending || update.isPending;
   const needsBaseUrl = provider === 'openai_compatible';
+  const parsedHeaders = parseHeaderLines(headerText);
+  const hadHeaders = !!connection && formatHeaderLines(connection.config.headers) !== '';
 
   function buildConfig(): Record<string, unknown> {
     const config: Record<string, unknown> = {};
     if (needsBaseUrl && baseUrl.trim()) config.base_url = baseUrl.trim();
+    if (needsBaseUrl && parsedHeaders.ok) {
+      const any = Object.keys(parsedHeaders.headers).length > 0;
+      // A PATCH merges config, so an emptied field must say `null` to remove the headers.
+      if (any) config.headers = parsedHeaders.headers;
+      else if (hadHeaders) config.headers = null;
+    }
     return config;
   }
 
@@ -82,7 +94,7 @@ export function ConnectionDialog({ open, onOpenChange, connection }: ConnectionD
   const canSubmit =
     label.trim().length > 0 &&
     (editing || apiKey.trim().length > 0) &&
-    (!needsBaseUrl || baseUrl.trim().length > 0);
+    (!needsBaseUrl || (baseUrl.trim().length > 0 && parsedHeaders.ok));
 
   return (
     <Dialog
@@ -147,6 +159,25 @@ export function ConnectionDialog({ open, onOpenChange, connection }: ConnectionD
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               placeholder="https://openrouter.ai/api/v1"
+            />
+          </Field>
+        )}
+
+        {needsBaseUrl && (
+          <Field
+            label="Extra headers (optional)"
+            htmlFor="conn-headers"
+            error={parsedHeaders.ok ? undefined : parsedHeaders.error}
+            hint="Sent on every call, one Name: value per line, for providers that require their own header. Stored in plain text, so never put a key here."
+          >
+            <Textarea
+              id="conn-headers"
+              value={headerText}
+              onChange={(e) => setHeaderText(e.target.value)}
+              placeholder="x-opencode-session: my-app"
+              rows={2}
+              className="font-mono text-[13px]"
+              spellCheck={false}
             />
           </Field>
         )}

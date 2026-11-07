@@ -175,6 +175,12 @@ export interface NormalizedResponse {
 export interface ProviderCredentials {
   apiKey: string;
   baseUrl?: string;
+  /**
+   * Extra headers from the connection's `config.headers`, sent on every call. Only the
+   * OpenAI-compatible adapter reads them (issue #790); the names that carry auth or that
+   * the adapter sets itself were refused when the connection was saved.
+   */
+  headers?: Record<string, string>;
 }
 
 /** A single streamed delta. Declared here; consumed by the G7 streaming step. */

@@ -12,6 +12,26 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+### Changed
+
+- **Breaking for code that treats `step.spanId` as a UUID.** Once `register()` has run, a step's
+  span id is 16 hex characters (OTel's shape); without `register()` it is still a UUID.
+  Passing it on as `x-parent-span-id` or `parentSpanId` keeps working unchanged.
+
+### Fixed
+
+- After `register()` from `@acruxcoreai/sdk/otel`, a call that OTel auto-instruments inside
+  `traces.step` / `traces.wrap` (an `openai` call, say) is now that step's child in the step's
+  trace. Before, each model call became a trace of its own (issue #789).
+- The step does not take over when a framework's own OTel span is already active, such as a
+  LangChain tool span, or when another tracer provider (Sentry, say) owns the process.
+
+### Migrating from 0.20
+
+1. If you store or validate `step.spanId` as a UUID (a `uuid` database column, a UUID regex),
+   accept 16 hex characters too. Neither the compiler nor the SDK catches this: search your
+   code for `spanId` and check each place that parses or stores it.
+
 ## 0.20.0 — 2026-10-31
 
 ### Added

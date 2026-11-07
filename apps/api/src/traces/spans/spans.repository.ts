@@ -1,8 +1,17 @@
+import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import prisma from '../../shared/db/client';
 import type { TraceRow, SpanRow } from '../../shared/db/schema';
 import type { CreateTraceInput, CreateSpanInput } from './spans.types';
 import { redactPayloadValue } from './redact';
+
+/**
+ * Matches the Q12 timestamp fallback name, `startedAt.toISOString()`. Matching it by
+ * pattern rather than recomputing it avoids depending on Postgres and JS agreeing on
+ * timestamp formatting, and a user naming a trace after an ISO instant is not a real case.
+ * It also identifies a derived name on traces written before `name_is_derived` existed.
+ */
+const TIMESTAMP_NAME = Prisma.sql`name ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$'`;
 
 /**
  * The ONLY writer of the `traces`, `spans`, and `span_payloads` tables. Every
@@ -26,12 +35,48 @@ export class SpansRepository {
         teamId: input.teamId,
         sessionId: input.sessionId ?? null,
         name: input.name ?? null,
+        nameIsDerived: input.nameIsDerived,
         status: input.status ?? 'unset',
         startedAt: input.startedAt,
         tags: input.tags ?? [],
         metadata: (input.metadata ?? {}) as Prisma.InputJsonValue,
       },
     });
+  }
+
+  /**
+   * Inserts a trace with a caller-supplied id unless a trace with that id already exists,
+   * in one `INSERT … ON CONFLICT DO NOTHING`.
+   *
+   * Two writers often open the same new trace id at the same moment: with the TS SDK's
+   * OTel bridge, the OTLP exporter and the span queue both report the first spans of a
+   * step. A find-then-create let both see no row, and the slower insert failed the whole
+   * request with a unique violation. Here the slower insert waits for the faster one's
+   * transaction and then inserts nothing, and the read after it sees the committed row.
+   *
+   * @param input - As {@link createTrace}, with `id` required.
+   * @param tx - Optional transaction client.
+   * @returns The trace row with that id, and whether this call created it. When `created`
+   *   is false the row may belong to another team: the caller must check `teamId`.
+   */
+  async createTraceIfAbsent(
+    input: CreateTraceInput & { id: string },
+    tx?: Prisma.TransactionClient,
+  ): Promise<{ trace: TraceRow; created: boolean }> {
+    const client = tx ?? prisma;
+    const tags = input.tags ?? [];
+    const inserted = await client.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      INSERT INTO traces (id, team_id, session_id, name, name_is_derived, status, started_at, tags, metadata)
+      VALUES (
+        ${input.id}::uuid, ${input.teamId}::uuid, ${input.sessionId ?? null}, ${input.name ?? null},
+        ${input.nameIsDerived}, ${input.status ?? 'unset'}::span_status, ${input.startedAt},
+        ${tags}::text[], ${JSON.stringify(input.metadata ?? {})}::jsonb
+      )
+      ON CONFLICT (id) DO NOTHING
+      RETURNING id
+    `);
+    const trace = await client.trace.findUniqueOrThrow({ where: { id: input.id } });
+    return { trace, created: inserted.length === 1 };
   }
 
   /**
@@ -68,10 +113,18 @@ export class SpansRepository {
    * separate key from `name`: `name` is a caller's explicit instruction and keeps
    * last-explicit-write-wins (Q11).
    *
+   * `nameIfDerived` sits between the two: it replaces a name the server derived (the
+   * message text or the timestamp, `name_is_derived`) but never one a caller chose. It is
+   * how a step's root report names a trace that a gateway call inside the step opened
+   * first (issue #791, FAQ Q48). A weak `nameIfPlaceholder` must not do this, or a
+   * library default like `runToolLoop` would replace the message text (Q33).
+   *
    * @param traceId - The existing trace's UUID.
    * @param teamId - Isolation boundary.
-   * @param patch - `name` (overwrite) / `nameIfPlaceholder` (fill in only) /
-   *   `tags`/`metadata` (merge) to apply; any may be omitted. `name` wins over
+   * @param patch - `name` (overwrite) / `nameIfDerived` (replace a server fallback) /
+   *   `nameIfPlaceholder` (fill in only) /
+   *   `tags`/`metadata` (merge) / `startedAt` (move the start earlier, never later) to
+   *   apply; any may be omitted. `name` wins over
    *   `nameIfPlaceholder` when both are given.
    * @param tx - Optional transaction client.
    */
@@ -80,28 +133,36 @@ export class SpansRepository {
     teamId: string,
     patch: {
       name?: string;
+      nameIfDerived?: string;
       nameIfPlaceholder?: string;
       tags?: string[];
       metadata?: Record<string, unknown>;
       sessionId?: string;
+      startedAt?: Date;
     },
     tx?: Prisma.TransactionClient,
   ): Promise<void> {
     const sets: Prisma.Sql[] = [];
     if (patch.name) {
-      sets.push(Prisma.sql`name = ${patch.name}`);
-    } else if (patch.nameIfPlaceholder) {
-      // The placeholder is exactly what Q12 writes: `startedAt.toISOString()`. Matching it
-      // by pattern rather than recomputing it avoids depending on Postgres and JS agreeing
-      // on timestamp formatting, and a user naming a trace after an ISO instant is not a
-      // real case.
+      sets.push(Prisma.sql`name = ${patch.name}`, Prisma.sql`name_is_derived = false`);
+    } else if (patch.nameIfDerived) {
       sets.push(
-        Prisma.sql`name = CASE
-          WHEN name ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$'
-          THEN ${patch.nameIfPlaceholder}
-          ELSE name
-        END`,
+        Prisma.sql`name = CASE WHEN name_is_derived OR ${TIMESTAMP_NAME} THEN ${patch.nameIfDerived} ELSE name END`,
+        Prisma.sql`name_is_derived = CASE WHEN name_is_derived OR ${TIMESTAMP_NAME} THEN false ELSE name_is_derived END`,
       );
+    } else if (patch.nameIfPlaceholder) {
+      // The name that replaces the placeholder is itself a fallback, so the flag is set:
+      // on a trace from before `name_is_derived`, leaving it false would stop the root
+      // step from ever renaming the trace.
+      sets.push(
+        Prisma.sql`name = CASE WHEN ${TIMESTAMP_NAME} THEN ${patch.nameIfPlaceholder} ELSE name END`,
+        Prisma.sql`name_is_derived = CASE WHEN ${TIMESTAMP_NAME} THEN true ELSE name_is_derived END`,
+      );
+    }
+    // A report can hold spans that began before the call that opened the trace, such as
+    // a step's root span: the trace starts at its earliest span.
+    if (patch.startedAt) {
+      sets.push(Prisma.sql`started_at = LEAST(started_at, ${patch.startedAt})`);
     }
     // Backfill the session id only when the trace doesn't have one yet — never
     // overwrite. This is how a gateway-created trace (born session-less) picks up
@@ -310,17 +371,24 @@ export class SpansRepository {
    *
    * @param spanId - The span this payload belongs to (PK of span_payloads).
    * @param teamId - Isolation boundary.
-   * @param io - `{ input?, output?, variables? }` — arbitrary JSON-serializable values.
+   * @param io - `{ input?, output?, variables?, tools?, toolChoice? }` — arbitrary
+   *   JSON-serializable values. `tools` / `toolChoice` are the tool definitions and
+   *   `tool_choice` a gateway call sent (issues #792, #793); other callers omit them.
+   *   `tools` is stored once per trace in `trace_tool_sets` (see {@link toolSetFor}); an
+   *   empty list stores no set, so `toolSetId` is null exactly when no tools were sent.
    * @param tx - Optional transaction client.
    */
   async writePayload(
     spanId: string,
     teamId: string,
-    io: { input?: unknown; output?: unknown; variables?: unknown },
+    io: { input?: unknown; output?: unknown; variables?: unknown; tools?: unknown; toolChoice?: unknown },
     tx?: Prisma.TransactionClient,
   ): Promise<void> {
     const client = tx ?? prisma;
     const data = {
+      toolSetId: await this.toolSetFor(spanId, teamId, io.tools, client),
+      toolChoice:
+        io.toolChoice == null ? Prisma.DbNull : (redactPayloadValue(io.toolChoice) as Prisma.InputJsonValue),
       input: io.input === undefined ? Prisma.DbNull : (redactPayloadValue(io.input) as Prisma.InputJsonValue),
       output: io.output === undefined ? Prisma.DbNull : (redactPayloadValue(io.output) as Prisma.InputJsonValue),
       variables:
@@ -335,5 +403,40 @@ export class SpansRepository {
       },
       update: data,
     });
+  }
+
+  /**
+   * Finds or stores the trace-level copy of a tool list and returns its id.
+   *
+   * A tool loop sends the same definitions on every round, so the list is keyed by the
+   * SHA-256 of its redacted JSON within the span's trace, and `INSERT … ON CONFLICT DO
+   * NOTHING` makes two rounds written at once share one row.
+   *
+   * @param spanId - The span whose trace the list belongs to.
+   * @param teamId - Isolation boundary.
+   * @param tools - The request's `tools`; null, undefined or an empty array stores nothing.
+   * @param client - The caller's client or transaction.
+   * @returns The `trace_tool_sets` id, or null when no tools were sent.
+   */
+  private async toolSetFor(
+    spanId: string,
+    teamId: string,
+    tools: unknown,
+    client: Prisma.TransactionClient | typeof prisma,
+  ): Promise<string | null> {
+    if (tools == null || (Array.isArray(tools) && tools.length === 0)) return null;
+    const json = JSON.stringify(redactPayloadValue(tools));
+    const hash = `sha256:${createHash('sha256').update(json).digest('hex')}`;
+    await client.$executeRaw(Prisma.sql`
+      INSERT INTO trace_tool_sets (trace_id, team_id, hash, tools)
+      SELECT s.trace_id, ${teamId}::uuid, ${hash}, ${json}::jsonb
+      FROM spans s WHERE s.id = ${spanId}::uuid AND s.team_id = ${teamId}::uuid
+      ON CONFLICT (trace_id, hash) DO NOTHING
+    `);
+    const rows = await client.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT t.id FROM trace_tool_sets t JOIN spans s ON s.trace_id = t.trace_id
+      WHERE s.id = ${spanId}::uuid AND t.hash = ${hash}
+    `);
+    return rows[0]?.id ?? null;
   }
 }

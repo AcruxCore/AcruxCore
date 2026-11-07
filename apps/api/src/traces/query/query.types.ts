@@ -95,7 +95,12 @@ export interface SpanNode {
   attributes: Record<string, unknown>;
   tags: string[];
   metadata: Record<string, unknown>;
-  payload?: { input: unknown; output: unknown; variables: unknown };
+  /**
+   * `toolSetId` / `toolChoice` are what a gateway `llm` call sent the model alongside its
+   * messages (issues #792, #793); null on every other span and on a call with no tools.
+   * `toolSetId` is a key of {@link TraceDetail.toolSets}.
+   */
+  payload?: { input: unknown; output: unknown; variables: unknown; toolSetId: string | null; toolChoice: unknown };
   children: SpanNode[];
 }
 
@@ -141,6 +146,11 @@ export interface EvalScoreDto {
 export interface TraceDetail {
   trace: TraceSummary;
   spans: SpanNode[];
+  /**
+   * Each distinct tool list the trace's gateway calls sent, by id, returned once however
+   * many spans point at it through `payload.toolSetId`. `{}` when none sent tools.
+   */
+  toolSets: Record<string, unknown>;
   feedback: FeedbackDto[];
   evalScores: EvalScoreDto[];
 }

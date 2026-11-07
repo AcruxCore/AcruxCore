@@ -23,6 +23,7 @@ describe('SpansRepository', () => {
   it('createTrace honors an explicit id and defaults rollups to zero', async () => {
     const teamId = await seedTeam();
     const trace = await repo.createTrace({
+      nameIsDerived: false,
       id: '11111111-1111-1111-1111-111111111111',
       teamId,
       sessionId: 'sess-1',
@@ -39,6 +40,7 @@ describe('SpansRepository', () => {
   it('createTrace stores tags and metadata, defaulting to [] and {}', async () => {
     const teamId = await seedTeam();
     const withValues = await repo.createTrace({
+      nameIsDerived: false,
       teamId,
       startedAt: new Date(),
       tags: ['prod', 'nl'],
@@ -47,7 +49,7 @@ describe('SpansRepository', () => {
     expect(withValues.tags).toEqual(['prod', 'nl']);
     expect(withValues.metadata).toEqual({ env: 'prod', retries: 2 });
 
-    const defaults = await repo.createTrace({ teamId, startedAt: new Date() });
+    const defaults = await repo.createTrace({ nameIsDerived: false, teamId, startedAt: new Date() });
     expect(defaults.tags).toEqual([]);
     expect(defaults.metadata).toEqual({});
   });
@@ -55,6 +57,7 @@ describe('SpansRepository', () => {
   it('mergeTraceContext unions tags (deduped) and shallow-merges metadata', async () => {
     const teamId = await seedTeam();
     const trace = await repo.createTrace({
+      nameIsDerived: false,
       teamId,
       startedAt: new Date(),
       tags: ['a'],
@@ -73,7 +76,7 @@ describe('SpansRepository', () => {
 
   it('mergeTraceContext is a no-op when neither tags nor metadata is supplied', async () => {
     const teamId = await seedTeam();
-    const trace = await repo.createTrace({ teamId, startedAt: new Date(), tags: ['a'] });
+    const trace = await repo.createTrace({ nameIsDerived: false, teamId, startedAt: new Date(), tags: ['a'] });
     await repo.mergeTraceContext(trace.id, teamId, {});
     const updated = await prisma.trace.findUnique({ where: { id: trace.id } });
     expect(updated!.tags).toEqual(['a']);
@@ -81,7 +84,7 @@ describe('SpansRepository', () => {
 
   it('T9: mergeTraceContext overwrites name when supplied (last-explicit-write-wins)', async () => {
     const teamId = await seedTeam();
-    const trace = await repo.createTrace({ teamId, startedAt: new Date(), name: '2026-07-05T00:00:00.000Z' });
+    const trace = await repo.createTrace({ nameIsDerived: false, teamId, startedAt: new Date(), name: '2026-07-05T00:00:00.000Z' });
 
     await repo.mergeTraceContext(trace.id, teamId, { name: 'trip-planner' });
     const renamed = await prisma.trace.findUnique({ where: { id: trace.id } });
@@ -101,7 +104,7 @@ describe('SpansRepository', () => {
   it('mergeTraceContext is team-scoped: does not touch another team\'s trace', async () => {
     const teamId = await seedTeam();
     const otherTeamId = await seedTeam();
-    const trace = await repo.createTrace({ teamId, startedAt: new Date(), tags: ['a'] });
+    const trace = await repo.createTrace({ nameIsDerived: false, teamId, startedAt: new Date(), tags: ['a'] });
     await repo.mergeTraceContext(trace.id, otherTeamId, { tags: ['b'] });
     const updated = await prisma.trace.findUnique({ where: { id: trace.id } });
     expect(updated!.tags).toEqual(['a']); // unchanged — wrong team, no match
@@ -109,7 +112,7 @@ describe('SpansRepository', () => {
 
   it('appendSpan bumps span_count, total_tokens, total_cost_usd and status/ended_at', async () => {
     const teamId = await seedTeam();
-    const trace = await repo.createTrace({ teamId, startedAt: new Date('2026-07-04T10:00:00Z') });
+    const trace = await repo.createTrace({ nameIsDerived: false, teamId, startedAt: new Date('2026-07-04T10:00:00Z') });
 
     await repo.appendSpan({
       teamId,
@@ -146,7 +149,7 @@ describe('SpansRepository', () => {
 
   it('T9: appendSpan stores tags and metadata, defaulting to [] and {}', async () => {
     const teamId = await seedTeam();
-    const trace = await repo.createTrace({ teamId, startedAt: new Date() });
+    const trace = await repo.createTrace({ nameIsDerived: false, teamId, startedAt: new Date() });
 
     const withValues = await repo.appendSpan({
       teamId, traceId: trace.id, spanRef: 's1', kind: 'llm', name: 'intent-detection',
@@ -164,7 +167,7 @@ describe('SpansRepository', () => {
 
   it('appendSpan with an error span sets the trace status to error', async () => {
     const teamId = await seedTeam();
-    const trace = await repo.createTrace({ teamId, startedAt: new Date() });
+    const trace = await repo.createTrace({ nameIsDerived: false, teamId, startedAt: new Date() });
     await repo.appendSpan({
       teamId, traceId: trace.id, spanRef: 's', kind: 'llm', name: 'm',
       status: 'error', startedAt: new Date(),
@@ -175,7 +178,7 @@ describe('SpansRepository', () => {
 
   it('writePayload stores input + output for a span; findTrace is team-scoped', async () => {
     const teamId = await seedTeam();
-    const trace = await repo.createTrace({ teamId, startedAt: new Date() });
+    const trace = await repo.createTrace({ nameIsDerived: false, teamId, startedAt: new Date() });
     const span = await repo.appendSpan({
       teamId, traceId: trace.id, spanRef: 's', kind: 'llm', name: 'm', startedAt: new Date(),
     });
@@ -194,7 +197,7 @@ describe('SpansRepository', () => {
 
   it('writePayload redacts secret-shaped content before persisting (Finding #7)', async () => {
     const teamId = await seedTeam();
-    const trace = await repo.createTrace({ teamId, startedAt: new Date() });
+    const trace = await repo.createTrace({ nameIsDerived: false, teamId, startedAt: new Date() });
     const span = await repo.appendSpan({
       teamId, traceId: trace.id, spanRef: 's', kind: 'llm', name: 'm', startedAt: new Date(),
     });
@@ -210,7 +213,7 @@ describe('SpansRepository', () => {
 
   it('writePayload is safe to call twice for the same span (idempotent OTLP retry safety)', async () => {
     const teamId = await seedTeam();
-    const trace = await repo.createTrace({ teamId, startedAt: new Date() });
+    const trace = await repo.createTrace({ nameIsDerived: false, teamId, startedAt: new Date() });
     const span = await repo.appendSpan({
       teamId, traceId: trace.id, spanRef: 's', kind: 'llm', name: 'm', startedAt: new Date(),
     });
@@ -225,7 +228,7 @@ describe('SpansRepository', () => {
   it('findTraceById is team-agnostic: returns the row for any team, null if absent', async () => {
     const teamId = await seedTeam();
     const otherTeamId = await seedTeam();
-    const trace = await repo.createTrace({ teamId, startedAt: new Date() });
+    const trace = await repo.createTrace({ nameIsDerived: false, teamId, startedAt: new Date() });
 
     const found = await repo.findTraceById(trace.id);
     expect(found).not.toBeNull();
@@ -237,7 +240,7 @@ describe('SpansRepository', () => {
 
   it('listSpanRefs returns stored span_ref values for a trace, empty when none', async () => {
     const teamId = await seedTeam();
-    const trace = await repo.createTrace({ teamId, startedAt: new Date() });
+    const trace = await repo.createTrace({ nameIsDerived: false, teamId, startedAt: new Date() });
 
     expect(await repo.listSpanRefs(trace.id)).toEqual([]);
 
@@ -255,7 +258,7 @@ describe('SpansRepository', () => {
 describe('upsertSpan', () => {
   it('is safe to call twice with the same (traceId, spanRef) — one row, rollups not double-counted', async () => {
     const teamId = await seedTeam();
-    const trace = await repo.createTrace({ teamId, startedAt: new Date('2026-08-10T00:00:00Z') });
+    const trace = await repo.createTrace({ nameIsDerived: false, teamId, startedAt: new Date('2026-08-10T00:00:00Z') });
 
     const input = {
       teamId, traceId: trace.id, spanRef: 's1', kind: 'llm' as const, name: 'x',
@@ -276,7 +279,7 @@ describe('upsertSpan', () => {
 
   it('recomputes trace status as error when any upserted span errored, and does not downgrade it back', async () => {
     const teamId = await seedTeam();
-    const trace = await repo.createTrace({ teamId, startedAt: new Date('2026-08-10T00:00:00Z') });
+    const trace = await repo.createTrace({ nameIsDerived: false, teamId, startedAt: new Date('2026-08-10T00:00:00Z') });
 
     await repo.upsertSpan({
       teamId, traceId: trace.id, spanRef: 's1', kind: 'llm', name: 'x',

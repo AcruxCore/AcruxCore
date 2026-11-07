@@ -118,6 +118,49 @@ interface Frame {
 const storage = new AsyncLocalStorage<Frame>();
 
 /**
+ * Makes each open step the active OpenTelemetry span too, so a span that OTel
+ * auto-instrumentation starts inside a step (an `openai` call under `register()`) is the
+ * step's child, in the step's trace (issue #789). `@acruxcoreai/sdk/otel`'s `register()`
+ * installs it; without it, steps never touch OTel.
+ */
+export interface StepContextBridge {
+  /** A span id OTel accepts as a parent: 16 lowercase hex characters. */
+  newSpanId(): string;
+  /** Runs `fn` with the step as the active OTel span. `traceId` is the step's UUID. */
+  run<T>(traceId: string, spanId: string, fn: () => T): T;
+}
+
+/**
+ * Kept on `globalThis`, not in a module variable: the `otel` entry point is bundled
+ * separately from the main one, so each holds its own copy of this module.
+ */
+const BRIDGE_KEY = Symbol.for('acruxcore.stepContextBridge');
+
+/**
+ * Installs (or, with `undefined`, removes) the bridge between steps and OTel context.
+ *
+ * @param bridge - From `register()`; `undefined` turns the bridge off.
+ */
+export function setStepContextBridge(bridge: StepContextBridge | undefined): void {
+  (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] = bridge;
+}
+
+function bridge(): StepContextBridge | undefined {
+  return (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as StepContextBridge | undefined;
+}
+
+/** Runs `fn` with `frame` as the open step, and as the active OTel span when bridged. */
+function runInFrame<T>(frame: Frame, fn: () => T): T {
+  const b = bridge();
+  return storage.run(frame, b ? () => b.run(frame.root.traceId, frame.spanId, fn) : fn);
+}
+
+/** A new step span id: OTel's 16-hex shape when bridged, so OTel children can point at it. */
+function newStepSpanId(): string {
+  return bridge()?.newSpanId() ?? randomUUID();
+}
+
+/**
  * Roots that may still take spans, by trace id. A report is routed by the trace it names,
  * not by the caller's context, so a stream read after its step's callback returned, or a
  * call that passes the step's `traceId` by hand, still joins the buffer.
@@ -423,7 +466,7 @@ class OpenStep implements Step {
     if (!roots.has(root.traceId)) roots.set(root.traceId, root);
     this.name = name;
     this.traceId = root.traceId;
-    this.spanId = randomUUID();
+    this.spanId = newStepSpanId();
     this.parentSpanId = parent?.spanId;
     this.frame = { spanId: this.spanId, root, ...(outer ? { outer } : {}) };
     root.open.add(this.spanId);
@@ -489,7 +532,7 @@ export function runAsStep<T>(
   const step = new OpenStep(name, options, sink, input, owner);
   let result: T;
   try {
-    result = storage.run(step.frame, () => fn(step));
+    result = runInFrame(step.frame, () => fn(step));
   } catch (err) {
     step.close(err, true);
     throw err;
@@ -552,7 +595,7 @@ function wrapGenerator(
   const begin = (): Generator | AsyncGenerator => {
     if (!inner) {
       const opened = (box.step = new OpenStep(name, options, sink, input, owner));
-      inner = storage.run(opened.frame, () => fn(opened)) as Generator | AsyncGenerator;
+      inner = runInFrame(opened.frame, () => fn(opened)) as Generator | AsyncGenerator;
     }
     return inner;
   };
@@ -569,7 +612,7 @@ function wrapGenerator(
     const call = async (op: (g: AsyncGenerator) => Promise<IteratorResult<unknown>>) => {
       const g = begin() as AsyncGenerator;
       try {
-        return settle(await storage.run(box.step!.frame, () => op(g)));
+        return settle(await runInFrame(box.step!.frame, () => op(g)));
       } catch (err) {
         return fail(err);
       }
@@ -588,7 +631,7 @@ function wrapGenerator(
   const call = (op: (g: Generator) => IteratorResult<unknown>) => {
     const g = begin() as Generator;
     try {
-      return settle(storage.run(box.step!.frame, () => op(g)));
+      return settle(runInFrame(box.step!.frame, () => op(g)));
     } catch (err) {
       return fail(err);
     }

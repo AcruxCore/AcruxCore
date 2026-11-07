@@ -732,6 +732,44 @@ describe('POST /tools/:id/execute — traceContext', () => {
     expect(span?.traceId).toBe(traceId);
   });
 
+  it("a step's root report renames the tool:<name> trace the tool call opened (issue #791)", async () => {
+    const { apiKey } = await signupTestUserWithApiKey(app);
+    const toolId = await createHttpTool(apiKey);
+    const traceId = '9b3e2c11-6a54-4d2f-8b88-2c1f4e6a7b32';
+
+    // Inside `traces.step('support-agent')`, a server-recorded tool call reaches the
+    // server first and opens the trace under its fallback name.
+    await request(app)
+      .post(`/api/v1/tools/${toolId}/execute`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({ arguments: { city: 'Paris' }, traceContext: { traceId, parentSpanId: 'step-1' } })
+      .expect(200);
+    expect((await prisma.trace.findUniqueOrThrow({ where: { id: traceId } })).name).toBe('tool:get_weather');
+
+    await request(app)
+      .post('/api/v1/traces')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        traces: [
+          {
+            traceId,
+            name: 'support-agent',
+            spans: [
+              {
+                spanId: 'step-1',
+                name: 'support-agent',
+                kind: 'agent',
+                startTime: new Date(Date.now() - 2000).toISOString(),
+                endTime: new Date().toISOString(),
+              },
+            ],
+          },
+        ],
+      })
+      .expect(200);
+    expect((await prisma.trace.findUniqueOrThrow({ where: { id: traceId } })).name).toBe('support-agent');
+  });
+
   it('appends to an existing trace of the same team, keeping the supplied parent span', async () => {
     const { apiKey } = await signupTestUserWithApiKey(app);
     const toolId = await createHttpTool(apiKey);

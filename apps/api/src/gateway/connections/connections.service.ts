@@ -8,7 +8,7 @@ import {
 import { ProviderConnection } from '../../shared/db/schema';
 import { audit } from '../../shared/audit';
 import prisma from '../../shared/db/client';
-import { ConflictError, NotFoundError } from '../../shared/errors';
+import { ConflictError, NotFoundError, ValidationError } from '../../shared/errors';
 import { Prisma } from '@prisma/client';
 
 /**
@@ -87,6 +87,8 @@ export class ConnectionsService {
    * @param dto - Validated partial update.
    * @returns The updated masked connection.
    * @throws {NotFoundError} If the connection does not exist or is in another team.
+   * @throws {ValidationError} If `config.headers` is set on a provider other than
+   *   `openai_compatible` (issue #790).
    */
   async update(
     id: string,
@@ -96,6 +98,10 @@ export class ConnectionsService {
   ): Promise<ProviderConnectionDto> {
     const existing = await this.repo.findByIdForTeam(id, teamId);
     if (!existing) throw new NotFoundError('Provider connection not found.');
+    const settingHeaders = dto.config?.['headers'] !== undefined && dto.config['headers'] !== null;
+    if (settingHeaders && existing.provider !== 'openai_compatible') {
+      throw new ValidationError('config.headers is supported only on openai_compatible connections.');
+    }
 
     const patch: {
       label?: string;

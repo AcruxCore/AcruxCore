@@ -4,7 +4,7 @@ import { RetentionRepository } from './retention.repository';
 const repo = new RetentionRepository();
 
 async function truncate(): Promise<void> {
-  await prisma.$executeRaw`TRUNCATE TABLE span_payloads, spans, traces, team_trace_settings, audit_log, teams, users RESTART IDENTITY CASCADE`;
+  await prisma.$executeRaw`TRUNCATE TABLE span_payloads, trace_tool_sets, spans, traces, team_trace_settings, audit_log, teams, users RESTART IDENTITY CASCADE`;
 }
 
 /** Seeds a team, a trace, a span, and a span_payload with a specific created_at. */
@@ -57,6 +57,27 @@ describe('RetentionRepository', () => {
 
     const span = await prisma.span.findUnique({ where: { id: spanId } });
     expect(span).not.toBeNull(); // span itself survives — only its payload is purged
+  });
+
+  it('purgeOlderThan also deletes a tool list once no remaining payload points at it', async () => {
+    const cutoff = new Date('2026-07-01T00:00:00Z');
+    const old = await seedPayload(new Date('2026-06-01T00:00:00Z'));
+    const recent = await seedPayload(new Date('2026-07-15T00:00:00Z'));
+    const sets = [];
+    for (const { teamId, spanId } of [old, recent]) {
+      const span = await prisma.span.findUniqueOrThrow({ where: { id: spanId } });
+      const set = await prisma.traceToolSet.create({
+        data: { traceId: span.traceId, teamId, hash: `h-${spanId}`, tools: [{ name: 'secret_tool' }] },
+      });
+      await prisma.spanPayload.update({ where: { spanId }, data: { toolSetId: set.id } });
+      sets.push(set.id);
+    }
+
+    await repo.purgeOlderThan(cutoff);
+
+    // Tool definitions are payload content, so they age out with the payloads.
+    expect(await prisma.traceToolSet.findUnique({ where: { id: sets[0] } })).toBeNull();
+    expect(await prisma.traceToolSet.findUnique({ where: { id: sets[1] } })).not.toBeNull();
   });
 
   it('purgeOlderThan returns 0 when nothing is old enough', async () => {

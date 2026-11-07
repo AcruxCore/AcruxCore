@@ -528,19 +528,21 @@ export class ToolExecuteService {
         // back to a fresh trace rather than leaking or colliding.
         let traceId = dto.traceContext?.traceId;
         let parentSpanRef = dto.traceContext?.parentSpanId ?? null;
+        // `tool:<name>` is a fallback, so the trace's root step may rename it (issue #791).
+        const fresh = { teamId, name: `tool:${toolName}`, nameIsDerived: true, startedAt };
         if (traceId) {
-          const existing = await this.spans.findTraceById(traceId, tx);
-          if (existing && existing.teamId !== teamId) {
+          // Insert-if-absent: another writer may open the same new trace at this moment.
+          const { trace, created } = await this.spans.createTraceIfAbsent({ ...fresh, id: traceId }, tx);
+          if (trace.teamId !== teamId) {
             traceId = undefined;
             parentSpanRef = null; // the parent belonged to that other trace
-          } else if (!existing) {
-            await this.spans.createTrace({ id: traceId, teamId, name: `tool:${toolName}`, startedAt }, tx);
+          } else if (created) {
             // Nothing else is in this trace yet, so a supplied parent cannot resolve.
             parentSpanRef = null;
           }
         }
         if (!traceId) {
-          const trace = await this.spans.createTrace({ teamId, name: `tool:${toolName}`, startedAt }, tx);
+          const trace = await this.spans.createTrace(fresh, tx);
           traceId = trace.id;
         }
         const span = await this.spans.appendSpan(

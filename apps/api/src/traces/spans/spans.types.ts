@@ -12,6 +12,13 @@ export interface CreateTraceInput {
   teamId: string;
   sessionId?: string | null;
   name?: string | null;
+  /**
+   * `name` is a server fallback (message text, timestamp, a library default, or
+   * `tool:<name>`), not a caller's choice, so the trace's root step may still replace it
+   * (FAQ Q48). Required so that every place that opens a trace has to decide: a fallback
+   * left at `false` can never be renamed by its step (issue #791).
+   */
+  nameIsDerived: boolean;
   status?: SpanStatus;
   startedAt: Date;
   tags?: string[];

@@ -61,7 +61,7 @@ export class TraceQueryService {
     const result = await this.repo.getTrace(teamId, traceId);
     if (!result) throw new NotFoundError('Trace not found');
 
-    const { trace, spans, payloads } = result;
+    const { trace, spans, payloads, toolSets } = result;
     const summary: TraceSummary = {
       id: trace.id,
       name: trace.name,
@@ -95,7 +95,7 @@ export class TraceQueryService {
       createdAt: row.createdAt.toISOString(),
     }));
 
-    return { trace: summary, spans: buildSpanTree(spans, payloads), feedback, evalScores };
+    return { trace: summary, spans: buildSpanTree(spans, payloads), toolSets, feedback, evalScores };
   }
 
   /**

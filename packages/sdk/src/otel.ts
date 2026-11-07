@@ -18,7 +18,9 @@
  * installing it for you.
  */
 
+import { randomBytes } from 'node:crypto';
 import { acruxcoreError } from './error';
+import { setStepContextBridge } from './steps';
 
 /** One entry in {@link SUPPORTED_FRAMEWORKS}'s backing registry. */
 interface InstrumentorEntry {
@@ -177,12 +179,63 @@ export async function register(options: RegisterOptions = {}) {
     // propagating past the first async boundary in any real agent framework.
     provider.register();
   }
+  await bridgeStepsToOtel(provider);
 
   for (const name of options.instrument ?? []) {
     await instrumentFramework(name, provider);
   }
 
   return provider;
+}
+
+/**
+ * Makes `hub.traces.step` / `hub.traces.wrap` the active OTel span while they run, so an
+ * instrumented call inside a step (an `openai` call, say) becomes the step's child in the
+ * step's trace instead of a trace of its own (issue #789).
+ *
+ * The step's UUID trace id, without dashes, is a valid OTel trace id, and the OTLP
+ * receiver turns it back into the same UUID. Step span ids switch to OTel's 16-hex shape,
+ * so the parent id an OTel span records is exactly the id the step reports.
+ *
+ * The bridge stands aside, and the step runs in the OTel context it was called from, in
+ * two cases (sdk-faq Q66):
+ * - A real OTel span is already active, such as a LangChain tool span around a wrapped
+ *   tool function. Replacing it would move the spans inside the step out of the
+ *   framework's trace. Only the bridge's own step contexts are non-recording, so a
+ *   recording span is always someone else's.
+ * - `provider` is not the process-wide tracer provider, because another one (Sentry, for
+ *   example) registered first or `setGlobal: false` was passed and nothing installed it.
+ *   The step context is process-wide, so every other tracer would otherwise take the step
+ *   as its parent: a parent that tracer never receives, sampled whatever its own rate.
+ *
+ * Needs a context manager that survives `await` — `register()` installs one unless
+ * `setGlobal: false`, and then the caller must install their own.
+ *
+ * @param provider - The provider `register()` built; the bridge works only while it is
+ *   the global one, checked on every step, so installing it globally later still works.
+ */
+async function bridgeStepsToOtel(provider: unknown): Promise<void> {
+  const api = await import('@opentelemetry/api');
+  const ownsProcess = (): boolean => {
+    const global = api.trace.getTracerProvider() as { getDelegate?: () => unknown };
+    return (global.getDelegate ? global.getDelegate() : global) === provider;
+  };
+  setStepContextBridge({
+    newSpanId: () => randomBytes(8).toString('hex'),
+    run: (traceId, spanId, fn) => {
+      const active = api.trace.getSpan(api.context.active());
+      if (active?.isRecording() || !ownsProcess()) return fn();
+      return api.context.with(
+        api.trace.setSpanContext(api.context.active(), {
+          traceId: traceId.replace(/-/g, ''),
+          spanId,
+          traceFlags: api.TraceFlags.SAMPLED,
+          isRemote: false,
+        }),
+        fn,
+      );
+    },
+  });
 }
 
 /** Looks up and instruments one framework by name against the given provider. */

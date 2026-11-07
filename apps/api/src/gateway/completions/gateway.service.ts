@@ -2,6 +2,7 @@ import type { ProviderConnection } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { ConnectionsRepository } from '../connections/connections.repository';
 import { decryptStoredSecret } from '../connections/crypto';
+import { connectionHeaders } from '../connections/connection-headers';
 import { GatewayRepository } from './gateway.repository';
 import { BudgetsRepository } from '../budgets/budgets.repository';
 import { checkAndRecord, recordTokens } from '../budgets/rate-limiter';
@@ -495,6 +496,7 @@ export class GatewayService {
       const creds: ProviderCredentials = {
         apiKey: decryptStoredSecret(d.credential.secretCiphertext, 'provider_credential', d.credential.label),
         baseUrl: connectionBaseUrl(d.credential.config),
+        headers: connectionHeaders(d.credential.config, d.credential.id),
       };
       return adapter.chatCompletion({ ...r, model: d.model.upstreamModel }, creds, deadline);
     };
@@ -1363,6 +1365,7 @@ export class GatewayService {
               deployment.credential.label,
             ),
             baseUrl: connectionBaseUrl(deployment.credential.config),
+            headers: connectionHeaders(deployment.credential.config, deployment.credential.id),
           };
           const adapter = getAdapter(deployment.credential.provider);
           const signal = AbortSignal.any([abortController.signal, attemptDeadline.signal]);
