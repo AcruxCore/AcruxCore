@@ -170,7 +170,7 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     bestFor:
       'Teams that need an organization layer above the project, and the largest community here.',
     limitations:
-      'Not in the request path, so it cannot enforce a budget, serve a cache hit, or issue a virtual key. Variable substitution only, with no conditionals or loops. The audit log needs the $2,499/mo Enterprise plan, even if you self-host. The ee/ folders in the repository are under a separate enterprise licence.',
+      'Its gateway is a beta for OpenAI and Anthropic, with no spend caps or fallbacks yet. Variable substitution only, with no conditionals or loops. The audit log needs the $2,499/mo Enterprise plan, even if you self-host. The ee/ folders in the repository are under a separate enterprise licence.',
     license: {
       value:
         'MIT, except for the ee/ folders. A separate Enterprise License covers those folders, so the features in them are not MIT. AcruxCore has no such folder.',
@@ -184,8 +184,10 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     },
     gateway: {
       value:
-        'Not in the request path. Langfuse receives a trace after your own client has called the provider, so it cannot enforce a budget, serve a cache hit, or issue a virtual key.',
+        'In public beta since 9 November 2026, for OpenAI and Anthropic. The Langfuse AI Gateway holds the provider keys, gives each person or service its own key, and shows spend per key. Hard spend caps and fallbacks between providers are still on its roadmap, and its docs describe no response cache.',
+      source: { label: 'Langfuse AI Gateway', href: 'https://langfuse.com/docs/gateway/overview' },
       acruxWins: true,
+      checkedOn: '2026-11-10',
     },
     toolCatalog: {
       value: 'You can save a tool schema from the Playground and reuse it anywhere in the same Langfuse project. There is no catalog page, no version history, and nothing ever runs the tool.',

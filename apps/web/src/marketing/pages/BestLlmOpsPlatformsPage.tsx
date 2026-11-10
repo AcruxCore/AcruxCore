@@ -184,7 +184,7 @@ export const DECISION_POINTS: { question: string; answer: string }[] = [
   {
     question: 'Do you need an LLM gateway, observability, or both?',
     answer:
-      'An LLM gateway controls requests before they reach a provider. An observability tool records traces so you can inspect what happened. AcruxCore, MLflow’s gateway, and Helicone sit in the request path and act as a proxy. There they can route a call, cache it, check a budget, and hold the provider key. Langfuse, Phoenix, Opik, and Laminar collect traces without sitting in the request path, so they add no proxy. Agenta calls the model for a stored prompt through its invoke endpoint, but that endpoint has no budget check or cache.',
+      'An LLM gateway controls requests before they reach a provider. An observability tool records traces so you can inspect what happened. AcruxCore, MLflow’s gateway, and Helicone sit in the request path and act as a proxy. There they can route a call, cache it, check a budget, and hold the provider key. Langfuse and Opik record traces beside your calls, and each also offers a gateway in beta. Langfuse’s beta covers OpenAI and Anthropic with no spend caps yet, and Opik’s is for development and testing. Phoenix and Laminar collect traces without sitting in the request path, so they add no proxy. Agenta calls the model for a stored prompt through its invoke endpoint, but that endpoint has no budget check or cache.',
   },
   {
     question: 'Can you add and version the tools a model calls without deploying code?',

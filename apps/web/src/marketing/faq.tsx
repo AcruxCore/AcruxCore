@@ -172,7 +172,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: 'How does AcruxCore compare with Langfuse, Phoenix, Opik, Helicone, MLflow, Laminar, and Agenta?',
         answer: [
           [
-            'AcruxCore combines an LLM gateway with prompt management, tracing, and evaluation. The gateway applies routing, caching, budgets, and virtual keys before calls reach the provider. Helicone and MLflow also have gateways. Agenta can call the model for a stored prompt, but with no budgets, cache, or virtual keys. Langfuse, Phoenix, Opik, and Laminar have no gateway, and collect traces from the calls your application makes.',
+            'AcruxCore combines an LLM gateway with prompt management, tracing, and evaluation. The gateway applies routing, caching, budgets, and virtual keys before calls reach the provider. Helicone and MLflow also have gateways. Agenta can call the model for a stored prompt, but with no budgets, cache, or virtual keys. Langfuse and Opik each have a gateway in beta: Langfuse’s covers OpenAI and Anthropic with no spend caps or fallbacks yet, and Opik’s is for development and testing. Phoenix and Laminar have no gateway, and collect traces from the calls your application makes.',
           ],
           [
             'AcruxCore versions prompts and tools in the same place. The gateway runs those tools, and tracing records each model call. AcruxCore is also the only one of these platforms with an audit trail that costs nothing extra.',
