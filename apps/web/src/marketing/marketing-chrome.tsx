@@ -52,6 +52,8 @@ export const DOCS = {
   coreConcepts: `${DOCS_URL}/docs/getting-started/core-concepts`,
   introduction: `${DOCS_URL}/docs/getting-started/introduction`,
   apiReference: `${DOCS_URL}/api-reference`,
+  /** The guide the landing page's "Why teams switch" panel links for Langfuse users. */
+  migrateFromLangfuse: `${DOCS_URL}/docs/guides/migrate-prompts-from-langfuse`,
   blog: `${BLOG_URL}/`,
   /**
    * Per-language tutorials, attributed by which SDK the guide actually imports.

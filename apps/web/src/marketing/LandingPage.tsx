@@ -512,6 +512,12 @@ export function LandingPage(): ReactNode {
                 </Ic>
               </span>
             </Link>
+            <p style={cssToStyle('margin:18px 0 0;font-size:14px;color:var(--muted);')}>
+              <a href={DOCS.migrateFromLangfuse} target="_blank" rel="noreferrer" style={cssToStyle('color:var(--accent);')}>
+                Migrate your prompts from Langfuse
+              </a>{' '}
+              with every version and label.
+            </p>
           </div>
 
           {/* tabbed code */}

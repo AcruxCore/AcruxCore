@@ -6,7 +6,9 @@
   </picture>
 </p>
 
-<p align="center"><b>Version your prompts and the tools they call, run both through one gateway,<br>and see every call, every tool failure and every change.</b></p>
+<h3 align="center">Open-source LLM tracing, gateway and prompt management</h3>
+
+<p align="center">Version your prompts and the tools they call, run both through one gateway,<br>and see every call, every tool failure and every change.</p>
 
 <p align="center">
   <a href="https://acruxcore.com">Website</a> ·
