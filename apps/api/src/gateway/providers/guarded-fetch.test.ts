@@ -1,5 +1,5 @@
 import http from 'node:http';
-import type { AddressInfo } from 'node:net';
+import { createServer, type AddressInfo, type Socket } from 'node:net';
 import { guardedFetch } from './guarded-fetch';
 import { parseSseStream } from './sse-parse';
 import { GATEWAY_TIMEOUT_MS } from './timeout';
@@ -149,4 +149,48 @@ describe('parseSseStream — a stalled stream is the thing with a deadline (issu
   it('defaults both halves of the deadline to the gateway-wide value', () => {
     expect(GATEWAY_TIMEOUT_MS).toBe(60_000);
   });
+});
+
+describe('guardedFetch — idle provider connections stay open for reuse (PR #814)', () => {
+  it('sends a call after more than 4 idle seconds on the same connection', async () => {
+    // Plain TCP on purpose: Node's HTTP server sends `Keep-Alive: timeout=N`, which undici
+    // honours over its own default and which would hide the bug. OpenAI, Anthropic and
+    // Gemini send no such header, and neither does this server.
+    const ports: number[] = [];
+    const sockets = new Set<Socket>();
+    const server = createServer((socket) => {
+      sockets.add(socket);
+      let pending = '';
+      socket.on('data', (chunk) => {
+        // Accumulate: a request's header block may arrive split across TCP chunks.
+        pending += chunk.toString('latin1');
+        let end: number;
+        while ((end = pending.indexOf('\r\n\r\n')) !== -1) {
+          const head = pending.slice(0, end);
+          const length = Number(/content-length:\s*(\d+)/i.exec(head)?.[1] ?? 0);
+          if (pending.length < end + 4 + length) break;
+          pending = pending.slice(end + 4 + length);
+          ports.push(socket.remotePort ?? -1);
+          socket.write('HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok');
+        }
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
+    const call = async (): Promise<void> => {
+      const { res } = await guardedFetch(url, { method: 'POST', headers: {}, body: '{}' }, false, 'OpenAI');
+      await res.text();
+    };
+    try {
+      await call();
+      // Node's built-in fetch closes an idle connection after 4 seconds.
+      await new Promise((resolve) => setTimeout(resolve, 4_500));
+      await call();
+      expect(ports).toHaveLength(2);
+      expect(ports[1]).toBe(ports[0]);
+    } finally {
+      for (const socket of sockets) socket.destroy();
+      await new Promise((resolve) => server.close(resolve));
+    }
+  }, 15_000);
 });

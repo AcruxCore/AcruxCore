@@ -4,6 +4,7 @@ import { ProviderError } from './adapter';
 import { GATEWAY_TIMEOUT_MS } from './timeout';
 import { createSsrfSafeDispatcher, SsrfError } from '../../tools/execute/safe-fetch';
 import { capResponseBody } from './response-cap';
+import { PROVIDER_DISPATCHER } from './provider-dispatcher';
 
 /**
  * Copy undici's header bag onto a standard `Headers`.
@@ -45,7 +46,8 @@ function toResponseHeaders(headers: Dispatcher.ResponseData['headers']): Headers
  * throws under Jest — the same incompatibility documented on `safeFetch`) and re-wrapping
  * the result as a standard `Response` so callers can keep using
  * `res.ok`/`res.status`/`res.json()`/`res.body` unchanged. The hardcoded default base URL
- * needs no such guard and keeps using global `fetch` directly.
+ * needs no such guard and uses global `fetch` with {@link PROVIDER_DISPATCHER}, which
+ * keeps an idle connection open for 60 s instead of the default 4 s.
  *
  * If the dispatcher is created successfully but the subsequent `undiciRequest` call then
  * fails (host down, TLS failure, timeout — reachable any time the SSRF DNS check passes
@@ -120,7 +122,13 @@ export async function guardedFetch(
 
   if (!usesCustomBaseUrl) {
     try {
-      const plain = await fetch(url, guardedInit);
+      // The shared keep-alive pool, not the global one, which drops an idle connection
+      // after 4 s. The double cast is needed because `@types/node` types `dispatcher`
+      // with its own bundled copy of undici's types, which differs from undici 8's.
+      const plain = await fetch(url, {
+        ...guardedInit,
+        dispatcher: PROVIDER_DISPATCHER as unknown as RequestInit['dispatcher'],
+      });
       return { res: buffersBody ? capResponseBody(plain, providerLabel) : plain };
     } finally {
       clearTimeout(timer);
