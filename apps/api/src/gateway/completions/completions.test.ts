@@ -3,7 +3,7 @@ import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
 import { computeCostFromPrices, lookupDefaultPricing } from '../providers/models';
 import type { Usage } from '../providers/types';
-import { authedAgent } from '../../test-utils';
+import { authedAgent, registryPrices } from '../../test-utils';
 
 const app = createApp();
 
@@ -89,7 +89,7 @@ async function registerModel(
 ): Promise<string> {
   const res = await agent
     .post('/api/v1/gateway/models')
-    .send({ publicName: name, upstreamModel: name, credentialId })
+    .send({ publicName: name, upstreamModel: name, ...registryPrices(name), credentialId })
     .expect(201);
   return res.body.id;
 }
@@ -637,7 +637,7 @@ describe('POST /api/v1/gateway/chat/completions (adapter-mocked)', () => {
         const backup = await registerModel(agent, credId, 'slow-backup');
         await agent
           .post('/api/v1/gateway/models')
-          .send({ publicName: 'slow-primary', upstreamModel: 'slow-primary', credentialId: credId, fallbackModelIds: [backup] })
+          .send({ publicName: 'slow-primary', upstreamModel: 'slow-primary', ...registryPrices('slow-primary'), credentialId: credId, fallbackModelIds: [backup] })
           .expect(201);
         const spy = hangingProviders();
         const startedAt = Date.now();
@@ -1535,13 +1535,13 @@ describe('a virtual key’s provider allow-list covers fallbacks too (issue #479
 
     const backup = await agent
       .post('/api/v1/gateway/models')
-      .send({ publicName: 'guarded-backup', upstreamModel: 'claude-3-5-sonnet-latest', credentialId: anthropicCred })
+      .send({ publicName: 'guarded-backup', upstreamModel: 'claude-3-5-sonnet-latest', ...registryPrices('claude-3-5-sonnet-latest'), credentialId: anthropicCred })
       .expect(201);
     await agent
       .post('/api/v1/gateway/models')
       .send({
         publicName: 'guarded',
-        upstreamModel: 'gpt-4o-mini',
+        upstreamModel: 'gpt-4o-mini', ...registryPrices('gpt-4o-mini'),
         credentialId: openAiCred,
         fallbackModelIds: [backup.body.id],
       })
@@ -1578,11 +1578,11 @@ describe('a virtual key’s provider allow-list covers fallbacks too (issue #479
     const cred = await createConnection(agent, 'openai', 'sk-test-abcdAB12');
     const backup = await agent
       .post('/api/v1/gateway/models')
-      .send({ publicName: 'ok-backup', upstreamModel: 'gpt-4o-mini', credentialId: cred })
+      .send({ publicName: 'ok-backup', upstreamModel: 'gpt-4o-mini', ...registryPrices('gpt-4o-mini'), credentialId: cred })
       .expect(201);
     await agent
       .post('/api/v1/gateway/models')
-      .send({ publicName: 'ok-primary', upstreamModel: 'gpt-4o-mini', credentialId: cred, fallbackModelIds: [backup.body.id] })
+      .send({ publicName: 'ok-primary', upstreamModel: 'gpt-4o-mini', ...registryPrices('gpt-4o-mini'), credentialId: cred, fallbackModelIds: [backup.body.id] })
       .expect(201);
     const vk = await agent
       .post('/api/v1/gateway/keys')
@@ -1617,7 +1617,7 @@ describe('budget warning fires on the reservation (issue #483)', () => {
     // Priced so one call moves a small budget past 80%.
     await agent
       .post('/api/v1/gateway/models')
-      .send({ publicName: 'gpt-4o-mini', upstreamModel: 'gpt-4o-mini', credentialId: cred,
+      .send({ publicName: 'gpt-4o-mini', upstreamModel: 'gpt-4o-mini', ...registryPrices('gpt-4o-mini'), credentialId: cred,
               inputPricePerM: 100, outputPricePerM: 100 })
       .expect(201);
     // $100 per million tokens, and the reservation prices prompt + max_tokens — so

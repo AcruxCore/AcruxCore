@@ -2,7 +2,7 @@
  * The hint under each price field in the model dialog. The gateway logs a null cost
  * when either price is missing, so one blank field zeroes the whole call.
  */
-export const PRICE_FIELD_HINT = 'Blank = auto for known models. If either price is unknown, the whole call counts as $0.';
+export const PRICE_FIELD_HINT = "Your provider's price. If either price is blank, the whole call counts as $0.";
 
 /**
  * The hint under the cached-input price field. Blank keeps the gateway's default cache

@@ -1,3 +1,4 @@
+import type { ListedModel } from '../providers/list-models';
 import { z } from 'zod';
 import { isBlockedUrlLiteral } from '../../tools/execute/safe-fetch';
 
@@ -261,4 +262,20 @@ export interface ProviderConnectionDto {
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/**
+ * Response of GET /gateway/connections/:id/models. A provider failure is reported in
+ * the body rather than as an error status, the same as the model Test call, because
+ * the caller (the New model dialog) falls back to typing the id either way.
+ */
+export interface ConnectionModelsResult {
+  ok: boolean;
+  /**
+   * Models the credential can call, sorted by id. Ids only, no prices: the user types
+   * a model's prices when registering it. Present when `ok`.
+   */
+  models?: ListedModel[];
+  /** Why the list could not be read. Present when not `ok`. */
+  error?: string;
 }

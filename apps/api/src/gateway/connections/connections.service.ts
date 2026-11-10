@@ -1,6 +1,11 @@
 import { ConnectionsRepository } from './connections.repository';
-import { encryptSecret } from './crypto';
+import { decryptStoredSecret, encryptSecret } from './crypto';
+import { connectionHeaders } from './connection-headers';
+import { ModelListCache, modelListCache } from './model-list-cache';
+import { listProviderModels } from '../providers/list-models';
+import { ProviderError } from '../providers/adapter';
 import {
+  ConnectionModelsResult,
   CreateConnectionDto,
   UpdateConnectionDto,
   ProviderConnectionDto,
@@ -73,6 +78,51 @@ export class ConnectionsService {
     const row = await this.repo.findByIdForTeam(id, teamId);
     if (!row) throw new NotFoundError('Provider connection not found.');
     return this.toDto(row);
+  }
+
+  /**
+   * Lists the models this credential can call, read live from its provider.
+   *
+   * Feeds the upstream-model dropdown in the New model dialog. A successful list is
+   * cached for an hour per connection version (see {@link ModelListCache}). A provider failure (bad
+   * key, blocked base URL, timeout) comes back as `ok: false` with a message rather
+   * than an error status, the same as the model Test call: the dialog shows the reason
+   * and lets the user type the id, so a failure here never blocks creating a model.
+   *
+   * @param id - Connection UUID.
+   * @param teamId - Isolation boundary.
+   * @returns `{ ok: true, models }`, or `{ ok: false, error }` when the provider could not be read.
+   * @throws {NotFoundError} If the connection does not exist or is in another team.
+   */
+  async listModels(id: string, teamId: string): Promise<ConnectionModelsResult> {
+    const row = await this.repo.findByIdForTeam(id, teamId);
+    if (!row) throw new NotFoundError('Provider connection not found.');
+
+    const cacheKey = ModelListCache.key(row.id, row.updatedAt);
+    const cached = modelListCache.get(cacheKey);
+    if (cached) return { ok: true, models: cached };
+
+    const config = (row.config ?? {}) as Record<string, unknown>;
+    const baseUrl = typeof config['base_url'] === 'string' ? (config['base_url'] as string) : undefined;
+    try {
+      const models = await listProviderModels(row.provider, {
+        apiKey: decryptStoredSecret(row.secretCiphertext, 'provider_credential', row.label),
+        baseUrl,
+        headers: connectionHeaders(row.config, row.id),
+      });
+      modelListCache.set(cacheKey, models);
+      return { ok: true, models };
+    } catch (err) {
+      if (err instanceof ProviderError && err.providerCode === 'SSRF_BLOCKED') {
+        return { ok: false, error: `${err.message}. Check this credential's base URL — it must be a public address.` };
+      }
+      if (err instanceof ProviderError || (err instanceof Error && err.name === 'TimeoutError')) {
+        return { ok: false, error: err.message };
+      }
+      // Anything else (a decrypt failure, a socket error) is reported, not thrown: the
+      // dialog's fallback is the same, and the message is the useful part.
+      return { ok: false, error: err instanceof Error ? err.message : 'Could not read the model list.' };
+    }
   }
 
   /**

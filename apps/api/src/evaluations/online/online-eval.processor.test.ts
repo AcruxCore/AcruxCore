@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
-import { authedAgent } from '../../test-utils';
+import { authedAgent, registryPrices } from '../../test-utils';
 import { processOnlineEval, invalidateRuleCache } from './online-eval.processor';
 import { EvalRuleRepository } from './online-eval-rule.repository';
 import { JUDGE_MARKER } from './online-eval-rule.service';
@@ -59,7 +59,7 @@ async function createConnection(agent: ReturnType<typeof request.agent>): Promis
 }
 
 async function registerModel(agent: ReturnType<typeof request.agent>, credentialId: string): Promise<void> {
-  await agent.post('/api/v1/gateway/models').send({ publicName: 'gpt-4o-mini', upstreamModel: 'gpt-4o-mini', credentialId }).expect(201);
+  await agent.post('/api/v1/gateway/models').send({ publicName: 'gpt-4o-mini', upstreamModel: 'gpt-4o-mini', ...registryPrices('gpt-4o-mini'), credentialId }).expect(201);
 }
 
 /**
@@ -403,7 +403,7 @@ describe('processOnlineEval', () => {
     const credId = await createConnection(agent);
     await registerModel(agent, credId);
     const brokenModel = (
-      await agent.post('/api/v1/gateway/models').send({ publicName: 'removed-judge', upstreamModel: 'gpt-4o-mini', credentialId: credId }).expect(201)
+      await agent.post('/api/v1/gateway/models').send({ publicName: 'removed-judge', upstreamModel: 'gpt-4o-mini', ...registryPrices('gpt-4o-mini'), credentialId: credId }).expect(201)
     ).body;
     // Created first, so it is the first rule the loop reaches.
     const broken = (
@@ -435,7 +435,7 @@ describe('processOnlineEval', () => {
     const credId = await createConnection(agent);
     await registerModel(agent, credId);
     const brokenModel = (
-      await agent.post('/api/v1/gateway/models').send({ publicName: 'flaky-judge', upstreamModel: 'gpt-4o-mini', credentialId: credId }).expect(201)
+      await agent.post('/api/v1/gateway/models').send({ publicName: 'flaky-judge', upstreamModel: 'gpt-4o-mini', ...registryPrices('gpt-4o-mini'), credentialId: credId }).expect(201)
     ).body;
     const rule = (
       await agent
@@ -450,7 +450,7 @@ describe('processOnlineEval', () => {
     await processOnlineEval({ teamId, traceId: failed.traceId, spanId: failed.spanId, spanKind: 'llm' });
 
     // The judge model is back, so the next span is judged: the failure row left the cap free.
-    await agent.post('/api/v1/gateway/models').send({ publicName: 'flaky-judge', upstreamModel: 'gpt-4o-mini', credentialId: credId }).expect(201);
+    await agent.post('/api/v1/gateway/models').send({ publicName: 'flaky-judge', upstreamModel: 'gpt-4o-mini', ...registryPrices('gpt-4o-mini'), credentialId: credId }).expect(201);
     invalidateRuleCache();
     const next = await sendScoredCompletion(agent, teamId);
     queueFetchResponseOnce(cannedJudge({ score: 70, passed: true, reason: 'ok' }));

@@ -1,5 +1,9 @@
-/** Fallback destination when no valid `next` is supplied. */
-export const DEFAULT_NEXT = '/prompts';
+/**
+ * Fallback destination when no valid `next` is supplied: the getting-started
+ * checklist. The `from=signin` flag lets that page pass a fully set-up team
+ * straight on to its prompts, so only teams with steps left stop there.
+ */
+export const DEFAULT_NEXT = '/getting-started?from=signin';
 
 /**
  * Validates a post-authentication redirect target.

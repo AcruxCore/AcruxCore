@@ -41,6 +41,6 @@ describe('PRICE_FIELD_HINT', () => {
   // Shown under each price field in the model dialog. One blank price zeroes the whole
   // call, so the hint must not read as if only that field's tokens are free.
   it('says one unknown price makes the whole call $0', () => {
-    expect(PRICE_FIELD_HINT).toBe('Blank = auto for known models. If either price is unknown, the whole call counts as $0.');
+    expect(PRICE_FIELD_HINT).toBe("Your provider's price. If either price is blank, the whole call counts as $0.");
   });
 });

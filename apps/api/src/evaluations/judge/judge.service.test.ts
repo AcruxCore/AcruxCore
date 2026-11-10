@@ -3,7 +3,7 @@ import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
 import { RunsRepository } from '../runs/runs.repository';
 import { JudgeService } from './judge.service';
-import { authedAgent } from '../../test-utils';
+import { authedAgent, registryPrices } from '../../test-utils';
 
 const app = createApp();
 const runsRepo = new RunsRepository();
@@ -48,7 +48,7 @@ async function createConnection(agent: ReturnType<typeof request.agent>): Promis
 async function registerModel(agent: ReturnType<typeof request.agent>, credentialId: string, name = 'gpt-4o-mini'): Promise<void> {
   await agent
     .post('/api/v1/gateway/models')
-    .send({ publicName: name, upstreamModel: name, credentialId })
+    .send({ publicName: name, upstreamModel: name, ...registryPrices(name), credentialId })
     .expect(201);
 }
 

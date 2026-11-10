@@ -2,7 +2,7 @@ import request from 'supertest';
 import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
 import { __resetRateLimiter } from './rate-limiter';
-import { authHeaders, resetAuthTables, signupTestUser, type TestAuthContext } from '../../test-utils';
+import { authHeaders, resetAuthTables, signupTestUser, type TestAuthContext, registryPrices } from '../../test-utils';
 
 const app = createApp();
 
@@ -214,7 +214,7 @@ async function storeOpenAiConnection(ctx: TestAuthContext) {
     await request(app)
       .post('/api/v1/gateway/models')
       .set(authHeaders(ctx))
-      .send({ publicName: name, upstreamModel: name, credentialId: conn.body.id })
+      .send({ publicName: name, upstreamModel: name, ...registryPrices(name), credentialId: conn.body.id })
       .expect(201);
   }
   return conn;

@@ -51,7 +51,7 @@ export function FirstRunPage() {
       // Full load rather than a router navigate: the session cookie arrived with
       // this response, and a reload is the simplest way to have every provider
       // pick it up.
-      window.location.assign('/prompts');
+      window.location.assign('/getting-started');
     } catch (err) {
       setFormError(
         err instanceof ApiError && err.status === 403

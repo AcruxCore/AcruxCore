@@ -52,6 +52,9 @@ export function Sidebar() {
       <div className="px-2 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.09em] text-faint">
         Workspace
       </div>
+      <Item to="/getting-started" icon={ic(<><circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" /></>)}>
+        Get started
+      </Item>
       <Item to="/prompts" icon={ic(<><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h10" /></>)}>
         Prompts
       </Item>

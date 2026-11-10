@@ -56,7 +56,7 @@ afterAll(async () => {
 });
 
 describe('POST /api/v1/gateway/models', () => {
-  it('registers a model and prefills pricing for a known upstream model', async () => {
+  it('registers a model and leaves omitted prices null, even for a model the price registry knows', async () => {
     const ctx = await signupTestUser(app);
     const credentialId = await createCredential(ctx);
 
@@ -70,9 +70,13 @@ describe('POST /api/v1/gateway/models', () => {
     expect(res.body.upstreamModel).toBe('gpt-4o-mini');
     expect(res.body.provider).toBe('openai');
     expect(res.body.credentialLabel).toBe('OpenAI Prod');
-    // gpt-4o-mini is in the static registry → prices prefilled.
-    expect(res.body.inputPricePerM).toBe(0.15);
-    expect(res.body.outputPricePerM).toBe(0.6);
+    // gpt-4o-mini is in the static registry, and its prices are still not filled in:
+    // a blank price means "no price" for every model (owner decision, FAQ Q160).
+    expect(res.body.inputPricePerM).toBeNull();
+    expect(res.body.outputPricePerM).toBeNull();
+    const row = await prisma.gatewayModel.findUniqueOrThrow({ where: { id: res.body.id } });
+    expect(row.inputPricePerM).toBeNull();
+    expect(row.outputPricePerM).toBeNull();
     expect(res.body.fallbacks).toEqual([]);
   });
 

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  ConnectionModelsResult,
   Budget,
   ChatCompletion,
   ChatMessage,
@@ -72,6 +73,23 @@ export function useDeleteConnection() {
     mutationFn: (id: string) =>
       api<void>(`/gateway/connections/${id}`, { method: 'DELETE' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.connections }),
+  });
+}
+
+/**
+ * The models a credential can call, read live from its provider, with prices where
+ * the API knows them. Owner/admin only. Kept for an hour: the server caches the same
+ * list for an hour too, so reopening the New model dialog makes no request at all.
+ *
+ * @param connectionId - The credential to list; the query is off while it is empty.
+ * @param enabled - Extra switch, so a closed dialog never fetches.
+ */
+export function useConnectionModels(connectionId: string, enabled = true) {
+  return useQuery({
+    queryKey: keys.connectionModels(connectionId),
+    queryFn: () => api<ConnectionModelsResult>(`/gateway/connections/${connectionId}/models`),
+    enabled: enabled && !!connectionId,
+    staleTime: 60 * 60 * 1000,
   });
 }
 

@@ -4,7 +4,6 @@ import { ConnectionsRepository } from '../connections/connections.repository';
 import { decryptStoredSecret } from '../connections/crypto';
 import { connectionHeaders } from '../connections/connection-headers';
 import { getAdapter, ProviderError } from '../providers/adapter';
-import { lookupDefaultPricing } from '../providers/models';
 import type { ProviderCredentials } from '../providers/types';
 import { CreateModelDto, UpdateModelDto, GatewayModelDto, ModelTestResult } from './models.types';
 import { audit } from '../../shared/audit';
@@ -34,8 +33,10 @@ export class ModelsService {
   ) {}
 
   /**
-   * Registers a model. Prices omitted from the payload are prefilled from the
-   * static registry when the upstream model is known, else left null.
+   * Registers a model. A price omitted from the payload is stored as null, for every
+   * upstream model: the static registry is not used to fill it in, because it knows
+   * only a handful of models and goes stale (owner decision, cross-cutting FAQ Q160).
+   * A null price gives a null cost; the user types the provider's prices.
    *
    * @param teamId - The team the model belongs to.
    * @param actorId - The creating user (createdBy + audit).
@@ -48,21 +49,14 @@ export class ModelsService {
     await this.assertCredentialInTeam(dto.credentialId, teamId);
     await this.assertValidFallbacks(teamId, dto.fallbackModelIds, null);
 
-    const { inputPricePerM, outputPricePerM } = this.resolvePrices(
-      dto.upstreamModel,
-      dto.inputPricePerM,
-      dto.outputPricePerM,
-    );
-
     const row = await this.repo.create({
       teamId,
       publicName: dto.publicName,
       upstreamModel: dto.upstreamModel,
       credentialId: dto.credentialId,
-      inputPricePerM,
-      outputPricePerM,
-      // Never prefilled: no registry entry knows a provider's cached rate, and null
-      // already means "the provider's default cache rate".
+      inputPricePerM: toDecimal(dto.inputPricePerM ?? null),
+      outputPricePerM: toDecimal(dto.outputPricePerM ?? null),
+      // Null means "the provider's default cache rate".
       cachedInputPricePerM: toDecimal(dto.cachedInputPricePerM ?? null),
       createdBy: actorId,
       fallbackModelIds: this.dedupe(dto.fallbackModelIds),
@@ -221,18 +215,6 @@ export class ModelsService {
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
-
-  // Prefills prices from the static registry only when a field was omitted (create path).
-  private resolvePrices(
-    upstreamModel: string,
-    input: number | null | undefined,
-    output: number | null | undefined,
-  ): { inputPricePerM: Prisma.Decimal | null; outputPricePerM: Prisma.Decimal | null } {
-    const defaults = lookupDefaultPricing(upstreamModel);
-    const inN = input === undefined ? defaults?.inputPricePerM ?? null : input;
-    const outN = output === undefined ? defaults?.outputPricePerM ?? null : output;
-    return { inputPricePerM: toDecimal(inN), outputPricePerM: toDecimal(outN) };
-  }
 
   private dedupe(ids: string[]): string[] {
     return [...new Set(ids)];

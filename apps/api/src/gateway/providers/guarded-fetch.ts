@@ -93,7 +93,7 @@ function toResponseHeaders(headers: Dispatcher.ResponseData['headers']): Headers
  */
 export async function guardedFetch(
   url: string,
-  init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal },
+  init: { method: string; headers: Record<string, string>; body?: string; signal?: AbortSignal },
   usesCustomBaseUrl: boolean,
   providerLabel: string,
   timeoutMs: number = GATEWAY_TIMEOUT_MS,

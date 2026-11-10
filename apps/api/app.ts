@@ -42,6 +42,7 @@ import evaluationsRouter from './src/evaluations/evaluations.router';
 import { notificationsRouter } from './src/notifications';
 import { mcpRouter } from './src/mcp';
 import { unsubscribeRouter } from './src/email/unsubscribe';
+import { onboardingRouter } from './src/onboarding';
 import { errorMiddleware } from './src/shared/middleware';
 
 /**
@@ -170,6 +171,8 @@ export function createApp(): express.Application {
   // API key.
   app.use('/api/v1', healthRouter);
   app.use('/api/v1', apiKeysRouter);
+  // Getting-started status: GET /api/v1/onboarding
+  app.use('/api/v1', onboardingRouter);
   // Import must be mounted BEFORE prompts/:id routes so "import" isn't matched as an ID
   app.use('/api/v1', importRouter);
   app.use('/api/v1', promptsRouter);

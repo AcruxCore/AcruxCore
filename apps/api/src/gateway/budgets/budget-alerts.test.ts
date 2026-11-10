@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
 import { __resetRateLimiter } from './rate-limiter';
-import { addUserToTeam, authedAgent, type AuthedAgent } from '../../test-utils';
+import { addUserToTeam, authedAgent, type AuthedAgent, registryPrices } from '../../test-utils';
 import { drainEmailQueue, getEmailQueue } from '../../email/email.queue';
 import { getMemoryTransport } from '../../email/memory.transport';
 import type { EmailMessage } from '../../email/email.types';
@@ -65,7 +65,7 @@ async function setupTeam(): Promise<{
   const model = 'gpt-4o-mini';
   await owner.agent
     .post('/api/v1/gateway/models')
-    .send({ publicName: model, upstreamModel: model, credentialId: conn.body.id })
+    .send({ publicName: model, upstreamModel: model, ...registryPrices(model), credentialId: conn.body.id })
     .expect(201);
   const key = await owner.agent.post('/api/v1/api-keys').send({ name: 'budget test' }).expect(201);
   return { owner, apiKey: key.body.key as string, model };
@@ -325,7 +325,7 @@ describe('budget alerts', () => {
       .post('/api/v1/gateway/models')
       .send({
         publicName: 'race-model',
-        upstreamModel: 'race-model',
+        upstreamModel: 'race-model', ...registryPrices('race-model'),
         credentialId: conn.body.id,
         inputPricePerM: 0,
         outputPricePerM: 1000,

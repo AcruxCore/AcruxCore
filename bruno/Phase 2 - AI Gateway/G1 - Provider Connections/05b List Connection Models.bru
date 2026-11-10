@@ -1,0 +1,19 @@
+meta {
+  name: List Connection Models
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/gateway/connections/{{connectionId}}/models
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+docs {
+  Live model ids from the credential's provider, no prices. Owner/admin only. Cached 1 hour.
+}

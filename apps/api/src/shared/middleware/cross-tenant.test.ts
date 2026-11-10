@@ -305,6 +305,7 @@ function probesFor(a: Fixture, b: Fixture): Record<string, Probe> {
     'DELETE /api/v1/gateway/budgets/:id': { url: `/api/v1/gateway/budgets/${a.budgetId}` },
 
     'GET /api/v1/gateway/connections/:id': { url: `/api/v1/gateway/connections/${a.connectionId}` },
+    'GET /api/v1/gateway/connections/:id/models': { url: `/api/v1/gateway/connections/${a.connectionId}/models` },
     'PATCH /api/v1/gateway/connections/:id': { url: `/api/v1/gateway/connections/${a.connectionId}`, body: { label: 'taken' } },
     'DELETE /api/v1/gateway/connections/:id': { url: `/api/v1/gateway/connections/${a.connectionId}` },
 

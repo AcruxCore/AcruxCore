@@ -20,7 +20,8 @@ test('auth: login with existing account and logout', async ({ page }) => {
   // Target the checkbox input directly via its accessible role instead.
   await page.getByRole('checkbox', { name: 'I agree to the' }).check();
   await page.getByRole('button', { name: 'Create account' }).click();
-  await expect(page).toHaveURL(/\/prompts/);
+  // A new team has finished no setup step, so it lands on the checklist.
+  await expect(page).toHaveURL(/\/getting-started/);
 
   await page.getByRole('button', { name: 'Sign out' }).click();
   await expect(page).toHaveURL(/\/login/);
@@ -28,7 +29,10 @@ test('auth: login with existing account and logout', async ({ page }) => {
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill('password123');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(/\/prompts/);
+  // Still not set up, so signing in returns to the checklist. (The login link carries
+  // next=/getting-started from the sign-out, so the URL has no from=signin flag.)
+  await expect(page).toHaveURL(/\/getting-started/);
+  await expect(page.getByTestId('onboarding-progress')).toHaveText('0 of 4 done');
 });
 
 test('prompts: search filters the list', async ({ page }) => {
@@ -159,11 +163,12 @@ test('account: personal API key can be revoked', async ({ page }) => {
 test('theme: toggle switches light/dark on the document root', async ({ page }) => {
   await signup(page);
   const html = page.locator('html');
-  await expect(html).toHaveAttribute('data-theme', 'dark');
-  await page.getByRole('button', { name: 'Toggle theme' }).click();
+  // Light is the default theme.
   await expect(html).toHaveAttribute('data-theme', 'light');
   await page.getByRole('button', { name: 'Toggle theme' }).click();
   await expect(html).toHaveAttribute('data-theme', 'dark');
+  await page.getByRole('button', { name: 'Toggle theme' }).click();
+  await expect(html).toHaveAttribute('data-theme', 'light');
 });
 
 test('team: create + revoke a team API key', async ({ page }) => {

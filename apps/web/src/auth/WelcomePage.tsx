@@ -46,11 +46,11 @@ export function WelcomePage() {
     >
       <div className="flex flex-col items-center gap-4 text-center">
         <p className="text-[13px] text-muted">
-          You're all set! Head to the dashboard to create your first prompt, connect a model, or
-          explore the playground.
+          Four short steps take you from here to your first traced LLM call: connect a provider,
+          add a model, create a key, and send a request.
         </p>
-        <Button variant="primary" className="w-full" onClick={() => navigate('/prompts')}>
-          Go to Dashboard
+        <Button variant="primary" className="w-full" onClick={() => navigate('/getting-started')}>
+          Get started
         </Button>
       </div>
     </AuthLayout>

@@ -1,5 +1,20 @@
 import type request from 'supertest';
 import { randomUUID } from 'node:crypto';
+import { lookupDefaultPricing } from '../gateway/providers/models';
+
+/**
+ * The static registry's input and output price for an upstream model, as a body
+ * fragment for `POST /gateway/models`, or `{}` when the registry does not know it.
+ *
+ * The API stores an omitted price as null (cross-cutting FAQ Q160), so a test that
+ * asserts a cost or a budget increment must send prices itself. Spreading this keeps
+ * those tests on the same numbers they used when the API filled them in.
+ *
+ * @param upstreamModel - The upstream id being registered.
+ */
+export function registryPrices(upstreamModel: string): { inputPricePerM?: number; outputPricePerM?: number } {
+  return lookupDefaultPricing(upstreamModel) ?? {};
+}
 
 /**
  * Registers a real gateway connection + model for the given agent's team, via

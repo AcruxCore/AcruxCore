@@ -17,5 +17,8 @@ export const connectionsRouter: IRouter = Router();
 connectionsRouter.post('/', requireAnyAuth, requireRole('owner', 'admin'), controller.create);
 connectionsRouter.get('/', requireAnyAuth, controller.list);
 connectionsRouter.get('/:id', requireAnyAuth, controller.get);
+// Owner/admin only, like creating a model: it spends a call on the team's provider key,
+// and only the people who can register a model need the list.
+connectionsRouter.get('/:id/models', requireAnyAuth, requireRole('owner', 'admin'), controller.listModels);
 connectionsRouter.patch('/:id', requireAnyAuth, requireRole('owner', 'admin'), controller.update);
 connectionsRouter.delete('/:id', requireAnyAuth, requireRole('owner', 'admin'), controller.remove);

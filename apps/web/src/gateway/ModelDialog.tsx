@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CreateModelInput, GatewayModel, UpdateModelInput } from '@/api';
-import { useConnections, useCreateModel, useModels, useUpdateModel, ApiError } from '@/api';
-import { Button, Dialog, DialogFooter, Field, Input, Select, useToast } from '@/ui';
+import { useConnectionModels, useConnections, useCreateModel, useModels, useUpdateModel, ApiError } from '@/api';
+import { Button, Combobox, Dialog, DialogFooter, Field, Input, Select, useToast } from '@/ui';
 import { PROVIDER_LABELS } from './format';
 import { CACHED_PRICE_FIELD_HINT, PRICE_FIELD_HINT } from './model-price';
 
@@ -91,6 +91,23 @@ export function ModelDialog({ open, onOpenChange, model }: ModelDialogProps) {
 
   const busy = create.isPending || update.isPending;
   const selectedCred = credentials?.find((c) => c.id === credentialId);
+  // The credential's own model list, for the upstream-model picker. Read only while the
+  // dialog is open; if it fails, the field still takes a typed id.
+  const listed = useConnectionModels(credentialId, open);
+  const listedModels = listed.data?.ok ? (listed.data.models ?? []) : undefined;
+  const pickerOptions = (listedModels ?? []).map((m) => ({ value: m.id }));
+
+  const providerName = selectedCred ? PROVIDER_LABELS[selectedCred.provider] : 'the provider';
+  let upstreamHint: string;
+  if (listed.isFetching && !listed.data) {
+    upstreamHint = `Loading the models this ${providerName} key can call…`;
+  } else if (listedModels) {
+    upstreamHint = `${listedModels.length} models. Type to search, or type an id that is not listed.`;
+  } else if (listed.data && !listed.data.ok) {
+    upstreamHint = `Could not load the model list: ${listed.data.error ?? 'unknown error'}. Type the model id.`;
+  } else {
+    upstreamHint = `The exact model id ${providerName} expects.`;
+  }
   // Candidate fallbacks: every other registered model (can't fall back to itself).
   const fallbackChoices = (allModels ?? []).filter((m) => m.id !== model?.id);
 
@@ -187,18 +204,14 @@ export function ModelDialog({ open, onOpenChange, model }: ModelDialogProps) {
           <Field
             label="Upstream model"
             htmlFor="model-upstream"
-            hint={
-              selectedCred
-                ? `Sent to ${PROVIDER_LABELS[selectedCred.provider]}, e.g. anthropic/claude-3.5-sonnet.`
-                : 'The exact model id the provider expects.'
-            }
+            hint={upstreamHint}
           >
-            <Input
+            <Combobox
               id="model-upstream"
+              options={pickerOptions}
               value={upstreamModel}
-              onChange={(e) => setUpstreamModel(e.target.value)}
-              placeholder="anthropic/claude-3.5-sonnet"
-              className="font-mono"
+              onChange={setUpstreamModel}
+              placeholder={listedModels ? 'Search models' : 'gpt-4o-mini'}
             />
           </Field>
 
@@ -211,7 +224,7 @@ export function ModelDialog({ open, onOpenChange, model }: ModelDialogProps) {
                 step="0.01"
                 value={inputPrice}
                 {...priceInputProps('input', setInputPrice)}
-                placeholder="auto"
+                placeholder="none"
               />
             </Field>
             <Field label="Output $/1M" htmlFor="model-out" hint={PRICE_FIELD_HINT} error={priceError('output')}>
@@ -222,7 +235,7 @@ export function ModelDialog({ open, onOpenChange, model }: ModelDialogProps) {
                 step="0.01"
                 value={outputPrice}
                 {...priceInputProps('output', setOutputPrice)}
-                placeholder="auto"
+                placeholder="none"
               />
             </Field>
           </div>

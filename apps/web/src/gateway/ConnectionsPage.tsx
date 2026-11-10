@@ -6,6 +6,7 @@ import { timeAgo } from '@/lib/format';
 import { Badge, Button, Dialog, DialogFooter, Empty, PageSpinner, useToast } from '@/ui';
 import { ConnectionDialog } from './ConnectionDialog';
 import { PROVIDER_LABELS } from './format';
+import { SetupNextStepBanner } from '@/onboarding';
 
 /**
  * Provider connections (BYOK): the encrypted credentials the gateway uses to
@@ -46,6 +47,7 @@ export function ConnectionsPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      <SetupNextStepBanner step="credential" />
       <header className="flex items-center gap-4">
         <div>
           <h1 className="text-[22px] font-semibold tracking-tight">Credentials</h1>

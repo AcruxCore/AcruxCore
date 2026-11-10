@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
-import { authedAgent } from '../../test-utils';
+import { authedAgent, registryPrices } from '../../test-utils';
 
 const app = createApp();
 
@@ -50,7 +50,7 @@ async function createOpenAiConnection(agent: ReturnType<typeof request.agent>): 
     .expect(201);
   await agent
     .post('/api/v1/gateway/models')
-    .send({ publicName: 'gpt-4o-mini', upstreamModel: 'gpt-4o-mini', credentialId: res.body.id })
+    .send({ publicName: 'gpt-4o-mini', upstreamModel: 'gpt-4o-mini', ...registryPrices('gpt-4o-mini'), credentialId: res.body.id })
     .expect(201);
   return res.body.id;
 }
@@ -205,13 +205,13 @@ describe('POST /gateway/chat/completions (stream)', () => {
       .expect(201);
     const backup = await agent
       .post('/api/v1/gateway/models')
-      .send({ publicName: 'backup', upstreamModel: 'gpt-4o-mini', credentialId: good.body.id })
+      .send({ publicName: 'backup', upstreamModel: 'gpt-4o-mini', ...registryPrices('gpt-4o-mini'), credentialId: good.body.id })
       .expect(201);
     await agent
       .post('/api/v1/gateway/models')
       .send({
         publicName: 'primary',
-        upstreamModel: 'gpt-4o-mini',
+        upstreamModel: 'gpt-4o-mini', ...registryPrices('gpt-4o-mini'),
         credentialId: bad.body.id,
         fallbackModelIds: [backup.body.id],
       })
@@ -257,13 +257,13 @@ describe('POST /gateway/chat/completions (stream)', () => {
       .expect(201);
     const backup = await agent
       .post('/api/v1/gateway/models')
-      .send({ publicName: 'backup', upstreamModel: 'gpt-4o-mini', credentialId: bad.body.id })
+      .send({ publicName: 'backup', upstreamModel: 'gpt-4o-mini', ...registryPrices('gpt-4o-mini'), credentialId: bad.body.id })
       .expect(201);
     await agent
       .post('/api/v1/gateway/models')
       .send({
         publicName: 'primary',
-        upstreamModel: 'gpt-4o-mini',
+        upstreamModel: 'gpt-4o-mini', ...registryPrices('gpt-4o-mini'),
         credentialId: flaky.body.id,
         fallbackModelIds: [backup.body.id],
       })

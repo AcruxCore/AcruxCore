@@ -6,8 +6,8 @@ const priceSchema = z.number().nonnegative().nullable();
 /**
  * Body for POST /gateway/models. `fallbackModelIds` is an ordered list of other
  * registered models tried on failure; each must belong to the same team and
- * differ from the model being created. Prices omitted are prefilled from the
- * static registry when the upstream model is known (see the service).
+ * differ from the model being created. A price omitted is stored as null, for every
+ * upstream model (see the service).
  */
 export const CreateModelSchema = z.object({
   publicName: z.string().min(1, 'Public name is required.').max(200),

@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
-import { authedAgent } from '../../test-utils';
+import { authedAgent, registryPrices } from '../../test-utils';
 
 const app = createApp();
 
@@ -44,7 +44,7 @@ async function setupCallerWithCache(email: string, cacheTtlSeconds: number | nul
     .expect(201);
   await agent
     .post('/api/v1/gateway/models')
-    .send({ publicName: 'gpt-4o-mini', upstreamModel: 'gpt-4o-mini', credentialId: conn.body.id })
+    .send({ publicName: 'gpt-4o-mini', upstreamModel: 'gpt-4o-mini', ...registryPrices('gpt-4o-mini'), credentialId: conn.body.id })
     .expect(201);
 
   // G3: virtual key with cache opt-in.

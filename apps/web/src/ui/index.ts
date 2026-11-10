@@ -30,3 +30,5 @@ export type { MultiSelectOption } from './MultiSelect';
 export { useClickOutside } from './useClickOutside';
 export { InfoTip } from './InfoTip';
 export type { InfoTipProps } from './InfoTip';
+export { Combobox } from './Combobox';
+export type { ComboboxOption, ComboboxProps } from './Combobox';

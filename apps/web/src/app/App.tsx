@@ -11,6 +11,7 @@ import { ResetPasswordRequestPage } from '@/auth/ResetPasswordRequestPage';
 import { ResetPasswordUpdatePage } from '@/auth/ResetPasswordUpdatePage';
 import { AcceptInvitePage } from '@/auth/AcceptInvitePage';
 import { PromptListPage } from '@/prompts/PromptListPage';
+import { GettingStartedPage } from '@/onboarding';
 import { PromptDetailPage } from '@/prompts/PromptDetailPage';
 import { TeamPage } from '@/team/TeamPage';
 import { TeamAuditPage } from '@/team/audit';
@@ -108,6 +109,7 @@ export function App() {
       <Route path="/first-run" element={<FirstRunPage />} />
 
       <Route element={<ProtectedRoute />}>
+        <Route path="/getting-started" element={<GettingStartedPage />} />
         <Route path="/prompts" element={<PromptListPage />} />
         <Route path="/prompts/:id" element={<PromptDetailPage />} />
         <Route path="/team" element={<TeamPage />} />

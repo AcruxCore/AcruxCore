@@ -5,6 +5,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { Badge, Button, Dialog, DialogFooter, Empty, PageSpinner, useToast } from '@/ui';
 import { ModelDialog } from './ModelDialog';
 import { modelPriceText } from './model-price';
+import { SetupNextStepBanner } from '@/onboarding';
 
 /**
  * The model registry: public names → upstream models on a credential, with prices
@@ -59,6 +60,7 @@ export function ModelsPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      <SetupNextStepBanner step="model" />
       <header className="flex items-center gap-4">
         <div>
           <h1 className="text-[22px] font-semibold tracking-tight">Models</h1>

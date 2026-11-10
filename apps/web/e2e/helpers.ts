@@ -8,7 +8,13 @@ export function uniqueEmail(): string {
   return `e2e-${Date.now()}-${counter}@example.com`;
 }
 
-/** Sign up a fresh account and land on the prompts page. */
+/**
+ * Sign up a fresh account and land on the prompts page.
+ *
+ * A new account first lands on the getting-started checklist (its team has no setup
+ * yet). The helper asserts that, then opens /prompts, because the specs that call it
+ * start from there.
+ */
 export async function signup(page: Page): Promise<string> {
   const email = uniqueEmail();
   await page.goto('/signup');
@@ -21,7 +27,8 @@ export async function signup(page: Page): Promise<string> {
   // Target the checkbox input directly via its accessible role instead.
   await page.getByRole('checkbox', { name: 'I agree to the' }).check();
   await page.getByRole('button', { name: 'Create account' }).click();
-  await expect(page).toHaveURL(/\/prompts/);
+  await expect(page).toHaveURL(/\/getting-started/);
+  await page.goto('/prompts');
   return email;
 }
 

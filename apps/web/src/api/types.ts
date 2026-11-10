@@ -191,6 +191,19 @@ export interface AuditActor {
   eventCount: number;
 }
 
+/**
+ * `GET /onboarding`: which getting-started steps the active team has finished.
+ * Every flag is about the team, not the signed-in user.
+ */
+export interface OnboardingStatus {
+  credential: boolean;
+  model: boolean;
+  /** A member's personal key, a team key, or a gateway virtual key exists. */
+  apiKey: boolean;
+  /** A gateway request or a trace has arrived. */
+  firstRequest: boolean;
+}
+
 /** Server-side narrowing for the team-wide audit trail. Both fields are AND-ed. */
 export interface TeamAuditFilters {
   /** `AuditEvent` names to include; empty or omitted means every event. */
@@ -283,6 +296,18 @@ export interface UpdateConnectionInput {
 
 // ── Gateway: model registry ─────────────────────────────────────────────────
 /** A registered model (deployment): public name → upstream model → credential + price. */
+/** One model a provider credential can call, from GET /gateway/connections/:id/models. */
+export interface ListedProviderModel {
+  id: string;
+}
+
+/** Response of GET /gateway/connections/:id/models. A provider failure is `ok: false`, not an HTTP error. */
+export interface ConnectionModelsResult {
+  ok: boolean;
+  models?: ListedProviderModel[];
+  error?: string;
+}
+
 export interface GatewayModel {
   id: string;
   publicName: string;

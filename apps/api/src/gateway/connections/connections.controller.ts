@@ -43,6 +43,16 @@ export class ConnectionsController {
     }
   };
 
+  /** GET /api/v1/gateway/connections/:id/models — live model list from the provider (owner/admin). */
+  listModels = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await this.service.listModels(req.params.id, req.teamId!);
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  };
+
   /** PATCH /api/v1/gateway/connections/:id — update/rotate (owner/admin). */
   update = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {

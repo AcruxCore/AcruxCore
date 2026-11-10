@@ -2,7 +2,7 @@ import request from 'supertest';
 import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
 import { SpansRepository } from '../spans/spans.repository';
-import { authedAgent } from '../../test-utils';
+import { authedAgent, registryPrices } from '../../test-utils';
 
 const app = createApp();
 
@@ -40,7 +40,7 @@ async function createConnection(agent: ReturnType<typeof request.agent>): Promis
 async function registerModel(agent: ReturnType<typeof request.agent>, credentialId: string, name = 'gpt-4o-mini'): Promise<void> {
   await agent
     .post('/api/v1/gateway/models')
-    .send({ publicName: name, upstreamModel: name, credentialId })
+    .send({ publicName: name, upstreamModel: name, ...registryPrices(name), credentialId })
     .expect(201);
 }
 
@@ -608,7 +608,7 @@ describe('gateway trace hook — a rescued call carries a warning', () => {
   ): Promise<string> {
     const res = await agent
       .post('/api/v1/gateway/models')
-      .send({ publicName, upstreamModel: publicName, credentialId, fallbackModelIds })
+      .send({ publicName, upstreamModel: publicName, ...registryPrices(publicName), credentialId, fallbackModelIds })
       .expect(201);
     return res.body.id;
   }

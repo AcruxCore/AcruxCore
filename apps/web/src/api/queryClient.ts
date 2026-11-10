@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query';
+import { MutationCache, QueryClient } from '@tanstack/react-query';
 import { ApiError, type ApiQuery } from './client';
 
 /**
@@ -6,8 +6,16 @@ import { ApiError, type ApiQuery } from './client';
  *
  * Auth/permission failures (401/403) and not-found (404) are not retried —
  * retrying them is pointless and slows the UI. Other failures retry once.
+ *
+ * Every successful mutation marks the getting-started status stale. Credentials,
+ * models, personal keys, team keys and virtual keys all feed it, and wiring each of
+ * those mutations by hand is how one gets missed. Only a mounted checklist or banner
+ * refetches; elsewhere the call costs nothing.
  */
-export const queryClient = new QueryClient({
+export const queryClient: QueryClient = new QueryClient({
+  mutationCache: new MutationCache({
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.onboarding }),
+  }),
   defaultOptions: {
     queries: {
       staleTime: 15_000,
@@ -46,12 +54,14 @@ export const keys = {
   teamAuditActors: (teamId: string) => ['team-audit-actors', teamId] as const,
   toolBindings: (promptId: string) => ['tool-bindings', promptId] as const,
   apiKeys: ['api-keys'] as const,
+  onboarding: ['onboarding'] as const,
   teamKeys: (teamId: string) => ['team-keys', teamId] as const,
   members: (teamId: string) => ['members', teamId] as const,
   invites: (teamId: string) => ['invites', teamId] as const,
   // Gateway (Phase 2)
   connections: ['gateway-connections'] as const,
   models: ['gateway-models'] as const,
+  connectionModels: (connectionId: string) => ['gateway-connection-models', connectionId] as const,
   // Sits under the `tools` prefix, so every tool mutation marks it stale too. That is
   // harmless (it refetches on next mount) and nobody chose it — but do not "fix" it by
   // narrowing `tools` below, which is what makes one invalidate reach the catalog, a
