@@ -1,7 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { GatewayService } from './gateway.service';
-import { ChatCompletionRequestSchema, SpanContextBodySchema, TraceContextBodySchema } from './completions.types';
+import {
+  CHAT_COMPLETION_REQUEST_FIELDS,
+  ChatCompletionRequestSchema,
+  SpanContextBodySchema,
+  TraceContextBodySchema,
+} from './completions.types';
 import type {
   GatewayCallContext,
   GatewayCompletionRequest,
@@ -188,7 +193,7 @@ function readTracingContext(
 }
 
 /** Top-level body fields the gateway reads: the schema's own plus the two context objects. */
-const KNOWN_BODY_FIELDS = new Set([...Object.keys(ChatCompletionRequestSchema.innerType().shape), 'trace', 'span']);
+const KNOWN_BODY_FIELDS = new Set([...CHAT_COMPLETION_REQUEST_FIELDS, 'trace', 'span']);
 
 /**
  * Lists the top-level body fields the gateway does not know, sorted.

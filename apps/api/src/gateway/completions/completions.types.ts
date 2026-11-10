@@ -210,14 +210,8 @@ export const SpanContextBodySchema = z
 /** The validated `span` object. */
 export type SpanContextBody = z.infer<typeof SpanContextBodySchema>;
 
-/**
- * Validated body for POST /gateway/chat/completions (OpenAI-compatible).
- *
- * A caller supplies EITHER raw `messages` OR a `prompt` reference (G8) — exactly
- * one. Supplying both or neither is a validation error (superRefine). When
- * `prompt` is present the pipeline fills `messages` from Phase 1's render engine.
- */
-export const ChatCompletionRequestSchema = z
+/** The chat-completions body fields, before the cross-field checks and the alias fold. */
+const ChatCompletionRequestObjectSchema = z
   .object({
     model: z.string().min(1).optional(),
     messages: z.array(ChatMessageSchema).min(1, 'messages must be a non-empty array').optional(),
@@ -240,6 +234,19 @@ export const ChatCompletionRequestSchema = z
     prompt_version_id: z.string().uuid('prompt_version_id must be a UUID').optional(),
     temperature: z.number().min(0).max(2).optional(),
     max_tokens: z.number().int().positive().optional(),
+    /**
+     * OpenAI's current name for `max_tokens`, and the one OpenAI's docs use. Folded into
+     * `max_tokens` after validation, so the adapters, the cache key and the budget estimate
+     * only ever read one field. Each adapter then picks the wire name its provider wants.
+     * It used to be stripped by Zod, so the call ran with no output limit (issue #806).
+     * `null` means "not set", as in OpenAI's own schema, so it is read as absent.
+     */
+    max_completion_tokens: z
+      .number()
+      .int()
+      .positive()
+      .nullish()
+      .transform((v) => v ?? undefined),
     top_p: z.number().min(0).max(1).optional(),
     stop: z.union([z.string(), z.array(z.string())]).optional(),
     stream: z.boolean().optional(),
@@ -281,8 +288,37 @@ export const ChatCompletionRequestSchema = z
      * this only decides whether the caller is sent it.
      */
     stream_options: z.object({ include_usage: z.boolean().optional() }).optional(),
-  })
+  });
+
+/**
+ * Every top-level field name the request schema reads, `max_completion_tokens` included.
+ * The controller lists any other body field in `x-gateway-params-ignored`.
+ */
+export const CHAT_COMPLETION_REQUEST_FIELDS: readonly string[] = Object.keys(ChatCompletionRequestObjectSchema.shape);
+
+/**
+ * Validated body for POST /gateway/chat/completions (OpenAI-compatible).
+ *
+ * A caller supplies EITHER raw `messages` OR a `prompt` reference (G8) — exactly
+ * one. Supplying both or neither is a validation error (superRefine). When
+ * `prompt` is present the pipeline fills `messages` from Phase 1's render engine.
+ *
+ * `max_completion_tokens` is an alias of `max_tokens` and is folded into it, so the
+ * parsed output never carries it. Both with different values is a validation error.
+ */
+export const ChatCompletionRequestSchema = ChatCompletionRequestObjectSchema
   .superRefine((data, ctx) => {
+    if (
+      data.max_tokens !== undefined &&
+      data.max_completion_tokens !== undefined &&
+      data.max_tokens !== data.max_completion_tokens
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'max_tokens and max_completion_tokens are the same limit; send one, or the same value in both.',
+        path: ['max_completion_tokens'],
+      });
+    }
     const hasMessages = data.messages !== undefined;
     const hasPrompt = data.prompt !== undefined;
     if (hasMessages === hasPrompt) {
@@ -318,7 +354,11 @@ export const ChatCompletionRequestSchema = z
         path: ['response_format'],
       });
     }
-  });
+  })
+  .transform(({ max_completion_tokens, ...rest }) => ({
+    ...rest,
+    max_tokens: rest.max_tokens ?? max_completion_tokens,
+  }));
 
 /** Typed request DTO; structurally a NormalizedRequest plus the optional gateway control. */
 export type ChatCompletionRequestDto = z.infer<typeof ChatCompletionRequestSchema>;
