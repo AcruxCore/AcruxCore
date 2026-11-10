@@ -71,14 +71,14 @@ Hosted at [acruxcore.com](https://acruxcore.com) — or self-host it, below.
 Postgres, Redis, the API, the worker and the web app all come up from one file:
 
 ```bash
-git clone https://github.com/AcruxCore/AcruxCore.git && cd AcruxCore
-cp .env.local.example .env
-docker compose -f docker-compose.local.yml up
+curl -O https://raw.githubusercontent.com/AcruxCore/AcruxCore/main/docker-compose.local.yml
+docker compose -f docker-compose.local.yml up -d --wait
+docker compose -f docker-compose.local.yml logs api | grep first-run
 ```
 
-Open **http://localhost:8080**, sign up, and you're in.
+Open the `first-run` link that the last command prints, and create the owner account. The dashboard is at **http://localhost:8080**.
 
-Compose pulls the prebuilt [`acruxcore/api`](https://hub.docker.com/r/acruxcore/api), [`acruxcore/worker`](https://hub.docker.com/r/acruxcore/worker) and [`acruxcore/web`](https://hub.docker.com/r/acruxcore/web) images from Docker Hub. Add `--build` to build from your checkout instead, for example after you change the code.
+You do not need to clone the repository. Compose pulls the prebuilt [`acruxcore/api`](https://hub.docker.com/r/acruxcore/api), [`acruxcore/worker`](https://hub.docker.com/r/acruxcore/worker) and [`acruxcore/web`](https://hub.docker.com/r/acruxcore/web) images from Docker Hub. If port 8080 or 3001 is taken, set `WEB_PORT` or `API_PORT` in a `.env` file next to the Compose file. To run your own changes, clone the repository and add `--build`.
 
 ## 📊 How it compares
 
@@ -109,15 +109,20 @@ One app built and measured on three platforms: **[AcruxCore vs Langfuse vs LangS
 Two Compose files, for two different jobs:
 
 - **`docker-compose.local.yml`** — the quickstart above. Every value already has a working default, nothing to fill in.
-- **`docker-compose.yml`** — the production shape. Bring your own Postgres and reverse proxy; every secret is required, none are defaulted. This is what `acruxcore.com` itself runs on a VPS.
+- **`docker-compose.yml`** — the production shape. Bring your own Postgres and reverse proxy; every secret is required, none are defaulted. This is what `acruxcore.com` itself runs on a VPS, from the same Docker Hub images.
 
 ```bash
-cp .env.docker.example .env
-openssl rand -base64 32   # → paste as GATEWAY_ENCRYPTION_KEY in .env
-# set DATABASE_URL, DIRECT_URL and the other required secrets in .env
+curl -O https://raw.githubusercontent.com/AcruxCore/AcruxCore/main/docker-compose.yml
+curl -o .env https://raw.githubusercontent.com/AcruxCore/AcruxCore/main/.env.docker.example
+openssl rand -base64 32   # → run once per secret: GATEWAY_ENCRYPTION_KEY, BETTER_AUTH_SECRET, EMAIL_UNSUBSCRIBE_SECRET
+# set DATABASE_URL, DIRECT_URL, APP_URL and the secrets in .env
+# pin a release: ACRUXCORE_IMAGE_TAG=2026.11.3 (see Releases for the latest)
 docker network create mynetwork   # the stack joins this shared network; Compose won't create it
-docker compose up --build
+docker compose pull
+docker compose up -d --no-build --wait
 ```
+
+The [self-hosting guide](https://docs.acruxcore.com/docs/getting-started/self-host-with-docker) covers the reverse proxy, email, the owner account and upgrades.
 
 Auth is in-app (Better Auth) — accounts, sessions and password hashes all live in your own Postgres. There's no identity vendor to sign up for, and the API applies pending migrations on boot.
 

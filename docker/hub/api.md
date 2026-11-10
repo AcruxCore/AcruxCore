@@ -51,10 +51,11 @@ For a server, bring your own Postgres and set real secrets. The API needs at lea
 | `EMAIL_UNSUBSCRIBE_SECRET` | A long random string that signs unsubscribe links |
 | `APP_URL` | The public URL of the dashboard |
 
-The full list, with email settings, is in [`.env.docker.example`](https://github.com/AcruxCore/AcruxCore/blob/main/.env.docker.example). The [self-hosting section of the README](https://github.com/AcruxCore/AcruxCore#-self-hosting) describes the production Compose file.
+The full list, with email settings, is in [`.env.docker.example`](https://github.com/AcruxCore/AcruxCore/blob/main/.env.docker.example). The [self-hosting guide](https://docs.acruxcore.com/docs/getting-started/self-host-with-docker) walks through the production Compose file, the reverse proxy and upgrades.
 
 ## Links
 
 - [AcruxCore website](https://acruxcore.com)
+- [Self-host AcruxCore with Docker](https://docs.acruxcore.com/docs/getting-started/self-host-with-docker)
 - [Quickstart: your first traced LLM call through the gateway](https://docs.acruxcore.com/docs/getting-started/quickstart)
 - [Source code on GitHub](https://github.com/AcruxCore/AcruxCore) (Apache 2.0)

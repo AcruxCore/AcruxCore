@@ -6,18 +6,22 @@
 # service (Neon, RDS, Supabase-as-DB) or a container you add yourself. This
 # stack runs only Redis, which BullMQ needs for the email and eval queues.
 #
-# Quick start:
+# Quick start (full walkthrough:
+# https://docs.acruxcore.com/docs/getting-started/self-host-with-docker):
 #   1. cp .env.docker.example .env   (Compose auto-loads .env for substitution)
-#   2. Fill in DATABASE_URL, DIRECT_URL, and the required secrets:
+#   2. Fill in DATABASE_URL, DIRECT_URL, APP_URL and the required secrets:
 #      GATEWAY_ENCRYPTION_KEY, BETTER_AUTH_SECRET, and — in production —
 #      EMAIL_UNSUBSCRIBE_SECRET, which the API and worker refuse to boot without
-#      (see the template).
-#   3. docker compose up --build
-#   4. Web:  http://localhost:8080     API: http://localhost:3001/api/v1
+#      (see the template). Optionally pin ACRUXCORE_IMAGE_TAG to a release.
+#   3. docker network create mynetwork
+#   4. docker compose pull && docker compose up -d --no-build --wait
+#   5. Point a reverse proxy at acruxcore-web:80 on mynetwork — no container
+#      here publishes a public port.
 #
 # `api`, `worker` and `web` each name a published image (acruxcore/* on Docker
-# Hub) AND a build section. `--build` above builds this checkout. Production
-# does the opposite: .github/workflows/deploy.yml sets ACRUXCORE_IMAGE_TAG to
+# Hub) AND a build section. Step 4 runs the published images; add `--build`
+# instead of `--no-build` to build this checkout. Production does the same as
+# step 4: .github/workflows/deploy.yml sets ACRUXCORE_IMAGE_TAG to
 # the release's `sha-<commit>` tag, pulls, and starts with `--no-build`, so the
 # host never compiles anything. Unset, the tag is `latest`.
 #
@@ -73,6 +77,12 @@ services:
       target: api
     container_name: acruxcore-api
     restart: unless-stopped
+    # Every open connection counts as an open file. Docker's default soft limit is
+    # 1,024; Node raises its own limit to the hard limit, which some hosts also set
+    # low. Fixing both here keeps thousands of concurrent gateway streams working
+    # on any host.
+    ulimits:
+      nofile: { soft: 65536, hard: 65536 }
     environment:
       NODE_ENV: production
       PORT: 3001

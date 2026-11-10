@@ -213,6 +213,7 @@ const config: Config = {
         // featured in https://acruxcore.com/blog/llms.txt now.
         featuredRoutePaths: [
           '/docs/getting-started/quickstart',
+          '/docs/getting-started/self-host-with-docker',
           '/docs/getting-started/core-concepts',
           '/docs/tutorials/build-a-tool-calling-agent-in-the-dashboard-no-code',
         ],
@@ -290,6 +291,7 @@ const config: Config = {
           title: 'Docs',
           items: [
             {label: 'Quickstart', to: '/docs/getting-started/quickstart'},
+            {label: 'Self-host with Docker', to: '/docs/getting-started/self-host-with-docker'},
             {label: 'Core concepts', to: '/docs/getting-started/core-concepts'},
             {label: 'API Reference', to: '/api-reference'},
           ],

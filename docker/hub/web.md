@@ -13,7 +13,7 @@ curl -O https://raw.githubusercontent.com/AcruxCore/AcruxCore/main/docker-compos
 docker compose -f docker-compose.local.yml up
 ```
 
-Open http://localhost:8080 and sign up. The [`acruxcore/api` page](https://hub.docker.com/r/acruxcore/api) lists the tags and the variables a production setup needs.
+Open http://localhost:8080 and sign up. The [`acruxcore/api` page](https://hub.docker.com/r/acruxcore/api) lists the tags and the variables a production setup needs. The [self-hosting guide](https://docs.acruxcore.com/docs/getting-started/self-host-with-docker) covers the whole setup.
 
 ## Links
 

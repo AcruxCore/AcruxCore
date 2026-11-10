@@ -325,8 +325,8 @@ export const FAQ_GROUPS: FaqGroup[] = [
         answer: [
           [
             'Yes. Run ',
-            { text: 'docker compose up', href: GITHUB_URL },
-            ' to self-host the same code used by the hosted platform. There is no separate community edition and no folder under a separate paid license.',
+            { text: 'docker compose up', href: `${DOCS_URL}/docs/getting-started/self-host-with-docker` },
+            ' to self-host the same Docker images the hosted platform runs. There is no separate community edition and no folder under a separate paid license.',
           ],
         ],
       },

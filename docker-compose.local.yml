@@ -16,6 +16,11 @@
 #
 #   Web: http://localhost:8080     API: http://localhost:3001/api/v1
 #
+# Port taken? Set WEB_PORT / API_PORT in .env; APP_URL follows WEB_PORT, so
+# the first-run link and sign-in use the new port too. ACRUXCORE_IMAGE_TAG
+# pins a release (default `latest`). Full walkthrough:
+# https://docs.acruxcore.com/docs/getting-started/self-host-with-docker
+#
 # This is the fast/local counterpart to docker-compose.yml, which is the
 # production shape (your own Postgres, your own external network, real
 # secrets you generate). Every value below already has a fixed, committed,
@@ -80,6 +85,12 @@ services:
       target: api
     container_name: acruxcore-local-api
     restart: unless-stopped
+    # Every open connection counts as an open file. Docker's default soft limit is
+    # 1,024; Node raises its own limit to the hard limit, which some hosts also set
+    # low. Fixing both here keeps thousands of concurrent gateway streams working
+    # on any host.
+    ulimits:
+      nofile: { soft: 65536, hard: 65536 }
     environment:
       NODE_ENV: development
       PORT: 3001
@@ -94,14 +105,14 @@ services:
       EMAIL_TRANSPORT: none
       AUTH_REQUIRE_EMAIL_VERIFICATION: 'false'
       AUTH_ALLOW_FIRST_RUN_CLAIM: 'true'
-      APP_URL: http://localhost:8080
+      APP_URL: ${APP_URL:-http://localhost:${WEB_PORT:-8080}}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     ports:
-      - '3001:3001'
+      - '${API_PORT:-3001}:3001'
     healthcheck:
       # No curl/wget baked into the node:22-bookworm runtime image — Node
       # itself makes the request instead. GET /api/v1/health pings Postgres
@@ -130,7 +141,7 @@ services:
       REDIS_URL: redis://redis:6379
       GATEWAY_ENCRYPTION_KEY: ${GATEWAY_ENCRYPTION_KEY:-8+OYoRbp4QqUOmyEVqhXt5xBpkxhYCYGANO6tJVlubI=}
       EMAIL_TRANSPORT: none
-      APP_URL: http://localhost:8080
+      APP_URL: ${APP_URL:-http://localhost:${WEB_PORT:-8080}}
       DIGEST_ENABLED: 'false'
     depends_on:
       postgres:
@@ -153,7 +164,7 @@ services:
     depends_on:
       - api
     ports:
-      - '8080:80'
+      - '${WEB_PORT:-8080}:80'
     networks:
       - acruxcore-local
 

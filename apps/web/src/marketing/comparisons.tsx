@@ -110,7 +110,7 @@ export const ACRUX_CORE = {
   },
   selfHost: {
     value: 'docker compose up',
-    source: { label: 'GitHub', href: GITHUB_URL },
+    source: { label: 'Self-host with Docker', href: `${DOCS_URL}/docs/getting-started/self-host-with-docker` },
   },
   gateway: {
     value: 'In the request path. Routing, caching, budget checks, and virtual keys all take effect before a call reaches the provider.',
