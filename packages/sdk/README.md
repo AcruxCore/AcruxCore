@@ -381,6 +381,13 @@ span (tokens, latency, model, payloads — no dollar cost yet) plus any `tool`
 spans, and `promptVersionId` (from `prompts.render()`) still links the trace to
 the prompt version that produced it.
 
+`maxTokens` goes out under the name the server expects. OpenAI's reasoning models
+(gpt-5, the o-series) accept only `max_completion_tokens`, and many compatible
+servers accept only `max_tokens`. `api.openai.com` and its regional hosts get
+`max_completion_tokens`; every other host gets `max_tokens`. For Azure OpenAI or a
+proxy in front of OpenAI, set `kind: 'openai'` on the provider. `kind:
+'openai_compatible'` forces `max_tokens`.
+
 ## Reporting traces
 
 Report your own traces — LLM calls, tool calls, retrieval, custom steps — so a

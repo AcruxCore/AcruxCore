@@ -34,8 +34,6 @@ import httpx
 
 from .errors import (
     API_ERROR,
-    MISSING_API_KEY,
-    MISSING_BASE_URL,
     MISSING_DISPATCH,
     NETWORK_ERROR,
     PROVIDER_ERROR,
@@ -45,7 +43,12 @@ from .errors import (
     server_detail,
 )
 from .http import request_with_retry
-from .provider import infer_provider_name
+from .provider import (
+    byo_max_tokens_field,
+    check_provider_config,
+    infer_provider_name,
+    max_tokens_refusal_hint,
+)
 from .response_format import normalize_response_format
 from .span_queue import SpanQueue
 from .steps import join_step, route_report, step_trace_name
@@ -124,11 +127,15 @@ __all__ = ["GatewayNamespace", "AsyncChatStream", "AsyncToolLoopStream"]
 #: what is being called, so a stray one would change the call's meaning, not tune it.
 _EXTRA_BODY_RESERVED = frozenset({"model", "messages", "stream"})
 
+#: The two names OpenAI has used for the token limit. ``max_tokens=`` is sent as one of
+#: them, so ``extra_body`` setting either while ``max_tokens=`` is set would send two limits.
+_TOKEN_LIMIT_FIELDS = frozenset({"max_tokens", "max_completion_tokens"})
+
 #: What a BYO stream adds to the body: without it the provider sends no usage.
 _BYO_STREAM_FIELDS: Dict[str, Any] = {"stream_options": {"include_usage": True}}
 
 
-def _merge_extra_body(body: Dict[str, Any], extra_body: Optional[Dict[str, Any]]) -> None:
+def _merge_extra_body(body: Dict[str, Any], extra_body: Optional[Dict[str, Any]], byo: bool) -> None:
     """Add ``extra_body`` to a completion body, refusing any key the SDK already set.
 
     Silently letting one side win would hide a bug either way: the caller's value lost,
@@ -136,18 +143,37 @@ def _merge_extra_body(body: Dict[str, Any], extra_body: Optional[Dict[str, Any]]
 
     :param body: The body built from the named arguments. Changed in place.
     :param extra_body: The caller's extra fields, or ``None``.
+    :param byo: True on a BYO call. Only there does ``max_tokens=`` go out under either
+        token-limit name, so only there is the other name also refused. A gateway call
+        keeps the plain rule: the gateway maps ``max_tokens`` per provider and names any
+        field it drops in ``x-gateway-params-ignored``.
     :raises AcruxCoreError: ``VALIDATION_ERROR`` naming the clashing key.
     """
     if not extra_body:
         return
-    clashes = sorted(k for k in extra_body if k in body or k in _EXTRA_BODY_RESERVED)
-    if clashes:
-        raise AcruxCoreError(
-            f"acruxcore: extra_body may not set {', '.join(clashes)} — pass it as the named "
-            f"argument of the same name instead.",
-            VALIDATION_ERROR,
+    has_limit = byo and any(k in body for k in _TOKEN_LIMIT_FIELDS)
+    clashes = sorted(
+        k for k in extra_body
+        if k in body or k in _EXTRA_BODY_RESERVED or (k in _TOKEN_LIMIT_FIELDS and has_limit)
+    )
+    if not clashes:
+        body.update(extra_body)
+        return
+    token_clashes = [k for k in clashes if k in _TOKEN_LIMIT_FIELDS]
+    other_clashes = [k for k in clashes if k not in _TOKEN_LIMIT_FIELDS]
+    reasons: List[str] = []
+    if other_clashes:
+        reasons.append(
+            f"extra_body may not set {', '.join(other_clashes)} — pass it as the named "
+            f"argument of the same name instead."
         )
-    body.update(extra_body)
+    if token_clashes:
+        reasons.append(
+            f"extra_body may not set {', '.join(token_clashes)} when max_tokens= is set — "
+            f"both are the token limit. Use max_tokens= alone; set provider['kind'] to choose "
+            f"the name it is sent under."
+        )
+    raise AcruxCoreError(f"acruxcore: {' '.join(reasons)}", VALIDATION_ERROR)
 
 
 def _read_usage(raw: Optional[Dict[str, Any]]) -> Optional[ChatUsage]:
@@ -632,9 +658,14 @@ class GatewayNamespace:
             step's trace as its child, unless the dict names another trace.
         :param extra_body: Further OpenAI fields (``top_p``, ``seed``, ``stop``, …) added
             to the request body on both paths. A key that a named argument already sets,
-            or ``model``/``messages``/``stream``, raises ``VALIDATION_ERROR``. The gateway
-            forwards only fields it knows and names the rest in its
+            or ``model``/``messages``/``stream``, raises ``VALIDATION_ERROR``. So does either
+            token-limit name, ``max_tokens`` or ``max_completion_tokens``, on a BYO call
+            with ``max_tokens=`` set, since ``max_tokens=`` is already sent under one of
+            them. The gateway forwards only fields it knows and names the rest in its
             ``x-gateway-params-ignored`` response header.
+        :raises AcruxCoreError: ``VALIDATION_ERROR`` for a refused ``extra_body`` key, an
+            unknown ``provider["kind"]`` or a malformed ``provider["base_url"]``;
+            ``PROVIDER_ERROR`` when a BYO provider answers with an error.
         """
         model = _require_model(model)
         trace = join_step(trace, self._host._span_queue)
@@ -642,9 +673,8 @@ class GatewayNamespace:
         provider_config = provider or self._host._provider_default
         body = self._build_chat_body(
             model, messages, tools, tool_refs, tool_choice, response_format, temperature, max_tokens, stream,
-            prompt_version_id=None if provider_config is not None else prompt_version_id,
-            variables=None if provider_config is not None else variables,
-            gateway=None if provider_config is not None else gateway,
+            byo=provider_config,
+            prompt_version_id=prompt_version_id, variables=variables, gateway=gateway,
             reasoning_effort=reasoning_effort, extra_body=extra_body,
             sdk_fields=_BYO_STREAM_FIELDS if stream and provider_config is not None else None,
         )
@@ -766,6 +796,8 @@ class GatewayNamespace:
         temperature: Optional[float],
         max_tokens: Optional[int],
         stream: bool,
+        *,
+        byo: Optional[ProviderConfig],
         prompt_version_id: Optional[str] = None,
         variables: Optional[Dict[str, Any]] = None,
         gateway: Optional[GatewayControl] = None,
@@ -774,6 +806,13 @@ class GatewayNamespace:
         sdk_fields: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Build the JSON body for one completion.
+
+        :param byo: The BYO provider, or ``None`` for a gateway call. Required, with no
+            default, so a new call site cannot leave it out by accident. On a BYO call it
+            drops ``prompt_version_id``, ``variables`` and ``gateway`` (see below), and
+            picks the name ``max_tokens`` goes out under (see
+            :func:`byo_max_tokens_field`). A gateway call always gets ``max_tokens`` and
+            the gateway maps it per provider.
 
         :param extra_body: Caller-supplied OpenAI fields, added last; see
             :func:`_merge_extra_body` for the keys it refuses.
@@ -785,7 +824,7 @@ class GatewayNamespace:
             OpenAI field, so a BYO provider is asked for it too.
 
         :param prompt_version_id: Which prompt version these messages were rendered
-            from. Only ever passed for a GATEWAY call — it is our field, not
+            from. Only ever sent on a GATEWAY call — it is our field, not
             OpenAI's, so sending it to a BYO provider would be sending a stranger a
             field it never asked for. On a BYO call the SDK writes the span itself
             and stamps the lineage there instead.
@@ -798,6 +837,8 @@ class GatewayNamespace:
             the two above: a BYO provider has no gateway to control and never asked for
             this field.
         """
+        if byo is not None:
+            prompt_version_id, variables, gateway = None, None, None
         body: Dict[str, Any] = {"model": model, "messages": messages}
         if prompt_version_id:
             body["prompt_version_id"] = prompt_version_id
@@ -814,7 +855,7 @@ class GatewayNamespace:
         if temperature is not None:
             body["temperature"] = temperature
         if max_tokens is not None:
-            body["max_tokens"] = max_tokens
+            body["max_tokens" if byo is None else byo_max_tokens_field(byo)] = max_tokens
         if reasoning_effort is not None:
             body["reasoning_effort"] = reasoning_effort
         if stream:
@@ -823,7 +864,7 @@ class GatewayNamespace:
             body["gateway"] = _gateway_control_body(gateway)
         if sdk_fields:
             body.update(sdk_fields)
-        _merge_extra_body(body, extra_body)
+        _merge_extra_body(body, extra_body, byo is not None)
         return body
 
     async def _complete_once(
@@ -846,6 +887,7 @@ class GatewayNamespace:
     ) -> ChatResult:
         body = self._build_chat_body(
             model, messages, tools, tool_refs, tool_choice, response_format, temperature, max_tokens, False,
+            byo=None,
             prompt_version_id=prompt_version_id, variables=variables, gateway=gateway,
             reasoning_effort=reasoning_effort, extra_body=extra_body,
         )
@@ -881,19 +923,11 @@ class GatewayNamespace:
         provider_config: ProviderConfig,
         extra_body: Optional[Dict[str, Any]] = None,
     ) -> ChatResult:
-        if not provider_config.get("api_key"):
-            raise AcruxCoreError(
-                "acruxcore: provider api_key is required for a BYO (direct-provider) call.",
-                MISSING_API_KEY,
-            )
-        if not provider_config.get("base_url"):
-            raise AcruxCoreError(
-                "acruxcore: provider base_url is required for a BYO (direct-provider) call.",
-                MISSING_BASE_URL,
-            )
+        check_provider_config(provider_config)
         _warn_if_cleartext_url(provider_config["base_url"], "provider.base_url")
         body = self._build_chat_body(
             model, messages, tools, tool_refs, tool_choice, response_format, temperature, max_tokens, False,
+            byo=provider_config,
             reasoning_effort=reasoning_effort, extra_body=extra_body,
         )
         base_url = provider_config["base_url"].rstrip("/")
@@ -915,13 +949,13 @@ class GatewayNamespace:
             )
 
         if response.status_code >= 400:
-            body = self._host._safe_json(response)
+            error_body = self._host._safe_json(response)
             raise AcruxCoreError(
                 f"acruxcore: provider returned {response.status_code} calling chat "
-                f"completions{server_detail(body)}",
+                f"completions{server_detail(error_body)}{max_tokens_refusal_hint(body, error_body)}",
                 PROVIDER_ERROR,
                 response.status_code,
-                body,
+                error_body,
             )
 
         data = response.json()
@@ -1050,20 +1084,11 @@ class GatewayNamespace:
         :param state: Filled as the stream runs and complete once it ends —
             ``start_time``, ``content``, ``tool_calls``, ``model``, ``finish_reason``
             and ``usage`` (already camelCased for a span payload).
-        :raises AcruxCoreError: ``MISSING_API_KEY``/``MISSING_BASE_URL`` on a bad
+        :raises AcruxCoreError: ``MISSING_API_KEY``/``MISSING_BASE_URL``/``VALIDATION_ERROR`` on a bad
             config, ``PROVIDER_ERROR`` on a 4xx/5xx, ``NETWORK_ERROR`` on transport
             failure.
         """
-        if not provider_config.get("api_key"):
-            raise AcruxCoreError(
-                "acruxcore: provider api_key is required for a BYO (direct-provider) call.",
-                MISSING_API_KEY,
-            )
-        if not provider_config.get("base_url"):
-            raise AcruxCoreError(
-                "acruxcore: provider base_url is required for a BYO (direct-provider) call.",
-                MISSING_BASE_URL,
-            )
+        check_provider_config(provider_config)
         _warn_if_cleartext_url(provider_config["base_url"], "provider.base_url")
         base_url = provider_config["base_url"].rstrip("/")
         url = f"{base_url}/chat/completions"
@@ -1102,13 +1127,14 @@ class GatewayNamespace:
                                 continue
                         if response.status_code >= 400:
                             await response.aread()
-                            body = self._host._safe_json(response)
+                            error_body = self._host._safe_json(response)
                             raise AcruxCoreError(
                                 f"acruxcore: provider returned {response.status_code} streaming "
-                                f"chat completions{server_detail(body)}",
+                                f"chat completions{server_detail(error_body)}"
+                                f"{max_tokens_refusal_hint(stream_body, error_body)}",
                                 PROVIDER_ERROR,
                                 response.status_code,
-                                body,
+                                error_body,
                             )
 
                         decoder = codecs.getincrementaldecoder("utf-8")()
@@ -2269,9 +2295,10 @@ class GatewayNamespace:
             temperature,
             max_tokens,
             True,
-            prompt_version_id=None if provider_config is not None else prompt_version_id,
-            variables=None if provider_config is not None else variables,
-            gateway=None if provider_config is not None else gateway,
+            byo=provider_config,
+            prompt_version_id=prompt_version_id,
+            variables=variables,
+            gateway=gateway,
             reasoning_effort=reasoning_effort,
         )
 

@@ -5,6 +5,7 @@ import { getCache, _resetCacheForTesting } from '../../src/cache';
 import { fetchWithRetry } from '../../src/fetch';
 import { acruxcore } from '../../src/client';
 import { acruxcoreError } from '../../src/error';
+import type { ProviderConfig, ProviderKind } from '../../src/types';
 
 // A zod v4 schema reused by the three zod-responseFormat tests below. Mirrors the shape the
 // dict-path tests use, so the two paths are directly comparable.
@@ -1275,6 +1276,195 @@ describe('acruxcore.chat with provider (BYO)', () => {
     expect(result.gateway.cache).toBeNull();
     expect(typeof result.gateway.traceId).toBe('string');
     expect(typeof result.gateway.spanRef).toBe('string');
+  });
+
+  // Issue #809: OpenAI's reasoning models refuse `max_tokens` with a 400 and ask for
+  // `max_completion_tokens`, so a BYO call straight to api.openai.com must send the new
+  // name — the same split the gateway's OpenAI adapter makes. Other hosts keep the old
+  // name, since many OpenAI-compatible servers know only that one.
+  it('sends maxTokens as max_completion_tokens to api.openai.com, and as max_tokens elsewhere', async () => {
+    const okBody = () => new Response(
+      JSON.stringify({ id: 'c', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }] }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+    const sseBody = () => new Response(
+      'data: {"id":"c","model":"m","choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+      { status: 200, headers: { 'content-type': 'text/event-stream' } },
+    );
+    const sent = (i: number) => JSON.parse(String(vi.mocked(fetch).mock.calls[i]![1]!.body)) as Record<string, unknown>;
+    const messages = [{ role: 'user' as const, content: 'hi' }];
+    const openai = { baseUrl: 'https://api.openai.com/v1', apiKey: 'sk' };
+    const groq = { baseUrl: 'https://api.groq.com/openai/v1', apiKey: 'k' };
+
+    vi.mocked(fetch).mockResolvedValueOnce(okBody());
+    await hub.gateway.chat({ model: 'gpt-5-mini', messages, provider: openai, trace: false, maxTokens: 500 });
+    expect(sent(0)['max_completion_tokens']).toBe(500);
+    expect(sent(0)).not.toHaveProperty('max_tokens');
+
+    vi.mocked(fetch).mockResolvedValueOnce(sseBody());
+    for await (const _ of await hub.gateway.stream({ model: 'gpt-5-mini', messages, provider: openai, trace: false, maxTokens: 500 })) { /* drain */ }
+    expect(sent(1)['max_completion_tokens']).toBe(500);
+    expect(sent(1)).not.toHaveProperty('max_tokens');
+
+    vi.mocked(fetch).mockResolvedValueOnce(okBody());
+    await hub.gateway.chat({ model: 'llama', messages, provider: groq, trace: false, maxTokens: 500 });
+    expect(sent(2)['max_tokens']).toBe(500);
+    expect(sent(2)).not.toHaveProperty('max_completion_tokens');
+  });
+
+  it('treats OpenAI regional hosts and the trailing-dot form as OpenAI, and lets provider.kind decide', async () => {
+    const okBody = () => new Response(
+      JSON.stringify({ id: 'c', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }] }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+    vi.mocked(fetch).mockImplementation(async () => okBody());
+    const messages = [{ role: 'user' as const, content: 'hi' }];
+    const fieldFor = async (provider: ProviderConfig): Promise<string> => {
+      await hub.gateway.chat({ model: 'gpt-5-mini', messages, provider, trace: false, maxTokens: 500 });
+      const body = JSON.parse(String(vi.mocked(fetch).mock.calls.at(-1)![1]!.body)) as Record<string, unknown>;
+      return Object.keys(body).filter((k) => k.startsWith('max_')).join(',');
+    };
+
+    expect(await fieldFor({ baseUrl: 'https://eu.api.openai.com/v1', apiKey: 'sk' })).toBe('max_completion_tokens');
+    expect(await fieldFor({ baseUrl: 'https://api.openai.com./v1', apiKey: 'sk' })).toBe('max_completion_tokens');
+    // Look-alike hosts are not OpenAI.
+    expect(await fieldFor({ baseUrl: 'https://notapi.openai.com.evil.example/v1', apiKey: 'sk' })).toBe('max_tokens');
+    // `kind` wins over the host, both ways.
+    expect(await fieldFor({ baseUrl: 'https://res.openai.azure.com/openai/v1', apiKey: 'sk', kind: 'openai' })).toBe('max_completion_tokens');
+    expect(await fieldFor({ baseUrl: 'https://api.openai.com/v1', apiKey: 'sk', kind: 'openai_compatible' })).toBe('max_tokens');
+  });
+
+  it('refuses extraBody setting either token-limit name when maxTokens is set, and names maxTokens', async () => {
+    vi.mocked(fetch).mockImplementation(async () => new Response(
+      JSON.stringify({ id: 'c', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }] }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+    const messages = [{ role: 'user' as const, content: 'hi' }];
+    const openai = { baseUrl: 'https://api.openai.com/v1', apiKey: 'sk' };
+    for (const key of ['max_tokens', 'max_completion_tokens']) {
+      const err = await hub.gateway
+        .chat({ model: 'gpt-5-mini', messages, provider: openai, trace: false, maxTokens: 500, extraBody: { [key]: 100 } })
+        .catch((e: unknown) => e as acruxcoreError);
+      expect(err).toBeInstanceOf(acruxcoreError);
+      expect((err as acruxcoreError).code).toBe('VALIDATION_ERROR');
+      expect((err as acruxcoreError).message).toContain(`may not set ${key} when maxTokens is set`);
+      expect((err as acruxcoreError).message).not.toContain('named option of the same name');
+    }
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+
+    // Without maxTokens, extraBody may still carry the limit itself.
+    await hub.gateway.chat({ model: 'gpt-5-mini', messages, provider: openai, trace: false, extraBody: { max_completion_tokens: 100 } });
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]!.body)) as Record<string, unknown>;
+    expect(body['max_completion_tokens']).toBe(100);
+  });
+
+  it('sends max_completion_tokens to api.openai.com from both tool loops', async () => {
+    const okBody = () => new Response(
+      JSON.stringify({ id: 'c', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'done' }, finish_reason: 'stop' }] }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+    const sseBody = () => new Response(
+      'data: {"id":"c","model":"m","choices":[{"index":0,"delta":{"content":"done"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+      { status: 200, headers: { 'content-type': 'text/event-stream' } },
+    );
+    const loopOptions = {
+      model: 'gpt-5-mini',
+      messages: [{ role: 'user' as const, content: 'go' }],
+      toolDefs: [{ type: 'function' as const, function: { name: 'f' } }],
+      dispatch: () => ({}),
+      provider: { baseUrl: 'https://api.openai.com/v1', apiKey: 'sk' },
+      trace: false as const,
+      maxTokens: 500,
+    };
+    const lastBody = () => JSON.parse(String(vi.mocked(fetch).mock.calls.at(-1)![1]!.body)) as Record<string, unknown>;
+
+    vi.mocked(fetch).mockResolvedValueOnce(okBody());
+    await hub.gateway.runToolLoop(loopOptions);
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+    expect(lastBody()['max_completion_tokens']).toBe(500);
+    expect(lastBody()).not.toHaveProperty('max_tokens');
+
+    vi.mocked(fetch).mockResolvedValueOnce(sseBody());
+    for await (const _ of await hub.gateway.runToolLoop({ ...loopOptions, stream: true })) { /* drain */ }
+    // A second request, so the assertions below read the streaming loop's own body.
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    expect(lastBody()['stream']).toBe(true);
+    expect(lastBody()['max_completion_tokens']).toBe(500);
+    expect(lastBody()).not.toHaveProperty('max_tokens');
+  });
+
+  it('refuses an unknown provider.kind before sending anything', async () => {
+    const messages = [{ role: 'user' as const, content: 'hi' }];
+    for (const kind of ['OpenAI', 'azure', '']) {
+      const err = await hub.gateway
+        .chat({
+          model: 'gpt-5-mini', messages, trace: false, maxTokens: 500,
+          provider: { baseUrl: 'https://api.openai.com/v1', apiKey: 'sk', kind: kind as unknown as ProviderKind },
+        })
+        .catch((e: unknown) => e as acruxcoreError);
+      expect(err).toBeInstanceOf(acruxcoreError);
+      expect((err as acruxcoreError).code).toBe('VALIDATION_ERROR');
+      expect((err as acruxcoreError).message).toContain("'openai' or 'openai_compatible'");
+    }
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+
+  it('keeps the gateway path as it was: maxTokens plus extraBody.max_completion_tokens is sent', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(
+      JSON.stringify({ id: 'c', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }] }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+    await hub.gateway.chat({
+      model: 'gpt-5-mini', messages: [{ role: 'user', content: 'hi' }], trace: false,
+      maxTokens: 5, extraBody: { max_completion_tokens: 9 },
+    });
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]!.body)) as Record<string, unknown>;
+    expect(body['max_tokens']).toBe(5);
+    expect(body['max_completion_tokens']).toBe(9);
+  });
+
+  it('refuses a malformed provider.baseUrl with a VALIDATION_ERROR, key or no maxTokens', async () => {
+    for (const maxTokens of [500, undefined]) {
+      const err = await hub.gateway
+        .chat({
+          model: 'gpt-5-mini', messages: [{ role: 'user', content: 'hi' }], trace: false, maxTokens,
+          provider: { baseUrl: 'https://[bad/v1', apiKey: 'sk-real' },
+        })
+        .catch((e: unknown) => e as acruxcoreError);
+      expect(err).toBeInstanceOf(acruxcoreError);
+      expect((err as acruxcoreError).code).toBe('VALIDATION_ERROR');
+      expect((err as acruxcoreError).message).toContain('provider.baseUrl');
+    }
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+
+  it('points at provider.kind when a provider refuses max_tokens and asks for max_completion_tokens', async () => {
+    const refusal = () => new Response(
+      JSON.stringify({ error: { message: "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead." } }),
+      { status: 400, headers: { 'content-type': 'application/json' } },
+    );
+    const proxy = { baseUrl: 'https://proxy.example/v1', apiKey: 'sk' };
+    const messages = [{ role: 'user' as const, content: 'hi' }];
+
+    vi.mocked(fetch).mockResolvedValueOnce(refusal());
+    const blocking = await hub.gateway
+      .chat({ model: 'gpt-5-mini', messages, provider: proxy, trace: false, maxTokens: 500 })
+      .catch((e: unknown) => e as acruxcoreError);
+    expect((blocking as acruxcoreError).code).toBe('PROVIDER_ERROR');
+    expect((blocking as acruxcoreError).message).toContain("set provider.kind to 'openai'");
+
+    vi.mocked(fetch).mockResolvedValueOnce(refusal());
+    const streamed = await (async () => {
+      for await (const _ of await hub.gateway.stream({ model: 'gpt-5-mini', messages, provider: proxy, trace: false, maxTokens: 500 })) { /* drain */ }
+    })().catch((e: unknown) => e as acruxcoreError);
+    expect((streamed as acruxcoreError).message).toContain("set provider.kind to 'openai'");
+
+    // No hint when the call did not send max_tokens: the advice would not apply.
+    vi.mocked(fetch).mockResolvedValueOnce(refusal());
+    const noLimit = await hub.gateway
+      .chat({ model: 'gpt-5-mini', messages, provider: proxy, trace: false })
+      .catch((e: unknown) => e as acruxcoreError);
+    expect((noLimit as acruxcoreError).message).not.toContain('provider.kind');
   });
 
   it('client-level provider default is used when no per-call provider is given', async () => {

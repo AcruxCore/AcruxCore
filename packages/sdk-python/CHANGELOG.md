@@ -12,6 +12,36 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+### Added
+
+- `ProviderConfig` takes an optional `kind` (`"openai"` or `"openai_compatible"`) that sets the
+  name `max_tokens` is sent under on a BYO call. Set `"openai"` for Azure OpenAI or a proxy in
+  front of OpenAI. Without it, the host decides ([FAQ Q67](../../docs/superpowers/specs/cross-cutting/sdk-faq.md)). Any other value raises
+  `VALIDATION_ERROR`.
+
+### Changed
+
+- **Breaking for BYO calls that set both limits.** With `max_tokens=` set, `extra_body` may no
+  longer set `max_completion_tokens` on a BYO call: it raises `VALIDATION_ERROR` instead of
+  sending two limits. Gateway calls are unchanged. See "Migrating from 0.20".
+- A BYO provider's 400 that asks for `max_completion_tokens` now ends with a hint to set
+  `provider["kind"]` to `"openai"`, for a proxy or Azure in front of OpenAI.
+
+### Fixed
+
+- A BYO call to OpenAI now sends `max_tokens` as `max_completion_tokens`, which its reasoning
+  models (gpt-5, o-series) require. That covers `api.openai.com` and its regional hosts, such as
+  `eu.api.openai.com`. Other hosts still get `max_tokens` ([FAQ Q67](../../docs/superpowers/specs/cross-cutting/sdk-faq.md), issue #809).
+- A malformed BYO `base_url` raised a bare `ValueError` from `urllib`. It now raises
+  `AcruxCoreError` with `VALIDATION_ERROR`, before anything is sent.
+
+### Migrating from 0.20
+
+1. If a BYO call passes `max_tokens=` and also `extra_body={"max_completion_tokens": n}`, remove
+   the `extra_body` key and keep `max_tokens=`. For Azure OpenAI or a proxy in front of OpenAI,
+   also set `"kind": "openai"` in the provider dict. Nothing checks this before you run it; the
+   call raises `VALIDATION_ERROR` at runtime, before sending. Search for `max_completion_tokens`.
+
 ## 0.20.0 — 2026-10-31
 
 ### Added

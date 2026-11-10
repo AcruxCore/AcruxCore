@@ -155,7 +155,20 @@ export interface ProviderConfig {
   baseUrl: string;
   /** Sent as `Authorization: Bearer <apiKey>` to `baseUrl` only. */
   apiKey: string;
+  /**
+   * What kind of server `baseUrl` is. It decides the name `maxTokens` is sent under:
+   * `'openai'` sends `max_completion_tokens`, which OpenAI's reasoning models (gpt-5,
+   * the o-series) require, and `'openai_compatible'` sends `max_tokens`, the only name
+   * many compatible servers know. Leave it out and the host decides: OpenAI's own
+   * hosts (`api.openai.com` and its regional hosts) count as `'openai'`, every other
+   * host as `'openai_compatible'`. Set `'openai'` for Azure OpenAI or a proxy in front
+   * of OpenAI.
+   */
+  kind?: ProviderKind;
 }
+
+/** What kind of server a BYO provider is. Mirrors the gateway's connection types. */
+export type ProviderKind = 'openai' | 'openai_compatible';
 
 /** Who authored a tool version. Mirrors the API's `ToolVersionSource` enum. */
 export type ToolVersionSource = 'code' | 'dashboard' | 'api';

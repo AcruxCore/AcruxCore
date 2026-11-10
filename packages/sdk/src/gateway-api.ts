@@ -5,7 +5,7 @@ import { parseToolArgs, resolveParametersSchema, isAcruxTool } from './tools';
 import type { AcruxTool } from './tools';
 import { isToolOutcome } from './tool-result';
 import { validateAgainstSchema } from './result-schema';
-import { inferProviderName } from './provider';
+import { byoMaxTokensField, checkProviderConfig, inferProviderName, maxTokensRefusalHint } from './provider';
 import { resolveResponseFormat } from './responseFormat';
 import type { GatewayNamespaceHost } from './host';
 import { joinStep, routeReport, stepTraceName } from './steps';
@@ -81,18 +81,44 @@ const EXTRA_BODY_RESERVED = new Set(['model', 'messages', 'stream']);
  *
  * @param body - The body built from the named options. Changed in place.
  * @param extraBody - The caller's extra fields, if any.
+ * @param byo - True on a BYO call. Only there does `maxTokens` go out under either
+ *   token-limit name, so only there is the other name also refused. A gateway call keeps
+ *   the plain rule: the gateway maps `max_tokens` per provider and names any field it
+ *   drops in `x-gateway-params-ignored`.
  * @throws {acruxcoreError} `VALIDATION_ERROR` naming the clashing keys.
  */
-function mergeExtraBody(body: Record<string, unknown>, extraBody: Record<string, unknown> | undefined): void {
+function mergeExtraBody(body: Record<string, unknown>, extraBody: Record<string, unknown> | undefined, byo: boolean): void {
   if (!extraBody) return;
-  const clashes = Object.keys(extraBody).filter((k) => k in body || EXTRA_BODY_RESERVED.has(k)).sort();
-  if (clashes.length) {
-    throw new acruxcoreError(
-      `acruxcore: extraBody may not set ${clashes.join(', ')} — pass it as the named option of the same name instead.`,
-      'VALIDATION_ERROR',
+  const limitSet = byo && hasTokenLimit(body);
+  const clashes = Object.keys(extraBody)
+    .filter((k) => k in body || EXTRA_BODY_RESERVED.has(k) || (TOKEN_LIMIT_FIELDS.has(k) && limitSet))
+    .sort();
+  if (!clashes.length) {
+    Object.assign(body, extraBody);
+    return;
+  }
+  const tokenClashes = clashes.filter((k) => TOKEN_LIMIT_FIELDS.has(k));
+  const otherClashes = clashes.filter((k) => !TOKEN_LIMIT_FIELDS.has(k));
+  const reasons: string[] = [];
+  if (otherClashes.length) {
+    reasons.push(`extraBody may not set ${otherClashes.join(', ')} — pass it as the named option of the same name instead.`);
+  }
+  if (tokenClashes.length) {
+    reasons.push(
+      `extraBody may not set ${tokenClashes.join(', ')} when maxTokens is set — both are the token limit. ` +
+        'Use maxTokens alone; set provider.kind to choose the name it is sent under.',
     );
   }
-  Object.assign(body, extraBody);
+  throw new acruxcoreError(`acruxcore: ${reasons.join(' ')}`, 'VALIDATION_ERROR');
+}
+
+/** The two names OpenAI has used for the token limit. `maxTokens` is sent as one of them,
+ * so `extraBody` setting either while `maxTokens` is set would send two limits. */
+const TOKEN_LIMIT_FIELDS = new Set(['max_tokens', 'max_completion_tokens']);
+
+/** True when the body already carries a token limit under either name. */
+function hasTokenLimit(body: Record<string, unknown>): boolean {
+  return [...TOKEN_LIMIT_FIELDS].some((k) => k in body);
 }
 
 /**
@@ -441,7 +467,7 @@ export class GatewayNamespace {
     // first chunk is ever asked for.
     this._buildChatBody(
       options,
-      !providerConfig,
+      providerConfig ?? null,
       options.stream && providerConfig ? { stream_options: { include_usage: true } } : undefined,
     );
 
@@ -462,7 +488,7 @@ export class GatewayNamespace {
     if (options.stream) {
       return providerConfig
         ? this._streamViaProvider(options, providerConfig)
-        : this._streamChat(this._buildChatBody(options, true), traceHeaders);
+        : this._streamChat(this._buildChatBody(options, null), traceHeaders);
     }
 
     const startTime = new Date().toISOString();
@@ -701,16 +727,23 @@ export class GatewayNamespace {
   /**
    * @internal Builds the JSON body shared by chat() and runToolLoop()'s gateway calls.
    *
-   * `forGateway` gates the fields that are ours rather than OpenAI's — `prompt_version_id`,
-   * `variables` and `gateway` — because sending one to a BYO provider would be sending a
-   * stranger a field it never asked for. On a BYO call the SDK writes the span itself and
-   * stamps the lineage there instead, and there is no gateway to control.
+   * `byo` is the BYO provider, or `null` for a gateway call. It is required, with no
+   * default, so a new call site cannot leave it out by accident. Without one, the body
+   * also carries the fields that are ours rather than OpenAI's — `prompt_version_id`,
+   * `variables` and `gateway`. They are left out of a BYO body because sending one to a
+   * BYO provider would be sending a stranger a field it never asked for. On a BYO call
+   * the SDK writes the span itself and stamps the lineage there instead, and there is no
+   * gateway to control.
+   *
+   * `byo` also picks the name `maxTokens` goes out under (see `byoMaxTokensField`). The
+   * gateway always gets `max_tokens` and maps it per provider.
    */
   private _buildChatBody(
     options: ChatOptions,
-    forGateway = false,
+    byo: import('./types').ProviderConfig | null,
     sdkFields?: Record<string, unknown>,
   ): Record<string, unknown> {
+    const forGateway = byo === null;
     const body: Record<string, unknown> = { model: options.model, messages: options.messages };
     if (forGateway && options.promptVersionId) body['prompt_version_id'] = options.promptVersionId;
     // `!== undefined`, not truthiness: `{}` is sent deliberately. A prompt with no
@@ -724,7 +757,9 @@ export class GatewayNamespace {
     if (options.toolChoice) body['tool_choice'] = options.toolChoice;
     if (options.responseFormat) body['response_format'] = options.responseFormat;
     if (options.temperature !== undefined) body['temperature'] = options.temperature;
-    if (options.maxTokens !== undefined) body['max_tokens'] = options.maxTokens;
+    if (options.maxTokens !== undefined) {
+      body[byo === null ? 'max_tokens' : byoMaxTokensField(byo)] = options.maxTokens;
+    }
     if (options.reasoningEffort !== undefined) body['reasoning_effort'] = options.reasoningEffort;
     if (options.stream) body['stream'] = true;
     // Gateway-only, like `prompt_version_id` above: a BYO provider has no gateway
@@ -733,13 +768,13 @@ export class GatewayNamespace {
     // Fields this SDK adds on a given path (`stream_options` on a BYO stream) go in
     // before `extraBody`, so a clash with them is refused too rather than overwritten.
     Object.assign(body, sdkFields);
-    mergeExtraBody(body, options.extraBody);
+    mergeExtraBody(body, options.extraBody, !forGateway);
     return body;
   }
 
   /** @internal One non-streaming gateway completion. */
   private async _completeOnce(options: ChatOptions, extraHeaders?: Record<string, string>): Promise<ChatResult> {
-    const body = this._buildChatBody(options, true);
+    const body = this._buildChatBody(options, null);
     const response = await this.host._request('POST', '/gateway/chat/completions', body, 'calling chat completions', extraHeaders);
     const gateway = this._readGatewayMeta(response);
     const data = (await this.host._parseJsonOrThrow(response, 'calling chat completions')) as {
@@ -765,22 +800,10 @@ export class GatewayNamespace {
     options: ChatOptions,
     providerConfig: import('./types').ProviderConfig,
   ): Promise<ChatResult> {
-    if (!providerConfig.apiKey) {
-      throw new acruxcoreError(
-        'acruxcore: provider.apiKey is required for a BYO (direct-provider) call.',
-        'MISSING_API_KEY',
-      );
-    }
-    if (!providerConfig.baseUrl) {
-      throw new acruxcoreError(
-        'acruxcore: provider.baseUrl is required for a BYO (direct-provider) call.',
-        'MISSING_BASE_URL',
-      );
-    }
-
+    checkProviderConfig(providerConfig);
     warnIfCleartextUrl(providerConfig.baseUrl, 'provider.baseUrl');
 
-    const body = this._buildChatBody(options);
+    const body = this._buildChatBody(options, providerConfig);
     const url = `${providerConfig.baseUrl.replace(/\/+$/, '')}/chat/completions`;
 
     let response: Response;
@@ -808,7 +831,7 @@ export class GatewayNamespace {
     if (!response.ok) {
       const errBody = await response.json().catch(() => undefined);
       throw new acruxcoreError(
-        `acruxcore: provider returned ${response.status} calling chat completions${serverDetail(errBody)}`,
+        `acruxcore: provider returned ${response.status} calling chat completions${serverDetail(errBody)}${maxTokensRefusalHint(body, errBody)}`,
         'PROVIDER_ERROR',
         response.status,
         errBody,
@@ -936,22 +959,10 @@ export class GatewayNamespace {
     providerConfig: import('./types').ProviderConfig,
     state: ByoStreamState,
   ): AsyncGenerator<ChatChunk> {
-    if (!providerConfig.apiKey) {
-      throw new acruxcoreError(
-        'acruxcore: provider.apiKey is required for a BYO (direct-provider) call.',
-        'MISSING_API_KEY',
-      );
-    }
-    if (!providerConfig.baseUrl) {
-      throw new acruxcoreError(
-        'acruxcore: provider.baseUrl is required for a BYO (direct-provider) call.',
-        'MISSING_BASE_URL',
-      );
-    }
-
+    checkProviderConfig(providerConfig);
     warnIfCleartextUrl(providerConfig.baseUrl, 'provider.baseUrl');
 
-    const body = this._buildChatBody(options, false, { stream_options: { include_usage: true } });
+    const body = this._buildChatBody(options, providerConfig, { stream_options: { include_usage: true } });
     const url = `${providerConfig.baseUrl.replace(/\/+$/, '')}/chat/completions`;
     const startTime = new Date().toISOString();
 
@@ -980,7 +991,7 @@ export class GatewayNamespace {
     if (!response.ok) {
       const errBody = await response.json().catch(() => undefined);
       throw new acruxcoreError(
-        `acruxcore: provider returned ${response.status} streaming chat completions${serverDetail(errBody)}`,
+        `acruxcore: provider returned ${response.status} streaming chat completions${serverDetail(errBody)}${maxTokensRefusalHint(body, errBody)}`,
         'PROVIDER_ERROR',
         response.status,
         errBody,
@@ -1777,7 +1788,7 @@ export class GatewayNamespace {
         : undefined;
 
       const meta: { gateway?: GatewayCallMeta } = {};
-      for await (const chunk of this._streamChat(this._buildChatBody(chatOptions, true), extraHeaders, meta)) {
+      for await (const chunk of this._streamChat(this._buildChatBody(chatOptions, null), extraHeaders, meta)) {
         const text = take(chunk);
         if (text && emitContent) yield { type: 'content', delta: text, round: roundIndex };
       }

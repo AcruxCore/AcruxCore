@@ -12,11 +12,22 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+### Added
+
+- `ProviderConfig.kind` (`'openai'` or `'openai_compatible'`) sets the name `maxTokens` is sent
+  under on a BYO call. Set `'openai'` for Azure OpenAI or a proxy in front of OpenAI.
+  Without it, the host decides ([FAQ Q67](../../docs/superpowers/specs/cross-cutting/sdk-faq.md)). Any other value throws `VALIDATION_ERROR`.
+
 ### Changed
 
 - **Breaking for code that treats `step.spanId` as a UUID.** Once `register()` has run, a step's
   span id is 16 hex characters (OTel's shape); without `register()` it is still a UUID.
   Passing it on as `x-parent-span-id` or `parentSpanId` keeps working unchanged.
+- **Breaking for BYO calls that set both limits.** With `maxTokens` set, `extraBody` may no longer
+  set `max_completion_tokens` on a BYO call: it throws `VALIDATION_ERROR` instead of sending two
+  limits. Gateway calls are unchanged. See "Migrating from 0.20", step 2.
+- A BYO provider's 400 that asks for `max_completion_tokens` now ends with a hint to set
+  `provider.kind` to `'openai'`, for a proxy or Azure in front of OpenAI.
 
 ### Fixed
 
@@ -25,12 +36,21 @@ changelog: <https://docs.acruxcore.com/changelog>
   trace. Before, each model call became a trace of its own (issue #789).
 - The step does not take over when a framework's own OTel span is already active, such as a
   LangChain tool span, or when another tracer provider (Sentry, say) owns the process.
+- A BYO call to OpenAI now sends `maxTokens` as `max_completion_tokens`, which its reasoning
+  models (gpt-5, o-series) require. That covers `api.openai.com` and its regional hosts, such as
+  `eu.api.openai.com`. Other hosts still get `max_tokens` ([FAQ Q67](../../docs/superpowers/specs/cross-cutting/sdk-faq.md), issue #809).
+- A malformed BYO `provider.baseUrl` now throws `VALIDATION_ERROR` before anything is sent.
+  Before, it surfaced as a `NETWORK_ERROR` from the failed request.
 
 ### Migrating from 0.20
 
 1. If you store or validate `step.spanId` as a UUID (a `uuid` database column, a UUID regex),
    accept 16 hex characters too. Neither the compiler nor the SDK catches this: search your
    code for `spanId` and check each place that parses or stores it.
+2. If a BYO call sets `maxTokens` and also `extraBody: { max_completion_tokens: n }`, remove the
+   `extraBody` key and keep `maxTokens`. For Azure OpenAI or a proxy in front of OpenAI, also
+   set `provider.kind: 'openai'` so `maxTokens` goes out as `max_completion_tokens`. The
+   compiler does not catch this; the call throws `VALIDATION_ERROR` at runtime, before sending.
 
 ## 0.20.0 — 2026-10-31
 

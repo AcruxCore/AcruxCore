@@ -397,6 +397,12 @@ round's `llm` span is reported as soon as that round returns rather than batched
 so a long loop is observable while it runs — and a platform-executed (`http`) tool's span
 nests under the round that called it.
 
+`max_tokens=` goes out under the name the server expects. OpenAI's reasoning models (gpt-5,
+the o-series) accept only `max_completion_tokens`, and many compatible servers accept only
+`max_tokens`. `api.openai.com` and its regional hosts get `max_completion_tokens`; every other
+host gets `max_tokens`. For Azure OpenAI or a proxy in front of OpenAI, add `"kind": "openai"`
+to the provider dict. `"kind": "openai_compatible"` forces `max_tokens`.
+
 A non-HTTPS `provider["base_url"]` warns once per URL, the same way a non-HTTPS platform
 `base_url` already did: the BYO path sends your provider key as a bearer token to that URL,
 so plain `http://` to a non-loopback host would send it in cleartext. Loopback URLs
@@ -603,7 +609,7 @@ Error codes: `MISSING_API_KEY`, `MISSING_BASE_URL`, `NETWORK_ERROR`, `API_ERROR`
 | `runToolLoop({...})` | `gateway.run_tool_loop(model, messages, *, tools=, tool_defs=, tool_refs=, dispatch=None, sync=True, ...)` |
 | `runToolLoop({stream: true})` | `gateway.run_tool_loop(..., stream=True)` → async iterator of events |
 | `runPromptWithTools(rendered, {...})` | `gateway.run_prompt_with_tools(rendered, **kwargs)` |
-| `chat({provider: {baseUrl, apiKey}})` / `runToolLoop({provider})` — BYO | `gateway.chat(..., provider={"base_url", "api_key"})` / `gateway.run_tool_loop(..., provider=...)` — BYO |
+| `chat({provider: {baseUrl, apiKey, kind?}})` / `runToolLoop({provider})` — BYO | `gateway.chat(..., provider={"base_url", "api_key", "kind"?})` / `gateway.run_tool_loop(..., provider=...)` — BYO |
 | `acrux.tool({name, parameters}, handler)` | `@acrux.tool` (or `@acrux.tool(parameters={...})`) |
 | `hub.tools.sync(tools, {onConflict})` | `hub.tools.sync(tools, on_conflict=...)` |
 | `hub.tools.resolve(refs)` | `hub.tools.resolve(refs)` |

@@ -2399,3 +2399,208 @@ def test_run_report_and_run_detail_expose_optimizer_rejections():
     assert RunDetailDto.from_dict({"id": "r1", "optimizerRejections": reasons}).optimizer_rejections == reasons
     assert RunReport.from_dict({"runId": "r0"}).optimizer_rejections is None
     assert RunDetailDto.from_dict({"id": "r0"}).optimizer_rejections is None
+
+
+async def test_byo_max_tokens_wire_name_follows_the_host():
+    """Issue #809: OpenAI's reasoning models refuse ``max_tokens`` with a 400 and ask for
+    ``max_completion_tokens``, so a BYO call straight to api.openai.com sends the new name,
+    the same split the gateway's OpenAI adapter makes. Other hosts keep the old name,
+    since many OpenAI-compatible servers know only that one."""
+    seen: List[Dict[str, Any]] = []
+    sse = b'data: {"id":"1","model":"m","choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n'
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = body_of(request)
+        seen.append(body)
+        if body.get("stream"):
+            return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=sse)
+        return httpx.Response(200, json={"id": "1", "model": "m", "choices": [{"message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"}]})
+
+    msgs = [{"role": "user", "content": "hi"}]
+    openai = {"base_url": "https://api.openai.com/v1", "api_key": "sk"}
+    groq = {"base_url": "https://api.groq.com/openai/v1", "api_key": "k"}
+    async with make_client(handler) as c:
+        await c.gateway.chat("gpt-5-mini", msgs, provider=openai, trace=False, max_tokens=500)
+        async for _ in await c.gateway.stream("gpt-5-mini", msgs, provider=openai, trace=False, max_tokens=500):
+            pass
+        await c.gateway.chat("llama", msgs, provider=groq, trace=False, max_tokens=500)
+
+    for body in seen[:2]:
+        assert body["max_completion_tokens"] == 500
+        assert "max_tokens" not in body
+    assert seen[2]["max_tokens"] == 500
+    assert "max_completion_tokens" not in seen[2]
+
+
+async def test_byo_max_tokens_wire_name_regional_hosts_and_kind():
+    """Issue #809 follow-up: OpenAI's regional hosts (eu.api.openai.com) and the
+    trailing-dot form are OpenAI too, and ``provider["kind"]`` decides over the host, so
+    Azure OpenAI or a proxy in front of OpenAI can ask for the new name."""
+    seen: List[Dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(body_of(request))
+        return httpx.Response(200, json={"id": "1", "model": "m", "choices": [{"message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"}]})
+
+    msgs = [{"role": "user", "content": "hi"}]
+    providers = [
+        ({"base_url": "https://eu.api.openai.com/v1", "api_key": "sk"}, "max_completion_tokens"),
+        ({"base_url": "https://api.openai.com./v1", "api_key": "sk"}, "max_completion_tokens"),
+        ({"base_url": "https://notapi.openai.com.evil.example/v1", "api_key": "sk"}, "max_tokens"),
+        ({"base_url": "https://res.openai.azure.com/openai/v1", "api_key": "sk", "kind": "openai"}, "max_completion_tokens"),
+        ({"base_url": "https://api.openai.com/v1", "api_key": "sk", "kind": "openai_compatible"}, "max_tokens"),
+    ]
+    async with make_client(handler) as c:
+        for provider, _ in providers:
+            await c.gateway.chat("gpt-5-mini", msgs, provider=provider, trace=False, max_tokens=500)
+
+    for body, (provider, expected) in zip(seen, providers):
+        assert [k for k in body if k.startswith("max_")] == [expected], provider
+
+
+async def test_extra_body_token_limit_clash_names_max_tokens():
+    """With ``max_tokens=`` set, ``extra_body`` setting either name for the token limit
+    would send two limits, so it is refused, and the message points at ``max_tokens=``
+    rather than at an argument that does not exist. Without ``max_tokens=``, extra_body
+    may still carry the limit itself."""
+    seen: List[Dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(body_of(request))
+        return httpx.Response(200, json={"id": "1", "model": "m", "choices": [{"message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"}]})
+
+    msgs = [{"role": "user", "content": "hi"}]
+    openai = {"base_url": "https://api.openai.com/v1", "api_key": "sk"}
+    async with make_client(handler) as c:
+        for key in ("max_tokens", "max_completion_tokens"):
+            with pytest.raises(AcruxCoreError) as exc:
+                await c.gateway.chat("gpt-5-mini", msgs, provider=openai, trace=False, max_tokens=500, extra_body={key: 100})
+            assert exc.value.code == "VALIDATION_ERROR"
+            assert f"may not set {key} when max_tokens= is set" in str(exc.value)
+            assert "named argument of the same name" not in str(exc.value)
+        assert seen == []
+        await c.gateway.chat("gpt-5-mini", msgs, provider=openai, trace=False, extra_body={"max_completion_tokens": 100})
+    assert seen[0]["max_completion_tokens"] == 100
+
+
+async def test_byo_malformed_base_url_raises_validation_error():
+    """A malformed base_url is refused with the SDK's own VALIDATION_ERROR before
+    anything is sent, with a real key, with or without ``max_tokens=``, blocking or
+    streamed. ``urlparse`` raises a bare ValueError on it otherwise."""
+    sent: List[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(500)
+
+    msgs = [{"role": "user", "content": "hi"}]
+    bad = {"base_url": "https://[bad/v1", "api_key": "sk-real"}
+    async with make_client(handler) as c:
+        for extra in ({"max_tokens": 500}, {}):
+            with pytest.raises(AcruxCoreError) as exc:
+                await c.gateway.chat("gpt-5-mini", msgs, provider=bad, trace=False, **extra)
+            assert exc.value.code == "VALIDATION_ERROR"
+            assert "provider.base_url" in str(exc.value)
+            with pytest.raises(AcruxCoreError) as exc:
+                async for _ in await c.gateway.stream("gpt-5-mini", msgs, provider=bad, trace=False, **extra):
+                    pass
+            assert exc.value.code == "VALIDATION_ERROR"
+    assert sent == []
+
+
+async def test_byo_unknown_kind_is_refused():
+    """``ProviderKind`` is a Literal, which Python does not check at runtime, so a
+    near-miss like ``"OpenAI"`` must be refused rather than silently sending
+    ``max_tokens`` to OpenAI."""
+    sent: List[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(500)
+
+    msgs = [{"role": "user", "content": "hi"}]
+    async with make_client(handler) as c:
+        for kind in ("OpenAI", "azure", ""):
+            provider = {"base_url": "https://api.openai.com/v1", "api_key": "sk", "kind": kind}
+            with pytest.raises(AcruxCoreError) as exc:
+                await c.gateway.chat("gpt-5-mini", msgs, provider=provider, trace=False, max_tokens=500)
+            assert exc.value.code == "VALIDATION_ERROR"
+            assert "'openai' or 'openai_compatible'" in str(exc.value)
+    assert sent == []
+
+
+async def test_gateway_path_keeps_extra_body_max_completion_tokens():
+    """The token-limit clash rule is for BYO calls only. A gateway call with
+    ``max_tokens=`` and ``extra_body={"max_completion_tokens": ...}`` is sent as before;
+    the gateway maps the limit per provider."""
+    seen: List[Dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(body_of(request))
+        return httpx.Response(200, json={"id": "1", "model": "m", "choices": [{"message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"}]})
+
+    async with make_client(handler) as c:
+        await c.gateway.chat("gpt-5-mini", [{"role": "user", "content": "hi"}], trace=False,
+                             max_tokens=5, extra_body={"max_completion_tokens": 9})
+    assert seen[0]["max_tokens"] == 5
+    assert seen[0]["max_completion_tokens"] == 9
+
+
+async def test_byo_max_tokens_refusal_points_at_kind():
+    """A proxy in front of OpenAI gets ``max_tokens`` by default. When the provider's
+    400 asks for ``max_completion_tokens``, the error says how to fix it."""
+    refusal = {"error": {"message": "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead."}}
+    msgs = [{"role": "user", "content": "hi"}]
+    proxy = {"base_url": "https://proxy.example/v1", "api_key": "sk"}
+    async with make_client(lambda request: httpx.Response(400, json=refusal)) as c:
+        with pytest.raises(AcruxCoreError) as exc:
+            await c.gateway.chat("gpt-5-mini", msgs, provider=proxy, trace=False, max_tokens=500)
+        assert exc.value.code == "PROVIDER_ERROR"
+        assert "set provider['kind'] to 'openai'" in str(exc.value)
+        with pytest.raises(AcruxCoreError) as exc:
+            async for _ in await c.gateway.stream("gpt-5-mini", msgs, provider=proxy, trace=False, max_tokens=500):
+                pass
+        assert "set provider['kind'] to 'openai'" in str(exc.value)
+        # No hint when max_tokens was not sent: the advice would not apply.
+        with pytest.raises(AcruxCoreError) as exc:
+            await c.gateway.chat("gpt-5-mini", msgs, provider=proxy, trace=False)
+        assert "kind" not in str(exc.value)
+
+
+def test_byo_field_name_ignores_a_schemeless_base_url():
+    """``api.openai.com`` with no scheme has no hostname; the display label falls back
+    to the raw string, but the wire name must not, so both SDKs agree on max_tokens."""
+    from acruxcore.provider import byo_max_tokens_field
+    assert byo_max_tokens_field({"base_url": "api.openai.com", "api_key": "k"}) == "max_tokens"
+
+
+async def test_byo_tool_loops_send_max_completion_tokens_to_openai():
+    """Both tool loops build their own request body per round, so each must carry the
+    provider through too: the blocking loop and the streaming loop."""
+    seen: List[Dict[str, Any]] = []
+    sse = b'data: {"id":"1","model":"m","choices":[{"delta":{"content":"done"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n'
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = body_of(request)
+        seen.append(body)
+        if body.get("stream"):
+            return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=sse)
+        return httpx.Response(200, json={"id": "1", "model": "m", "choices": [{"message": {"role": "assistant", "content": "done"}, "finish_reason": "stop"}]})
+
+    kwargs: Dict[str, Any] = dict(
+        tool_defs=[{"type": "function", "function": {"name": "f"}}],
+        dispatch=lambda name, args: {},
+        provider={"base_url": "https://api.openai.com/v1", "api_key": "sk"},
+        trace=False,
+        max_tokens=500,
+    )
+    msgs = [{"role": "user", "content": "go"}]
+    async with make_client(handler) as c:
+        await c.gateway.run_tool_loop("gpt-5-mini", msgs, **kwargs)
+        async for _ in await c.gateway.run_tool_loop("gpt-5-mini", msgs, stream=True, **kwargs):
+            pass
+
+    assert len(seen) == 2
+    for body in seen:
+        assert body["max_completion_tokens"] == 500
+        assert "max_tokens" not in body

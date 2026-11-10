@@ -138,17 +138,33 @@ class ToolRef(TypedDict, total=False):
     version: int
 
 
-class ProviderConfig(TypedDict):
+#: What kind of server a BYO provider is. Mirrors the gateway's connection types.
+ProviderKind = Literal["openai", "openai_compatible"]
+
+
+class _ProviderConfigRequired(TypedDict):
+    base_url: str
+    api_key: str
+
+
+class ProviderConfig(_ProviderConfigRequired, total=False):
     """BYO (bring-your-own-key) provider config.
 
     Present on a ``chat()``/``run_tool_loop()`` call (or the client's default)
     routes the call directly to ``base_url`` instead of our gateway — the gateway
     hop is skipped entirely, and ``api_key`` is sent only to ``base_url``, never
     to us.
+
+    ``kind`` says what kind of server ``base_url`` is, and so the name ``max_tokens``
+    is sent under. ``"openai"`` sends ``max_completion_tokens``, which OpenAI's
+    reasoning models (gpt-5, the o-series) require. ``"openai_compatible"`` sends
+    ``max_tokens``, the only name many compatible servers know. Leave it out and the
+    host decides: OpenAI's own hosts (``api.openai.com`` and its regional hosts) count
+    as ``"openai"``, every other host as ``"openai_compatible"``. Set ``"openai"`` for
+    Azure OpenAI or a proxy in front of OpenAI.
     """
 
-    base_url: str
-    api_key: str
+    kind: ProviderKind
 
 
 class GatewayControl(TypedDict, total=False):
