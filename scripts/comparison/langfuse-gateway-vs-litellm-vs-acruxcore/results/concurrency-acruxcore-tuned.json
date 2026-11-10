@@ -1,0 +1,133 @@
+{
+  "gateway": "acruxcore",
+  "gatewayCpuLimit": 2,
+  "startedAt": "2026-11-10T08:56:11.895Z",
+  "levels": [
+    {
+      "streams": 10,
+      "ok": 10,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 3496,
+      "ttftMs": {
+        "p50": 1477,
+        "p95": 2644
+      },
+      "totalMs": {
+        "p50": 2236,
+        "p95": 3446
+      },
+      "gateway": {
+        "cpuCoresPeak": 1.32,
+        "cpuCoresMean": 0.26,
+        "memMiBPeak": 324
+      },
+      "stack": {
+        "cpuCoresPeak": 1.58,
+        "cpuCoresMean": 0.32,
+        "memMiBPeak": 559
+      }
+    },
+    {
+      "streams": 100,
+      "ok": 100,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 3837,
+      "ttftMs": {
+        "p50": 1360,
+        "p95": 2070
+      },
+      "totalMs": {
+        "p50": 2219,
+        "p95": 2476
+      },
+      "gateway": {
+        "cpuCoresPeak": 2.05,
+        "cpuCoresMean": 0.54,
+        "memMiBPeak": 347
+      },
+      "stack": {
+        "cpuCoresPeak": 3.42,
+        "cpuCoresMean": 0.78,
+        "memMiBPeak": 633
+      }
+    },
+    {
+      "streams": 250,
+      "ok": 250,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 3255,
+      "ttftMs": {
+        "p50": 1541,
+        "p95": 2027
+      },
+      "totalMs": {
+        "p50": 2958,
+        "p95": 3226
+      },
+      "gateway": {
+        "cpuCoresPeak": 2.27,
+        "cpuCoresMean": 1.24,
+        "memMiBPeak": 404
+      },
+      "stack": {
+        "cpuCoresPeak": 4.03,
+        "cpuCoresMean": 1.58,
+        "memMiBPeak": 702
+      }
+    },
+    {
+      "streams": 500,
+      "ok": 500,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 6620,
+      "ttftMs": {
+        "p50": 2239,
+        "p95": 3576
+      },
+      "totalMs": {
+        "p50": 4201,
+        "p95": 6178
+      },
+      "gateway": {
+        "cpuCoresPeak": 2.37,
+        "cpuCoresMean": 1.13,
+        "memMiBPeak": 488
+      },
+      "stack": {
+        "cpuCoresPeak": 3.37,
+        "cpuCoresMean": 1.55,
+        "memMiBPeak": 794
+      }
+    },
+    {
+      "streams": 1000,
+      "ok": 1000,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 23732,
+      "ttftMs": {
+        "p50": 3755,
+        "p95": 9696
+      },
+      "totalMs": {
+        "p50": 8383,
+        "p95": 11815
+      },
+      "gateway": {
+        "cpuCoresPeak": 2.33,
+        "cpuCoresMean": 0.65,
+        "memMiBPeak": 656
+      },
+      "stack": {
+        "cpuCoresPeak": 3.01,
+        "cpuCoresMean": 0.88,
+        "memMiBPeak": 963
+      }
+    }
+  ],
+  "setting": "api container ulimits nofile 65536 (same as the tuned Langfuse and LiteLLM runs)"
+}

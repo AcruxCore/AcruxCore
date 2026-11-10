@@ -1,0 +1,9 @@
+{
+  "name": "langfuse-gateway-vs-litellm-vs-acruxcore",
+  "private": true,
+  "type": "module",
+  "description": "Benchmark scripts for the self-hosted gateway comparison post",
+  "dependencies": {
+    "undici": "7.16.0"
+  }
+}

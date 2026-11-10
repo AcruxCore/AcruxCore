@@ -1,0 +1,46 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1600px;height:900px;background:#fff;font-family:Inter,"Segoe UI",Helvetica,Arial,sans-serif;color:#14213d;padding:56px 64px}
+h1{font-size:54px;font-weight:800;letter-spacing:-1px}
+.sub{font-size:26px;color:#4a5578;margin-top:10px}
+.grid{display:grid;grid-template-columns:330px repeat(3,1fr);gap:0;margin-top:44px;border:2px solid #dfe4f0;border-radius:22px;overflow:hidden}
+.cell{padding:22px 26px;border-top:2px solid #dfe4f0;font-size:27px;display:flex;align-items:center}
+.head{border-top:none;font-weight:800;font-size:30px;justify-content:center;text-align:center}
+.lf{background:#fff4e6}.ll{background:#eaf2ff}.ax{background:#e9f8ef}
+.label{font-weight:700;background:#f6f7fb;font-size:24px;color:#33406a}
+.v{justify-content:center;text-align:center;flex-direction:column}
+.v b{font-size:34px}
+.v small{font-size:20px;color:#5a6488;margin-top:4px}
+.bad b{color:#c2410c}.good b{color:#15803d}
+.note{margin-top:28px;background:#fff8db;border:2px solid #f2d36b;border-radius:18px;padding:22px 30px;font-size:26px;line-height:1.35}
+.note b{color:#7a5300}
+.foot{margin-top:26px;font-size:21px;color:#5a6488}
+</style></head><body>
+<h1>Langfuse AI Gateway vs LiteLLM vs AcruxCore</h1>
+<div class="sub">Three self-hosted gateways on one machine, in front of the same OpenAI model</div>
+<div class="grid">
+  <div class="cell head" style="background:#f6f7fb"></div>
+  <div class="cell head lf">Langfuse AI Gateway</div>
+  <div class="cell head ll">LiteLLM proxy</div>
+  <div class="cell head ax">AcruxCore</div>
+
+  <div class="cell label">Added latency, no streaming</div>
+  <div class="cell v lf"><b>−9 to +8 ms</b><small>interval includes zero in all 3 runs</small></div>
+  <div class="cell v ll bad"><b>+61 to +67 ms</b><small>above zero in all 3 runs</small></div>
+  <div class="cell v ax"><b>+15 to +24 ms</b><small>above zero in 2 of 3 runs</small></div>
+
+  <div class="cell label">1,000 streams on 2 CPUs, as shipped</div>
+  <div class="cell v lf bad"><b>261 / 1,000</b><small>1,000 / 1,000 with open-file limit raised</small></div>
+  <div class="cell v ll bad"><b>403 / 1,000</b><small>1,000 / 1,000 with 2 workers, first token 19.2 s</small></div>
+  <div class="cell v ax good"><b>1,000 / 1,000</b><small>first token 3.5 s</small></div>
+
+  <div class="cell label">Idle memory, whole stack</div>
+  <div class="cell v lf"><b>3,584 MiB</b><small>gateway process 13 MiB</small></div>
+  <div class="cell v ll"><b>810 MiB</b><small>with Postgres</small></div>
+  <div class="cell v ax"><b>405 MiB</b><small>API, worker, web, Postgres, Redis</small></div>
+</div>
+<div class="note"><b>Before you benchmark:</b> api.openai.com resolved to two addresses. A new connection to the far one cost about 250 ms more, so every path here is pinned to the near one.</div>
+<div class="foot">Langfuse 4.77.0 · LiteLLM 1.108.4 · AcruxCore 2026.11.4 · OpenAI gpt-6-luna · 150 paired rounds per setting · 10 November 2026</div>
+</body></html>

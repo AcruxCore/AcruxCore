@@ -1,0 +1,35 @@
+{
+  "measuredAt": "2026-11-10T08:38:41.266Z",
+  "langfuse": {
+    "gatewayMiB": 13,
+    "stackMiB": 3584,
+    "containers": {
+      "lfbench-langfuse-ai-gateway-1": 13,
+      "lfbench-langfuse-web-1": 917,
+      "lfbench-langfuse-worker-1": 654,
+      "lfbench-postgres-1": 75,
+      "lfbench-redis-1": 12,
+      "lfbench-clickhouse-1": 1810,
+      "lfbench-minio-1": 103
+    }
+  },
+  "litellm": {
+    "gatewayMiB": 727,
+    "stackMiB": 810,
+    "containers": {
+      "bench-litellm": 727,
+      "bench-litellm-db": 83
+    }
+  },
+  "acruxcore": {
+    "gatewayMiB": 200,
+    "stackMiB": 405,
+    "containers": {
+      "acruxcore-local-worker": 105,
+      "acruxcore-local-api": 200,
+      "acruxcore-local-web": 18,
+      "acruxcore-local-postgres": 66,
+      "acruxcore-local-redis": 16
+    }
+  }
+}

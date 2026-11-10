@@ -1,0 +1,117 @@
+{
+  "gateway": "litellm",
+  "setting": "ulimits nofile 65536, 1 worker",
+  "gatewayCpuLimit": 2,
+  "method": "500 simultaneous streams; each cold run starts after 75 s with no calls, longer than the 60 s in-memory key cache; the warm run starts right after one call",
+  "litellmLog": "every 503 logged: DBLookupDeadlineExceeded: key lookup did not answer within 10s",
+  "runs": [
+    {
+      "streams": 500,
+      "ok": 339,
+      "failed": 161,
+      "errors": {
+        "503 {\"error\":{\"message\":\"Service Unavailable, the authentication database is temporarily unreachable. Please retry shortly.\"": 161
+      },
+      "wallMs": 27539,
+      "ttftMs": {
+        "p50": 13406,
+        "p95": 25495
+      },
+      "totalMs": {
+        "p50": 26559,
+        "p95": 26838
+      },
+      "gateway": {
+        "cpuCoresPeak": 1.28,
+        "cpuCoresMean": 0.99,
+        "memMiBPeak": 1227
+      },
+      "stack": {
+        "cpuCoresPeak": 2.1,
+        "cpuCoresMean": 1.01,
+        "memMiBPeak": 1377
+      },
+      "run": "cold 1"
+    },
+    {
+      "streams": 500,
+      "ok": 416,
+      "failed": 84,
+      "errors": {
+        "503 {\"error\":{\"message\":\"Service Unavailable, the authentication database is temporarily unreachable. Please retry shortly.\"": 84
+      },
+      "wallMs": 30985,
+      "ttftMs": {
+        "p50": 14869,
+        "p95": 28398
+      },
+      "totalMs": {
+        "p50": 29542,
+        "p95": 29878
+      },
+      "gateway": {
+        "cpuCoresPeak": 1.29,
+        "cpuCoresMean": 0.98,
+        "memMiBPeak": 1228
+      },
+      "stack": {
+        "cpuCoresPeak": 2,
+        "cpuCoresMean": 1,
+        "memMiBPeak": 1379
+      },
+      "run": "cold 2"
+    },
+    {
+      "streams": 500,
+      "ok": 500,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 35002,
+      "ttftMs": {
+        "p50": 17024,
+        "p95": 33140
+      },
+      "totalMs": {
+        "p50": 26787,
+        "p95": 34673
+      },
+      "gateway": {
+        "cpuCoresPeak": 1.17,
+        "cpuCoresMean": 0.99,
+        "memMiBPeak": 1238
+      },
+      "stack": {
+        "cpuCoresPeak": 1.4,
+        "cpuCoresMean": 1.01,
+        "memMiBPeak": 1385
+      },
+      "run": "cold 3"
+    },
+    {
+      "streams": 500,
+      "ok": 500,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 35042,
+      "ttftMs": {
+        "p50": 19780,
+        "p95": 26576
+      },
+      "totalMs": {
+        "p50": 34570,
+        "p95": 34941
+      },
+      "gateway": {
+        "cpuCoresPeak": 1.32,
+        "cpuCoresMean": 0.99,
+        "memMiBPeak": 1265
+      },
+      "stack": {
+        "cpuCoresPeak": 1.67,
+        "cpuCoresMean": 1,
+        "memMiBPeak": 1432
+      },
+      "run": "after one warm-up call"
+    }
+  ]
+}

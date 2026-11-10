@@ -1,0 +1,136 @@
+{
+  "gateway": "langfuse",
+  "gatewayCpuLimit": 2,
+  "startedAt": "2026-11-10T05:12:58.608Z",
+  "levels": [
+    {
+      "streams": 10,
+      "ok": 10,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 2579,
+      "ttftMs": {
+        "p50": 899,
+        "p95": 1558
+      },
+      "totalMs": {
+        "p50": 1685,
+        "p95": 2532
+      },
+      "gateway": {
+        "cpuCoresPeak": 0.13,
+        "cpuCoresMean": 0.03,
+        "memMiBPeak": 9
+      },
+      "stack": {
+        "cpuCoresPeak": 0.86,
+        "cpuCoresMean": 0.21,
+        "memMiBPeak": 2876
+      }
+    },
+    {
+      "streams": 100,
+      "ok": 100,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 2350,
+      "ttftMs": {
+        "p50": 1020,
+        "p95": 1628
+      },
+      "totalMs": {
+        "p50": 1804,
+        "p95": 2215
+      },
+      "gateway": {
+        "cpuCoresPeak": 0.5,
+        "cpuCoresMean": 0.16,
+        "memMiBPeak": 26
+      },
+      "stack": {
+        "cpuCoresPeak": 1.2,
+        "cpuCoresMean": 0.38,
+        "memMiBPeak": 2809
+      }
+    },
+    {
+      "streams": 250,
+      "ok": 250,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 3192,
+      "ttftMs": {
+        "p50": 1384,
+        "p95": 1665
+      },
+      "totalMs": {
+        "p50": 2000,
+        "p95": 2472
+      },
+      "gateway": {
+        "cpuCoresPeak": 0.75,
+        "cpuCoresMean": 0.29,
+        "memMiBPeak": 44
+      },
+      "stack": {
+        "cpuCoresPeak": 1.3,
+        "cpuCoresMean": 0.51,
+        "memMiBPeak": 2822
+      }
+    },
+    {
+      "streams": 500,
+      "ok": 110,
+      "failed": 390,
+      "errors": {
+        "502 {\"error\":{\"message\":\"Upstream request failed\",\"type\":\"server_error\",\"param\":null,\"code\":\"upstream_error\"},\"request_id\":\"": 390
+      },
+      "wallMs": 4271,
+      "ttftMs": {
+        "p50": 1135,
+        "p95": 1720
+      },
+      "totalMs": {
+        "p50": 1869,
+        "p95": 2299
+      },
+      "gateway": {
+        "cpuCoresPeak": 0.82,
+        "cpuCoresMean": 0.14,
+        "memMiBPeak": 68
+      },
+      "stack": {
+        "cpuCoresPeak": 1.87,
+        "cpuCoresMean": 0.42,
+        "memMiBPeak": 2764
+      }
+    },
+    {
+      "streams": 1000,
+      "ok": 261,
+      "failed": 739,
+      "errors": {
+        "502 {\"error\":{\"message\":\"Upstream request failed\",\"type\":\"server_error\",\"param\":null,\"code\":\"upstream_error\"},\"request_id\":\"": 739
+      },
+      "wallMs": 8694,
+      "ttftMs": {
+        "p50": 6044,
+        "p95": 6914
+      },
+      "totalMs": {
+        "p50": 6795,
+        "p95": 7659
+      },
+      "gateway": {
+        "cpuCoresPeak": 0.63,
+        "cpuCoresMean": 0.15,
+        "memMiBPeak": 90
+      },
+      "stack": {
+        "cpuCoresPeak": 2.43,
+        "cpuCoresMean": 0.46,
+        "memMiBPeak": 2844
+      }
+    }
+  ]
+}

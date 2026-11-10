@@ -1,0 +1,17 @@
+# Put next to docker-compose.local.yml renamed to docker-compose.yml.
+# The local file runs NODE_ENV=development; the benchmark runs production.
+# Replace each change-me with the output of `openssl rand -base64 32`. The api
+# and worker must share one EMAIL_UNSUBSCRIBE_SECRET; in production both refuse
+# to start without a real 32-byte key.
+services:
+  api:
+    # api.openai.com pinned to one edge address; see latency-bench.mjs.
+    extra_hosts: ['api.openai.com:${OPENAI_IP:-162.159.140.245}']
+    environment:
+      NODE_ENV: production
+      BETTER_AUTH_SECRET: change-me
+      EMAIL_UNSUBSCRIBE_SECRET: change-me
+  worker:
+    environment:
+      NODE_ENV: production
+      EMAIL_UNSUBSCRIBE_SECRET: change-me

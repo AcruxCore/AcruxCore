@@ -1,0 +1,9 @@
+# Second concurrency pass only ("tuned"): raise LiteLLM's open-file limit from
+# 1,024, and run one worker per vCPU as LiteLLM's production docs recommend
+# for a single machine (https://docs.litellm.ai/docs/proxy/prod). The gateway
+# container is limited to 2 CPUs, so 2 workers.
+services:
+  litellm:
+    command: ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "2"]
+    ulimits:
+      nofile: { soft: 65536, hard: 65536 }

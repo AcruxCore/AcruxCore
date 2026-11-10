@@ -1,0 +1,136 @@
+{
+  "gateway": "litellm",
+  "gatewayCpuLimit": 2,
+  "startedAt": "2026-11-10T08:58:24.044Z",
+  "levels": [
+    {
+      "streams": 10,
+      "ok": 10,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 3122,
+      "ttftMs": {
+        "p50": 1381,
+        "p95": 2178
+      },
+      "totalMs": {
+        "p50": 2143,
+        "p95": 3074
+      },
+      "gateway": {
+        "cpuCoresPeak": 0.63,
+        "cpuCoresMean": 0.24,
+        "memMiBPeak": 1262
+      },
+      "stack": {
+        "cpuCoresPeak": 0.83,
+        "cpuCoresMean": 0.27,
+        "memMiBPeak": 1433
+      }
+    },
+    {
+      "streams": 100,
+      "ok": 100,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 12950,
+      "ttftMs": {
+        "p50": 10392,
+        "p95": 11723
+      },
+      "totalMs": {
+        "p50": 12847,
+        "p95": 12904
+      },
+      "gateway": {
+        "cpuCoresPeak": 1.04,
+        "cpuCoresMean": 0.6,
+        "memMiBPeak": 789
+      },
+      "stack": {
+        "cpuCoresPeak": 1.37,
+        "cpuCoresMean": 0.62,
+        "memMiBPeak": 879
+      }
+    },
+    {
+      "streams": 250,
+      "ok": 250,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 18096,
+      "ttftMs": {
+        "p50": 8708,
+        "p95": 14621
+      },
+      "totalMs": {
+        "p50": 18004,
+        "p95": 18074
+      },
+      "gateway": {
+        "cpuCoresPeak": 1.12,
+        "cpuCoresMean": 0.98,
+        "memMiBPeak": 908
+      },
+      "stack": {
+        "cpuCoresPeak": 1.23,
+        "cpuCoresMean": 0.99,
+        "memMiBPeak": 1002
+      }
+    },
+    {
+      "streams": 500,
+      "ok": 500,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 35649,
+      "ttftMs": {
+        "p50": 25548,
+        "p95": 28612
+      },
+      "totalMs": {
+        "p50": 35454,
+        "p95": 35593
+      },
+      "gateway": {
+        "cpuCoresPeak": 1.16,
+        "cpuCoresMean": 0.98,
+        "memMiBPeak": 1187
+      },
+      "stack": {
+        "cpuCoresPeak": 1.2,
+        "cpuCoresMean": 0.99,
+        "memMiBPeak": 1287
+      }
+    },
+    {
+      "streams": 1000,
+      "ok": 405,
+      "failed": 595,
+      "errors": {
+        "503 {\"error\":{\"message\":\"Service Unavailable, the authentication database is temporarily unreachable. Please retry shortly.\"": 595
+      },
+      "wallMs": 36835,
+      "ttftMs": {
+        "p50": 18352,
+        "p95": 32245
+      },
+      "totalMs": {
+        "p50": 35220,
+        "p95": 35313
+      },
+      "gateway": {
+        "cpuCoresPeak": 1.22,
+        "cpuCoresMean": 0.96,
+        "memMiBPeak": 1211
+      },
+      "stack": {
+        "cpuCoresPeak": 1.56,
+        "cpuCoresMean": 0.98,
+        "memMiBPeak": 1342
+      }
+    }
+  ],
+  "setting": "ulimits nofile 65536, 1 worker (open-file limit raised only)",
+  "note": "The 10-stream level first ran before LiteLLM accepted connections (10 socket errors); it was re-run alone and replaced."
+}

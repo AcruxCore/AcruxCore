@@ -1,0 +1,8 @@
+# Separates LiteLLM's two failure causes: raises only the open-file limit and
+# keeps the shipped single worker. Used for concurrency-litellm-nofile-only.json
+# and concurrency-litellm-key-cache.json.
+services:
+  litellm:
+    command: ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "1"]
+    ulimits:
+      nofile: { soft: 65536, hard: 65536 }

@@ -184,7 +184,7 @@ export const COMPARISONS: Record<CompetitorSlug, Comparison> = {
     },
     gateway: {
       value:
-        'In public beta since 9 November 2026, for OpenAI and Anthropic. The Langfuse AI Gateway holds the provider keys, gives each person or service its own key, and shows spend per key. Hard spend caps and fallbacks between providers are still on its roadmap, and its docs describe no response cache.',
+        'In public beta since 4 November 2026, for OpenAI and Anthropic. The Langfuse AI Gateway holds the provider keys, gives each person or service its own key, and shows spend per key. Hard spend caps and fallbacks between providers are still on its roadmap, and its docs describe no response cache.',
       source: { label: 'Langfuse AI Gateway', href: 'https://langfuse.com/docs/gateway/overview' },
       acruxWins: true,
       checkedOn: '2026-11-10',

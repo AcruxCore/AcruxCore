@@ -1,0 +1,12 @@
+services:
+  clickhouse:
+    ports: !reset []
+  minio:
+    ports: !override ['9090:9000']
+  redis:
+    ports: !reset []
+  postgres:
+    ports: !reset []
+  # Pin api.openai.com to one edge address; see latency-bench.mjs.
+  langfuse-ai-gateway:
+    extra_hosts: ['api.openai.com:${OPENAI_IP:-162.159.140.245}']

@@ -1,0 +1,7 @@
+# Second concurrency pass only: raise the open-file limit of the gateway
+# process. As shipped it is 1,024, which 500 streams (one socket in, one out
+# each) run into. Use with -f docker-compose.yml -f compose.override.yml -f this.
+services:
+  langfuse-ai-gateway:
+    ulimits:
+      nofile: { soft: 65536, hard: 65536 }

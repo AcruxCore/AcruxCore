@@ -1,0 +1,7 @@
+# Tuned concurrency pass only: give the AcruxCore API the same open-file limit
+# as the tuned Langfuse and LiteLLM runs. Node.js already raises its own soft
+# limit to Docker's hard limit (524,288 on our machine), so this lowers it.
+services:
+  api:
+    ulimits:
+      nofile: { soft: 65536, hard: 65536 }

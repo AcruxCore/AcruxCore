@@ -1,0 +1,137 @@
+{
+  "gateway": "litellm",
+  "gatewayCpuLimit": 2,
+  "startedAt": "2026-11-10T05:15:05.988Z",
+  "levels": [
+    {
+      "streams": 10,
+      "ok": 10,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 2284,
+      "ttftMs": {
+        "p50": 1157,
+        "p95": 1392
+      },
+      "totalMs": {
+        "p50": 1851,
+        "p95": 2238
+      },
+      "gateway": {
+        "cpuCoresPeak": 1.1,
+        "cpuCoresMean": 0.49,
+        "memMiBPeak": 699
+      },
+      "stack": {
+        "cpuCoresPeak": 1.57,
+        "cpuCoresMean": 0.55,
+        "memMiBPeak": 801
+      }
+    },
+    {
+      "streams": 100,
+      "ok": 100,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 7162,
+      "ttftMs": {
+        "p50": 4246,
+        "p95": 6017
+      },
+      "totalMs": {
+        "p50": 7028,
+        "p95": 7145
+      },
+      "gateway": {
+        "cpuCoresPeak": 1.1,
+        "cpuCoresMean": 0.92,
+        "memMiBPeak": 791
+      },
+      "stack": {
+        "cpuCoresPeak": 1.19,
+        "cpuCoresMean": 0.92,
+        "memMiBPeak": 898
+      }
+    },
+    {
+      "streams": 250,
+      "ok": 250,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 16156,
+      "ttftMs": {
+        "p50": 9808,
+        "p95": 12859
+      },
+      "totalMs": {
+        "p50": 15997,
+        "p95": 16131
+      },
+      "gateway": {
+        "cpuCoresPeak": 1.24,
+        "cpuCoresMean": 0.99,
+        "memMiBPeak": 968
+      },
+      "stack": {
+        "cpuCoresPeak": 1.58,
+        "cpuCoresMean": 1,
+        "memMiBPeak": 1083
+      }
+    },
+    {
+      "streams": 500,
+      "ok": 249,
+      "failed": 251,
+      "errors": {
+        "503 {\"error\":{\"message\":\"Service Unavailable, the authentication database is temporarily unreachable. Please retry shortly.\"": 251
+      },
+      "wallMs": 19631,
+      "ttftMs": {
+        "p50": 8686,
+        "p95": 17725
+      },
+      "totalMs": {
+        "p50": 19504,
+        "p95": 19591
+      },
+      "gateway": {
+        "cpuCoresPeak": 1.08,
+        "cpuCoresMean": 1,
+        "memMiBPeak": 996
+      },
+      "stack": {
+        "cpuCoresPeak": 1.37,
+        "cpuCoresMean": 1.01,
+        "memMiBPeak": 1110
+      }
+    },
+    {
+      "streams": 1000,
+      "ok": 403,
+      "failed": 597,
+      "errors": {
+        "500 {\"error\":{\"message\":\"litellm.InternalServerError: InternalServerError: OpenAIException - Connection error.\\n\\nLiteLLM: m": 390,
+        "0 UND_ERR_SOCKET": 207
+      },
+      "wallMs": 48142,
+      "ttftMs": {
+        "p50": 31331,
+        "p95": 39262
+      },
+      "totalMs": {
+        "p50": 47977,
+        "p95": 48055
+      },
+      "gateway": {
+        "cpuCoresPeak": 1.23,
+        "cpuCoresMean": 1,
+        "memMiBPeak": 1314
+      },
+      "stack": {
+        "cpuCoresPeak": 1.5,
+        "cpuCoresMean": 1.01,
+        "memMiBPeak": 1446
+      }
+    }
+  ]
+}

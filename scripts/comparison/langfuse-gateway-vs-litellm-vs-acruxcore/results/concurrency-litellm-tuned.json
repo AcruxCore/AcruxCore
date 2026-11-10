@@ -1,0 +1,134 @@
+{
+  "gateway": "litellm",
+  "gatewayCpuLimit": 2,
+  "startedAt": "2026-11-10T05:26:29.826Z",
+  "levels": [
+    {
+      "streams": 10,
+      "ok": 10,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 2362,
+      "ttftMs": {
+        "p50": 1331,
+        "p95": 1516
+      },
+      "totalMs": {
+        "p50": 1989,
+        "p95": 2313
+      },
+      "gateway": {
+        "cpuCoresPeak": 1.5,
+        "cpuCoresMean": 0.63,
+        "memMiBPeak": 1816
+      },
+      "stack": {
+        "cpuCoresPeak": 1.85,
+        "cpuCoresMean": 0.69,
+        "memMiBPeak": 1938
+      }
+    },
+    {
+      "streams": 100,
+      "ok": 100,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 4047,
+      "ttftMs": {
+        "p50": 1310,
+        "p95": 3554
+      },
+      "totalMs": {
+        "p50": 3883,
+        "p95": 4037
+      },
+      "gateway": {
+        "cpuCoresPeak": 1.99,
+        "cpuCoresMean": 1.53,
+        "memMiBPeak": 1911
+      },
+      "stack": {
+        "cpuCoresPeak": 2.08,
+        "cpuCoresMean": 1.54,
+        "memMiBPeak": 2044
+      }
+    },
+    {
+      "streams": 250,
+      "ok": 250,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 10179,
+      "ttftMs": {
+        "p50": 4732,
+        "p95": 8540
+      },
+      "totalMs": {
+        "p50": 9585,
+        "p95": 10159
+      },
+      "gateway": {
+        "cpuCoresPeak": 2.01,
+        "cpuCoresMean": 1.74,
+        "memMiBPeak": 2095
+      },
+      "stack": {
+        "cpuCoresPeak": 2.16,
+        "cpuCoresMean": 1.76,
+        "memMiBPeak": 2246
+      }
+    },
+    {
+      "streams": 500,
+      "ok": 380,
+      "failed": 120,
+      "errors": {
+        "503 {\"error\":{\"message\":\"Service Unavailable, the authentication database is temporarily unreachable. Please retry shortly.\"": 120
+      },
+      "wallMs": 14468,
+      "ttftMs": {
+        "p50": 7954,
+        "p95": 10334
+      },
+      "totalMs": {
+        "p50": 12605,
+        "p95": 14313
+      },
+      "gateway": {
+        "cpuCoresPeak": 2.02,
+        "cpuCoresMean": 1.88,
+        "memMiBPeak": 2283
+      },
+      "stack": {
+        "cpuCoresPeak": 2.39,
+        "cpuCoresMean": 1.91,
+        "memMiBPeak": 2453
+      }
+    },
+    {
+      "streams": 1000,
+      "ok": 1000,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 34738,
+      "ttftMs": {
+        "p50": 19229,
+        "p95": 30427
+      },
+      "totalMs": {
+        "p50": 32807,
+        "p95": 34590
+      },
+      "gateway": {
+        "cpuCoresPeak": 2.02,
+        "cpuCoresMean": 1.93,
+        "memMiBPeak": 2748
+      },
+      "stack": {
+        "cpuCoresPeak": 2.15,
+        "cpuCoresMean": 1.94,
+        "memMiBPeak": 2939
+      }
+    }
+  ]
+}

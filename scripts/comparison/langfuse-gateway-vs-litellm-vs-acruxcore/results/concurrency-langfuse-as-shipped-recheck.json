@@ -1,0 +1,59 @@
+{
+  "gateway": "langfuse",
+  "gatewayCpuLimit": 2,
+  "startedAt": "2026-11-10T05:21:35.129Z",
+  "levels": [
+    {
+      "streams": 250,
+      "ok": 250,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 3868,
+      "ttftMs": {
+        "p50": 1264,
+        "p95": 1841
+      },
+      "totalMs": {
+        "p50": 1932,
+        "p95": 2384
+      },
+      "gateway": {
+        "cpuCoresPeak": 0.86,
+        "cpuCoresMean": 0.23,
+        "memMiBPeak": 102
+      },
+      "stack": {
+        "cpuCoresPeak": 1.72,
+        "cpuCoresMean": 0.49,
+        "memMiBPeak": 2856
+      }
+    },
+    {
+      "streams": 500,
+      "ok": 125,
+      "failed": 375,
+      "errors": {
+        "502 {\"error\":{\"message\":\"Upstream request failed\",\"type\":\"server_error\",\"param\":null,\"code\":\"upstream_error\"},\"request_id\":\"": 375
+      },
+      "wallMs": 3371,
+      "ttftMs": {
+        "p50": 1129,
+        "p95": 1637
+      },
+      "totalMs": {
+        "p50": 1835,
+        "p95": 2159
+      },
+      "gateway": {
+        "cpuCoresPeak": 0.82,
+        "cpuCoresMean": 0.2,
+        "memMiBPeak": 115
+      },
+      "stack": {
+        "cpuCoresPeak": 2.66,
+        "cpuCoresMean": 0.61,
+        "memMiBPeak": 2887
+      }
+    }
+  ]
+}

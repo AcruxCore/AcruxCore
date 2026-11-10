@@ -1,0 +1,132 @@
+{
+  "gateway": "acruxcore",
+  "gatewayCpuLimit": 2,
+  "startedAt": "2026-11-10T08:38:41.416Z",
+  "levels": [
+    {
+      "streams": 10,
+      "ok": 10,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 1731,
+      "ttftMs": {
+        "p50": 859,
+        "p95": 1008
+      },
+      "totalMs": {
+        "p50": 1567,
+        "p95": 1681
+      },
+      "gateway": {
+        "cpuCoresPeak": 0.48,
+        "cpuCoresMean": 0.18,
+        "memMiBPeak": 206
+      },
+      "stack": {
+        "cpuCoresPeak": 0.56,
+        "cpuCoresMean": 0.24,
+        "memMiBPeak": 426
+      }
+    },
+    {
+      "streams": 100,
+      "ok": 100,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 2233,
+      "ttftMs": {
+        "p50": 1194,
+        "p95": 1613
+      },
+      "totalMs": {
+        "p50": 2133,
+        "p95": 2220
+      },
+      "gateway": {
+        "cpuCoresPeak": 1.9,
+        "cpuCoresMean": 0.6,
+        "memMiBPeak": 251
+      },
+      "stack": {
+        "cpuCoresPeak": 2.73,
+        "cpuCoresMean": 0.82,
+        "memMiBPeak": 522
+      }
+    },
+    {
+      "streams": 250,
+      "ok": 250,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 3932,
+      "ttftMs": {
+        "p50": 1488,
+        "p95": 1926
+      },
+      "totalMs": {
+        "p50": 2819,
+        "p95": 3079
+      },
+      "gateway": {
+        "cpuCoresPeak": 2.27,
+        "cpuCoresMean": 0.98,
+        "memMiBPeak": 312
+      },
+      "stack": {
+        "cpuCoresPeak": 3.94,
+        "cpuCoresMean": 1.35,
+        "memMiBPeak": 604
+      }
+    },
+    {
+      "streams": 500,
+      "ok": 500,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 6529,
+      "ttftMs": {
+        "p50": 2158,
+        "p95": 3440
+      },
+      "totalMs": {
+        "p50": 4141,
+        "p95": 6037
+      },
+      "gateway": {
+        "cpuCoresPeak": 2.4,
+        "cpuCoresMean": 1.09,
+        "memMiBPeak": 461
+      },
+      "stack": {
+        "cpuCoresPeak": 3.15,
+        "cpuCoresMean": 1.47,
+        "memMiBPeak": 759
+      }
+    },
+    {
+      "streams": 1000,
+      "ok": 1000,
+      "failed": 0,
+      "errors": {},
+      "wallMs": 30720,
+      "ttftMs": {
+        "p50": 3489,
+        "p95": 8425
+      },
+      "totalMs": {
+        "p50": 8054,
+        "p95": 11262
+      },
+      "gateway": {
+        "cpuCoresPeak": 2.1,
+        "cpuCoresMean": 0.51,
+        "memMiBPeak": 553
+      },
+      "stack": {
+        "cpuCoresPeak": 3.21,
+        "cpuCoresMean": 0.7,
+        "memMiBPeak": 871
+      }
+    }
+  ]
+}

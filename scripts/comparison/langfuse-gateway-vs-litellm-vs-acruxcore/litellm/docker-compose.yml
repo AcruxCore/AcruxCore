@@ -1,0 +1,46 @@
+# LiteLLM proxy for the gateway benchmark, with the Postgres database that its
+# virtual keys, budgets, per-key rate limits and spend tracking need. The
+# benchmark calls it with a virtual key, so every request is checked against
+# the database and its spend is written back, as AcruxCore does for its own
+# API keys.
+#
+# LITELLM_CONFIG picks the plain config (no logging) or config.langfuse.yaml
+# (logs every call to Langfuse).
+services:
+  litellm-db:
+    image: postgres:16-alpine
+    container_name: bench-litellm-db
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: litellm
+      POSTGRES_DB: litellm
+    volumes:
+      - litellm-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  litellm:
+    image: ghcr.io/berriai/litellm:v1.108.4
+    container_name: bench-litellm
+    command: ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "1"]
+    volumes:
+      - ./${LITELLM_CONFIG:-config.yaml}:/app/config.yaml:ro
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      LITELLM_MASTER_KEY: sk-litellm-bench
+      DATABASE_URL: postgresql://litellm:litellm@litellm-db:5432/litellm
+      LANGFUSE_PUBLIC_KEY: pk-lf-bench
+      LANGFUSE_SECRET_KEY: sk-lf-bench
+      LANGFUSE_HOST: http://host.docker.internal:3000
+    depends_on:
+      litellm-db:
+        condition: service_healthy
+    # api.openai.com pinned to one edge address; see latency-bench.mjs.
+    extra_hosts: ["host.docker.internal:host-gateway", "api.openai.com:${OPENAI_IP:-162.159.140.245}"]
+    ports: ["4000:4000"]
+
+volumes:
+  litellm-pgdata:
