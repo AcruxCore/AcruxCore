@@ -12,6 +12,8 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+## 0.21.0 — 2026-11-10
+
 ### Added
 
 - `ProviderConfig` takes an optional `kind` (`"openai"` or `"openai_compatible"`) that sets the

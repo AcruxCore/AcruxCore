@@ -12,6 +12,8 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+## 0.21.0 — 2026-11-10
+
 ### Added
 
 - `ProviderConfig.kind` (`'openai'` or `'openai_compatible'`) sets the name `maxTokens` is sent
