@@ -457,6 +457,224 @@ async def test_anthropic_stream_puts_streamed_thinking_on_the_first_tool_call():
     assert first["extra_content"] == {"anthropic": {"thinking_blocks": [THINKING, REDACTED]}}
 
 
+THINKING_ON = {"thinking": {"type": "enabled", "budget_tokens": 1024}}
+TOOL_USE = {"type": "tool_use", "id": "tu_1", "name": "get_weather", "input": {"city": "Paris"}}
+
+
+async def test_anthropic_tool_loop_sends_extra_body_and_thinking_on_every_round():
+    """``extra_body`` reaches every round of ``run_tool_loop`` — the only way to turn on
+    Anthropic thinking there — and round two carries round one's thinking blocks back
+    before the tool_use, as Anthropic requires (issue #829)."""
+    replies = [
+        {"id": "m1", "model": "claude-x", "stop_reason": "tool_use", "usage": {"input_tokens": 5, "output_tokens": 5},
+         "content": [THINKING, REDACTED, TOOL_USE]},
+        {"id": "m2", "model": "claude-x", "stop_reason": "end_turn", "usage": {"input_tokens": 9, "output_tokens": 2},
+         "content": [{"type": "text", "text": "Mild."}]},
+    ]
+    bodies: List[Dict[str, Any]] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(req.content))
+        return httpx.Response(200, json=replies[len(bodies) - 1])
+
+    async with client(handler) as c:
+        r = await c.gateway.run_tool_loop(
+            "claude-x", [{"role": "user", "content": "weather?"}], tool_defs=WEATHER_TOOL,
+            dispatch=lambda name, args: {"temp": 18}, provider=ANTHROPIC, trace=False,
+            max_tokens=2048, extra_body=THINKING_ON,
+        )
+
+    assert r.content == "Mild."
+    assert [b["thinking"] for b in bodies] == [THINKING_ON["thinking"]] * 2
+    assert bodies[1]["messages"][1] == {"role": "assistant", "content": [THINKING, REDACTED, TOOL_USE]}
+
+
+async def test_anthropic_streamed_tool_loop_sends_streamed_thinking_back():
+    rounds = [
+        [{"type": "message_start", "message": {"id": "m1", "model": "claude-x", "usage": {"input_tokens": 5}}},
+         {"type": "content_block_start", "index": 0, "content_block": {"type": "thinking", "thinking": ""}},
+         {"type": "content_block_delta", "index": 0, "delta": {"type": "thinking_delta", "thinking": "Need the weather."}},
+         {"type": "content_block_delta", "index": 0, "delta": {"type": "signature_delta", "signature": "SIG-A"}},
+         {"type": "content_block_stop", "index": 0},
+         {"type": "content_block_start", "index": 1, "content_block": REDACTED},
+         {"type": "content_block_stop", "index": 1},
+         {"type": "content_block_start", "index": 2, "content_block": {**TOOL_USE, "input": {}}},
+         {"type": "content_block_delta", "index": 2, "delta": {"type": "input_json_delta", "partial_json": '{"city": "Paris"}'}},
+         {"type": "message_delta", "delta": {"stop_reason": "tool_use"}, "usage": {"output_tokens": 9}},
+         {"type": "message_stop"}],
+        [{"type": "message_start", "message": {"id": "m2", "model": "claude-x", "usage": {"input_tokens": 9}}},
+         {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "Mild."}},
+         {"type": "message_delta", "delta": {"stop_reason": "end_turn"}, "usage": {"output_tokens": 2}},
+         {"type": "message_stop"}],
+    ]
+    bodies: List[Dict[str, Any]] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(req.content))
+        return httpx.Response(200, content=sse(rounds[len(bodies) - 1], named=True),
+                              headers={"content-type": "text/event-stream"})
+
+    async with client(handler) as c:
+        events = [e async for e in await c.gateway.run_tool_loop(
+            "claude-x", [{"role": "user", "content": "weather?"}], tool_defs=WEATHER_TOOL,
+            dispatch=lambda name, args: {"temp": 18}, provider=ANTHROPIC, trace=False,
+            max_tokens=2048, extra_body=THINKING_ON, stream=True,
+        )]
+
+    assert events[-1].type == "done" and events[-1].result.content == "Mild."
+    assert [b["thinking"] for b in bodies] == [THINKING_ON["thinking"]] * 2
+    assert bodies[1]["messages"][1] == {"role": "assistant", "content": [THINKING, REDACTED, TOOL_USE]}
+
+
+async def test_anthropic_shaping_round_leaves_thinking_out_and_keeps_other_keys():
+    """The ``response_format`` round is a forced tool, which Anthropic refuses with thinking
+    on, so that one round drops ``thinking`` and keeps every other ``extra_body`` key."""
+    replies = [
+        {"id": "m1", "model": "claude-x", "stop_reason": "tool_use", "usage": {"input_tokens": 5, "output_tokens": 5},
+         "content": [THINKING, TOOL_USE]},
+        {"id": "m2", "model": "claude-x", "stop_reason": "end_turn", "usage": {"input_tokens": 9, "output_tokens": 2},
+         "content": [{"type": "text", "text": "Paris is 18."}]},
+        {"id": "m3", "model": "claude-x", "stop_reason": "tool_use", "usage": {"input_tokens": 9, "output_tokens": 2},
+         "content": [{"type": "tool_use", "id": "tu_f", "name": "report", "input": {"paris": 18}}]},
+    ]
+    bodies: List[Dict[str, Any]] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(req.content))
+        return httpx.Response(200, json=replies[len(bodies) - 1])
+
+    rf = {"type": "json_schema", "json_schema": {"name": "report", "schema": {
+        "type": "object", "properties": {"paris": {"type": "number"}}, "required": ["paris"]}}}
+    async with client(handler) as c:
+        r = await c.gateway.run_tool_loop(
+            "claude-x", [{"role": "user", "content": "weather?"}], tool_defs=WEATHER_TOOL,
+            dispatch=lambda name, args: {"temp": 18}, provider=ANTHROPIC, trace=False, max_tokens=2048,
+            extra_body={**THINKING_ON, "metadata": {"user_id": "u1"}}, response_format=rf,
+        )
+
+    assert json.loads(r.content) == {"paris": 18}
+    assert [b.get("thinking") for b in bodies] == [THINKING_ON["thinking"]] * 2 + [None]
+    assert [b["metadata"] for b in bodies] == [{"user_id": "u1"}] * 3
+    assert bodies[2]["tool_choice"] == {"type": "tool", "name": "report"}
+
+
+async def test_tool_loop_refuses_an_extra_body_key_it_already_sets():
+    """The loop uses ``chat()``'s refusal rules, including ``stream_options`` on a BYO
+    stream, before any request is sent."""
+    sent: List[httpx.Request] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        sent.append(req)
+        return httpx.Response(500)
+
+    async with client(handler) as c:
+        with pytest.raises(AcruxCoreError, match="extra_body may not set temperature"):
+            await c.gateway.run_tool_loop("claude-x", [{"role": "user", "content": "hi"}], provider=ANTHROPIC,
+                                          trace=False, temperature=0, extra_body={"temperature": 1})
+        with pytest.raises(AcruxCoreError, match="extra_body may not set stream_options"):
+            async for _ in await c.gateway.run_tool_loop(
+                "claude-x", [{"role": "user", "content": "hi"}], provider=ANTHROPIC, trace=False,
+                stream=True, extra_body={"stream_options": {}},
+            ):
+                pass
+    assert sent == []
+
+
+REPORT_RF = {"type": "json_schema", "json_schema": {"name": "report", "schema": {
+    "type": "object", "properties": {"paris": {"type": "number"}}, "required": ["paris"]}}}
+REPORT_REPLY = {"id": "m3", "model": "claude-x", "stop_reason": "tool_use",
+                "usage": {"input_tokens": 9, "output_tokens": 2},
+                "content": [{"type": "tool_use", "id": "tu_f", "name": "report", "input": {"paris": 18}}]}
+
+
+async def test_anthropic_response_format_leaves_thinking_out_wherever_it_is_sent():
+    """``response_format`` goes to Anthropic as a forced tool, which Anthropic refuses with
+    thinking on. Every call that sends it drops ``thinking``: ``chat()``, and a tool loop
+    with no tools, whose ordinary rounds carry ``response_format``."""
+    bodies: List[Dict[str, Any]] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(req.content))
+        return httpx.Response(200, json=REPORT_REPLY)
+
+    msgs = [{"role": "user", "content": "weather?"}]
+    extra = {**THINKING_ON, "metadata": {"user_id": "u1"}}
+    async with client(handler) as c:
+        await c.gateway.chat("claude-x", msgs, provider=ANTHROPIC, trace=False, max_tokens=2048,
+                             response_format=REPORT_RF, extra_body=extra)
+        r = await c.gateway.run_tool_loop("claude-x", msgs, provider=ANTHROPIC, trace=False,
+                                          max_tokens=2048, response_format=REPORT_RF, extra_body=extra)
+
+    assert json.loads(r.content) == {"paris": 18}
+    assert [b.get("thinking") for b in bodies] == [None, None]
+    assert [b["metadata"] for b in bodies] == [{"user_id": "u1"}] * 2
+    assert [b["tool_choice"] for b in bodies] == [{"type": "tool", "name": "report"}] * 2
+
+
+async def test_anthropic_streamed_shaping_round_leaves_thinking_out_with_a_client_provider():
+    """The streamed loop's ``response_format`` round drops ``thinking`` too, when the
+    provider comes from the client rather than the call."""
+    rounds = [
+        [{"type": "message_start", "message": {"id": "m1", "model": "claude-x", "usage": {"input_tokens": 5}}},
+         {"type": "content_block_start", "index": 0, "content_block": {**TOOL_USE, "input": {}}},
+         {"type": "content_block_delta", "index": 0, "delta": {"type": "input_json_delta", "partial_json": '{"city": "Paris"}'}},
+         {"type": "message_delta", "delta": {"stop_reason": "tool_use"}, "usage": {"output_tokens": 9}},
+         {"type": "message_stop"}],
+        [{"type": "message_start", "message": {"id": "m2", "model": "claude-x", "usage": {"input_tokens": 9}}},
+         {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "Paris is 18."}},
+         {"type": "message_delta", "delta": {"stop_reason": "end_turn"}, "usage": {"output_tokens": 2}},
+         {"type": "message_stop"}],
+        [{"type": "message_start", "message": {"id": "m3", "model": "claude-x", "usage": {"input_tokens": 9}}},
+         {"type": "content_block_start", "index": 0, "content_block": {"type": "tool_use", "id": "tu_f", "name": "report", "input": {}}},
+         {"type": "content_block_delta", "index": 0, "delta": {"type": "input_json_delta", "partial_json": '{"paris": 18}'}},
+         {"type": "message_delta", "delta": {"stop_reason": "tool_use"}, "usage": {"output_tokens": 2}},
+         {"type": "message_stop"}],
+    ]
+    bodies: List[Dict[str, Any]] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(req.content))
+        return httpx.Response(200, content=sse(rounds[len(bodies) - 1], named=True),
+                              headers={"content-type": "text/event-stream"})
+
+    c = AcruxCore(api_key="acx", base_url="http://localhost:3000/api/v1", provider=ANTHROPIC,
+                  transport=httpx.MockTransport(handler), max_retries=0, retry_interval=1)
+    async with c:
+        events = [e async for e in await c.gateway.run_tool_loop(
+            "claude-x", [{"role": "user", "content": "weather?"}], tool_defs=WEATHER_TOOL,
+            dispatch=lambda name, args: {"temp": 18}, trace=False, max_tokens=2048,
+            extra_body=THINKING_ON, response_format=REPORT_RF, stream=True,
+        )]
+
+    assert json.loads(events[-1].result.content) == {"paris": 18}
+    assert [b.get("thinking") for b in bodies] == [THINKING_ON["thinking"]] * 2 + [None]
+    assert bodies[2]["tool_choice"] == {"type": "tool", "name": "report"}
+
+
+async def test_openai_streamed_tool_loop_asks_for_the_usage_frame():
+    """A streamed loop on an OpenAI-format provider asks for the usage frame, which the
+    round's span reads its token counts from."""
+    frames = (
+        b'data: {"id":"c1","model":"m","choices":[{"delta":{"content":"Hi"},"finish_reason":"stop"}]}\n\n'
+        b'data: {"id":"c1","model":"m","choices":[],"usage":{"prompt_tokens":4,"completion_tokens":2}}\n\n'
+        b"data: [DONE]\n\n"
+    )
+    bodies: List[Dict[str, Any]] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(req.content))
+        return httpx.Response(200, content=frames, headers={"content-type": "text/event-stream"})
+
+    async with client(handler) as c:
+        events = [e async for e in await c.gateway.run_tool_loop(
+            "m", [{"role": "user", "content": "hi"}], trace=False, stream=True,
+            provider={"base_url": "https://llm.example.com/v1", "api_key": "k"},
+        )]
+
+    assert bodies[0]["stream_options"] == {"include_usage": True}
+    assert events[-1].result.content == "Hi"
+
+
 async def test_gemini_leaves_an_sdk_made_id_off_the_function_response_too():
     """Gemini sent no id, so the SDK made one up (acx_…). It goes on neither part."""
     replies = [

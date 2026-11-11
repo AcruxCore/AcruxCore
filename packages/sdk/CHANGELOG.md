@@ -20,6 +20,9 @@ changelog: <https://docs.acruxcore.com/changelog>
 - `ToolCall.extra_content` carries Gemini's thought signature, and an Anthropic turn's thinking
   blocks on its first call. Both providers need them on the next turn. The tool loops send them
   back; a hand-written loop must keep the assistant message as is.
+- `runToolLoop()` and `runPromptWithTools()` take `extraBody`, sent on every round, so a BYO tool loop can turn on Anthropic or
+  Gemini thinking. On Anthropic, any request with `response_format` leaves `thinking`
+  out, since Anthropic refuses it on a forced tool ([#829](https://github.com/AcruxCore/AcruxCore/issues/829)).
 
 ### Changed
 
@@ -30,6 +33,11 @@ changelog: <https://docs.acruxcore.com/changelog>
   field; the SDK warns instead. Pass the native control through `extraBody`.
 - **Breaking for code that reads `ProviderConfig.baseUrl`.** It is optional now, since the two
   native kinds have a default host. See "Migrating from 0.21".
+
+### Fixed
+
+- `runToolLoop()` with `responseFormat` and tools reported `stoppedAtLimit: false` when it stopped
+  at `maxIterations`. It now reports `true`, as the streamed loop and the Python SDK do.
 
 ### Migrating from 0.21
 

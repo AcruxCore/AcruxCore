@@ -343,6 +343,172 @@ describe('PR #827 review findings', () => {
     expect(deltas[0]['extra_content']).toEqual({ anthropic: { thinking_blocks: [THINKING, REDACTED] } });
   });
 
+  const TOOL_USE = { type: 'tool_use', id: 'tu_1', name: 'get_weather', input: { city: 'Paris' } };
+
+  it('sends extraBody on every runToolLoop round and thinking blocks back on round two (issue #829)', async () => {
+    const replies = [
+      { id: 'm1', model: 'claude-x', stop_reason: 'tool_use', usage: { input_tokens: 5, output_tokens: 5 },
+        content: [THINKING, REDACTED, TOOL_USE] },
+      { id: 'm2', model: 'claude-x', stop_reason: 'end_turn', usage: { input_tokens: 9, output_tokens: 2 },
+        content: [{ type: 'text', text: 'Mild.' }] },
+    ];
+    const { calls } = stub((_u, _b, i) => json(replies[i]));
+    const r = await hub().gateway.runToolLoop({
+      model: 'claude-x', messages: [{ role: 'user', content: 'weather?' }], toolDefs: WEATHER,
+      dispatch: () => ({ temp: 18 }), provider: ANTHROPIC, trace: false, maxTokens: 2048, extraBody: thinkingOn,
+    });
+    expect(r.content).toBe('Mild.');
+    expect(calls.map((c) => c.body['thinking'])).toEqual([thinkingOn.thinking, thinkingOn.thinking]);
+    expect((calls[1].body['messages'] as Json[])[1]).toEqual({ role: 'assistant', content: [THINKING, REDACTED, TOOL_USE] });
+  });
+
+  it('sends extraBody on every streamed runToolLoop round and streamed thinking back on round two', async () => {
+    const rounds: Json[][] = [
+      [
+        { type: 'message_start', message: { id: 'm1', model: 'claude-x', usage: { input_tokens: 5 } } },
+        { type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } },
+        { type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'Need the weather.' } },
+        { type: 'content_block_delta', index: 0, delta: { type: 'signature_delta', signature: 'SIG-A' } },
+        { type: 'content_block_stop', index: 0 },
+        { type: 'content_block_start', index: 1, content_block: REDACTED },
+        { type: 'content_block_stop', index: 1 },
+        { type: 'content_block_start', index: 2, content_block: { ...TOOL_USE, input: {} } },
+        { type: 'content_block_delta', index: 2, delta: { type: 'input_json_delta', partial_json: '{"city": "Paris"}' } },
+        { type: 'message_delta', delta: { stop_reason: 'tool_use' }, usage: { output_tokens: 9 } },
+        { type: 'message_stop' },
+      ],
+      [
+        { type: 'message_start', message: { id: 'm2', model: 'claude-x', usage: { input_tokens: 9 } } },
+        { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Mild.' } },
+        { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 2 } },
+        { type: 'message_stop' },
+      ],
+    ];
+    const { calls } = stub((_u, _b, i) => sse(rounds[i], { named: true }));
+    const events = [];
+    for await (const ev of await hub().gateway.runToolLoop({
+      model: 'claude-x', messages: [{ role: 'user', content: 'weather?' }], toolDefs: WEATHER,
+      dispatch: () => ({ temp: 18 }), provider: ANTHROPIC, trace: false, maxTokens: 2048,
+      extraBody: thinkingOn, stream: true,
+    })) events.push(ev);
+    const done = events[events.length - 1];
+    expect(done.type === 'done' && done.result.content).toBe('Mild.');
+    expect(calls.map((c) => c.body['thinking'])).toEqual([thinkingOn.thinking, thinkingOn.thinking]);
+    expect((calls[1].body['messages'] as Json[])[1]).toEqual({ role: 'assistant', content: [THINKING, REDACTED, TOOL_USE] });
+  });
+
+  it('leaves thinking out of the Anthropic shaping round and keeps every other extraBody key', async () => {
+    const replies = [
+      { id: 'm1', model: 'claude-x', stop_reason: 'tool_use', usage: { input_tokens: 5, output_tokens: 5 },
+        content: [THINKING, TOOL_USE] },
+      { id: 'm2', model: 'claude-x', stop_reason: 'end_turn', usage: { input_tokens: 9, output_tokens: 2 },
+        content: [{ type: 'text', text: 'Paris is 18.' }] },
+      { id: 'm3', model: 'claude-x', stop_reason: 'tool_use', usage: { input_tokens: 9, output_tokens: 2 },
+        content: [{ type: 'tool_use', id: 'tu_f', name: 'report', input: { paris: 18 } }] },
+    ];
+    const { calls } = stub((_u, _b, i) => json(replies[i]));
+    const r = await hub().gateway.runToolLoop({
+      model: 'claude-x', messages: [{ role: 'user', content: 'weather?' }], toolDefs: WEATHER,
+      dispatch: () => ({ temp: 18 }), provider: ANTHROPIC, trace: false, maxTokens: 2048,
+      extraBody: { ...thinkingOn, metadata: { user_id: 'u1' } },
+      responseFormat: { type: 'json_schema', json_schema: { name: 'report', schema: {
+        type: 'object', properties: { paris: { type: 'number' } }, required: ['paris'] } } },
+    });
+    expect(JSON.parse(r.content ?? '')).toEqual({ paris: 18 });
+    expect(calls.map((c) => c.body['thinking'])).toEqual([thinkingOn.thinking, thinkingOn.thinking, undefined]);
+    expect(calls.map((c) => c.body['metadata'])).toEqual(Array(3).fill({ user_id: 'u1' }));
+    expect(calls[2].body['tool_choice']).toEqual({ type: 'tool', name: 'report' });
+  });
+
+  const REPORT_RF = { type: 'json_schema' as const, json_schema: { name: 'report', schema: {
+    type: 'object', properties: { paris: { type: 'number' } }, required: ['paris'] } } };
+  const REPORT_REPLY = { id: 'm3', model: 'claude-x', stop_reason: 'tool_use', usage: { input_tokens: 9, output_tokens: 2 },
+    content: [{ type: 'tool_use', id: 'tu_f', name: 'report', input: { paris: 18 } }] };
+
+  it('leaves thinking out wherever responseFormat goes to Anthropic: chat() and a loop with no tools', async () => {
+    const { calls } = stub(() => json(REPORT_REPLY));
+    const extraBody = { ...thinkingOn, metadata: { user_id: 'u1' } };
+    const messages = [{ role: 'user' as const, content: 'weather?' }];
+    const client = hub();
+    await client.gateway.chat({
+      model: 'claude-x', messages, provider: ANTHROPIC, trace: false, maxTokens: 2048, responseFormat: REPORT_RF, extraBody,
+    });
+    const r = await client.gateway.runToolLoop({
+      model: 'claude-x', messages, provider: ANTHROPIC, trace: false, maxTokens: 2048, responseFormat: REPORT_RF, extraBody,
+    });
+    expect(JSON.parse(r.content ?? '')).toEqual({ paris: 18 });
+    expect(calls.map((c) => c.body['thinking'])).toEqual([undefined, undefined]);
+    expect(calls.map((c) => c.body['metadata'])).toEqual([{ user_id: 'u1' }, { user_id: 'u1' }]);
+    expect(calls.map((c) => c.body['tool_choice'])).toEqual(Array(2).fill({ type: 'tool', name: 'report' }));
+  });
+
+  it('leaves thinking out of the streamed shaping round when the provider comes from the client', async () => {
+    const rounds: Json[][] = [
+      [
+        { type: 'message_start', message: { id: 'm1', model: 'claude-x', usage: { input_tokens: 5 } } },
+        { type: 'content_block_start', index: 0, content_block: { ...TOOL_USE, input: {} } },
+        { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{"city": "Paris"}' } },
+        { type: 'message_delta', delta: { stop_reason: 'tool_use' }, usage: { output_tokens: 9 } },
+        { type: 'message_stop' },
+      ],
+      [
+        { type: 'message_start', message: { id: 'm2', model: 'claude-x', usage: { input_tokens: 9 } } },
+        { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Paris is 18.' } },
+        { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 2 } },
+        { type: 'message_stop' },
+      ],
+      [
+        { type: 'message_start', message: { id: 'm3', model: 'claude-x', usage: { input_tokens: 9 } } },
+        { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'tu_f', name: 'report', input: {} } },
+        { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{"paris": 18}' } },
+        { type: 'message_delta', delta: { stop_reason: 'tool_use' }, usage: { output_tokens: 2 } },
+        { type: 'message_stop' },
+      ],
+    ];
+    const { calls } = stub((_u, _b, i) => sse(rounds[i], { named: true }));
+    const client = new acruxcore({ apiKey: 'acx', baseUrl: 'http://localhost:3000/api/v1', maxRetries: 0, provider: ANTHROPIC });
+    const events = [];
+    for await (const ev of await client.gateway.runToolLoop({
+      model: 'claude-x', messages: [{ role: 'user', content: 'weather?' }], toolDefs: WEATHER,
+      dispatch: () => ({ temp: 18 }), trace: false, maxTokens: 2048, extraBody: thinkingOn,
+      responseFormat: REPORT_RF, stream: true,
+    })) events.push(ev);
+    const done = events[events.length - 1];
+    expect(done.type === 'done' && JSON.parse(done.result.content ?? '')).toEqual({ paris: 18 });
+    expect(calls.map((c) => c.body['thinking'])).toEqual([thinkingOn.thinking, thinkingOn.thinking, undefined]);
+    expect(calls[2].body['tool_choice']).toEqual({ type: 'tool', name: 'report' });
+  });
+
+  it('reports stoppedAtLimit from the tool rounds when a responseFormat loop is cut off', async () => {
+    const { calls } = stub((_u, _b, i) => json(i < 2
+      ? { id: `m${i}`, model: 'claude-x', stop_reason: 'tool_use', usage: { input_tokens: 5, output_tokens: 5 },
+          content: [{ ...TOOL_USE, id: `tu_${i}` }] }
+      : REPORT_REPLY));
+    const r = await hub().gateway.runToolLoop({
+      model: 'claude-x', messages: [{ role: 'user', content: 'weather?' }], toolDefs: WEATHER,
+      dispatch: () => ({ temp: 18 }), provider: ANTHROPIC, trace: false, maxIterations: 2, responseFormat: REPORT_RF,
+    });
+    expect(calls).toHaveLength(3);
+    expect(JSON.parse(r.content ?? '')).toEqual({ paris: 18 });
+    expect(r.stoppedAtLimit).toBe(true);
+  });
+
+  it('refuses an extraBody key runToolLoop already sets, before anything is sent', async () => {
+    const { calls } = stub(() => json({}, 500));
+    const client = hub();
+    await expect(client.gateway.runToolLoop({
+      model: 'claude-x', messages: [{ role: 'user', content: 'hi' }], provider: ANTHROPIC, trace: false,
+      temperature: 0, extraBody: { temperature: 1 },
+    })).rejects.toThrow(/extraBody may not set temperature/);
+    await expect((async () => {
+      for await (const _ of await client.gateway.runToolLoop({
+        model: 'claude-x', messages: [{ role: 'user', content: 'hi' }], provider: ANTHROPIC, trace: false,
+        stream: true, extraBody: { stream_options: {} },
+      })) { /* drain */ }
+    })()).rejects.toThrow(/extraBody may not set stream_options/);
+    expect(calls).toHaveLength(0);
+  });
+
   it('leaves an SDK-made Gemini call id off the functionResponse too', async () => {
     const replies = [
       { candidates: [{ finishReason: 'STOP', content: { role: 'model', parts: [

@@ -657,7 +657,13 @@ export class GatewayNamespace {
     if (last && last.role === 'assistant' && !last.tool_calls) shapeMessages = shapeMessages.slice(0, -1);
     shapeMessages.push({ role: 'user', content: shapeNudge });
     const shaped = await this._runToolLoopGather(
-      { ...options, tools: undefined, toolDefs: undefined, toolRefs: undefined, messages: shapeMessages },
+      {
+        ...options,
+        tools: undefined,
+        toolDefs: undefined,
+        toolRefs: undefined,
+        messages: shapeMessages,
+      },
       options.responseFormat,
       gathered.traceId,
     );
@@ -668,7 +674,7 @@ export class GatewayNamespace {
         ? [...gathered.messages, { role: 'user', content: shapeNudge }, shapedAssistant]
         : gathered.messages,
       iterations: gathered.iterations,
-      stoppedAtLimit: shaped.stoppedAtLimit,
+      stoppedAtLimit: gathered.stoppedAtLimit,
       traceId: gathered.traceId ?? shaped.traceId,
     };
   }
@@ -1471,6 +1477,7 @@ export class GatewayNamespace {
                 temperature: options.temperature,
                 maxTokens: options.maxTokens,
                 reasoningEffort: options.reasoningEffort,
+                extraBody: options.extraBody,
                 responseFormat: effectiveResponseFormat,
               },
               providerConfig,
@@ -1484,6 +1491,7 @@ export class GatewayNamespace {
                 temperature: options.temperature,
                 maxTokens: options.maxTokens,
                 reasoningEffort: options.reasoningEffort,
+                extraBody: options.extraBody,
                 responseFormat: effectiveResponseFormat,
                 promptVersionId: options.promptVersionId,
                 variables: options.variables,
@@ -1811,6 +1819,7 @@ export class GatewayNamespace {
       temperature: options.temperature,
       maxTokens: options.maxTokens,
       reasoningEffort: options.reasoningEffort,
+      extraBody: options.extraBody,
       responseFormat: args.responseFormat,
       promptVersionId: options.promptVersionId,
       variables: options.variables,

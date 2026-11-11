@@ -1167,7 +1167,8 @@ class GatewayNamespace:
         through ``state`` instead of being written to a span here.
 
         :param model: Requested model, used as the fallback when no frame names one.
-        :param body: The completion body; ``stream_options.include_usage`` is added.
+        :param body: The completion body, built with ``sdk_fields=_BYO_STREAM_FIELDS`` so
+            it already asks for ``stream_options.include_usage``.
         :param provider_config: Where to send it and which key to use.
         :param state: Filled as the stream runs and complete once it ends —
             ``start_time``, ``content``, ``tool_calls``, ``model``, ``finish_reason``
@@ -1178,8 +1179,7 @@ class GatewayNamespace:
         """
         check_provider_config(provider_config)
         _warn_if_cleartext_url(provider_base_url(provider_config), "provider.base_url")
-        stream_body = {**body, **_BYO_STREAM_FIELDS}
-        kind, url, headers, payload, format_tool = _byo_target(provider_config, stream_body, True)
+        kind, url, headers, payload, format_tool = _byo_target(provider_config, body, True)
         content = json.dumps(payload).encode("utf-8")
         start_time = _now_iso()
 
@@ -1212,7 +1212,7 @@ class GatewayNamespace:
                         if response.status_code >= 400:
                             await response.aread()
                             error_body = self._host._safe_json(response)
-                            hint = "" if translator else max_tokens_refusal_hint(stream_body, error_body)
+                            hint = "" if translator else max_tokens_refusal_hint(body, error_body)
                             raise AcruxCoreError(
                                 f"acruxcore: provider returned {response.status_code} streaming "
                                 f"{_byo_endpoint_label(kind)}{server_detail(error_body)}{hint}",
@@ -1569,6 +1569,7 @@ class GatewayNamespace:
         temperature: Optional[float] = ...,
         max_tokens: Optional[int] = ...,
         reasoning_effort: Optional[str] = ...,
+        extra_body: Optional[Dict[str, Any]] = ...,
         response_format: Optional[ResponseFormat] = ...,
         trace: Union[bool, Dict[str, Any]] = ...,
         provider: Optional[ProviderConfig] = ...,
@@ -1594,6 +1595,7 @@ class GatewayNamespace:
         temperature: Optional[float] = ...,
         max_tokens: Optional[int] = ...,
         reasoning_effort: Optional[str] = ...,
+        extra_body: Optional[Dict[str, Any]] = ...,
         response_format: Optional[ResponseFormat] = ...,
         trace: Union[bool, Dict[str, Any]] = ...,
         provider: Optional[ProviderConfig] = ...,
@@ -1617,6 +1619,7 @@ class GatewayNamespace:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         reasoning_effort: Optional[str] = None,
+        extra_body: Optional[Dict[str, Any]] = None,
         response_format: Optional[ResponseFormat] = None,
         trace: Union[bool, Dict[str, Any]] = True,
         provider: Optional[ProviderConfig] = None,
@@ -1630,6 +1633,20 @@ class GatewayNamespace:
 
         :param reasoning_effort: Sent as ``reasoning_effort`` on every round, as in
             :meth:`chat`.
+        :param extra_body: Further fields added to every round's request body, as in
+            :meth:`chat` — the same keys are refused. This is how a provider-specific
+            field reaches a tool loop, for example Anthropic extended thinking on a BYO
+            ``anthropic`` provider. Anthropic needs ``max_tokens`` above
+            ``budget_tokens``, and the SDK's default is 1024, so set both::
+
+                max_tokens=4000,
+                extra_body={"thinking": {"type": "enabled", "budget_tokens": 1024}}
+
+            Anthropic's thinking blocks are kept on the turn's first tool call and sent
+            back before its ``tool_use``, so later rounds keep working. On Anthropic, a
+            request that carries ``response_format`` leaves ``thinking`` out: the SDK
+            sends ``response_format`` as a forced tool, which Anthropic refuses with
+            thinking on.
         :param variables: The values the messages were rendered from, stamped on every
             ``llm`` span this loop records. Worth passing whenever ``prompt_version_id``
             is, because the two are one fact together: an evaluation dataset example *is*
@@ -1663,7 +1680,7 @@ class GatewayNamespace:
                     model, messages, tools=tools, tool_defs=tool_defs, tool_refs=tool_refs,
                     client_tools=client_tools, dispatch=dispatch, sync=sync,
                     max_iterations=max_iterations,
-                    temperature=temperature, max_tokens=max_tokens, reasoning_effort=reasoning_effort,
+                    temperature=temperature, max_tokens=max_tokens, reasoning_effort=reasoning_effort, extra_body=extra_body,
                     response_format=response_format, trace=trace, provider=provider,
                     gateway=gateway,
                     prompt_version_id=prompt_version_id, variables=variables,
@@ -1676,7 +1693,7 @@ class GatewayNamespace:
         gathered = await self._run_tool_loop_gather(
             model, messages, tools=tools, tool_defs=tool_defs, tool_refs=tool_refs,
             client_tools=client_tools, dispatch=dispatch, sync=sync, max_iterations=max_iterations,
-            temperature=temperature, max_tokens=max_tokens, reasoning_effort=reasoning_effort,
+            temperature=temperature, max_tokens=max_tokens, reasoning_effort=reasoning_effort, extra_body=extra_body,
             response_format=None if shaping else response_format,
             trace=trace, provider=provider, gateway=gateway,
             prompt_version_id=prompt_version_id,
@@ -1699,6 +1716,7 @@ class GatewayNamespace:
         shaped = await self._run_tool_loop_gather(
             model, convo, tools=None, tool_defs=None, tool_refs=None, dispatch=dispatch,
             sync=False, max_iterations=1, temperature=temperature, max_tokens=max_tokens, reasoning_effort=reasoning_effort,
+            extra_body=extra_body,
             response_format=response_format, trace=p2_trace, provider=provider,
             gateway=gateway,
             prompt_version_id=prompt_version_id, variables=variables,
@@ -1734,6 +1752,7 @@ class GatewayNamespace:
         temperature: Optional[float] = ...,
         max_tokens: Optional[int] = ...,
         reasoning_effort: Optional[str] = ...,
+        extra_body: Optional[Dict[str, Any]] = ...,
         response_format: Optional[ResponseFormat] = ...,
         trace: Union[bool, Dict[str, Any]] = ...,
         provider: Optional[ProviderConfig] = ...,
@@ -1760,6 +1779,7 @@ class GatewayNamespace:
         temperature: Optional[float] = ...,
         max_tokens: Optional[int] = ...,
         reasoning_effort: Optional[str] = ...,
+        extra_body: Optional[Dict[str, Any]] = ...,
         response_format: Optional[ResponseFormat] = ...,
         trace: Union[bool, Dict[str, Any]] = ...,
         provider: Optional[ProviderConfig] = ...,
@@ -1784,6 +1804,7 @@ class GatewayNamespace:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         reasoning_effort: Optional[str] = None,
+        extra_body: Optional[Dict[str, Any]] = None,
         response_format: Optional[ResponseFormat] = None,
         trace: Union[bool, Dict[str, Any]] = True,
         provider: Optional[ProviderConfig] = None,
@@ -1901,7 +1922,7 @@ class GatewayNamespace:
             sync=sync,
             max_iterations=max_iterations,
             temperature=temperature,
-            max_tokens=max_tokens, reasoning_effort=reasoning_effort,
+            max_tokens=max_tokens, reasoning_effort=reasoning_effort, extra_body=extra_body,
             response_format=response_format,
             trace=trace,
             provider=provider,
@@ -1926,6 +1947,7 @@ class GatewayNamespace:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         reasoning_effort: Optional[str] = None,
+        extra_body: Optional[Dict[str, Any]] = None,
         response_format: Optional[ResponseFormat] = None,
         trace: Union[bool, Dict[str, Any]] = True,
         provider: Optional[ProviderConfig] = None,
@@ -1984,14 +2006,14 @@ class GatewayNamespace:
                     result = await self._complete_via_provider(
                         model, convo, tools=byo_tool_schemas,
                         response_format=response_format,
-                        temperature=temperature, max_tokens=max_tokens, reasoning_effort=reasoning_effort,
+                        temperature=temperature, max_tokens=max_tokens, reasoning_effort=reasoning_effort, extra_body=extra_body,
                         provider_config=provider_config,
                     )
                 else:
                     result = await self._complete_once(
                         model, convo, tools=tool_defs, tool_refs=effective_refs or None,
                         response_format=response_format,
-                        temperature=temperature, max_tokens=max_tokens, reasoning_effort=reasoning_effort, extra_headers=extra_headers,
+                        temperature=temperature, max_tokens=max_tokens, reasoning_effort=reasoning_effort, extra_body=extra_body, extra_headers=extra_headers,
                         prompt_version_id=prompt_version_id, variables=variables, gateway=gateway,
                     )
 
@@ -2098,6 +2120,7 @@ class GatewayNamespace:
         temperature: Optional[float],
         max_tokens: Optional[int],
         reasoning_effort: Optional[str],
+        extra_body: Optional[Dict[str, Any]],
         response_format: Optional[ResponseFormat],
         trace: Union[bool, Dict[str, Any]],
         provider: Optional[ProviderConfig],
@@ -2169,7 +2192,7 @@ class GatewayNamespace:
                     byo_tool_schemas=byo_tool_schemas,
                     response_format=gather_response_format,
                     temperature=temperature,
-                    max_tokens=max_tokens, reasoning_effort=reasoning_effort,
+                    max_tokens=max_tokens, reasoning_effort=reasoning_effort, extra_body=extra_body,
                     provider_config=provider_config,
                     gateway=gateway,
                     prompt_version_id=prompt_version_id,
@@ -2299,6 +2322,7 @@ class GatewayNamespace:
             response_format=response_format,
             temperature=temperature,
             max_tokens=max_tokens, reasoning_effort=reasoning_effort,
+            extra_body=extra_body,
             provider_config=provider_config,
             gateway=gateway,
             prompt_version_id=prompt_version_id,
@@ -2344,6 +2368,7 @@ class GatewayNamespace:
         temperature: Optional[float],
         max_tokens: Optional[int],
         reasoning_effort: Optional[str],
+        extra_body: Optional[Dict[str, Any]],
         provider_config: Optional[ProviderConfig],
         gateway: Optional[GatewayControl],
         prompt_version_id: Optional[str],
@@ -2380,7 +2405,10 @@ class GatewayNamespace:
             prompt_version_id=prompt_version_id,
             variables=variables,
             gateway=gateway,
-            reasoning_effort=reasoning_effort,
+            reasoning_effort=reasoning_effort, extra_body=extra_body,
+            # Asks for the usage frame, and refuses an `extra_body` that sets
+            # `stream_options`, as on `stream()`.
+            sdk_fields=_BYO_STREAM_FIELDS if provider_config is not None else None,
         )
 
         content_parts: List[str] = []

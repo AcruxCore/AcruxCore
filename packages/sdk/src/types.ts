@@ -841,6 +841,18 @@ export interface RunToolLoopOptions {
    */
   reasoningEffort?: ReasoningEffort;
   /**
+   * Further fields added to every round's request body, as on `chat()` — the same keys
+   * are refused with `VALIDATION_ERROR`. This is how a provider-specific field reaches a
+   * tool loop, for example Anthropic extended thinking on a BYO `anthropic` provider:
+   * `maxTokens: 4000, extraBody: { thinking: { type: 'enabled', budget_tokens: 1024 } }`.
+   * Anthropic needs `maxTokens` above `budget_tokens`, and the SDK's default is 1024, so
+   * set both. Anthropic's thinking blocks are kept on the turn's first tool call and sent
+   * back before its `tool_use`, so later rounds keep working. On Anthropic, a request that
+   * carries `responseFormat` leaves `thinking` out: the SDK sends `responseFormat` as a
+   * forced tool, which Anthropic refuses with thinking on.
+   */
+  extraBody?: Record<string, unknown>;
+  /**
    * Structured-output format for the loop's final answer. May be combined with
    * `tools`/`toolDefs`/`toolRefs`: when it is, the SDK runs the tool-gathering loop
    * with the format stripped, then one follow-up call with `responseFormat` set and

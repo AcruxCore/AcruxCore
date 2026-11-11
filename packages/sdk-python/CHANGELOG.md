@@ -20,6 +20,9 @@ changelog: <https://docs.acruxcore.com/changelog>
 - `ToolCall["extra_content"]` carries Gemini's thought signature, and an Anthropic turn's thinking
   blocks on its first call. Both providers need them on the next turn. The tool loops send them
   back; a hand-written loop must keep the assistant message as is.
+- `run_tool_loop()` and `run_prompt_with_tools()` take `extra_body=`, sent on every round, so a BYO tool loop can turn on Anthropic or
+  Gemini thinking. On Anthropic, any request with `response_format` leaves `thinking`
+  out, since Anthropic refuses it on a forced tool ([#829](https://github.com/AcruxCore/AcruxCore/issues/829)).
 
 ### Changed
 

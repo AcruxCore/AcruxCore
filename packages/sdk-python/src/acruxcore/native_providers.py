@@ -334,6 +334,10 @@ def _anthropic_payload(body: Dict[str, Any], stream: bool) -> Tuple[Dict[str, An
         elif isinstance(tool_choice, dict):
             payload["tool_choice"] = {"type": "tool", "name": tool_choice["function"]["name"]}
     _merge_passthrough(payload, body)
+    if format_tool:
+        # Anthropic refuses a forced tool with thinking on, and the forced tool is the
+        # only way it returns response_format, so the structured answer wins.
+        payload.pop("thinking", None)
     return payload, (format_tool["name"] if format_tool else None)
 
 

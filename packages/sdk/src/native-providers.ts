@@ -328,6 +328,9 @@ function anthropicPayload(body: Json, stream: boolean): { payload: Json; formatT
     }
   }
   mergePassthrough(payload, body);
+  // Anthropic refuses a forced tool with thinking on, and the forced tool is the only way
+  // it returns response_format, so the structured answer wins.
+  if (formatTool) delete payload['thinking'];
   return { payload, formatTool: formatTool?.name };
 }
 
