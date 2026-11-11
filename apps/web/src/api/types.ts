@@ -907,7 +907,7 @@ export interface UpdateDatasetInput {
 
 /**
  * POST /datasets/from-feedback response. NOTE the intentional casing quirk
- * (documented in docs/api/datasets.md and the phase-5 FAQ): this endpoint
+ * (documented in docs/api/datasets.mdx): this endpoint
  * returns snake_case `overall_feedback`/`example_count`, unlike every other
  * dataset endpoint (`GET /datasets`, `GET /datasets/:id`, `PATCH /datasets/:id`)
  * which return camelCase `overallFeedback`/`exampleCount`. Not a typo — keep

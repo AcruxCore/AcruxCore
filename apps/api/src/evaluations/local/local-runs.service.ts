@@ -251,7 +251,7 @@ export class LocalRunsService {
     await assertModelRegistered(teamId, dto.model);
     const frozen = run.gradingSnapshot as LocalGradingSnapshot | null;
     // The version the run first graded with, so a judge prompt promoted mid-run
-    // does not switch the rubric halfway through (phase-5 FAQ Q5).
+    // does not switch the rubric halfway through.
     let judgePromptVersionId: string | null = null;
     if (dto.judge_prompt_id) {
       const named =

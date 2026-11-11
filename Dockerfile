@@ -7,7 +7,7 @@
 #
 # The docs site (apps/docs) no longer has a Docker target — it deploys as a
 # static build straight to Cloudflare Pages via .github/workflows/docs.yml,
-# not as a container (see cross-cutting-faq.md, "Docs hosting" entry).
+# not as a container.
 #
 # The web app has its own Dockerfile (apps/web/Dockerfile) because it ships as
 # static files behind nginx, not a Node process.

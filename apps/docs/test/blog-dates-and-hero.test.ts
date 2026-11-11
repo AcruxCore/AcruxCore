@@ -4,7 +4,7 @@
 // Dates: a post's "last updated" date is its last content change, set by hand
 // in front matter (`last_update.date`). It used to come from the last git
 // commit, so one sweep that rewrote a link host in every post re-dated 23 of 26
-// posts to the same day. See cross-cutting FAQ "Blog post dates".
+// posts to the same day. See cross-cutting FAQ Q132.
 //
 // Hero: the header image is the Largest Contentful Paint on the index and on
 // the post. It must load eagerly, at high priority, and from a copy sized for

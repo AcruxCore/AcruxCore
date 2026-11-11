@@ -33,7 +33,7 @@ export class TraceFacetsRepository {
    * against (`span.model`, the RESOLVED/upstream model id — e.g.
    * `gpt-4o-mini-2024-07-18` — not a `GatewayModel.publicName` like
    * `gpt-4o-mini`). A picker sourced from `GatewayModel` would offer values
-   * that can never match a real span (phase-5-faq).
+   * that can never match a real span.
    *
    * @param teamId - Team scope.
    */

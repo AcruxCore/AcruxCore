@@ -147,7 +147,7 @@ export class LocalRunsRepository {
    * Freezes the judge prompt version a run grades with, the first time the run
    * is graded with that judge prompt. Later calls get the frozen version back
    * even after a newer one is promoted, so every output of the run is graded by
-   * the same rubric (phase-5 FAQ Q5). Stored in `grading_snapshot` under
+   * the same rubric. Stored in `grading_snapshot` under
    * `judgePromptVersions`, keyed by judge prompt id, since the SDK names the
    * judge prompt on each judge call rather than when the run starts.
    *

@@ -145,7 +145,7 @@ export interface LocalExperimentConfig {
 
 /**
  * `experiment_runs.grading_snapshot` of a local run: the grading inputs frozen
- * so every output of the run is graded the same way (phase-5 FAQ Q5).
+ * so every output of the run is graded the same way.
  * `overallFeedback` is set at create; a run created before that has no key.
  * `judgePromptVersions` maps a judge prompt id to the version the run first
  * graded with, filled on that judge prompt's first judge call.

@@ -16,7 +16,7 @@ interface Channel {
 /**
  * The two ways to reach us. One inbox handles everything — questions, sales,
  * self-hosting, and security reports — so there is never a "wrong address" to
- * guess at (see cross-cutting-faq: single support inbox).
+ * guess at.
  */
 const CHANNELS: Channel[] = [
   {

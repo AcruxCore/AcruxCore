@@ -6,7 +6,7 @@ import { DEFAULT_NEXT } from '@/auth/next-param';
 import { REOPEN_COOKIE_BANNER_EVENT } from '@/ui';
 import { BrandLockup } from './brand';
 
-/** Public docs site (see cross-cutting-faq: docs.acruxcore.com). */
+/** Public docs site. */
 /**
  * The landing page's `<title>`, in one place.
  *

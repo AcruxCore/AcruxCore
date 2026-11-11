@@ -2,9 +2,7 @@ import { BLOG_URL, DOCS_URL, GITHUB_URL } from './marketing-chrome';
 
 /**
  * The competitors with a row on `/compare` and a matched-example blog post. Kept
- * in sync with the seven `acruxcore-vs-<slug>` posts and the
- * `comparing-open-source-alternatives` skill's competitor set (see
- * cross-cutting-faq: LangWatch and LiteLLM dropped).
+ * in sync with the seven `acruxcore-vs-<slug>` posts.
  */
 export type CompetitorSlug = 'langfuse' | 'phoenix' | 'opik' | 'helicone' | 'mlflow' | 'laminar' | 'agenta';
 
