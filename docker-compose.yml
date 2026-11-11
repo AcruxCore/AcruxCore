@@ -61,6 +61,10 @@ services:
       # Kept loopback rather than removed so `redis-cli ping`/local dev from
       # the host still works.
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    # Redis saves its queue to /data. A named volume keeps queued jobs
+    # (email, eval runs) when the container is recreated.
+    volumes:
+      - acruxcore-redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -240,6 +244,9 @@ services:
     #   - "${WEB_PORT:-8084}:80"
     networks:
       - mynetwork
+
+volumes:
+  acruxcore-redis-data:
 
 networks:
   mynetwork:
