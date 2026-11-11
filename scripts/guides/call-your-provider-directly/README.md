@@ -18,7 +18,7 @@ and `generateContent`). The AcruxCore key never calls a model; it only sends the
 - An AcruxCore API key. No model or credential needs to be stored in AcruxCore.
 - A key for at least one provider. A provider without a key is skipped.
 - Python 3.9+ or Node 18+.
-- The `anthropic` and `gemini` kinds need an SDK release after 0.21.0.
+- The `anthropic` and `gemini` kinds need SDK 0.22.0 or later.
 
 ## Setup
 

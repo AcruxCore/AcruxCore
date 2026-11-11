@@ -12,6 +12,8 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+## 0.22.0 — 2026-11-11
+
 ### Added
 
 - `provider.kind` takes `'anthropic'` and `'gemini'`. The SDK then calls the Messages API or
