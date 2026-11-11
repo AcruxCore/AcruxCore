@@ -15,11 +15,13 @@ describe('modelPriceText', () => {
     expect(modelPriceText(1.4, 4.4, null).text).toBe('in $1.4 / out $4.4 per 1M');
   });
 
+  // Issue #825: a team model without both prices also blocks the built-in price list for
+  // SDK and OTLP spans that name it, so the warning covers traces as well as gateway calls.
   it('says plainly that an unpriced model is counted as $0', () => {
     const result = modelPriceText(null, null);
     expect(result.text).toBe('no price set');
     expect(result.warning).toBe(
-      'Calls through this model are counted as $0 in Usage and budgets.',
+      'Calls through this model are counted as $0 in Usage and budgets. Traced spans for this model get no cost either.',
     );
   });
 
@@ -29,10 +31,10 @@ describe('modelPriceText', () => {
     expect(modelPriceText(0.1, null)).toEqual({
       text: 'in $0.1 / out — per 1M',
       warning:
-        'No output price set, so calls through this model are counted as $0 in Usage and budgets — input tokens included.',
+        'No output price set, so calls through this model are counted as $0 in Usage and budgets — input tokens included. Traced spans for this model get no cost either.',
     });
     expect(modelPriceText(null, 0.5).warning).toBe(
-      'No input price set, so calls through this model are counted as $0 in Usage and budgets — output tokens included.',
+      'No input price set, so calls through this model are counted as $0 in Usage and budgets — output tokens included. Traced spans for this model get no cost either.',
     );
   });
 });

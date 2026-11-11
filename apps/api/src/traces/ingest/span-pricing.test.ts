@@ -28,8 +28,8 @@ async function registerPricedModel(
   agent: Ctx['agent'],
   publicName: string,
   upstreamModel: string,
-  inputPricePerM: number,
-  outputPricePerM: number,
+  inputPricePerM: number | null,
+  outputPricePerM: number | null,
   cachedInputPricePerM?: number,
   provider: 'openai' | 'anthropic' = 'openai',
 ): Promise<void> {
@@ -43,8 +43,9 @@ async function registerPricedModel(
       publicName,
       upstreamModel,
       credentialId: conn.body.id,
-      inputPricePerM,
-      outputPricePerM,
+      // null leaves the price out of the body, which saves the model unpriced.
+      ...(inputPricePerM !== null ? { inputPricePerM } : {}),
+      ...(outputPricePerM !== null ? { outputPricePerM } : {}),
       ...(cachedInputPricePerM !== undefined ? { cachedInputPricePerM } : {}),
     })
     .expect(201);
@@ -175,7 +176,7 @@ describe('span cost at ingest — team model prices first, registry second', () 
     expect(await storedCost(ctx.teamId)).toBeCloseTo(cost(0.1, 0.4, 1000, 1000), 9);
   });
 
-  it('falls back to the built-in registry when the team has no price', async () => {
+  it('falls back to the built-in registry when the team has no model by that name', async () => {
     const ctx = await signup();
 
     await request(app)
@@ -185,6 +186,48 @@ describe('span cost at ingest — team model prices first, registry second', () 
       .expect(200);
 
     expect(await storedCost(ctx.teamId)).toBeCloseTo(cost(0.15, 0.6, 1000, 1000), 9);
+  });
+
+  it('leaves a span unpriced when the team saved that model with blank prices (#825)', async () => {
+    const ctx = await signup();
+    // The registry knows gpt-4o-mini, but the team's own model wins, and it has no price.
+    // The gateway records no cost for this model, so ingest must not invent one either.
+    await registerPricedModel(ctx.agent, 'gpt-4o-mini', 'gpt-4o-mini', null, null);
+
+    await request(app)
+      .post('/api/v1/traces')
+      .set('Authorization', `Bearer ${ctx.apiKey}`)
+      .send({ traces: [nativeLlmTrace('gpt-4o-mini', 1_000_000, 1_000_000)] })
+      .expect(200);
+    expect(await storedCost(ctx.teamId)).toBeNull();
+  });
+
+  it('leaves a span unpriced when the team model has only one of its two prices', async () => {
+    const ctx = await signup();
+    await registerPricedModel(ctx.agent, 'gpt-4o-mini', 'gpt-4o-mini', 0.1, null);
+
+    await request(app)
+      .post('/api/v1/traces/otlp')
+      .set('Authorization', `Bearer ${ctx.apiKey}`)
+      .set('Content-Type', 'application/json')
+      .send(otlpLlmSpan('gpt-4o-mini', 1000, 1000))
+      .expect(200);
+    expect(await storedCost(ctx.teamId)).toBeNull();
+  });
+
+  it('prefers a priced model over a newer unpriced one when both share the upstream id', async () => {
+    const ctx = await signup();
+    // Two public names for one upstream model. The unpriced one is saved last, so it is the
+    // newest edit; a span that only says `gpt-4o-mini` must still take the team's price.
+    await registerPricedModel(ctx.agent, 'fast-chat', 'gpt-4o-mini', 0.2, 0.8);
+    await registerPricedModel(ctx.agent, 'experimental', 'gpt-4o-mini', null, null);
+
+    await request(app)
+      .post('/api/v1/traces')
+      .set('Authorization', `Bearer ${ctx.apiKey}`)
+      .send({ traces: [nativeLlmTrace('gpt-4o-mini', 1000, 1000)] })
+      .expect(200);
+    expect(await storedCost(ctx.teamId)).toBeCloseTo(cost(0.2, 0.8, 1000, 1000), 9);
   });
 
   it('keeps a cost the client sent, and leaves an unknown model unpriced', async () => {

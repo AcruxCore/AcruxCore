@@ -11,6 +11,10 @@ export const PRICE_FIELD_HINT = "Your provider's price. If either price is blank
 export const CACHED_PRICE_FIELD_HINT =
   "Your provider's price for prompt tokens it serves from cache. Blank = 0.5× input (0.1× for Claude and Gemini, 0.25× for Gemini 1.5 and 2.0).";
 
+// A team model without both prices also stops the built-in price list from pricing SDK and
+// OTLP spans that name it, so those spans are stored with no cost too (issue #825).
+const SPAN_NOTE = 'Traced spans for this model get no cost either.';
+
 // Formats a nullable per-1M price for display.
 function price(n: number | null): string {
   return n == null ? '—' : `$${n}`;
@@ -22,7 +26,9 @@ function price(n: number | null): string {
  *
  * The gateway logs a null cost when *either* price is missing (`computeCostFromPrices`
  * in apps/api), and Usage and budgets add a null cost as $0. So one missing price
- * zeroes the whole call, not only the missing side, and the warning says so.
+ * zeroes the whole call, not only the missing side, and the warning says so. Traced spans
+ * that name the model are stored with no cost too, even when the built-in price list knows
+ * the model.
  *
  * @param inputPricePerM - USD per million input tokens, or null when unknown.
  * @param outputPricePerM - USD per million output tokens, or null when unknown.
@@ -37,7 +43,10 @@ export function modelPriceText(
   cachedInputPricePerM: number | null = null,
 ): { text: string; warning: string | null } {
   if (inputPricePerM == null && outputPricePerM == null) {
-    return { text: 'no price set', warning: 'Calls through this model are counted as $0 in Usage and budgets.' };
+    return {
+      text: 'no price set',
+      warning: `Calls through this model are counted as $0 in Usage and budgets. ${SPAN_NOTE}`,
+    };
   }
   const cached = cachedInputPricePerM == null ? '' : ` / cached ${price(cachedInputPricePerM)}`;
   const text = `in ${price(inputPricePerM)}${cached} / out ${price(outputPricePerM)} per 1M`;
@@ -45,6 +54,6 @@ export function modelPriceText(
   const [missing, other] = inputPricePerM == null ? ['input', 'output'] : ['output', 'input'];
   return {
     text,
-    warning: `No ${missing} price set, so calls through this model are counted as $0 in Usage and budgets — ${other} tokens included.`,
+    warning: `No ${missing} price set, so calls through this model are counted as $0 in Usage and budgets — ${other} tokens included. ${SPAN_NOTE}`,
   };
 }

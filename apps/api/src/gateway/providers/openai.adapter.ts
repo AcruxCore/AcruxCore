@@ -376,7 +376,9 @@ export class OpenAiAdapter implements ProviderAdapter {
         );
       }
 
-      for await (const data of parseSseStream(res.body, signal)) {
+      // A per-request dispatcher is closed in `finally`, so its socket is never reused and
+      // a drain after [DONE] would only hold that close open.
+      for await (const data of parseSseStream(res.body, signal, undefined, { drainAfterDone: !dispatcher })) {
         let frame: OpenAiStreamFrame;
         try {
           frame = JSON.parse(data) as OpenAiStreamFrame;

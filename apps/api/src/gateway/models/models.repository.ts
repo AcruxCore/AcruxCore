@@ -2,8 +2,8 @@ import { Prisma } from '@prisma/client';
 import type { GatewayModel } from '@prisma/client';
 import prisma from '../../shared/db/client';
 
-/** A priced model row plus the provider of the connection that serves it. */
-export type PricedGatewayModel = GatewayModel & { credential: { provider: string } };
+/** A team model row (priced or not) plus the provider of the connection that serves it. */
+export type GatewayModelWithProvider = GatewayModel & { credential: { provider: string } };
 
 /** Include shape used everywhere: bound credential + ordered fallbacks (each with its own credential). */
 const modelInclude = {
@@ -101,24 +101,26 @@ export class ModelsRepository {
   }
 
   /**
-   * Pricing lookup for traced spans: the team's models that carry both prices and whose
-   * public name or upstream id is one of `names`. Newest edit first, so when two models
-   * share an upstream id the caller can take the most recently priced one.
+   * Pricing lookup for traced spans: the team's models whose public name or upstream id is
+   * one of `names`, priced or not. Newest edit first, so the caller can break a tie between
+   * equally good matches by the most recent edit.
+   *
+   * Unpriced models are returned on purpose. A team model with a blank price means "no
+   * cost" (cross-cutting FAQ Q160, decision 9), the same as on the gateway, so the caller must see
+   * it to stop the built-in registry from pricing that model instead (issue #825).
    *
    * @param teamId - The team's UUID.
    * @param names - Model strings as spans report them; an empty list returns nothing.
    * @returns The rows with their connection's provider, which picks the default cache rate.
    */
-  async listPricedByNames(
+  async listByNames(
     teamId: string,
     names: string[],
-  ): Promise<PricedGatewayModel[]> {
+  ): Promise<GatewayModelWithProvider[]> {
     if (names.length === 0) return [];
     return prisma.gatewayModel.findMany({
       where: {
         teamId,
-        inputPricePerM: { not: null },
-        outputPricePerM: { not: null },
         OR: [{ publicName: { in: names } }, { upstreamModel: { in: names } }],
       },
       // The provider decides the default cache rate, as it does on the gateway.
