@@ -311,3 +311,27 @@ describe('OpenAiAdapter.chatCompletion caller deadline (issue #732)', () => {
     expect((err as ProviderError).retriable).toBe(true);
   });
 });
+
+describe('Gemini extra_content on the OpenAI wire', () => {
+  it('drops a tool call extra_content before an OpenAI upstream sees it', async () => {
+    // A conversation whose turn 1 came from Gemini 3 carries its thought signature in
+    // tool_calls[].extra_content. A fallback to OpenAI (or a model switch) must not send
+    // that unknown field, which strict OpenAI-format validators reject.
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => CANNED_OPENAI,
+    } as unknown as Response);
+    const call = { id: 'call_1', type: 'function' as const, function: { name: 'get_weather', arguments: '{}' } };
+    await openaiAdapter.chatCompletion({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'user', content: 'w?' },
+        { role: 'assistant', content: '', tool_calls: [{ ...call, extra_content: { google: { thought_signature: 'SIG' } } }] },
+        { role: 'tool', tool_call_id: 'call_1', content: '{}' },
+      ],
+    } as NormalizedRequest, { apiKey: 'sk-test' });
+    const body = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string);
+    expect(body.messages[1].tool_calls).toEqual([call]);
+  });
+});

@@ -9,6 +9,7 @@ import type {
   StreamChunk,
   ChatMessage,
   ContentPart,
+  ToolCall,
   ToolDefinition,
   ToolChoice,
   Usage,
@@ -27,7 +28,9 @@ function toGeminiTools(tools: ToolDefinition[] | undefined): Record<string, unkn
       functionDeclarations: tools.map((t) => ({
         name: t.function.name,
         ...(t.function.description ? { description: t.function.description } : {}),
-        parameters: t.function.parameters ?? { type: 'object', properties: {} },
+        // The full-JSON-Schema field: `parameters` is an OpenAPI subset that rejects
+        // `additionalProperties`, which every zod-generated schema carries.
+        parametersJsonSchema: t.function.parameters ?? { type: 'object', properties: {} },
       })),
     },
   ];
@@ -92,18 +95,44 @@ function toGeminiPart(part: ContentPart): Record<string, unknown> {
   return { inlineData: { mimeType: data.mediaType, data: data.data } };
 }
 
+/** The thought signature a tool call carries in `extra_content`, if any. */
+function thoughtSignatureOf(tc: ToolCall): string | undefined {
+  const google = tc.extra_content?.['google'] as { thought_signature?: unknown } | undefined;
+  return typeof google?.thought_signature === 'string' ? google.thought_signature : undefined;
+}
+
+/**
+ * Maps a Gemini `functionCall` part to a canonical tool call.
+ *
+ * Gemini 3 sends a call `id`; older models send none, and then the id is the function
+ * name, which is what this adapter always did. The part's `thoughtSignature` is kept in
+ * `extra_content`, because Gemini 3 refuses a follow-up turn that does not send it back.
+ */
+function toToolCall(part: GeminiPart): ToolCall {
+  const fc = part.functionCall!;
+  return {
+    id: fc.id || fc.name,
+    type: 'function',
+    function: { name: fc.name, arguments: JSON.stringify(fc.args ?? {}) },
+    ...(part.thoughtSignature ? { extra_content: { google: { thought_signature: part.thoughtSignature } } } : {}),
+  };
+}
+
 /**
  * Maps a canonical message to a Gemini `contents` entry, translating assistant
  * `tool_calls` into `functionCall` parts and `tool`-role results into
  * `functionResponse` parts. Returns null for `system` messages, which are hoisted
  * into `systemInstruction` by `buildGeminiPayload` instead.
  *
- * Gemini keys `functionResponse` by the **function name**, not a call id. Since the
- * canonical `tool` message carries `tool_call_id` (which for Gemini we set equal to
- * the function name when normalizing the response — see `chatCompletion`), reading
- * `m.tool_call_id` back here round-trips correctly.
+ * Gemini keys `functionResponse` by the **function name**, while a canonical `tool`
+ * message carries only `tool_call_id`. `names` maps each call id seen on an earlier
+ * assistant turn to its function name. An id that is not in it is read as the name
+ * itself, which is what the id was before Gemini sent ids of its own.
  */
-function toGeminiContent(m: ChatMessage): { role: 'user' | 'model'; parts: Record<string, unknown>[] } | null {
+function toGeminiContent(
+  m: ChatMessage,
+  names: Map<string, string>,
+): { role: 'user' | 'model'; parts: Record<string, unknown>[] } | null {
   if (m.role === 'system') return null;
   if (m.role === 'tool') {
     let response: unknown;
@@ -112,7 +141,11 @@ function toGeminiContent(m: ChatMessage): { role: 'user' | 'model'; parts: Recor
     } catch {
       response = { result: contentText(m.content) };
     }
-    return { role: 'user', parts: [{ functionResponse: { name: m.tool_call_id ?? '', response } }] };
+    const callId = m.tool_call_id ?? '';
+    const name = names.get(callId) ?? callId;
+    // A real Gemini call id goes back with the response, so Gemini can match parallel calls.
+    const withId = callId !== '' && callId !== name;
+    return { role: 'user', parts: [{ functionResponse: { name, response, ...(withId ? { id: callId } : {}) } }] };
   }
   if (m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0) {
     const parts: Record<string, unknown>[] = [];
@@ -125,7 +158,13 @@ function toGeminiContent(m: ChatMessage): { role: 'user' | 'model'; parts: Recor
       } catch {
         args = {};
       }
-      parts.push({ functionCall: { name: tc.function.name, args } });
+      names.set(tc.id, tc.function.name);
+      const withId = tc.id !== '' && tc.id !== tc.function.name;
+      const signature = thoughtSignatureOf(tc);
+      parts.push({
+        functionCall: { name: tc.function.name, args, ...(withId ? { id: tc.id } : {}) },
+        ...(signature ? { thoughtSignature: signature } : {}),
+      });
     }
     return { role: 'model', parts };
   }
@@ -145,9 +184,20 @@ function buildGeminiPayload(req: NormalizedRequest): Record<string, unknown> {
     .filter((m) => m.role === 'system')
     .map((m) => contentText(m.content))
     .join('\n');
-  const contents = req.messages
-    .map(toGeminiContent)
-    .filter((c): c is { role: 'user' | 'model'; parts: Record<string, unknown>[] } => c !== null);
+  const names = new Map<string, string>();
+  const contents: { role: 'user' | 'model'; parts: Record<string, unknown>[] }[] = [];
+  for (const m of req.messages) {
+    const content = toGeminiContent(m, names);
+    if (!content) continue;
+    // Gemini wants every response to a parallel call in one turn, right after the call.
+    const prev = contents[contents.length - 1];
+    const isResponse = 'functionResponse' in (content.parts[0] ?? {});
+    if (isResponse && prev && prev.role === 'user' && 'functionResponse' in (prev.parts[0] ?? {})) {
+      prev.parts.push(...content.parts);
+    } else {
+      contents.push(content);
+    }
+  }
 
   const generationConfig: Record<string, unknown> = {};
   if (req.temperature !== undefined) generationConfig['temperature'] = req.temperature;
@@ -156,14 +206,14 @@ function buildGeminiPayload(req: NormalizedRequest): Record<string, unknown> {
   if (req.stop !== undefined) {
     generationConfig['stopSequences'] = Array.isArray(req.stop) ? req.stop : [req.stop];
   }
-  // Gemini's `responseSchema` expects an OpenAPI-3.0-subset schema, not arbitrary JSON
-  // Schema — this passes the schema through as-is rather than validating/stripping
-  // unsupported keywords; an incompatible schema surfaces as a Gemini 400, not a silent
-  // gateway failure.
+  // `responseJsonSchema` takes full JSON Schema. The older `responseSchema` is an OpenAPI
+  // subset that 400s on `additionalProperties`, which OpenAI strict mode and every zod
+  // schema carry. The schema is passed as it is, so a schema Gemini cannot use surfaces
+  // as a Gemini 400, not a silent gateway failure.
   if (req.response_format !== undefined && req.response_format.type !== 'text') {
     generationConfig['responseMimeType'] = 'application/json';
     if (req.response_format.type === 'json_schema' && req.response_format.json_schema.schema) {
-      generationConfig['responseSchema'] = req.response_format.json_schema.schema;
+      generationConfig['responseJsonSchema'] = req.response_format.json_schema.schema;
     }
   }
 
@@ -184,10 +234,20 @@ function buildGeminiPayload(req: NormalizedRequest): Record<string, unknown> {
   return payload;
 }
 
+/** One part of a Gemini candidate's content. */
+interface GeminiPart {
+  text?: string;
+  /** Set on a thought summary: the model's reasoning, not part of its answer. */
+  thought?: boolean;
+  /** Gemini 3's signature over its reasoning; must be sent back with the call. */
+  thoughtSignature?: string;
+  functionCall?: { id?: string; name: string; args?: unknown };
+}
+
 interface GeminiResponseBody {
   candidates?: {
     content?: {
-      parts?: { text?: string; functionCall?: { name: string; args?: unknown } }[];
+      parts?: GeminiPart[];
       role?: string;
     };
     finishReason?: string;
@@ -338,19 +398,10 @@ export class GeminiAdapter implements ProviderAdapter {
       const candidate = data.candidates?.[0];
       const parts = candidate?.content?.parts ?? [];
       const text = parts
-        .filter((p) => typeof p.text === 'string')
+        .filter((p) => typeof p.text === 'string' && !p.thought)
         .map((p) => p.text as string)
         .join('');
-      // Gemini has no id for a function call, so we set tool_calls[].id = name — the
-      // same name `toGeminiContent` reads back from `tool_call_id` on the next turn's
-      // `tool` message, since Gemini's own `functionResponse` is name-keyed too.
-      const toolCalls = parts
-        .filter((p) => p.functionCall)
-        .map((p) => ({
-          id: p.functionCall!.name,
-          type: 'function' as const,
-          function: { name: p.functionCall!.name, arguments: JSON.stringify(p.functionCall!.args ?? {}) },
-        }));
+      const toolCalls = parts.filter((p) => p.functionCall).map(toToolCall);
       // Gemini's own finishReason is typically STOP even for a function-calling turn,
       // so force 'tool_calls' when the model actually emitted one, matching OpenAI's
       // and the Anthropic adapter's finish_reason semantics.
@@ -438,6 +489,9 @@ export class GeminiAdapter implements ProviderAdapter {
         );
       }
 
+      // Tool calls seen so far in this stream. Gemini sends each call whole, but parallel
+      // calls can arrive in separate frames, so the ordinal is counted across frames.
+      let callCount = 0;
       for await (const data of parseSseStream(res.body, signal)) {
         let frame: GeminiResponseBody;
         try {
@@ -448,29 +502,23 @@ export class GeminiAdapter implements ProviderAdapter {
         const candidate = frame.candidates?.[0];
         const parts = candidate?.content?.parts ?? [];
         const delta = parts
-          .filter((p) => typeof p.text === 'string')
+          .filter((p) => typeof p.text === 'string' && !p.thought)
           .map((p) => p.text as string)
           .join('');
-        // Gemini repeats the full functionCall per chunk rather than streaming partial
-        // JSON incrementally (unlike OpenAI/Anthropic), so each functionCall part here
-        // is already a complete call. `index` is the 0-based ordinal position among
-        // tool-call parts WITHIN this candidate's parts array (not the raw array
-        // position, and not carried across frames) — consistent with the "position
-        // among parallel tool calls" meaning `ToolCall.index` has for the other
-        // adapters, so a downstream consumer reassembling parallel calls can key on it.
+        // Gemini sends each functionCall whole rather than as partial JSON (unlike
+        // OpenAI/Anthropic), so each part here is a complete call. `index` is the call's
+        // ordinal among all tool calls in the stream, the "position among parallel tool
+        // calls" meaning `ToolCall.index` has for the other adapters, so a consumer
+        // reassembling calls by index keeps calls from separate frames apart.
         const toolCallParts = parts.filter((p) => p.functionCall);
         const toolCalls =
           toolCallParts.length > 0
-            ? toolCallParts.map((p, index) => ({
-                id: p.functionCall!.name,
-                type: 'function' as const,
-                function: { name: p.functionCall!.name, arguments: JSON.stringify(p.functionCall!.args ?? {}) },
-                index,
-              }))
+            ? toolCallParts.map((p) => ({ ...toToolCall(p), index: callCount++ }))
             : undefined;
-        // As in the non-streaming path, force 'tool_calls' when the frame carries a
-        // functionCall — Gemini's own finishReason is typically STOP even then.
-        const finishReason = toolCalls ? 'tool_calls' : mapFinishReason(candidate?.finishReason);
+        // As in the non-streaming path, report 'tool_calls' once the stream has carried
+        // a functionCall — Gemini's own finishReason is typically STOP even then.
+        const mapped = mapFinishReason(candidate?.finishReason);
+        const finishReason = toolCalls || (mapped !== null && callCount > 0) ? 'tool_calls' : mapped;
         const usage = frame.usageMetadata ? toUsage(frame.usageMetadata) : undefined;
         // Skip empty keep-alives, but always forward finish, usage, and tool-call frames.
         if (delta === '' && finishReason === null && !usage && !toolCalls) continue;

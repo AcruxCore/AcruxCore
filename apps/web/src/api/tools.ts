@@ -22,10 +22,19 @@ import type {
  * Reads all pages rather than the API's first-page default. Callers resolve bindings and
  * picker entries against this list by id, so a truncated one does not look like a short
  * list — it looks like the missing tools were deleted.
+ *
+ * @param options.pollWhileEmptyMs - Re-read at this interval while the team has no tool.
+ *   The Get started page sets it, so a tool saved by a script in a terminal ticks its
+ *   step without a reload. Polling stops once one tool exists.
  */
-export function useTools() {
+export function useTools(options: { pollWhileEmptyMs?: number } = {}) {
   return useQuery({
     queryKey: keys.tools,
+    // A failing read stops polling: data stays empty, so it would retry every interval.
+    refetchInterval: (query) =>
+      options.pollWhileEmptyMs && query.state.status === 'success' && !query.state.data?.length
+        ? options.pollWhileEmptyMs
+        : false,
     queryFn: () =>
       fetchAllPages<ToolSummary>(
         (page, limit) => api<Paginated<ToolSummary>>(`/tools?page=${page}&limit=${limit}`),

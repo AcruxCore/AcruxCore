@@ -43,11 +43,15 @@ from .errors import (
     server_detail,
 )
 from .http import request_with_retry
+from .native_providers import native_request, native_response, native_stream
 from .provider import (
+    NATIVE_KINDS,
     byo_max_tokens_field,
     check_provider_config,
     infer_provider_name,
     max_tokens_refusal_hint,
+    provider_base_url,
+    resolve_provider_kind,
 )
 from .response_format import normalize_response_format
 from .span_queue import SpanQueue
@@ -251,6 +255,91 @@ def _now_iso() -> str:
     from datetime import datetime, timezone
 
     return datetime.now(timezone.utc).isoformat()
+
+
+def _byo_target(
+    provider_config: ProviderConfig, body: Dict[str, Any], stream: bool,
+) -> Tuple[str, str, Dict[str, str], Dict[str, Any], Optional[str]]:
+    """Where one BYO call goes and what it sends, for every provider kind.
+
+    An ``"openai"`` or ``"openai_compatible"`` provider gets ``body`` as it is, at
+    ``{base_url}/chat/completions``. An ``"anthropic"`` or ``"gemini"`` provider gets the
+    native request :func:`native_request` builds from it.
+
+    :param provider_config: The BYO provider, already checked.
+    :param body: The OpenAI-shaped body.
+    :param stream: Whether this is a streamed call.
+    :returns: ``(kind, url, headers, payload, format_tool)``.
+    """
+    kind = resolve_provider_kind(provider_config)
+    base_url = provider_base_url(provider_config)
+    if kind in NATIVE_KINDS:
+        if body.get("reasoning_effort") is not None:
+            warnings.warn(
+                f"[acruxcore] reasoning_effort is not sent to a {kind} BYO provider: its "
+                f"native API has no such field. Set its own thinking control through "
+                f"extra_body instead.",
+                stacklevel=4,
+            )
+        url, headers, payload, format_tool = native_request(
+            kind, base_url, provider_config["api_key"], body, stream,
+        )
+        return kind, url, headers, payload, format_tool
+    headers = {
+        "Authorization": f"Bearer {provider_config['api_key']}",
+        "Content-Type": "application/json",
+    }
+    return kind, f"{base_url}/chat/completions", headers, body, None
+
+
+def _byo_endpoint_label(kind: str) -> str:
+    """What a BYO error message says was being called."""
+    return {"anthropic": "Anthropic messages", "gemini": "Gemini generateContent"}.get(
+        kind, "chat completions"
+    )
+
+
+def _fold_tool_call_delta(parts: Dict[int, Dict[str, Any]], tc: Dict[str, Any]) -> None:
+    """Fold one streamed tool-call delta into the calls being assembled, keyed by index.
+
+    ``extra_content`` (Gemini's thought signature) is kept: the next turn must send it
+    back, or a Gemini 3 model refuses the turn.
+    """
+    part = parts.setdefault(tc.get("index", 0), {"id": "", "name": "", "arguments": ""})
+    if tc.get("id"):
+        part["id"] = tc["id"]
+    fn = tc.get("function") or {}
+    if fn.get("name"):
+        part["name"] = fn["name"]
+    if fn.get("arguments"):
+        part["arguments"] += fn["arguments"]
+    if tc.get("extra_content"):
+        part["extra_content"] = tc["extra_content"]
+
+
+def _assemble_tool_calls(parts: Dict[int, Dict[str, Any]]) -> List[ToolCall]:
+    """The finished tool calls of one streamed turn, in index order."""
+    calls: List[ToolCall] = []
+    for _, p in sorted(parts.items()):
+        call: ToolCall = {
+            "id": p["id"], "type": "function",
+            "function": {"name": p["name"], "arguments": p["arguments"]},
+        }
+        if p.get("extra_content"):
+            call["extra_content"] = p["extra_content"]
+        calls.append(call)
+    return calls
+
+
+def _sse_data(frame: str) -> Optional[str]:
+    """The ``data`` of one SSE frame, or ``None`` when it has none.
+
+    OpenAI and Gemini send ``data:`` lines alone; Anthropic puts an ``event:`` line
+    before each one. A frame may carry several ``data:`` lines, which SSE joins with
+    a newline.
+    """
+    lines = [line[len("data:"):].lstrip() for line in frame.split("\n") if line.startswith("data:")]
+    return "\n".join(lines) if lines else None
 
 
 def _require_model(model: Optional[str]) -> str:
@@ -924,19 +1013,15 @@ class GatewayNamespace:
         extra_body: Optional[Dict[str, Any]] = None,
     ) -> ChatResult:
         check_provider_config(provider_config)
-        _warn_if_cleartext_url(provider_config["base_url"], "provider.base_url")
+        base_url = provider_base_url(provider_config)
+        _warn_if_cleartext_url(base_url, "provider.base_url")
         body = self._build_chat_body(
             model, messages, tools, tool_refs, tool_choice, response_format, temperature, max_tokens, False,
             byo=provider_config,
             reasoning_effort=reasoning_effort, extra_body=extra_body,
         )
-        base_url = provider_config["base_url"].rstrip("/")
-        url = f"{base_url}/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {provider_config['api_key']}",
-            "Content-Type": "application/json",
-        }
-        content = json.dumps(body).encode("utf-8")
+        kind, url, headers, payload, format_tool = _byo_target(provider_config, body, False)
+        content = json.dumps(payload).encode("utf-8")
 
         try:
             response = await request_with_retry(
@@ -950,15 +1035,18 @@ class GatewayNamespace:
 
         if response.status_code >= 400:
             error_body = self._host._safe_json(response)
+            hint = "" if kind in NATIVE_KINDS else max_tokens_refusal_hint(body, error_body)
             raise AcruxCoreError(
-                f"acruxcore: provider returned {response.status_code} calling chat "
-                f"completions{server_detail(error_body)}{max_tokens_refusal_hint(body, error_body)}",
+                f"acruxcore: provider returned {response.status_code} calling "
+                f"{_byo_endpoint_label(kind)}{server_detail(error_body)}{hint}",
                 PROVIDER_ERROR,
                 response.status_code,
                 error_body,
             )
 
         data = response.json()
+        if kind in NATIVE_KINDS:
+            data = native_response(kind, data, model, format_tool)
         choice = data["choices"][0]
         usage = _read_usage(data.get("usage"))
         return ChatResult(
@@ -970,7 +1058,7 @@ class GatewayNamespace:
             usage=usage,
             gateway=GatewayCallMeta(
                 request_id=data["id"],
-                provider=infer_provider_name(provider_config["base_url"]),
+                provider=infer_provider_name(base_url),
                 model=data["model"],
                 cost_usd=None,
                 cache=None,
@@ -1089,22 +1177,17 @@ class GatewayNamespace:
             failure.
         """
         check_provider_config(provider_config)
-        _warn_if_cleartext_url(provider_config["base_url"], "provider.base_url")
-        base_url = provider_config["base_url"].rstrip("/")
-        url = f"{base_url}/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {provider_config['api_key']}",
-            "Content-Type": "application/json",
-        }
+        _warn_if_cleartext_url(provider_base_url(provider_config), "provider.base_url")
         stream_body = {**body, **_BYO_STREAM_FIELDS}
-        content = json.dumps(stream_body).encode("utf-8")
+        kind, url, headers, payload, format_tool = _byo_target(provider_config, stream_body, True)
+        content = json.dumps(payload).encode("utf-8")
         start_time = _now_iso()
 
         accumulated_content = ""
         final_model = model
         final_finish_reason: Optional[str] = None
         usage: Optional[SpanUsage] = None
-        tool_call_parts: Dict[int, Dict[str, str]] = {}
+        tool_call_parts: Dict[int, Dict[str, Any]] = {}
 
         total_attempts = 1 + self._host._max_retries
         yielded_any = False
@@ -1119,6 +1202,7 @@ class GatewayNamespace:
                 final_finish_reason = None
                 usage = None
                 tool_call_parts = {}
+                translator = native_stream(kind, model, format_tool) if kind in NATIVE_KINDS else None
                 try:
                     async with self._host._client.stream("POST", url, headers=headers, content=content) as response:
                         if response.status_code == 429 or response.status_code >= 500:
@@ -1128,10 +1212,10 @@ class GatewayNamespace:
                         if response.status_code >= 400:
                             await response.aread()
                             error_body = self._host._safe_json(response)
+                            hint = "" if translator else max_tokens_refusal_hint(stream_body, error_body)
                             raise AcruxCoreError(
                                 f"acruxcore: provider returned {response.status_code} streaming "
-                                f"chat completions{server_detail(error_body)}"
-                                f"{max_tokens_refusal_hint(stream_body, error_body)}",
+                                f"{_byo_endpoint_label(kind)}{server_detail(error_body)}{hint}",
                                 PROVIDER_ERROR,
                                 response.status_code,
                                 error_body,
@@ -1141,43 +1225,43 @@ class GatewayNamespace:
                         buffer = ""
                         stream_done = False
                         async for chunk in response.aiter_bytes():
-                            buffer += decoder.decode(chunk)
+                            # Gemini ends its SSE lines with CRLF. Normalize the whole
+                            # buffer: a read can end between the \r and the \n.
+                            buffer = (buffer + decoder.decode(chunk)).replace("\r\n", "\n")
                             while "\n\n" in buffer:
                                 frame, buffer = buffer.split("\n\n", 1)
-                                frame = frame.strip()
-                                if not frame.startswith("data:"):
+                                data = _sse_data(frame.strip())
+                                if data is None:
                                     continue
-                                payload = frame[len("data:"):].strip()
-                                if payload == "[DONE]":
+                                if data == "[DONE]":
                                     stream_done = True
                                     break
-                                parsed = json.loads(payload)
-                                final_model = parsed.get("model") or final_model
-                                if parsed.get("usage"):
-                                    read = _read_usage(parsed["usage"])
-                                    usage = _span_usage(read) if read is not None else None
-                                choices = parsed.get("choices") or []
-                                choice = choices[0] if choices else {}
-                                if choice.get("finish_reason"):
-                                    final_finish_reason = choice["finish_reason"]
-                                delta = choice.get("delta") or {}
-                                if delta.get("content"):
-                                    accumulated_content += delta["content"]
-                                for tc in (delta.get("tool_calls") or []):
-                                    key = tc.get("index", 0)
-                                    part = tool_call_parts.setdefault(key, {"id": "", "name": "", "arguments": ""})
-                                    if tc.get("id"):
-                                        part["id"] = tc["id"]
-                                    fn = tc.get("function") or {}
-                                    if fn.get("name"):
-                                        part["name"] = fn["name"]
-                                    if fn.get("arguments"):
-                                        part["arguments"] += fn["arguments"]
-                                yielded_any = True
-                                yield ChatChunk(
-                                    id=parsed.get("id"), model=parsed.get("model"),
-                                    delta=delta, finish_reason=choice.get("finish_reason"),
-                                )
+                                if translator is None:
+                                    frames = [json.loads(data)]
+                                else:
+                                    frames = translator.feed(json.loads(data))
+                                    stream_done = translator.done
+                                for parsed in frames:
+                                    final_model = parsed.get("model") or final_model
+                                    if parsed.get("usage"):
+                                        read = _read_usage(parsed["usage"])
+                                        usage = _span_usage(read) if read is not None else None
+                                    choices = parsed.get("choices") or []
+                                    choice = choices[0] if choices else {}
+                                    if choice.get("finish_reason"):
+                                        final_finish_reason = choice["finish_reason"]
+                                    delta = choice.get("delta") or {}
+                                    if delta.get("content"):
+                                        accumulated_content += delta["content"]
+                                    for tc in (delta.get("tool_calls") or []):
+                                        _fold_tool_call_delta(tool_call_parts, tc)
+                                    yielded_any = True
+                                    yield ChatChunk(
+                                        id=parsed.get("id"), model=parsed.get("model"),
+                                        delta=delta, finish_reason=choice.get("finish_reason"),
+                                    )
+                                if stream_done:
+                                    break
                             if stream_done:
                                 break
                         break
@@ -1203,10 +1287,7 @@ class GatewayNamespace:
             state["model"] = final_model
             state["finish_reason"] = final_finish_reason
             state["usage"] = usage
-            state["tool_calls"] = [
-                {"id": p["id"], "type": "function", "function": {"name": p["name"], "arguments": p["arguments"]}}
-                for _, p in sorted(tool_call_parts.items())
-            ]
+            state["tool_calls"] = _assemble_tool_calls(tool_call_parts)
             state["settled"] = outcome != "failed"
             state["client_closed"] = outcome == "client_closed" and not stream_done
 
@@ -1285,7 +1366,7 @@ class GatewayNamespace:
             "startTime": state["start_time"],
             "endTime": _now_iso(),
             "model": state["model"],
-            "provider": infer_provider_name(provider_config["base_url"]),
+            "provider": infer_provider_name(provider_base_url(provider_config)),
             "input": {"messages": messages},
             "output": output,
         }
@@ -2303,7 +2384,7 @@ class GatewayNamespace:
         )
 
         content_parts: List[str] = []
-        tool_call_parts: Dict[int, Dict[str, str]] = {}
+        tool_call_parts: Dict[int, Dict[str, Any]] = {}
         finish_reason: Optional[str] = None
 
         def take(chunk: ChatChunk) -> Optional[str]:
@@ -2313,16 +2394,7 @@ class GatewayNamespace:
                 finish_reason = chunk.finish_reason
             delta = chunk.delta or {}
             for tc in delta.get("tool_calls") or []:
-                part = tool_call_parts.setdefault(
-                    tc.get("index", 0), {"id": "", "name": "", "arguments": ""}
-                )
-                if tc.get("id"):
-                    part["id"] = tc["id"]
-                fn = tc.get("function") or {}
-                if fn.get("name"):
-                    part["name"] = fn["name"]
-                if fn.get("arguments"):
-                    part["arguments"] += fn["arguments"]
+                _fold_tool_call_delta(tool_call_parts, tc)
             text = delta.get("content")
             if text:
                 content_parts.append(text)
@@ -2374,14 +2446,7 @@ class GatewayNamespace:
             if trace_enabled and state.get("trace_id") is None and gateway_meta:
                 state["trace_id"] = gateway_meta.trace_id
 
-        assembled: List[ToolCall] = [
-            {
-                "id": p["id"],
-                "type": "function",
-                "function": {"name": p["name"], "arguments": p["arguments"]},
-            }
-            for _, p in sorted(tool_call_parts.items())
-        ]
+        assembled = _assemble_tool_calls(tool_call_parts)
         message: Message = {"role": "assistant", "content": "".join(content_parts)}
         if assembled:
             message["tool_calls"] = assembled

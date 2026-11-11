@@ -41,12 +41,22 @@ class ToolCallFunction(TypedDict):
     arguments: str
 
 
-class ToolCall(TypedDict):
-    """A tool call emitted by the model."""
-
+class _ToolCallRequired(TypedDict):
     id: str
     type: Literal["function"]
     function: ToolCallFunction
+
+
+class ToolCall(_ToolCallRequired, total=False):
+    """A tool call emitted by the model.
+
+    ``extra_content`` carries provider data that must go back with the call on the next
+    turn. Today that is only Gemini's ``{"google": {"thought_signature": ...}}``: a
+    Gemini 3 model refuses a follow-up turn whose function call has lost it. Keep the
+    tool call as you received it and the SDK and the gateway send it back for you.
+    """
+
+    extra_content: Dict[str, Any]
 
 
 class CacheControl(TypedDict):
@@ -139,11 +149,10 @@ class ToolRef(TypedDict, total=False):
 
 
 #: What kind of server a BYO provider is. Mirrors the gateway's connection types.
-ProviderKind = Literal["openai", "openai_compatible"]
+ProviderKind = Literal["openai", "openai_compatible", "anthropic", "gemini"]
 
 
 class _ProviderConfigRequired(TypedDict):
-    base_url: str
     api_key: str
 
 
@@ -155,15 +164,30 @@ class ProviderConfig(_ProviderConfigRequired, total=False):
     hop is skipped entirely, and ``api_key`` is sent only to ``base_url``, never
     to us.
 
-    ``kind`` says what kind of server ``base_url`` is, and so the name ``max_tokens``
-    is sent under. ``"openai"`` sends ``max_completion_tokens``, which OpenAI's
-    reasoning models (gpt-5, the o-series) require. ``"openai_compatible"`` sends
-    ``max_tokens``, the only name many compatible servers know. Leave it out and the
-    host decides: OpenAI's own hosts (``api.openai.com`` and its regional hosts) count
-    as ``"openai"``, every other host as ``"openai_compatible"``. Set ``"openai"`` for
-    Azure OpenAI or a proxy in front of OpenAI.
+    ``kind`` says what kind of server ``base_url`` is, and so which API the SDK
+    speaks to it:
+
+    - ``"anthropic"`` calls Anthropic's native Messages API (``POST {base_url}/messages``,
+      key sent as ``x-api-key``). ``base_url`` defaults to ``https://api.anthropic.com/v1``.
+    - ``"gemini"`` calls Gemini's native API
+      (``POST {base_url}/models/{model}:generateContent``, key sent as
+      ``x-goog-api-key``). ``base_url`` defaults to
+      ``https://generativelanguage.googleapis.com/v1beta``.
+    - ``"openai"`` calls OpenAI chat completions and sends ``max_tokens=`` as
+      ``max_completion_tokens``, which OpenAI's reasoning models (gpt-5, the o-series)
+      require. Set it for Azure OpenAI or a proxy in front of OpenAI.
+    - ``"openai_compatible"`` calls OpenAI chat completions and sends ``max_tokens``, the
+      only name many compatible servers know (OpenRouter, Groq, Together, vLLM, ...).
+
+    For the two native kinds, the SDK translates the request and the reply, so
+    ``chat()``, ``stream()`` and the tool loops take and return the same
+    OpenAI-shaped messages for every provider. Leave ``kind`` out and the host
+    decides: ``api.anthropic.com`` is ``"anthropic"``, Google's ``generativelanguage``
+    host is ``"gemini"`` (unless the path ends in ``/openai``), OpenAI's own hosts are
+    ``"openai"``, and every other host is ``"openai_compatible"``.
     """
 
+    base_url: str
     kind: ProviderKind
 
 

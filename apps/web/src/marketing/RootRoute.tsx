@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
+import { DEFAULT_NEXT } from '@/auth/next-param';
 import { LandingPage } from './LandingPage';
 
 /**
@@ -27,8 +28,10 @@ export function RootRoute() {
   const location = useLocation();
   const fromLogo = Boolean((location.state as { fromLogo?: boolean } | null)?.fromLogo);
 
+  // Same place sign-in sends people: Get started, which passes a set-up team on to
+  // its prompts (cross-cutting FAQ Q160).
   if (isAuthenticated && !fromLogo) {
-    return <Navigate to="/prompts" replace />;
+    return <Navigate to={DEFAULT_NEXT} replace />;
   }
 
   return <LandingPage />;

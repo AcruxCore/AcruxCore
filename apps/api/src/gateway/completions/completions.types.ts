@@ -24,6 +24,9 @@ export const ToolCallSchema = z.object({
   id: z.string().min(1),
   type: z.literal('function'),
   function: z.object({ name: z.string().min(1), arguments: z.string() }),
+  // Gemini's thought signature, sent back the way the gateway handed it out. Without
+  // it here, Zod stripped the field and a Gemini 3 tool loop failed on its second turn.
+  extra_content: z.record(z.unknown()).optional(),
 });
 
 /**

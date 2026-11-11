@@ -95,16 +95,27 @@ function reasoningTokens(details: { reasoning_tokens?: number } | null | undefin
   return typeof n === 'number' && n > 0 ? { reasoning_tokens: n } : {};
 }
 
+/** Gemini's own OpenAI-compatible endpoint, the one OpenAI-format upstream that reads
+ * `tool_calls[].extra_content` (its thought signature) and needs it back. */
+const GEMINI_OPENAI_HOST = 'generativelanguage.googleapis.com';
+
 /**
  * Puts a message's `cache_control` marker where the upstream expects it, or removes it.
+ *
+ * It also drops `tool_calls[].extra_content`, a Gemini thought signature from an earlier
+ * turn, unless the upstream is Gemini's own OpenAI-compatible endpoint: other OpenAI-format
+ * servers do not know the field, and strict ones reject it.
  *
  * Anthropic models behind an OpenAI-shaped API (OpenRouter) read the marker only from inside a
  * content block, so a marked string becomes `[{ type: 'text', text, cache_control }]`. Every other
  * model gets the marker stripped: OpenAI rejects unknown message fields, and a server such as vLLM
  * may reject a content-block array — the same prompt version must still run there (issue #552).
  */
-function toWireMessage(m: ChatMessage, anthropicModel: boolean): Record<string, unknown> {
+function toWireMessage(m: ChatMessage, anthropicModel: boolean, keepExtraContent: boolean): Record<string, unknown> {
   const { cache_control, ...rest } = m;
+  if (rest.tool_calls && !keepExtraContent) {
+    rest.tool_calls = rest.tool_calls.map(({ extra_content: _dropped, ...call }) => call);
+  }
   if (!cache_control || !anthropicModel || m.content === null) return rest;
   if (typeof m.content !== 'string') {
     const parts = m.content.map((p) => ({ ...p }));
@@ -137,6 +148,14 @@ function errorFromSuccessBody(data: { error?: OpenAiResponseBody['error'] }): Pr
 
 const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
 
+function hostOf(url: string): string | undefined {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Adapter for the OpenAI Chat Completions wire format. Because our canonical shape
  * IS the OpenAI shape, request and response are near passthroughs. The same class
@@ -168,12 +187,13 @@ export class OpenAiAdapter implements ProviderAdapter {
   }
 
   /** Build the shared OpenAI request body (model + messages + sampling params). */
-  private buildPayload(req: NormalizedRequest): Record<string, unknown> {
+  private buildPayload(req: NormalizedRequest, baseUrl: string): Record<string, unknown> {
     // Native OpenAI never takes the marker, whatever the model is called.
     const anthropicModel = this.provider === 'openai_compatible' && isAnthropicModel(req.model);
+    const keepExtraContent = hostOf(baseUrl) === GEMINI_OPENAI_HOST;
     const payload: Record<string, unknown> = {
       model: req.model,
-      messages: req.messages.map((m) => toWireMessage(m, anthropicModel)),
+      messages: req.messages.map((m) => toWireMessage(m, anthropicModel, keepExtraContent)),
     };
     if (req.temperature !== undefined) payload['temperature'] = req.temperature;
     if (req.max_tokens !== undefined) {
@@ -210,7 +230,7 @@ export class OpenAiAdapter implements ProviderAdapter {
     const baseUrl = this.resolveBaseUrl(creds);
     const url = `${baseUrl}/chat/completions`;
 
-    const payload: Record<string, unknown> = { ...this.buildPayload(req), stream: false };
+    const payload: Record<string, unknown> = { ...this.buildPayload(req, baseUrl), stream: false };
     const usesCustomBaseUrl = creds.baseUrl !== undefined;
 
     let res: Response;
@@ -305,7 +325,7 @@ export class OpenAiAdapter implements ProviderAdapter {
     const baseUrl = this.resolveBaseUrl(creds);
     const url = `${baseUrl}/chat/completions`;
     const payload: Record<string, unknown> = {
-      ...this.buildPayload(req),
+      ...this.buildPayload(req, baseUrl),
       stream: true,
       stream_options: { include_usage: true },
     };

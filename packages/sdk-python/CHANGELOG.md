@@ -12,6 +12,34 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+### Added
+
+- `provider["kind"]` takes `"anthropic"` and `"gemini"`. The SDK then calls the Messages API or
+  `generateContent` and translates both ways, so messages stay OpenAI-shaped. `base_url` is
+  optional for these two ([guide](https://docs.acruxcore.com/docs/guides/call-your-provider-directly)).
+- `ToolCall["extra_content"]` carries Gemini's thought signature, and an Anthropic turn's thinking
+  blocks on its first call. Both providers need them on the next turn. The tool loops send them
+  back; a hand-written loop must keep the assistant message as is.
+
+### Changed
+
+- **Breaking for a kind-less BYO `base_url` on `api.anthropic.com`**, or on Google's
+  `generativelanguage` host without `/openai`: it now uses that provider's native API.
+  See "Migrating from 0.21", step 2.
+- `reasoning_effort=` is not sent to an Anthropic or Gemini BYO provider, whose APIs have no such
+  field; the SDK warns instead. Pass the native control through `extra_body`.
+- **Breaking for code that reads `provider["base_url"]`.** It is optional now, since the two
+  native kinds have a default host. See "Migrating from 0.21".
+
+### Migrating from 0.21
+
+1. If your code reads `provider["base_url"]`, use `provider.get("base_url")` and handle `None`.
+   A type checker (mypy, pyright) reports the place; at runtime the error is a `KeyError` only for
+   a provider dict that leaves `base_url` out.
+2. To keep the OpenAI-compatible endpoint on those two hosts, add `"kind": "openai_compatible"`.
+   Neither a type checker nor the runtime flags this: search for `base_url` on those hosts. Calls
+   that send OpenAI-only `extra_body` fields or `response_format` with `tools` need it.
+
 ## 0.21.0 — 2026-11-10
 
 ### Added

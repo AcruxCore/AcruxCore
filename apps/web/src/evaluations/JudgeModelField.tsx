@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { useModels } from '@/api';
+import { useConnections, useModels } from '@/api';
 import { Button, Field, Select } from '@/ui';
 import { ModelDialog } from '@/gateway/ModelDialog';
+import { StoredKeyRequired } from '@/gateway/StoredKeyRequired';
 
 interface JudgeModelFieldProps {
   /** DOM id for the select; the label is tied to it. Unique per screen. */
@@ -30,6 +31,9 @@ interface JudgeModelFieldProps {
  */
 export function JudgeModelField({ id, value, onChange, grades, against = 'the example criteria' }: JudgeModelFieldProps) {
   const gatewayModels = useModels();
+  // With no credential, "Create model" opens a form that cannot be completed.
+  const connections = useConnections();
+  const hasCredential = (connections.data?.length ?? 0) > 0 || !connections.isSuccess;
   const [showCreateModel, setShowCreateModel] = useState(false);
   const models = gatewayModels.data ?? [];
   // Only a successful, empty list means "no models". A failed request must not
@@ -54,6 +58,8 @@ export function JudgeModelField({ id, value, onChange, grades, against = 'the ex
             Try again
           </Button>
         </div>
+      ) : none && !hasCredential ? (
+        <StoredKeyRequired compact feature="The judge" />
       ) : none ? (
         <div className="flex items-center gap-2 rounded-md border border-line-soft bg-bg p-2.5">
           <p className="flex-1 text-[12px] text-faint">No models registered yet.</p>

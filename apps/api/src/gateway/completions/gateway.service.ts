@@ -1487,7 +1487,7 @@ export class GatewayService {
     // Tool-call fragments, keyed by the wire `index` that correlates them across
     // frames. A streamed turn never yields a whole message, so without this the
     // trace payload for a tool-calling turn would record an empty output.
-    const toolCallParts = new Map<number, { id: string; name: string; arguments: string }>();
+    const toolCallParts = new Map<number, { id: string; name: string; arguments: string; extra_content?: Record<string, unknown> }>();
 
     // T1: minted BEFORE the first chunk so the controller can flush
     // x-gateway-trace-id / x-gateway-span-id, even though the span itself is only
@@ -1515,6 +1515,7 @@ export class GatewayService {
             if (tc.id) part.id = tc.id;
             if (tc.function.name) part.name = tc.function.name;
             part.arguments += tc.function.arguments;
+            if (tc.extra_content) part.extra_content = tc.extra_content;
             toolCallParts.set(key, part);
           }
           yield chunk;
@@ -1627,7 +1628,12 @@ export class GatewayService {
       // payload reads the same as a non-streamed one.
       const assembled: ToolCall[] = [...toolCallParts.entries()]
         .sort(([a], [b]) => a - b)
-        .map(([, p]) => ({ id: p.id, type: 'function' as const, function: { name: p.name, arguments: p.arguments } }));
+        .map(([, p]) => ({
+          id: p.id,
+          type: 'function' as const,
+          function: { name: p.name, arguments: p.arguments },
+          ...(p.extra_content ? { extra_content: p.extra_content } : {}),
+        }));
       await recordGatewaySpan({
         ctx: { ...ctx, traceId },
         result: {

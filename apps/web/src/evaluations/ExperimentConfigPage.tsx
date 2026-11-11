@@ -13,6 +13,7 @@ import {
   useVersions,
 } from '@/api';
 import type { Experiment } from '@/api';
+import { LOCAL_EXPERIMENT_GUIDE_URL, StoredKeyRequired } from '@/gateway/StoredKeyRequired';
 import { Button, Empty, Field, Input, PageSpinner, Select } from '@/ui';
 import { JudgeModelField } from './JudgeModelField';
 import { JudgePromptField, useJudgePromptHasNoVersion } from './JudgePromptField';
@@ -226,7 +227,7 @@ export function ExperimentConfigPage() {
           ) : gatewayModels.isError ? (
             <Empty title="Couldn’t load models" description="Something went wrong. Try again." />
           ) : (gatewayModels.data ?? []).length === 0 ? (
-            <Empty title="No models registered" description="Register a model under Gateway → Models first." />
+            <StoredKeyRequired compact feature="An evaluation run" alternative={<>To evaluate a dataset with your own key instead, run a{' '}<a href={LOCAL_EXPERIMENT_GUIDE_URL} target="_blank" rel="noreferrer" className="text-accent hover:underline">local experiment</a>: the SDK runs your app and scorers on your machine and uploads the results as a normal run.</>} />
           ) : (
             <ModelCheckboxList
               models={gatewayModels.data ?? []}

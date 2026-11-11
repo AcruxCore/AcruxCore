@@ -36,6 +36,13 @@ export interface ToolCall {
   function: { name: string; arguments: string };
   /** Position among parallel tool calls; populated on streaming deltas to correlate fragments of the same call across chunks, typically absent/unused on complete non-streaming tool calls. */
   index?: number;
+  /**
+   * Provider data the call must carry back on the next turn. Today only Gemini's
+   * `{ google: { thought_signature } }`: a Gemini 3 model answers a follow-up turn whose
+   * function call lost its signature with a 400. Same field and shape as Gemini's own
+   * OpenAI-compatible endpoint uses.
+   */
+  extra_content?: Record<string, unknown>;
 }
 
 /**

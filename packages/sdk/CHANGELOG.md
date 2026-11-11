@@ -12,6 +12,33 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+### Added
+
+- `provider.kind` takes `'anthropic'` and `'gemini'`. The SDK then calls the Messages API or
+  `generateContent` and translates both ways, so messages stay OpenAI-shaped. `baseUrl` is
+  optional for these two ([guide](https://docs.acruxcore.com/docs/guides/call-your-provider-directly)).
+- `ToolCall.extra_content` carries Gemini's thought signature, and an Anthropic turn's thinking
+  blocks on its first call. Both providers need them on the next turn. The tool loops send them
+  back; a hand-written loop must keep the assistant message as is.
+
+### Changed
+
+- **Breaking for a kind-less BYO `baseUrl` on `api.anthropic.com`**, or on Google's
+  `generativelanguage` host without `/openai`: it now uses that provider's native API.
+  See "Migrating from 0.21", step 2.
+- `reasoningEffort` is not sent to an Anthropic or Gemini BYO provider, whose APIs have no such
+  field; the SDK warns instead. Pass the native control through `extraBody`.
+- **Breaking for code that reads `ProviderConfig.baseUrl`.** It is optional now, since the two
+  native kinds have a default host. See "Migrating from 0.21".
+
+### Migrating from 0.21
+
+1. If your code reads `provider.baseUrl` as a `string`, handle `undefined` too. The compiler
+   catches this: `tsc` reports the place. Code that only passes a `provider` in is unchanged.
+2. To keep the OpenAI-compatible endpoint on those two hosts, add `kind: 'openai_compatible'`.
+   Neither `tsc` nor the runtime flags this: search your code for `baseUrl` on those hosts. Calls
+   that send OpenAI-only `extraBody` fields or `responseFormat` with `tools` need it.
+
 ## 0.21.0 — 2026-11-10
 
 ### Added

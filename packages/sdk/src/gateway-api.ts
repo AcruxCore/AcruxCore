@@ -5,7 +5,17 @@ import { parseToolArgs, resolveParametersSchema, isAcruxTool } from './tools';
 import type { AcruxTool } from './tools';
 import { isToolOutcome } from './tool-result';
 import { validateAgainstSchema } from './result-schema';
-import { byoMaxTokensField, checkProviderConfig, inferProviderName, maxTokensRefusalHint } from './provider';
+import {
+  NATIVE_KINDS,
+  byoMaxTokensField,
+  checkProviderConfig,
+  inferProviderName,
+  maxTokensRefusalHint,
+  providerBaseUrl,
+  resolveProviderKind,
+} from './provider';
+import { nativeRequest, nativeResponse, nativeStream } from './native-providers';
+import type { NativeKind, NativeStream } from './native-providers';
 import { resolveResponseFormat } from './responseFormat';
 import type { GatewayNamespaceHost } from './host';
 import { joinStep, routeReport, stepTraceName } from './steps';
@@ -119,6 +129,89 @@ const TOKEN_LIMIT_FIELDS = new Set(['max_tokens', 'max_completion_tokens']);
 /** True when the body already carries a token limit under either name. */
 function hasTokenLimit(body: Record<string, unknown>): boolean {
   return [...TOKEN_LIMIT_FIELDS].some((k) => k in body);
+}
+
+/** Where one BYO call goes and what it sends, for every provider kind. */
+interface ByoTarget {
+  kind: import('./types').ProviderKind;
+  url: string;
+  headers: Record<string, string>;
+  payload: Record<string, unknown>;
+  formatTool?: string;
+}
+
+/**
+ * Resolves one BYO call's target. An `'openai'` or `'openai_compatible'` provider gets
+ * `body` as it is, at `{baseUrl}/chat/completions`. An `'anthropic'` or `'gemini'`
+ * provider gets the native request `nativeRequest` builds from it.
+ *
+ * @param providerConfig - The BYO provider, already checked.
+ * @param body - The OpenAI-shaped body.
+ * @param stream - Whether this is a streamed call.
+ * @throws {acruxcoreError} `VALIDATION_ERROR` for a body the native API cannot take.
+ */
+function byoTarget(providerConfig: import('./types').ProviderConfig, body: Record<string, unknown>, stream: boolean): ByoTarget {
+  const kind = resolveProviderKind(providerConfig);
+  const baseUrl = providerBaseUrl(providerConfig);
+  if (NATIVE_KINDS.includes(kind)) {
+    if (body['reasoning_effort'] !== undefined) {
+      console.warn(
+        `[acruxcore] reasoningEffort is not sent to a ${kind} BYO provider: its native API has no such field. ` +
+          'Set its own thinking control through extraBody instead.',
+      );
+    }
+    return { kind, ...nativeRequest(kind as NativeKind, baseUrl, providerConfig.apiKey, body, stream) };
+  }
+  return {
+    kind,
+    url: `${baseUrl}/chat/completions`,
+    headers: { 'Authorization': `Bearer ${providerConfig.apiKey}`, 'Content-Type': 'application/json' },
+    payload: body,
+  };
+}
+
+/** What a BYO error message says was being called. */
+function byoEndpointLabel(kind: string): string {
+  return kind === 'anthropic' ? 'Anthropic messages' : kind === 'gemini' ? 'Gemini generateContent' : 'chat completions';
+}
+
+/**
+ * The `data` of one SSE frame, or `undefined` when it has none. OpenAI and Gemini send
+ * `data:` lines alone; Anthropic puts an `event:` line before each one.
+ */
+function sseData(frame: string): string | undefined {
+  const lines = frame.split('\n').filter((l) => l.startsWith('data:')).map((l) => l.slice('data:'.length).trimStart());
+  return lines.length ? lines.join('\n') : undefined;
+}
+
+/** One tool call being assembled from streamed deltas. */
+interface ToolCallPart { id: string; name: string; arguments: string; extra_content?: Record<string, unknown> }
+
+/**
+ * Folds one streamed tool-call delta into the calls being assembled, keyed by index.
+ * `extra_content` (Gemini's thought signature) is kept: the next turn must send it back,
+ * or a Gemini 3 model refuses the turn.
+ */
+function foldToolCallDelta(parts: Map<number, ToolCallPart>, tc: NonNullable<ChatChunk['delta']['tool_calls']>[number]): void {
+  const key = tc.index ?? 0;
+  const part = parts.get(key) ?? { id: '', name: '', arguments: '' };
+  if (tc.id) part.id = tc.id;
+  if (tc.function?.name) part.name = tc.function.name;
+  if (tc.function?.arguments) part.arguments += tc.function.arguments;
+  if (tc.extra_content) part.extra_content = tc.extra_content;
+  parts.set(key, part);
+}
+
+/** The finished tool calls of one streamed turn, in index order. */
+function assembleToolCalls(parts: Map<number, ToolCallPart>): ToolCall[] {
+  return [...parts.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([, p]) => ({
+      id: p.id,
+      type: 'function' as const,
+      function: { name: p.name, arguments: p.arguments },
+      ...(p.extra_content ? { extra_content: p.extra_content } : {}),
+    }));
 }
 
 /**
@@ -801,23 +894,18 @@ export class GatewayNamespace {
     providerConfig: import('./types').ProviderConfig,
   ): Promise<ChatResult> {
     checkProviderConfig(providerConfig);
-    warnIfCleartextUrl(providerConfig.baseUrl, 'provider.baseUrl');
+    const baseUrl = providerBaseUrl(providerConfig);
+    warnIfCleartextUrl(baseUrl, 'provider.baseUrl');
 
     const body = this._buildChatBody(options, providerConfig);
-    const url = `${providerConfig.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+    const target = byoTarget(providerConfig, body, false);
+    const native = NATIVE_KINDS.includes(target.kind);
 
     let response: Response;
     try {
       response = await fetchWithRetry(
-        url,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${providerConfig.apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(body),
-        },
+        target.url,
+        { method: 'POST', headers: target.headers, body: JSON.stringify(target.payload) },
         this.host.maxRetries,
         this.host.retryInterval,
       );
@@ -831,14 +919,16 @@ export class GatewayNamespace {
     if (!response.ok) {
       const errBody = await response.json().catch(() => undefined);
       throw new acruxcoreError(
-        `acruxcore: provider returned ${response.status} calling chat completions${serverDetail(errBody)}${maxTokensRefusalHint(body, errBody)}`,
+        `acruxcore: provider returned ${response.status} calling ${byoEndpointLabel(target.kind)}${serverDetail(errBody)}` +
+          (native ? '' : maxTokensRefusalHint(body, errBody)),
         'PROVIDER_ERROR',
         response.status,
         errBody,
       );
     }
 
-    const data = (await response.json()) as {
+    const raw = (await response.json()) as Record<string, unknown>;
+    const data = (native ? nativeResponse(target.kind as NativeKind, raw, options.model, target.formatTool) : raw) as {
       id: string;
       model: string;
       choices: { message: AssistantMessage; finish_reason: string | null }[];
@@ -855,7 +945,7 @@ export class GatewayNamespace {
       usage: readUsage(data.usage),
       gateway: {
         requestId: data.id,
-        provider: inferProviderName(providerConfig.baseUrl),
+        provider: inferProviderName(baseUrl),
         model: data.model,
         costUsd: null,
         cache: null,
@@ -960,24 +1050,20 @@ export class GatewayNamespace {
     state: ByoStreamState,
   ): AsyncGenerator<ChatChunk> {
     checkProviderConfig(providerConfig);
-    warnIfCleartextUrl(providerConfig.baseUrl, 'provider.baseUrl');
+    warnIfCleartextUrl(providerBaseUrl(providerConfig), 'provider.baseUrl');
 
     const body = this._buildChatBody(options, providerConfig, { stream_options: { include_usage: true } });
-    const url = `${providerConfig.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+    const target = byoTarget(providerConfig, body, true);
+    const translator: NativeStream | undefined = NATIVE_KINDS.includes(target.kind)
+      ? nativeStream(target.kind as NativeKind, options.model, target.formatTool)
+      : undefined;
     const startTime = new Date().toISOString();
 
     let response: Response;
     try {
       response = await fetchWithRetry(
-        url,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${providerConfig.apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(body),
-        },
+        target.url,
+        { method: 'POST', headers: target.headers, body: JSON.stringify(target.payload) },
         this.host.maxRetries,
         this.host.retryInterval,
       );
@@ -991,7 +1077,8 @@ export class GatewayNamespace {
     if (!response.ok) {
       const errBody = await response.json().catch(() => undefined);
       throw new acruxcoreError(
-        `acruxcore: provider returned ${response.status} streaming chat completions${serverDetail(errBody)}${maxTokensRefusalHint(body, errBody)}`,
+        `acruxcore: provider returned ${response.status} streaming ${byoEndpointLabel(target.kind)}${serverDetail(errBody)}` +
+          (translator ? '' : maxTokensRefusalHint(body, errBody)),
         'PROVIDER_ERROR',
         response.status,
         errBody,
@@ -1008,7 +1095,7 @@ export class GatewayNamespace {
     let finalModel = options.model;
     let usage: ChatUsage | undefined;
     let finishReason: string | null = null;
-    const toolCallParts = new Map<number, { id: string; name: string; arguments: string }>();
+    const toolCallParts = new Map<number, ToolCallPart>();
 
     let streamDone = false;
     let ended = false;
@@ -1021,46 +1108,48 @@ export class GatewayNamespace {
           ended = true;
           break;
         }
-        buffer += decoder.decode(value, { stream: true });
+        // Gemini ends its SSE lines with CRLF. Normalize the whole buffer: a read can end
+        // between the \r and the \n.
+        buffer = (buffer + decoder.decode(value, { stream: true })).replace(/\r\n/g, '\n');
 
         let separatorIndex: number;
         while ((separatorIndex = buffer.indexOf('\n\n')) !== -1) {
           const frame = buffer.slice(0, separatorIndex).trim();
           buffer = buffer.slice(separatorIndex + 2);
-          if (!frame.startsWith('data:')) continue;
-
-          const dataStr = frame.slice('data:'.length).trim();
+          const dataStr = sseData(frame);
+          if (dataStr === undefined) continue;
           if (dataStr === '[DONE]') {
             streamDone = true;
             break;
           }
 
-          const parsed = JSON.parse(dataStr) as {
+          type Frame = {
             id: string;
             model: string;
             choices?: { delta: ChatChunk['delta']; finish_reason: string | null }[];
             usage?: RawUsage;
           };
-          finalModel = parsed.model ?? finalModel;
-          if (parsed.usage) usage = readUsage(parsed.usage);
-          const choice = parsed.choices?.[0];
-          if (choice?.delta.content) accumulatedContent += choice.delta.content;
-          if (choice?.finish_reason) finishReason = choice.finish_reason;
-          for (const tc of choice?.delta.tool_calls ?? []) {
-            const key = tc.index ?? 0;
-            const part = toolCallParts.get(key) ?? { id: '', name: '', arguments: '' };
-            if (tc.id) part.id = tc.id;
-            if (tc.function?.name) part.name = tc.function.name;
-            if (tc.function?.arguments) part.arguments += tc.function.arguments;
-            toolCallParts.set(key, part);
-          }
+          const event = JSON.parse(dataStr) as Record<string, unknown>;
+          const frames = (translator ? translator.feed(event) : [event]) as unknown as Frame[];
+          for (const parsed of frames) {
+            finalModel = parsed.model ?? finalModel;
+            if (parsed.usage) usage = readUsage(parsed.usage);
+            const choice = parsed.choices?.[0];
+            if (choice?.delta.content) accumulatedContent += choice.delta.content;
+            if (choice?.finish_reason) finishReason = choice.finish_reason;
+            for (const tc of choice?.delta.tool_calls ?? []) foldToolCallDelta(toolCallParts, tc);
 
-          yield {
-            id: parsed.id,
-            model: parsed.model,
-            delta: choice?.delta ?? {},
-            finishReason: choice?.finish_reason ?? null,
-          };
+            yield {
+              id: parsed.id,
+              model: parsed.model,
+              delta: choice?.delta ?? {},
+              finishReason: choice?.finish_reason ?? null,
+            };
+          }
+          if (translator?.done) {
+            streamDone = true;
+            break;
+          }
         }
       }
     } catch (err) {
@@ -1078,9 +1167,7 @@ export class GatewayNamespace {
       state.model = finalModel;
       state.usage = usage;
       state.finishReason = finishReason;
-      state.toolCalls = [...toolCallParts.entries()]
-        .sort(([a], [b]) => a - b)
-        .map(([, p]) => ({ id: p.id, type: 'function' as const, function: { name: p.name, arguments: p.arguments } }));
+      state.toolCalls = assembleToolCalls(toolCallParts);
       state.settled = !failed;
       state.clientClosed = !failed && !ended && !streamDone;
     }
@@ -1146,7 +1233,7 @@ export class GatewayNamespace {
       startTime: state.startTime ?? new Date().toISOString(),
       endTime: new Date().toISOString(),
       model,
-      provider: inferProviderName(providerConfig.baseUrl),
+      provider: inferProviderName(providerBaseUrl(providerConfig)),
       usage: spanUsage(state.usage),
       promptVersionId: lineage.promptVersionId,
       variables: lineage.variables,
@@ -1732,20 +1819,13 @@ export class GatewayNamespace {
     };
 
     const contentParts: string[] = [];
-    const toolCallParts = new Map<number, { id: string; name: string; arguments: string }>();
+    const toolCallParts = new Map<number, ToolCallPart>();
     let finishReason: string | null = null;
 
     /** Folds one chunk into the round's accumulators and returns its new text, if any. */
     const take = (chunk: ChatChunk): string | undefined => {
       if (chunk.finishReason) finishReason = chunk.finishReason;
-      for (const tc of chunk.delta.tool_calls ?? []) {
-        const key = tc.index ?? 0;
-        const part = toolCallParts.get(key) ?? { id: '', name: '', arguments: '' };
-        if (tc.id) part.id = tc.id;
-        if (tc.function?.name) part.name = tc.function.name;
-        if (tc.function?.arguments) part.arguments += tc.function.arguments;
-        toolCallParts.set(key, part);
-      }
+      for (const tc of chunk.delta.tool_calls ?? []) foldToolCallDelta(toolCallParts, tc);
       const text = chunk.delta.content;
       if (text) contentParts.push(text);
       return text;
@@ -1796,9 +1876,7 @@ export class GatewayNamespace {
       if (traceEnabled && !state.traceId) state.traceId = meta.gateway?.traceId ?? undefined;
     }
 
-    const assembled: ToolCall[] = [...toolCallParts.entries()]
-      .sort(([a], [b]) => a - b)
-      .map(([, p]) => ({ id: p.id, type: 'function' as const, function: { name: p.name, arguments: p.arguments } }));
+    const assembled = assembleToolCalls(toolCallParts);
     out.message = {
       role: 'assistant',
       content: contentParts.join(''),

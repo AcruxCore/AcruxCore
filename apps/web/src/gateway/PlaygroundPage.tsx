@@ -9,6 +9,7 @@ import { SaveVersionDialog } from './SaveVersionDialog';
 import { Telemetry } from './Telemetry';
 import { ToolPicker } from './ToolPicker';
 import { ToolCallCard } from './ToolCallCard';
+import { StoredKeyRequired } from './StoredKeyRequired';
 import { MessageListEditor } from './playground/MessageListEditor';
 import { usePlaygroundTelemetry } from './playground/usePlaygroundTelemetry';
 import { usePromptSelection } from './playground/usePromptSelection';
@@ -81,6 +82,8 @@ export function PlaygroundPage() {
           latency, live.
         </p>
       </header>
+
+      {prompt.models && prompt.models.length === 0 && <StoredKeyRequired feature="The Playground" />}
 
       {/* Request builder */}
       <section className="rounded-xl border border-line bg-surface">

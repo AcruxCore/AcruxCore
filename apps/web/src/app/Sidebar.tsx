@@ -2,12 +2,18 @@ import { Link, NavLink } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 import { useAuth } from '@/auth/AuthContext';
+import { useConnections } from '@/api';
 import { BrandMark } from '@/marketing/brand';
 
-function Item({ to, icon, children }: { to: string; icon: ReactNode; children: ReactNode }) {
+/** Hover text on a locked item; the legend under the nav says the same in words. */
+const LOCK_HINT = 'Needs a stored provider key. Calls your app makes directly with its own key do not reach this page.';
+
+function Item({ to, icon, locked, children }: { to: string; icon: ReactNode; locked?: boolean; children: ReactNode }) {
   return (
     <NavLink
       to={to}
+      title={locked ? LOCK_HINT : undefined}
+      data-locked={locked ? 'true' : undefined}
       className={({ isActive }) =>
         cn(
           'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] font-medium transition-colors',
@@ -19,6 +25,7 @@ function Item({ to, icon, children }: { to: string; icon: ReactNode; children: R
     >
       <span className="flex-none opacity-80">{icon}</span>
       {children}
+      {locked && <LockIcon />}
     </NavLink>
   );
 }
@@ -29,9 +36,31 @@ const ic = (path: ReactNode) => (
   </svg>
 );
 
-/** Left navigation rail: brand + primary sections. */
+function LockIcon() {
+  return (
+    <span className="ml-auto flex-none text-faint" aria-label="needs a stored provider key" role="img">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="5" y="11" width="14" height="10" rx="2" />
+        <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+      </svg>
+    </span>
+  );
+}
+
+/**
+ * Left navigation rail: brand + primary sections.
+ *
+ * A team with no stored provider key (one that calls its provider directly, BYO)
+ * sees a lock on the items that do nothing for it: the Playground and judge
+ * rules call a model from AcruxCore's servers, and usage, virtual keys and
+ * budgets only cover calls through the gateway. Datasets stay unlocked because
+ * local experiments run without a stored key. The locks wait for the
+ * credentials query, so a team that has a key never sees them flash.
+ */
 export function Sidebar() {
   const { canManageTeam } = useAuth();
+  const connections = useConnections();
+  const locked = connections.isSuccess && connections.data.length === 0;
 
   return (
     <aside className="flex w-[232px] flex-none flex-col border-r border-line bg-surface p-3">
@@ -82,10 +111,10 @@ export function Sidebar() {
       <div className="mt-4 px-2 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.09em] text-faint">
         Gateway
       </div>
-      <Item to="/gateway/playground" icon={ic(<><path d="M12 2v4" /><path d="m4.9 4.9 2.8 2.8" /><path d="M2 12h4" /><path d="M18 12h4" /><path d="m16.3 7.7 2.8-2.8" /><circle cx="12" cy="14" r="4" /></>)}>
+      <Item to="/gateway/playground" locked={locked} icon={ic(<><path d="M12 2v4" /><path d="m4.9 4.9 2.8 2.8" /><path d="M2 12h4" /><path d="M18 12h4" /><path d="m16.3 7.7 2.8-2.8" /><circle cx="12" cy="14" r="4" /></>)}>
         Playground
       </Item>
-      <Item to="/gateway/usage" icon={ic(<><path d="M3 3v18h18" /><path d="m7 15 3-4 3 2 4-6" /></>)}>
+      <Item to="/gateway/usage" locked={locked} icon={ic(<><path d="M3 3v18h18" /><path d="m7 15 3-4 3 2 4-6" /></>)}>
         Usage
       </Item>
       <Item to="/gateway/connections" icon={ic(<><rect x="2" y="7" width="20" height="10" rx="2" /><path d="M6 12h.01M12 12h.01" /></>)}>
@@ -97,10 +126,10 @@ export function Sidebar() {
       <Item to="/gateway/models" icon={ic(<><path d="M12 2 2 7l10 5 10-5-10-5Z" /><path d="m2 17 10 5 10-5" /><path d="m2 12 10 5 10-5" /></>)}>
         Models
       </Item>
-      <Item to="/gateway/keys" icon={ic(<><circle cx="7.5" cy="15.5" r="3.5" /><path d="m10 13 8-8" /><path d="m14 5 3 3" /><path d="m18 9 2-2" /></>)}>
+      <Item to="/gateway/keys" locked={locked} icon={ic(<><circle cx="7.5" cy="15.5" r="3.5" /><path d="m10 13 8-8" /><path d="m14 5 3 3" /><path d="m18 9 2-2" /></>)}>
         Virtual keys
       </Item>
-      <Item to="/gateway/budgets" icon={ic(<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>)}>
+      <Item to="/gateway/budgets" locked={locked} icon={ic(<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>)}>
         Budgets
       </Item>
 
@@ -129,10 +158,21 @@ export function Sidebar() {
       <Item to="/evaluations" icon={ic(<><path d="M9 11V7a3 3 0 0 1 6 0v4" /><rect x="5" y="11" width="14" height="10" rx="2" /></>)}>
         Datasets
       </Item>
-      <Item to="/evaluations/rules" icon={ic(<><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></>)}>
+      <Item to="/evaluations/rules" locked={locked} icon={ic(<><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></>)}>
         Rules
       </Item>
       </nav>
+
+      {locked && (
+        <Link
+          to="/gateway/connections"
+          className="mt-2 flex flex-none items-start gap-2 rounded-md border border-line px-2.5 py-2 text-[11.5px] leading-snug text-muted transition-colors hover:bg-elevated hover:text-ink"
+          data-testid="sidebar-lock-legend"
+        >
+          <span className="mt-[2px]"><LockIcon /></span>
+          <span>Locked items need a stored provider key. Add one under Credentials.</span>
+        </Link>
+      )}
     </aside>
   );
 }

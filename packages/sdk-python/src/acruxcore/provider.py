@@ -14,7 +14,48 @@ if TYPE_CHECKING:
 
 #: The values ``provider["kind"]`` may take. ``ProviderKind`` is a ``Literal``, which
 #: Python does not check at runtime, so :func:`check_provider_config` checks it here.
-_PROVIDER_KINDS = ("openai", "openai_compatible")
+_PROVIDER_KINDS = ("openai", "openai_compatible", "anthropic", "gemini")
+
+#: The kinds whose native API the SDK speaks instead of OpenAI chat completions.
+NATIVE_KINDS = ("anthropic", "gemini")
+
+_DEFAULT_BASE_URLS = {
+    "anthropic": "https://api.anthropic.com/v1",
+    "gemini": "https://generativelanguage.googleapis.com/v1beta",
+}
+
+
+def resolve_provider_kind(provider: ProviderConfig) -> str:
+    """The wire format a BYO call uses: ``provider["kind"]`` when set, else the host's.
+
+    ``api.anthropic.com`` means ``"anthropic"``. Google's ``generativelanguage`` host
+    means ``"gemini"``, unless the path is its OpenAI-compatible ``/openai`` endpoint.
+    OpenAI's own hosts mean ``"openai"``, and every other host ``"openai_compatible"``.
+
+    :param provider: The BYO provider for this call, already checked.
+    :returns: One of ``"openai"``, ``"openai_compatible"``, ``"anthropic"``, ``"gemini"``.
+    """
+    kind = provider.get("kind")
+    if kind:
+        return kind
+    base_url = provider.get("base_url") or ""
+    host = (_parse_host(base_url) or "").lower().rstrip(".")
+    if host == "api.anthropic.com":
+        return "anthropic"
+    if host == "generativelanguage.googleapis.com":
+        path = urlparse(base_url).path.rstrip("/")
+        return "openai_compatible" if path.endswith("/openai") else "gemini"
+    return "openai" if host and _is_openai_host(host) else "openai_compatible"
+
+
+def provider_base_url(provider: ProviderConfig) -> str:
+    """The base URL a BYO call goes to, without a trailing slash: ``base_url`` when
+    given, else the default for an ``"anthropic"`` or ``"gemini"`` kind.
+
+    :param provider: The BYO provider for this call, already checked.
+    """
+    base_url = provider.get("base_url") or _DEFAULT_BASE_URLS[provider["kind"]]
+    return base_url.rstrip("/")
 
 
 def infer_provider_name(base_url: str) -> str:
@@ -35,18 +76,28 @@ def check_provider_config(provider: ProviderConfig) -> None:
     """Refuse a BYO provider config that cannot be sent, before anything is sent.
 
     :param provider: The BYO provider for this call.
-    :raises AcruxCoreError: ``MISSING_API_KEY`` or ``MISSING_BASE_URL`` when either is
-        empty. ``VALIDATION_ERROR`` when ``base_url`` does not parse as an http(s) URL
-        with a host, or when ``kind`` is set to anything but ``"openai"`` or
-        ``"openai_compatible"``. A near-miss ``kind`` such as ``"OpenAI"`` is refused
-        rather than ignored, since ignoring it would silently send the wrong field name.
+    :raises AcruxCoreError: ``MISSING_API_KEY`` when ``api_key`` is empty;
+        ``MISSING_BASE_URL`` when ``base_url`` is empty and ``kind`` is not
+        ``"anthropic"`` or ``"gemini"``, the two kinds with a default host.
+        ``VALIDATION_ERROR`` when ``base_url`` does not parse as an http(s) URL
+        with a host, or when ``kind`` is set to anything but those four kinds. A
+        near-miss ``kind`` such as ``"OpenAI"`` is refused rather than ignored, since
+        ignoring it would silently send the wrong request format.
     """
     if not provider.get("api_key"):
         raise AcruxCoreError(
             "acruxcore: provider api_key is required for a BYO (direct-provider) call.",
             MISSING_API_KEY,
         )
+    if "kind" in provider and provider["kind"] not in _PROVIDER_KINDS:
+        raise AcruxCoreError(
+            f"acruxcore: provider['kind'] is {provider['kind']!r}; it must be 'openai', "
+            f"'openai_compatible', 'anthropic' or 'gemini', or left out.",
+            VALIDATION_ERROR,
+        )
     base_url = provider.get("base_url")
+    if not base_url and provider.get("kind") in NATIVE_KINDS:
+        base_url = _DEFAULT_BASE_URLS[provider["kind"]]
     if not base_url:
         raise AcruxCoreError(
             "acruxcore: provider base_url is required for a BYO (direct-provider) call.",
@@ -55,12 +106,6 @@ def check_provider_config(provider: ProviderConfig) -> None:
     if _parse_host(base_url) is None:
         raise AcruxCoreError(
             f'acruxcore: provider.base_url "{base_url}" is not a valid http(s) URL.',
-            VALIDATION_ERROR,
-        )
-    if "kind" in provider and provider["kind"] not in _PROVIDER_KINDS:
-        raise AcruxCoreError(
-            f"acruxcore: provider['kind'] is {provider['kind']!r}; it must be "
-            f"'openai' or 'openai_compatible', or left out.",
             VALIDATION_ERROR,
         )
 
@@ -83,11 +128,7 @@ def byo_max_tokens_field(provider: ProviderConfig) -> str:
     :param provider: The BYO provider for this call.
     :returns: ``"max_completion_tokens"`` or ``"max_tokens"``.
     """
-    kind = provider.get("kind")
-    if kind:
-        return "max_completion_tokens" if kind == "openai" else "max_tokens"
-    host = _parse_host(provider.get("base_url") or "")
-    return "max_completion_tokens" if host is not None and _is_openai_host(host) else "max_tokens"
+    return "max_completion_tokens" if resolve_provider_kind(provider) == "openai" else "max_tokens"
 
 
 def max_tokens_refusal_hint(sent: Dict[str, Any], error_body: Any) -> str:

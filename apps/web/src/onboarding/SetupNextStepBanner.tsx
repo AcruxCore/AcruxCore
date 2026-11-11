@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/ui';
-import { STEP_TITLES, stepNumber } from './checklist';
+import { stepNumber, stepTitle } from './checklist';
 import type { StepId } from './checklist';
 import { useChecklist } from './useChecklist';
 
@@ -21,8 +21,9 @@ export interface SetupNextStepBannerProps {
  * @returns The banner, or `null` when it has nothing to say.
  */
 export function SetupNextStepBanner({ step }: SetupNextStepBannerProps) {
-  const { loaded, active, doneCount, steps, isDone } = useChecklist();
-  if (!loaded || active === null || !isDone(step)) return null;
+  const { loaded, active, doneCount, steps, isDone, path } = useChecklist();
+  // A page whose step is not on this team's path (a credential, on the direct path) has nothing to point to.
+  if (!loaded || active === null || !isDone(step) || !steps.some((s) => s.id === step)) return null;
 
   return (
     <div
@@ -30,8 +31,8 @@ export function SetupNextStepBanner({ step }: SetupNextStepBannerProps) {
       data-testid="setup-next-step"
     >
       <p className="min-w-0 flex-1 text-[13px] text-ink">
-        Setup: {doneCount} of {steps.length} steps done. Next is step {stepNumber(active)}:{' '}
-        <span className="font-medium">{STEP_TITLES[active]}</span>.
+        Setup: {doneCount} of {steps.length} steps done. Next is step {stepNumber(active, path)}:{' '}
+        <span className="font-medium">{stepTitle(active, path)}</span>.
       </p>
       <Link to="/getting-started">
         <Button variant="primary" size="sm">Next step</Button>

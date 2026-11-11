@@ -3,7 +3,46 @@ import type { ProviderConfig, ProviderKind } from './types';
 
 /** The values `provider.kind` may take. Checked at runtime, since a cast or plain JS
  * can pass anything. */
-const PROVIDER_KINDS: readonly ProviderKind[] = ['openai', 'openai_compatible'];
+const PROVIDER_KINDS: readonly ProviderKind[] = ['openai', 'openai_compatible', 'anthropic', 'gemini'];
+
+/** The kinds whose native API the SDK speaks instead of OpenAI chat completions. */
+export const NATIVE_KINDS: readonly ProviderKind[] = ['anthropic', 'gemini'];
+
+const DEFAULT_BASE_URLS: Partial<Record<ProviderKind, string>> = {
+  anthropic: 'https://api.anthropic.com/v1',
+  gemini: 'https://generativelanguage.googleapis.com/v1beta',
+};
+
+/**
+ * The wire format a BYO call uses: `provider.kind` when set, else the host's.
+ *
+ * `api.anthropic.com` means `'anthropic'`. Google's `generativelanguage` host means
+ * `'gemini'`, unless the path is its OpenAI-compatible `/openai` endpoint. OpenAI's own
+ * hosts mean `'openai'`, and every other host `'openai_compatible'`.
+ *
+ * @param provider - The BYO provider for this call, already checked.
+ * @returns The resolved kind.
+ */
+export function resolveProviderKind(provider: ProviderConfig): ProviderKind {
+  if (provider.kind) return provider.kind;
+  const host = parseHost(provider.baseUrl)?.replace(/\.$/, '');
+  if (host === 'api.anthropic.com') return 'anthropic';
+  if (host === 'generativelanguage.googleapis.com') {
+    return new URL(provider.baseUrl as string).pathname.replace(/\/+$/, '').endsWith('/openai') ? 'openai_compatible' : 'gemini';
+  }
+  return host !== undefined && isOpenAiHost(host) ? 'openai' : 'openai_compatible';
+}
+
+/**
+ * The base URL a BYO call goes to, without a trailing slash: `baseUrl` when given, else
+ * the default for an `'anthropic'` or `'gemini'` kind.
+ *
+ * @param provider - The BYO provider for this call, already checked.
+ */
+export function providerBaseUrl(provider: ProviderConfig): string {
+  const baseUrl = provider.baseUrl || (provider.kind ? DEFAULT_BASE_URLS[provider.kind] : undefined) || '';
+  return baseUrl.replace(/\/+$/, '');
+}
 
 /**
  * Best-effort display label for a BYO provider, derived from its base URL's
@@ -20,6 +59,7 @@ const PROVIDER_KINDS: readonly ProviderKind[] = ['openai', 'openai_compatible'];
  *   such a URL before any call reaches this.
  */
 export function inferProviderName(baseUrl: string): string {
+  // Callers pass `providerBaseUrl(...)`, which is never empty once checked.
   return new URL(baseUrl).hostname;
 }
 
@@ -27,27 +67,30 @@ export function inferProviderName(baseUrl: string): string {
  * Refuses a BYO provider config that cannot be sent, before anything is sent.
  *
  * @param provider - The BYO provider for this call.
- * @throws {acruxcoreError} `MISSING_API_KEY` or `MISSING_BASE_URL` when either is empty.
- *   `VALIDATION_ERROR` when `baseUrl` is not an http(s) URL with a host, or when `kind`
- *   is set to anything but `'openai'` or `'openai_compatible'`. A near-miss such as
- *   `'OpenAI'` is refused rather than ignored, since ignoring it would silently send
- *   the wrong field name.
+ * @throws {acruxcoreError} `MISSING_API_KEY` when `apiKey` is empty. `MISSING_BASE_URL`
+ *   when `baseUrl` is empty and `kind` is not `'anthropic'` or `'gemini'`, the two kinds
+ *   with a default host. `VALIDATION_ERROR` when `baseUrl` is not an http(s) URL with a
+ *   host, or when `kind` is set to anything but those four kinds. A near-miss such as
+ *   `'OpenAI'` is refused rather than ignored, since ignoring it would silently send the
+ *   wrong request format.
  */
 export function checkProviderConfig(provider: ProviderConfig): void {
   if (!provider.apiKey) {
     throw new acruxcoreError('acruxcore: provider.apiKey is required for a BYO (direct-provider) call.', 'MISSING_API_KEY');
   }
-  if (!provider.baseUrl) {
-    throw new acruxcoreError('acruxcore: provider.baseUrl is required for a BYO (direct-provider) call.', 'MISSING_BASE_URL');
-  }
-  if (parseHost(provider.baseUrl) === undefined) {
-    throw new acruxcoreError(`acruxcore: provider.baseUrl "${provider.baseUrl}" is not a valid http(s) URL.`, 'VALIDATION_ERROR');
-  }
   if ('kind' in provider && provider.kind !== undefined && !PROVIDER_KINDS.includes(provider.kind)) {
     throw new acruxcoreError(
-      `acruxcore: provider.kind is ${JSON.stringify(provider.kind)}; it must be 'openai' or 'openai_compatible', or left out.`,
+      `acruxcore: provider.kind is ${JSON.stringify(provider.kind)}; it must be 'openai', 'openai_compatible', ` +
+        `'anthropic' or 'gemini', or left out.`,
       'VALIDATION_ERROR',
     );
+  }
+  const baseUrl = providerBaseUrl(provider);
+  if (!baseUrl) {
+    throw new acruxcoreError('acruxcore: provider.baseUrl is required for a BYO (direct-provider) call.', 'MISSING_BASE_URL');
+  }
+  if (parseHost(baseUrl) === undefined) {
+    throw new acruxcoreError(`acruxcore: provider.baseUrl "${provider.baseUrl}" is not a valid http(s) URL.`, 'VALIDATION_ERROR');
   }
 }
 
@@ -70,9 +113,7 @@ export function checkProviderConfig(provider: ProviderConfig): void {
  * @returns `'max_completion_tokens'` or `'max_tokens'`.
  */
 export function byoMaxTokensField(provider: ProviderConfig): 'max_tokens' | 'max_completion_tokens' {
-  if (provider.kind) return provider.kind === 'openai' ? 'max_completion_tokens' : 'max_tokens';
-  const host = parseHost(provider.baseUrl);
-  return host !== undefined && isOpenAiHost(host) ? 'max_completion_tokens' : 'max_tokens';
+  return resolveProviderKind(provider) === 'openai' ? 'max_completion_tokens' : 'max_tokens';
 }
 
 /**

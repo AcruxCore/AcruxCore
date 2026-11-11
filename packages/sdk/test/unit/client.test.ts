@@ -1404,7 +1404,7 @@ describe('acruxcore.chat with provider (BYO)', () => {
         .catch((e: unknown) => e as acruxcoreError);
       expect(err).toBeInstanceOf(acruxcoreError);
       expect((err as acruxcoreError).code).toBe('VALIDATION_ERROR');
-      expect((err as acruxcoreError).message).toContain("'openai' or 'openai_compatible'");
+      expect((err as acruxcoreError).message).toContain("'openai', 'openai_compatible', 'anthropic' or 'gemini'");
     }
     expect(vi.mocked(fetch)).not.toHaveBeenCalled();
   });

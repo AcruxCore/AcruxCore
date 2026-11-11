@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode, type CSSProperties } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { getTheme, toggleTheme, type Theme } from '@/lib/theme';
 import { useOptionalAuth } from '@/auth/auth-context-core';
+import { DEFAULT_NEXT } from '@/auth/next-param';
 import { REOPEN_COOKIE_BANNER_EVENT } from '@/ui';
 import { BrandLockup } from './brand';
 
@@ -649,7 +650,7 @@ export function MarketingHeader({ onLanding = false }: { onLanding?: boolean }):
   // one on a route that's already there, since `useLocation()` still reports a new
   // location object with its own (unset) state. Without `fromLogo` on every one of
   // these, a signed-in visitor clicking "Features" while already on the landing
-  // page gets bounced to `/prompts` exactly like the off-landing case does.
+  // page gets bounced into the app exactly like the off-landing case does.
   const toRoot = { state: { fromLogo: true } };
   const navItems: (FooterLink & { state?: { fromLogo: boolean } })[] = [
     { label: 'Features', to: `${home}#pillars`, ...toRoot },
@@ -748,7 +749,7 @@ export function MarketingHeader({ onLanding = false }: { onLanding?: boolean }):
           </button>
           {isAuthenticated ? (
             <Link
-              to="/prompts"
+              to={DEFAULT_NEXT}
               className="acx-nav-cta acx-hover-bright"
               style={cssToStyle(
                 'display:inline-flex;align-items:center;height:34px;padding:0 15px;border-radius:8px;background:var(--accent);color:var(--accent-ink);font-size:13.5px;font-weight:650;border:1px solid var(--accent);transition:filter .15s;white-space:nowrap;',

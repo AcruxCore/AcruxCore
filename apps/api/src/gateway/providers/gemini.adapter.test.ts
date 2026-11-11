@@ -60,6 +60,34 @@ describe('GeminiAdapter.chatCompletion', () => {
     expect(res.usage).toEqual({ prompt_tokens: 12, completion_tokens: 1, total_tokens: 13 });
   });
 
+  it('sends a tool schema as parametersJsonSchema, which accepts additionalProperties', async () => {
+    // Gemini's `parameters` is an OpenAPI subset that 400s on `additionalProperties`,
+    // which every zod-generated schema has. `parametersJsonSchema` takes full JSON Schema.
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => CANNED_GEMINI,
+    } as unknown as Response);
+    const schema = {
+      type: 'object',
+      properties: { city: { type: 'string' } },
+      required: ['city'],
+      additionalProperties: false,
+    };
+
+    await geminiAdapter.chatCompletion(
+      {
+        model: 'gemini-3.5-flash',
+        messages: [{ role: 'user', content: 'weather?' }],
+        tools: [{ type: 'function', function: { name: 'get_weather', parameters: schema } }],
+      },
+      { apiKey: 'g-key' },
+    );
+
+    const body = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string);
+    expect(body.tools[0].functionDeclarations[0]).toEqual({ name: 'get_weather', parametersJsonSchema: schema });
+  });
+
   it('maps finishReason MAX_TOKENS → length', async () => {
     jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
@@ -108,7 +136,7 @@ describe('GeminiAdapter.chatCompletion', () => {
     ).rejects.toMatchObject({ status: 502, retriable: false });
   });
 
-  it('translates response_format into generationConfig.responseMimeType/responseSchema', async () => {
+  it('translates response_format into responseMimeType and responseJsonSchema, which accepts additionalProperties', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       status: 200,
@@ -120,7 +148,12 @@ describe('GeminiAdapter.chatCompletion', () => {
       messages: [{ role: 'user', content: 'hi' }],
       response_format: {
         type: 'json_schema',
-        json_schema: { name: 'answer', schema: { type: 'object', properties: { ok: { type: 'boolean' } } } },
+        json_schema: {
+          name: 'answer',
+          // OpenAI strict mode and every zod schema carry additionalProperties: false, which
+          // Gemini's OpenAPI-subset `responseSchema` rejects with a 400.
+          schema: { type: 'object', properties: { ok: { type: 'boolean' } }, additionalProperties: false },
+        },
       },
     };
     await geminiAdapter.chatCompletion(req, { apiKey: 'g-key' });
@@ -128,13 +161,15 @@ describe('GeminiAdapter.chatCompletion', () => {
     const [, opts] = fetchMock.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(opts.body as string);
     expect(body.generationConfig.responseMimeType).toBe('application/json');
-    expect(body.generationConfig.responseSchema).toEqual({
+    expect(body.generationConfig.responseSchema).toBeUndefined();
+    expect(body.generationConfig.responseJsonSchema).toEqual({
       type: 'object',
       properties: { ok: { type: 'boolean' } },
+      additionalProperties: false,
     });
   });
 
-  it('sets responseMimeType only, no responseSchema, for json_object', async () => {
+  it('sets responseMimeType only, no schema, for json_object', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       status: 200,
@@ -152,6 +187,7 @@ describe('GeminiAdapter.chatCompletion', () => {
     const body = JSON.parse(opts.body as string);
     expect(body.generationConfig.responseMimeType).toBe('application/json');
     expect(body.generationConfig.responseSchema).toBeUndefined();
+    expect(body.generationConfig.responseJsonSchema).toBeUndefined();
   });
 
   describe('dispatcher cleanup on a real connection failure (custom base_url)', () => {
@@ -217,6 +253,28 @@ describe('GeminiAdapter.chatCompletion', () => {
 });
 
 describe('GeminiAdapter.streamChatCompletion', () => {
+  it('numbers parallel tool calls across frames, so calls in separate frames stay separate', async () => {
+    // Gemini 3 can send each parallel call in its own SSE frame. Numbering per frame gave
+    // both index 0, and the gateway's index-keyed fold merged them into one broken call.
+    const frames = [
+      { candidates: [{ content: { role: 'model', parts: [
+        { functionCall: { id: 'call_1', name: 'get_weather', args: { city: 'Paris' } }, thoughtSignature: 'SIG1' }] } }] },
+      { candidates: [{ content: { role: 'model', parts: [
+        { functionCall: { id: 'call_2', name: 'get_weather', args: { city: 'Rome' } } }] }, finishReason: 'STOP' }],
+        usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 3, totalTokenCount: 8 } },
+    ];
+    const raw = new TextEncoder().encode(frames.map((f) => `data: ${JSON.stringify(f)}\r\n\r\n`).join(''));
+    jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(new ReadableStream({ start(c) { c.enqueue(raw); c.close(); } }), { status: 200 }),
+    );
+    const req: NormalizedRequest = { model: 'gemini-3-flash', messages: [{ role: 'user', content: 'Paris and Rome?' }] };
+    const seen: { index?: number; id: string }[] = [];
+    for await (const chunk of geminiAdapter.streamChatCompletion(req, { apiKey: 'g-key' })) {
+      for (const tc of chunk.tool_calls ?? []) seen.push({ index: tc.index, id: tc.id });
+    }
+    expect(seen).toEqual([{ index: 0, id: 'call_1' }, { index: 1, id: 'call_2' }]);
+  });
+
   it('rejects a custom base_url pointing at a blocked (loopback) address before making any request', async () => {
     const req: NormalizedRequest = {
       model: 'gemini-1.5-flash',

@@ -1148,6 +1148,60 @@ describe('POST /api/v1/gateway/chat/completions (adapter-mocked)', () => {
       expect(responseMsg?.parts[0]).toEqual({ functionResponse: { name: 'get_weather', response: { tempC: 18 } } });
     });
 
+    it('round-trips a Gemini 3 call id and thought signature, which Gemini refuses a follow-up turn without', async () => {
+      // Gemini 3 answered turn 2 with a 400 ("Function call is missing a thought_signature")
+      // when the gateway dropped the signature and replaced the call id with the name.
+      const { apiKey, model } = await setupTeamWithGeminiModel();
+      mockFetchOnce({
+        candidates: [{
+          content: { role: 'model', parts: [
+            { functionCall: { id: 'call_1', name: 'get_weather', args: { city: 'Paris' } }, thoughtSignature: 'SIG1' },
+            { functionCall: { id: 'call_2', name: 'get_weather', args: { city: 'Rome' } } },
+          ] },
+          finishReason: 'STOP',
+        }],
+        usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 3, totalTokenCount: 8 },
+      });
+      const tools = [{ type: 'function', function: { name: 'get_weather', parameters: { type: 'object' } } }];
+      const user = { role: 'user', content: 'weather in Paris and Rome?' };
+      const turn1 = await request(app)
+        .post('/api/v1/gateway/chat/completions')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ model, messages: [user], tools })
+        .expect(200);
+      const assistant = turn1.body.choices[0].message;
+      expect(assistant.tool_calls.map((c: { id: string }) => c.id)).toEqual(['call_1', 'call_2']);
+      expect(assistant.tool_calls[0].extra_content).toEqual({ google: { thought_signature: 'SIG1' } });
+
+      mockFetchOnce({
+        candidates: [{ content: { role: 'model', parts: [{ text: 'Mild.' }] }, finishReason: 'STOP' }],
+        usageMetadata: { promptTokenCount: 9, candidatesTokenCount: 1, totalTokenCount: 10 },
+      });
+      await request(app)
+        .post('/api/v1/gateway/chat/completions')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({
+          model,
+          tools,
+          messages: [
+            user,
+            assistant,
+            { role: 'tool', tool_call_id: 'call_1', content: '{"tempC":18}' },
+            { role: 'tool', tool_call_id: 'call_2', content: '{"tempC":24}' },
+          ],
+        })
+        .expect(200);
+      const sent = lastProviderRequestBody() as { contents: { role: string; parts: Record<string, unknown>[] }[] };
+      expect(sent.contents[1]).toEqual({ role: 'model', parts: [
+        { functionCall: { name: 'get_weather', args: { city: 'Paris' }, id: 'call_1' }, thoughtSignature: 'SIG1' },
+        { functionCall: { name: 'get_weather', args: { city: 'Rome' }, id: 'call_2' } },
+      ] });
+      expect(sent.contents[2]).toEqual({ role: 'user', parts: [
+        { functionResponse: { name: 'get_weather', response: { tempC: 18 }, id: 'call_1' } },
+        { functionResponse: { name: 'get_weather', response: { tempC: 24 }, id: 'call_2' } },
+      ] });
+    });
+
     it("translates tool_choice 'auto' to functionCallingConfig.mode 'AUTO'", async () => {
       const { apiKey, model } = await setupTeamWithGeminiModel();
       mockFetchOnce(CANNED_GEMINI);

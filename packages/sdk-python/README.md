@@ -376,8 +376,9 @@ experiment can never block a deploy.
 ## Bring your own provider (BYO)
 
 `gateway.chat()` and `gateway.run_tool_loop()` can skip our gateway entirely and call your model
-provider's OpenAI-compatible endpoint directly — pass a `provider=` argument (or
-set one as a client-level default):
+provider directly — pass a `provider=` argument (or set one as a client-level default). OpenAI
+and any OpenAI-compatible host (OpenRouter, Groq, vLLM, …) take a `base_url`; Anthropic and
+Gemini take `"kind": "anthropic"` or `"kind": "gemini"` and are called through their own APIs:
 
 ```python
 result = await hub.gateway.chat(
@@ -385,7 +386,19 @@ result = await hub.gateway.chat(
     [{"role": "user", "content": "Hello!"}],
     provider={"base_url": "https://api.groq.com/openai/v1", "api_key": os.environ["GROQ_API_KEY"]},
 )
+
+# Gemini's generateContent; base_url defaults to https://generativelanguage.googleapis.com/v1beta
+gemini = await hub.gateway.chat(
+    "gemini-3.5-flash",
+    [{"role": "user", "content": "Hello!"}],
+    provider={"kind": "gemini", "api_key": os.environ["GEMINI_API_KEY"]},
+)
 ```
+
+For the native kinds the SDK translates the request and the reply, so messages, tool calls,
+streaming and usage look the same as on OpenAI. Keep each assistant message as you received
+it: a Gemini 3 tool call carries a thought signature in `tool_calls[i]["extra_content"]` that
+Gemini needs on the next turn.
 
 This skips the extra network hop through the gateway, and `provider["api_key"]` is sent only
 to `provider["base_url"]` — it never reaches acruxcore's servers. Tracing and prompt lineage

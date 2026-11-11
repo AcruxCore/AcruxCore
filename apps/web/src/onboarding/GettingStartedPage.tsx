@@ -1,15 +1,16 @@
 import { useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
-import { ApiError, useCreatePersonalKey } from '@/api';
+import { ApiError, useCreatePersonalKey, useTools } from '@/api';
 import { useAuth } from '@/auth/AuthContext';
 import { ConnectionDialog } from '@/gateway/ConnectionDialog';
 import { ModelDialog } from '@/gateway/ModelDialog';
 import { cn } from '@/lib/cn';
 import { Button, CopyButton, PageSpinner, Tabs, useToast } from '@/ui';
-import { STEP_TITLES, buildSnippet } from './checklist';
-import type { SnippetLang } from './checklist';
+import { DIRECT_PROVIDERS, STEP_TITLES, buildDirectSnippet, buildSnippet, buildToolSnippet, stepNumber, stepTitle } from './checklist';
+import type { DirectProvider, SetupPath, SnippetLang } from './checklist';
 import { useChecklist } from './useChecklist';
+import { BYO_GUIDE_URL, DOCS_GUIDES } from '@/gateway/StoredKeyRequired';
 
 /**
  * The query flag the post-sign-in default destination carries. With it, a team that
@@ -19,7 +20,6 @@ import { useChecklist } from './useChecklist';
 export const FROM_SIGN_IN_PARAM = 'from';
 const FROM_SIGN_IN_VALUE = 'signin';
 
-const DOCS_GUIDES = 'https://docs.acruxcore.com/docs/guides';
 
 /**
  * Optional features to try once the first request works. Shown as links, not as
@@ -28,9 +28,9 @@ const DOCS_GUIDES = 'https://docs.acruxcore.com/docs/guides';
  */
 const NEXT_GUIDES: { title: string; summary: string; href: string }[] = [
   {
-    title: 'Create a tool',
-    summary: 'Add a tool to the catalog so a prompt’s model can call it.',
-    href: `${DOCS_GUIDES}/create-a-tool`,
+    title: 'Connect a tool to a prompt',
+    summary: 'Bind a catalog tool to a prompt, and choose which build of it each prompt alias calls.',
+    href: `${DOCS_GUIDES}/connect-a-tool-to-a-prompt`,
   },
   {
     title: 'Collect feedback',
@@ -60,17 +60,42 @@ const LANGS: { value: SnippetLang; label: string }[] = [
   { value: 'node', label: 'Node' },
 ];
 
+/** The direct path has no curl version: the SDK writes the trace, so the SDK is needed. */
+const DIRECT_LANGS: { value: 'python' | 'node'; label: string }[] = [
+  { value: 'python', label: 'Python' },
+  { value: 'node', label: 'Node' },
+];
+
+const DIRECT_PROVIDER_TABS = (Object.keys(DIRECT_PROVIDERS) as DirectProvider[]).map((value) => ({
+  value,
+  label: DIRECT_PROVIDERS[value].label,
+}));
+
+const PATH_OPTIONS: { value: SetupPath; title: string; summary: string }[] = [
+  {
+    value: 'gateway',
+    title: 'Through the gateway',
+    summary: 'Store your provider key in AcruxCore. Calls go through the gateway, which adds budgets, rate limits, caching and fallbacks.',
+  },
+  {
+    value: 'direct',
+    title: 'Call your provider directly',
+    summary: 'Keep your provider key in your own code. The SDK calls the provider and sends AcruxCore only the trace.',
+  },
+];
+
 /**
- * First screen for a new team: four steps from an empty account to a traced
- * gateway call. Each step is ticked from the team's real data, so the page also
- * shows a returning user exactly where they stopped.
+ * First screen for a new team: the steps from an empty account to a traced call.
+ * The team picks a path first: through the gateway (four steps) or straight to its
+ * provider with its own key (two steps). Each step is ticked from the team's real
+ * data, so the page also shows a returning user exactly where they stopped.
  */
 export function GettingStartedPage() {
   const { canManageTeam } = useAuth();
   const [searchParams] = useSearchParams();
   const fromSignIn = searchParams.get(FROM_SIGN_IN_PARAM) === FROM_SIGN_IN_VALUE;
 
-  const { loaded, failed, retry, steps, active, doneCount, isDone, connections, models } = useChecklist({ poll: true });
+  const { loaded, failed, retry, path, setPath, steps, active, doneCount, isDone, connections, models } = useChecklist({ poll: true });
   const createKey = useCreatePersonalKey();
   const toast = useToast();
 
@@ -78,13 +103,19 @@ export function GettingStartedPage() {
   // here is what lets the snippet below carry a key that works on the first paste.
   const [newKey, setNewKey] = useState<string | null>(null);
   const [lang, setLang] = useState<SnippetLang>('curl');
+  const [directLang, setDirectLang] = useState<'python' | 'node'>('python');
+  const [directProvider, setDirectProvider] = useState<DirectProvider>('openai');
+  const [toolLang, setToolLang] = useState<'python' | 'node'>('python');
+  // Poll only once the optional tool step can open: before the first request it is not
+  // shown, so a tab left on step 1 should not read /tools every 5 s.
+  const tools = useTools({ pollWhileEmptyMs: isDone('firstRequest') ? 5_000 : undefined });
   // The credential and model forms open here, over the checklist, rather than on their
   // own pages: leaving for /gateway/connections stranded people there with no way back
   // to the next step except the sidebar.
   const [credentialOpen, setCredentialOpen] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
 
-  const preRequestDone = isDone('credential') && isDone('model') && isDone('apiKey');
+  const preRequestDone = steps.filter((s) => s.id !== 'firstRequest').every((s) => s.done);
   const allDone = active === null;
 
   // Decided once, from the first status that loads. Checking on every render sent a
@@ -113,6 +144,9 @@ export function GettingStartedPage() {
   const baseUrl = `${window.location.origin}/api/v1`;
   const model = models.data?.[0]?.publicName ?? null;
   const snippet = buildSnippet(lang, { baseUrl, apiKey: newKey, model });
+  const directSnippet = buildDirectSnippet(directLang, directProvider, { baseUrl, apiKey: newKey, model: null });
+  const toolSnippet = buildToolSnippet(toolLang, path, directProvider, { baseUrl, apiKey: newKey, model });
+  const toolCount = tools.data?.length ?? 0;
 
   const onCreateKey = async () => {
     try {
@@ -132,8 +166,8 @@ export function GettingStartedPage() {
       <header>
         <h1 className="text-[22px] font-semibold tracking-tight">Get started</h1>
         <p className="mt-1 text-[13px] text-muted">
-          Four steps from an empty account to your first traced LLM call. Each step is marked done
-          when you finish it.
+          {path === 'gateway' ? 'Four' : 'Two'} steps from an empty account to your first traced LLM
+          call. Each step is marked done when you finish it.
         </p>
         <div className="mt-4 flex items-center gap-3">
           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-elevated">
@@ -148,16 +182,25 @@ export function GettingStartedPage() {
         </div>
       </header>
 
+      <PathChoice path={path} onChange={setPath} />
+
       {allDone && (
         <div className="rounded-xl border border-accent/40 bg-accent/10 px-4 py-3.5 text-[13px] text-ink">
           You are set up. Your calls now show in{' '}
           <Link to="/traces" className="text-accent hover:underline">Traces</Link>. Next, try{' '}
           <Link to="/prompts" className="text-accent hover:underline">versioning a prompt</Link> or{' '}
-          <Link to="/gateway/budgets" className="text-accent hover:underline">setting a budget</Link>.
+          {path === 'gateway' ? (
+            <Link to="/gateway/budgets" className="text-accent hover:underline">setting a budget</Link>
+          ) : (
+            <a href={`${DOCS_GUIDES}/use-the-sdk-for-chat-and-feedback`} target="_blank" rel="noreferrer" className="text-accent hover:underline">
+              collecting feedback
+            </a>
+          )}.
         </div>
       )}
 
       <ol className="flex flex-col gap-3">
+        {path === 'gateway' && (<>
         <Step
           n={1}
           title={STEP_TITLES.credential}
@@ -212,9 +255,10 @@ export function GettingStartedPage() {
             </Button>
           ) : adminOnly}
         </Step>
+        </>)}
 
         <Step
-          n={3}
+          n={stepNumber('apiKey', path)}
           title={STEP_TITLES.apiKey}
           done={isDone('apiKey')}
           active={active === 'apiKey' || newKey !== null}
@@ -225,7 +269,9 @@ export function GettingStartedPage() {
                 ? canManageTeam
                   ? 'Your team has a key. If you need a new one, create it here.'
                   : 'Your team has a key. Ask an owner or admin if you need one.'
-                : 'Your code and the SDKs sign each request with this key.'
+                : path === 'direct'
+                  ? 'The SDK sends your traces to AcruxCore with this key. It is not your provider key.'
+                  : 'Your code and the SDKs sign each request with this key.'
           }
         >
           {newKey ? (
@@ -259,8 +305,56 @@ export function GettingStartedPage() {
           )}
         </Step>
 
+        {path === 'direct' ? (
+          <Step
+            n={stepNumber('firstRequest', path)}
+            title={stepTitle('firstRequest', path)}
+            done={isDone('firstRequest')}
+            active={active === 'firstRequest' || preRequestDone}
+            summary={
+              isDone('firstRequest')
+                ? 'A trace reached AcruxCore. It is in your traces.'
+                : 'Run this with your own provider key in an environment variable. The SDK calls the provider and records the trace.'
+            }
+          >
+            <div className="w-full min-w-0 self-stretch overflow-hidden rounded-lg border border-line-soft" data-testid="onboarding-direct">
+              <Tabs
+                items={DIRECT_PROVIDER_TABS}
+                value={directProvider}
+                onChange={(v) => setDirectProvider(v as DirectProvider)}
+                className="overflow-x-auto overflow-y-hidden bg-surface"
+              />
+              <div className="flex items-center justify-between border-t border-line-soft bg-surface pr-2">
+                <Tabs items={DIRECT_LANGS} value={directLang} onChange={(v) => setDirectLang(v as 'python' | 'node')} className="border-b-0" />
+                <CopyButton value={directSnippet} />
+              </div>
+              <pre
+                className="overflow-x-auto border-t border-line-soft bg-bg px-3 py-3 font-mono text-[12px] leading-relaxed text-ink"
+                data-testid="onboarding-direct-snippet"
+              >
+                {directSnippet}
+              </pre>
+            </div>
+            <p className="text-[12.5px] text-faint">
+              {newKey ? '' : 'Replace the key placeholder with your AcruxCore key. '}
+              Any model name your provider accepts works here. Prompts, tools, traces and feedback
+              all work on this path.{' '}
+              <a href={BYO_GUIDE_URL} target="_blank" rel="noreferrer" className="text-accent hover:underline">
+                What needs a stored key
+              </a>
+            </p>
+            {isDone('firstRequest') ? (
+              <Link to="/traces"><Button variant="primary">Open traces</Button></Link>
+            ) : (
+              <p className="text-[12.5px] text-muted">
+                <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-accent align-middle" />
+                Waiting for your first trace. This step is marked done when it arrives.
+              </p>
+            )}
+          </Step>
+        ) : (
         <Step
-          n={4}
+          n={stepNumber('firstRequest', path)}
           title={STEP_TITLES.firstRequest}
           done={isDone('firstRequest')}
           // Stays open once the setup steps are done, so the "Open traces" button that
@@ -302,6 +396,59 @@ export function GettingStartedPage() {
                   <Link to="/gateway/playground" className="text-accent hover:underline">Playground</Link>.
                 </>
               )}
+            </p>
+          )}
+        </Step>
+        )}
+
+        {/* Optional, so it is not in the progress count: a team that never uses tools
+            still finishes setup. It opens once the first call works. */}
+        <Step
+          n={steps.length + 1}
+          title="Give the model a tool"
+          optional
+          done={toolCount > 0}
+          active={isDone('firstRequest') && tools.isSuccess && toolCount === 0}
+          summary={
+            toolCount > 0
+              ? `Your team has ${toolCount} tool${toolCount === 1 ? '' : 's'} in its catalog.`
+              : 'Define a function in your code and let the model call it. The SDK runs it and saves it to your tool catalog.'
+          }
+        >
+          <div className="w-full min-w-0 self-stretch overflow-hidden rounded-lg border border-line-soft" data-testid="onboarding-tool">
+            {path === 'direct' && (
+              <Tabs
+                items={DIRECT_PROVIDER_TABS}
+                value={directProvider}
+                onChange={(v) => setDirectProvider(v as DirectProvider)}
+                className="overflow-x-auto overflow-y-hidden bg-surface"
+              />
+            )}
+            <div className={cn('flex items-center justify-between bg-surface pr-2', path === 'direct' && 'border-t border-line-soft')}>
+              <Tabs items={DIRECT_LANGS} value={toolLang} onChange={(v) => setToolLang(v as 'python' | 'node')} className="border-b-0" />
+              <CopyButton value={toolSnippet} />
+            </div>
+            <pre
+              className="overflow-x-auto border-t border-line-soft bg-bg px-3 py-3 font-mono text-[12px] leading-relaxed text-ink"
+              data-testid="onboarding-tool-snippet"
+            >
+              {toolSnippet}
+            </pre>
+          </div>
+          <p className="text-[12.5px] text-faint">
+            The model asks for the weather in two cities, and the loop runs{' '}
+            <code className="font-mono text-ink">get_weather</code> in your process for each call.
+            The tool is also saved to your team&apos;s catalog, so it shows under Tools.{' '}
+            <a href={`${DOCS_GUIDES}/create-a-tool`} target="_blank" rel="noreferrer" className="text-accent hover:underline">
+              Other ways to create a tool
+            </a>
+          </p>
+          {toolCount > 0 ? (
+            <Link to="/tools"><Button variant="primary">Open tools</Button></Link>
+          ) : (
+            <p className="text-[12.5px] text-muted">
+              <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-accent align-middle" />
+              Waiting for a tool. This step is marked done when one is in your catalog.
             </p>
           )}
         </Step>
@@ -352,6 +499,8 @@ export function GettingStartedPage() {
 interface StepProps {
   n: number;
   title: string;
+  /** Shows an "Optional" tag; the step is left out of the progress count by the caller. */
+  optional?: boolean;
   summary: string;
   done: boolean;
   /** Open steps show their body; a done step that is not active collapses to its summary. */
@@ -360,7 +509,7 @@ interface StepProps {
 }
 
 /** One numbered checklist row: a status circle, the title, a summary and, when open, the step's body. */
-function Step({ n, title, summary, done, active, children }: StepProps) {
+function Step({ n, title, optional, summary, done, active, children }: StepProps) {
   const [manualOpen, setManualOpen] = useState<boolean | null>(null);
   const open = manualOpen ?? active;
   return (
@@ -394,7 +543,12 @@ function Step({ n, title, summary, done, active, children }: StepProps) {
           )}
         </span>
         <span className="min-w-0 flex-1">
-          <span className={cn('block text-[14px] font-medium', done ? 'text-muted' : 'text-ink')}>{title}</span>
+          <span className={cn('flex items-center gap-2 text-[14px] font-medium', done ? 'text-muted' : 'text-ink')}>
+            {title}
+            {optional && (
+              <span className="rounded-full border border-line px-1.5 py-px text-[11px] font-normal text-muted">Optional</span>
+            )}
+          </span>
           <span className="mt-0.5 block text-[12.5px] text-muted">{summary}</span>
         </span>
         <svg
@@ -406,5 +560,60 @@ function Step({ n, title, summary, done, active, children }: StepProps) {
       </button>
       {open && <div className="flex min-w-0 flex-col items-start gap-3 px-4 pb-4 pl-[52px]">{children}</div>}
     </li>
+  );
+}
+
+/**
+ * The two setup paths as a radio group. The choice changes only which steps the page
+ * shows; the steps are always ticked from the team's real data.
+ */
+function PathChoice({ path, onChange }: { path: SetupPath; onChange: (path: SetupPath) => void }) {
+  return (
+    <section aria-labelledby="setup-path-heading" className="flex flex-col gap-2">
+      <h2 id="setup-path-heading" className="text-[13px] font-medium text-ink">How will your app call its model?</h2>
+      <div role="radiogroup" aria-labelledby="setup-path-heading" className="grid gap-2 sm:grid-cols-2">
+        {PATH_OPTIONS.map((o) => {
+          const selected = o.value === path;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() => onChange(o.value)}
+              data-testid={`setup-path-${o.value}`}
+              className={cn(
+                'flex min-w-0 items-start gap-3 rounded-xl border bg-surface px-3.5 py-3 text-left transition-colors',
+                selected ? 'border-accent bg-accent/5' : 'border-line hover:border-accent/50',
+              )}
+            >
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full border',
+                  selected ? 'border-accent' : 'border-line',
+                )}
+              >
+                {selected && <span className="h-2 w-2 rounded-full bg-accent" />}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[13.5px] font-medium text-ink">{o.title}</span>
+                <span className="mt-0.5 block text-[12.5px] text-muted">{o.summary}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {path === 'direct' && (
+        <p className="text-[12.5px] text-faint">
+          The Playground, server-side evaluation runs, the optimizer and judge rules run on
+          AcruxCore's servers, so they still need a stored key.{' '}
+          <a href={BYO_GUIDE_URL} target="_blank" rel="noreferrer" className="text-accent hover:underline">
+            Read the guide
+          </a>
+          .
+        </p>
+      )}
+    </section>
   );
 }

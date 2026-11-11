@@ -2525,7 +2525,7 @@ async def test_byo_unknown_kind_is_refused():
             with pytest.raises(AcruxCoreError) as exc:
                 await c.gateway.chat("gpt-5-mini", msgs, provider=provider, trace=False, max_tokens=500)
             assert exc.value.code == "VALIDATION_ERROR"
-            assert "'openai' or 'openai_compatible'" in str(exc.value)
+            assert "'openai', 'openai_compatible', 'anthropic' or 'gemini'" in str(exc.value)
     assert sent == []
 
 

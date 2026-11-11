@@ -364,8 +364,10 @@ never blocks a deploy.
 
 ## Bring your own provider (BYO)
 
-Skip our gateway and call your model provider's OpenAI-compatible endpoint
-directly — pass a `provider` option (or set one as a client-level default):
+Skip our gateway and call your model provider directly — pass a `provider` option
+(or set one as a client-level default). OpenAI and any OpenAI-compatible host
+(OpenRouter, Groq, vLLM, …) take a `baseUrl`; Anthropic and Gemini take
+`kind: 'anthropic'` or `kind: 'gemini'` and are called through their own APIs:
 
 ```typescript
 const result = await hub.gateway.chat({
@@ -373,7 +375,19 @@ const result = await hub.gateway.chat({
   messages: [{ role: 'user', content: 'Hello!' }],
   provider: { baseUrl: 'https://api.groq.com/openai/v1', apiKey: process.env.GROQ_API_KEY! },
 });
+
+// Anthropic's Messages API; baseUrl defaults to https://api.anthropic.com/v1
+const claude = await hub.gateway.chat({
+  model: 'claude-haiku-4-5',
+  messages: [{ role: 'user', content: 'Hello!' }],
+  provider: { kind: 'anthropic', apiKey: process.env.ANTHROPIC_API_KEY! },
+});
 ```
+
+For the native kinds the SDK translates the request and the reply, so messages, tool
+calls, streaming and usage look the same as on OpenAI. Keep each assistant message as
+you received it: a Gemini 3 tool call carries a thought signature in
+`tool_calls[i].extra_content` that Gemini needs on the next turn.
 
 `provider.apiKey` goes only to `provider.baseUrl` — never to acruxcore's servers.
 Tracing and prompt lineage still work: a BYO call auto-reports its own `llm`

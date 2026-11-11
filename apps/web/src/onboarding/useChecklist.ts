@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { api, keys, useConnections, useModels } from '@/api';
 import type { OnboardingStatus } from '@/api/types';
-import { checklistSteps, currentStep } from './checklist';
-import type { ChecklistStep, StepId } from './checklist';
+import { checklistSteps, currentStep, resolvePath } from './checklist';
+import type { ChecklistStep, SetupPath, StepId } from './checklist';
+import { useSetupPath } from './useSetupPath';
 
 /** How often the checklist page re-checks while a step is still open. */
 const POLL_MS = 5_000;
@@ -15,6 +16,11 @@ export interface Checklist {
   failed: boolean;
   /** Re-requests the status after a failure. */
   retry: () => void;
+  /** Which path's steps these are: the viewer's choice, else inferred from the team's data. */
+  path: SetupPath;
+  /** Saves the viewer's path choice on this device. */
+  setPath: (path: SetupPath) => void;
+  /** The steps of {@link path}, in display order. */
   steps: ChecklistStep[];
   /** The first unfinished step, or `null` when all are done. */
   active: StepId | null;
@@ -38,12 +44,13 @@ export interface Checklist {
  * @returns The current {@link Checklist}.
  */
 export function useChecklist(options: { poll?: boolean } = {}): Checklist {
+  const [stored, setPath] = useSetupPath();
   const status = useQuery({
     queryKey: keys.onboarding,
     queryFn: () => api<OnboardingStatus>('/onboarding'),
     refetchInterval: (query) => {
       const s = query.state.data;
-      const allDone = s !== undefined && s.credential && s.model && s.apiKey && s.firstRequest;
+      const allDone = s !== undefined && checklistSteps(s, resolvePath(s, stored)).every((step) => step.done);
       // Keeps polling after an error too, so a page showing the error recovers on its own.
       return options.poll && !allDone ? POLL_MS : false;
     },
@@ -51,9 +58,9 @@ export function useChecklist(options: { poll?: boolean } = {}): Checklist {
   const connections = useConnections();
   const models = useModels();
 
-  const steps = checklistSteps(
-    status.data ?? { credential: false, model: false, apiKey: false, firstRequest: false },
-  );
+  const facts = status.data ?? { credential: false, model: false, apiKey: false, firstRequest: false };
+  const path = resolvePath(facts, stored);
+  const steps = checklistSteps(facts, path);
 
   return {
     // A failed poll keeps the last good answer, so only a failure with no data at all
@@ -61,6 +68,8 @@ export function useChecklist(options: { poll?: boolean } = {}): Checklist {
     loaded: status.data !== undefined,
     failed: status.isError && status.data === undefined,
     retry: () => void status.refetch(),
+    path,
+    setPath,
     steps,
     active: currentStep(steps),
     doneCount: steps.filter((s) => s.done).length,

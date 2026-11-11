@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ApiError, filterPrompts, useAliases, useAllPrompts, useCreatePrompt, useDataset, useModels, useOptimize } from '@/api';
 import type { StartRunResponse } from '@/api';
+import { StoredKeyRequired } from '@/gateway/StoredKeyRequired';
 import { Button, Dialog, DialogFooter, Field, Input, Select, useToast } from '@/ui';
 import { DEFAULT_DRAFT_COUNT, DraftCountField } from './DraftCountField';
 import { JudgeModelField } from './JudgeModelField';
@@ -183,7 +184,7 @@ export function OptimizeDatasetDialog({ open, onOpenChange, datasetId }: Optimiz
           {gatewayModels.isLoading ? (
             <p className="text-[13px] text-muted">Loading…</p>
           ) : (gatewayModels.data ?? []).length === 0 ? (
-            <p className="text-[13px] text-muted">No models registered — add one under Gateway → Models first.</p>
+            <StoredKeyRequired compact feature="The optimizer" />
           ) : (
             <ModelCheckboxList
               models={gatewayModels.data ?? []}

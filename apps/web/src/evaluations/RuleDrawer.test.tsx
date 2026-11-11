@@ -3,6 +3,7 @@ import { createElement, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import { ToastProvider } from '@/ui';
 import type { EvalRule } from '@/api/types';
 import { RuleDrawer } from './RuleDrawer';
@@ -20,7 +21,11 @@ function fakeResponse(body: unknown, status = 200): Response {
 
 function wrapper(qc: QueryClient) {
   return function Wrapper({ children }: { children: ReactNode }) {
-    return createElement(QueryClientProvider, { client: qc }, createElement(ToastProvider, null, children));
+    return createElement(
+      MemoryRouter,
+      null,
+      createElement(QueryClientProvider, { client: qc }, createElement(ToastProvider, null, children)),
+    );
   };
 }
 

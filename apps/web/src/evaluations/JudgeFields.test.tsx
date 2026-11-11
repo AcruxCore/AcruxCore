@@ -3,6 +3,7 @@ import { createElement, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import { ToastProvider } from '@/ui';
 import { JudgeModelField } from './JudgeModelField';
 import { JudgePromptField, useJudgePromptHasNoVersion } from './JudgePromptField';
@@ -18,7 +19,11 @@ function fakeResponse(body: unknown, status = 200): Response {
 
 function wrapper(qc: QueryClient) {
   return function Wrapper({ children }: { children: ReactNode }) {
-    return createElement(QueryClientProvider, { client: qc }, createElement(ToastProvider, null, children));
+    return createElement(
+      MemoryRouter,
+      null,
+      createElement(QueryClientProvider, { client: qc }, createElement(ToastProvider, null, children)),
+    );
   };
 }
 
@@ -45,14 +50,29 @@ describe('JudgeModelField', () => {
     expect(screen.queryByTestId('judge-create-model')).toBeNull();
   });
 
-  it('offers to create a model when the team really has none', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse([])));
+  it('offers to create a model when the team has a credential but no model', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) =>
+      fakeResponse(String(url).includes('/gateway/connections') ? [{ id: 'c1', provider: 'openai', label: 'OpenAI' }] : []),
+    ));
 
     render(createElement(JudgeModelField, { id: 'judge', value: '', onChange: vi.fn(), grades: 'every result' }), {
       wrapper: wrapper(quietClient()),
     });
 
     await screen.findByTestId('judge-create-model');
+  });
+
+  it('says a judge needs a stored key, and links to Credentials, when the team has no credential', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse([])));
+
+    render(createElement(JudgeModelField, { id: 'judge', value: '', onChange: vi.fn(), grades: 'every result' }), {
+      wrapper: wrapper(quietClient()),
+    });
+
+    const panel = await screen.findByTestId('stored-key-required');
+    expect(panel.textContent).toContain('The judge needs a model on a stored provider key');
+    expect(screen.getByRole('link', { name: 'Add a credential' }).getAttribute('href')).toBe('/gateway/connections');
+    expect(screen.queryByTestId('judge-create-model')).toBeNull();
   });
 });
 
