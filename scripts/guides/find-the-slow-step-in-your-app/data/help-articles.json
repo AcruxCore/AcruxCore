@@ -1,0 +1,7 @@
+[
+  {"id": "returns", "title": "Returns", "body": "You can return an item within 30 days of delivery. Start a return from Orders, then print the label we email you."},
+  {"id": "refunds", "title": "Refunds", "body": "A refund reaches your card 5 to 7 business days after the warehouse receives the return."},
+  {"id": "shipping", "title": "Shipping times", "body": "Standard shipping takes 3 to 5 business days. Express shipping takes 1 to 2 business days."},
+  {"id": "tracking", "title": "Tracking an order", "body": "Every shipped order has a tracking number. It appears on the order page once the carrier scans the parcel."},
+  {"id": "cancel", "title": "Cancelling an order", "body": "You can cancel an order until it ships. After that, return it instead."}
+]

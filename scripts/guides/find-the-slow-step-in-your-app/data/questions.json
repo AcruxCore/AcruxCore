@@ -1,0 +1,10 @@
+[
+  {"order_id": "A-1001", "question": "Can I still return my shoes?"},
+  {"order_id": "A-1002", "question": "Where is my rain jacket?"},
+  {"order_id": "A-1003", "question": "Can I cancel this order?"},
+  {"order_id": "A-1004", "question": "When will I get my refund?"},
+  {"order_id": "A-1002", "question": "How long does shipping take?"},
+  {"order_id": "A-9999", "question": "Has my order shipped yet?"},
+  {"order_id": "A-1001", "question": "How do I print a return label?"},
+  {"order_id": "A-1003", "question": "When will my stove arrive?"}
+]

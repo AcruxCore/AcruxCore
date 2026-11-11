@@ -1,0 +1,6 @@
+{
+  "A-1001": {"status": "delivered", "delivered_on": "2026-11-02", "item": "Trail running shoes"},
+  "A-1002": {"status": "shipped", "carrier": "DHL", "tracking": "JD0146000032", "item": "Rain jacket"},
+  "A-1003": {"status": "processing", "item": "Camping stove"},
+  "A-1004": {"status": "returned", "returned_on": "2026-11-06", "item": "Headlamp"}
+}
