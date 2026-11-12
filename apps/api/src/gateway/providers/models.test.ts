@@ -124,6 +124,17 @@ describe('model registry + computeCost', () => {
   });
 });
 
+describe('Gemini cache rates for Runware ids', () => {
+  it('reads a Runware Gemini id, which prefixes the vendor with a dash', () => {
+    // Runware names Gemini `google-gemini-3-flash`; without a saved cached price the call
+    // was billed at the 0.5x default instead of Gemini's 0.1x.
+    expect(cacheRatesFor('runware', 'google-gemini-3-flash').read).toBe(0.1);
+    expect(cacheRatesFor('runware', 'google-gemini-3-1-flash-lite').read).toBe(0.1);
+    expect(cacheRatesFor('runware', 'google-gemini-2-0-flash').read).toBe(0.25);
+    expect(cacheRatesFor('runware', 'google-gemma-4-31b').read).toBe(CACHED_INPUT_DISCOUNT);
+  });
+});
+
 describe('Anthropic cache rates (issue #552)', () => {
   it('picks Anthropic rates for a native connection and for a Claude model behind OpenRouter', () => {
     expect(cacheRatesFor('anthropic', 'claude-haiku-5-5')).toBe(ANTHROPIC_CACHE_RATES);

@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
-import type { CreateModelInput, GatewayModel, UpdateModelInput } from '@/api';
+import { useEffect, useRef, useState } from 'react';
+import type { CreateModelInput, GatewayModel, ListedProviderModel, UpdateModelInput } from '@/api';
 import { useConnectionModels, useConnections, useCreateModel, useModels, useUpdateModel, ApiError } from '@/api';
 import { Button, Combobox, Dialog, DialogFooter, Field, Input, Select, useToast } from '@/ui';
 import { PROVIDER_LABELS } from './format';
 import { CACHED_PRICE_FIELD_HINT, PRICE_FIELD_HINT } from './model-price';
+import { copiedPrice, pricesFromListing, type PriceTexts } from './copied-prices';
 
 export interface ModelDialogProps {
   open: boolean;
@@ -21,6 +22,12 @@ function parsePrice(v: string): number | null | undefined {
   if (t === '') return undefined;
   const n = Number(t);
   return Number.isFinite(n) ? n : undefined;
+}
+
+/** A model's saved prices as form text. */
+function savedPrices(m: GatewayModel): PriceTexts {
+  const text = (v: number | null) => (v != null ? String(v) : '');
+  return { input: text(m.inputPricePerM), output: text(m.outputPricePerM), cached: text(m.cachedInputPricePerM) };
 }
 
 /**
@@ -46,20 +53,34 @@ export function ModelDialog({ open, onOpenChange, model }: ModelDialogProps) {
   // for "0.3e", so without this a typo was saved as "blank" and cleared a stored price.
   const [badPrices, setBadPrices] = useState<Set<PriceField>>(new Set());
   const [fallbackIds, setFallbackIds] = useState<string[]>([]);
+  // The prices the form filled in by itself: a model's saved prices when it opens for
+  // editing, then the prices copied for each pick. Picking another model replaces these but
+  // never a price the user typed. A ref, so a pick in the same render as the reset reads it.
+  const autoPrices = useRef<PriceTexts | null>(null);
+  // The upstream model as last set by the reset or a pick, for the same reason.
+  const upstreamRef = useRef('');
+  // The prices last copied from a provider's list, with the model and provider they came
+  // from. The note under the prices shows while a field still holds one of them.
+  const [copied, setCopied] = useState<{ prices: PriceTexts; model: string; provider: string } | null>(null);
 
   useEffect(() => {
     if (!open) return;
     if (model) {
       setPublicName(model.publicName);
       setUpstreamModel(model.upstreamModel);
+      upstreamRef.current = model.upstreamModel;
+      autoPrices.current = savedPrices(model);
       setCredentialId(model.credentialId);
-      setInputPrice(model.inputPricePerM != null ? String(model.inputPricePerM) : '');
-      setOutputPrice(model.outputPricePerM != null ? String(model.outputPricePerM) : '');
-      setCachedPrice(model.cachedInputPricePerM != null ? String(model.cachedInputPricePerM) : '');
+      const saved = savedPrices(model);
+      setInputPrice(saved.input);
+      setOutputPrice(saved.output);
+      setCachedPrice(saved.cached);
       setFallbackIds(model.fallbacks.map((f) => f.id));
     } else {
       setPublicName('');
       setUpstreamModel('');
+      upstreamRef.current = '';
+      autoPrices.current = null;
       setCredentialId(credentials?.[0]?.id ?? '');
       setInputPrice('');
       setOutputPrice('');
@@ -67,6 +88,7 @@ export function ModelDialog({ open, onOpenChange, model }: ModelDialogProps) {
       setFallbackIds([]);
     }
     setBadPrices(new Set());
+    setCopied(null);
   }, [open, model, credentials]);
 
   // Records the text and whether the browser could read it as a number. Both run on the
@@ -98,6 +120,52 @@ export function ModelDialog({ open, onOpenChange, model }: ModelDialogProps) {
   const pickerOptions = (listedModels ?? []).map((m) => ({ value: m.id }));
 
   const providerName = selectedCred ? PROVIDER_LABELS[selectedCred.provider] : 'the provider';
+
+  /**
+   * Fills the price fields for an upstream model: its listed prices, or, when an edit goes
+   * back to the model's own upstream model, its saved prices. Each field changes only while
+   * it is blank or still holds a filled-in price. The updaters read the latest queued text,
+   * so this is safe in the same render as the reset.
+   */
+  function fillPrices(upstream: string, list: ListedProviderModel[] | undefined) {
+    const id = upstream.trim();
+    const own = model && id === model.upstreamModel;
+    let next: PriceTexts | null;
+    if (own) next = savedPrices(model);
+    else if (list) next = pricesFromListing(list.find((m) => m.id === id)?.pricing);
+    else return; // No list for this credential: leave the fields as they are.
+    const prev = autoPrices.current;
+    setInputPrice((cur) => copiedPrice('input', cur, prev, next));
+    setOutputPrice((cur) => copiedPrice('output', cur, prev, next));
+    setCachedPrice((cur) => copiedPrice('cached', cur, prev, next));
+    autoPrices.current = next;
+    setCopied(next && !own ? { prices: next, model: id, provider: providerName } : null);
+  }
+
+  /** A pick or a keystroke in the upstream-model field. */
+  function pickUpstream(value: string) {
+    setUpstreamModel(value);
+    upstreamRef.current = value;
+    fillPrices(value, listedModels);
+  }
+
+  // A list that arrives after the pick (it was still loading, or the credential changed)
+  // fills the prices for the model already in the field. Only a new list runs this; reopening
+  // the dialog with a cached list does not.
+  useEffect(() => {
+    if (!open || !listedModels) return;
+    fillPrices(upstreamRef.current, listedModels);
+    // fillPrices reads the rest through refs and state updaters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listedModels]);
+
+  // The note shows while a field still holds a price copied from the list.
+  const showCopiedNote =
+    copied !== null &&
+    (['input', 'output', 'cached'] as const).some(
+      (f) => copied.prices[f] !== '' && { input: inputPrice, output: outputPrice, cached: cachedPrice }[f] === copied.prices[f],
+    );
+
   let upstreamHint: string;
   if (listed.isFetching && !listed.data) {
     upstreamHint = `Loading the models this ${providerName} key can call…`;
@@ -127,10 +195,13 @@ export function ModelDialog({ open, onOpenChange, model }: ModelDialogProps) {
         };
         const ip = parsePrice(inputPrice);
         const op = parsePrice(outputPrice);
+        // A cleared field sends null, so a stored price is removed rather than kept: picking
+        // a model the list has no price for clears the old model's prices from the form.
         if (ip !== undefined) body.inputPricePerM = ip;
+        else if (model.inputPricePerM != null) body.inputPricePerM = null;
         if (op !== undefined) body.outputPricePerM = op;
-        // Unlike the two prices above, blanking this one means something: go back to the
-        // provider's default rate. So a cleared field sends null rather than nothing.
+        else if (model.outputPricePerM != null) body.outputPricePerM = null;
+        // A cleared cached price goes back to the provider's default cache rate.
         const cp = parsePrice(cachedPrice);
         if (cp !== undefined) body.cachedInputPricePerM = cp;
         else if (model.cachedInputPricePerM != null) body.cachedInputPricePerM = null;
@@ -210,7 +281,7 @@ export function ModelDialog({ open, onOpenChange, model }: ModelDialogProps) {
               id="model-upstream"
               options={pickerOptions}
               value={upstreamModel}
-              onChange={setUpstreamModel}
+              onChange={pickUpstream}
               placeholder={listedModels ? 'Search models' : 'gpt-4o-mini'}
             />
           </Field>
@@ -239,6 +310,13 @@ export function ModelDialog({ open, onOpenChange, model }: ModelDialogProps) {
               />
             </Field>
           </div>
+
+          {showCopiedNote && copied && (
+            <p className="-mt-1 text-[12px] text-muted">
+              Prices copied from {copied.provider}&rsquo;s model list for{' '}
+              <span className="font-mono">{copied.model}</span>. Check them before saving.
+            </p>
+          )}
 
           <Field
             label="Cached input $/1M"

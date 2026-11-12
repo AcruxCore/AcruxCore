@@ -1,4 +1,5 @@
 import type { Agent } from 'undici';
+import type { ProviderKind } from '../connections/connections.types';
 import { ProviderAdapter, ProviderError, GATEWAY_TIMEOUT_MS, summarizeProviderDetail, parseRetryAfter } from './adapter';
 import { providerCallSignal } from './timeout';
 import type { ChatMessage, NormalizedRequest, NormalizedResponse, ProviderCredentials, StreamChunk } from './types';
@@ -132,13 +133,13 @@ function toWireMessage(m: ChatMessage, anthropicModel: boolean, keepExtraContent
  * is the router saying the request was wrong (an image link it could not fetch), so retrying or
  * falling back would not help. Anything else is a bad gateway.
  */
-function errorFromSuccessBody(data: { error?: OpenAiResponseBody['error'] }): ProviderError {
+function errorFromSuccessBody(data: { error?: OpenAiResponseBody['error'] }, label: string): ProviderError {
   const code = typeof data.error === 'object' ? data.error?.code : undefined;
   const status = typeof code === 'number' && code >= 400 && code < 500 ? code : 502;
   const detail = summarizeProviderDetail(JSON.stringify({ error: data.error }));
-  console.error('OpenAI upstream returned no choices:', JSON.stringify(data.error ?? null).slice(0, 500));
+  console.error(`${label} upstream returned no choices:`, JSON.stringify(data.error ?? null).slice(0, 500));
   return new ProviderError(
-    `OpenAI request failed: the upstream answered 200 with no completion`,
+    `${label} request failed: the upstream answered 200 with no completion`,
     status,
     undefined,
     status === 429 || status >= 500,
@@ -147,6 +148,27 @@ function errorFromSuccessBody(data: { error?: OpenAiResponseBody['error'] }): Pr
 }
 
 const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
+
+/**
+ * Runware's OpenAI-format API. A `runware` connection always calls this host: a stored
+ * `config.base_url` is ignored, as on an `anthropic` connection, so the key can only ever be
+ * sent to Runware.
+ */
+export const RUNWARE_BASE_URL = 'https://api.runware.ai/v1';
+
+/** The provider kinds this adapter serves. */
+type OpenAiWireKind = Extract<ProviderKind, 'openai' | 'openai_compatible' | 'runware'>;
+
+/** How one OpenAI-format provider differs from OpenAI itself. */
+export interface OpenAiAdapterOptions {
+  /** The name error messages use. Defaults to `OpenAI`. */
+  label?: string;
+  /**
+   * A host every call goes to, whatever `config.base_url` the connection stores. Being fixed
+   * and public, it needs no per-request SSRF guard.
+   */
+  fixedBaseUrl?: string;
+}
 
 function hostOf(url: string): string | undefined {
   try {
@@ -160,36 +182,51 @@ function hostOf(url: string): string | undefined {
  * Adapter for the OpenAI Chat Completions wire format. Because our canonical shape
  * IS the OpenAI shape, request and response are near passthroughs. The same class
  * serves `openai_compatible` providers (Groq, Together, Ollama, …) by requiring a
- * caller-supplied `baseUrl`.
+ * caller-supplied `baseUrl`, and `runware` by fixing the base URL to Runware's host.
  */
 export class OpenAiAdapter implements ProviderAdapter {
-  readonly provider: 'openai' | 'openai_compatible';
+  readonly provider: OpenAiWireKind;
+  /** The name error messages use, e.g. `Runware` on a Runware connection. */
+  private readonly label: string;
+  /** The host every call goes to, when the provider has only one. */
+  private readonly fixedBaseUrl: string | undefined;
   /** Every modelled field is sent: the canonical request is already OpenAI-shaped. */
   readonly unsentParams: ReadonlyArray<keyof NormalizedRequest> = [];
 
   /**
-   * @param provider - `'openai'` (default base URL) or `'openai_compatible'` (baseUrl required).
+   * @param provider - `'openai'` (default base URL), `'openai_compatible'` (baseUrl required)
+   *   or `'runware'`.
+   * @param options - The provider's label and fixed host, if any.
    */
-  constructor(provider: 'openai' | 'openai_compatible' = 'openai') {
+  constructor(provider: OpenAiWireKind = 'openai', options: OpenAiAdapterOptions = {}) {
     this.provider = provider;
+    this.label = options.label ?? 'OpenAI';
+    this.fixedBaseUrl = options.fixedBaseUrl;
   }
 
   /**
    * Resolve the base URL for this connection, enforcing the openai_compatible
    * requirement of an explicit base URL.
+   * @returns The base URL, and whether it is the connection's own (custom) one, which needs the
+   *   SSRF-guarded fetch.
    * @throws {ProviderError} 502 MISSING_BASE_URL when openai_compatible lacks a base URL.
    */
-  private resolveBaseUrl(creds: ProviderCredentials): string {
+  private resolveBaseUrl(creds: ProviderCredentials): { baseUrl: string; custom: boolean } {
+    if (this.fixedBaseUrl) return { baseUrl: this.fixedBaseUrl, custom: false };
     if (this.provider === 'openai_compatible' && !creds.baseUrl) {
       throw new ProviderError('openai_compatible connection is missing base_url', 502, 'MISSING_BASE_URL', false);
     }
-    return (creds.baseUrl ?? DEFAULT_OPENAI_BASE_URL).replace(/\/+$/, '');
+    return {
+      baseUrl: (creds.baseUrl ?? DEFAULT_OPENAI_BASE_URL).replace(/\/+$/, ''),
+      custom: creds.baseUrl !== undefined,
+    };
   }
 
   /** Build the shared OpenAI request body (model + messages + sampling params). */
   private buildPayload(req: NormalizedRequest, baseUrl: string): Record<string, unknown> {
-    // Native OpenAI never takes the marker, whatever the model is called.
-    const anthropicModel = this.provider === 'openai_compatible' && isAnthropicModel(req.model);
+    // Native OpenAI never takes the marker, whatever the model is called. Runware, like
+    // OpenRouter, serves Claude (`anthropic-claude-…`) and accepts the marker in a content block.
+    const anthropicModel = this.provider !== 'openai' && isAnthropicModel(req.model);
     const keepExtraContent = hostOf(baseUrl) === GEMINI_OPENAI_HOST;
     const payload: Record<string, unknown> = {
       model: req.model,
@@ -202,7 +239,9 @@ export class OpenAiAdapter implements ProviderAdapter {
       // (o1/o3/o4-mini/gpt-5), which 400 on the legacy name. Third-party
       // openai_compatible servers (Groq/Together/Ollama/…) still expect the
       // legacy name, so the wire key follows the provider boundary, not the model.
-      const maxTokensKey = this.provider === 'openai' ? 'max_completion_tokens' : 'max_tokens';
+      // Runware takes the new key on every model and refuses the old one on its
+      // OpenAI models (openai-gpt-5-5: 400 "Unsupported parameter"), checked 2026-11-13.
+      const maxTokensKey = this.provider === 'openai_compatible' ? 'max_tokens' : 'max_completion_tokens';
       payload[maxTokensKey] = req.max_tokens;
     }
     if (req.top_p !== undefined) payload['top_p'] = req.top_p;
@@ -227,11 +266,10 @@ export class OpenAiAdapter implements ProviderAdapter {
     creds: ProviderCredentials,
     deadline?: AbortSignal,
   ): Promise<NormalizedResponse> {
-    const baseUrl = this.resolveBaseUrl(creds);
+    const { baseUrl, custom: usesCustomBaseUrl } = this.resolveBaseUrl(creds);
     const url = `${baseUrl}/chat/completions`;
 
     const payload: Record<string, unknown> = { ...this.buildPayload(req, baseUrl), stream: false };
-    const usesCustomBaseUrl = creds.baseUrl !== undefined;
 
     let res: Response;
     let dispatcher: Agent | undefined;
@@ -251,7 +289,7 @@ export class OpenAiAdapter implements ProviderAdapter {
           signal: providerCallSignal(deadline),
         },
         usesCustomBaseUrl,
-        'OpenAI',
+        this.label,
         GATEWAY_TIMEOUT_MS,
         // Buffered: `res.json()` below reads the whole body into memory.
         true,
@@ -260,7 +298,7 @@ export class OpenAiAdapter implements ProviderAdapter {
       if (err instanceof ProviderError) throw err;
       const isTimeout = err instanceof Error && err.name === 'TimeoutError';
       throw new ProviderError(
-        isTimeout ? 'OpenAI request timed out' : `OpenAI network error: ${(err as Error).message}`,
+        isTimeout ? `${this.label} request timed out` : `${this.label} network error: ${(err as Error).message}`,
         isTimeout ? 504 : 502,
         isTimeout ? 'timeout' : 'network_error',
         true,
@@ -270,9 +308,9 @@ export class OpenAiAdapter implements ProviderAdapter {
     try {
       if (!res.ok) {
         const detail = await res.text().catch(() => '');
-        console.error(`OpenAI upstream error ${res.status}:`, detail);
+        console.error(`${this.label} upstream error ${res.status}:`, detail);
         throw new ProviderError(
-          `OpenAI request failed with status ${res.status}`,
+          `${this.label} request failed with status ${res.status}`,
           res.status,
           undefined,
           res.status === 429 || res.status >= 500,
@@ -282,7 +320,7 @@ export class OpenAiAdapter implements ProviderAdapter {
       }
 
       const data = (await res.json()) as OpenAiResponseBody;
-      if (!Array.isArray(data.choices)) throw errorFromSuccessBody(data);
+      if (!Array.isArray(data.choices)) throw errorFromSuccessBody(data, this.label);
       return {
         id: data.id,
         model: data.model,
@@ -322,14 +360,13 @@ export class OpenAiAdapter implements ProviderAdapter {
     creds: ProviderCredentials,
     signal?: AbortSignal,
   ): AsyncIterable<StreamChunk> {
-    const baseUrl = this.resolveBaseUrl(creds);
+    const { baseUrl, custom: usesCustomBaseUrl } = this.resolveBaseUrl(creds);
     const url = `${baseUrl}/chat/completions`;
     const payload: Record<string, unknown> = {
       ...this.buildPayload(req, baseUrl),
       stream: true,
       stream_options: { include_usage: true },
     };
-    const usesCustomBaseUrl = creds.baseUrl !== undefined;
 
     let res: Response;
     let dispatcher: Agent | undefined;
@@ -349,13 +386,13 @@ export class OpenAiAdapter implements ProviderAdapter {
           signal,
         },
         usesCustomBaseUrl,
-        'OpenAI',
+        this.label,
       ));
     } catch (err) {
       if (err instanceof ProviderError) throw err;
       const isTimeout = err instanceof Error && err.name === 'TimeoutError';
       throw new ProviderError(
-        isTimeout ? 'OpenAI stream request timed out' : `OpenAI network error: ${(err as Error).message}`,
+        isTimeout ? `${this.label} stream request timed out` : `${this.label} network error: ${(err as Error).message}`,
         isTimeout ? 504 : 502,
         isTimeout ? 'timeout' : 'network_error',
         true,
@@ -365,9 +402,9 @@ export class OpenAiAdapter implements ProviderAdapter {
     try {
       if (!res.ok || !res.body) {
         const detail = await res.text().catch(() => '');
-        console.error(`OpenAI stream upstream error ${res.status}:`, detail);
+        console.error(`${this.label} stream upstream error ${res.status}:`, detail);
         throw new ProviderError(
-          `OpenAI stream request failed with status ${res.status}`,
+          `${this.label} stream request failed with status ${res.status}`,
           res.status,
           undefined,
           res.status === 429 || res.status >= 500,
@@ -385,7 +422,7 @@ export class OpenAiAdapter implements ProviderAdapter {
         } catch {
           continue; // ignore malformed keep-alive lines
         }
-        if (frame.error !== undefined && !frame.choices?.length) throw errorFromSuccessBody({ error: frame.error });
+        if (frame.error !== undefined && !frame.choices?.length) throw errorFromSuccessBody({ error: frame.error }, this.label);
         const choice = frame.choices?.[0];
         const delta = choice?.delta?.content ?? '';
         const rawToolCalls = choice?.delta?.tool_calls;
@@ -425,3 +462,6 @@ export const openaiAdapter = new OpenAiAdapter('openai');
 
 /** Singleton adapter for any OpenAI-wire-compatible provider (base URL required). */
 export const openaiCompatibleAdapter = new OpenAiAdapter('openai_compatible');
+
+/** Singleton adapter for Runware's OpenAI-format chat API (fixed base URL). */
+export const runwareAdapter = new OpenAiAdapter('runware', { label: 'Runware', fixedBaseUrl: RUNWARE_BASE_URL });

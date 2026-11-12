@@ -1,19 +1,53 @@
 import { guardedFetch } from './guarded-fetch';
+import type { ProviderKind } from '../connections/connections.types';
 import { ProviderError } from './adapter';
 import type { ProviderCredentials } from './types';
+import { RUNWARE_BASE_URL } from './openai.adapter';
 
-/** One model id from a provider's own list. */
-export interface ListedModel {
-  id: string;
+/** A listed model's prices in USD per 1M tokens, as the provider's own list states them. */
+export interface ListedModelPricing {
+  inputPricePerM: number;
+  outputPricePerM: number;
+  /** Present only when the list states a cache-read price. */
+  cachedInputPricePerM?: number;
 }
 
-/** The provider kinds a connection can have. */
-type ProviderKind = 'openai' | 'anthropic' | 'openai_compatible' | 'gemini';
+/** One model from a provider's own list. */
+export interface ListedModel {
+  id: string;
+  /**
+   * Present only when the provider's list states both prices (Runware, OpenRouter). The
+   * dashboard copies them into the Add-model form; nothing is stored until the user saves.
+   */
+  pricing?: ListedModelPricing;
+}
+
 
 const OPENAI_BASE_URL = 'https://api.openai.com/v1';
 const ANTHROPIC_MODELS_URL = 'https://api.anthropic.com/v1/models?limit=1000';
 const ANTHROPIC_VERSION = '2023-06-01';
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
+const RUNWARE_MODELS_URL = `${RUNWARE_BASE_URL}/models`;
+
+/** Decimal places a model price column stores (`Decimal(12, 4)`); listed prices are rounded to it. */
+const PRICE_DECIMALS = 4;
+
+/**
+ * Whether an OpenAI-compatible base URL is OpenRouter's own host, whose list states prices in
+ * USD per token. No other host's unit is known: one could state per-1M prices under the same
+ * field names, which would be copied a million times too high, so other hosts list bare ids.
+ *
+ * @param baseUrl - The connection's base URL.
+ * @returns True for `openrouter.ai` and its subdomains.
+ */
+export function listsPerTokenPrices(baseUrl: string): boolean {
+  try {
+    const host = new URL(baseUrl).hostname.toLowerCase();
+    return host === 'openrouter.ai' || host.endsWith('.openrouter.ai');
+  } catch {
+    return false;
+  }
+}
 
 /**
  * A model list is a small, quick read. It gets a much shorter headers deadline than a
@@ -34,6 +68,7 @@ const LABELS: Record<ProviderKind, string> = {
   anthropic: 'Anthropic',
   gemini: 'Gemini',
   openai_compatible: 'OpenAI-compatible provider',
+  runware: 'Runware',
 };
 
 interface Target {
@@ -51,6 +86,63 @@ function dataIds(body: unknown): string[] {
   return data
     .map((m) => (m as { id?: unknown })?.id)
     .filter((id): id is string => typeof id === 'string' && id.length > 0);
+}
+
+/**
+ * Reads one per-token price string as USD per 1M tokens.
+ *
+ * Runware and OpenRouter state prices per token as decimal strings (`"0.00000025"`). A
+ * negative price is OpenRouter's marker for a router whose cost depends on the model it
+ * picks, so it counts as no price. The product is rounded to 12 significant digits, so
+ * `0.00000025 * 1e6` reads as `0.25`, not `0.24999999999999997`, then to the 4 decimals the
+ * price columns store, so the form shows what saving it would store (a price under $0.00005
+ * per 1M reads as 0).
+ *
+ * @param raw - The field's value, of any type.
+ * @returns USD per 1M tokens, or `undefined` when the value is missing, not a number, or negative.
+ */
+function perMillion(raw: unknown): number | undefined {
+  if (typeof raw !== 'string' && typeof raw !== 'number') return undefined;
+  if (typeof raw === 'string' && raw.trim() === '') return undefined;
+  const perToken = Number(raw);
+  if (!Number.isFinite(perToken) || perToken < 0) return undefined;
+  const exact = Number((perToken * 1_000_000).toPrecision(12));
+  return Math.round(exact * 10 ** PRICE_DECIMALS) / 10 ** PRICE_DECIMALS;
+}
+
+/**
+ * Reads the `pricing` object of an OpenRouter-shaped model entry (`prompt`, `completion`,
+ * `input_cache_read`, each USD per token).
+ *
+ * @param entry - One element of the list's `data[]`.
+ * @returns The prices, or `undefined` unless both the input and the output price are usable:
+ *   a half-priced model would bill only one side, so it is left for the user to fill in.
+ */
+function listedPricing(entry: unknown): ListedModelPricing | undefined {
+  const pricing = (entry as { pricing?: Record<string, unknown> } | null)?.pricing;
+  if (!pricing || typeof pricing !== 'object') return undefined;
+  const input = perMillion(pricing['prompt']);
+  const output = perMillion(pricing['completion']);
+  if (input === undefined || output === undefined) return undefined;
+  const cached = perMillion(pricing['input_cache_read']);
+  return { inputPricePerM: input, outputPricePerM: output, ...(cached !== undefined ? { cachedInputPricePerM: cached } : {}) };
+}
+
+/**
+ * Reads `data[]` as models with any prices the list states. Used for hosts whose list can
+ * carry OpenRouter-style `pricing` (Runware, OpenRouter); a host without it yields bare ids.
+ */
+function pricedModels(body: unknown): ListedModel[] {
+  const data = (body as { data?: unknown })?.data;
+  if (!Array.isArray(data)) return [];
+  const out: ListedModel[] = [];
+  for (const entry of data) {
+    const id = (entry as { id?: unknown } | null)?.id;
+    if (typeof id !== 'string' || id.length === 0) continue;
+    const pricing = listedPricing(entry);
+    out.push(pricing ? { id, pricing } : { id });
+  }
+  return out;
 }
 
 /** Wraps bare ids as listed models. */
@@ -101,9 +193,18 @@ function targetFor(provider: ProviderKind, creds: ProviderCredentials): Target {
         url: `${creds.baseUrl.replace(/\/+$/, '')}/models`,
         headers: { ...(creds.headers ?? {}), Authorization: `Bearer ${creds.apiKey}` },
         usesCustomBaseUrl: true,
-        extract: (body) => toModels(dataIds(body)),
+        extract: listsPerTokenPrices(creds.baseUrl) ? pricedModels : (body) => toModels(dataIds(body)),
       };
     }
+    case 'runware':
+      // One fixed host, like Anthropic; a stored base_url is inert. Every model it lists is a
+      // chat model (`output_modalities: ["text"]`), so nothing is filtered out.
+      return {
+        url: RUNWARE_MODELS_URL,
+        headers: { Authorization: `Bearer ${creds.apiKey}` },
+        usesCustomBaseUrl: false,
+        extract: pricedModels,
+      };
     case 'openai': {
       const base = (creds.baseUrl ?? OPENAI_BASE_URL).replace(/\/+$/, '');
       return {
@@ -127,8 +228,9 @@ function targetFor(provider: ProviderKind, creds: ProviderCredentials): Target {
  *
  * @param provider - The connection's provider kind.
  * @param creds - The decrypted key, plus the base URL and extra headers the connection stores.
- * @returns Unique models sorted by id, with no prices: the user types a model's prices
- *   when registering it (owner decision, FAQ Q160). Empty when the provider lists none.
+ * @returns Unique models sorted by id. A model carries `pricing` only when the provider's
+ *   own list states it (Runware, OpenRouter); otherwise the user types the prices when
+ *   registering it (cross-cutting FAQ Q160). Empty when the provider lists none.
  * @throws {ProviderError} When the provider answers non-2xx (its status and message are
  *   kept), the base URL is missing or blocked, or the body is not JSON.
  * @throws {DOMException} `TimeoutError` when no response headers arrive within 15 s.

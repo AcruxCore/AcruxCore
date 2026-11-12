@@ -321,6 +321,7 @@ enum provider_kind {
   anthropic
   openai_compatible
   gemini
+  runware
 }
 
 enum span_kind {

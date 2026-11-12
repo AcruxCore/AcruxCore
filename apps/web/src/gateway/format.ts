@@ -6,6 +6,7 @@ export const PROVIDER_LABELS: Record<ProviderKind, string> = {
   anthropic: 'Anthropic',
   gemini: 'Gemini',
   openai_compatible: 'OpenAI-compatible',
+  runware: 'Runware',
 };
 
 /**

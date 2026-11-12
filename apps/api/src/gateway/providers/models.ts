@@ -130,7 +130,7 @@ export const GEMINI_CACHE_RATES: CacheRates = { read: 0.1, write: 1 };
 export const GEMINI_LEGACY_CACHE_RATES: CacheRates = { read: 0.25, write: 1 };
 
 /** Gemini ids from the 1.5 and 2.0 families, e.g. `gemini-2.0-flash` or `google/gemini-1.5-pro-002`. */
-const GEMINI_LEGACY_ID = /(^|\/)gemini-(1\.5|2\.0)-/i;
+const GEMINI_LEGACY_ID = /(^|\/|google-)gemini-(1[.-]5|2[.-]0)-/i;
 
 /**
  * Whether an upstream model id names a Gemini model, whatever connection serves it.
@@ -139,7 +139,7 @@ const GEMINI_LEGACY_ID = /(^|\/)gemini-(1\.5|2\.0)-/i;
  * @returns True for an id whose last path segment starts with `gemini-`.
  */
 export function isGeminiModel(upstreamModel: string): boolean {
-  return /(^|\/)gemini-/i.test(upstreamModel);
+  return /(^|\/|google-)gemini-/i.test(upstreamModel);
 }
 
 /**

@@ -5,7 +5,7 @@ import { Button, Dialog, DialogFooter, Field, Input, Select, Textarea, useToast 
 import { PROVIDER_LABELS } from './format';
 import { formatHeaderLines, parseHeaderLines } from './connection-headers';
 
-const PROVIDERS: ProviderKind[] = ['openai', 'anthropic', 'gemini', 'openai_compatible'];
+const PROVIDERS: ProviderKind[] = ['openai', 'anthropic', 'gemini', 'runware', 'openai_compatible'];
 
 export interface ConnectionDialogProps {
   open: boolean;
@@ -140,7 +140,13 @@ export function ConnectionDialog({ open, onOpenChange, connection }: ConnectionD
         <Field
           label={editing ? 'API key' : 'Provider API key'}
           htmlFor="conn-key"
-          hint={editing ? 'Leave blank to keep the current key.' : undefined}
+          hint={
+            editing
+              ? 'Leave blank to keep the current key.'
+              : provider === 'runware'
+                ? 'Calls go to api.runware.ai. Every Runware chat model is listed when you add a model.'
+                : undefined
+          }
         >
           <Input
             id="conn-key"

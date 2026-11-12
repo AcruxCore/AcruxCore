@@ -255,7 +255,7 @@ export interface PromptExport {
 }
 
 // ── Gateway: provider connections (BYOK) ────────────────────────────────────
-export type ProviderKind = 'openai' | 'anthropic' | 'gemini' | 'openai_compatible';
+export type ProviderKind = 'openai' | 'anthropic' | 'gemini' | 'openai_compatible' | 'runware';
 
 /**
  * Optional routing hints stored inside a connection's `config` JSONB (G5).
@@ -299,6 +299,8 @@ export interface UpdateConnectionInput {
 /** One model a provider credential can call, from GET /gateway/connections/:id/models. */
 export interface ListedProviderModel {
   id: string;
+  /** USD per 1M tokens, present only when the provider's own list states both prices. */
+  pricing?: { inputPricePerM: number; outputPricePerM: number; cachedInputPricePerM?: number };
 }
 
 /** Response of GET /gateway/connections/:id/models. A provider failure is `ok: false`, not an HTTP error. */

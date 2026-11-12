@@ -25,12 +25,14 @@ beforeAll(async () => {
 
     if (path === '/compat/v1/models') {
       // Unsorted and with a duplicate, to prove the endpoint sorts and de-duplicates.
-      // OpenRouter-style, with per-token prices: the endpoint must ignore them.
+      // OpenRouter-style, with per-token prices: the endpoint passes them on per 1M tokens.
+      // The router entry's -1 means "depends on the model it picks", so it has no price.
       res.end(
         JSON.stringify({
           data: [
             { id: 'openai/gpt-4o-mini', pricing: { prompt: '0.00000015', completion: '0.0000006', input_cache_read: '0.000000075' } },
             { id: 'anthropic/claude-x' },
+            { id: 'openrouter/auto', pricing: { prompt: '-1', completion: '-1' } },
             { id: 'openai/gpt-4o-mini', pricing: { prompt: '9', completion: '9' } },
           ],
         }),
@@ -104,8 +106,13 @@ describe('GET /api/v1/gateway/connections/:id/models', () => {
     const before = hits['/compat/v1/models'] ?? 0;
 
     const first = await agent.get(`/api/v1/gateway/connections/${id}/models`).expect(200);
-    // Ids only: the prices the host's list carries are not passed on.
-    expect(first.body).toEqual({ ok: true, models: [{ id: 'anthropic/claude-x' }, { id: 'openai/gpt-4o-mini' }] });
+    // The first entry wins a duplicate id. Prices are read only from OpenRouter's own host,
+    // whose unit (USD per token) is known: another host could state per-1M prices under the
+    // same names, and they would be copied a million times too high.
+    expect(first.body).toEqual({
+      ok: true,
+      models: [{ id: 'anthropic/claude-x' }, { id: 'openai/gpt-4o-mini' }, { id: 'openrouter/auto' }],
+    });
     expect(seenKeys.at(-1)).toBe('Bearer sk-test-first-key-AB12');
     expect(hits['/compat/v1/models']).toBe(before + 1);
 

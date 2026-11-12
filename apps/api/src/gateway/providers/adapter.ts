@@ -1,5 +1,6 @@
 import type { NormalizedRequest, NormalizedResponse, ProviderCredentials, StreamChunk } from './types';
-import { openaiAdapter, openaiCompatibleAdapter } from './openai.adapter';
+import type { ProviderKind } from '../connections/connections.types';
+import { openaiAdapter, openaiCompatibleAdapter, runwareAdapter } from './openai.adapter';
 import { anthropicAdapter } from './anthropic.adapter';
 import { geminiAdapter } from './gemini.adapter';
 
@@ -12,7 +13,7 @@ export { GATEWAY_TIMEOUT_MS, gatewayChainDeadlineMs } from './timeout';
  * calls it, and normalizes the response (including token usage) back to OpenAI shape.
  */
 export interface ProviderAdapter {
-  readonly provider: 'openai' | 'anthropic' | 'openai_compatible' | 'gemini';
+  readonly provider: ProviderKind;
   /**
    * Request fields this adapter accepts but does not put on the wire. Declared here, beside
    * the code that builds the payload, so `x-gateway-params-ignored` cannot drift from what
@@ -145,12 +146,13 @@ const REGISTRY: Record<string, ProviderAdapter> = {
   openai_compatible: openaiCompatibleAdapter,
   anthropic: anthropicAdapter,
   gemini: geminiAdapter,
+  runware: runwareAdapter,
 };
 
 /**
  * Resolve a provider-kind string to its adapter singleton.
  *
- * @param provider - One of 'openai' | 'anthropic' | 'openai_compatible'.
+ * @param provider - A provider kind: 'openai', 'anthropic', 'openai_compatible', 'gemini' or 'runware'.
  * @returns The matching adapter instance.
  * @throws {ProviderError} 500 UNKNOWN_PROVIDER if no adapter is registered.
  */

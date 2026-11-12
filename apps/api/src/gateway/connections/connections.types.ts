@@ -116,9 +116,9 @@ function checkHeaders(headers: unknown, ctx: z.RefinementCtx, allowNull: boolean
 }
 
 /** The supported provider kinds; mirrors the Prisma `provider_kind` enum. */
-export const ProviderKindSchema = z.enum(['openai', 'anthropic', 'openai_compatible', 'gemini']);
+export const ProviderKindSchema = z.enum(['openai', 'anthropic', 'openai_compatible', 'gemini', 'runware']);
 
-/** A provider kind value (`'openai' | 'anthropic' | 'openai_compatible' | 'gemini'`). */
+/** A provider kind value (`'openai' | 'anthropic' | 'openai_compatible' | 'gemini' | 'runware'`). */
 export type ProviderKind = z.infer<typeof ProviderKindSchema>;
 
 /**
@@ -132,7 +132,8 @@ function isInvalidOrBlockedBaseUrl(baseUrl: unknown): boolean {
 
 /**
  * Provider kinds whose adapter actually reads `creds.baseUrl` at request time
- * (`openai.adapter.ts`, `gemini.adapter.ts`). `anthropic` is deliberately excluded:
+ * (`openai.adapter.ts`, `gemini.adapter.ts`). `runware` is excluded like `anthropic`: its
+ * adapter always calls Runware's own host. `anthropic` is deliberately excluded:
  * `anthropic.adapter.ts` never reads `creds.baseUrl` and always calls its hardcoded
  * host, so an anthropic connection's `config.base_url` (if present at all) is inert —
  * validating it as an SSRF risk would only produce spurious rejections for a field
@@ -272,8 +273,9 @@ export interface ProviderConnectionDto {
 export interface ConnectionModelsResult {
   ok: boolean;
   /**
-   * Models the credential can call, sorted by id. Ids only, no prices: the user types
-   * a model's prices when registering it. Present when `ok`.
+   * Models the credential can call, sorted by id. A model has `pricing` only when the
+   * provider's list states it; the dashboard prefills the form with it and stores nothing
+   * until the user saves. Present when `ok`.
    */
   models?: ListedModel[];
   /** Why the list could not be read. Present when not `ok`. */
