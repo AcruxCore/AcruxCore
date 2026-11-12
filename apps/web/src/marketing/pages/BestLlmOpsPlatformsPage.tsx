@@ -174,6 +174,21 @@ export function BestLlmOpsPlatformsPage(): ReactNode {
           has the screenshots from each test. The <Link to="/faq">FAQ</Link> says which teams
           AcruxCore fits and which should pick something else.
         </p>
+        <p className="acx-prose" style={cssToStyle('margin:12px 0 0;')}>
+          If you are leaving a specific tool, our posts on{' '}
+          <a href={`${BLOG_URL}/langfuse-alternatives`} target="_blank" rel="noreferrer">
+            Langfuse alternatives
+          </a>
+          ,{' '}
+          <a href={`${BLOG_URL}/langsmith-alternatives`} target="_blank" rel="noreferrer">
+            LangSmith alternatives
+          </a>{' '}
+          and{' '}
+          <a href={`${BLOG_URL}/braintrust-alternatives`} target="_blank" rel="noreferrer">
+            Braintrust alternatives
+          </a>{' '}
+          compare the tools that replace it.
+        </p>
       </section>
     </MarketingShell>
   );

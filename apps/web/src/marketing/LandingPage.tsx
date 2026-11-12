@@ -19,6 +19,7 @@ import {
   btnPrimary,
   btnSecondary,
   ExternalArrow,
+  BLOG_URL,
 } from './marketing-chrome';
 import { DEMO_VIDEO } from './demo-video';
 import { FEATURE_LIST } from './features';
@@ -517,6 +518,26 @@ export function LandingPage(): ReactNode {
                 Migrate your prompts from Langfuse
               </a>{' '}
               with every version and label.
+            </p>
+            {/* plain <a> for the posts: /blog is a separate static build, not an SPA route. */}
+            <p style={cssToStyle('margin:10px 0 0;font-size:14px;line-height:1.6;color:var(--muted);')}>
+              If you are leaving another tool, read our{' '}
+              <a href={`${BLOG_URL}/langsmith-alternatives`} style={cssToStyle('color:var(--accent);')}>
+                LangSmith alternatives
+              </a>
+              ,{' '}
+              <a href={`${BLOG_URL}/langfuse-alternatives`} style={cssToStyle('color:var(--accent);')}>
+                Langfuse alternatives
+              </a>{' '}
+              and{' '}
+              <a href={`${BLOG_URL}/braintrust-alternatives`} style={cssToStyle('color:var(--accent);')}>
+                Braintrust alternatives
+              </a>
+              , or compare the{' '}
+              <Link to="/best-open-source-llmops-platforms" style={cssToStyle('color:var(--accent);')}>
+                best open-source LLMOps platforms
+              </Link>{' '}
+              side by side.
             </p>
           </div>
 
