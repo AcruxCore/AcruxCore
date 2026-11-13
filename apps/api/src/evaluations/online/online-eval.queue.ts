@@ -3,7 +3,7 @@ import { getQueuePrefix, getRedisConnection } from '../queue/connection';
 
 export const ONLINE_EVAL_QUEUE = 'eval-online';
 
-/** Job payload carries only ids — the worker does every read, per the spec's "no DB read at enqueue time" requirement. */
+/** Job payload carries only ids: the worker does every read. Enqueue reads only the cached rule list (phase-5-faq Q62). */
 export interface OnlineEvalJobData {
   teamId: string;
   traceId: string;

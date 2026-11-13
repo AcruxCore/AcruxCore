@@ -4,6 +4,7 @@ import prisma from '../../shared/db/client';
 import { authedAgent } from '../../test-utils';
 import { getOnlineEvalQueue } from '../../evaluations/online/online-eval.queue';
 import { enqueueOnlineEval } from '../../evaluations/online/enqueue-online-eval';
+import { invalidateRuleCache } from '../../evaluations/online/online-eval.processor';
 
 const app = createApp();
 
@@ -38,6 +39,7 @@ async function registerModel(agent: ReturnType<typeof request.agent>, credential
 
 async function truncateTables(): Promise<void> {
   await prisma.$executeRawUnsafe(`TRUNCATE TABLE
+    eval_rule_scores, eval_rules,
     span_payloads, spans, trace_feedback, traces, team_trace_settings,
     gateway_requests, gateway_cache, budgets, virtual_keys,
     gateway_model_fallbacks, gateway_models, provider_connections,
@@ -49,6 +51,7 @@ async function truncateTables(): Promise<void> {
 beforeEach(async () => {
   await truncateTables();
   await getOnlineEvalQueue().drain(true);
+  invalidateRuleCache();
 });
 afterEach(() => jest.restoreAllMocks());
 afterAll(async () => {
@@ -57,11 +60,22 @@ afterAll(async () => {
   await getOnlineEvalQueue().close();
 });
 
+/** Sends one gateway completion, waits for the fire-and-forget enqueue, and returns the waiting job count. */
+async function completeAndCountJobs(agent: ReturnType<typeof request.agent>): Promise<number> {
+  await agent
+    .post('/api/v1/gateway/chat/completions')
+    .send({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'hi' }] })
+    .expect(200);
+  await new Promise((r) => setTimeout(r, 100));
+  return (await getOnlineEvalQueue().getJobCounts('waiting')).waiting;
+}
+
 describe('online-eval enqueue trigger', () => {
   it('a gateway llm completion enqueues exactly one eval-online job', async () => {
     const { agent } = await authedAgent(app);
     const credId = await createConnection(agent);
     await registerModel(agent, credId);
+    await agent.post('/api/v1/eval-rules').send({ name: 'r', criteria: 'is helpful', sampleRate: 1, judgeModel: 'gpt-4o-mini' }).expect(201);
     mockFetchOnce(CANNED_OPENAI);
 
     await agent
@@ -73,6 +87,42 @@ describe('online-eval enqueue trigger', () => {
     await new Promise((r) => setTimeout(r, 50));
     const counts = await getOnlineEvalQueue().getJobCounts('waiting');
     expect(counts.waiting).toBe(1);
+  });
+
+  it('a team with no enabled eval rules enqueues nothing for its llm spans (issue #856)', async () => {
+    const { agent } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+    mockFetchOnce(CANNED_OPENAI);
+
+    expect(await completeAndCountJobs(agent)).toBe(0);
+  });
+
+  it('a rule created after a cached "no rules" read scores the very next span', async () => {
+    const { agent } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+    mockFetchOnce(CANNED_OPENAI);
+
+    // First span: no rules yet, so the team's empty rule list is now cached.
+    expect(await completeAndCountJobs(agent)).toBe(0);
+
+    await agent.post('/api/v1/eval-rules').send({ name: 'r', criteria: 'is helpful', sampleRate: 1, judgeModel: 'gpt-4o-mini' }).expect(201);
+    expect(await completeAndCountJobs(agent)).toBe(1);
+  });
+
+  it('disabling the last rule stops the enqueue straight away', async () => {
+    const { agent } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+    const rule = (
+      await agent.post('/api/v1/eval-rules').send({ name: 'r', criteria: 'is helpful', sampleRate: 1, judgeModel: 'gpt-4o-mini' }).expect(201)
+    ).body;
+    mockFetchOnce(CANNED_OPENAI);
+    expect(await completeAndCountJobs(agent)).toBe(1);
+
+    await agent.patch(`/api/v1/eval-rules/${rule.id}`).send({ enabled: false }).expect(200);
+    expect(await completeAndCountJobs(agent)).toBe(1);
   });
 
   it('SDK-reported tool spans enqueue nothing', async () => {

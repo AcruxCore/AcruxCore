@@ -11,48 +11,21 @@ import { MembersRepository } from '../../teams/members/members.repository';
 import { EvalRuleRepository } from './online-eval-rule.repository';
 import { matchesFilter } from './eval-rule-matcher';
 import { judgeableOutput } from './span-output';
+import { getEnabledRules, invalidateRuleCache, type EnabledRule } from './enabled-rules-cache';
 import { onlineEvalRuleService, JUDGE_MARKER } from './online-eval-rule.service';
 import type { OnlineEvalJobData } from './online-eval.queue';
 import { JUDGE_FAILED_PREFIX, SCORING_FAILED_PREFIX, type EvalRuleFilter } from './online-eval-rule.types';
 
-/** In-process rule cache lifetime. A rule edit taking half a minute to take effect is fine; a query per span is not. */
-const RULE_CACHE_TTL_MS = 30_000;
-
 const repo = new EvalRuleRepository();
 const members = new MembersRepository();
-
-/** One row from `EvalRuleRepository.listAllEnabled` — a rule together with its Prisma `Decimal`/`Json` fields as stored. */
-type EnabledRule = Awaited<ReturnType<EvalRuleRepository['listAllEnabled']>>[number];
 
 /** A span plus the trace fields and payload the matcher/judge need — precise Prisma include shape, not a generic `findUnique` inference. */
 type SpanWithTraceAndPayload = Prisma.SpanGetPayload<{
   include: { trace: { select: { sessionId: true } }; payload: true };
 }>;
 
-interface CachedRules {
-  rules: EnabledRule[];
-  expiresAt: number;
-}
-let rulesCache: CachedRules | null = null;
-
-/** 30s in-process cache of every enabled rule across every team — a rule edit taking half a minute to take effect is fine; a query per span is not. */
-async function getEnabledRules(): Promise<EnabledRule[]> {
-  if (rulesCache && rulesCache.expiresAt > Date.now()) return rulesCache.rules;
-  const rules = await repo.listAllEnabled();
-  rulesCache = { rules, expiresAt: Date.now() + RULE_CACHE_TTL_MS };
-  return rules;
-}
-
-/**
- * Exposed for tests that need to force a re-read after seeding a rule
- * mid-test, and used internally after a rule is auto-disabled so the cache
- * doesn't keep serving it as enabled for the rest of its TTL.
- *
- * @returns Nothing. Drops the cached rule list; the next `getEnabledRules()` call re-queries.
- */
-export function invalidateRuleCache(): void {
-  rulesCache = null;
-}
+// Re-exported because tests and callers have always imported it from here.
+export { invalidateRuleCache };
 
 /**
  * Processes one online-eval job: matches every enabled rule against the span,
@@ -63,7 +36,9 @@ export function invalidateRuleCache(): void {
  * the job shows as failed in BullMQ. Jobs are added without retries
  * (`enqueue-online-eval.ts`), so the row is the only reason a user ever sees.
  *
- * The judge-loop guard below is deliberately doubled and runs before any
+ * The team's rules are checked first, from the in-process cache, so a team
+ * with no enabled rule costs no database read at all (issue #856). The
+ * judge-loop guard after it is deliberately doubled and runs before any
  * rule-matching logic: without it, a rule would score its own judge call,
  * which would produce another judge call for some rule to score, forever.
  *
@@ -76,6 +51,13 @@ export function invalidateRuleCache(): void {
 export async function processOnlineEval(data: OnlineEvalJobData): Promise<void> {
   // Kind gate (defensive — call sites already only enqueue llm spans).
   if (data.spanKind !== 'llm') return;
+
+  // No enabled rule for this team: nothing could score the span, so read nothing
+  // about it. The cached list costs no query; the span read below includes the
+  // payload, and a burst of ingest is exactly when that read hurts (issue #856).
+  const rules = await getEnabledRules();
+  const teamRules = rules.filter((r) => r.teamId === data.teamId);
+  if (teamRules.length === 0) return;
 
   // team-scoped: every query in this file must be (Global Constraints) — a
   // spanId/teamId mismatch (enqueue bug, replayed job against a restored DB)
@@ -97,11 +79,6 @@ export async function processOnlineEval(data: OnlineEvalJobData): Promise<void> 
   //    has a score row, so it never covers the judge's own immediate next
   //    span — guard #1 above is what covers that case).
   if (await repo.isJudgeTrace(data.traceId)) return;
-
-  // Load enabled rules (cached) only once both guards above have cleared.
-  const rules = await getEnabledRules();
-  const teamRules = rules.filter((r) => r.teamId === data.teamId);
-  if (teamRules.length === 0) return;
 
   // Each rule runs on its own: one rule's failure must not stop the others from grading
   // this span (issue #580). An expected judge failure is recorded on that rule's row

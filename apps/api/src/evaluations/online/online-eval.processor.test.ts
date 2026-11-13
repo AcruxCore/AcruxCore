@@ -106,6 +106,23 @@ afterAll(async () => {
 });
 
 describe('processOnlineEval', () => {
+  it('reads nothing about the span when the team has no enabled rules (issue #856)', async () => {
+    const { agent, teamId } = await authedAgent(app);
+    const credId = await createConnection(agent);
+    await registerModel(agent, credId);
+    const { traceId, spanId } = await sendScoredCompletion(agent, teamId);
+
+    // Pass-through spies: the real queries still run; this only counts them.
+    const spanRead = jest.spyOn(prisma.span, 'findFirst');
+    const judgeTraceCheck = jest.spyOn(EvalRuleRepository.prototype, 'isJudgeTrace');
+    invalidateRuleCache();
+    await processOnlineEval({ teamId, traceId, spanId, spanKind: 'llm' });
+
+    expect(spanRead).not.toHaveBeenCalled();
+    expect(judgeTraceCheck).not.toHaveBeenCalled();
+    expect(await prisma.evalRuleScore.count({ where: { spanId } })).toBe(0);
+  });
+
   it('scores a matching span end to end and the trace becomes findable by minScore', async () => {
     const { agent, teamId } = await authedAgent(app);
     const credId = await createConnection(agent);

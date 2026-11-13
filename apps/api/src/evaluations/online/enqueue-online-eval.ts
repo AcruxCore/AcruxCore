@@ -1,3 +1,4 @@
+import { teamHasEnabledRules } from './enabled-rules-cache';
 import { getOnlineEvalQueue } from './online-eval.queue';
 import type { OnlineEvalJobData } from './online-eval.queue';
 
@@ -10,6 +11,10 @@ import type { OnlineEvalJobData } from './online-eval.queue';
  * stays a pure "enqueue what I was told" primitive both call sites can trust
  * identically).
  *
+ * A team with no enabled rule gets no job: the check reads the 30 s in-process rule
+ * cache, off the caller's path, so it costs one query per process per 30 s rather
+ * than one Redis write and one worker job per LLM span (issue #856).
+ *
  * The job is named after the span ({@link onlineEvalJobId}), so a span queued twice
  * while its first job is still held by BullMQ collapses into one job and one set of
  * judge calls.
@@ -19,8 +24,8 @@ import type { OnlineEvalJobData } from './online-eval.queue';
  */
 export function enqueueOnlineEval(args: OnlineEvalJobData): void {
   try {
-    getOnlineEvalQueue()
-      .add('score', args, { jobId: onlineEvalJobId(args.spanId) })
+    teamHasEnabledRules(args.teamId)
+      .then((hasRules) => (hasRules ? getOnlineEvalQueue().add('score', args, { jobId: onlineEvalJobId(args.spanId) }) : undefined))
       .catch((err) => console.error('[online-eval] enqueue failed', err));
   } catch (err) {
     console.error('[online-eval] enqueue failed', err);

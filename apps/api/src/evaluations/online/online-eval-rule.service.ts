@@ -12,6 +12,7 @@ import prisma from '../../shared/db/client';
 import { audit } from '../../shared/audit';
 import { evalCallDeadlineMs } from '../queue/eval-call-deadline';
 import { EvalRuleRepository } from './online-eval-rule.repository';
+import { invalidateRuleCache } from './enabled-rules-cache';
 import { matchesFilter } from './eval-rule-matcher';
 import { judgeableOutput } from './span-output';
 import type {
@@ -73,6 +74,7 @@ export class OnlineEvalRuleService {
     await assertModelRegistered(teamId, input.judgeModel);
     await this.assertJudgePromptExists(teamId, input.judgePromptId);
     const rule = await this.repo.create(teamId, userId, input);
+    invalidateRuleCache();
     await audit(prisma, {
       teamId,
       actorId: userId,
@@ -143,6 +145,7 @@ export class OnlineEvalRuleService {
     }
     const rule = await this.repo.update(id, teamId, patch);
     if (!rule) throw new NotFoundError('Rule not found.');
+    invalidateRuleCache();
     // Field names, not values: `criteria` and a custom judge prompt are free text
     // that can run to thousands of characters, and the trail is a record of who
     // acted, not a second copy of the rule. `enabled` is the exception, because
@@ -165,6 +168,7 @@ export class OnlineEvalRuleService {
   async deleteRule(id: string, teamId: string, actorId: string): Promise<void> {
     const removed = await this.repo.remove(id, teamId);
     if (!removed) throw new NotFoundError('Rule not found.');
+    invalidateRuleCache();
     // Deleting a rule cascades its scores away, so this row is the only thing left
     // that says the rule existed and who removed it.
     await audit(prisma, {
