@@ -255,7 +255,7 @@ describe('SpansRepository', () => {
   });
 });
 
-describe('upsertSpan', () => {
+describe('upsertSpans', () => {
   it('is safe to call twice with the same (traceId, spanRef) — one row, rollups not double-counted', async () => {
     const teamId = await seedTeam();
     const trace = await repo.createTrace({ nameIsDerived: false, teamId, startedAt: new Date('2026-08-10T00:00:00Z') });
@@ -266,8 +266,11 @@ describe('upsertSpan', () => {
       endedAt: new Date('2026-08-10T00:00:01Z'), totalTokens: 50, costUsd: 0.001,
     };
 
-    await repo.upsertSpan(input);
-    await repo.upsertSpan(input); // retry of the same OTLP batch
+    const first = await repo.upsertSpans(trace.id, [input]);
+    const retry = await repo.upsertSpans(trace.id, [input]); // retry of the same OTLP batch
+
+    expect(first[0].inserted).toBe(true);
+    expect(retry[0]).toEqual({ ...first[0], inserted: false });
 
     const spans = await prisma.span.findMany({ where: { traceId: trace.id } });
     expect(spans).toHaveLength(1);
@@ -281,16 +284,77 @@ describe('upsertSpan', () => {
     const teamId = await seedTeam();
     const trace = await repo.createTrace({ nameIsDerived: false, teamId, startedAt: new Date('2026-08-10T00:00:00Z') });
 
-    await repo.upsertSpan({
+    await repo.upsertSpans(trace.id, [{
       teamId, traceId: trace.id, spanRef: 's1', kind: 'llm', name: 'x',
       status: 'error', startedAt: new Date('2026-08-10T00:00:00Z'),
-    });
-    await repo.upsertSpan({
+    }]);
+    await repo.upsertSpans(trace.id, [{
       teamId, traceId: trace.id, spanRef: 's2', kind: 'tool', name: 'y',
       status: 'ok', startedAt: new Date('2026-08-10T00:00:01Z'),
-    });
+    }]);
 
     const updatedTrace = await prisma.trace.findUnique({ where: { id: trace.id } });
     expect(updatedTrace?.status).toBe('error');
+  });
+
+  it('writes a batch in one call: rollups over every span, a repeated span stored once with its last copy', async () => {
+    const teamId = await seedTeam();
+    const trace = await repo.createTrace({ nameIsDerived: false, teamId, startedAt: new Date('2026-08-10T00:00:00Z') });
+    const base = { teamId, traceId: trace.id, status: 'ok' as const, startedAt: new Date('2026-08-10T00:00:00Z') };
+
+    const rows = await repo.upsertSpans(trace.id, [
+      { ...base, spanRef: 'root', kind: 'agent', name: 'run', endedAt: new Date('2026-08-10T00:00:03Z') },
+      { ...base, spanRef: 'llm', kind: 'llm', name: 'first copy', totalTokens: 10, costUsd: 0.5 },
+      { ...base, spanRef: 'tool', kind: 'tool', name: 'lookup', totalTokens: 5, endedAt: new Date('2026-08-10T00:00:02Z') },
+      { ...base, spanRef: 'llm', kind: 'llm', name: 'last copy', totalTokens: 20, costUsd: 0.25 },
+    ]);
+
+    expect(rows.map((r) => [r.spanRef, r.kind, r.inserted])).toEqual([
+      ['root', 'agent', true], ['llm', 'llm', true], ['tool', 'tool', true],
+    ]);
+    const llm = await prisma.span.findUniqueOrThrow({ where: { id: rows[1].id } });
+    expect(llm.name).toBe('last copy');
+    const t = await prisma.trace.findUniqueOrThrow({ where: { id: trace.id } });
+    expect(t.spanCount).toBe(3);
+    expect(t.totalTokens).toBe(25);
+    expect(Number(t.totalCostUsd)).toBeCloseTo(0.25, 9);
+    expect(t.status).toBe('ok');
+    expect(t.endedAt?.toISOString()).toBe('2026-08-10T00:00:03.000Z');
+  });
+
+  it('leaves the trace cost null when no span has a cost', async () => {
+    const teamId = await seedTeam();
+    const trace = await repo.createTrace({ nameIsDerived: false, teamId, startedAt: new Date('2026-08-10T00:00:00Z') });
+    await repo.upsertSpans(trace.id, [
+      { teamId, traceId: trace.id, spanRef: 'a', kind: 'tool', name: 'a', startedAt: new Date('2026-08-10T00:00:00Z') },
+    ]);
+    const t = await prisma.trace.findUniqueOrThrow({ where: { id: trace.id } });
+    expect(t.totalCostUsd).toBeNull();
+    expect(t.totalTokens).toBe(0);
+  });
+});
+
+describe('writePayloads', () => {
+  it('stores every payload in one call, redacted, and a second call replaces them', async () => {
+    const teamId = await seedTeam();
+    const trace = await repo.createTrace({ nameIsDerived: false, teamId, startedAt: new Date('2026-08-10T00:00:00Z') });
+    const [a, b] = await repo.upsertSpans(trace.id, [
+      { teamId, traceId: trace.id, spanRef: 'a', kind: 'llm', name: 'a', startedAt: new Date('2026-08-10T00:00:00Z') },
+      { teamId, traceId: trace.id, spanRef: 'b', kind: 'tool', name: 'b', startedAt: new Date('2026-08-10T00:00:00Z') },
+    ]);
+
+    await repo.writePayloads(teamId, [
+      { spanId: a.id, input: [{ role: 'user', content: 'my key is sk-abcdEFGH12345678ijklMNOP' }], output: 'hi' },
+      { spanId: b.id, variables: { n: 1 } },
+    ]);
+    await repo.writePayloads(teamId, [{ spanId: b.id, output: 'second' }]);
+
+    const pa = await prisma.spanPayload.findUniqueOrThrow({ where: { spanId: a.id } });
+    expect(pa.input).toEqual([{ role: 'user', content: 'my key is [REDACTED]' }]);
+    expect(pa.output).toBe('hi');
+    expect(pa.variables).toBeNull();
+    const pb = await prisma.spanPayload.findUniqueOrThrow({ where: { spanId: b.id } });
+    expect(pb.output).toBe('second');
+    expect(pb.variables).toBeNull();
   });
 });

@@ -90,3 +90,13 @@ async def test_a_single_tag_string_is_one_tag_not_one_per_letter() -> None:
         await hub.traces.list(tags="prod")
 
     assert queries[0] == [("tags", "prod")]
+
+
+async def test_list_traces_reads_total_capped() -> None:
+    """The API stops counting past a limit and says so; the result keeps that (issue #851)."""
+    body = {"data": [], "total": 10000, "totalCapped": True, "page": 1, "limit": 20}
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json=body))
+    async with AcruxCore(api_key="k", base_url="http://localhost:3000/api/v1",
+                         transport=transport, max_retries=0) as hub:
+        result = await hub.traces.list()
+    assert (result.total, result.total_capped) == (10000, True)

@@ -1,4 +1,4 @@
-import { AppError, PayloadTooLargeError, ValidationError } from '../../../shared/errors';
+import { PayloadTooLargeError, ValidationError } from '../../../shared/errors';
 import { IngestService } from '../ingest.service';
 import type { IngestTrace } from '../ingest.types';
 import { decodeOtlpJson, decodeOtlpProtobuf } from './otlp-decoder';
@@ -93,30 +93,27 @@ export class OtlpService {
       );
     }
 
+    const chunks = traces.flatMap(chunkTrace);
+    // `allowUnknownParents`: OTel batches children out before their parents,
+    // so a chunk (or a whole export) legitimately holds orphans for now.
+    // `derivedName`: the trace name here comes from the batch's root span, not from
+    // a caller, so it must fill a placeholder in and never overwrite a real name —
+    // the chunk holding the root can arrive after the one that created the trace.
+    const outcomes = await this.ingestService.ingestEach(teamId, chunks, {
+      idempotent: true,
+      allowUnknownParents: true,
+      derivedName: true,
+    });
+
     const result: OtlpIngestResult = { rejectedSpans: 0 };
-    for (const trace of traces) {
-      for (const chunk of chunkTrace(trace)) {
-        try {
-          // `allowUnknownParents`: OTel batches children out before their parents,
-          // so a chunk (or a whole export) legitimately holds orphans for now.
-          // `derivedName`: the trace name here comes from the batch's root span, not from
-          // a caller, so it must fill a placeholder in and never overwrite a real name —
-          // the chunk holding the root can arrive after the one that created the trace.
-          await this.ingestService.ingest(teamId, [chunk], {
-            idempotent: true,
-            allowUnknownParents: true,
-            derivedName: true,
-          });
-        } catch (err) {
-          if (!(err instanceof AppError) || err.statusCode >= 500) throw err;
-          console.warn(
-            `[trace] OTLP export for team ${teamId}: refused ${chunk.spans.length} span(s) of one trace: ${err.message}`,
-          );
-          result.rejectedSpans += chunk.spans.length;
-          result.errorMessage ??= err.message;
-        }
-      }
-    }
+    outcomes.forEach((outcome, i) => {
+      if (!('error' in outcome)) return;
+      console.warn(
+        `[trace] OTLP export for team ${teamId}: refused ${chunks[i].spans.length} span(s) of one trace: ${outcome.error.message}`,
+      );
+      result.rejectedSpans += chunks[i].spans.length;
+      result.errorMessage ??= outcome.error.message;
+    });
     return result;
   }
 }

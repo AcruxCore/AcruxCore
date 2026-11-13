@@ -1238,7 +1238,16 @@ export interface GetTraceResult {
 /** Result of {@link acruxcore.listTraces} — a page of trace summaries. */
 export interface ListTracesResult {
   data: TraceSummary[];
+  /**
+   * Matching traces, counted up to the page's offset plus 10,000. When more match,
+   * this is that limit and {@link ListTracesResult.totalCapped} is true.
+   */
   total: number;
+  /**
+   * True when more traces match than `total`, which is then a lower bound. Absent from an
+   * API older than this field.
+   */
+  totalCapped?: boolean;
   page: number;
   limit: number;
 }

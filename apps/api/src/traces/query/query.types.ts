@@ -61,7 +61,14 @@ export interface TraceListItem {
 /** Paginated envelope for GET /traces and the reverse-lineage endpoint. */
 export interface TraceListResponse {
   data: TraceListItem[];
+  /**
+   * Matching traces, counted up to the current page's offset plus the count cap
+   * (`TRACE_LIST_COUNT_CAP`, default 10,000). When there are more, this is that limit
+   * and `totalCapped` is true.
+   */
   total: number;
+  /** True when more traces match than `total`, which then shows a lower bound. */
+  totalCapped: boolean;
   page: number;
   limit: number;
 }

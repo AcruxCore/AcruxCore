@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import type { TraceListFilters, TraceListItem } from './query.types';
 import { buildTraceConditions, runContentSearch } from '../filters';
 import { traceIdWhere, TRACE_ID_MATCH_ORDER } from '../spans/trace-id-where';
+import { getTraceListCountCap } from './list-count.config';
 import type { TraceRow, SpanRow, SpanPayloadRow } from '../../shared/db/schema';
 
 /** Raw row shape returned by the list query before Date→ISO mapping. */
@@ -48,22 +49,30 @@ export class TraceQueryRepository {
   }
 
   /**
-   * Runs the shared list SELECT + COUNT for a given WHERE fragment. Ordered
+   * Runs the shared list SELECT + capped COUNT for a given WHERE fragment. Ordered
    * newest-first by `created_at` (matches idx_traces_team_time).
+   *
+   * Two choices keep the call flat as a team's history grows (issue #851; at 100,000
+   * traces the old form took 67 ms in Postgres):
+   * - The page is cut first and `hasWarning` is computed on its rows only. Over the whole
+   *   table the planner hashed the subquery and scanned every span (45 ms); over 50 rows it
+   *   probes `idx_spans_trace` per row (0.4 ms).
+   * - The count stops at the page's offset plus {@link getTraceListCountCap} rows (2.6 ms
+   *   instead of 23 ms for a full `COUNT(*)`), and `totalCapped` says when it stopped.
    *
    * @param where - A Prisma.Sql boolean expression over alias `t` (traces).
    * @param page - 1-based page.
    * @param limit - Page size (already capped at 100 upstream).
    * @param client - The client to run on: a content search passes its bounded
    *   transaction (see `runContentSearch`); everything else uses the shared client.
-   * @returns Mapped page rows and the full matching count.
+   * @returns Mapped page rows, the matching count up to the cap, and whether it was capped.
    */
   private async runList(
     where: Prisma.Sql,
     page: number,
     limit: number,
     client: Prisma.TransactionClient = prisma,
-  ): Promise<{ data: TraceListItem[]; total: number }> {
+  ): Promise<{ data: TraceListItem[]; total: number; totalCapped: boolean }> {
     const offset = (page - 1) * limit;
 
     const rows = await client.$queryRaw<TraceListRaw[]>(Prisma.sql`
@@ -86,17 +95,26 @@ export class TraceQueryRepository {
           SELECT 1 FROM spans s
           WHERE s.trace_id = t.id AND jsonb_exists(s.attributes, 'warning')
         ) AS "hasWarning"
-      FROM traces t
-      WHERE ${where}
+      FROM (
+        SELECT t.* FROM traces t
+        WHERE ${where}
+        ORDER BY t.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      ) t
       ORDER BY t.created_at DESC
-      LIMIT ${limit} OFFSET ${offset}
     `);
 
-    const totalRows = await client.$queryRaw<{ total: number }[]>(Prisma.sql`
-      SELECT COUNT(*)::int AS "total" FROM traces t WHERE ${where}
+    const countLimit = offset + getTraceListCountCap();
+    const counted = await client.$queryRaw<{ n: number }[]>(Prisma.sql`
+      SELECT COUNT(*)::int AS n FROM (SELECT 1 FROM traces t WHERE ${where} LIMIT ${countLimit + 1}) c
     `);
+    const totalCapped = counted[0].n > countLimit;
 
-    return { data: rows.map((r) => this.toListItem(r)), total: totalRows[0].total };
+    return {
+      data: rows.map((r) => this.toListItem(r)),
+      total: totalCapped ? countLimit : counted[0].n,
+      totalCapped,
+    };
   }
 
   /**
@@ -112,7 +130,7 @@ export class TraceQueryRepository {
    *
    * @param teamId - Team scope.
    * @param filters - Resolved (camelCase) filters incl. page/limit.
-   * @returns Page of trace list items and the total matching count.
+   * @returns Page of trace list items, the matching count up to the cap, and whether it was capped.
    * @throws {RateLimitedError} 429 when `q` is set and the team already has its limit of
    *   searches running.
    * @throws {SearchTimeoutError} 422 when a `q` search runs past its statement timeout.
@@ -120,7 +138,7 @@ export class TraceQueryRepository {
   async listTraces(
     teamId: string,
     filters: TraceListFilters,
-  ): Promise<{ data: TraceListItem[]; total: number }> {
+  ): Promise<{ data: TraceListItem[]; total: number; totalCapped: boolean }> {
     const conds: Prisma.Sql[] = [
       Prisma.sql`t.team_id = ${teamId}::uuid`,
       ...buildTraceConditions(filters, 't'),
@@ -191,14 +209,14 @@ export class TraceQueryRepository {
    * @param promptVersionId - The resolved prompt_versions UUID.
    * @param page - 1-based page.
    * @param limit - Page size (capped at 100 upstream).
-   * @returns Page of trace list items and the total matching count.
+   * @returns Page of trace list items, the matching count up to the cap, and whether it was capped.
    */
   async tracesForPromptVersion(
     teamId: string,
     promptVersionId: string,
     page: number,
     limit: number,
-  ): Promise<{ data: TraceListItem[]; total: number }> {
+  ): Promise<{ data: TraceListItem[]; total: number; totalCapped: boolean }> {
     const where = Prisma.sql`t.team_id = ${teamId}::uuid AND EXISTS (SELECT 1 FROM spans s WHERE s.trace_id = t.id AND s.prompt_version_id = ${promptVersionId}::uuid)`;
     return this.runList(where, page, limit);
   }

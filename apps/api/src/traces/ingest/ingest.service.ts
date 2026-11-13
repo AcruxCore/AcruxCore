@@ -114,6 +114,51 @@ export class IngestService {
   }
 
   /**
+   * Ingests each trace on its own, for a caller that must store the good traces of a batch
+   * even when one is refused (the OTLP receiver). Each trace keeps its own transaction, as
+   * in {@link ingest}, but the team's capture setting and model prices are read once for
+   * the whole batch rather than once per trace (issue #851).
+   *
+   * @param teamId - Team scope from the authenticated principal.
+   * @param traces - The traces, each holding at most `MAX_SPANS_PER_BATCH` spans.
+   * @param opts - As {@link ingest}.
+   * @returns One entry per input trace, in order: the stored trace id, or the typed client
+   *   error (an `AppError` below 500) that refused it. Nothing of a refused trace is stored.
+   * @throws The first error that is not a typed client error, after the traces before it
+   *   are stored.
+   */
+  async ingestEach(
+    teamId: string,
+    traces: IngestTrace[],
+    opts?: { idempotent?: boolean; allowUnknownParents?: boolean; derivedName?: boolean },
+  ): Promise<Array<{ traceId: string } | { error: AppError }>> {
+    const pricedTraces = await this.pricer.price(teamId, traces);
+    const teamSetting = (await this.settings.get(teamId))?.capturePayloads ?? true;
+    const mode = {
+      idempotent: opts?.idempotent ?? false,
+      allowUnknownParents: opts?.allowUnknownParents ?? false,
+      derivedName: opts?.derivedName ?? false,
+    };
+
+    const results: Array<{ traceId: string } | { error: AppError }> = [];
+    for (const trace of pricedTraces) {
+      try {
+        if (trace.spans.length > MAX_SPANS_PER_BATCH) {
+          throw new PayloadTooLargeError(
+            `Trace has ${trace.spans.length} spans; the per-trace limit is ${MAX_SPANS_PER_BATCH}.`,
+          );
+        }
+        await this.assertPromptVersionsAreOurs(teamId, [trace]);
+        results.push({ traceId: await this.ingestTrace(teamId, trace, teamSetting, mode) });
+      } catch (err) {
+        if (!(err instanceof AppError) || err.statusCode >= 500) throw err;
+        results.push({ error: err });
+      }
+    }
+    return results;
+  }
+
+  /**
    * Refuses a batch carrying a `promptVersionId` the team does not own.
    *
    * A span's prompt version is the one id in the batch that arrives in the body
@@ -244,14 +289,33 @@ export class IngestService {
       // that a rule's daily limit, which counts distinct scored spans, never sees.
       // Only this batch's refs are looked up: reading every stored ref made each chunk of a
       // large OTLP trace cost as much as the whole trace so far.
-      const storedBefore = mode.idempotent
-        ? new Set(await this.spans.listSpanRefs(traceId, tx, trace.spans.map((s) => s.spanId)))
-        : null;
+      if (mode.idempotent) {
+        // One statement for the spans and one for the payloads, however many spans the
+        // trace has (issue #851). `inserted` is false for a span already stored.
+        const stored = await this.spans.upsertSpans(
+          traceId,
+          trace.spans.map((s) => this.toSpanInput(teamId, traceId, s)),
+          tx,
+        );
+        const idByRef = new Map(stored.map((r) => [r.spanRef, r.id]));
+        for (const r of stored) if (r.kind === 'llm' && r.inserted) llmSpanIds.push(r.id);
+        if (capture) {
+          // A span repeated in the batch keeps the payload of its last copy that had one,
+          // as the one-span-at-a-time writes did.
+          const payloads = new Map<string, { spanId: string; input?: unknown; output?: unknown; variables?: unknown }>();
+          for (const s of trace.spans) {
+            if (s.input === undefined && s.output === undefined && s.variables === undefined) continue;
+            const spanId = idByRef.get(s.spanId)!;
+            payloads.set(spanId, { spanId, input: s.input, output: s.output, variables: s.variables });
+          }
+          await this.spans.writePayloads(teamId, [...payloads.values()], tx);
+        }
+        return traceId;
+      }
+
       for (const s of trace.spans) {
-        const spanRow = mode.idempotent
-          ? await this.spans.upsertSpan(this.toSpanInput(teamId, traceId, s), tx)
-          : await this.spans.appendSpan(this.toSpanInput(teamId, traceId, s), tx);
-        if (spanRow.kind === 'llm' && !storedBefore?.has(s.spanId)) llmSpanIds.push(spanRow.id);
+        const spanRow = await this.spans.appendSpan(this.toSpanInput(teamId, traceId, s), tx);
+        if (spanRow.kind === 'llm') llmSpanIds.push(spanRow.id);
         if (capture && (s.input !== undefined || s.output !== undefined || s.variables !== undefined)) {
           await this.spans.writePayload(
             spanRow.id,

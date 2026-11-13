@@ -12,6 +12,11 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+### Added
+
+- `ListTracesResult.total_capped`. The API now stops counting 10,000 rows past the page,
+  and then `total` is a lower bound.
+
 ## 0.22.0 — 2026-11-11
 
 ### Added

@@ -572,3 +572,42 @@ describe('GET /api/v1/traces — warnings on the list row', () => {
     expect(byName['clean-run'].hasWarning).toBe(false);
   });
 });
+
+describe('GET /api/v1/traces — capped total (issue #851)', () => {
+  afterEach(() => {
+    delete process.env.TRACE_LIST_COUNT_CAP;
+  });
+
+  it('counts at most the cap past the current page and says so with totalCapped', async () => {
+    process.env.TRACE_LIST_COUNT_CAP = '3';
+    const { agent } = await authedAgent(app);
+    const now = new Date();
+    for (let i = 0; i < 6; i++) {
+      await ingest(agent, [
+        { name: `run-${i}`, spans: [{ spanId: `s${i}`, name: 'step', kind: 'other', status: 'ok', startTime: iso(now) }] },
+      ]);
+    }
+
+    const first = await agent.get('/api/v1/traces?limit=2').expect(200);
+    expect(first.body.data).toHaveLength(2);
+    expect(first.body).toMatchObject({ total: 3, totalCapped: true });
+
+    // Page 2 skips 2 rows, so it counts up to 2 + 3 = 5 rows: still more than that.
+    const second = await agent.get('/api/v1/traces?limit=2&page=2').expect(200);
+    expect(second.body).toMatchObject({ total: 5, totalCapped: true });
+
+    // Page 3 counts up to 4 + 3 = 7 rows, which covers all 6: the total is exact.
+    const third = await agent.get('/api/v1/traces?limit=2&page=3').expect(200);
+    expect(third.body.data).toHaveLength(2);
+    expect(third.body).toMatchObject({ total: 6, totalCapped: false });
+  });
+
+  it('returns the exact total and totalCapped false below the default cap', async () => {
+    const { agent } = await authedAgent(app);
+    await ingest(agent, [
+      { name: 'one', spans: [{ spanId: 'a', name: 'step', kind: 'other', status: 'ok', startTime: iso(new Date()) }] },
+    ]);
+    const res = await agent.get('/api/v1/traces').expect(200);
+    expect(res.body).toMatchObject({ total: 1, totalCapped: false });
+  });
+});

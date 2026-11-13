@@ -290,72 +290,128 @@ export class SpansRepository {
   }
 
   /**
-   * Idempotent span write for retry-safe callers (OTLP ingestion — the OTLP spec
-   * expects exporters to retry a whole export on failure). Upserts on
-   * `(traceId, spanRef)` instead of `create()`, and recomputes the trace's
-   * rollups from a fresh aggregate over all its spans rather than incrementing —
-   * a blind increment would double-count on a retried batch. Never used by the
-   * native JSON ingestion path, which keeps {@link appendSpan}'s stricter
-   * create-and-fail semantics unchanged.
+   * Idempotent span write for retry-safe callers (OTLP ingestion: the OTLP spec expects
+   * exporters to retry a whole export on failure). Every span of one trace goes in one
+   * `INSERT … ON CONFLICT (trace_id, span_ref)`, then the trace's rollups are recomputed
+   * once from all its stored spans rather than incremented, since a blind increment
+   * would double-count a retried batch. The native JSON path never uses this: it keeps
+   * {@link appendSpan}'s stricter create-and-fail semantics.
    *
-   * @param input - The span fields (see {@link CreateSpanInput}).
-   * @param tx - Optional transaction client.
-   * @returns The upserted span row.
+   * OTLP ingestion wrote each span with four statements (upsert, aggregate, error
+   * lookup, trace update), so a 3-span trace cost a dozen round trips and the API spent
+   * its CPU in the query engine (issue #851). This is two statements however many spans
+   * the trace has.
+   *
+   * A span repeated in the batch (an exporter can send the same span twice in one
+   * export) is written once, with its last copy's fields, which is what the sequential
+   * upserts left behind. Postgres refuses an `ON CONFLICT DO UPDATE` that touches one
+   * row twice in a statement, so the repeat cannot be passed through.
+   *
+   * @param traceId - The trace every input belongs to; each input's `traceId` must equal it.
+   * @param inputs - The spans, in arrival order. Empty → no statement runs.
+   * @param tx - Optional transaction client. Pass one to keep the spans and the rollups atomic.
+   * @returns One row per distinct `spanRef`, in first-arrival order: the stored span id,
+   *   its kind, and `inserted` (false when the span was already stored, so a retried
+   *   export can tell new spans from repeats without a separate lookup).
    */
-  async upsertSpan(input: CreateSpanInput, tx?: Prisma.TransactionClient): Promise<SpanRow> {
+  async upsertSpans(
+    traceId: string,
+    inputs: CreateSpanInput[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<Array<{ id: string; spanRef: string; kind: string; inserted: boolean }>> {
+    if (inputs.length === 0) return [];
     const client = tx ?? prisma;
-    const data = {
-      kind: input.kind,
-      name: input.name,
-      status: input.status ?? 'unset',
-      startedAt: input.startedAt,
-      endedAt: input.endedAt ?? null,
-      latencyMs: input.latencyMs ?? null,
-      model: input.model ?? null,
-      provider: input.provider ?? null,
-      promptTokens: input.promptTokens ?? null,
-      completionTokens: input.completionTokens ?? null,
-      totalTokens: input.totalTokens ?? null,
-      cachedTokens: input.cachedTokens ?? null,
-      costUsd: input.costUsd ?? null,
-      promptVersionId: input.promptVersionId ?? null,
-      gatewayRequestId: input.gatewayRequestId ?? null,
-      errorMessage: input.errorMessage ?? null,
-      attributes: (input.attributes ?? {}) as Prisma.InputJsonValue,
-      tags: input.tags ?? [],
-      metadata: (input.metadata ?? {}) as Prisma.InputJsonValue,
-      parentSpanRef: input.parentSpanRef ?? null,
-    };
+    const lastByRef = new Map<string, CreateSpanInput>();
+    for (const input of inputs) {
+      lastByRef.delete(input.spanRef);
+      lastByRef.set(input.spanRef, input);
+    }
+    const order = [...new Set(inputs.map((i) => i.spanRef))];
 
-    const span = await client.span.upsert({
-      where: { traceId_spanRef: { traceId: input.traceId, spanRef: input.spanRef } },
-      create: { teamId: input.teamId, traceId: input.traceId, spanRef: input.spanRef, ...data },
-      update: data,
-    });
+    const rows = [...lastByRef.values()].map(
+      (i) => Prisma.sql`(
+        ${i.teamId}::uuid, ${traceId}::uuid, ${i.spanRef}, ${i.parentSpanRef ?? null}, ${i.kind}::span_kind,
+        ${i.name}, ${i.status ?? 'unset'}::span_status, ${i.startedAt}, ${i.endedAt ?? null}::timestamptz,
+        ${i.latencyMs ?? null}::int, ${i.model ?? null}, ${i.provider ?? null}, ${i.promptTokens ?? null}::int,
+        ${i.completionTokens ?? null}::int, ${i.totalTokens ?? null}::int, ${i.cachedTokens ?? null}::int,
+        ${i.costUsd == null ? null : String(i.costUsd)}::numeric, ${i.promptVersionId ?? null}::uuid,
+        ${i.gatewayRequestId ?? null}::uuid, ${i.errorMessage ?? null},
+        ${JSON.stringify(i.attributes ?? {})}::jsonb, ${JSON.stringify(i.metadata ?? {})}::jsonb,
+        ${i.tags ?? []}::text[]
+      )`,
+    );
+    const stored = await client.$queryRaw<Array<{ id: string; spanRef: string; kind: string; inserted: boolean }>>(
+      Prisma.sql`
+        INSERT INTO spans (
+          team_id, trace_id, span_ref, parent_span_ref, kind, name, status, started_at, ended_at,
+          latency_ms, model, provider, prompt_tokens, completion_tokens, total_tokens, cached_tokens,
+          cost_usd, prompt_version_id, gateway_request_id, error_message, attributes, metadata, tags
+        )
+        VALUES ${Prisma.join(rows)}
+        ON CONFLICT (trace_id, span_ref) DO UPDATE SET
+          parent_span_ref = EXCLUDED.parent_span_ref, kind = EXCLUDED.kind, name = EXCLUDED.name,
+          status = EXCLUDED.status, started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at,
+          latency_ms = EXCLUDED.latency_ms, model = EXCLUDED.model, provider = EXCLUDED.provider,
+          prompt_tokens = EXCLUDED.prompt_tokens, completion_tokens = EXCLUDED.completion_tokens,
+          total_tokens = EXCLUDED.total_tokens, cached_tokens = EXCLUDED.cached_tokens,
+          cost_usd = EXCLUDED.cost_usd, prompt_version_id = EXCLUDED.prompt_version_id,
+          gateway_request_id = EXCLUDED.gateway_request_id, error_message = EXCLUDED.error_message,
+          attributes = EXCLUDED.attributes, metadata = EXCLUDED.metadata, tags = EXCLUDED.tags
+        -- xmax is 0 only on a row this statement inserted, not on one it updated.
+        RETURNING id, span_ref AS "spanRef", kind::text AS kind, (xmax = 0) AS inserted
+      `,
+    );
 
-    const agg = await client.span.aggregate({
-      where: { traceId: input.traceId },
-      _count: { _all: true },
-      _sum: { totalTokens: true, costUsd: true },
-      _max: { endedAt: true },
-    });
-    const anyErrored = await client.span.findFirst({
-      where: { traceId: input.traceId, status: 'error' },
-      select: { id: true },
-    });
+    await client.$executeRaw(Prisma.sql`
+      UPDATE traces t SET
+        span_count = a.n,
+        total_tokens = a.tokens,
+        total_cost_usd = a.cost,
+        status = CASE WHEN a.errored THEN 'error' ELSE 'ok' END::span_status,
+        ended_at = a.ended
+      FROM (
+        SELECT count(*)::int AS n, COALESCE(sum(total_tokens), 0)::int AS tokens, sum(cost_usd) AS cost,
+               max(ended_at) AS ended, COALESCE(bool_or(status = 'error'), false) AS errored
+        FROM spans WHERE trace_id = ${traceId}::uuid
+      ) a
+      WHERE t.id = ${traceId}::uuid
+    `);
 
-    await client.trace.update({
-      where: { id: input.traceId },
-      data: {
-        spanCount: agg._count._all,
-        totalTokens: agg._sum.totalTokens ?? 0,
-        totalCostUsd: agg._sum.costUsd,
-        status: anyErrored ? 'error' : 'ok',
-        endedAt: agg._max.endedAt,
-      },
-    });
+    const byRef = new Map(stored.map((r) => [r.spanRef, r]));
+    return order.map((ref) => byRef.get(ref)!);
+  }
 
-    return span;
+  /**
+   * Batch form of {@link writePayload} for spans that send no tool list (SDK and OTLP
+   * ingestion): one `INSERT … ON CONFLICT` for all of them. Each value goes through
+   * {@link redactPayloadValue}, the same choke point as the single-row write.
+   *
+   * @param teamId - Isolation boundary.
+   * @param payloads - One entry per span; a span id must not repeat. An undefined field
+   *   is stored as SQL NULL. Empty → no statement runs.
+   * @param tx - Optional transaction client.
+   */
+  async writePayloads(
+    teamId: string,
+    payloads: Array<{ spanId: string; input?: unknown; output?: unknown; variables?: unknown }>,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    if (payloads.length === 0) return;
+    const client = tx ?? prisma;
+    const json = (v: unknown) => (v === undefined ? null : JSON.stringify(redactPayloadValue(v)));
+    const rows = payloads.map(
+      (p) => Prisma.sql`(
+        ${p.spanId}::uuid, ${teamId}::uuid, ${json(p.input)}::jsonb, ${json(p.output)}::jsonb,
+        ${json(p.variables)}::jsonb
+      )`,
+    );
+    await client.$executeRaw(Prisma.sql`
+      INSERT INTO span_payloads (span_id, team_id, input, output, variables)
+      VALUES ${Prisma.join(rows)}
+      ON CONFLICT (span_id) DO UPDATE SET
+        input = EXCLUDED.input, output = EXCLUDED.output, variables = EXCLUDED.variables,
+        tool_set_id = NULL, tool_choice = NULL
+    `);
   }
 
   /**
@@ -404,7 +460,7 @@ export class SpansRepository {
    * through, so no call site can accidentally skip it.
    *
    * Upserts rather than inserts: `spanId` is the table's PK, and an idempotent
-   * ingest retry (`IngestService`'s `upsertSpan` path) reuses the same span row,
+   * ingest retry (`IngestService`'s `upsertSpans` path) reuses the same span row,
    * so a plain `create()` would throw a unique-constraint violation on replay.
    * A fresh span from the non-idempotent `appendSpan` path always has a new id,
    * so this is a strict superset of the old behavior there.

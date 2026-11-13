@@ -88,6 +88,11 @@ export interface ChatMessage {
 export interface Paginated<T> {
   data: T[];
   total: number;
+  /**
+   * Set by lists that stop counting (the trace lists): true when more rows match than
+   * `total`, which is then a lower bound.
+   */
+  totalCapped?: boolean;
   page: number;
   limit: number;
 }

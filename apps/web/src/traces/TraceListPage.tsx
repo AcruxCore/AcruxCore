@@ -18,6 +18,9 @@ export function TraceListPage() {
   const { data, isLoading, isError } = useTraces({ ...filters, page, limit: PAGE_SIZE });
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
+  // A capped total is a lower bound, so the last page it implies is not the last page.
+  const capped = data?.totalCapped ?? false;
+  const hasNext = capped ? data!.data.length === PAGE_SIZE : page < totalPages;
   const goTo = (p: number) => {
     const next = new URLSearchParams(sp);
     next.set('page', String(p));
@@ -45,11 +48,11 @@ export function TraceListPage() {
       ) : (
         <>
           <TraceTable traces={data!.data} />
-          {totalPages > 1 && (
+          {(totalPages > 1 || capped) && (
             <div className="flex items-center gap-3 text-[13px] text-muted">
               <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => goTo(page - 1)}>Previous</Button>
-              <span>Page {page} of {totalPages}</span>
-              <Button variant="ghost" size="sm" disabled={page >= totalPages} onClick={() => goTo(page + 1)}>Next</Button>
+              <span>Page {page} of {totalPages}{capped ? '+' : ''}</span>
+              <Button variant="ghost" size="sm" disabled={!hasNext} onClick={() => goTo(page + 1)}>Next</Button>
             </div>
           )}
         </>

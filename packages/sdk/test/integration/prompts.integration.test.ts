@@ -132,7 +132,7 @@ describe('acruxcore SDK prompts integration', () => {
 
       // tracesForVersion — no traces have been reported against this version yet
       const traces = await hub.prompts.tracesForVersion(created.id, 1);
-      expect(traces).toEqual({ data: [], total: 0, page: 1, limit: 20 });
+      expect(traces).toEqual({ data: [], total: 0, totalCapped: false, page: 1, limit: 20 });
 
       // list — the created prompt appears
       const listPage = await hub.prompts.list();

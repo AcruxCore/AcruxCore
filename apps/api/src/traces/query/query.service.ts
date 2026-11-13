@@ -31,19 +31,19 @@ export class TraceQueryService {
    *
    * @param teamId - Team scope.
    * @param query - Validated list query.
-   * @returns Paginated envelope { data, total, page, limit }.
+   * @returns Paginated envelope { data, total, totalCapped, page, limit }.
    */
   async listTraces(teamId: string, query: TraceListQuery): Promise<TraceListResponse> {
     const to = query.to ?? new Date();
     const from = query.from ?? new Date(to.getTime() - THIRTY_DAYS_MS);
 
-    const { data, total } = await this.repo.listTraces(teamId, {
+    const { data, total, totalCapped } = await this.repo.listTraces(teamId, {
       ...toTraceFilters({ ...query, from, to }),
       page: query.page,
       limit: query.limit,
     });
 
-    return { data, total, page: query.page, limit: query.limit };
+    return { data, total, totalCapped, page: query.page, limit: query.limit };
   }
 
   /**
@@ -108,7 +108,7 @@ export class TraceQueryService {
    * @param promptId - Prompt UUID from the path.
    * @param versionNumber - 1-based version number from the path.
    * @param query - Validated pagination.
-   * @returns Paginated envelope { data, total, page, limit }.
+   * @returns Paginated envelope { data, total, totalCapped, page, limit }.
    * @throws {NotFoundError} If the prompt or version is not in this team.
    */
   async tracesForPromptVersion(
@@ -118,12 +118,12 @@ export class TraceQueryService {
     query: PromptVersionTracesQuery,
   ): Promise<TraceListResponse> {
     const version = await this.versions.getVersion(promptId, teamId, versionNumber);
-    const { data, total } = await this.repo.tracesForPromptVersion(
+    const { data, total, totalCapped } = await this.repo.tracesForPromptVersion(
       teamId,
       version.id,
       query.page,
       query.limit,
     );
-    return { data, total, page: query.page, limit: query.limit };
+    return { data, total, totalCapped, page: query.page, limit: query.limit };
   }
 }

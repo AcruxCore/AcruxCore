@@ -668,12 +668,19 @@ class GetTraceResult:
 
 @dataclass
 class ListTracesResult:
-    """Result of :meth:`AcruxCore.list_traces` — a page of trace summaries."""
+    """Result of :meth:`AcruxCore.list_traces` — a page of trace summaries.
+
+    :param total: Matching traces, counted up to the page's offset plus 10,000. When
+        more match, this is that limit and ``total_capped`` is ``True``.
+    :param total_capped: ``True`` when more traces match than ``total``, which is then a
+        lower bound.
+    """
 
     data: List[TraceSummary]
     total: int
     page: int
     limit: int
+    total_capped: bool = False
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "ListTracesResult":
@@ -682,6 +689,7 @@ class ListTracesResult:
             total=d.get("total", 0),
             page=d.get("page", 1),
             limit=d.get("limit", 0),
+            total_capped=bool(d.get("totalCapped", False)),
         )
 
 
