@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
+import { createPatch } from 'diff';
 import { authedAgent } from '../../test-utils';
 
 const app = createApp();
@@ -127,5 +128,65 @@ describe('GET /api/v1/prompts/:id/versions/diff', () => {
       .get(`/api/v1/prompts/${promptId}/versions/diff`)
       .set('Authorization', `Bearer ${apiKey}`)
       .expect(400);
+  });
+});
+
+describe('diffing versions that differ in thousands of lines', () => {
+  /** 3000 unique system lines + 3000 unique user lines, none shared with another prefix. */
+  function disjointMessages(prefix: string) {
+    const lines = (tag: string) =>
+      Array.from({ length: 3000 }, (_, i) => `${tag}${prefix}-${i} the quick brown fox`).join('\n');
+    return [
+      { role: 'system', content: lines('S') },
+      { role: 'user', content: lines('U') },
+    ];
+  }
+
+  it('answers quickly with DIFF_TOO_LARGE instead of holding the event loop', async () => {
+    const { agent, apiKey } = await signupAndGetKey();
+    const p = await agent.post('/api/v1/prompts').send({ name: `diff-huge-${Date.now()}` }).expect(201);
+    for (const prefix of ['x', 'y']) {
+      await request(app)
+        .post(`/api/v1/prompts/${p.body.id}/versions`)
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ messages: disjointMessages(prefix) })
+        .expect(201);
+    }
+
+    const started = Date.now();
+    const res = await request(app)
+      .get(`/api/v1/prompts/${p.body.id}/versions/diff?from=1&to=2`)
+      .set('Authorization', `Bearer ${apiKey}`);
+    const elapsed = Date.now() - started;
+
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('DIFF_TOO_LARGE');
+    expect(elapsed).toBeLessThan(1500);
+  }, 60000);
+
+  it('still returns the exact unified patch for an ordinary edit', async () => {
+    const { agent, apiKey } = await signupAndGetKey();
+    const name = `diff-normal-${Date.now()}`;
+    const p = await agent.post('/api/v1/prompts').send({ name }).expect(201);
+    const before = Array.from({ length: 200 }, (_, i) => `line ${i}`).join('\n');
+    const after = before.replace('line 100', 'line one hundred');
+    for (const content of [before, after]) {
+      await request(app)
+        .post(`/api/v1/prompts/${p.body.id}/versions`)
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ messages: [{ role: 'system', content }] })
+        .expect(201);
+    }
+
+    const res = await request(app)
+      .get(`/api/v1/prompts/${p.body.id}/versions/diff?from=1&to=2`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .expect(200);
+
+    // The unbounded library call is the reference: the bound must not change a patch
+    // that fits inside it.
+    expect(res.body.diff).toBe(
+      createPatch(`${name} v1..v2`, `[system]\n${before}`, `[system]\n${after}`),
+    );
   });
 });

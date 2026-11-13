@@ -1,6 +1,6 @@
 import type { Agent } from 'undici';
 import type { ProviderKind } from '../connections/connections.types';
-import { ProviderAdapter, ProviderError, GATEWAY_TIMEOUT_MS, summarizeProviderDetail, parseRetryAfter } from './adapter';
+import { ProviderAdapter, ProviderError, GATEWAY_TIMEOUT_MS, summarizeProviderDetail, parseRetryAfter, OWN_TIMEOUT_CODE } from './adapter';
 import { providerCallSignal } from './timeout';
 import type { ChatMessage, NormalizedRequest, NormalizedResponse, ProviderCredentials, StreamChunk } from './types';
 import { isAnthropicModel } from './models';
@@ -300,7 +300,7 @@ export class OpenAiAdapter implements ProviderAdapter {
       throw new ProviderError(
         isTimeout ? `${this.label} request timed out` : `${this.label} network error: ${(err as Error).message}`,
         isTimeout ? 504 : 502,
-        isTimeout ? 'timeout' : 'network_error',
+        isTimeout ? OWN_TIMEOUT_CODE : 'network_error',
         true,
       );
     }
@@ -394,7 +394,7 @@ export class OpenAiAdapter implements ProviderAdapter {
       throw new ProviderError(
         isTimeout ? `${this.label} stream request timed out` : `${this.label} network error: ${(err as Error).message}`,
         isTimeout ? 504 : 502,
-        isTimeout ? 'timeout' : 'network_error',
+        isTimeout ? OWN_TIMEOUT_CODE : 'network_error',
         true,
       );
     }

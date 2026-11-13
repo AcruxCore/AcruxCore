@@ -328,6 +328,10 @@ function probesFor(a: Fixture, b: Fixture): Record<string, Probe> {
     'GET /api/v1/prompts/:id/audit': { url: `/api/v1/prompts/${a.promptId}/audit` },
     'GET /api/v1/prompts/:id/tools': { url: `/api/v1/prompts/${a.promptId}/tools` },
     'GET /api/v1/prompts/:id/versions': { url: `/api/v1/prompts/${a.promptId}/versions` },
+    'POST /api/v1/prompts/:id/preview': {
+      url: `/api/v1/prompts/${a.promptId}/preview`,
+      body: { messages: [{ role: 'user', content: 'Hi {{ name }}' }] },
+    },
     'POST /api/v1/prompts/:id/versions': {
       url: `/api/v1/prompts/${a.promptId}/versions`,
       body: { messages: [{ role: 'user', content: 'taken' }] },

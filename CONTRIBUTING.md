@@ -82,9 +82,9 @@ Then edit `apps/api/.env`:
 - `PORT` — leave at `3001` (the web dev proxy points here).
 - `BETTER_AUTH_SECRET` — signs session cookies. Auth is in-app (Better Auth): accounts,
   sessions and password hashes all live in your own Postgres, there is no vendor
-  project to create. Outside production a fixed dev value is used automatically, so
-  local dev needs **nothing here at all**; only set it to keep sessions valid across
-  restarts.
+  project to create. Outside production a random value is generated on first boot
+  and kept in `apps/api/.better-auth-dev-secret` (gitignored), so local dev needs
+  **nothing here at all** and restarts keep you signed in.
 - `DIRECT_URL` — the **direct, non-pooled** Postgres connection Prisma Migrate uses.
   Against a pooled host (`?pgbouncer=true`, e.g. Supabase-as-DB or Neon), `DATABASE_URL`
   is the pooled url the app uses at runtime while `DIRECT_URL` is the direct `:5432`

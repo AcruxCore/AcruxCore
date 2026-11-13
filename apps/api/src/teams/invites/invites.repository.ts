@@ -1,5 +1,5 @@
 import prisma from '../../shared/db/client';
-import type { team_role } from '@prisma/client';
+import type { Prisma, team_role } from '@prisma/client';
 import type { InviteListItem } from './invites.types';
 import { randomBytes } from 'crypto';
 
@@ -161,5 +161,35 @@ export class InvitesRepository {
     if (!invite) return false;
     await prisma.teamInvite.delete({ where: { id } });
     return true;
+  }
+
+  /**
+   * Deletes every still-pending invite one user created for one team.
+   *
+   * An invite is authority its creator delegated: it grants whatever role they
+   * chose, to whoever holds the link. When the creator loses that authority —
+   * removed from the team, or demoted below admin — the invites they minted must
+   * go with it, or a removed admin keeps a link that lets them (or anyone they
+   * gave it to) straight back in. Used invites are kept: they are history, and
+   * deleting them would orphan nothing but the audit trail's reference.
+   *
+   * Expired-but-unused rows are deleted too; they are already unusable, and
+   * leaving them would only keep stale rows around.
+   *
+   * @param teamId    - Team whose invites to revoke; other teams the user admins are untouched.
+   * @param invitedBy - The creator whose authority was withdrawn.
+   * @param tx        - Transaction client, so the revocation commits or rolls back
+   *   together with the membership change that caused it.
+   * @returns How many invites were deleted.
+   */
+  async deletePendingByInviter(
+    teamId: string,
+    invitedBy: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<number> {
+    const { count } = await tx.teamInvite.deleteMany({
+      where: { teamId, invitedBy, usedAt: null },
+    });
+    return count;
   }
 }

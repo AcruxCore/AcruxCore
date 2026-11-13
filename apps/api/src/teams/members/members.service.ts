@@ -1,5 +1,6 @@
 import type { Prisma, team_role } from '@prisma/client';
 import { MembersRepository } from './members.repository';
+import { InvitesRepository } from '../invites/invites.repository';
 import type { MemberListItem, UpdateRoleDto } from './members.types';
 import { audit } from '../../shared/audit';
 import { ForbiddenError, NotFoundError } from '../../shared/errors';
@@ -8,11 +9,21 @@ import { eventBucket, notify } from '../../notifications';
 import { appLink } from '../../email';
 
 /**
+ * Roles that may create invites (the invites router's `requireTeamRole`). A
+ * member who keeps one of these keeps their pending invites; anyone moved out of
+ * this set loses them.
+ */
+const INVITING_ROLES: readonly team_role[] = ['owner', 'admin'];
+
+/**
  * Business logic for the team members domain.
  * Delegates all DB access to MembersRepository and emits audit events.
  */
 export class MembersService {
-  constructor(private readonly repo: MembersRepository) {}
+  constructor(
+    private readonly repo: MembersRepository,
+    private readonly invitesRepo: InvitesRepository,
+  ) {}
 
   /**
    * Returns all current members of a team with their role, newest-first.
@@ -29,6 +40,11 @@ export class MembersService {
    * Replaces a member's role with a new one.
    * The owner role cannot be granted through this endpoint — it is set only at team creation.
    * Cannot demote the last owner.
+   *
+   * Demoting someone to editor or viewer also deletes the pending invites they
+   * created in this team, in the same transaction: an invite carries its
+   * creator's authority to admit people, and that authority just ended. A move
+   * between owner and admin keeps them, since both may invite.
    *
    * @param teamId  - The team context.
    * @param actorId - The user making the change (for audit).
@@ -51,9 +67,14 @@ export class MembersService {
     // The lock-check-write all happen in ONE transaction so a concurrent
     // request against the team's other owner can't slip through: see
     // `assertNotSoleOwner` and `MembersRepository.lockOwnerUserIds`.
-    const result = await prisma.$transaction(async (tx) => {
+    const { result, revokedInvites } = await prisma.$transaction(async (tx) => {
       await this.assertNotSoleOwner(tx, teamId, userId);
-      return this.repo.updateRole(teamId, userId, dto.role, tx);
+      const updated = await this.repo.updateRole(teamId, userId, dto.role, tx);
+      const revoked =
+        updated && !INVITING_ROLES.includes(dto.role)
+          ? await this.invitesRepo.deletePendingByInviter(teamId, userId, tx)
+          : 0;
+      return { result: updated, revokedInvites: revoked };
     });
     if (!result) throw new NotFoundError('Member not found.');
 
@@ -61,7 +82,7 @@ export class MembersService {
       teamId,
       actorId,
       event: 'member_role_updated',
-      metadata: { targetUserId: userId, role: dto.role },
+      metadata: { targetUserId: userId, role: dto.role, revokedInvites },
     });
 
     // Notify the affected member plus the team's owners/admins. Placed after the
@@ -151,6 +172,10 @@ export class MembersService {
    * Removes a member from a team.
    * A member may remove themselves; owners may remove anyone except the last owner.
    *
+   * The pending invites the member created in this team are deleted in the same
+   * transaction. Otherwise a removed admin could accept their own share link and
+   * be back in with the role they minted it for.
+   *
    * @param teamId  - The team context.
    * @param actorId - The user performing the removal (for audit).
    * @param userId  - The user to remove.
@@ -160,9 +185,11 @@ export class MembersService {
   async remove(teamId: string, actorId: string, userId: string): Promise<void> {
     // Lock-check-delete in ONE transaction, for the same reason `updateRole`
     // does it: see `assertNotSoleOwner` / `MembersRepository.lockOwnerUserIds`.
-    const removed = await prisma.$transaction(async (tx) => {
+    const { removed, revokedInvites } = await prisma.$transaction(async (tx) => {
       await this.assertNotSoleOwner(tx, teamId, userId);
-      return this.repo.removeMember(teamId, userId, tx);
+      const ok = await this.repo.removeMember(teamId, userId, tx);
+      const revoked = ok ? await this.invitesRepo.deletePendingByInviter(teamId, userId, tx) : 0;
+      return { removed: ok, revokedInvites: revoked };
     });
     if (!removed) throw new NotFoundError('Member not found.');
 
@@ -176,7 +203,7 @@ export class MembersService {
       teamId,
       actorId,
       event: 'member_removed',
-      metadata: { targetUserId: userId },
+      metadata: { targetUserId: userId, revokedInvites },
     });
 
     // `ignorePreferences` is set here and nowhere else: losing access to a team is

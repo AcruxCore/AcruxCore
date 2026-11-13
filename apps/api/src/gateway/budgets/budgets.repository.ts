@@ -74,9 +74,9 @@ export class BudgetsRepository {
    * single atomic conditional increment means only as many concurrent callers
    * as actually fit under the cap can ever succeed, no matter how many race in
    * at once. The real cost is unknown until the provider responds, so the
-   * caller reserves a conservative estimate here and reconciles the
-   * difference afterward via `incrementSpend` (which accepts a negative delta
-   * to credit back an overestimate).
+   * caller reserves a conservative estimate here and settles the
+   * difference afterward via `settleReservation`, which credits back an
+   * overestimate only while the reservation's period is still current.
    *
    * @param tx - The Prisma transaction client from the pipeline's $transaction.
    * @param budgetId - Budget to reserve against.
@@ -86,62 +86,95 @@ export class BudgetsRepository {
    *   The before/after pair is what alert-threshold detection must run on: this is
    *   the only transition that raises spend, so a caller that only inspected the
    *   later reconciliation (normally a credit back) could never see a crossing.
+   *   `resetsAt` is the period the reservation landed in, read in the same UPDATE;
+   *   `settleReservation` needs it to tell whether that period is still current.
    */
   async reserveSpend(
     tx: Prisma.TransactionClient,
     budgetId: string,
     estimatedCostUsd: number,
-  ): Promise<{ before: Prisma.Decimal; after: Prisma.Decimal; limit: Prisma.Decimal } | null> {
+  ): Promise<{ before: Prisma.Decimal; after: Prisma.Decimal; limit: Prisma.Decimal; resetsAt: Date | null } | null> {
     const delta = new Prisma.Decimal(estimatedCostUsd);
-    const rows = await tx.$queryRaw<{ spend_usd: Prisma.Decimal; limit_usd: Prisma.Decimal }[]>(
+    const rows = await tx.$queryRaw<{ spend_usd: Prisma.Decimal; limit_usd: Prisma.Decimal; resets_at: Date | null }[]>(
       Prisma.sql`
         UPDATE budgets
         SET spend_usd = spend_usd + ${delta}, updated_at = now()
         WHERE id = ${budgetId}::uuid AND spend_usd + ${delta} <= limit_usd
-        RETURNING spend_usd, limit_usd
+        RETURNING spend_usd, limit_usd, resets_at
       `,
     );
     const row = rows[0];
     if (!row) return null;
-    // `before` is derived as `after - delta` for the same reason `incrementSpend`
+    // `before` is derived as `after - delta` for the same reason `settleReservation`
     // derives its own: the UPDATE is atomic, so subtracting this call's delta from
     // the value it returned gives exactly the spend this transaction saw, with no
     // second SELECT that could race a concurrent reservation.
-    return { before: row.spend_usd.minus(delta), after: row.spend_usd, limit: row.limit_usd };
+    return {
+      before: row.spend_usd.minus(delta),
+      after: row.spend_usd,
+      limit: row.limit_usd,
+      resetsAt: row.resets_at,
+    };
   }
 
   /**
-   * Adds `costUsd` to a budget's spend_usd inside the caller's transaction.
+   * Settles a reservation once the call's real cost is known, against the period the
+   * reservation was taken in.
    *
-   * Returns the post-increment row so the caller can detect a threshold
-   * crossing. The `before` value is derived as `after - costUsd` rather than
-   * read separately: the UPDATE is atomic and its returned `spend_usd` already
-   * accounts for any concurrent increment, so subtracting this call's own delta
-   * gives the exact value this transaction saw. A separate SELECT could not — it
-   * would race with another request's increment and make two concurrent callers
-   * both believe they crossed, or neither.
+   * While the row still holds the reservation it applies `realCostUsd - estimatedCostUsd`
+   * — normally a credit back of the unused estimate. Once the period has rolled,
+   * `resetIfElapsed` has already zeroed spend, reservation included, so crediting the
+   * estimate back would push spend below zero and give the new period that much extra
+   * headroom. Then only the real cost is added, to the current period, where the money
+   * was actually spent.
+   *
+   * A roll is `resets_at` having moved on from a period that has ended. `resets_at`
+   * moving alone is not enough: an owner changing the budget's period (`update`) also
+   * moves it, without zeroing spend, and the row then still holds the reservation.
+   * Both branches are one conditional UPDATE, so a reset racing this settle cannot
+   * slip between a read and the write.
+   *
+   * `resets_at` is compared at millisecond precision, the precision a JS `Date`
+   * carries back from `reserveSpend`. A 'total' budget (`resets_at` null) never rolls.
+   *
+   * The `before` value is derived as `after - delta` rather than read separately: the
+   * UPDATE is atomic and its returned `spend_usd` already accounts for any concurrent
+   * write, so subtracting this call's own delta gives the exact value this transaction
+   * saw. A separate SELECT would race another request's write and make two concurrent
+   * callers both believe they crossed an alert line, or neither.
    *
    * @param tx - The Prisma transaction client from the pipeline's $transaction.
-   * @param budgetId - Budget to increment.
-   * @param costUsd - USD to add (must be finite ≥ 0).
-   * @returns The budget's spend before and after this increment, and its cap.
+   * @param budgetId - Budget the reservation was taken against.
+   * @param reservedResetsAt - The budget's `resets_at` as `reserveSpend` returned it.
+   * @param realCostUsd - The call's real cost (finite, >= 0; 0 for a failed call).
+   * @param estimatedCostUsd - The amount `reserveSpend` reserved (finite, >= 0).
+   * @returns The budget's spend before and after this settle, and its cap; `null` when
+   *   the budget was deleted while the call was in flight, leaving nothing to settle.
    */
-  async incrementSpend(
+  async settleReservation(
     tx: Prisma.TransactionClient,
     budgetId: string,
-    costUsd: number,
-  ): Promise<{ before: Prisma.Decimal; after: Prisma.Decimal; limit: Prisma.Decimal }> {
-    const delta = new Prisma.Decimal(costUsd);
-    const updated = await tx.budget.update({
-      where: { id: budgetId },
-      data: { spendUsd: { increment: delta }, updatedAt: new Date() },
-      select: { spendUsd: true, limitUsd: true },
-    });
-    return {
-      before: updated.spendUsd.sub(delta),
-      after: updated.spendUsd,
-      limit: updated.limitUsd,
-    };
+    reservedResetsAt: Date | null,
+    realCostUsd: number,
+    estimatedCostUsd: number,
+  ): Promise<{ before: Prisma.Decimal; after: Prisma.Decimal; limit: Prisma.Decimal } | null> {
+    const samePeriod = new Prisma.Decimal(realCostUsd - estimatedCostUsd);
+    const rolled = new Prisma.Decimal(realCostUsd);
+    const delta = Prisma.sql`
+      CASE WHEN date_trunc('milliseconds', resets_at) IS DISTINCT FROM ${reservedResetsAt}::timestamptz
+             AND ${reservedResetsAt}::timestamptz <= now()
+        THEN ${rolled}::numeric ELSE ${samePeriod}::numeric END`;
+    const rows = await tx.$queryRaw<{ spend_usd: Prisma.Decimal; limit_usd: Prisma.Decimal; delta: Prisma.Decimal }[]>(
+      Prisma.sql`
+        UPDATE budgets
+        SET spend_usd = spend_usd + ${delta}, updated_at = now()
+        WHERE id = ${budgetId}::uuid
+        RETURNING spend_usd, limit_usd, ${delta} AS delta
+      `,
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return { before: row.spend_usd.minus(row.delta), after: row.spend_usd, limit: row.limit_usd };
   }
 
   /**

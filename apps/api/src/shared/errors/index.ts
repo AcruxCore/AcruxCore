@@ -18,6 +18,7 @@ export {
   PayloadTooLargeError,
   UnprocessableError,
   CredentialUnusableError,
+  SearchTimeoutError,
 } from './http-errors';
 export { RunNotReadyError } from './run-not-ready-error';
 export { formatIssuePath, firstIssueMessage } from './zod-issue';

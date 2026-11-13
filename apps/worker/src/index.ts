@@ -11,6 +11,8 @@ import {
   EVAL_RUNS_QUEUE,
   EVAL_JUDGE_QUEUE,
   EVAL_OPTIMIZE_QUEUE,
+  perTeamInFlightCap,
+  withTeamSlot,
   type CellJobData,
   type FinalizeJobData,
   type JudgeJobData,
@@ -93,9 +95,15 @@ const runsRepo = new RunsRepository();
  * separate process only changes *where* the same code executes, letting this
  * worker be deployed/scaled independently of the API.
  *
- * `cellWorker` bounds concurrency via `EVAL_WORKER_CONCURRENCY` (default 2):
+ * `cellWorker` bounds concurrency via `EVAL_WORKER_CONCURRENCY` (default 4):
  * concurrency here means simultaneously in-flight gateway calls, so it must
- * stay low enough not to blow through provider rate limits. Its `'failed'`
+ * stay low enough not to blow through provider rate limits. Every team shares
+ * the queue, so `cellWorker`, `judgeWorker` and `onlineEvalWorker` run their
+ * processor through `withTeamSlot`: one team runs at most
+ * `perTeamInFlightCap(concurrency)` jobs at once in this process (half the concurrency,
+ * or `EVAL_PER_TEAM_MAX_IN_FLIGHT`), and a job over its team's cap is re-delayed
+ * instead of holding a slot, so one team's backlog or slow upstream cannot
+ * hold every other team's runs and scoring back. Its `'failed'`
  * handler writes a terminal `eval_result` error row via
  * `RunsRepository.writeResultError` only once a job has exhausted its
  * configured retry attempts (`attemptsMade >= attempts`) — `processCell`
@@ -116,7 +124,7 @@ const runsRepo = new RunsRepository();
  *
  * `judgeWorker` consumes `EVAL_JUDGE_QUEUE`, one `JudgeService.scoreResult`
  * call per produced `eval_result`, bounded by its OWN `EVAL_JUDGE_WORKER_CONCURRENCY`
- * env var (default 2) — a separate knob from `cellWorker`'s
+ * env var (default 4) — a separate knob from `cellWorker`'s
  * `EVAL_WORKER_CONCURRENCY`, so the two simultaneous-gateway-call ceilings
  * (cell generation calls vs. judge calls) are independently tunable. Judge
  * calls go through the identical gateway path as cell calls, so this still
@@ -203,15 +211,18 @@ export async function startWorkers(): Promise<EvalWorkers> {
   const connection = getRedisConnection();
   // Must match the prefix the API enqueues under; both read BULLMQ_PREFIX.
   const prefix = getQueuePrefix();
-  const concurrency = Number(process.env.EVAL_WORKER_CONCURRENCY ?? 2);
-  const judgeConcurrency = Number(process.env.EVAL_JUDGE_WORKER_CONCURRENCY ?? 2);
+  // Defaults of 4 with a per-team cap of half (perTeamInFlightCap): one team still
+  // runs 2 calls at once, as it did when the whole queue ran 2, and the other half
+  // stays free for every other team.
+  const concurrency = Number(process.env.EVAL_WORKER_CONCURRENCY ?? 4);
+  const judgeConcurrency = Number(process.env.EVAL_JUDGE_WORKER_CONCURRENCY ?? 4);
   const optimizeConcurrency = Number(process.env.EVAL_OPTIMIZE_WORKER_CONCURRENCY ?? 2);
 
-  const cellWorker = new Worker<CellJobData>(EVAL_CELLS_QUEUE, (job) => processCell(job.data), {
-    connection,
-    prefix,
-    concurrency,
-  });
+  const cellWorker = new Worker<CellJobData>(
+    EVAL_CELLS_QUEUE,
+    withTeamSlot(EVAL_CELLS_QUEUE, (job) => processCell(job.data), { maxPerTeam: perTeamInFlightCap(concurrency) }),
+    { connection, prefix, concurrency },
+  );
   cellWorker.on('error', (err) => {
     console.error(`[${cellWorker.name}] worker error`, err);
     Sentry.captureException(err);
@@ -276,11 +287,11 @@ export async function startWorkers(): Promise<EvalWorkers> {
   });
   await waitForWorkerReady(runWorker);
 
-  const judgeWorker = new Worker<JudgeJobData>(EVAL_JUDGE_QUEUE, (job) => processJudge(job.data), {
-    connection,
-    prefix,
-    concurrency: judgeConcurrency,
-  });
+  const judgeWorker = new Worker<JudgeJobData>(
+    EVAL_JUDGE_QUEUE,
+    withTeamSlot(EVAL_JUDGE_QUEUE, (job) => processJudge(job.data), { maxPerTeam: perTeamInFlightCap(judgeConcurrency) }),
+    { connection, prefix, concurrency: judgeConcurrency },
+  );
   judgeWorker.on('error', (err) => {
     console.error(`[${judgeWorker.name}] worker error`, err);
     Sentry.captureException(err);
@@ -307,10 +318,12 @@ export async function startWorkers(): Promise<EvalWorkers> {
   });
   await waitForWorkerReady(judgeWorker);
 
-  const onlineEvalConcurrency = Number(process.env.ONLINE_EVAL_WORKER_CONCURRENCY ?? 2);
+  const onlineEvalConcurrency = Number(process.env.ONLINE_EVAL_WORKER_CONCURRENCY ?? 4);
   const onlineEvalWorker = new Worker<OnlineEvalJobData>(
     ONLINE_EVAL_QUEUE,
-    (job) => processOnlineEval(job.data),
+    withTeamSlot(ONLINE_EVAL_QUEUE, (job) => processOnlineEval(job.data), {
+      maxPerTeam: perTeamInFlightCap(onlineEvalConcurrency),
+    }),
     { connection, prefix, concurrency: onlineEvalConcurrency },
   );
   onlineEvalWorker.on('error', (err) => {

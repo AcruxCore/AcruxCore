@@ -195,7 +195,7 @@ export function PromptDetailPage() {
             onModelChange={setModel}
           />
         )}
-        {tab === 'preview' && <PreviewTab draft={draft} />}
+        {tab === 'preview' && <PreviewTab promptId={id} draft={draft} />}
         {tab === 'versions' && <VersionsTab promptId={id} canWrite={canWrite} />}
         {tab === 'diff' && <DiffTab promptId={id} />}
         {tab === 'audit' && <AuditTab promptId={id} />}

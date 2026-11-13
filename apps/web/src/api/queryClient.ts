@@ -45,6 +45,7 @@ export const keys = {
   prompt: (id: string) => ['prompt', id] as const,
   versions: (id: string) => ['versions', id] as const,
   version: (id: string, n: number) => ['version', id, n] as const,
+  preview: (id: string, messages: unknown, variables: unknown) => ['preview', id, messages, variables] as const,
   aliases: (id: string) => ['aliases', id] as const,
   diff: (id: string, from: number, to: number) => ['diff', id, from, to] as const,
   audit: (id: string, page: number) => ['audit', id, page] as const,

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { PromptVersion } from '@prisma/client';
 import type { ResolvedToolDefinition } from '../../tools/resolver';
+import { hasTemplateSyntax } from './nunjucks.utils';
 
 // ── DB row type (Prisma inferred) ─────────────────────────────────────────────
 
@@ -87,6 +88,67 @@ export const CreateVersionBodySchema = z.object({
 
 /** TypeScript type derived from the Zod schema. */
 export type CreateVersionDto = z.infer<typeof CreateVersionBodySchema>;
+
+// ── Draft preview ─────────────────────────────────────────────────────────────
+
+/**
+ * Most templates with a tag one preview request may render. Each one gets its own
+ * sandbox time budget, and the route is open to every member, viewers included, so
+ * without a ceiling a 1 MB body of runaway loops would hold the API's CPU for minutes.
+ * Plain text costs no sandbox run and is not counted. A real prompt sits far below this.
+ */
+export const MAX_PREVIEW_TEMPLATES = 100;
+
+/**
+ * One part of a draft message. Looser than {@link StoredPartSchema}: a draft is still
+ * being typed, so an empty text part or image link renders as empty instead of failing.
+ */
+const PreviewPartSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('text'), text: z.string() }),
+  z.object({
+    type: z.literal('image_url'),
+    image_url: z.object({ url: z.string(), detail: z.enum(['auto', 'low', 'high']).optional() }),
+  }),
+]);
+
+/**
+ * A draft message for the Preview. Unlike {@link MessageSchema} it allows empty content and
+ * an image in any role, because the Preview shows a half-written draft as it stands; the
+ * commit route still enforces both rules.
+ */
+const PreviewMessageSchema = z.object({
+  role: z.enum(['system', 'user', 'assistant'], {
+    errorMap: () => ({ message: "role must be 'system', 'user', or 'assistant'" }),
+  }),
+  content: z.union([z.string(), z.array(PreviewPartSchema)]),
+  cache_control: CacheControlSchema.optional(),
+});
+
+/** Validated request body for POST /prompts/:id/preview. */
+export const PreviewDraftBodySchema = z
+  .object({
+    messages: z.array(PreviewMessageSchema).min(1, 'messages must be a non-empty array'),
+    variables: z.record(z.unknown()).default({}),
+  })
+  .superRefine((body, ctx) => {
+    const tagged = body.messages
+      .flatMap((m) =>
+        typeof m.content === 'string'
+          ? [m.content]
+          : m.content.map((p) => (p.type === 'text' ? p.text : p.image_url.url)),
+      )
+      .filter(hasTemplateSyntax).length;
+    if (tagged > MAX_PREVIEW_TEMPLATES) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `A preview can render at most ${MAX_PREVIEW_TEMPLATES} templates; this draft has ${tagged}.`,
+        path: ['messages'],
+      });
+    }
+  });
+
+/** TypeScript type derived from {@link PreviewDraftBodySchema}. */
+export type PreviewDraftDto = z.infer<typeof PreviewDraftBodySchema>;
 
 // ── Pagination query schema ───────────────────────────────────────────────────
 

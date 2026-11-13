@@ -54,13 +54,15 @@ export class ToolSyncService {
    * @throws {ValidationError} An `http` executor whose transforms fail to compile,
    *   whose `{{secret.NAME}}` refs do not exist, or whose `url` is private — the same
    *   deep validation `POST /tools/:id/versions` applies.
+   * @throws {ForbiddenError} `SECRET_BINDING_NOT_PERMITTED` when the sync would commit an
+   *   executor that sends a team secret and the caller is not an owner or admin. A sync
+   *   that commits nothing is never refused for this.
    */
   async sync(teamId: string, userId: string, dto: SyncToolDto): Promise<SyncToolResult> {
     // Deep executor validation runs BEFORE the transaction: it performs DNS and secret
     // lookups, and holding a write transaction open across a network round-trip is how
     // connection pools get exhausted.
     await this.versionsService.assertExecutorDeepValid(dto.executor, teamId);
-
     const outcome = await runInTransaction(async (tx) => {
       // Claim the name before reading it. Everything below is a find-then-write, and
       // sync is machine-driven — `runToolLoop` calls it before the first model call,
@@ -114,6 +116,19 @@ export class ToolSyncService {
           };
         }
       }
+
+      // Decided only at the commit point: an unchanged re-sync stores nothing new, so an
+      // editor's deploy of a secret-using tool an admin set up keeps working, and a change
+      // that sends the same secrets to the same URL as the live version is allowed too.
+      // Throwing inside the transaction rolls back a tool shell created above, so a
+      // refused first sync leaves no empty tool behind.
+      const secretRefusal = await this.versionsService.secretBindingRefusal(
+        dto.executor,
+        teamId,
+        userId,
+        currentVersion?.executor ?? null,
+      );
+      if (secretRefusal) throw secretRefusal;
 
       const row = await this.versions.createNext(
         {

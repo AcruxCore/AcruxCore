@@ -1,6 +1,8 @@
 import { randomBytes } from 'node:crypto';
+import { resolve } from 'node:path';
 import { z } from 'zod';
 import { isEmailDisabled, loadEmailConfig } from '../../email/email.config';
+import { DEV_SECRET_FILE_NAME, loadOrCreateDevSecret } from './dev-secret';
 
 const Schema = z.object({
   secret: z.string().min(16),
@@ -20,23 +22,33 @@ const Schema = z.object({
 /** Validated auth configuration for this process. */
 export type AuthConfig = z.infer<typeof Schema>;
 
+let devSecret: string | null = null;
+
 /**
- * Development-only signing secret, used when `BETTER_AUTH_SECRET` is unset
- * outside production.
+ * The signing secret used when `BETTER_AUTH_SECRET` is unset outside production.
  *
- * A fixed value (rather than a random per-process one) so `npm run dev`
- * restarts do not sign every developer out on every file save. This is safe in
- * a way a fixed *unsubscribe* secret would not be: a session cookie is
- * `<token>.<signature>`, and `getSession` still looks the token up in
- * `auth_sessions`. Knowing this constant therefore lets nobody mint a session
- * for an arbitrary user — it only forges the tamper seal on a token that must
- * already exist in the database. `assertAuthConfig()` makes production refuse
- * to boot without a real secret, so this value can never ship.
+ * Never a fixed value. Better Auth signs self-authenticating tokens with this
+ * secret, not only the tamper seal on database-backed session cookies: a
+ * `/verify-email` JWT is checked against nothing but its signature, and a
+ * `change-email-verification` one signs its holder in as the user it names. A
+ * constant in the public repository would therefore let anyone take over any
+ * account on a development or `docker-compose.local.yml` install.
  *
- * The reasoning above holds *only* for tokens checked against a database row.
- * Anything self-authenticating must not be signed with it — see `claimSecret`.
+ * Under `npm run dev` and in the local Compose file the value is generated once
+ * and kept in a gitignored file (see {@link loadOrCreateDevSecret}), so restarts
+ * keep developers signed in. The test runner gets a per-process value instead,
+ * so a suite never writes into the working tree. Memoized per process, so
+ * `resetAuthConfig()` does not invalidate sessions mid-suite.
+ * `assertAuthConfig()` still makes production refuse to boot without a real
+ * secret.
  */
-const DEV_ONLY_SECRET = 'dev-only-insecure-better-auth-secret-do-not-deploy';
+function developmentSecret(): string {
+  devSecret ??=
+    process.env.NODE_ENV === 'test'
+      ? randomBytes(32).toString('base64url')
+      : loadOrCreateDevSecret(resolve(process.cwd(), DEV_SECRET_FILE_NAME));
+  return devSecret;
+}
 
 /** Session lifetime when `AUTH_SESSION_TTL_DAYS` is unset — Better Auth's own default. */
 const DEFAULT_SESSION_TTL_DAYS = 7;
@@ -69,14 +81,17 @@ const DEFAULT_TRUSTED_PROXIES = [
 /**
  * Headers consulted, in order, for the client address.
  *
- * `cf-connecting-ip` comes first because Cloudflare overwrites it on every
- * request with the single true client address, which sidesteps chain-walking
- * entirely; installs not behind Cloudflare simply never see the header and fall
- * through. Trusting it does assume the origin is only reachable *through* the
- * CDN — an operator who exposes the origin directly should close that at the
- * firewall (it also bypasses the WAF), or narrow this list via `AUTH_IP_HEADERS`.
+ * Only `x-forwarded-for`, walked right to left past {@link DEFAULT_TRUSTED_PROXIES},
+ * so the address comes from a hop our own ingress appended. `cf-connecting-ip`
+ * is deliberately absent: it is an ordinary request header, so any caller that
+ * reaches the origin without passing through Cloudflare can send one, and a new
+ * value per request would be a new rate-limit bucket per request. The bundled
+ * nginx (apps/web/nginx.conf) reads it only when the hop in front of it is a
+ * Cloudflare edge, and forwards the result as `x-forwarded-for`. An operator
+ * with a different ingress whose origin accepts connections from Cloudflare
+ * alone may opt in with `AUTH_IP_HEADERS=cf-connecting-ip,x-forwarded-for`.
  */
-const DEFAULT_IP_HEADERS = ['cf-connecting-ip', 'x-forwarded-for'];
+const DEFAULT_IP_HEADERS = ['x-forwarded-for'];
 
 /**
  * Splits a comma-separated environment variable, tolerating spaces and a
@@ -120,14 +135,11 @@ export function loadAuthConfig(): AuthConfig {
 
   const parsed = Schema.safeParse({
     secret:
-      process.env.BETTER_AUTH_SECRET || (isProduction ? '' : DEV_ONLY_SECRET),
-    // Never the development fallback. A session cookie signed by a known secret
-    // is still worthless without a matching `auth_sessions` row, but a first-run
-    // claim token is checked against nothing but its own signature — anyone who
-    // knows the constant could mint one and take ownership of an unclaimed
-    // instance over the network. A per-process random value costs nothing here,
-    // because a printed claim link is already documented as dying with the
-    // process that printed it.
+      process.env.BETTER_AUTH_SECRET || (isProduction ? '' : developmentSecret()),
+    // Never the persisted development secret either: a first-run claim token is
+    // checked against nothing but its own signature, and a per-process random
+    // value costs nothing here, because a printed claim link is already
+    // documented as dying with the process that printed it.
     claimSecret:
       process.env.BETTER_AUTH_SECRET || randomBytes(32).toString('base64url'),
     // Reuse the email layer's APP_URL so a link in an email and an OAuth

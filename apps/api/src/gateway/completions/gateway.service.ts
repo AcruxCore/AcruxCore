@@ -16,9 +16,10 @@ import {
 // concern as the `AliasesService` import below).
 import { notify } from '../../notifications/notify';
 import { appLink } from '../../email';
-import { getAdapter, ProviderError, gatewayChainDeadlineMs } from '../providers/adapter';
+import { getAdapter, ProviderError, gatewayChainDeadlineMs, OWN_TIMEOUT_CODE } from '../providers/adapter';
 import { cacheRatesForModel, computeCostFromPrices } from '../providers/models';
 import { estimateTokens } from '../providers/token-estimate';
+import { planBudgetedCompletion } from './budget-completion-plan';
 import { withoutRefusedReasoningEffort } from '../providers/refused-params';
 import type { ChatMessage, NormalizedRequest, ProviderCredentials, StreamChunk, ToolCall, Usage } from '../providers/types';
 // Imported from the concrete file, not the `../../prompts/aliases` barrel:
@@ -147,43 +148,6 @@ interface BudgetCrossingRecord {
   budget: FreshBudget;
   crossing: BudgetCrossing;
   spendUsd: number;
-}
-
-/**
- * Conservative fallback for a request's completion-token reservation estimate
- * when the caller didn't supply `max_tokens` — bounds the worst case without
- * requiring per-model context-window knowledge. Tunable later; the point is
- * that *some* bound exists.
- */
-const DEFAULT_ESTIMATED_COMPLETION_TOKENS = 1000;
-
-/**
- * Conservative pre-call cost estimate used to RESERVE budget headroom before
- * the paid provider call (G4/G5 fix — see `GatewayService.reserveBudgets`):
- * the real prompt-token count (same estimator the streaming path already uses
- * for its usage fallback) plus the caller's own `max_tokens` cap — or
- * `DEFAULT_ESTIMATED_COMPLETION_TOKENS` when omitted — as the completion-token
- * estimate, priced at the given model's registered rates.
- *
- * @param req - The normalized request (messages + optional max_tokens).
- * @param model - The pricing to estimate against — the primary deployment's,
- *   since fallback deployments for the same model are normally priced the same.
- * @returns The estimated USD cost, or 0 for an unpriced model — matching how a
- *   real, unpriced completion is already recorded as 0 spend elsewhere here.
- */
-function estimateRequestCostUsd(
-  req: NormalizedRequest,
-  model: { inputPricePerM: Prisma.Decimal | null; outputPricePerM: Prisma.Decimal | null },
-): number {
-  const promptTokens = estimateTokens(req.messages, req.model);
-  const completionTokens = req.max_tokens ?? DEFAULT_ESTIMATED_COMPLETION_TOKENS;
-  return (
-    computeCostFromPrices(model.inputPricePerM, model.outputPricePerM, {
-      prompt_tokens: promptTokens,
-      completion_tokens: completionTokens,
-      total_tokens: promptTokens + completionTokens,
-    }) ?? 0
-  );
 }
 
 // Reads the base_url out of a connection's JSONB config (openai_compatible only).
@@ -518,6 +482,68 @@ export class GatewayService {
   }
 
   /**
+   * Plans and reserves one call against its budgets: decides whether a call that names
+   * no output limit is capped (see {@link planBudgetedCompletion}), sets that cap on the
+   * request, and reserves the planned cost.
+   *
+   * An uncapped call reserves the price of a long answer. When other calls in flight
+   * hold enough that this reservation no longer fits, the call is not refused at once:
+   * it is planned again against the balance as it is now, which caps it to what is left,
+   * and refused only if that smaller reservation fails too. Only the last attempt raises
+   * the "budget exhausted" alert.
+   *
+   * Remaining money is the tightest of the applicable budgets; a budget whose period has
+   * already elapsed counts as full, since the reservation resets it before reserving.
+   *
+   * @param ctx - Team/virtual-key scope.
+   * @param normalized - The request about to be sent; `max_tokens` is set in place when
+   *   the plan caps it. Must be read for the cache key before this runs.
+   * @param chain - The deployments the call may go to, primary first (non-empty).
+   * @returns What `reserveBudgets` returns, plus the reserved estimate (for
+   *   reconciliation) and whether the gateway capped the call (a capped answer is never cached).
+   * @throws {PaymentRequiredError} 402 BUDGET_EXCEEDED when even the capped reservation does not fit.
+   */
+  private async reserveForCall(
+    ctx: GatewayCallContext,
+    normalized: NormalizedRequest,
+    chain: ResolvedDeployment[],
+  ): Promise<{
+    reserved: FreshBudget[];
+    crossed: BudgetCrossingRecord[];
+    estimatedCostUsd: number;
+    capped: boolean;
+  }> {
+    const pricing = chain.map((d) => ({
+      provider: d.credential.provider,
+      inputPricePerM: d.model.inputPricePerM,
+      outputPricePerM: d.model.outputPricePerM,
+    }));
+    for (let attempt = 0; ; attempt++) {
+      const budgets = await this.budgetsRepo.applicableBudgets(ctx.teamId, ctx.virtualKeyId);
+      const now = Date.now();
+      const remainingUsd =
+        budgets.length === 0
+          ? undefined
+          : Math.min(
+              ...budgets.map((b) =>
+                b.resetsAt !== null && b.resetsAt.getTime() <= now
+                  ? b.limitUsd.toNumber()
+                  : b.limitUsd.minus(b.spendUsd).toNumber(),
+              ),
+            );
+      const plan = planBudgetedCompletion(normalized, pricing, remainingUsd);
+      const mayReplan = attempt === 0 && plan.cap === undefined && normalized.max_tokens === undefined;
+      try {
+        const out = await this.reserveBudgets(ctx, plan.estimatedCostUsd, budgets, !mayReplan);
+        if (plan.cap !== undefined) normalized.max_tokens = plan.cap;
+        return { ...out, estimatedCostUsd: plan.estimatedCostUsd, capped: plan.cap !== undefined };
+      } catch (err) {
+        if (!(mayReplan && err instanceof PaymentRequiredError)) throw err;
+      }
+    }
+  }
+
+  /**
    * Budget reserve (G4/G5 fix): lazy-resets each applicable budget, then
    * atomically reserves `estimatedCostUsd` against every one of them inside a
    * single transaction. If any budget can't fit the reservation, the whole
@@ -541,10 +567,15 @@ export class GatewayService {
    * transaction has rolled back.
    *
    * @param ctx - Team/virtual-key scope.
-   * @param estimatedCostUsd - Conservative USD estimate to reserve (see `estimateRequestCostUsd`).
+   * @param estimatedCostUsd - Conservative USD estimate to reserve (see `planBudgetedCompletion`).
+   * @param preloaded - The applicable budgets `reserveForCall` already read, so the set
+   *   that decided the output cap is the set reserved against. Omitted → read here.
+   * @param alertOnExhausted - Whether a refused reservation raises the "budget exhausted"
+   *   alert; false for an attempt `reserveForCall` will retry with a smaller reservation.
    * @returns Each applicable (freshly-reset) budget that was successfully reserved
-   *   against, plus any alert the reservation itself crossed. `reconcileBudgets`
-   *   derives its own before/after pair from `incrementSpend` at reconciliation time
+   *   against (its `resetsAt` set to the period the reservation landed in), plus any
+   *   alert the reservation itself crossed. `reconcileBudgets`
+   *   derives its own before/after pair from `settleReservation` at reconciliation time
    *   rather than from any spend value read here, since a snapshot taken before the
    *   reservation transaction runs goes stale the moment a concurrent request commits.
    * @throws {PaymentRequiredError} 402 BUDGET_EXCEEDED when a reservation would
@@ -553,8 +584,10 @@ export class GatewayService {
   private async reserveBudgets(
     ctx: GatewayCallContext,
     estimatedCostUsd: number,
+    preloaded?: FreshBudget[],
+    alertOnExhausted = true,
   ): Promise<{ reserved: FreshBudget[]; crossed: BudgetCrossingRecord[] }> {
-    const applicable = await this.budgetsRepo.applicableBudgets(ctx.teamId, ctx.virtualKeyId);
+    const applicable = preloaded ?? (await this.budgetsRepo.applicableBudgets(ctx.teamId, ctx.virtualKeyId));
     const rolled: FreshBudget[] = [];
     for (const b of applicable) {
       rolled.push(await this.budgetsRepo.resetIfElapsed(b));
@@ -582,7 +615,9 @@ export class GatewayService {
             ...detectBudgetCrossings({ before: result.before, after: result.after, limit: result.limit })
               .map((crossing) => ({ budget: b, crossing, spendUsd: Number(result.after) })),
           );
-          reserved.push(b);
+          // Carries the period the reservation actually landed in, read by the same
+          // UPDATE, so `reconcileBudgets` can tell whether a reset has since erased it.
+          reserved.push({ ...b, resetsAt: result.resetsAt });
         }
         return { reserved, crossed };
       });
@@ -591,7 +626,7 @@ export class GatewayService {
       // describes a 402 the caller is genuinely about to receive. Every later blocked
       // request in the same period derives the same dedupe key and folds into this
       // one job, so a team gets one "cut off" email per period, not one per request.
-      if (exhausted) {
+      if (exhausted && alertOnExhausted) {
         await this.notifyBudgetCrossings(
           [{ budget: exhausted, crossing: 'exhausted', spendUsd: Number(exhausted.spendUsd) }],
           ctx.teamId,
@@ -606,10 +641,12 @@ export class GatewayService {
    * Credits back the difference between the estimate `reserveBudgets`
    * reserved and the real cost now known — negative when the estimate
    * overshot, as it normally will, crediting the unused reservation back — and
-   * detects any alert crossing using the before/after pair `incrementSpend`
-   * itself returns for THIS reconciliation.
+   * detects any alert crossing using the before/after pair `settleReservation`
+   * itself returns for THIS reconciliation. A reservation whose budget period has
+   * rolled since is settled at its real cost only, never credited back against the
+   * new period (see `settleReservation`).
    *
-   * Detection runs on the before/after pair `incrementSpend` returns for THIS
+   * Detection runs on the before/after pair `settleReservation` returns for THIS
    * correction, and on nothing else. Every write to the row — each reservation, each
    * reconciliation — returns a transition computed atomically inside its own UPDATE,
    * so consecutive transitions tile the row's trajectory without gaps or overlap and
@@ -637,10 +674,16 @@ export class GatewayService {
     estimatedCostUsd: number,
     realCostUsd: number,
   ): Promise<BudgetCrossingRecord[]> {
-    const delta = realCostUsd - estimatedCostUsd;
     const crossed: BudgetCrossingRecord[] = [];
     for (const budget of reserved) {
-      const t = await this.budgetsRepo.incrementSpend(tx, budget.id, delta);
+      const t = await this.budgetsRepo.settleReservation(
+        tx,
+        budget.id,
+        budget.resetsAt,
+        realCostUsd,
+        estimatedCostUsd,
+      );
+      if (!t) continue; // budget deleted mid-call: nothing left to settle
       for (const crossing of detectBudgetCrossings({ before: t.before, after: t.after, limit: t.limit })) {
         crossed.push({ budget, crossing, spendUsd: Number(t.after) });
       }
@@ -1003,13 +1046,19 @@ export class GatewayService {
 
     // 4b. Budget reserve — durable spend caps in Postgres (G4/G5 fix). Lazy-reset
     // each applicable budget, then atomically reserve a conservative cost estimate
-    // (priced at the primary deployment's rates) against every one, rejecting (402)
+    // (priced at the dearest deployment in the chain) against every one, rejecting (402)
     // if any can't fit. Reserving here — after resolving deployments/pricing but
     // before the paid call — closes the concurrent-request race the old read-then-
     // increment-later check-then-act had. Reconciled to the real cost at step 9.
-    const estimatedCostUsd = estimateRequestCostUsd(normalized, scopedDeployments[0].model);
-    const { reserved: reservedBudgets, crossed: reservationCrossings } =
-      await this.reserveBudgets(ctx, estimatedCostUsd);
+    // A call with no output cap under a budget near its limit is held to what the money
+    // left buys. That runs after the cache key was taken from the call as sent, and a capped
+    // answer is never stored, so a cached answer still serves a nearly spent budget for free.
+    const {
+      reserved: reservedBudgets,
+      crossed: reservationCrossings,
+      estimatedCostUsd,
+      capped,
+    } = await this.reserveForCall(ctx, normalized, scopedDeployments);
 
     // Bind adapter + decrypted credentials + upstream-model rewrite per deployment.
     const invoke = this.buildInvoker();
@@ -1021,6 +1070,9 @@ export class GatewayService {
       served = await callWithFallback(scopedDeployments, normalized, invoke, {
         maxRetriesPerConn: gateway?.maxRetries ?? DEFAULT_MAX_RETRIES,
         allowFallback: gateway?.fallback ?? true,
+        // An internal caller may only shorten the chain deadline, never extend it.
+        chainDeadlineMs:
+          ctx.chainDeadlineMs === undefined ? undefined : Math.min(ctx.chainDeadlineMs, gatewayChainDeadlineMs()),
       });
     } catch (err) {
       // No real cost was incurred by ANY exception past this point — credit
@@ -1147,7 +1199,7 @@ export class GatewayService {
     // ── Store into cache (after a successful live call) ──────────────────────
     // Awaited (not fire-and-forget) so a subsequent identical request
     // deterministically hits; wrapped so a cache write never fails the call.
-    if (cacheable && cacheKey) {
+    if (cacheable && cacheKey && !capped) {
       try {
         await this.cache.store(ctx.teamId, cacheKey, response, response.usage, ctx.cacheTtlSeconds!);
       } catch (err) {
@@ -1306,9 +1358,12 @@ export class GatewayService {
     // 4b. Budget reserve (G4/G5 fix, mirrors complete() — see its comment).
     // Reserving before the deployment-fallback loop below means a budget that
     // can't fit the reservation throws here, before any provider stream opens.
-    const estimatedCostUsd = estimateRequestCostUsd(normalized, scopedDeployments[0].model);
-    const { reserved: reservedBudgets, crossed: reservationCrossings } =
-      await this.reserveBudgets(ctx, estimatedCostUsd);
+    // Also caps a call with no output cap under a budget near its limit (see complete()).
+    const {
+      reserved: reservedBudgets,
+      crossed: reservationCrossings,
+      estimatedCostUsd,
+    } = await this.reserveForCall(ctx, normalized, scopedDeployments);
 
     // 7 (selection). Try deployments in order until one yields a first chunk.
     // Fallback ends the moment a byte is committed — after the first chunk the
@@ -1806,7 +1861,7 @@ export class GatewayService {
       );
     }
     if (err.status === 504 || err.status === 408) {
-      return new ProviderTimeoutError();
+      return new ProviderTimeoutError(undefined, err.providerCode !== OWN_TIMEOUT_CODE);
     }
     if (err.status === 429) {
       return new ProviderRateLimitedError(

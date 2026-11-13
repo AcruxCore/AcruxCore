@@ -84,6 +84,16 @@ check "/runtime-config.js stays no-store" test "$(header "$base/runtime-config.j
 check "the API catalog keeps its CORS header" \
   test "$(header "$base/.well-known/api-catalog" access-control-allow-origin)" = '*'
 
+echo "# Content-Security-Policy on the pages this container serves"
+for path in / /about /no-such-page /prompts/abc123; do
+  csp="$(header "$base$path" content-security-policy)"
+  script_src="$(printf '%s' "$csp" | tr ';' '\n' | grep -E '^ *script-src ' || true)"
+  check "$path sends a CSP" test -n "$csp"
+  check "$path allows no eval or inline script" \
+    bash -c '[[ -n "$1" && "$1" != *unsafe-eval* && "$1" != *unsafe-inline* ]]' _ "$script_src"
+  check "$path refuses framing in the CSP too" grep -q "frame-ancestors 'none'" <<<"$csp"
+done
+
 echo "# llms.txt"
 check "/llms.txt is served as Markdown" \
   test "$(header "$base/llms.txt" content-type)" = "text/markdown; charset=utf-8"

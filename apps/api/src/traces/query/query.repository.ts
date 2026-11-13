@@ -1,7 +1,8 @@
 import prisma from '../../shared/db/client';
 import { Prisma } from '@prisma/client';
 import type { TraceListFilters, TraceListItem } from './query.types';
-import { buildTraceConditions } from '../filters';
+import { buildTraceConditions, runContentSearch } from '../filters';
+import { traceIdWhere, TRACE_ID_MATCH_ORDER } from '../spans/trace-id-where';
 import type { TraceRow, SpanRow, SpanPayloadRow } from '../../shared/db/schema';
 
 /** Raw row shape returned by the list query before Date→ISO mapping. */
@@ -53,16 +54,19 @@ export class TraceQueryRepository {
    * @param where - A Prisma.Sql boolean expression over alias `t` (traces).
    * @param page - 1-based page.
    * @param limit - Page size (already capped at 100 upstream).
+   * @param client - The client to run on: a content search passes its bounded
+   *   transaction (see `runContentSearch`); everything else uses the shared client.
    * @returns Mapped page rows and the full matching count.
    */
   private async runList(
     where: Prisma.Sql,
     page: number,
     limit: number,
+    client: Prisma.TransactionClient = prisma,
   ): Promise<{ data: TraceListItem[]; total: number }> {
     const offset = (page - 1) * limit;
 
-    const rows = await prisma.$queryRaw<TraceListRaw[]>(Prisma.sql`
+    const rows = await client.$queryRaw<TraceListRaw[]>(Prisma.sql`
       SELECT
         t.id,
         t.name,
@@ -88,7 +92,7 @@ export class TraceQueryRepository {
       LIMIT ${limit} OFFSET ${offset}
     `);
 
-    const totalRows = await prisma.$queryRaw<{ total: number }[]>(Prisma.sql`
+    const totalRows = await client.$queryRaw<{ total: number }[]>(Prisma.sql`
       SELECT COUNT(*)::int AS "total" FROM traces t WHERE ${where}
     `);
 
@@ -103,9 +107,15 @@ export class TraceQueryRepository {
    * the dataset builders — so `?prompt_id=` means the same thing everywhere,
    * and a filter is never added to one surface and forgotten on another.
    *
+   * A free-text `q` makes this a content search, run within its bounds (see
+   * `runContentSearch`).
+   *
    * @param teamId - Team scope.
    * @param filters - Resolved (camelCase) filters incl. page/limit.
    * @returns Page of trace list items and the total matching count.
+   * @throws {RateLimitedError} 429 when `q` is set and the team already has its limit of
+   *   searches running.
+   * @throws {SearchTimeoutError} 422 when a `q` search runs past its statement timeout.
    */
   async listTraces(
     teamId: string,
@@ -116,7 +126,9 @@ export class TraceQueryRepository {
       ...buildTraceConditions(filters, 't'),
     ];
 
-    return this.runList(Prisma.join(conds, ' AND '), filters.page, filters.limit);
+    const where = Prisma.join(conds, ' AND ');
+    if (!filters.q) return this.runList(where, filters.page, filters.limit);
+    return runContentSearch(teamId, (tx) => this.runList(where, filters.page, filters.limit, tx));
   }
 
   /**
@@ -126,7 +138,8 @@ export class TraceQueryRepository {
    * in start order.
    *
    * @param teamId - Team scope.
-   * @param traceId - Internal trace UUID.
+   * @param traceId - The trace's stored id, or the id its caller chose for it (see
+   *   `traceIdWhere`).
    * @returns `{ trace, spans, payloads?, toolSets }`, or null if not found in this team.
    *   `toolSets` maps a `trace_tool_sets` id to its tool list.
    */
@@ -139,11 +152,14 @@ export class TraceQueryRepository {
     payloads?: Record<string, SpanPayloadRow>;
     toolSets: Record<string, unknown>;
   } | null> {
-    const trace = await prisma.trace.findFirst({ where: { id: traceId, teamId } });
+    const trace = await prisma.trace.findFirst({
+      where: traceIdWhere(teamId, traceId),
+      orderBy: TRACE_ID_MATCH_ORDER,
+    });
     if (!trace) return null;
 
     const spans = await prisma.span.findMany({
-      where: { traceId, teamId },
+      where: { traceId: trace.id, teamId },
       orderBy: { startedAt: 'asc' },
     });
 
@@ -158,7 +174,7 @@ export class TraceQueryRepository {
 
     // Each distinct tool list once, however many rounds sent it (PR #799 review).
     const setRows = await prisma.traceToolSet.findMany({
-      where: { traceId, teamId },
+      where: { traceId: trace.id, teamId },
       select: { id: true, tools: true },
     });
     const toolSets = Object.fromEntries(setRows.map((t) => [t.id, t.tools]));

@@ -21,9 +21,45 @@ export interface CompiledTransform {
  */
 const MEMORY_LIMIT_MB = 8;
 
-/** Wraps a user-supplied `transform(input)` body so it can be invoked with the injected `input` global. */
+/**
+ * The longest result a transform may hand back, in characters of its JSON encoding.
+ *
+ * The isolate's memory cap does not bound the result: a string doubled by concatenation
+ * is a chain of small cons-string nodes inside the isolate, and copying it out flattens
+ * all of it in the API process. So the result is encoded and measured inside the isolate,
+ * under the same timeout, and only a string within this limit crosses the boundary.
+ *
+ * 2 Mi characters is twice the 1 MB response body the executor accepts (`safe-fetch.ts`),
+ * so a response transform that passes a maximum-size body through, re-encoded, always
+ * fits. A request transform shapes tool arguments, which are smaller still.
+ */
+export const MAX_TRANSFORM_RESULT_CHARS = 2 * 1024 * 1024;
+
+/**
+ * Wraps a user-supplied `transform(input)` body so it can be invoked with the injected
+ * `input` global, and its result returned as a JSON string no longer than
+ * {@link MAX_TRANSFORM_RESULT_CHARS}, or `undefined`.
+ *
+ * A function, symbol or Promise anywhere in the result is refused, as the structured
+ * clone this replaced refused it, rather than silently dropped by `JSON.stringify`. The
+ * limit is a literal in the source, not a global the transform could overwrite first.
+ */
 function wrap(code: string): string {
-  return `${code}\ntransform(input);`;
+  return `${code}
+;(function (result) {
+  if (result === undefined) return undefined;
+  var json = JSON.stringify(result, function (key, value) {
+    if (typeof value === 'function' || typeof value === 'symbol' || value instanceof Promise) {
+      throw new Error('transform must return plain JSON');
+    }
+    return value;
+  });
+  if (typeof json !== 'string') throw new Error('transform must return plain JSON');
+  if (json.length > ${MAX_TRANSFORM_RESULT_CHARS}) {
+    throw new Error('transform result passes the ${MAX_TRANSFORM_RESULT_CHARS} character limit');
+  }
+  return json;
+})(transform(input));`;
 }
 
 /**
@@ -63,8 +99,10 @@ export function compileTransform(code: string): CompiledTransform {
  * @param compiled - A syntax-checked transform (from `compileTransform`).
  * @param input - The JSON input (tool arguments, or `{status,headers,body}`).
  * @param timeoutMs - Wall-clock budget in milliseconds.
- * @returns The transform's return value (must be plain JSON — functions/classes don't survive the copy).
- * @throws {TransformError} When the script throws, times out, or its return value isn't copyable.
+ * @returns The transform's return value, after a JSON round trip: plain JSON in, plain JSON
+ *   out (a `Date` arrives as its ISO string, `NaN` as `null`), or `undefined`.
+ * @throws {TransformError} When the script throws, times out, returns something that is not
+ *   plain JSON, or returns more than {@link MAX_TRANSFORM_RESULT_CHARS} characters of it.
  */
 export async function evaluateTransform(compiled: CompiledTransform, input: unknown, timeoutMs: number): Promise<unknown> {
   const isolate = new ivm.Isolate({ memoryLimit: MEMORY_LIMIT_MB });
@@ -72,12 +110,15 @@ export async function evaluateTransform(compiled: CompiledTransform, input: unkn
     const context = await isolate.createContext();
     await context.global.set('input', new ivm.ExternalCopy(input).copyInto());
     const script = await isolate.compileScript(wrap(compiled.code));
-    return await script.run(context, { timeout: timeoutMs, copy: true });
+    const json = (await script.run(context, { timeout: timeoutMs, copy: true })) as string | undefined;
+    return json === undefined ? undefined : (JSON.parse(json) as unknown);
   } catch (err) {
     throw new TransformError(`Transform failed: ${err instanceof Error ? err.message : String(err)}`);
   } finally {
     // Runs on every path (success, thrown error, and timeout) so a runaway isolate
-    // never keeps burning CPU/memory in the background after the call settles.
-    isolate.dispose();
+    // never keeps burning CPU/memory in the background after the call settles. An isolate
+    // that hit its memory limit is already disposed, and disposing it again would throw
+    // "Isolate is already disposed" over the TransformError that says what happened.
+    if (!isolate.isDisposed) isolate.dispose();
   }
 }

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Agent } from 'undici';
-import { ProviderAdapter, ProviderError, GATEWAY_TIMEOUT_MS, summarizeProviderDetail, parseRetryAfter } from './adapter';
+import { ProviderAdapter, ProviderError, GATEWAY_TIMEOUT_MS, summarizeProviderDetail, parseRetryAfter, OWN_TIMEOUT_CODE } from './adapter';
 import { providerCallSignal } from './timeout';
 import type {
   NormalizedRequest,
@@ -375,7 +375,7 @@ export class GeminiAdapter implements ProviderAdapter {
       throw new ProviderError(
         isTimeout ? 'Gemini request timed out' : `Gemini network error: ${(err as Error).message}`,
         isTimeout ? 504 : 502,
-        isTimeout ? 'timeout' : 'network_error',
+        isTimeout ? OWN_TIMEOUT_CODE : 'network_error',
         true,
       );
     }
@@ -470,7 +470,7 @@ export class GeminiAdapter implements ProviderAdapter {
       throw new ProviderError(
         isTimeout ? 'Gemini stream request timed out' : `Gemini network error: ${(err as Error).message}`,
         isTimeout ? 504 : 502,
-        isTimeout ? 'timeout' : 'network_error',
+        isTimeout ? OWN_TIMEOUT_CODE : 'network_error',
         true,
       );
     }

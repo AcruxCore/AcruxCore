@@ -2,6 +2,7 @@ import request from 'supertest';
 import { createApp } from '../../../app';
 import prisma from '../../shared/db/client';
 import { authedAgent, signupTestUser, authHeaders, uniqueTestEmail } from '../../test-utils';
+import type { TestAuthContext } from '../../test-utils';
 import { drainEmailQueue, getEmailQueue, getMemoryTransport, loadEmailConfig } from '../../email';
 import { getRedisConnection } from '../../evaluations/queue/connection';
 import { INVITE_EMAIL_CAP } from './invites.service';
@@ -539,6 +540,136 @@ describe('an invite addressed to one person is not a bearer token for anyone', (
     await request(app)
       .post(`/api/v1/teams/invites/${invite.body.token}/accept`)
       .set(authHeaders(anyone))
+      .expect(200);
+  }, 60000);
+});
+
+describe('an invite carries its creator\'s authority, and loses it when they do', () => {
+  /**
+   * Makes a fresh user an admin of `owner`'s team the way a real admin gets
+   * there: the owner shares an admin invite and the user accepts it.
+   */
+  async function joinAsAdmin(owner: { agent: ReturnType<typeof request.agent>; teamId: string }) {
+    const admin = await signupTestUser(app);
+    const invite = await owner.agent
+      .post(`/api/v1/teams/${owner.teamId}/invites`)
+      .send({ role: 'admin' })
+      .expect(201);
+    await request(app)
+      .post(`/api/v1/teams/invites/${invite.body.token}/accept`)
+      .set(authHeaders(admin))
+      .expect(200);
+    return admin;
+  }
+
+  /** The admin mints a share-link admin invite and returns its token. */
+  async function mintAdminLink(admin: TestAuthContext, teamId: string): Promise<string> {
+    const res = await request(app)
+      .post(`/api/v1/teams/${teamId}/invites`)
+      .set(authHeaders(admin))
+      .send({ role: 'admin' })
+      .expect(201);
+    return res.body.token as string;
+  }
+
+  it('a removed admin cannot rejoin through a link they minted before removal', async () => {
+    const owner = await authedAgent(app);
+    const admin = await joinAsAdmin(owner);
+    const token = await mintAdminLink(admin, owner.teamId);
+
+    await owner.agent.delete(`/api/v1/teams/${owner.teamId}/members/${admin.userId}`).expect(204);
+
+    const res = await request(app)
+      .post(`/api/v1/teams/invites/${token}/accept`)
+      .set(authHeaders(admin));
+    expect([404, 410]).toContain(res.status);
+
+    const rows = await prisma.teamMember.findMany({
+      where: { teamId: owner.teamId, userId: admin.userId },
+    });
+    expect(rows).toHaveLength(0);
+    // The pending invite itself is gone, so the owner's list no longer shows it.
+    const pending = await owner.agent.get(`/api/v1/teams/${owner.teamId}/invites`).expect(200);
+    expect((pending.body as Array<{ token: string }>).map((i) => i.token)).not.toContain(token);
+  }, 60000);
+
+  it('an admin demoted to editor loses the links they minted', async () => {
+    const owner = await authedAgent(app);
+    const admin = await joinAsAdmin(owner);
+    const token = await mintAdminLink(admin, owner.teamId);
+    const outsider = await signupTestUser(app);
+
+    await owner.agent
+      .patch(`/api/v1/teams/${owner.teamId}/members/${admin.userId}/roles`)
+      .send({ role: 'editor' })
+      .expect(200);
+
+    const res = await request(app)
+      .post(`/api/v1/teams/invites/${token}/accept`)
+      .set(authHeaders(outsider));
+    expect([404, 410]).toContain(res.status);
+    const rows = await prisma.teamMember.findMany({
+      where: { teamId: owner.teamId, userId: outsider.userId },
+    });
+    expect(rows).toHaveLength(0);
+  }, 60000);
+
+  it('refuses an invite whose creator no longer holds owner/admin, however they lost it', async () => {
+    // Defence in depth: a role change made outside MembersService (a support
+    // script, a future code path) must not leave the creator's links live.
+    const owner = await authedAgent(app);
+    const admin = await joinAsAdmin(owner);
+    const token = await mintAdminLink(admin, owner.teamId);
+    const outsider = await signupTestUser(app);
+
+    await prisma.teamMember.updateMany({
+      where: { teamId: owner.teamId, userId: admin.userId },
+      data: { role: 'viewer' },
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/teams/invites/${token}/accept`)
+      .set(authHeaders(outsider));
+    expect([404, 410]).toContain(res.status);
+    const rows = await prisma.teamMember.findMany({
+      where: { teamId: owner.teamId, userId: outsider.userId },
+    });
+    expect(rows).toHaveLength(0);
+  }, 60000);
+
+  it('keeps working for an admin who is still an admin, and for links other admins made', async () => {
+    const owner = await authedAgent(app);
+    const admin = await joinAsAdmin(owner);
+    const other = await joinAsAdmin(owner);
+    const adminToken = await mintAdminLink(admin, owner.teamId);
+    const otherToken = await mintAdminLink(other, owner.teamId);
+    const newcomer = await signupTestUser(app);
+    const second = await signupTestUser(app);
+
+    // Removing `other` must not touch the links `admin` made.
+    await owner.agent.delete(`/api/v1/teams/${owner.teamId}/members/${other.userId}`).expect(204);
+
+    await request(app)
+      .post(`/api/v1/teams/invites/${adminToken}/accept`)
+      .set(authHeaders(newcomer))
+      .expect(200);
+    const res = await request(app)
+      .post(`/api/v1/teams/invites/${otherToken}/accept`)
+      .set(authHeaders(second));
+    expect([404, 410]).toContain(res.status);
+
+    // Promoting someone, or demoting owner -> admin, leaves their links live.
+    const ownerToken = (await owner.agent
+      .post(`/api/v1/teams/${owner.teamId}/invites`)
+      .send({ role: 'viewer' })
+      .expect(201)).body.token as string;
+    await owner.agent
+      .patch(`/api/v1/teams/${owner.teamId}/members/${admin.userId}/roles`)
+      .send({ role: 'admin' })
+      .expect(200);
+    await request(app)
+      .post(`/api/v1/teams/invites/${ownerToken}/accept`)
+      .set(authHeaders(second))
       .expect(200);
   }, 60000);
 });

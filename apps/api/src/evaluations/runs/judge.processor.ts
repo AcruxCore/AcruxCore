@@ -1,9 +1,10 @@
 import { UnrecoverableError } from 'bullmq';
-import { ProviderPermanentError } from '../../shared/errors';
+import { ProviderPermanentError, ProviderTimeoutError } from '../../shared/errors';
+import { evalCallDeadlineMs } from '../queue/eval-call-deadline';
 import type { JudgeJobData } from '../queue';
 import { JudgeService } from '../judge/judge.service';
 
-const judgeService = new JudgeService();
+const judgeService = new JudgeService(evalCallDeadlineMs);
 
 /**
  * Executes one judge scoring job: grades a produced `eval_result` row via
@@ -31,7 +32,8 @@ const judgeService = new JudgeService();
  *   so `finalize.processor`'s readiness check is never left waiting forever.
  * @throws {UnrecoverableError} If the job names no judge model (queued before
  *   judges were chosen per run), or the gateway answered a `ProviderPermanentError`
- *   (409). BullMQ does not retry it.
+ *   (409) or a `ProviderTimeoutError` from the gateway's own clock (no answer within the gateway's deadline, or `evalCallDeadlineMs()` when set).
+ *   BullMQ does not retry it.
  */
 export async function processJudge(data: JudgeJobData): Promise<void> {
   // No default judge exists, in code or in the environment. A job without a
@@ -64,6 +66,10 @@ export async function processJudge(data: JudgeJobData): Promise<void> {
     // A judge model whose key is refused fails the same way on every retry, and each retry
     // was one more gateway row and red trace (issue #737). Terminal on the first attempt.
     if (err instanceof ProviderPermanentError) throw new UnrecoverableError(err.message);
+    // A timeout already held a shared worker slot for the whole eval-call deadline, at
+    // a pace the team's own upstream may set; a retry would hand it the slot again.
+    // Only the gateway's own clock running out: a provider's quick 504 is retried (see cell.processor).
+    if (err instanceof ProviderTimeoutError && !err.upstreamReplied) throw new UnrecoverableError(err.message);
     throw err;
   }
 }

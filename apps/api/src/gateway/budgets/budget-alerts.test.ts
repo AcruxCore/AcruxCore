@@ -293,7 +293,7 @@ describe('budget alerts', () => {
     // Regression for the duplicate-alert race: `reconcileBudgets` used to detect
     // a threshold crossing against `preSpendUsd` — a snapshot read once, before
     // EITHER concurrent request's reservation transaction even ran — instead of
-    // the accurate before/after pair `incrementSpend` returns for its own atomic
+    // the accurate before/after pair `settleReservation` returns for its own atomic
     // update.
     //
     // Note this is deliberately choreographed rather than a bare `Promise.all`:
@@ -349,7 +349,7 @@ describe('budget alerts', () => {
     // crossing the 80% ($0.80) threshold, with a deliberate 2-cent margin (not
     // an exact boundary) so floating-point noise in the underlying cost math
     // can never flip the comparison either way. The second request's ACCURATE
-    // `before` (from `incrementSpend`, reflecting the first request's
+    // `before` (from `settleReservation`, reflecting the first request's
     // already-landed real cost, $0.82) is then already past $0.80, so a
     // correct implementation must NOT alert again. Only a stale snapshot
     // captured before either reservation (the bug, $0.10) would make the

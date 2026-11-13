@@ -1,4 +1,4 @@
-import { ProviderAdapter, ProviderError, GATEWAY_TIMEOUT_MS, summarizeProviderDetail, parseRetryAfter } from './adapter';
+import { ProviderAdapter, ProviderError, GATEWAY_TIMEOUT_MS, summarizeProviderDetail, parseRetryAfter, OWN_TIMEOUT_CODE } from './adapter';
 import { providerCallSignal } from './timeout';
 import type {
   NormalizedRequest,
@@ -346,7 +346,7 @@ export class AnthropicAdapter implements ProviderAdapter {
       throw new ProviderError(
         isTimeout ? 'Anthropic request timed out' : `Anthropic network error: ${(err as Error).message}`,
         isTimeout ? 504 : 502,
-        isTimeout ? 'timeout' : 'network_error',
+        isTimeout ? OWN_TIMEOUT_CODE : 'network_error',
         true,
       );
     }
@@ -505,7 +505,7 @@ export class AnthropicAdapter implements ProviderAdapter {
       throw new ProviderError(
         timedOut ? 'Anthropic stream request timed out' : 'Anthropic stream request failed',
         timedOut ? 504 : 502,
-        undefined,
+        timedOut ? OWN_TIMEOUT_CODE : undefined,
         true,
         err instanceof Error ? err.message : undefined,
       );

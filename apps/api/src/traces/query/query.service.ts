@@ -53,7 +53,7 @@ export class TraceQueryService {
    * (newest-first).
    *
    * @param teamId - Team scope.
-   * @param traceId - Internal trace UUID.
+   * @param traceId - The trace's stored id, or the id its caller chose for it.
    * @returns The trace summary, its span tree, its feedback list, and its eval scores.
    * @throws {NotFoundError} If the trace is not in this team.
    */
@@ -79,11 +79,11 @@ export class TraceQueryService {
     // T6: surface user feedback inside the trace detail (additive). The trace
     // was already resolved for this team above, so this is a harmless extra
     // read; FeedbackService.list re-checks team scope and returns [] when empty.
-    const feedback = await this.feedbackService.list(teamId, traceId);
+    const feedback = await this.feedbackService.list(teamId, trace.id);
 
     // Online eval: surface this trace's rule scores the same way (additive).
     // Mapped to a camelCase DTO here rather than leaking the Prisma include shape.
-    const scoreRows = await this.evalRuleRepo.findByTraceId(traceId, teamId);
+    const scoreRows = await this.evalRuleRepo.findByTraceId(trace.id, teamId);
     const evalScores: EvalScoreDto[] = scoreRows.map((row) => ({
       id: row.id,
       ruleId: row.ruleId,

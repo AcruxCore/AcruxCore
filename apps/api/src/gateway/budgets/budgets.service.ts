@@ -111,8 +111,11 @@ export class BudgetsService {
    * @throws {NotFoundError} If the budget is not in this team.
    */
   async update(teamId: string, id: string, actorId: string, dto: UpdateBudgetDto): Promise<BudgetResponse> {
-    const current = await this.repo.findByIdForTeam(id, teamId);
-    if (!current) throw new NotFoundError('Budget not found.');
+    const found = await this.repo.findByIdForTeam(id, teamId);
+    if (!found) throw new NotFoundError('Budget not found.');
+    // Close an ended period first: moving resets_at on without zeroing its spend would
+    // carry the old period's spend into the new one.
+    const current = await this.repo.resetIfElapsed(found);
 
     const nextPeriod = dto.period ?? current.period;
     const row = await this.repo.update(id, {
@@ -140,8 +143,11 @@ export class BudgetsService {
    * @throws {NotFoundError} If the budget is not in this team.
    */
   async delete(teamId: string, id: string): Promise<void> {
-    const current = await this.repo.findByIdForTeam(id, teamId);
-    if (!current) throw new NotFoundError('Budget not found.');
+    const found = await this.repo.findByIdForTeam(id, teamId);
+    if (!found) throw new NotFoundError('Budget not found.');
+    // Close an ended period first: moving resets_at on without zeroing its spend would
+    // carry the old period's spend into the new one.
+    const current = await this.repo.resetIfElapsed(found);
     await this.repo.delete(id);
   }
 }

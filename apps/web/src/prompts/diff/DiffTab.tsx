@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useDiff, useVersions } from '@/api';
+import { ApiError, useDiff, useVersions } from '@/api';
 import { cn } from '@/lib/cn';
 import { Empty, PageSpinner, Spinner } from '@/ui';
 
@@ -110,6 +110,17 @@ export function DiffTab({ promptId }: { promptId: string }) {
             })}
           </pre>
         </div>
+      ) : diff.error ? (
+        // A diff the server gave up on (DIFF_TOO_LARGE) is an answer, not an outage, and
+        // reading it as "no diff" would claim the versions are identical.
+        diff.error instanceof ApiError && diff.error.code === 'DIFF_TOO_LARGE' ? (
+          <Empty title="Too large to diff" description={diff.error.message} />
+        ) : (
+          <Empty
+            title="Could not load the diff"
+            description={diff.error instanceof ApiError ? diff.error.message : 'Try again in a moment.'}
+          />
+        )
       ) : from !== to ? (
         <Empty title="No diff" description="These versions may be identical." />
       ) : null}

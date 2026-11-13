@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import prisma from '../../shared/db/client';
 import { FeedbackRow } from '../../shared/db/schema';
+import { traceIdWhere, TRACE_ID_MATCH_ORDER } from '../spans/trace-id-where';
 
 /**
  * The author join every read path carries, so the UI can name the team member
@@ -15,7 +16,7 @@ export type FeedbackRowWithRelations = FeedbackRow & {
   creator: { id: string; displayName: string | null; email: string } | null;
 };
 import { FeedbackBucket, FeedbackFilters, FeedbackGroupBy, FeedbackSummary } from './feedback.types';
-import { buildTraceConditions } from '../filters';
+import { buildTraceConditions, runContentSearch } from '../filters';
 
 /**
  * Data access for the `trace_feedback` table plus the trace/span lookups the
@@ -112,6 +113,47 @@ export class FeedbackRepository {
   }
 
   /**
+   * Selects one page of matching feedback ids, newest-first, and the full match count.
+   *
+   * A free-text `q` reaches into captured payloads with an unindexed `ILIKE`, so with
+   * `q` set both statements run as one bounded content search (see `runContentSearch`),
+   * one after the other on its single connection. Without `q` they run in parallel.
+   *
+   * @param teamId - Isolation boundary (already part of `where`); counts the team's searches.
+   * @param filters - The resolved filters `where` was built from; only `q` is read here.
+   * @param where - From {@link buildFeedWhere}.
+   * @param limit - Page size.
+   * @param offset - Rows to skip.
+   * @throws {RateLimitedError} 429 when `q` is set and the team is at its search limit.
+   * @throws {SearchTimeoutError} 422 when a `q` search runs past its statement timeout.
+   */
+  private async selectFeedIds(
+    teamId: string,
+    filters: FeedbackFilters,
+    where: Prisma.Sql,
+    limit: number,
+    offset: number,
+  ): Promise<{ ids: string[]; total: number }> {
+    const page = (client: Prisma.TransactionClient) =>
+      client.$queryRaw<{ id: string }[]>(Prisma.sql`
+        SELECT f.id FROM trace_feedback f JOIN traces t ON t.id = f.trace_id
+        WHERE ${where}
+        ORDER BY f.created_at DESC, f.id DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `);
+    const count = (client: Prisma.TransactionClient) =>
+      client.$queryRaw<{ total: number }[]>(Prisma.sql`
+        SELECT COUNT(*)::int AS "total" FROM trace_feedback f JOIN traces t ON t.id = f.trace_id
+        WHERE ${where}
+      `);
+
+    const [rows, totalRows] = filters.q
+      ? await runContentSearch(teamId, async (tx) => [await page(tx), await count(tx)] as const)
+      : await Promise.all([page(prisma), count(prisma)]);
+    return { ids: rows.map((r) => r.id), total: totalRows[0].total };
+  }
+
+  /**
    * Returns the ids of a team's feedback rows matching `filters`, newest-first.
    *
    * Kept separate from {@link listForTeam} because the dataset builders need
@@ -123,28 +165,15 @@ export class FeedbackRepository {
    * @returns `ids` (newest-first, at most `limit`) and `total`, the full match
    *   count — so a caller can tell the user their criteria selected more than
    *   one request can process.
+   * @throws {RateLimitedError} 429 when `q` is set and the team is at its search limit.
+   * @throws {SearchTimeoutError} 422 when a `q` search runs past its statement timeout.
    */
   async listIdsForTeam(
     teamId: string,
     filters: FeedbackFilters,
     limit: number,
   ): Promise<{ ids: string[]; total: number }> {
-    const where = this.buildFeedWhere(teamId, filters);
-
-    const [rows, totalRows] = await Promise.all([
-      prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
-        SELECT f.id FROM trace_feedback f JOIN traces t ON t.id = f.trace_id
-        WHERE ${where}
-        ORDER BY f.created_at DESC, f.id DESC
-        LIMIT ${limit}
-      `),
-      prisma.$queryRaw<{ total: number }[]>(Prisma.sql`
-        SELECT COUNT(*)::int AS "total" FROM trace_feedback f JOIN traces t ON t.id = f.trace_id
-        WHERE ${where}
-      `),
-    ]);
-
-    return { ids: rows.map((r) => r.id), total: totalRows[0].total };
+    return this.selectFeedIds(teamId, filters, this.buildFeedWhere(teamId, filters), limit, 0);
   }
 
   /**
@@ -164,6 +193,8 @@ export class FeedbackRepository {
    * @param filters - Resolved feedback filters (all optional).
    * @param page - 1-based page.
    * @param limit - Page size (already capped upstream).
+   * @throws {RateLimitedError} 429 when `q` is set and the team is at its search limit.
+   * @throws {SearchTimeoutError} 422 when a `q` search runs past its statement timeout.
    */
   async listForTeam(
     teamId: string,
@@ -172,23 +203,8 @@ export class FeedbackRepository {
     limit: number,
   ): Promise<{ data: FeedbackRowWithRelations[]; total: number }> {
     const where = this.buildFeedWhere(teamId, filters);
-    const offset = (page - 1) * limit;
-
-    const [idRows, totalRows] = await Promise.all([
-      prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
-        SELECT f.id FROM trace_feedback f JOIN traces t ON t.id = f.trace_id
-        WHERE ${where}
-        ORDER BY f.created_at DESC, f.id DESC
-        LIMIT ${limit} OFFSET ${offset}
-      `),
-      prisma.$queryRaw<{ total: number }[]>(Prisma.sql`
-        SELECT COUNT(*)::int AS "total" FROM trace_feedback f JOIN traces t ON t.id = f.trace_id
-        WHERE ${where}
-      `),
-    ]);
-
-    const ids = idRows.map((r) => r.id);
-    if (ids.length === 0) return { data: [], total: totalRows[0].total };
+    const { ids, total } = await this.selectFeedIds(teamId, filters, where, limit, (page - 1) * limit);
+    if (ids.length === 0) return { data: [], total };
 
     const rows = await prisma.traceFeedback.findMany({
       where: { id: { in: ids }, teamId },
@@ -200,7 +216,7 @@ export class FeedbackRepository {
       .map((id) => byId.get(id))
       .filter((r): r is FeedbackRowWithRelations => r !== undefined);
 
-    return { data, total: totalRows[0].total };
+    return { data, total };
   }
 
   /**
@@ -245,10 +261,15 @@ export class FeedbackRepository {
    * another team (so callers surface 404, not 403).
    *
    * @param teamId - Isolation boundary.
-   * @param traceId - The trace UUID to look up.
+   * @param traceId - The trace's stored id, or the id its caller chose (see `traceIdWhere`).
+   * @returns The trace's stored id, which every feedback row must reference.
    */
   async findTraceForTeam(teamId: string, traceId: string): Promise<{ id: string } | null> {
-    return prisma.trace.findFirst({ where: { id: traceId, teamId }, select: { id: true } });
+    return prisma.trace.findFirst({
+      where: traceIdWhere(teamId, traceId),
+      orderBy: TRACE_ID_MATCH_ORDER,
+      select: { id: true },
+    });
   }
 
   /**

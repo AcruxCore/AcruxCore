@@ -1,20 +1,14 @@
 import nunjucks from 'nunjucks';
 import type { Message } from '@/api/types';
-import { templatesOf, withTemplates } from './message-content';
+import { templatesOf } from './message-content';
 
 /**
- * A nunjucks environment for client-side Preview rendering.
+ * This module only PARSES templates; it never compiles or renders one. nunjucks compiles a
+ * template into a JavaScript function and lets attribute access walk the prototype chain,
+ * so rendering a teammate's stored template in the page would run its code in the
+ * viewer's session. The Preview renders on the server, in the API's sandbox
+ * (`POST /prompts/:id/preview`); parsing builds an AST and evaluates nothing.
  *
- * `autoescape` is off because prompts are plain text, not HTML, and undefined
- * variables render as empty (not throwing) so a partially-filled preview still
- * works. This mirrors the Jinja2-compatible engine the backend uses.
- */
-const env = new nunjucks.Environment(null, {
-  autoescape: false,
-  throwOnUndefined: false,
-});
-
-/**
  * nunjucks exposes its parser and node constructors on the browser bundle too, so the
  * Preview reads the SAME AST the server does. The previous regex approximation is gone
  * on purpose: it was a second implementation of one rule, it drifted from the server's,
@@ -130,7 +124,7 @@ function walkAst(node: unknown, vars: Set<string>, scopes: ScopeStack): void {
  * The variables a draft needs, for the live Preview's input fields.
  *
  * A preview aid, not validation: the authoritative list for a committed version is the
- * server-extracted `variables[]`. Scope is per message and per block — `renderMessages`
+ * server-extracted `variables[]`. Scope is per message and per block — the server
  * renders each message as its own template, so a binding in one message has no scope in
  * any other, and inside a message `{% for %}` binds only over its own body.
  *
@@ -158,24 +152,6 @@ export function extractVariables(messages: Message[]): string[] {
   }
 
   return [...vars].sort();
-}
-
-/**
- * Render each message's content with the provided variable values.
- *
- * @param messages - Draft messages containing nunjucks templates.
- * @param values - Variable name → value map.
- * @returns Rendered messages (same roles, substituted content).
- * @throws {Error} If a template has a syntax error nunjucks cannot parse.
- */
-export function renderMessages(
-  messages: Message[],
-  values: Record<string, unknown>,
-): Message[] {
-  return messages.map((m) => ({
-    role: m.role,
-    content: withTemplates(m.content, templatesOf(m.content).map((t) => env.renderString(t, values))),
-  }));
 }
 
 /**

@@ -83,6 +83,13 @@ export function summarizeProviderDetail(detail: string): string | undefined {
 }
 
 /**
+ * The {@link ProviderError} `providerCode` of a call the gateway's own clock cut off. An
+ * error the provider sent back carries no code of its own, so this is never the
+ * provider's word.
+ */
+export const OWN_TIMEOUT_CODE = 'timeout';
+
+/**
  * Error thrown by adapters on any upstream failure. `status` is the provider HTTP
  * status (or 502/504 for network/timeout); `retriable` (429/5xx/network) is consumed
  * by G5 retry/fallback. The gateway service maps `status === 504` → ProviderTimeoutError

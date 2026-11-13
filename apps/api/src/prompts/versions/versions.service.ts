@@ -1,8 +1,11 @@
 import { VersionsRepository } from './versions.repository';
-import { extractVariables, NunjucksParseError } from './nunjucks.utils';
+import { withTeamPreviewSlot, MAX_PREVIEWS_IN_FLIGHT_PER_TEAM } from './preview-limit';
+import { extractVariables, NunjucksParseError, NunjucksRenderError, renderMessages } from './nunjucks.utils';
+import type { RenderedMessage } from './nunjucks.utils';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import type {
   CreateVersionDto,
+  PreviewDraftDto,
   PreparedVersion,
   VersionDetail,
   VersionListItem,
@@ -296,5 +299,39 @@ export class VersionsService {
       tools,
       model: row.model?.publicName ?? null,
     };
+  }
+
+  /**
+   * Renders an unsaved draft for the dashboard's Preview tab.
+   *
+   * The browser used to run nunjucks on the draft itself. nunjucks compiles a template
+   * into JavaScript and lets attribute access walk the prototype chain, so a template a
+   * teammate stored could run code in the session of whoever opened the tab. The draft
+   * renders here instead, in the same isolated-vm sandbox as every other render, and the
+   * page receives text only.
+   *
+   * Nothing is stored and no variable is required: a field the user has not filled renders
+   * as empty, as the Preview always did. The prompt id scopes the call to the team.
+   *
+   * @param promptId - UUID of the prompt the draft belongs to; must be in `teamId`.
+   * @param teamId - UUID of the caller's active team (isolation boundary).
+   * @param dto - The draft messages and the values typed into the Preview.
+   * @returns The rendered messages, in order.
+   * @throws {NotFoundError} If the prompt is missing, deleted or in another team.
+   * @throws {AppError} 422 `TEMPLATE_RENDER_ERROR` when a template does not parse, fails at
+   *   render time, or hits the sandbox's time or memory limit.
+   * @throws {RateLimitedError} 429 `RATE_LIMITED` when the team already has
+   *   {@link MAX_PREVIEWS_IN_FLIGHT_PER_TEAM} previews rendering.
+   */
+  async previewDraft(promptId: string, teamId: string, dto: PreviewDraftDto): Promise<RenderedMessage[]> {
+    await this.assertPromptAccessible(promptId, teamId);
+    try {
+      return await withTeamPreviewSlot(teamId, () => renderMessages(dto.messages, dto.variables));
+    } catch (err) {
+      if (err instanceof NunjucksRenderError) {
+        throw new AppError(err.message, 422, 'TEMPLATE_RENDER_ERROR');
+      }
+      throw err;
+    }
   }
 }

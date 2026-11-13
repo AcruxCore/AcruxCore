@@ -84,6 +84,18 @@ export class ToolVersionsRepository {
   }
 
   /**
+   * The tool's newest version (highest `version_number`), the one a new commit
+   * replaces. Used to tell whether a commit keeps sending team secrets where the last
+   * version already sent them.
+   *
+   * @param toolId - UUID of the parent tool; the caller has already checked its team.
+   * @returns The row, or null when the tool has no versions yet.
+   */
+  async findLatest(toolId: string): Promise<ToolVersionRow | null> {
+    return prisma.toolVersion.findFirst({ where: { toolId }, orderBy: { versionNumber: 'desc' } });
+  }
+
+  /**
    * Fetches a version by its primary key UUID.
    *
    * This performs a GLOBAL lookup with no team scoping — it must only be used

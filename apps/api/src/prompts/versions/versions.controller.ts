@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { VersionsService } from './versions.service';
-import { CreateVersionBodySchema, ListVersionsQuerySchema } from './versions.types';
+import { CreateVersionBodySchema, ListVersionsQuerySchema, PreviewDraftBodySchema } from './versions.types';
+import { RateLimitedError } from '../../shared/errors';
 
 const service = new VersionsService();
 
@@ -108,6 +109,37 @@ export async function getVersionByIdHandler(
     const version = await service.getVersionById(req.params['versionId']!, req.teamId!);
     res.status(200).json(version);
   } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/v1/prompts/:id/preview
+ * Renders an unsaved draft in the server's sandbox for the dashboard's Preview tab, so the
+ * browser never compiles template content itself. Stores nothing.
+ * Auth: requireAnyAuth (any role) — enforced in router.
+ */
+export async function previewDraftHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const body = PreviewDraftBodySchema.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: body.error.errors[0]?.message ?? 'Invalid request' },
+      });
+      return;
+    }
+
+    const messages = await service.previewDraft(req.params['id']!, req.teamId!, body.data);
+    res.status(200).json({ messages });
+  } catch (err) {
+    // The error middleware sets no headers; a busy team is told when to try again here.
+    if (err instanceof RateLimitedError && err.retryAfter !== undefined) {
+      res.setHeader('Retry-After', String(err.retryAfter));
+    }
     next(err);
   }
 }

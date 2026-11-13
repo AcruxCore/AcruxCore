@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_SEARCH_TERM_LENGTH } from '../filters/filters.types';
 
 /**
  * Query params for GET /api/v1/sessions.
@@ -12,9 +13,11 @@ export const SessionListQuerySchema = z.object({
   to: z.coerce.date().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
+  // Same ceiling as the trace search: `q` becomes an unindexed `ILIKE '%q%'`.
   q: z
     .string()
     .trim()
+    .max(MAX_SEARCH_TERM_LENGTH)
     .transform((v) => (v === '' ? undefined : v))
     .optional(),
 });

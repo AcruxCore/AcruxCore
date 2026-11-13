@@ -1,4 +1,4 @@
-import type { Message, MessagePart } from '@/api/types';
+import type { Message } from '@/api/types';
 
 /**
  * Every template inside a message's content, in order: the string itself, or for a list of parts
@@ -23,16 +23,6 @@ export function describeContent(content: Message['content']): string {
 /** Whether a message holds at least one image part. */
 export function hasImage(content: Message['content']): boolean {
   return Array.isArray(content) && content.some((p) => p.type === 'image_url');
-}
-
-/** Rebuilds a content from the rendered strings that {@link templatesOf} listed for it. */
-export function withTemplates(content: Message['content'], rendered: string[]): Message['content'] {
-  if (typeof content === 'string') return rendered[0] ?? '';
-  return content.map((p, i): MessagePart =>
-    p.type === 'text'
-      ? { type: 'text', text: rendered[i] ?? '' }
-      : { type: 'image_url', image_url: { ...p.image_url, url: rendered[i] ?? '' } },
-  );
 }
 
 /**

@@ -446,6 +446,12 @@ export interface GatewayCallContext {
   spanMetadata?: Record<string, unknown>;
   /** Set by an internal caller (e.g. the online-eval judge) to attribute this call's spend if it crosses a budget threshold. Never set by an external API caller. */
   contributingSource?: string;
+  /**
+   * Set by an internal caller (an eval cell or judge call on a shared worker slot) to end
+   * the whole call, retries and fallbacks included, sooner than the gateway's own chain
+   * deadline. Absent: the gateway's deadline applies. Never set by an external API caller.
+   */
+  chainDeadlineMs?: number;
 }
 
 /** Result of a completed gateway call: the OpenAI body plus metadata for headers/logging. */

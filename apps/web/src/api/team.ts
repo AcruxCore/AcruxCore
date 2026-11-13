@@ -14,7 +14,10 @@ export function useMembers(teamId: string) {
   });
 }
 
-/** Replace a member's role (owner/admin only; owner role is not grantable). */
+/**
+ * Replace a member's role (owner/admin only; owner role is not grantable).
+ * Refreshes members and pending invites, since a demotion revokes invites.
+ */
 export function useUpdateRole(teamId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -23,17 +26,26 @@ export function useUpdateRole(teamId: string) {
         method: 'PATCH',
         body: { role: input.role },
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.members(teamId) }),
+    // A demotion below admin also revokes that member's pending invites on the
+    // server, so the invites list is stale too.
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: keys.members(teamId) });
+      return qc.invalidateQueries({ queryKey: keys.invites(teamId) });
+    },
   });
 }
 
-/** Remove a member from the team. */
+/** Remove a member from the team; refreshes members and pending invites. */
 export function useRemoveMember(teamId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (userId: string) =>
       api<void>(`/teams/${teamId}/members/${userId}`, { method: 'DELETE' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.members(teamId) }),
+    // Removal also revokes the member's pending invites on the server.
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: keys.members(teamId) });
+      return qc.invalidateQueries({ queryKey: keys.invites(teamId) });
+    },
   });
 }
 

@@ -56,7 +56,7 @@ export class FeedbackService {
 
     const row = await this.repo.create({
       teamId,
-      traceId,
+      traceId: trace.id,
       spanId: spanInternalId,
       rating: dto.rating ?? null,
       label: dto.label ?? null,
@@ -92,7 +92,8 @@ export class FeedbackService {
     feedbackId: string,
     patch: UpdateFeedbackDto,
   ): Promise<FeedbackDto> {
-    const existing = await this.repo.findByIdForTeamTrace(teamId, traceId, feedbackId);
+    const trace = await this.repo.findTraceForTeam(teamId, traceId);
+    const existing = trace ? await this.repo.findByIdForTeamTrace(teamId, trace.id, feedbackId) : null;
     if (!existing) throw new NotFoundError('Feedback not found.');
 
     if (requesterId === null || existing.createdBy !== requesterId) {
@@ -122,7 +123,7 @@ export class FeedbackService {
     const trace = await this.repo.findTraceForTeam(teamId, traceId);
     if (!trace) throw new NotFoundError('Trace not found.');
 
-    const rows = await this.repo.listForTrace(teamId, traceId);
+    const rows = await this.repo.listForTrace(teamId, trace.id);
     return rows.map((r) => this.toDto(r, r.span?.spanRef ?? null));
   }
 

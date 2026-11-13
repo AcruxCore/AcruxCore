@@ -33,10 +33,18 @@ export class OtlpController {
         throw new ValidationError('Request body is empty.');
       }
 
-      await this.service.ingestOtlp(req.teamId!, req.body, contentType);
+      const result = await this.service.ingestOtlp(req.teamId!, req.body, contentType);
 
       // Empty ExportTraceServiceResponse — an empty JSON object is a valid,
-      // spec-compliant success response for both content types.
+      // spec-compliant success response for both content types. A JSON exporter is told
+      // about refused spans through OTLP's `partialSuccess` (int64 is a string in proto3
+      // JSON); a protobuf exporter keeps the empty body, since this one is not protobuf.
+      if (result.rejectedSpans > 0 && contentType.includes('application/json')) {
+        res.status(200).json({
+          partialSuccess: { rejectedSpans: String(result.rejectedSpans), errorMessage: result.errorMessage },
+        });
+        return;
+      }
       res.status(200).json({});
     } catch (err) {
       next(err);

@@ -11,9 +11,9 @@
 
 import { workerDatabaseUrl, workerRedisUrl } from './worker-isolation';
 
-// Better Auth refuses to build without a secret. Any stable value works here:
-// sessions are validated against `auth_sessions` rows, so this only signs the
-// tamper seal on tokens that must already exist in the test database.
+// Better Auth refuses to build without a secret. A fixed value is fine for the
+// test database only: it also signs self-authenticating tokens (a verify-email
+// link signs its holder in), so no process that serves real users may use one.
 process.env.BETTER_AUTH_SECRET ??= 'test-only-better-auth-secret-not-a-real-one';
 
 // The shared `signupTestUser`/`authedAgent` helpers need signup to return a usable

@@ -30,8 +30,13 @@
 #
 # NODE_ENV is deliberately NOT `production` here (it overrides the image's own
 # default). That is what makes BETTER_AUTH_SECRET and EMAIL_UNSUBSCRIBE_SECRET
-# optional — both fall back to a per-process random value outside production
-# — so this file only has to carry the one secret that has no such fallback:
+# optional. Unset, EMAIL_UNSUBSCRIBE_SECRET is a random value per process, and
+# BETTER_AUTH_SECRET is a random value the API generates on first boot and keeps
+# in /app/.better-auth-dev-secret inside the api container, so a restart keeps
+# you signed in and recreating the container signs everyone out. Neither ever
+# falls back to a value written in this repository. Set BETTER_AUTH_SECRET in
+# .env (`openssl rand -base64 32`) to keep sessions across recreations. This file
+# only has to carry the one secret that has no such fallback:
 # GATEWAY_ENCRYPTION_KEY, which the API refuses to boot without in any
 # environment.
 #
@@ -102,6 +107,9 @@ services:
       # purpose: rotating it makes every stored provider credential
       # undecryptable, which is pointless churn for a local trial.
       GATEWAY_ENCRYPTION_KEY: ${GATEWAY_ENCRYPTION_KEY:-8+OYoRbp4QqUOmyEVqhXt5xBpkxhYCYGANO6tJVlubI=}
+      # Blank means "generate one on first boot" (see the header), never a
+      # fixed value: Better Auth signs tokens that sign their holder in with it.
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
       EMAIL_TRANSPORT: none
       AUTH_REQUIRE_EMAIL_VERIFICATION: 'false'
       AUTH_ALLOW_FIRST_RUN_CLAIM: 'true'

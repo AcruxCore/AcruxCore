@@ -25,6 +25,14 @@ export const BooleanParamSchema = z.union([
   z.enum(['true', 'false', '1', '0']).transform((v) => v === 'true' || v === '1'),
 ]);
 
+/**
+ * Longest free-text search term `q` accepted, in characters. `q` becomes an unindexed
+ * `ILIKE '%q%'` over captured payloads, and a term of single-character wildcards makes
+ * Postgres' matcher do work proportional to its length on every row, so an unbounded term
+ * turned one request into seconds of scanning. 256 is far above any real search phrase.
+ */
+export const MAX_SEARCH_TERM_LENGTH = 256;
+
 /** Which part of a trace `q` searches. */
 export type QueryScope = z.infer<typeof QueryScopeSchema>;
 
@@ -77,6 +85,7 @@ export const TraceFilterQuerySchema = z.object({
   q: z
     .string()
     .trim()
+    .max(MAX_SEARCH_TERM_LENGTH)
     .transform((v) => (v === '' ? undefined : v))
     .optional(),
   q_in: QueryScopeSchema.default('all'),

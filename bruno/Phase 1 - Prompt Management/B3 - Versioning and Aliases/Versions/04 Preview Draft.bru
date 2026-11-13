@@ -1,0 +1,31 @@
+meta {
+  name: Preview Draft
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/v1/prompts/{{promptId}}/preview
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "messages": [
+      {
+        "role": "system",
+        "content": "Hello {{ name }}, welcome to {{ company }}."
+      }
+    ],
+    "variables": { "name": "Ada", "company": "Acme" }
+  }
+}

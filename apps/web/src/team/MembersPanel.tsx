@@ -137,7 +137,7 @@ export function MembersPanel({ teamId }: { teamId: string }) {
         open={!!removeTarget}
         onOpenChange={(o) => !o && setRemoveTarget(null)}
         title="Remove member?"
-        description={`${removeTarget?.email ?? ''} will lose access to this team.`}
+        description={`${removeTarget?.email ?? ''} will lose access to this team, and any pending invites they created will be revoked.`}
       >
         <DialogFooter>
           <Button variant="ghost" onClick={() => setRemoveTarget(null)}>

@@ -4,6 +4,7 @@ import prisma from '../../shared/db/client';
 import type { TraceRow, SpanRow } from '../../shared/db/schema';
 import type { CreateTraceInput, CreateSpanInput } from './spans.types';
 import { redactPayloadValue } from './redact';
+import { traceIdWhere, TRACE_ID_MATCH_ORDER } from './trace-id-where';
 
 /**
  * Matches the Q12 timestamp fallback name, `startedAt.toISOString()`. Matching it by
@@ -45,25 +46,38 @@ export class SpansRepository {
   }
 
   /**
-   * Inserts a trace with a caller-supplied id unless a trace with that id already exists,
-   * in one `INSERT … ON CONFLICT DO NOTHING`.
+   * Returns the team's trace for a caller-chosen id, creating it when the team has none.
+   *
+   * A caller-chosen id names a trace within one team only (see {@link traceIdWhere}).
+   * The first team to report an id stores it as `traces.id`. When another team already
+   * holds that `traces.id`, this team's trace gets a server-generated `id` and records the
+   * caller's id in `client_trace_id`, so neither team can claim or block the other's ids.
+   * No other team's data is ever returned. The id handed back does show the case,
+   * though: it differs from the caller's id exactly when another team holds that id, so
+   * a caller who already knows an id can tell it is in use on this instance.
    *
    * Two writers often open the same new trace id at the same moment: with the TS SDK's
    * OTel bridge, the OTLP exporter and the span queue both report the first spans of a
    * step. A find-then-create let both see no row, and the slower insert failed the whole
-   * request with a unique violation. Here the slower insert waits for the faster one's
-   * transaction and then inserts nothing, and the read after it sees the committed row.
+   * request with a unique violation. So both inserts are `INSERT … ON CONFLICT DO
+   * NOTHING`: the slower insert waits for the faster one's transaction and then inserts
+   * nothing, and the read after it sees the committed row.
    *
-   * @param input - As {@link createTrace}, with `id` required.
+   * @param input - As {@link createTrace}, with `id` (the caller's UUID) required.
    * @param tx - Optional transaction client.
-   * @returns The trace row with that id, and whether this call created it. When `created`
-   *   is false the row may belong to another team: the caller must check `teamId`.
+   * @returns The team's trace row for that id (always `input.teamId`'s), and whether this
+   *   call created it. Use the row's `id` for every write: it differs from `input.id` when
+   *   another team held the id first.
    */
   async createTraceIfAbsent(
     input: CreateTraceInput & { id: string },
     tx?: Prisma.TransactionClient,
   ): Promise<{ trace: TraceRow; created: boolean }> {
     const client = tx ?? prisma;
+    // The common case for any trace reported more than once: the team already has it.
+    const existing = await this.findTrace(input.id, input.teamId, tx);
+    if (existing) return { trace: existing, created: false };
+
     const tags = input.tags ?? [];
     const inserted = await client.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       INSERT INTO traces (id, team_id, session_id, name, name_is_derived, status, started_at, tags, metadata)
@@ -75,16 +89,37 @@ export class SpansRepository {
       ON CONFLICT (id) DO NOTHING
       RETURNING id
     `);
-    const trace = await client.trace.findUniqueOrThrow({ where: { id: input.id } });
-    return { trace, created: inserted.length === 1 };
+    const holder = await client.trace.findUniqueOrThrow({ where: { id: input.id } });
+    if (inserted.length === 1 || holder.teamId === input.teamId) {
+      return { trace: holder, created: inserted.length === 1 };
+    }
+
+    // Another team holds this id: this team's trace takes a server-generated id instead.
+    const aliased = await client.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      INSERT INTO traces (team_id, client_trace_id, session_id, name, name_is_derived, status, started_at, tags, metadata)
+      VALUES (
+        ${input.teamId}::uuid, ${input.id}::uuid, ${input.sessionId ?? null}, ${input.name ?? null},
+        ${input.nameIsDerived}, ${input.status ?? 'unset'}::span_status, ${input.startedAt},
+        ${tags}::text[], ${JSON.stringify(input.metadata ?? {})}::jsonb
+      )
+      ON CONFLICT (team_id, client_trace_id) WHERE client_trace_id IS NOT NULL DO NOTHING
+      RETURNING id
+    `);
+    const trace = await client.trace.findFirstOrThrow({
+      where: { teamId: input.teamId, clientTraceId: input.id },
+    });
+    return { trace, created: aliased.length === 1 };
   }
 
   /**
-   * Finds a trace by id, scoped to the team (null if missing or another team's).
+   * Finds a team's trace by the id a caller uses for it: its stored id, or the id the
+   * caller chose when another team already held that one (see {@link traceIdWhere}).
+   * Null if the team has no such trace, including when only another team has it.
    *
-   * @param traceId - Trace UUID.
+   * @param traceId - A stored trace id or a caller-chosen one (UUID).
    * @param teamId - Isolation boundary.
    * @param tx - Optional transaction client.
+   * @returns The team's trace row, or null.
    */
   async findTrace(
     traceId: string,
@@ -92,7 +127,7 @@ export class SpansRepository {
     tx?: Prisma.TransactionClient,
   ): Promise<TraceRow | null> {
     const client = tx ?? prisma;
-    return client.trace.findFirst({ where: { id: traceId, teamId } });
+    return client.trace.findFirst({ where: traceIdWhere(teamId, traceId), orderBy: TRACE_ID_MATCH_ORDER });
   }
 
   /**
@@ -347,11 +382,16 @@ export class SpansRepository {
    *
    * @param traceId - The trace UUID.
    * @param tx - Optional transaction client to read inside the ingest tx.
+   * @param onlyRefs - When given, only these refs are looked up, so a check of one batch
+   *   costs the batch's size rather than the whole trace's.
    * @returns The list of stored `span_ref` strings (possibly empty).
    */
-  async listSpanRefs(traceId: string, tx?: Prisma.TransactionClient): Promise<string[]> {
+  async listSpanRefs(traceId: string, tx?: Prisma.TransactionClient, onlyRefs?: string[]): Promise<string[]> {
     const client = tx ?? prisma;
-    const rows = await client.span.findMany({ where: { traceId }, select: { spanRef: true } });
+    const rows = await client.span.findMany({
+      where: { traceId, ...(onlyRefs ? { spanRef: { in: onlyRefs } } : {}) },
+      select: { spanRef: true },
+    });
     return rows.map((r) => r.spanRef);
   }
 

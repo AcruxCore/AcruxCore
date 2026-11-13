@@ -3,12 +3,14 @@ import { ToolAliasesRepository } from '../aliases/aliases.repository';
 import { ToolsRepository } from '../tools.repository';
 import { AliasDetail } from '../aliases/aliases.types';
 import { CreateToolVersionDto, Executor, ToolVersionDetail, ToolVersionListItem } from './versions.types';
-import { NotFoundError, ValidationError } from '../../shared/errors';
+import { ForbiddenError, NotFoundError, ValidationError } from '../../shared/errors';
 import { audit } from '../../shared/audit';
 import prisma from '../../shared/db/client';
 import { SecretsRepository } from '../../secrets/secrets.repository';
+import { MembersRepository } from '../../teams/members/members.repository';
 import { compileTransform, TransformError } from '../execute/js-transform';
 import { extractSecretRefs } from '../execute/secret-refs';
+import { sendsSecretsAsBefore } from './secret-destination';
 import { assertPublicUrl, SsrfError } from '../execute/safe-fetch';
 
 /**
@@ -21,6 +23,55 @@ export class ToolVersionsService {
   private readonly aliasesRepo = new ToolAliasesRepository();
   private readonly toolsRepo = new ToolsRepository();
   private readonly secretsRepo = new SecretsRepository();
+  private readonly membersRepo = new MembersRepository();
+
+  /**
+   * Decides whether the caller may store an executor that sends team secrets.
+   *
+   * A `{{secret.NAME}}` reference decides where that secret's plaintext is sent: the
+   * executor's URL. Secrets are created, rotated and deleted only by owners and admins,
+   * and no endpoint ever returns their value, so letting an editor commit an executor
+   * that sends one to a URL the editor picked would hand them the value anyway. Binding
+   * a secret to a new destination is therefore an owner/admin action, like managing the
+   * secret itself. Running a version that already binds one stays open to editors
+   * (execute is unchanged), and so does saving a version that sends the same secrets to
+   * the same URL as the one it replaces (see {@link sendsSecretsAsBefore}), so an editor
+   * can still fix a description or a schema on a tool an admin wired up.
+   *
+   * Returned rather than thrown so `POST /tools/sync` can refuse only when it is
+   * actually about to commit: an unchanged re-sync stores nothing, and failing it would
+   * break an editor's deploy for no gain.
+   *
+   * API keys: a personal key carries its owner's current role (looked up here from
+   * `team_members`, the same row `requireRole` reads). A team key has no user and is
+   * already refused on both write routes by `requireRole`, so it never reaches here.
+   *
+   * @param executor - The executor about to be stored.
+   * @param teamId - The team the version belongs to.
+   * @param userId - The caller.
+   * @param previous - Stored executor JSON of the version this one replaces (the
+   *   tool's newest version for a commit, the alias's current version for a sync), or
+   *   null when there is none.
+   * @returns A `ForbiddenError` (`SECRET_BINDING_NOT_PERMITTED`) when the executor sends
+   *   at least one secret somewhere `previous` did not and the caller is not an owner or
+   *   admin of the team; `null` otherwise, including for every `client` executor and
+   *   every http executor without a secret reference.
+   */
+  async secretBindingRefusal(
+    executor: Executor,
+    teamId: string,
+    userId: string,
+    previous: unknown,
+  ): Promise<ForbiddenError | null> {
+    if (executor.type !== 'http' || extractSecretRefs(executor).length === 0) return null;
+    if (sendsSecretsAsBefore(executor, previous)) return null;
+    const role = await this.membersRepo.getRoleForUser(teamId, userId);
+    if (role === 'owner' || role === 'admin') return null;
+    return new ForbiddenError(
+      'SECRET_BINDING_NOT_PERMITTED',
+      'Only team owners and admins can send a team secret ({{secret.NAME}}) to a new URL or in a new header or query parameter. Keep the URL and the secret entries as they were, or ask an owner or admin to save it.',
+    );
+  }
 
   /**
    * Deep-validates an `http` executor beyond Zod's shape check.
@@ -113,7 +164,8 @@ export class ToolVersionsService {
    *
    * Steps:
    * 1. Verifies tool exists in team.
-   * 2. For an `http` executor, deep-validates JS transform syntax + secret refs + SSRF guard.
+   * 2. Refuses a non-owner/admin binding a team secret, then, for an `http` executor,
+   *    deep-validates JS transform syntax + secret refs + SSRF guard.
    * 3. Computes next version_number (MAX + 1 per tool).
    * 4. Inserts tool_versions row.
    * 5. If version_number === 1, auto-creates 'production' and 'staging' aliases.
@@ -127,6 +179,9 @@ export class ToolVersionsService {
    *   `warnings` when the committed combination of fields is legal but probably not
    *   what the author meant (see below).
    * @throws {NotFoundError} If the tool doesn't exist or belongs to another team.
+   * @throws {ForbiddenError} `SECRET_BINDING_NOT_PERMITTED` if the executor sends a team
+   *   secret somewhere the tool's newest version did not and the caller is not an owner
+   *   or admin (see {@link secretBindingRefusal}).
    * @throws {ValidationError} If an http executor's transform fails to compile,
    *   references a secret that doesn't exist for the team, or its `url` resolves to a
    *   private/loopback/link-local/metadata address (defense-in-depth; the execute-time
@@ -139,6 +194,9 @@ export class ToolVersionsService {
     dto: CreateToolVersionDto,
   ): Promise<{ version: ToolVersionDetail; aliases?: AliasDetail[]; warnings?: string[] }> {
     await this.assertToolAccessible(toolId, teamId);
+    const latest = await this.versionsRepo.findLatest(toolId);
+    const refusal = await this.secretBindingRefusal(dto.executor, teamId, userId, latest?.executor ?? null);
+    if (refusal) throw refusal;
     await this.assertExecutorDeepValid(dto.executor, teamId);
 
     const row = await this.versionsRepo.createNext({

@@ -148,9 +148,11 @@ export function defaultLlmSpanName(
  * hook share it, so a failed round names, tags and joins a trace exactly as a successful
  * one does.
  *
- * - No `x-trace-id`, or one another team owns: a new trace with a server-chosen id.
- * - An id nobody owns yet: created with that id, insert-if-absent, so a concurrent first
+ * - No `x-trace-id`: a new trace with a server-chosen id.
+ * - An id this team has no trace for yet: created, insert-if-absent, so a concurrent first
  *   report of the same trace (from the SDK span queue, say) cannot make either write fail.
+ *   If another team already holds the id, this team's trace takes a server-generated id
+ *   and remembers the caller's, so the team's later reports of the id still join it.
  * - An id this team owns: joined, and the call's trace context merged in. `x-trace-name`
  *   overwrites (Q11); `x-trace-name-if-unset` only fills in a timestamp name (Q33).
  *
@@ -189,8 +191,6 @@ async function resolveGatewayTrace(
   if (!ctx.traceId) return spansRepo.createTrace(fresh, tx);
 
   const { trace, created } = await spansRepo.createTraceIfAbsent({ ...fresh, id: ctx.traceId }, tx);
-  // Another team's id: never join it, and never reveal it exists.
-  if (trace.teamId !== ctx.teamId) return spansRepo.createTrace(fresh, tx);
   if (
     !created &&
     (ctx.traceName?.trim() || ctx.traceNameIfUnset?.trim() || ctx.traceTags?.length || ctx.traceMetadata)

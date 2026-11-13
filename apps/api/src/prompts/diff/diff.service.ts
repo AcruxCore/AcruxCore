@@ -1,8 +1,24 @@
 import { createPatch } from 'diff';
 import { NotFoundError } from '../../shared/errors/http-errors';
+import { AppError } from '../../shared/errors/app-error';
 import { DiffRepository } from './diff.repository';
 import type { DiffResponse } from './diff.types';
 import type { TemplateContent } from '../versions/nunjucks.utils';
+
+/**
+ * Longest edit script (lines inserted plus lines removed) the diff will search for.
+ * A real prompt rewrite is a few hundred lines; past this the patch is unreadable
+ * anyway, and the line diff's cost grows with the square of the edit length.
+ */
+export const DIFF_MAX_EDIT_LENGTH = 5_000;
+
+/**
+ * Wall-clock budget for one diff, in milliseconds. `createPatch` is synchronous and
+ * runs on the API's only event loop, so every other request on the instance waits
+ * while it works; this is the bound that actually caps that wait, because two texts
+ * of a few thousand disjoint lines reach the edit-length cap only after seconds.
+ */
+export const DIFF_TIMEOUT_MS = 500;
 
 /**
  * Serialises a messages array to a human-readable text block suitable for diffing.
@@ -45,6 +61,10 @@ export class DiffService {
    * @param to       - Version number to diff to.
    * @returns Object with the unified diff string and the version numbers.
    * @throws {NotFoundError} If the prompt is not in the team, or either version does not exist.
+   * @throws {AppError} 422 `DIFF_TOO_LARGE` when the versions differ by more than
+   *   {@link DIFF_MAX_EDIT_LENGTH} lines or the diff does not finish within
+   *   {@link DIFF_TIMEOUT_MS}. The work is abandoned rather than finished, so one request
+   *   can no longer stall every other tenant on the instance.
    */
   async computeDiff(
     promptId: string,
@@ -71,7 +91,19 @@ export class DiffService {
     const toText   = messagesToDiffText(toRow.messages);
     const label    = `${prompt.name} v${from}..v${to}`;
 
-    const diffString = createPatch(label, fromText, toText);
+    // Without these options jsdiff searches up to oldLines + newLines edits with no time
+    // limit; it returns undefined when either bound is hit.
+    const diffString = createPatch(label, fromText, toText, undefined, undefined, {
+      maxEditLength: DIFF_MAX_EDIT_LENGTH,
+      timeout: DIFF_TIMEOUT_MS,
+    });
+    if (diffString === undefined) {
+      throw new AppError(
+        `v${from} and v${to} differ in too many lines to show a diff. Open each version to compare them.`,
+        422,
+        'DIFF_TOO_LARGE',
+      );
+    }
 
     return { diff: diffString, fromVersion: from, toVersion: to };
   }

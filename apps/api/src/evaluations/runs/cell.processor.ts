@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { getJudgeQueue, judgeJobId, type CellJobData } from '../queue';
+import { getJudgeQueue, judgeJobId, evalCallDeadlineMs, type CellJobData } from '../queue';
 import { RunsRepository } from './runs.repository';
 import { VersionsRepository } from '../../prompts/versions/versions.repository';
 import { OptimizeRepository } from '../optimize/optimize.repository';
@@ -13,7 +13,7 @@ import type { GatewayCallContext } from '../../gateway/completions/completions.t
 import type { ChatMessage, ImageContentPart } from '../../gateway/providers/types';
 import { UnrecoverableError } from 'bullmq';
 import { imagePartsOf } from '../../gateway/completions/rendered-images';
-import { NotFoundError, ProviderPermanentError, ValidationError } from '../../shared/errors';
+import { NotFoundError, ProviderPermanentError, ProviderTimeoutError, ValidationError } from '../../shared/errors';
 
 const runsRepo = new RunsRepository();
 const versionsRepo = new VersionsRepository();
@@ -144,7 +144,10 @@ export async function resolveCellMessages(
  *   identically to "doesn't exist" to prevent cross-tenant reads).
  * @throws {UnrecoverableError} When the gateway refuses the request as invalid
  *   (`ValidationError`) or the provider failure is permanent (`ProviderPermanentError`),
- *   which no retry can change; see {@link isTerminalCellFailure}.
+ *   which no retry can change; see {@link isTerminalCellFailure}. Also when the call
+ *   times out on the gateway's own clock (`ProviderTimeoutError` without `upstreamReplied`: the gateway's deadline, or `evalCallDeadlineMs()`
+ *   when an operator set one): a retry would hold a shared worker slot for another
+ *   full deadline.
  * @throws Rethrows any other error from `renderMessages` or `GatewayService.complete`
  *   unchanged so BullMQ retries the job. Terminal-failure recording
  *   (`writeResultError`) is the worker's failed-job handler's job (Task 6),
@@ -175,7 +178,9 @@ export async function processCell(data: CellJobData): Promise<void> {
   const finalMessages = spliceHistory(rendered, example.history);
 
   const traceId = randomUUID();
-  const ctx: GatewayCallContext = { teamId: data.teamId, traceId };
+  // The gateway's own deadline, unless an operator set a shorter one for eval calls
+  // (EVAL_CALL_DEADLINE_MS): this call holds a worker slot every team shares.
+  const ctx: GatewayCallContext = { teamId: data.teamId, traceId, chainDeadlineMs: evalCallDeadlineMs() };
 
   let gatewayResult: Awaited<ReturnType<GatewayService['complete']>>;
   try {
@@ -186,6 +191,13 @@ export async function processCell(data: CellJobData): Promise<void> {
     // cell fails now instead of after EVAL_CELL_JOB_ATTEMPTS tries, each one a gateway row and
     // a red trace.
     if (err instanceof ValidationError || err instanceof ProviderPermanentError) {
+      throw new UnrecoverableError(err.message);
+    }
+    // A timeout on the gateway's own clock has already held a shared worker slot for the
+    // whole deadline, and the upstream that set its pace may be the team's own server.
+    // Retrying would hand that upstream the slot again, so the cell fails now. A 504 the
+    // provider sent back itself held nothing, so it is retried like any passing failure.
+    if (err instanceof ProviderTimeoutError && !err.upstreamReplied) {
       throw new UnrecoverableError(err.message);
     }
     throw err;

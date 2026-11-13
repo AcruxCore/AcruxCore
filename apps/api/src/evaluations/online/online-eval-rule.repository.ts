@@ -196,6 +196,25 @@ export class EvalRuleRepository {
     });
   }
 
+  /**
+   * Whether this rule already has a row for this span: a score, a recorded judge
+   * failure, or a "not scored" marker.
+   *
+   * The processor asks before it calls the judge. A row means the span was already
+   * judged (or deliberately not judged), and the `(ruleId, spanId)` upsert would drop
+   * a second verdict anyway, so another judge call would be spend with no row to show
+   * for it and nothing the daily limit counts.
+   *
+   * @param ruleId - The rule.
+   * @param spanId - The span row's id.
+   * @param teamId - Team scope; a row of another team never matches.
+   * @returns `true` when a row exists.
+   */
+  async hasScore(ruleId: string, spanId: string, teamId: string): Promise<boolean> {
+    const hit = await prisma.evalRuleScore.findFirst({ where: { ruleId, spanId, teamId }, select: { id: true } });
+    return hit !== null;
+  }
+
   /** Count of today's (UTC) scored spans for one rule — the daily-limit check. Failure rows do not count, so a judge outage cannot use up the cap. */
   async countTodayScores(ruleId: string, teamId: string): Promise<number> {
     const startOfDayUtc = new Date();

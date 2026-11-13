@@ -41,6 +41,8 @@ test-results/
 .code-review-graph/
 .worktrees/
 credentials.txt
+# Generated development BETTER_AUTH_SECRET (apps/api/src/shared/auth/dev-secret.ts)
+.better-auth-dev-secret
 
 # Python bytecode from examples/
 __pycache__/

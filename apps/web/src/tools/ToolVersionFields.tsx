@@ -340,13 +340,13 @@ export function ToolVersionFields({ form, onChange, error }: ToolVersionFieldsPr
 
           <KeyValueRows
             label="Headers"
-            hint="Values may reference a stored secret via {{secret.NAME}} or a model argument via {{arg.NAME}}."
+            hint="Values may reference a stored secret via {{secret.NAME}} (only owners and admins can add or move one) or a model argument via {{arg.NAME}}."
             rows={form.headers}
             onChange={(headers) => onChange({ headers })}
           />
           <KeyValueRows
             label="Query params"
-            hint="Values may reference a stored secret via {{secret.NAME}} or a model argument via {{arg.NAME}} (e.g. q = {{arg.q}})."
+            hint="Values may reference a stored secret via {{secret.NAME}} (only owners and admins can add or move one) or a model argument via {{arg.NAME}} (e.g. q = {{arg.q}})."
             rows={form.query}
             onChange={(query) => onChange({ query })}
           />

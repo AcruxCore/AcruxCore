@@ -26,6 +26,14 @@ const gateway = new GatewayService(new GatewayRepository(), new ConnectionsRepos
  */
 export class JudgeService {
   /**
+   * @param callDeadlineMs - Optional ceiling for each judge model call, read per
+   *   call (the run judge worker passes `evalCallDeadlineMs`, since its calls hold a
+   *   worker slot every team shares). Omitted, or returning `undefined`, the
+   *   gateway's own deadline applies.
+   */
+  constructor(private readonly callDeadlineMs?: () => number | undefined) {}
+
+  /**
    * Scores one `eval_result` row, in place.
    *
    * With the built-in judge, skips scoring (writes no numeric score, but
@@ -181,7 +189,11 @@ export class JudgeService {
       // exists yet, so generating it here is sufficient to know the resulting
       // trace id without a lookup.
       const traceId = randomUUID();
-      const ctx: GatewayCallContext = { teamId, traceId };
+      const ctx: GatewayCallContext = {
+        teamId,
+        traceId,
+        chainDeadlineMs: this.callDeadlineMs?.(),
+      };
       const gatewayResult = await gateway.complete(ctx, { model: judgeModel, messages, temperature: 0 });
       const assistantContent = gatewayResult.body.choices[0]?.message.content ?? '';
       return { verdict: parseVerdict(assistantContent), traceId };

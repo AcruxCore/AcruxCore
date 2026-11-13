@@ -1,12 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   CommitVersionInput,
+  Message,
   Paginated,
   VersionByIdResponse,
   VersionDetail,
   VersionListItem,
 } from './types';
-import { api } from './client';
+import { api, ApiError } from './client';
 import { fetchAllPages } from './paging';
 import { keys } from './queryClient';
 
@@ -78,5 +79,47 @@ export function useCommitVersion() {
       qc.invalidateQueries({ queryKey: keys.aliases(promptId) });
       qc.invalidateQueries({ queryKey: ['audit', promptId] });
     },
+  });
+}
+
+/**
+ * Renders an unsaved draft for the Preview tab on the server, in the API's template sandbox.
+ *
+ * The page must never render a template itself: nunjucks compiles one into JavaScript and
+ * lets attribute access reach the Function constructor, so a teammate's stored template
+ * would run its code in the viewer's session. The server runs the same nunjucks in an
+ * isolated-vm sandbox and returns text.
+ *
+ * Callers debounce `messages` and `variables`, since every distinct pair is one request.
+ * The previous result stays on screen while the next one loads, so typing does not
+ * flicker. A template error comes back as an `ApiError` (422 `TEMPLATE_RENDER_ERROR`).
+ *
+ * @param promptId - The prompt the draft belongs to; scopes the call to the team.
+ * @param messages - The draft messages, exactly as edited.
+ * @param variables - Values from the Preview's fields, lists and objects already parsed.
+ * @param enabled - False to skip the request, e.g. while the draft is blank.
+ * @returns The react-query result holding `{ messages }`.
+ */
+export function usePreviewRender(
+  promptId: string,
+  messages: Message[],
+  variables: Record<string, unknown>,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: keys.preview(promptId, messages, variables),
+    queryFn: () =>
+      api<{ messages: Message[] }>(`/prompts/${promptId}/preview`, {
+        method: 'POST',
+        body: { messages, variables },
+      }),
+    enabled: enabled && !!promptId,
+    placeholderData: keepPreviousData,
+    // A template error is final. A 429 means the team already has previews rendering
+    // (the server allows two at once), so try again shortly instead of showing an error.
+    retry: (failures, err) => err instanceof ApiError && err.status === 429 && failures < 3,
+    retryDelay: 1000,
+    // A draft and its values render the same every time, so a cached answer never goes stale.
+    staleTime: Infinity,
   });
 }

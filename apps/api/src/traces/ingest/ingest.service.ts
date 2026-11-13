@@ -73,8 +73,9 @@ export class IngestService {
    * @returns `{ accepted, traceIds }` — accepted is the total span count;
    *          traceIds are the resolved trace ids, one per input trace, in order.
    * @throws {PayloadTooLargeError} 413 if the batch exceeds the span cap.
-   * @throws {NotFoundError} 404 if a supplied traceId, or a span's
-   *         promptVersionId, belongs to another team.
+   * @throws {NotFoundError} 404 if a span's promptVersionId belongs to another
+   *         team. A supplied traceId never fails this way: it names a trace within
+   *         the calling team only.
    * @throws {AppError} 400 `INVALID_SPAN_PARENT` if a parentSpanId resolves to
    *         nothing and `opts.allowUnknownParents` is not set.
    */
@@ -129,8 +130,8 @@ export class IngestService {
    * @param teamId - Team scope from the authenticated principal.
    * @param traces - The validated batch.
    * @throws {NotFoundError} 404 if any id is not a prompt version of this team.
-   *         404 rather than 403 for the same reason as the trace check above: a
-   *         403 would confirm that the id names a real version somewhere.
+   *         404 rather than 403: a 403 would confirm that the id names a real
+   *         version somewhere.
    */
   private async assertPromptVersionsAreOurs(teamId: string, traces: IngestTrace[]): Promise<void> {
     const ids = new Set<string>();
@@ -189,10 +190,8 @@ export class IngestService {
           { ...fresh, id: trace.traceId },
           tx,
         );
-        if (row.teamId !== teamId) {
-          // Never leak another team's trace, and never cross-tenant append.
-          throw new NotFoundError('Trace not found.');
-        }
+        // Always this team's row: an id another team holds gets this team its own trace,
+        // under a server-generated id, so never use `trace.traceId` past this point.
         traceId = row.id;
         if (!created) {
           // A derived name is offered rather than asserted. OTLP batches arrive in any
@@ -239,11 +238,20 @@ export class IngestService {
       }
 
       // ── Append spans, writing payloads only when capture is on ───────────
+      // Only a span this call newly stores is scored. An idempotent re-send (an OTLP
+      // exporter retry, or the same span repeated in one export) upserts the stored
+      // row again, and queueing it again would buy one more paid judge call per copy
+      // that a rule's daily limit, which counts distinct scored spans, never sees.
+      // Only this batch's refs are looked up: reading every stored ref made each chunk of a
+      // large OTLP trace cost as much as the whole trace so far.
+      const storedBefore = mode.idempotent
+        ? new Set(await this.spans.listSpanRefs(traceId, tx, trace.spans.map((s) => s.spanId)))
+        : null;
       for (const s of trace.spans) {
         const spanRow = mode.idempotent
           ? await this.spans.upsertSpan(this.toSpanInput(teamId, traceId, s), tx)
           : await this.spans.appendSpan(this.toSpanInput(teamId, traceId, s), tx);
-        if (spanRow.kind === 'llm') llmSpanIds.push(spanRow.id);
+        if (spanRow.kind === 'llm' && !storedBefore?.has(s.spanId)) llmSpanIds.push(spanRow.id);
         if (capture && (s.input !== undefined || s.output !== undefined || s.variables !== undefined)) {
           await this.spans.writePayload(
             spanRow.id,
@@ -257,7 +265,8 @@ export class IngestService {
       return traceId;
     });
 
-    for (const spanId of llmSpanIds) {
+    // A span repeated inside one batch is still one span: queue it once.
+    for (const spanId of new Set(llmSpanIds)) {
       enqueueOnlineEval({ teamId, traceId, spanId, spanKind: 'llm' });
     }
     return traceId;

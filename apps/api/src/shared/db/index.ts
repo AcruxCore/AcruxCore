@@ -2,3 +2,4 @@ export { default as prisma } from './client';
 export * from './schema';
 export * from './unit-of-work';
 export * from './advisory-lock';
+export * from './statement-timeout';

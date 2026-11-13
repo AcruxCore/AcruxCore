@@ -136,9 +136,16 @@ export class ProviderFailedError extends AppError {
 /**
  * 503 — Upstream provider call timed out before responding.
  * See {@link PROVIDER_FAILURE_STATUS} for why this is not a 504.
+ *
+ * `upstreamReplied` tells the two kinds apart: false when the gateway's own clock ran out
+ * (the call held its caller for the whole deadline), true when the provider answered a
+ * 504 or 408 itself, which can take a second and usually passes.
  */
 export class ProviderTimeoutError extends AppError {
-  constructor(message = 'Upstream provider timed out.') {
+  constructor(
+    message = 'Upstream provider timed out.',
+    public readonly upstreamReplied = false,
+  ) {
     super(message, PROVIDER_FAILURE_STATUS, 'PROVIDER_TIMEOUT');
   }
 }
@@ -209,5 +216,21 @@ export class CredentialUnusableError extends AppError {
 export class UnprocessableError extends AppError {
   constructor(message = 'Request could not be processed.') {
     super(message, 422, 'UNPROCESSABLE');
+  }
+}
+
+/**
+ * 422 — A trace content search ran past its per-statement time budget and Postgres
+ * stopped it.
+ *
+ * A free-text search scans captured payloads that no index serves, so its cost grows with
+ * the team's data and with the term itself. A 4xx rather than a 5xx because repeating the
+ * same search would only time out again: the caller has to narrow it.
+ */
+export class SearchTimeoutError extends AppError {
+  constructor(
+    message = 'The search took too long and was stopped. Use a shorter or more specific term, a narrower q_in scope, or a shorter time range.',
+  ) {
+    super(message, 422, 'SEARCH_TIMEOUT');
   }
 }

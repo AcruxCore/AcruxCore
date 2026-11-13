@@ -5,6 +5,7 @@ import {
   listVersionsHandler,
   getVersionHandler,
   getVersionByIdHandler,
+  previewDraftHandler,
 } from './versions.controller';
 
 /**
@@ -22,6 +23,10 @@ versionsRouter.post(
   requireRole('owner', 'admin', 'editor'),
   createVersionHandler,
 );
+
+// Render an unsaved draft in the sandbox for the Preview tab — any authenticated user, since
+// every role can open the tab. Nothing is stored, so there is no write to gate.
+versionsRouter.post('/prompts/:id/preview', requireAnyAuth, validateUuidParam('id'), previewDraftHandler);
 
 // List all versions for a prompt — any authenticated user
 versionsRouter.get('/prompts/:id/versions', requireAnyAuth, validateUuidParam('id'), listVersionsHandler);

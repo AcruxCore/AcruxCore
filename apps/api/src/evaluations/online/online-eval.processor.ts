@@ -136,6 +136,10 @@ async function processOneRule(
   });
   if (!isMatch) return;
 
+  // Already judged for this rule (a duplicate job, or a span delivered again): a
+  // second judge call would be paid for and then dropped by the upsert below.
+  if (await repo.hasScore(rule.id, data.spanId, data.teamId)) return;
+
   // Sample. Before the payload read, so the cheap path stays cheap.
   if (Math.random() >= rule.sampleRate.toNumber()) return;
 

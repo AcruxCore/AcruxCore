@@ -18,6 +18,12 @@ build
 .env.*
 !.env.example
 !.env.docker.example
+# The API writes its generated dev auth secret to the directory it starts in; a copy
+# in the image would sign every non-production container's tokens with it.
+.better-auth-dev-secret
+**/.better-auth-dev-secret
+credentials.txt
+**/credentials.txt
 
 # VCS + tooling
 .git

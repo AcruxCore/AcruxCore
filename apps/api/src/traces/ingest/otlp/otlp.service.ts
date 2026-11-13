@@ -1,4 +1,4 @@
-import { PayloadTooLargeError, ValidationError } from '../../../shared/errors';
+import { AppError, PayloadTooLargeError, ValidationError } from '../../../shared/errors';
 import { IngestService } from '../ingest.service';
 import type { IngestTrace } from '../ingest.types';
 import { decodeOtlpJson, decodeOtlpProtobuf } from './otlp-decoder';
@@ -24,6 +24,15 @@ function chunkTrace(trace: IngestTrace): IngestTrace[] {
     chunks.push({ ...trace, spans: trace.spans.slice(i, i + CHUNK_SIZE) });
   }
   return chunks.length > 0 ? chunks : [trace];
+}
+
+/**
+ * What an export stored, in the terms of OTLP's `ExportTracePartialSuccess`: how many
+ * spans were refused, and why. `rejectedSpans` is 0 when everything was stored.
+ */
+export interface OtlpIngestResult {
+  rejectedSpans: number;
+  errorMessage?: string;
 }
 
 /**
@@ -55,8 +64,15 @@ export class OtlpService {
    *   exporter told 400 for a transient server fault drops the batch for good.
    * @throws {PayloadTooLargeError} 413 if the export carries more than
    *   `MAX_SPANS_PER_REQUEST` spans in total.
+   * @throws The first non-client error of any trace (an unclassified error, or an
+   *   `AppError` of status 500 or more), after the traces before it are stored. A retry is
+   *   safe because the receiver ingests idempotently.
+   * @returns How many spans were refused. A trace that ingestion refuses with a typed
+   *   client error (an `AppError` below 500) is skipped and counted here instead of
+   *   failing the export: one bad trace must not discard the other traces in it, and an
+   *   exporter does not retry a 4xx, so failing the request would lose them for good.
    */
-  async ingestOtlp(teamId: string, body: unknown, contentType: string): Promise<void> {
+  async ingestOtlp(teamId: string, body: unknown, contentType: string): Promise<OtlpIngestResult> {
     let traces: IngestTrace[];
     try {
       const resourceSpans = contentType.includes('application/json')
@@ -77,19 +93,30 @@ export class OtlpService {
       );
     }
 
+    const result: OtlpIngestResult = { rejectedSpans: 0 };
     for (const trace of traces) {
       for (const chunk of chunkTrace(trace)) {
-        // `allowUnknownParents`: OTel batches children out before their parents,
-        // so a chunk (or a whole export) legitimately holds orphans for now.
-        // `derivedName`: the trace name here comes from the batch's root span, not from
-        // a caller, so it must fill a placeholder in and never overwrite a real name —
-        // the chunk holding the root can arrive after the one that created the trace.
-        await this.ingestService.ingest(teamId, [chunk], {
-          idempotent: true,
-          allowUnknownParents: true,
-          derivedName: true,
-        });
+        try {
+          // `allowUnknownParents`: OTel batches children out before their parents,
+          // so a chunk (or a whole export) legitimately holds orphans for now.
+          // `derivedName`: the trace name here comes from the batch's root span, not from
+          // a caller, so it must fill a placeholder in and never overwrite a real name —
+          // the chunk holding the root can arrive after the one that created the trace.
+          await this.ingestService.ingest(teamId, [chunk], {
+            idempotent: true,
+            allowUnknownParents: true,
+            derivedName: true,
+          });
+        } catch (err) {
+          if (!(err instanceof AppError) || err.statusCode >= 500) throw err;
+          console.warn(
+            `[trace] OTLP export for team ${teamId}: refused ${chunk.spans.length} span(s) of one trace: ${err.message}`,
+          );
+          result.rejectedSpans += chunk.spans.length;
+          result.errorMessage ??= err.message;
+        }
       }
     }
+    return result;
   }
 }

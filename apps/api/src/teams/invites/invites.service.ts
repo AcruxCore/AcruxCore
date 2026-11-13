@@ -154,7 +154,8 @@ export class InvitesService {
    * @param token  - The invite token from the URL.
    * @param userId - The user accepting the invite.
    * @returns The team the user just joined (id + name).
-   * @throws {NotFoundError}  If the token is unknown, expired, or already used.
+   * @throws {NotFoundError}  If the token is unknown or expired, or its creator is no
+   *   longer an owner or admin of the team (their authority to admit people ended).
    * @throws {ForbiddenError} INVITE_WRONG_ACCOUNT if the invite named a different
    *   address than the caller's. The message does not repeat the invited address:
    *   whoever holds a leaked token has not shown they were meant to know it.
@@ -169,6 +170,14 @@ export class InvitesService {
     if (!invite) throw new NotFoundError('Invite not found.');
     if (invite.usedAt) throw new GoneError('INVITE_USED', 'This invite has already been used.');
     if (invite.expiresAt < new Date()) throw new NotFoundError('Invite not found or has expired.');
+
+    // An invite is authority its creator delegated. Removing or demoting them
+    // deletes their pending invites (MembersService), but a role change made any
+    // other way must not leave their links live either, so re-check here.
+    const inviterRole = await this.membersRepo.getRoleForUser(invite.teamId, invite.invitedBy);
+    if (inviterRole !== 'owner' && inviterRole !== 'admin') {
+      throw new NotFoundError('Invite not found or has expired.');
+    }
 
     if (invite.email) {
       const caller = await this.authRepo.findEmailById(userId);

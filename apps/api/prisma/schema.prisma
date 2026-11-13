@@ -929,6 +929,13 @@ model Trace {
   totalTokens  Int         @default(0) @map("total_tokens")
   metadata     Json        @default("{}")
   tags         String[]    @default([])
+  /// The id the caller chose for this trace, set ONLY when another team already held that
+  /// id as its `id`, so this row had to take a server-generated one. A caller-chosen id
+  /// names a trace within one team; every lookup by a caller's id matches `id` or this
+  /// column, inside the team. Null on every other row. Unique per team through the
+  /// partial index `uq_traces_team_client_trace_id` (raw SQL, migration
+  /// `20261111120100_trace_client_trace_id_index`), which Prisma cannot express.
+  clientTraceId String?    @map("client_trace_id") @db.Uuid
   createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
 
   team            Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)

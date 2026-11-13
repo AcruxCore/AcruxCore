@@ -331,7 +331,7 @@ describe('POST /api/v1/traces — ingestion', () => {
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it("returns 404 when the traceId belongs to another team (no cross-tenant append)", async () => {
+  it("gives a team its own trace for a traceId another team holds (no cross-tenant append)", async () => {
     const teamA = await signup();
     const teamB = await signup();
 
@@ -345,9 +345,13 @@ describe('POST /api/v1/traces — ingestion', () => {
           { traceId: foreignTraceId, spans: [{ spanId: 'z', name: 'x', startTime: '2026-07-04T10:00:00.000Z' }] },
         ],
       })
-      .expect(404);
+      .expect(200);
 
-    // No mention of team A's trace name/content leaks through the error body.
+    // Team B's span went into a trace of its own, under a different stored id.
+    const ownId = res.body.traceIds[0] as string;
+    expect(ownId).not.toBe(foreignTraceId);
+    const own = await prisma.trace.findUniqueOrThrow({ where: { id: ownId } });
+    expect(own.teamId).toBe(teamB.teamId);
     expect(JSON.stringify(res.body)).not.toContain('support-agent-run');
 
     // Team A's trace is untouched (still 3 spans, span_count unchanged).

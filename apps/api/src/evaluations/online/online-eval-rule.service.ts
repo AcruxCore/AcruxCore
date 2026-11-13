@@ -10,6 +10,7 @@ import { parseVerdict } from '../judge/judge.parse';
 import { DatasetsRepository } from '../datasets/datasets.repository';
 import prisma from '../../shared/db/client';
 import { audit } from '../../shared/audit';
+import { evalCallDeadlineMs } from '../queue/eval-call-deadline';
 import { EvalRuleRepository } from './online-eval-rule.repository';
 import { matchesFilter } from './eval-rule-matcher';
 import { judgeableOutput } from './span-output';
@@ -331,6 +332,8 @@ export class OnlineEvalRuleService {
         traceId: judgeTraceId,
         spanMetadata: { [JUDGE_MARKER]: true },
         contributingSource: `online evaluation rule "${ruleName}"`,
+        // The worker runs this on a slot every team shares; see evalCallDeadlineMs.
+        chainDeadlineMs: evalCallDeadlineMs(),
       },
       { model: judgeModel, messages, temperature: 0 },
     );

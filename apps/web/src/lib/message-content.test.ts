@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Message } from '@/api/types';
 import { describeContent, isBlank, withoutBlanks } from './message-content';
-import { extractVariables, renderMessages } from './template';
+import { extractVariables } from './template';
 
 const RECEIPT: Message = {
   role: 'user',
@@ -14,15 +14,6 @@ const RECEIPT: Message = {
 describe('a message with an image part (issue #573)', () => {
   it('lists the variables of its text and of its image link', () => {
     expect(extractVariables([RECEIPT])).toEqual(['kind', 'receipt_url']);
-  });
-
-  it('renders the text and the image link, and keeps the detail field', () => {
-    const [out] = renderMessages([RECEIPT], { kind: 'receipt', receipt_url: 'https://x.test/a.png' });
-
-    expect(out!.content).toEqual([
-      { type: 'text', text: 'Read this receipt.' },
-      { type: 'image_url', image_url: { url: 'https://x.test/a.png', detail: 'high' } },
-    ]);
   });
 
   it('reads as text with the image link on its own line', () => {

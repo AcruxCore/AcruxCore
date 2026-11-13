@@ -88,8 +88,14 @@ function withRendered(content: TemplateContent, rendered: string[]): TemplateCon
   return kept.length > 0 ? kept : parts;
 }
 
-/** True when `template` holds a nunjucks tag, so it needs rendering at all. */
-function hasTemplateSyntax(template: string): boolean {
+/**
+ * True when `template` holds a nunjucks tag, so it needs rendering at all. Only such a
+ * template costs a sandbox run; plain text renders to itself without one.
+ *
+ * @param template - One template string (a message's text or an image part's URL).
+ * @returns Whether it contains `{{`, `{%` or `{#`.
+ */
+export function hasTemplateSyntax(template: string): boolean {
   return /\{\{|\{%|\{#/.test(template);
 }
 
@@ -126,6 +132,30 @@ function withoutInlineImages(
     return value;
   };
   return { variables: swap(variables) as Record<string, unknown>, images };
+}
+
+/**
+ * How many characters putting the images back adds beyond one copy of each image.
+ *
+ * The sandbox's size check sees each image as its short stand-in, so a template that
+ * repeats one image many times passes it and then grows by the image's full size per copy
+ * on the host. The first copy of an image is free: the request already carried it, and the
+ * body limit bounds it. Every further copy is new memory, counted here without building it.
+ *
+ * @param texts - Rendered outputs that may hold stand-ins.
+ * @param images - The stand-ins and the values they replace.
+ * @returns The added characters; 0 when no image is placed more than once.
+ */
+function repeatedImageChars(texts: string[], images: Map<string, string>): number {
+  let added = 0;
+  for (const [standIn, value] of images) {
+    let copies = 0;
+    for (const text of texts) {
+      for (let at = text.indexOf(standIn); at !== -1; at = text.indexOf(standIn, at + standIn.length)) copies++;
+    }
+    if (copies > 1) added += (copies - 1) * value.length;
+  }
+  return added;
 }
 
 /** Puts back the inline images that {@link withoutInlineImages} took out of `text`. */
@@ -331,6 +361,43 @@ const SANDBOX_MEMORY_LIMIT_MB = 16;
 const SANDBOX_RENDER_TIMEOUT_MS = 250;
 
 /**
+ * The most characters one call to {@link renderMessages} may produce, across all of its
+ * templates together.
+ *
+ * The isolate's memory cap does not bound the result. A string doubled by concatenation
+ * is a chain of small cons-string nodes inside the isolate, so a template of a hundred
+ * bytes can render 2^28 characters while the isolate stays far under its cap; copying it
+ * out then flattens all of it in the API process. The result's length is therefore
+ * checked inside the isolate, before the copy (reading `.length` does not flatten).
+ *
+ * 8 Mi characters is roughly two million tokens, the largest context window a hosted
+ * model offers, so no prompt that could be sent anywhere is cut. It is also under the
+ * 25 MB body the completions route already accepts, so a render can cost the process no
+ * more than a request body can.
+ */
+export const MAX_RENDER_CHARS = 8 * 1024 * 1024;
+
+/**
+ * The script that renders one template inside the isolate. The remaining budget is
+ * written into the source as a literal, not read from a global: a template can run code
+ * in the isolate, and could rewrite a global before the check reads it. `typeof` and the
+ * `length` of a primitive string cannot be redefined.
+ *
+ * @param budget - Characters this template may still produce, 0 or more.
+ * @returns JavaScript source that returns the rendered string or throws.
+ */
+function renderScript(budget: number): string {
+  return `(function () {
+  var out = __env.renderString(__template, __variables);
+  if (typeof out !== 'string') throw new Error('Template did not render to a string.');
+  if (out.length > ${budget}) {
+    throw new Error('Rendered prompt passes the ${MAX_RENDER_CHARS} character limit.');
+  }
+  return out;
+})();`;
+}
+
+/**
  * Renders every template string against the same variables inside a single,
  * disposable `isolated-vm` isolate — no `require`/`process`/filesystem/network
  * reachable from inside it, and memory-capped for the whole isolate. Each
@@ -347,9 +414,10 @@ const SANDBOX_RENDER_TIMEOUT_MS = 250;
  * @param templates - Raw nunjucks template strings to render, in order.
  * @param variables - Key-value map of variable values to inject.
  * @returns The rendered output strings, in the same order as `templates`.
- * @throws {Error} If any template fails to render, or the isolate's per-template
- *   timeout or overall memory limit is hit — {@link renderMessages} maps this
- *   to {@link NunjucksRenderError}.
+ * @throws {Error} If any template fails to render, the isolate's per-template
+ *   timeout or overall memory limit is hit, or the batch's output passes
+ *   {@link MAX_RENDER_CHARS} — {@link renderMessages} maps this to
+ *   {@link NunjucksRenderError}.
  */
 async function renderInSandbox(templates: string[], variables: Record<string, unknown>): Promise<string[]> {
   const isolate = new ivm.Isolate({ memoryLimit: SANDBOX_MEMORY_LIMIT_MB });
@@ -366,20 +434,27 @@ async function renderInSandbox(templates: string[], variables: Record<string, un
     await setupEnv.run(context);
 
     const rendered: string[] = [];
+    // The size budget, unlike the time budget, IS shared across the batch: what costs the
+    // API process is the total it receives, however many templates it is split over.
+    let remaining = MAX_RENDER_CHARS;
     for (const template of templates) {
       await context.global.set('__template', new ivm.ExternalCopy(template).copyInto());
-      const renderOne = await isolate.compileScript('__env.renderString(__template, __variables);');
+      const renderOne = await isolate.compileScript(renderScript(remaining));
       // Each template gets its own fresh timeout window — a slow/malicious
       // template is bounded to SANDBOX_RENDER_TIMEOUT_MS regardless of how
       // many other templates are in this batch, and a big batch of fast,
       // legitimate templates never accumulates toward a shared ceiling.
-      rendered.push((await renderOne.run(context, { timeout: SANDBOX_RENDER_TIMEOUT_MS, copy: true })) as string);
+      const out = (await renderOne.run(context, { timeout: SANDBOX_RENDER_TIMEOUT_MS, copy: true })) as string;
+      remaining -= out.length;
+      rendered.push(out);
     }
     return rendered;
   } finally {
     // Runs on every path (success, thrown error, and timeout) so a runaway
-    // isolate never keeps burning CPU/memory in the background afterward.
-    isolate.dispose();
+    // isolate never keeps burning CPU/memory in the background afterward. One that hit
+    // its memory limit is already disposed, and disposing it again would throw over the
+    // error that says why the render failed.
+    if (!isolate.isDisposed) isolate.dispose();
   }
 }
 
@@ -445,7 +520,8 @@ export function extractVariables(messages: Array<{ content: TemplateContent }>):
  * @returns Array of messages with fully rendered content: a string, or the list of parts with
  *   each text and image URL rendered.
  * @throws {NunjucksRenderError} If nunjucks encounters a runtime error during
- *   rendering, or the sandbox's timeout/memory limit is hit.
+ *   rendering, the sandbox's timeout/memory limit is hit, or the templates together
+ *   render more than {@link MAX_RENDER_CHARS} characters.
  */
 export async function renderMessages(
   messages: MessageInput[],
@@ -464,6 +540,16 @@ export async function renderMessages(
     throw new NunjucksRenderError(
       `Template render error: ${err instanceof Error ? err.message : String(err)}`,
       err,
+    );
+  }
+  // The sandbox checked the size with each image as its stand-in; check it again counting
+  // every repeated copy of an image at full size, before building any of it.
+  const restoredTotal =
+    renderedTags.reduce((sum, out) => sum + out.length, 0) + repeatedImageChars(renderedTags, images);
+  if (restoredTotal > MAX_RENDER_CHARS) {
+    throw new NunjucksRenderError(
+      `Template render error: Rendered prompt passes the ${MAX_RENDER_CHARS} character limit.`,
+      null,
     );
   }
   let tagCursor = 0;

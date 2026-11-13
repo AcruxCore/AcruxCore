@@ -20,7 +20,7 @@ function encoder(): Tiktoken {
  * ~3ms) while one long unbroken run is not. Measured on cl100k_base: 256 chars → 4ms,
  * 512 → 18ms, 1024 → 70ms, 2048 → 281ms, 9000 → 5.4s, 20000 → 26s.
  *
- * Since `estimateRequestCostUsd` runs this on the request path of **every** completion,
+ * Since `planBudgetedCompletion` runs this on the request path of **every** completion,
  * before the budget pre-check, a prompt containing one long run of repeated characters —
  * a base64 blob, a padding run, a corrupted paste — blocked the Node event loop for
  * seconds and stalled every other request on the process. 256 keeps a single piece under

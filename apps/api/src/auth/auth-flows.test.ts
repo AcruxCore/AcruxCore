@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import request from 'supertest';
 import type { Application } from 'express';
 import { createApp } from '../../app';
@@ -378,6 +378,41 @@ describe('login rate limiting', () => {
     expect(bystanderRes.status).toBe(200);
   }, 30_000);
 
+  // Cloudflare-Connecting-IP is just a request header: any client that reaches
+  // the API without passing through Cloudflare can send one, and a new value per
+  // request would be a new rate-limit bucket per request. The default therefore
+  // keys on the address the ingress appended to X-Forwarded-For, and a
+  // client-sent CF-Connecting-IP must not move a request into another bucket.
+  it('ignores a client-sent CF-Connecting-IP under the default config', async () => {
+    process.env.AUTH_RATE_LIMIT_IN_TEST = 'true';
+    delete process.env.AUTH_IP_HEADERS;
+    delete process.env.AUTH_TRUSTED_PROXIES;
+    const app = rebuildApp();
+
+    const octet = () => 1 + Math.floor(Math.random() * 250);
+    // The one real peer, as the shipped nginx appends it.
+    const peer = `203.0.113.${octet()}`;
+    const email = `rl-cf-${randomUUID()}@example.com`;
+    await request(app)
+      .post('/api/v1/auth/sign-up/email')
+      .set('X-Forwarded-For', `198.51.100.${octet()}`)
+      .send({ email, password: PASSWORD, name: 'Rotating' })
+      .expect(200);
+
+    const statuses: number[] = [];
+    for (let i = 0; i < 10; i++) {
+      const res = await request(app)
+        .post('/api/v1/auth/sign-in/email')
+        .set('X-Forwarded-For', `${peer}, 172.18.0.4`)
+        .set('CF-Connecting-IP', `192.0.2.${i + 1}`)
+        .send({ email, password: 'wrong-password-entirely' });
+      statuses.push(res.status);
+    }
+    // Better Auth allows 3 sign-ins per 10 s per client, so the 4th is refused.
+    expect(statuses.slice(0, 3)).toEqual([401, 401, 401]);
+    expect(statuses.slice(3)).toEqual(Array(7).fill(429));
+  }, 30_000);
+
   it('records the client address on the session, not the proxy in front of it', async () => {
     const app = rebuildApp();
     const client = `203.0.113.${1 + Math.floor(Math.random() * 250)}`;
@@ -392,6 +427,59 @@ describe('login rate limiting', () => {
     const user = await prisma.user.findUniqueOrThrow({ where: { email } });
     const session = await prisma.authSession.findFirstOrThrow({ where: { userId: user.id } });
     expect(session.ipAddress).toBe(client);
+  });
+});
+
+/**
+ * Signs an HS256 JWT by hand, the way anyone holding a secret could.
+ *
+ * Built from `node:crypto` rather than Better Auth's own signer on purpose: the
+ * point of the test below is what a stranger with nothing but the source can do.
+ */
+function signJwt(payload: Record<string, unknown>, secret: string): string {
+  const b64 = (v: string | Buffer) => Buffer.from(v).toString('base64url');
+  const head = b64(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const body = b64(JSON.stringify(payload));
+  const sig = createHmac('sha256', secret).update(`${head}.${body}`).digest('base64url');
+  return `${head}.${body}.${sig}`;
+}
+
+describe('signing secret when BETTER_AUTH_SECRET is unset outside production', () => {
+  // Better Auth's /verify-email accepts a self-authenticating JWT, and for a
+  // `change-email-verification` token with no current session it signs the
+  // named user in. Any secret printed in the public repository would let anyone
+  // mint that token, so the fallback must be a value nobody else can know.
+  it('rejects a verify-email token signed with the formerly committed constant', async () => {
+    delete process.env.BETTER_AUTH_SECRET;
+    const app = rebuildApp();
+
+    const email = `victim-${randomUUID()}@example.com`;
+    await request(app)
+      .post('/api/v1/auth/sign-up/email')
+      .send({ email, password: PASSWORD, name: 'Victim' })
+      .expect(200);
+    const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+    const sessionsBefore = await prisma.authSession.count({ where: { userId: user.id } });
+
+    const now = Math.floor(Date.now() / 1000);
+    const token = signJwt(
+      {
+        email,
+        updateTo: email,
+        requestType: 'change-email-verification',
+        iat: now,
+        exp: now + 3600,
+      },
+      'dev-only-insecure-better-auth-secret-do-not-deploy',
+    );
+    const res = await request(app).get(`/api/v1/auth/verify-email?token=${token}`);
+
+    const cookies = ([] as string[]).concat(res.headers['set-cookie'] ?? []);
+    expect(cookies.some((c) => c.includes('session_token=') && !/session_token=;/.test(c))).toBe(
+      false,
+    );
+    expect(res.status).toBe(401);
+    expect(await prisma.authSession.count({ where: { userId: user.id } })).toBe(sessionsBefore);
   });
 });
 

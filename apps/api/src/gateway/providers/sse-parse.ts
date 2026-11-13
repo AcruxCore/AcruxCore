@@ -1,4 +1,18 @@
+import { ProviderError } from './adapter';
+import { MAX_PROVIDER_RESPONSE_BYTES } from './response-cap';
 import { GATEWAY_TIMEOUT_MS } from './timeout';
+
+/**
+ * The longest single SSE line the parser will hold, in UTF-16 code units.
+ *
+ * A streamed body is not wrapped by `capResponseBody`, so without this a provider that
+ * never sends a newline grows one pending line for as long as it keeps sending. Set to
+ * the buffered-response cap: a frame can carry a whole answer (a base64 image from an
+ * image model, a wide `logprobs` block), and one frame is never allowed to be larger than
+ * the whole non-streamed answer may be. A UTF-8 byte yields at most one code unit, so
+ * this is never stricter than the byte cap it mirrors.
+ */
+export const MAX_SSE_LINE_CHARS = MAX_PROVIDER_RESPONSE_BYTES;
 
 /**
  * How long to keep reading after `[DONE]` for the body's end. What is left is normally
@@ -40,6 +54,8 @@ export interface SseParseOptions {
  *   as soon as it reads `[DONE]`, without waiting for the body to end.
  * @throws {DOMException} `TimeoutError` if no chunk arrives for `idleTimeoutMs`
  *   (every adapter maps `name === 'TimeoutError'` to a 504).
+ * @throws {ProviderError} 502 `response_too_large`, not retriable, once one line passes
+ *   {@link MAX_SSE_LINE_CHARS}. The reader is cancelled, which drops the provider stream.
  * @remarks At `[DONE]` the generator returns and the rest of the body is read in the
  *   background, for up to {@link SSE_DRAIN_TIMEOUT_MS} or `idleTimeoutMs`, whichever is
  *   shorter. Cancelling a body that has not ended makes undici destroy the socket instead
@@ -57,7 +73,9 @@ export async function* parseSseStream(
 ): AsyncGenerator<string> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
-  let buffer = '';
+  // The line read so far whose newline has not arrived yet, and its total length.
+  let pending: string[] = [];
+  let pendingChars = 0;
 
   // On abort, cancel the reader: this tears down the provider stream and resolves
   // any pending reader.read() with { done: true }, unblocking the loop cleanly.
@@ -99,12 +117,19 @@ export async function* parseSseStream(
         released = true;
         break;
       }
-      buffer += decoder.decode(value, { stream: true });
-
+      // Only the newly decoded text is searched for a newline. The unfinished line is kept
+      // as pieces and joined once, when its newline arrives, so the work stays linear in the
+      // bytes received however the provider splits them.
+      const text = decoder.decode(value, { stream: true });
+      let start = 0;
       let nl: number;
-      while ((nl = buffer.indexOf('\n')) !== -1) {
-        const line = buffer.slice(0, nl).trim();
-        buffer = buffer.slice(nl + 1);
+      while ((nl = text.indexOf('\n', start)) !== -1) {
+        assertLineFits(pendingChars + (nl - start));
+        const raw = pending.length > 0 ? pending.join('') + text.slice(start, nl) : text.slice(start, nl);
+        pending = [];
+        pendingChars = 0;
+        start = nl + 1;
+        const line = raw.trim();
         if (!line || !line.startsWith('data:')) continue;
         const data = line.slice(5).trim();
         if (data === '[DONE]') {
@@ -116,10 +141,33 @@ export async function* parseSseStream(
         }
         yield data;
       }
+      if (start < text.length) {
+        pendingChars += text.length - start;
+        assertLineFits(pendingChars);
+        pending.push(start === 0 ? text : text.slice(start));
+      }
     }
   } finally {
     if (signal) signal.removeEventListener('abort', onAbort);
     if (!released) await reader.cancel().catch(() => undefined);
+  }
+}
+
+/**
+ * Ends the stream when one SSE line has grown past {@link MAX_SSE_LINE_CHARS}.
+ *
+ * @param chars - The length of the line so far, in UTF-16 code units.
+ * @throws {ProviderError} 502 `response_too_large`, not retriable: the same endpoint
+ *   would send the same body again.
+ */
+function assertLineFits(chars: number): void {
+  if (chars > MAX_SSE_LINE_CHARS) {
+    throw new ProviderError(
+      `Provider stream line exceeds the ${MAX_SSE_LINE_CHARS} character limit`,
+      502,
+      'response_too_large',
+      false,
+    );
   }
 }
 

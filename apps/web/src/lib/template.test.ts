@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { extractVariables, renderMessages } from './template';
+import { extractVariables } from './template';
 
 describe('extractVariables', () => {
-  // The Preview renders each message as its own template (`renderMessages`
-  // calls `renderString` once per message), so a `{% set %}` or `{% for %}`
+  // The Preview renders each message as its own template (the server's render
+  // runs one template per message), so a `{% set %}` or `{% for %}`
   // target in one message has no scope in any other. Treating the messages as
   // one joined blob dropped the name from the Variables form, leaving the
   // message that genuinely needed it with no field and a blank render
@@ -87,29 +87,5 @@ describe('extractVariables', () => {
     ]);
 
     expect(vars).toEqual(['name']);
-  });
-
-  it('renders blank for a variable the old flat scope dropped', () => {
-    // The symptom the fix removes: with `item` missing from the form there is no field
-    // to fill, and nunjucks renders the reference as an empty string.
-    const rendered = renderMessages(
-      [{ role: 'user', content: 'Hello {{ item }}. {% for item in items %}{{ item }}{% endfor %}' }],
-      { item: 'Ada', items: ['i1'] },
-    );
-
-    expect(rendered[0].content).toBe('Hello Ada. i1');
-  });
-
-  it('renders each message independently, which is why the scope is per message', () => {
-    const rendered = renderMessages(
-      [
-        { role: 'system', content: 'Support for {{ company }}.' },
-        { role: 'user', content: '{% set company = "OtherCo" %}Ticket for {{ company }}.' },
-      ],
-      { company: 'Acme' },
-    );
-
-    expect(rendered[0].content).toBe('Support for Acme.');
-    expect(rendered[1].content).toBe('Ticket for OtherCo.');
   });
 });

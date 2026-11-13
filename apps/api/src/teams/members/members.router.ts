@@ -4,9 +4,10 @@ import { requireTeamRole } from '../../shared/middleware/require-role.middleware
 import { MembersController } from './members.controller';
 import { MembersService } from './members.service';
 import { MembersRepository } from './members.repository';
+import { InvitesRepository } from '../invites/invites.repository';
 
 const repo = new MembersRepository();
-const service = new MembersService(repo);
+const service = new MembersService(repo, new InvitesRepository());
 const ctrl = new MembersController(service);
 
 /**

@@ -524,8 +524,8 @@ export class ToolExecuteService {
         // Resolve the trace the caller asked for. An id we already own is appended to;
         // an id nobody owns is CREATED with that id (same contract as POST /traces), so
         // a client agent loop can mint one trace id up front and have the tool span land
-        // in it regardless of call order. Only another team's id is refused — falling
-        // back to a fresh trace rather than leaking or colliding.
+        // in it regardless of call order. The id names a trace within this team only: if
+        // another team holds it, this team gets its own trace, which is never theirs.
         let traceId = dto.traceContext?.traceId;
         let parentSpanRef = dto.traceContext?.parentSpanId ?? null;
         // `tool:<name>` is a fallback, so the trace's root step may rename it (issue #791).
@@ -533,10 +533,9 @@ export class ToolExecuteService {
         if (traceId) {
           // Insert-if-absent: another writer may open the same new trace at this moment.
           const { trace, created } = await this.spans.createTraceIfAbsent({ ...fresh, id: traceId }, tx);
-          if (trace.teamId !== teamId) {
-            traceId = undefined;
-            parentSpanRef = null; // the parent belonged to that other trace
-          } else if (created) {
+          // The row's id, not the caller's: they differ when another team held the id first.
+          traceId = trace.id;
+          if (created) {
             // Nothing else is in this trace yet, so a supplied parent cannot resolve.
             parentSpanRef = null;
           }
