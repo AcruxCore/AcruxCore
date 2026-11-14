@@ -92,6 +92,8 @@ for path in / /about /no-such-page /prompts/abc123; do
   check "$path allows no eval or inline script" \
     bash -c '[[ -n "$1" && "$1" != *unsafe-eval* && "$1" != *unsafe-inline* ]]' _ "$script_src"
   check "$path refuses framing in the CSP too" grep -q "frame-ancestors 'none'" <<<"$csp"
+  check "$path allows Cloudflare's Web Analytics beacon" \
+    grep -q "https://static.cloudflareinsights.com" <<<"$script_src"
 done
 
 echo "# llms.txt"
