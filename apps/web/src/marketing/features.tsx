@@ -370,7 +370,7 @@ ${fn('claude')} mcp add acruxcore \\
   -e ACRUXCORE_API_KEY=$API_KEY \\
   -- npx -y @acruxcoreai/mcp-server --read-only
 
-${cm('# --read-only: 17 tools that only read')}`;
+${cm('# --read-only: 19 tools that only read')}`;
 
 const MCP_CODE_JSON = `{
   ${st('"mcpServers"')}: {
@@ -1200,7 +1200,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
       },
       {
         title: 'A read-only mode',
-        body: 'Start the local server with --read-only and it registers 17 tools. The assistant can list, read, render and diff, but it cannot create, commit, promote or run anything.',
+        body: 'Add ?read-only=true to the hosted URL, or start the local server with --read-only, and you get 19 tools. The assistant can list, read, render and diff, but it cannot create, commit, promote or run anything.',
       },
     ],
     code: [
@@ -1245,7 +1245,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
             body: 'The --toolsets prompts,traces option keeps only the toolsets you name. A shorter tool list also helps the assistant pick the right tool.',
           },
         ],
-        note: 'Only the local server takes --read-only and --toolsets. No tool deletes anything: to delete a prompt, a tool or a dataset, use the dashboard or the API.',
+        note: 'The hosted server takes the same options as query parameters, such as ?read-only=true. No tool deletes anything: to delete a prompt, a tool or a dataset, use the dashboard or the API.',
         links: [{ label: 'Reference: MCP endpoint', href: DOCS.mcpApi }],
       },
       {

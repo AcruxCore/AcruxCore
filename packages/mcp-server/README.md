@@ -20,10 +20,13 @@ https://api.acruxcore.com/api/v1/mcp
 ```
 
 with an `Authorization: Bearer acx_sk_…` header. Create the key in the dashboard under
-**Settings → API keys**.
+**Settings → API keys**. Five of the options below work here too, as query parameters
+with the flag's name: `toolsets`, `read-only`, `prompt-alias`, `max-text-bytes` and
+`timeout-ms`, for example `…/api/v1/mcp?toolsets=prompts,traces&read-only=true`. The
+hosted endpoint rejects `base-url`, `api-key` and any other parameter with a `400`, and caps
+`timeout-ms` at 300000 and `max-text-bytes` at 1000000.
 
-**Local — stdio.** For clients that only speak stdio, or when you want to narrow the
-tool surface:
+**Local — stdio.** For clients that only speak stdio:
 
 ```jsonc
 {
