@@ -5,6 +5,9 @@ import type { TraceRow, SpanRow } from '../../shared/db/schema';
 import type { CreateTraceInput, CreateSpanInput } from './spans.types';
 import { redactPayloadValue } from './redact';
 import { traceIdWhere, TRACE_ID_MATCH_ORDER } from './trace-id-where';
+// The files, not the `ingest` index: the index pulls in the ingest service, which imports this.
+import { INT4_MAX } from '../ingest/int4-range';
+import { MAX_COST_USD } from '../ingest/cost-range';
 
 /**
  * Matches the Q12 timestamp fallback name, `startedAt.toISOString()`. Matching it by
@@ -266,8 +269,11 @@ export class SpansRepository {
     const trace = await client.trace.findUnique({ where: { id: input.traceId } });
     if (trace) {
       const spanCost = input.costUsd == null ? null : new Prisma.Decimal(input.costUsd);
+      // Capped: the rollup's DECIMAL(18, 9) column must not refuse the span.
       const newCost =
-        spanCost == null ? trace.totalCostUsd : (trace.totalCostUsd ?? new Prisma.Decimal(0)).add(spanCost);
+        spanCost == null
+          ? trace.totalCostUsd
+          : Prisma.Decimal.min((trace.totalCostUsd ?? new Prisma.Decimal(0)).add(spanCost), MAX_COST_USD);
       const newStatus =
         input.status === 'error' ? 'error' : trace.status === 'unset' ? 'ok' : trace.status;
       const spanEnded = input.endedAt ?? null;
@@ -278,7 +284,8 @@ export class SpansRepository {
         where: { id: input.traceId },
         data: {
           spanCount: { increment: 1 },
-          totalTokens: trace.totalTokens + (input.totalTokens ?? 0),
+          // Capped: the rollup is INT4, and a sum past it must not refuse the span.
+          totalTokens: Math.min(trace.totalTokens + (input.totalTokens ?? 0), INT4_MAX),
           totalCostUsd: newCost,
           status: newStatus,
           endedAt: newEndedAt,
@@ -370,7 +377,9 @@ export class SpansRepository {
         status = CASE WHEN a.errored THEN 'error' ELSE 'ok' END::span_status,
         ended_at = a.ended
       FROM (
-        SELECT count(*)::int AS n, COALESCE(sum(total_tokens), 0)::int AS tokens, sum(cost_usd) AS cost,
+        SELECT count(*)::int AS n, LEAST(COALESCE(sum(total_tokens), 0), ${INT4_MAX})::int AS tokens,
+               -- Not a bare LEAST: it skips NULLs, so a trace with no cost would get the cap.
+               CASE WHEN sum(cost_usd) IS NULL THEN NULL ELSE LEAST(sum(cost_usd), ${MAX_COST_USD}::numeric) END AS cost,
                max(ended_at) AS ended, COALESCE(bool_or(status = 'error'), false) AS errored
         FROM spans WHERE trace_id = ${traceId}::uuid
       ) a

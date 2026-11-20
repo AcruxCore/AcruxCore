@@ -7,6 +7,7 @@ import { enqueueOnlineEval } from '../../evaluations/online/enqueue-online-eval'
 import { VersionsRepository } from '../../prompts/versions/versions.repository';
 import type { IngestSpan, IngestTrace, IngestResponse } from './ingest.types';
 import { SpanPricer } from './span-pricer';
+import { INT4_MAX } from './int4-range';
 
 /** Maximum spans accepted in one ingestion request (Phase-3 guard, FAQ / spec). */
 const MAX_SPANS_PER_BATCH = 200;
@@ -343,10 +344,17 @@ export class IngestService {
       .reduce((min, d) => (d.getTime() < min.getTime() ? d : min));
   }
 
-  /** Maps an OTel-shaped IngestSpan onto T1's `CreateSpanInput`. */
+  /**
+   * Maps an OTel-shaped IngestSpan onto T1's `CreateSpanInput`.
+   *
+   * A latency past `INT4_MAX` ms (~24.8 days, so an end time that is wrong rather than a
+   * slow span) is stored as unknown, and a derived total past it is capped, so the INT4
+   * columns never refuse the span and fail its trace (issue #843).
+   */
   private toSpanInput(teamId: string, traceId: string, s: IngestSpan): CreateSpanInput {
     const startedAt = new Date(s.startTime);
     const endedAt = s.endTime ? new Date(s.endTime) : null;
+    const latencyMs = endedAt ? Math.round(endedAt.getTime() - startedAt.getTime()) : null;
     return {
       teamId,
       traceId,
@@ -357,7 +365,7 @@ export class IngestService {
       status: s.status ?? 'unset',
       startedAt,
       endedAt,
-      latencyMs: endedAt ? Math.round(endedAt.getTime() - startedAt.getTime()) : null,
+      latencyMs: latencyMs !== null && latencyMs > INT4_MAX ? null : latencyMs,
       model: s.model ?? null,
       provider: s.provider ?? null,
       promptTokens: s.usage?.promptTokens ?? null,
@@ -367,7 +375,7 @@ export class IngestService {
       totalTokens:
         s.usage?.totalTokens ??
         (s.usage?.promptTokens !== undefined && s.usage?.completionTokens !== undefined
-          ? s.usage.promptTokens + s.usage.completionTokens
+          ? Math.min(s.usage.promptTokens + s.usage.completionTokens, INT4_MAX)
           : null),
       cachedTokens: s.usage?.cachedTokens ?? null,
       costUsd: s.costUsd ?? null,

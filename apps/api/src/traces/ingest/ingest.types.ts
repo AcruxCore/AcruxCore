@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { dropAboveInt4 } from './int4-range';
+import { dropOversizedCost } from './cost-range';
 
 /** Span kind — mirrors T1's `span_kind` Postgres enum exactly. */
 export const SPAN_KINDS = ['llm', 'tool', 'retrieval', 'embedding', 'agent', 'chain', 'other'] as const;
@@ -18,6 +20,9 @@ export type SpanStatus = z.infer<typeof SpanStatusSchema>;
 /** ISO-8601 datetime with a timezone offset (or `Z`). */
 const isoDatetime = z.string().datetime({ offset: true });
 
+/** An optional non-negative integer count, dropped when it does not fit an INT4 column. */
+const tokenCount = () => z.number().int().nonnegative().optional().transform(dropAboveInt4);
+
 /**
  * Token counts for an llm span. All optional, all non-negative integers.
  *
@@ -29,13 +34,16 @@ const isoDatetime = z.string().datetime({ offset: true });
  * A count larger than `promptTokens` is capped at `promptTokens`, not refused. Anthropic's
  * own usage has that shape (`input_tokens` leaves out `cache_read_input_tokens`), and a 400
  * here would drop every trace in the batch over one span's token split.
+ *
+ * A count above `INT4_MAX` (`int4-range.ts`) is dropped (read as not reported), not refused, for the
+ * same reason: the span and the rest of the batch are still stored (issue #843).
  */
 export const UsageSchema = z
   .object({
-    promptTokens: z.number().int().nonnegative().optional(),
-    completionTokens: z.number().int().nonnegative().optional(),
-    totalTokens: z.number().int().nonnegative().optional(),
-    cachedTokens: z.number().int().nonnegative().optional(),
+    promptTokens: tokenCount(),
+    completionTokens: tokenCount(),
+    totalTokens: tokenCount(),
+    cachedTokens: tokenCount(),
   })
   .transform((u) =>
     u.cachedTokens !== undefined && u.promptTokens !== undefined && u.cachedTokens > u.promptTokens
@@ -60,7 +68,8 @@ export const IngestSpanSchema = z
     model: z.string().min(1).optional(),
     provider: z.string().min(1).optional(),
     usage: UsageSchema.optional(),
-    costUsd: z.number().nonnegative().optional(),
+    // Dropped, not refused, at 10^9 or more: the column cannot hold it (`cost-range.ts`).
+    costUsd: z.number().nonnegative().optional().transform(dropOversizedCost),
     promptVersionId: z.string().uuid().optional(),
     input: z.unknown().optional(),
     output: z.unknown().optional(),

@@ -1,5 +1,6 @@
 import { UsageSchema, type IngestSpan, type IngestTrace, type SpanKind, type SpanStatus } from '../ingest.types';
 import { resolveProvider } from '../../../gateway/providers/models';
+import { INT4_MAX } from '../int4-range';
 import type { RawAnyValue, RawKeyValue, RawResourceSpans, RawSpan } from './otlp.types';
 
 const OPENINFERENCE_KIND_MAP: Record<string, SpanKind> = {
@@ -236,14 +237,15 @@ function stringAttr(attrs: Record<string, unknown>, key: string): string | undef
 }
 
 /**
- * Returns the first of `keys` whose value is a valid token count: a non-negative integer.
- * Anything else is ignored rather than passed on, because the OTLP path does not run the
- * native ingest schema and a fractional count would make the integer column throw.
+ * Returns the first of `keys` whose value is a valid token count: a non-negative integer
+ * no larger than `INT4_MAX`. Anything else is ignored rather than passed on, because a
+ * fractional or oversized count would make the integer column throw and fail the whole
+ * export (issue #843).
  */
 function tokenAttr(attrs: Record<string, unknown>, ...keys: string[]): number | undefined {
   for (const key of keys) {
     const value = attrs[key];
-    if (typeof value === 'number' && Number.isInteger(value) && value >= 0) return value;
+    if (typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= INT4_MAX) return value;
   }
   return undefined;
 }

@@ -761,3 +761,89 @@ describe('a full-size span batch is accepted (issue #485)', () => {
     expect(res.body.accepted).toBe(200);
   }, 60000);
 });
+
+describe('integers wider than a Postgres integer (issue #843)', () => {
+  /** A one-span trace; `span` overrides the defaults. */
+  function oneSpan(name: string, span: Record<string, unknown>): unknown {
+    return {
+      name,
+      spans: [
+        {
+          spanId: 's1', name, kind: 'llm', model: 'my-own-model',
+          startTime: '2026-07-04T10:00:00.000Z', endTime: '2026-07-04T10:00:01.000Z',
+          ...span,
+        },
+      ],
+    };
+  }
+
+  it('stores every trace when one span reports a token count over INT4, dropping only that count', async () => {
+    const { agent } = await signup();
+    const res = await agent
+      .post('/api/v1/traces')
+      .send({
+        traces: [
+          oneSpan('good', { usage: { promptTokens: 10, completionTokens: 5 } }),
+          oneSpan('bad', { usage: { promptTokens: 9999999999, completionTokens: 7, cachedTokens: 9999999999 } }),
+          oneSpan('after', { usage: { promptTokens: 1, completionTokens: 1 } }),
+        ],
+      })
+      .expect(200);
+
+    expect(res.body.traceIds).toHaveLength(3);
+    const bad = await prisma.span.findFirstOrThrow({ where: { traceId: res.body.traceIds[1] } });
+    expect(bad).toMatchObject({ promptTokens: null, completionTokens: 7, cachedTokens: null, totalTokens: null });
+    const after = await prisma.span.findFirstOrThrow({ where: { traceId: res.body.traceIds[2] } });
+    expect(after.totalTokens).toBe(2);
+  });
+
+  it('stores a span without a latency when its end time is centuries after its start', async () => {
+    const { agent } = await signup();
+    const res = await agent
+      .post('/api/v1/traces')
+      .send({ traces: [oneSpan('bad', { endTime: '9999-12-31T23:59:59.000Z' }), oneSpan('after', {})] })
+      .expect(200);
+
+    const bad = await prisma.span.findFirstOrThrow({ where: { traceId: res.body.traceIds[0] } });
+    expect(bad.latencyMs).toBeNull();
+    expect(bad.endedAt?.toISOString()).toBe('9999-12-31T23:59:59.000Z');
+    const after = await prisma.span.findFirstOrThrow({ where: { traceId: res.body.traceIds[1] } });
+    expect(after.latencyMs).toBe(1000);
+  });
+
+  it('stores a span whose reported cost is too large for the cost column, without that cost', async () => {
+    const { agent } = await signup();
+    const res = await agent
+      .post('/api/v1/traces')
+      .send({ traces: [oneSpan('bad', { costUsd: 1e12 }), oneSpan('after', { costUsd: 0.5 })] })
+      .expect(200);
+
+    const bad = await prisma.span.findFirstOrThrow({ where: { traceId: res.body.traceIds[0] } });
+    expect(bad.costUsd).toBeNull();
+    const after = await prisma.span.findFirstOrThrow({ where: { traceId: res.body.traceIds[1] } });
+    expect(Number(after.costUsd)).toBe(0.5);
+  });
+
+  it('caps a trace total that sums past INT4 instead of failing the span that crosses it', async () => {
+    const { agent } = await signup();
+    const res = await agent
+      .post('/api/v1/traces')
+      .send({
+        traces: [
+          {
+            name: 'big',
+            spans: ['a', 'b'].map((spanId) => ({
+              spanId, name: spanId, kind: 'llm', startTime: '2026-07-04T10:00:00.000Z',
+              usage: { promptTokens: 2000000000, completionTokens: 2000000000 },
+            })),
+          },
+        ],
+      })
+      .expect(200);
+
+    const spans = await prisma.span.findMany({ where: { traceId: res.body.traceIds[0] } });
+    expect(spans.map((s) => s.totalTokens)).toEqual([2147483647, 2147483647]);
+    const trace = await prisma.trace.findUniqueOrThrow({ where: { id: res.body.traceIds[0] } });
+    expect(trace.totalTokens).toBe(2147483647);
+  });
+});

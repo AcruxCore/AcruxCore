@@ -609,3 +609,97 @@ describe('POST /api/v1/traces/otlp', () => {
     expect(await prisma.span.count()).toBe(300);
   });
 });
+
+/**
+ * One OTLP/JSON gen_ai chat span. `intAttrs` become `intValue` attributes, which
+ * OTLP/JSON sends as decimal strings so a 64-bit count survives JSON.
+ */
+function jsonSpan(opts: { traceIdHex: string; spanIdHex: string; endNano?: string; intAttrs?: Record<string, string> }) {
+  return {
+    traceId: opts.traceIdHex,
+    spanId: opts.spanIdHex,
+    name: 'chat gpt-4o-mini',
+    startTimeUnixNano: '1700000000000000000',
+    ...(opts.endNano ? { endTimeUnixNano: opts.endNano } : {}),
+    attributes: [
+      { key: 'gen_ai.operation.name', value: { stringValue: 'chat' } },
+      { key: 'gen_ai.request.model', value: { stringValue: 'gpt-4o-mini' } },
+      ...Object.entries(opts.intAttrs ?? {}).map(([key, v]) => ({ key, value: { intValue: v } })),
+    ],
+  };
+}
+
+/** An OTLP/JSON export holding the given spans in one resource. */
+function jsonExport(spans: unknown[]) {
+  return { resourceSpans: [{ resource: { attributes: [] }, scopeSpans: [{ spans }] }] };
+}
+
+describe('POST /api/v1/traces/otlp — integers wider than a Postgres integer (issue #843)', () => {
+  const GOOD = 'a1'.repeat(16);
+  const BAD = 'b2'.repeat(16);
+
+  it('stores every trace when one span reports a token count over INT4, dropping only that count', async () => {
+    const { agent } = await authedAgent(app);
+    const payload = jsonExport([
+      jsonSpan({
+        traceIdHex: GOOD,
+        spanIdHex: '1'.repeat(16),
+        endNano: '1700000001000000000',
+        intAttrs: { 'gen_ai.usage.input_tokens': '10', 'gen_ai.usage.output_tokens': '5' },
+      }),
+      jsonSpan({
+        traceIdHex: BAD,
+        spanIdHex: '2'.repeat(16),
+        endNano: '1700000001000000000',
+        intAttrs: { 'gen_ai.usage.input_tokens': '9999999999', 'gen_ai.usage.output_tokens': '7' },
+      }),
+    ]);
+
+    await agent.post('/api/v1/traces/otlp').set('Content-Type', 'application/json').send(payload).expect(200);
+
+    expect(await prisma.trace.count()).toBe(2);
+    const good = await prisma.span.findFirstOrThrow({ where: { traceId: toUuid(GOOD) } });
+    expect(good).toMatchObject({ promptTokens: 10, completionTokens: 5, totalTokens: 15 });
+    const bad = await prisma.span.findFirstOrThrow({ where: { traceId: toUuid(BAD) } });
+    expect(bad).toMatchObject({ promptTokens: null, completionTokens: 7, latencyMs: 1000 });
+  });
+
+  it('stores the span without a latency when its end time is centuries after its start', async () => {
+    const { agent } = await authedAgent(app);
+    const payload = jsonExport([
+      jsonSpan({ traceIdHex: GOOD, spanIdHex: '1'.repeat(16), endNano: '1700000001000000000' }),
+      // Year 2255: a valid timestamp, but ~7.3e12 ms after the start, far past INT4.
+      jsonSpan({ traceIdHex: BAD, spanIdHex: '2'.repeat(16), endNano: '9000000000000000000' }),
+    ]);
+
+    await agent.post('/api/v1/traces/otlp').set('Content-Type', 'application/json').send(payload).expect(200);
+
+    expect(await prisma.trace.count()).toBe(2);
+    const bad = await prisma.span.findFirstOrThrow({ where: { traceId: toUuid(BAD) } });
+    expect(bad.latencyMs).toBeNull();
+    expect(bad.endedAt?.toISOString()).toBe(new Date(9_000_000_000_000).toISOString());
+    const good = await prisma.span.findFirstOrThrow({ where: { traceId: toUuid(GOOD) } });
+    expect(good.latencyMs).toBe(1000);
+  });
+
+  it('caps the totals when counts that each fit sum past INT4', async () => {
+    const { agent } = await authedAgent(app);
+    const big = { 'gen_ai.usage.input_tokens': '2000000000', 'gen_ai.usage.output_tokens': '2000000000' };
+    const payload = jsonExport([
+      jsonSpan({ traceIdHex: BAD, spanIdHex: '1'.repeat(16), intAttrs: big }),
+      jsonSpan({ traceIdHex: BAD, spanIdHex: '2'.repeat(16), intAttrs: big }),
+      jsonSpan({ traceIdHex: GOOD, spanIdHex: '3'.repeat(16), intAttrs: { 'gen_ai.usage.input_tokens': '1' } }),
+    ]);
+
+    await agent.post('/api/v1/traces/otlp').set('Content-Type', 'application/json').send(payload).expect(200);
+
+    expect(await prisma.trace.count()).toBe(2);
+    const spans = await prisma.span.findMany({ where: { traceId: toUuid(BAD) } });
+    expect(spans).toHaveLength(2);
+    for (const s of spans) {
+      expect(s).toMatchObject({ promptTokens: 2000000000, completionTokens: 2000000000, totalTokens: 2147483647 });
+    }
+    const trace = await prisma.trace.findUniqueOrThrow({ where: { id: toUuid(BAD) } });
+    expect(trace.totalTokens).toBe(2147483647);
+  });
+});
