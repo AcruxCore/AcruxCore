@@ -21,6 +21,7 @@ import pytest
 
 from acruxcore import AcruxCoreError
 from acruxcore.otel import SUPPORTED_FRAMEWORKS, register
+from acruxcore.steps import set_step_context_bridge
 
 
 def _exporter_of(provider: TracerProvider):
@@ -67,11 +68,13 @@ def _reset_global_tracer_provider():
     # set_tracer_provider() only ever takes effect once per process (an internal
     # Once() guard silently no-ops later calls) — both must be reset or later
     # tests silently see an earlier test's provider.
+    # register() also installs the step bridge (issue #797), which is process-wide too.
     otel_trace._TRACER_PROVIDER = None
     otel_trace._TRACER_PROVIDER_SET_ONCE = Once()
     yield
     otel_trace._TRACER_PROVIDER = None
     otel_trace._TRACER_PROVIDER_SET_ONCE = Once()
+    set_step_context_bridge(None)
 
 
 # --- config resolution -------------------------------------------------------

@@ -19,7 +19,8 @@ from __future__ import annotations
 
 import importlib
 import os
-from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple
+import secrets
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple
 
 from .errors import (
     INSTRUMENTOR_NOT_INSTALLED,
@@ -29,6 +30,7 @@ from .errors import (
     UNKNOWN_INSTRUMENTOR,
     AcruxCoreError,
 )
+from .steps import set_step_context_bridge
 
 if TYPE_CHECKING:
     from opentelemetry.sdk.trace import TracerProvider
@@ -97,7 +99,9 @@ def register(
     :param set_global: Also install the provider as the process-wide default via
         ``opentelemetry.trace.set_tracer_provider`` (default ``True``), so an
         instrumentor or manual ``trace.get_tracer(...)`` call that doesn't take
-        an explicit provider still exports to AcruxCore.
+        an explicit provider still exports to AcruxCore. While this provider is the
+        process-wide one, an open ``client.traces.step`` is also the active OTel span,
+        so an instrumented call inside a step lands in the step's trace as its child.
     :returns: The configured ``TracerProvider`` — pass it to instrumentors you
         wire yourself, or to ``openinference.instrumentation.using_session``.
     :raises AcruxCoreError: ``OTEL_NOT_AVAILABLE`` if the ``otel`` extra isn't
@@ -147,11 +151,74 @@ def register(
 
     if set_global:
         trace.set_tracer_provider(provider)
+    _bridge_steps_to_otel(provider)
 
     for name in instrument or ():
         _instrument_framework(name, provider)
 
     return provider
+
+
+class _OtelStepBridge:
+    """Makes ``client.traces.step`` the active OTel span while it runs (issue #797).
+
+    So an instrumented call inside a step (an ``openai`` call, say) becomes the step's
+    child in the step's trace, instead of a trace of its own. Mirrors
+    ``bridgeStepsToOtel`` in the TypeScript SDK (sdk-faq Q66).
+
+    The step's UUID trace id, without dashes, is a valid OTel trace id, and the OTLP
+    receiver turns it back into the same UUID. Step span ids switch to OTel's 16-hex
+    shape, so the parent id an OTel span records is exactly the id the step reports.
+
+    The bridge stands aside, and the step runs in the OTel context it was entered from,
+    in two cases:
+
+    - A recording OTel span is already active, such as a LangChain tool span around a
+      decorated tool function. Replacing it would move the spans inside the step out of
+      the framework's trace. Only the bridge's own step contexts are non-recording, so a
+      recording span is always someone else's.
+    - ``provider`` is not the process-wide tracer provider, because another one (Sentry,
+      say) was set first or ``set_global=False`` was passed. The step context is
+      process-wide, so every other tracer would otherwise take the step as its parent:
+      a parent that tracer never receives. Checked on every step, so setting the
+      provider globally later still turns the bridge on.
+    """
+
+    def __init__(self, provider: "TracerProvider") -> None:
+        from opentelemetry import context, trace
+
+        self._provider = provider
+        self._context = context
+        self._trace = trace
+
+    def new_span_id(self) -> str:
+        # OTel treats an all-zero span id as invalid; 2**-64 odds, but never send one.
+        while True:
+            span_id = secrets.token_hex(8)
+            if span_id != "0" * 16:
+                return span_id
+
+    def enter(self, trace_id: str, span_id: str) -> Any:
+        trace = self._trace
+        if trace.get_current_span().is_recording() or trace.get_tracer_provider() is not self._provider:
+            return None
+        parent = trace.NonRecordingSpan(
+            trace.SpanContext(
+                trace_id=int(trace_id.replace("-", ""), 16),
+                span_id=int(span_id, 16),
+                is_remote=False,
+                trace_flags=trace.TraceFlags(trace.TraceFlags.SAMPLED),
+            )
+        )
+        return self._context.attach(trace.set_span_in_context(parent))
+
+    def exit(self, token: Any) -> None:
+        self._context.detach(token)
+
+
+def _bridge_steps_to_otel(provider: "TracerProvider") -> None:
+    """Install :class:`_OtelStepBridge` for ``provider`` as the process's step bridge."""
+    set_step_context_bridge(_OtelStepBridge(provider))
 
 
 def _instrument_framework(name: str, provider: "TracerProvider") -> None:

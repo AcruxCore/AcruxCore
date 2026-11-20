@@ -17,6 +17,12 @@ changelog: <https://docs.acruxcore.com/changelog>
 - `ListTracesResult.total_capped`. The API now stops counting 10,000 rows past the page,
   and then `total` is a lower bound.
 
+### Fixed
+
+- After `acruxcore.otel.register()`, an open `traces.step` is the active OTel span, so an
+  instrumented call inside it (an `openai` call) is its child, in its trace. Step span ids are
+  then 16 hex characters ([#797](https://github.com/AcruxCore/AcruxCore/issues/797)).
+
 ## 0.22.0 — 2026-11-11
 
 ### Added

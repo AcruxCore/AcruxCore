@@ -23,6 +23,10 @@ into a trace it cannot see. One root holds at most :data:`MAX_STEP_SPANS` spans;
 that, new spans are dropped and counted on the root span as ``droppedSpans``. Every
 change to a root takes one lock, because :class:`~acruxcore.sync_client.AcruxCoreSync`
 closes steps on the caller's thread while reports arrive on its loop thread.
+
+After :func:`acruxcore.otel.register`, an open step is also the active OpenTelemetry span,
+so a span OTel instrumentation starts inside it (an ``openai`` call) is its child in its
+trace; step span ids then take OTel's 16-hex shape. See :class:`StepContextBridge`.
 """
 
 from __future__ import annotations
@@ -36,7 +40,7 @@ import uuid
 import warnings
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable, Dict, Iterator, List, Optional, Set, TypeVar, cast
+from typing import Any, Awaitable, Callable, Dict, Iterator, List, Optional, Protocol, Set, Tuple, TypeVar, cast
 
 from .types import IngestSpan, SpanKind, TraceInput
 
@@ -105,12 +109,85 @@ class _Frame:
     start: str = ""
     input: Any = None
     output: Any = _UNSET
-    token: "Optional[contextvars.Token[Optional[_Frame]]]" = None
+    token: "Optional[_EntryToken]" = None
 
 
 _current: "contextvars.ContextVar[Optional[_Frame]]" = contextvars.ContextVar(
     "acruxcore_current_step", default=None
 )
+
+
+class StepContextBridge(Protocol):
+    """Makes each open step the active OpenTelemetry span too (issue #797).
+
+    So a span that OTel auto-instrumentation starts inside a step (an ``openai`` call
+    under :func:`acruxcore.otel.register`) is the step's child, in the step's trace.
+    ``register()`` installs it; without it, steps never touch OTel. This module imports
+    nothing from OTel, which is an optional extra.
+    """
+
+    def new_span_id(self) -> str:
+        """A span id OTel accepts as a parent: 16 lowercase hex characters."""
+        ...
+
+    def enter(self, trace_id: str, span_id: str) -> Any:
+        """Make the step the active OTel span in this context.
+
+        :param trace_id: The step's trace UUID.
+        :param span_id: The step's span id, from :meth:`new_span_id`.
+        :returns: A token for :meth:`exit`, or ``None`` when the bridge stood aside.
+        """
+        ...
+
+    def exit(self, token: Any) -> None:
+        """Undo one :meth:`enter` that returned ``token``."""
+        ...
+
+
+#: Installed by :func:`acruxcore.otel.register`; ``None`` keeps steps away from OTel.
+_bridge: Optional[StepContextBridge] = None
+
+#: One entry's undo: the step token, and the bridge with its token when it took part.
+_EntryToken = Tuple["contextvars.Token[Optional[_Frame]]", Optional[StepContextBridge], Any]
+
+
+def set_step_context_bridge(bridge: Optional[StepContextBridge]) -> None:
+    """Install (or, with ``None``, remove) the bridge between steps and OTel context.
+
+    :param bridge: From :func:`acruxcore.otel.register`; ``None`` turns the bridge off.
+        Steps already open keep the context they entered with.
+    """
+    global _bridge
+    _bridge = bridge
+
+
+def _new_span_id() -> str:
+    """A new step span id: OTel's 16-hex shape when bridged, so an OTel child names the
+    exact id the step reports as its parent. A UUID otherwise."""
+    bridge = _bridge
+    return bridge.new_span_id() if bridge is not None else str(uuid.uuid4())
+
+
+def _enter(frame: _Frame) -> "_EntryToken":
+    """Make ``frame`` the open step in this context, and the active OTel span if bridged."""
+    token = _current.set(frame)
+    bridge = _bridge
+    if bridge is None:
+        return (token, None, None)
+    try:
+        otel_token = bridge.enter(frame.root.trace_id, frame.span_id)
+    except Exception:
+        # Telemetry must never break the step; the step itself is still recorded.
+        otel_token = None
+    return (token, bridge if otel_token is not None else None, otel_token)
+
+
+def _leave(entry: "_EntryToken") -> None:
+    """Undo one :func:`_enter`, OTel context first, then the step."""
+    token, bridge, otel_token = entry
+    if bridge is not None:
+        bridge.exit(otel_token)
+    _current.reset(token)
 
 #: Roots that may still take spans, by trace id. Routing by the trace a report names,
 #: not by the caller's context, is what lets a stream read after its step ended — or a
@@ -486,7 +563,7 @@ class Step:
                 # its own to the trace rather than having them silently ignored.
                 _merge_trace_context(root, self._tags, self._metadata, self._session_id)
             frame = _Frame(
-                span_id=str(uuid.uuid4()), root=root, step=self, outer=outer,
+                span_id=_new_span_id(), root=root, step=self, outer=outer,
                 parent_span_id=parent.span_id if parent else None, start=_now_iso(),
                 input=self.input if input is _UNSET else input,
             )
@@ -496,12 +573,12 @@ class Step:
             _roots.setdefault(root.trace_id, root)
         self._last = frame
         if not detached:
-            frame.token = _current.set(frame)
+            frame.token = _enter(frame)
         return frame
 
     def _close(self, frame: _Frame, error: Optional[BaseException]) -> None:
         if frame.token is not None:
-            _current.reset(frame.token)
+            _leave(frame.token)
             frame.token = None
         span: IngestSpan = {
             "spanId": frame.span_id,
@@ -536,14 +613,14 @@ class Step:
 
     async def _await_in(self, frame: _Frame, awaitable: Awaitable[Any]) -> Any:
         """Await what a plain function returned, with the step open around it."""
-        token = _current.set(frame)
+        token = _enter(frame)
         try:
             frame.output = await awaitable
         except BaseException as err:
-            _current.reset(token)
+            _leave(token)
             self._close(frame, err)
             raise
-        _current.reset(token)
+        _leave(token)
         self._close(frame, None)
         return frame.output
 
@@ -591,7 +668,7 @@ class Step:
                 thrown: Optional[BaseException] = None
                 try:
                     while True:
-                        token = _current.set(frame)
+                        token = _enter(frame)
                         try:
                             if thrown is not None:
                                 exc, thrown = thrown, None
@@ -601,7 +678,7 @@ class Step:
                         except StopAsyncIteration:
                             break
                         finally:
-                            _current.reset(token)
+                            _leave(token)
                         sent = None
                         try:
                             sent = yield item
@@ -627,7 +704,7 @@ class Step:
                 thrown: Optional[BaseException] = None
                 try:
                     while True:
-                        token = _current.set(frame)
+                        token = _enter(frame)
                         try:
                             if thrown is not None:
                                 exc, thrown = thrown, None
@@ -638,7 +715,7 @@ class Step:
                             result = stop.value
                             break
                         finally:
-                            _current.reset(token)
+                            _leave(token)
                         sent = None
                         try:
                             sent = yield item
@@ -683,7 +760,7 @@ class Step:
                 # decorator, or an object with an async __call__. The step stays open
                 # until the result is awaited, and is current while it runs.
                 if frame.token is not None:
-                    _current.reset(frame.token)
+                    _leave(frame.token)
                     frame.token = None
                 return self._await_in(frame, result)
             frame.output = result
