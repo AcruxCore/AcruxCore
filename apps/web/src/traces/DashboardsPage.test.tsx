@@ -43,11 +43,11 @@ const SCORES: TraceScores = {
   days: [{ day: '2026-10-10', up: 2, down: 1, passed: 0, failed: 0 }],
 };
 
-function renderPage() {
+function renderPage(initialEntry = '/observability') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/observability']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter initialEntries={[initialEntry]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <ToastProvider>
           <DashboardsPage />
         </ToastProvider>
@@ -97,5 +97,26 @@ describe('DashboardsPage (review of PR #609)', () => {
 
     await waitFor(() => expect(screen.getByTestId('quality-panel')).toBeTruthy());
     expect(screen.getByText('Couldn’t load quality scores')).toBeTruthy();
+  });
+
+  it('sends the day after a custom "To" date, so a same-day range includes that day (issue #840)', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.startsWith('/api/v1/traces/analytics/scores')) return fakeResponse(SCORES);
+      if (url.startsWith('/api/v1/traces/analytics')) return fakeResponse(ANALYTICS_WITHOUT_COST_PER_TRACE);
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderPage('/observability?range=custom&from=2026-11-11&to=2026-11-11');
+
+    await waitFor(() => expect(screen.getByTestId('analytics-totals')).toBeTruthy());
+    const urls = fetchMock.mock.calls.map(([u]) => new URL(u, 'http://x'));
+    const analytics = urls.find((u) => u.pathname === '/api/v1/traces/analytics');
+    const scores = urls.find((u) => u.pathname === '/api/v1/traces/analytics/scores');
+    expect(analytics?.searchParams.get('from')).toBe('2026-11-11');
+    expect(analytics?.searchParams.get('to')).toBe('2026-11-12');
+    expect(scores?.searchParams.get('to')).toBe('2026-11-12');
+    // The input keeps showing the date the user picked.
+    expect((screen.getByTestId('analytics-to') as HTMLInputElement).value).toBe('2026-11-11');
   });
 });

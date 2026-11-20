@@ -5,6 +5,7 @@ import { Badge, BarChart, Empty, Input, LineChart, PageSpinner, Select } from '@
 import { useTraceAnalytics } from '@/api';
 import { formatCount, formatLatency, formatPercent, formatUsd } from './format';
 import { DATE_RANGE_PRESETS, presetFrom, type DateRangePreset } from './date-range';
+import { exclusiveEndDate } from './exclusive-end-date';
 import type { AnalyticsGroupBy, SpanKind } from '@/api/types';
 import { SpanNameTable } from './SpanNameTable';
 import { QualityPanel } from './QualityPanel';
@@ -67,10 +68,12 @@ export function DashboardsPage() {
   // Presets recompute `from` from "now" on every render (never frozen into the
   // URL) so e.g. "Last 30 days" always means the 30 days ending today, whenever
   // the link is opened. `to` stays unset for presets — the API defaults it to the
-  // current instant, which correctly includes today; the raw "To" date input is
-  // midnight-exclusive and would silently cut off today's data if used instead.
+  // current instant, which correctly includes today. For a custom range the API's
+  // `to` is exclusive (midnight at the start of that day), while the user means the
+  // "To" date inclusively, so the page sends the following day; the input and the URL
+  // keep the date the user picked.
   const from = isCustomRange ? (sp.get('from') ?? undefined) : (presetFrom(range) ?? undefined);
-  const to = isCustomRange ? (sp.get('to') ?? undefined) : undefined;
+  const to = isCustomRange ? exclusiveEndDate(sp.get('to') ?? undefined) : undefined;
   // The kind filter belongs to the per-step view only: there it answers "which tool is
   // slow", while on the other groupings it would silently change every total.
   const kind = groupBy === 'span_name' ? ((sp.get('kind') as SpanKind | null) ?? undefined) : undefined;

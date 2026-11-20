@@ -307,6 +307,11 @@ export interface CompletionBody {
   temperature?: number;
   max_tokens?: number;
   stream?: boolean;
+  /**
+   * OpenAI's streaming options. {@link gatewayStream} always sets `include_usage`, so
+   * the gateway ends the stream with one chunk that has empty `choices` and the usage.
+   */
+  stream_options?: { include_usage?: boolean };
   /** Inline OpenAI-shaped tool definitions available to the model this turn. */
   tools?: ToolDefinition[];
   /** Tool-usage control: force/forbid/allow tool calls (defaults to `auto` on the gateway). */
@@ -398,16 +403,31 @@ export async function renderStoredPrompt(
   });
 }
 
+/** Token counts of one streamed call, as the gateway billed them. */
+export interface StreamUsage {
+  prompt: number;
+  completion: number;
+}
+
 export interface StreamHandlers {
   /** Fired once, as soon as response headers arrive (telemetry, minus cost). */
   onMeta?: (meta: GatewayMeta) => void;
   /** Fired for each content delta as it streams in. */
   onDelta: (text: string) => void;
+  /**
+   * Fired once with the call's token counts, from the gateway's last chunk (empty
+   * `choices`, `usage` set). Not fired when the stream ends without that chunk, e.g.
+   * after a mid-stream error.
+   */
+  onUsage?: (usage: StreamUsage) => void;
 }
 
 /**
  * Call the gateway with `stream: true` and drive the SSE frames, invoking
- * `onDelta` per token. Resolves when the stream terminates (`data: [DONE]`).
+ * `onDelta` per token. Always requests `stream_options.include_usage` (merged over
+ * any `stream_options` the caller set), so the final usage chunk reaches `onUsage`.
+ * A chunk with empty `choices` never produces a delta. Resolves when the stream
+ * terminates (`data: [DONE]`).
  *
  * @throws {Error} on a non-2xx response or a mid-stream `error` frame.
  */
@@ -419,7 +439,11 @@ export async function gatewayStream(
   const res = await fetch('/api/v1/gateway/chat/completions', {
     method: 'POST',
     headers: streamHeaders,
-    body: JSON.stringify({ ...body, stream: true }),
+    body: JSON.stringify({
+      ...body,
+      stream: true,
+      stream_options: { ...body.stream_options, include_usage: true },
+    }),
     credentials: CREDENTIALS,
   });
 
@@ -454,6 +478,10 @@ export async function gatewayStream(
         if (chunk.error) throw new Error(chunk.error.message || 'Stream error');
         const delta = chunk.choices?.[0]?.delta?.content;
         if (delta) handlers.onDelta(delta);
+        const usage = chunk.usage;
+        if (usage && typeof usage.prompt_tokens === 'number' && typeof usage.completion_tokens === 'number') {
+          handlers.onUsage?.({ prompt: usage.prompt_tokens, completion: usage.completion_tokens });
+        }
       } catch (e) {
         if (e instanceof Error && e.message !== 'Stream error') {
           // Ignore JSON parse hiccups on partial frames; rethrow real errors.

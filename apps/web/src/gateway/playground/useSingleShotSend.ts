@@ -29,6 +29,7 @@ export function useSingleShotSend(telemetry: PlaygroundTelemetry, buildBody: () 
         await gatewayStream(body, {
           onMeta: (m) => telemetry.setMeta(m),
           onDelta: (t) => telemetry.setResponse((r) => r + t),
+          onUsage: (u) => telemetry.setUsage(u),
         });
         telemetry.setLatencyMs(Math.round(performance.now() - started));
       } else {
