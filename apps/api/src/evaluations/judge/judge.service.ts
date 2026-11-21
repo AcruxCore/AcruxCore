@@ -104,9 +104,12 @@ export class JudgeService {
 
     // Prefer the run's frozen grading inputs; fall back to the live dataset
     // values only for legacy callers/jobs that don't carry them (see @param).
-    const criteria = frozen ? frozen.criteria : result.example.criteria;
-    const overallFeedback = frozen ? frozen.overallFeedback : result.example.dataset.overallFeedback;
-    const history = frozen ? frozen.history ?? null : (result.example.history as unknown as ChatMessage[] | null);
+    // A deleted example leaves the legacy path with nothing to read: grade with none.
+    const criteria = frozen ? frozen.criteria : result.example?.criteria ?? null;
+    const overallFeedback = frozen ? frozen.overallFeedback : result.example?.dataset.overallFeedback ?? null;
+    const history = frozen
+      ? frozen.history ?? null
+      : ((result.example?.history ?? null) as unknown as ChatMessage[] | null);
     const verdict = await this.grade(
       teamId,
       judgeModel,

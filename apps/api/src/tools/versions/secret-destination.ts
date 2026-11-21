@@ -19,15 +19,19 @@ interface KeyValue {
  *
  * The URL must match in full, path and query string included, because one host can
  * serve many tenants (a webhook relay, a shared API gateway) and a new path on it can
- * reach a different owner. Entry names and values must match exactly, so moving a
+ * reach a different owner. A `Host` header counts as part of the destination too: the
+ * HTTP client sends it as the request host and derives the TLS server name from it, so
+ * on a shared IP (a CDN, an API gateway) a new `Host` reaches a different tenant while
+ * the URL stays the same. Entry names and values must match exactly, so moving a
  * secret into a new header or query parameter, or swapping in another secret, counts
- * as a new binding. Non-secret entries, the method, the transforms and the schema are
- * free to change.
+ * as a new binding. Other non-secret entries, the method, the transforms and the schema
+ * are free to change.
  *
  * @param next - The executor about to be stored.
  * @param previous - The stored executor JSON of the version it replaces, or
  *   null/undefined when there is none.
- * @returns `true` only when both are http executors, the URLs are equal and every
+ * @returns `true` only when both are http executors, the URLs are equal, the `Host`
+ *   header entries (name compared case-insensitively) are identical, and every
  *   secret-carrying entry of `next` appears unchanged in the same list of `previous`;
  *   `false` for anything else, including a `previous` that no longer parses.
  */
@@ -37,6 +41,7 @@ export function sendsSecretsAsBefore(next: Executor, previous: unknown): boolean
   if (!parsed.success || parsed.data.type !== 'http') return false;
   const before = parsed.data;
   if (next.url !== before.url) return false;
+  if (hostHeaders(next.headers) !== hostHeaders(before.headers)) return false;
   return (
     secretEntriesKept(next.headers, before.headers) && secretEntriesKept(next.query, before.query)
   );
@@ -47,4 +52,17 @@ function secretEntriesKept(entries: KeyValue[], before: KeyValue[]): boolean {
   return entries
     .filter((e) => extractSecretRefs({ headers: [e], query: [] }).length > 0)
     .every((e) => before.some((b) => b.name === e.name && b.value === e.value));
+}
+
+/**
+ * The `Host` header entries of a list, as one comparable string.
+ *
+ * Names are matched case-insensitively and trimmed, because the HTTP client treats
+ * `host`, `HOST` and ` Host` alike. Values are kept exact and in order, so adding,
+ * removing, reordering or changing one all compare as different.
+ */
+function hostHeaders(headers: KeyValue[]): string {
+  return JSON.stringify(
+    headers.filter((h) => h.name.trim().toLowerCase() === 'host').map((h) => h.value),
+  );
 }

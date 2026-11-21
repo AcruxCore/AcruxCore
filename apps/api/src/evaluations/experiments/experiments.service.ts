@@ -5,13 +5,15 @@ import {
   CreateExperimentResult,
   ExperimentConfig,
   ExperimentDto,
-  MAX_EXPERIMENT_GRID_SIZE,
 } from './experiments.types';
+import { assertWithinGridCeiling } from './grid-ceiling';
 import { DatasetsRepository } from '../datasets/datasets.repository';
 import { PromptsRepository } from '../../prompts/prompts.repository';
 import { VersionsRepository } from '../../prompts/versions/versions.repository';
 import { DatasetsService } from '../datasets/datasets.service';
-import { ConflictError, NotFoundError, ValidationError } from '../../shared/errors';
+import { ConflictError, NotFoundError } from '../../shared/errors';
+import { AliasesRepository } from '../../prompts/aliases/aliases.repository';
+import { AliasesService } from '../../prompts/aliases/aliases.service';
 import { assertModelRegistered, resolveJudgePromptVersion } from '../judge';
 
 /**
@@ -34,6 +36,8 @@ export class ExperimentsService {
    */
   private readonly prompts = new PromptsRepository();
   private readonly promptVersions = new VersionsRepository();
+  private readonly aliasesRepo = new AliasesRepository();
+  private readonly aliases = new AliasesService();
 
   /**
    * Creates an experiment after validating that the referenced dataset
@@ -49,7 +53,8 @@ export class ExperimentsService {
    *   exist or belongs to another team. 404 rather than 403 throughout: a 403
    *   would confirm that the id names a real object somewhere.
    * @throws {ValidationError} If `version_ids.length * models.length * datasetExampleCount`
-   *   exceeds `MAX_EXPERIMENT_GRID_SIZE` — each cell is a real, paid provider call.
+   *   exceeds `MAX_EXPERIMENT_GRID_SIZE` — each cell is a real, paid provider call. The
+   *   baseline cell a run adds per model counts, when the baseline is not in `version_ids`.
    * @throws {ValidationError} If `judge_model` is not a model this team has registered.
    * @throws {ValidationError} If `judge_prompt_id` is not this team's prompt, or has no committed version.
    */
@@ -57,12 +62,10 @@ export class ExperimentsService {
     const dataset = await this.datasetsRepo.getDatasetById(teamId, dto.dataset_id);
     if (!dataset) throw new NotFoundError('Dataset not found.');
 
-    const gridSize = dto.version_ids.length * dto.models.length * dataset._count.examples;
-    if (gridSize > MAX_EXPERIMENT_GRID_SIZE) {
-      throw new ValidationError(
-        `This experiment's grid would enqueue ${gridSize} runs, which exceeds the ${MAX_EXPERIMENT_GRID_SIZE}-run ceiling. Reduce the number of versions, models, or dataset examples.`,
-      );
-    }
+    assertWithinGridCeiling(
+      dto.version_ids.length * dto.models.length * dataset._count.examples,
+      "experiment's grid",
+    );
 
     // `prompt_id` and `version_ids` arrive in the body, so no route-level check
     // ever sees them. Unverified, a foreign prompt id was written to the row
@@ -77,6 +80,19 @@ export class ExperimentsService {
     const versionIds = [...new Set(dto.version_ids)];
     if ((await this.promptVersions.countByIdsForTeam(versionIds, teamId)) !== versionIds.length) {
       throw new NotFoundError('Prompt version not found.');
+    }
+
+    // A run adds one baseline cell per model when the baseline version is not among
+    // `version_ids` (comparing a new version against production, the common case).
+    // Count it here too, or an experiment is created that can never be started.
+    if (dto.prompt_id) {
+      const baselineId = await this.baselineVersionId(teamId, dto.prompt_id, dto.alias);
+      if (baselineId && !dto.version_ids.includes(baselineId)) {
+        assertWithinGridCeiling(
+          (dto.version_ids.length + 1) * dto.models.length * dataset._count.examples,
+          "experiment's grid (with its baseline)",
+        );
+      }
     }
 
     const promptMismatchWarning = dto.prompt_id
@@ -180,5 +196,23 @@ export class ExperimentsService {
         judgePromptVersionId: run.judgePromptVersionId,
       })),
     };
+  }
+
+  /**
+   * The version a run of this experiment would use as its baseline today.
+   *
+   * Mirrors `AliasesService.resolveBaselineVersion`, except that an alias that does not
+   * exist yet resolves to null instead of throwing: create accepts one, and run start is
+   * where it is refused (with a 404). The baseline can move before a run starts, so run
+   * start checks the ceiling again against the grid it actually builds.
+   *
+   * @param teamId - Isolation boundary.
+   * @param promptId - A prompt already verified to belong to `teamId`.
+   * @param alias - The experiment's `alias`, or undefined for production / latest.
+   * @returns The baseline version id, or null if none would be added.
+   */
+  private async baselineVersionId(teamId: string, promptId: string, alias?: string): Promise<string | null> {
+    if (alias) return (await this.aliasesRepo.findByAlias(promptId, alias))?.versionId ?? null;
+    return (await this.aliases.resolveBaselineVersion(teamId, promptId))?.versionId ?? null;
   }
 }

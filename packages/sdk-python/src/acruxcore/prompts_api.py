@@ -862,7 +862,11 @@ class PromptsNamespace:
             absent; ``API_ERROR`` for other HTTP errors; ``NETWORK_ERROR`` if the
             API is unreachable and no stale entry exists.
         """
-        variables = variables or {}
+        # One snapshot, taken before anything awaits: the cache key, the request, a
+        # background refresh and the echoed ``variables`` all use it. A caller that reuses
+        # one dict across requests could otherwise edit it while a stale-hit refresh is
+        # pending, and that refresh would cache the new values' render under this key.
+        variables = copy.deepcopy(variables or {})
         pinned = pinned_version(name)
 
         if self._cache_ttl <= 0:
@@ -879,10 +883,13 @@ class PromptsNamespace:
         cached = cache.get(cache_key)
         if cached is not None:
             age = now - cached.fetched_at
+            # A copy every time: the cache is process-wide, so in a server the next
+            # render of this prompt is usually another end user's request, and a caller
+            # appending its user turn to ``messages`` must not write it into the entry.
             if age < self._cache_ttl:
-                return cast(RenderResult, cached.value)
+                return copy.deepcopy(cast(RenderResult, cached.value))
             self._spawn_background_refresh(name, alias, variables, cache_key, pinned)
-            return cast(RenderResult, cached.value)
+            return copy.deepcopy(cast(RenderResult, cached.value))
 
         return await self._fetch_and_cache(name, alias, variables, cache_key, pinned)
 
@@ -995,8 +1002,12 @@ class PromptsNamespace:
             # only ever be served back to the same ones.
             variables=variables,
         )
-        if cache_key is not None:
-            get_cache(self._max_cache_size).set(
-                cache_key, CacheEntry(value=value, fetched_at=time.time() * 1000)
-            )
-        return value
+        if cache_key is None:
+            return value
+        # The cache keeps its own copy (variables included) and the caller gets another,
+        # so neither the caller's later edits nor its own variables dict reach the entry.
+        stored = copy.deepcopy(value)
+        get_cache(self._max_cache_size).set(
+            cache_key, CacheEntry(value=stored, fetched_at=time.time() * 1000)
+        )
+        return copy.deepcopy(stored)

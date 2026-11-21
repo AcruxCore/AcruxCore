@@ -1,4 +1,4 @@
-import { Prisma, type experiment_run_kind } from '@prisma/client';
+import { Prisma, type EvalResult, type experiment_run_kind } from '@prisma/client';
 import prisma from '../../shared/db/client';
 import type { ReportGridCell, EvalResultRow } from './report.types';
 import type { RunListFilters, RunVariantAggregate } from './runs.types';
@@ -11,17 +11,21 @@ export type ExperimentRunWithResults = Prisma.ExperimentRunGetPayload<{ include:
  * its example's per-example `criteria`, and that example's parent dataset's
  * dataset-level `overallFeedback`.
  */
-export type EvalResultWithJudgeInputs = Prisma.EvalResultGetPayload<{
-  include: { example: { include: { dataset: { select: { overallFeedback: true } } } } };
-}>;
+export type EvalResultWithJudgeInputs = EvalResult & {
+  /** The live example, or null once it has been deleted (results outlive it, issue #867). */
+  example: Prisma.DatasetExampleGetPayload<{
+    include: { dataset: { select: { overallFeedback: true } } };
+  }> | null;
+};
 
 /**
  * An eval_result row plus its example's `input`/`criteria`, for the cell
  * drill-down endpoint (`GET /runs/:id/cells/:cellKey`).
  */
-export type EvalResultWithExample = Prisma.EvalResultGetPayload<{
-  include: { example: { select: { input: true; criteria: true; expected: true } } };
-}>;
+export type EvalResultWithExample = EvalResult & {
+  /** The live example's fields, or null once it has been deleted (results outlive it, issue #867). */
+  example: Prisma.DatasetExampleGetPayload<{ select: { input: true; criteria: true; expected: true } }> | null;
+};
 
 /** A run's grid + produced results, shaped for {@link buildRunReport}'s input. */
 export interface RunReportInputs {
@@ -784,16 +788,14 @@ export class RunsRepository {
    * @returns The result with its judge inputs, or null if not found or in another team.
    */
   async getResultById(teamId: string, id: string): Promise<EvalResultWithJudgeInputs | null> {
-    return prisma.evalResult.findFirst({
-      where: { id, teamId },
-      include: {
-        example: {
-          include: {
-            dataset: { select: { overallFeedback: true } },
-          },
-        },
-      },
+    const result = await prisma.evalResult.findFirst({ where: { id, teamId } });
+    if (!result) return null;
+    // Not a relation: a result keeps its example id after the example is deleted.
+    const example = await prisma.datasetExample.findFirst({
+      where: { id: result.datasetExampleId, teamId },
+      include: { dataset: { select: { overallFeedback: true } } },
     });
+    return { ...result, example };
   }
 
   /**
@@ -907,11 +909,18 @@ export class RunsRepository {
     variantLabel: string,
     model: string,
   ): Promise<EvalResultWithExample[]> {
-    return prisma.evalResult.findMany({
+    const rows = await prisma.evalResult.findMany({
       where: { teamId, experimentRunId: runId, variantLabel, model },
-      include: { example: { select: { input: true, criteria: true, expected: true } } },
       orderBy: { createdAt: 'asc' },
     });
+    // Not a relation: a result keeps its example id after the example is deleted,
+    // and then reads as `example: null`.
+    const examples = await prisma.datasetExample.findMany({
+      where: { teamId, id: { in: [...new Set(rows.map((r) => r.datasetExampleId))] } },
+      select: { id: true, input: true, criteria: true, expected: true },
+    });
+    const byId = new Map(examples.map(({ id, ...rest }) => [id, rest]));
+    return rows.map((row) => ({ ...row, example: byId.get(row.datasetExampleId) ?? null }));
   }
 
   /**

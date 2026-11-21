@@ -1151,7 +1151,6 @@ model DatasetExample {
   sourceTrace    Trace?         @relation(fields: [sourceTraceId], references: [id], onDelete: SetNull)
   sourceFeedback TraceFeedback? @relation(fields: [sourceFeedbackId], references: [id], onDelete: SetNull)
   sourceVersion  PromptVersion? @relation(fields: [sourcePromptVersionId], references: [id], onDelete: SetNull)
-  evalResults    EvalResult[]
 
   @@unique([datasetId, sourceFeedbackId], map: "uq_dataset_examples_dataset_feedback")
   @@index([datasetId], map: "idx_dataset_examples_dataset")
@@ -1273,6 +1272,8 @@ model EvalResult {
   id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   teamId            String   @map("team_id") @db.Uuid
   experimentRunId   String   @map("experiment_run_id") @db.Uuid
+  /// The example's id in the run's `exampleSnapshot`. Deliberately not a foreign key:
+  /// deleting the live dataset example must not delete a finished run's results.
   datasetExampleId  String   @map("dataset_example_id") @db.Uuid
   /// 'version' now; 'candidate' arrives in E6.
   variantKind       String   @map("variant_kind")
@@ -1300,7 +1301,6 @@ model EvalResult {
 
   team    Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
   run     ExperimentRun  @relation(fields: [experimentRunId], references: [id], onDelete: Cascade)
-  example DatasetExample @relation(fields: [datasetExampleId], references: [id], onDelete: Cascade)
 
   @@index([experimentRunId], map: "idx_eval_results_run")
   @@map("eval_results")

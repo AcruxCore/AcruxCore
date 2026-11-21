@@ -29,13 +29,14 @@ export class ToolVersionsService {
    * Decides whether the caller may store an executor that sends team secrets.
    *
    * A `{{secret.NAME}}` reference decides where that secret's plaintext is sent: the
-   * executor's URL. Secrets are created, rotated and deleted only by owners and admins,
+   * executor's URL, and its `Host` header, which overrides the host the request (and its
+   * TLS SNI) goes to. Secrets are created, rotated and deleted only by owners and admins,
    * and no endpoint ever returns their value, so letting an editor commit an executor
    * that sends one to a URL the editor picked would hand them the value anyway. Binding
    * a secret to a new destination is therefore an owner/admin action, like managing the
    * secret itself. Running a version that already binds one stays open to editors
    * (execute is unchanged), and so does saving a version that sends the same secrets to
-   * the same URL as the one it replaces (see {@link sendsSecretsAsBefore}), so an editor
+   * the same URL, with the same `Host` header, as the one it replaces (see {@link sendsSecretsAsBefore}), so an editor
    * can still fix a description or a schema on a tool an admin wired up.
    *
    * Returned rather than thrown so `POST /tools/sync` can refuse only when it is
@@ -69,7 +70,7 @@ export class ToolVersionsService {
     if (role === 'owner' || role === 'admin') return null;
     return new ForbiddenError(
       'SECRET_BINDING_NOT_PERMITTED',
-      'Only team owners and admins can send a team secret ({{secret.NAME}}) to a new URL or in a new header or query parameter. Keep the URL and the secret entries as they were, or ask an owner or admin to save it.',
+      'Only team owners and admins can send a team secret ({{secret.NAME}}) to a new URL, with a different Host header, or in a new header or query parameter. Keep the URL, the Host header and the secret entries as they were, or ask an owner or admin to save it.',
     );
   }
 

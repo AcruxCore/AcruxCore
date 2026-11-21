@@ -18,6 +18,7 @@ import {
   type JudgeJobData,
 } from '../queue';
 import { renderedImagesForCell } from './cell.processor';
+import { assertWithinGridCeiling } from '../experiments/grid-ceiling';
 import { AppError, ConflictError, NotFoundError, ValidationError } from '../../shared/errors';
 import { buildRunReport } from './report.aggregate';
 import { compareCells, selectNamedScore } from './run-compare.aggregate';
@@ -51,6 +52,24 @@ import { assertModelRegistered, resolveJudgePromptVersion } from '../judge';
  * latest committed version if there is no `production` alias — persists the
  * run, and enqueues a BullMQ Flow (cell jobs as children of a finalize job).
  */
+/**
+ * A value from the run's example snapshot, or the live example's when the snapshot has
+ * none.
+ *
+ * Only a missing entry (a legacy snapshot that predates the field) falls back. An
+ * explicit `null` is what the run graded with, so it wins over criteria or an expected
+ * answer added to the example later.
+ *
+ * @param frozen - Snapshot values by example id; `undefined` means the field was never stored.
+ * @param exampleId - The result's example id.
+ * @param live - The live example's value, already defaulted to null.
+ * @returns The snapshot value when stored, else `live`.
+ */
+function snapshotOr<T>(frozen: Map<string, T | undefined>, exampleId: string, live: T): T {
+  const value = frozen.get(exampleId);
+  return value === undefined ? live : value;
+}
+
 export class RunsService {
   constructor(
     private readonly experimentsRepo: ExperimentsRepository,
@@ -80,6 +99,8 @@ export class RunsService {
    * @returns The created run's id and its initial `queued` status.
    * @throws {NotFoundError} If the experiment, its dataset, or any explicit
    *   `config.versionIds` entry does not resolve for this team.
+   * @throws {ValidationError} If grid cells (baselines included) x examples now exceed
+   *   `MAX_EXPERIMENT_GRID_SIZE` — the dataset may have grown since the experiment was made.
    * @throws {ValidationError} If the experiment has no judge model (it predates
    *   per-experiment judges), or its judge model is no longer registered, or
    *   its custom judge prompt was deleted or has no committed version.
@@ -135,6 +156,9 @@ export class RunsService {
       ? await resolveJudgePromptVersion(teamId, config.judgePromptId)
       : undefined;
     const grid = await this.resolveGrid(teamId, experiment.promptId, config);
+    // Re-checked here, not only at experiment create: the dataset may have grown
+    // since (bulk adds have no total cap), and the baseline cells per model count too.
+    assertWithinGridCeiling(grid.length * exampleSnapshot.length, 'run');
 
     const run = await this.runsRepo.createRun(teamId, experimentId, {
       exampleSnapshot: exampleSnapshot as unknown as Prisma.InputJsonValue,
@@ -576,6 +600,7 @@ export class RunsService {
     // dataset value. Falls back to the live value for runs created before the
     // snapshot carried criteria (or if an example isn't in the snapshot).
     const snapshot = run.exampleSnapshot as unknown as RunSnapshotExample[];
+    const frozenInput = new Map(snapshot.map((e) => [e.exampleId, e.input]));
     const frozenCriteria = new Map(snapshot.map((e) => [e.exampleId, e.criteria]));
     const frozenHistory = new Map(snapshot.map((e) => [e.exampleId, e.history]));
     const frozenExpected = new Map(snapshot.map((e) => [e.exampleId, e.expected]));
@@ -586,8 +611,9 @@ export class RunsService {
       model,
       examples: rows.map((row) => ({
         exampleId: row.datasetExampleId,
-        input: row.example.input as Record<string, unknown>,
-        criteria: frozenCriteria.get(row.datasetExampleId) ?? row.example.criteria,
+        // The snapshot first: it is what the run saw, and it outlives the live example.
+        input: frozenInput.get(row.datasetExampleId) ?? (row.example?.input as Record<string, unknown> | undefined) ?? {},
+        criteria: snapshotOr(frozenCriteria, row.datasetExampleId, row.example?.criteria ?? null),
         history: frozenHistory.get(row.datasetExampleId) ?? null,
         output: row.output,
         errorMessage: row.errorMessage,
@@ -596,7 +622,7 @@ export class RunsService {
         reason: row.reason,
         traceId: row.traceId,
         judgeTraceId: row.judgeTraceId,
-        expected: frozenExpected.get(row.datasetExampleId) ?? row.example.expected ?? null,
+        expected: snapshotOr(frozenExpected, row.datasetExampleId, row.example?.expected ?? null),
         scores: namedScores(row.scores),
       })),
     };
@@ -674,13 +700,14 @@ export class RunsService {
   ): Promise<CompareResultRow[]> {
     const rows = await this.runsRepo.getCellResults(teamId, runId, cell.variantLabel, cell.model);
     const snapshot = snapshotJson as unknown as RunSnapshotExample[];
+    const frozenInput = new Map(snapshot.map((e) => [e.exampleId, e.input]));
     const frozenCriteria = new Map(snapshot.map((e) => [e.exampleId, e.criteria]));
     const frozenExpected = new Map(snapshot.map((e) => [e.exampleId, e.expected]));
     return rows.map((row) => ({
       datasetExampleId: row.datasetExampleId,
-      input: row.example.input as Record<string, unknown>,
-      criteria: frozenCriteria.get(row.datasetExampleId) ?? row.example.criteria,
-      expected: frozenExpected.get(row.datasetExampleId) ?? row.example.expected ?? null,
+      input: frozenInput.get(row.datasetExampleId) ?? (row.example?.input as Record<string, unknown> | undefined) ?? {},
+      criteria: snapshotOr(frozenCriteria, row.datasetExampleId, row.example?.criteria ?? null),
+      expected: snapshotOr(frozenExpected, row.datasetExampleId, row.example?.expected ?? null),
       scores: namedScores(row.scores),
       output: row.output,
       errorMessage: row.errorMessage,

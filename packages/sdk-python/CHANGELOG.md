@@ -12,6 +12,14 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+### Fixed
+
+- `prompts.render()` returned the cached result itself, so appending to `messages` leaked the
+  message into the next render of that prompt in the same process. Each call gets a copy now.
+- A stale `prompts.render()` hit refreshed in the background with the caller's dict,
+  so editing it right after cached another render under the original variables' key.
+  `render` now copies `variables` before anything else.
+
 ## 0.22.1 — 2026-11-20
 
 ### Added

@@ -7,8 +7,9 @@ export const MAX_EXPERIMENT_DIMENSION = 50;
 /**
  * Ceiling on `version_ids.length * models.length * datasetExampleCount` — the
  * total number of paid provider calls one experiment run would enqueue.
- * Enforced in `experiments.service.ts::create()` (needs the dataset's example
- * count, not available at schema-parse time). Conservative and tunable later;
+ * Enforced by `assertWithinGridCeiling` at experiment create, again at run start
+ * (the dataset may have grown, and baseline cells count too) and at optimize start
+ * (needs the dataset's example count, not available at schema-parse time). Conservative and tunable later;
  * the point is that *some* ceiling exists.
  */
 export const MAX_EXPERIMENT_GRID_SIZE = 2000;

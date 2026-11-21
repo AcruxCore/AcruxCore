@@ -119,6 +119,59 @@ async def test_render_prompt_echoes_an_empty_dict_when_called_with_no_variables(
     assert result.variables == {}
 
 
+async def test_render_returns_a_copy_so_caller_edits_never_reach_the_cache():
+    """A caller appending its user turn to ``messages`` must not change what the next
+    render of the same prompt returns: in a server, that next render is another user's
+    request. Covers a fresh hit, a stale hit and the variables the caller passed in."""
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        return httpx.Response(200, json={"messages": [{"role": "system", "content": "You are a support bot."}]})
+
+    variables = {"tier": "gold"}
+    async with make_client(handler, cache_ttl=60_000) as c:
+        a = await c.prompts.render("support", "production", variables)
+        a.messages.append({"role": "user", "content": "user A: secret"})
+        a.variables["tier"] = "changed"
+        variables["tier"] = "changed-by-caller"
+        b = await c.prompts.render("support", "production", {"tier": "gold"})
+        assert calls["n"] == 1, "second render should be a cache hit"
+        assert b is not a
+        assert b.messages == [{"role": "system", "content": "You are a support bot."}]
+        assert b.variables == {"tier": "gold"}
+
+        # Stale hit: served from the cache while a refresh runs in the background.
+        c.prompts._cache_ttl = 1
+        await asyncio.sleep(0.01)
+        b.messages.append({"role": "user", "content": "user B: secret"})
+        stale = await c.prompts.render("support", "production", {"tier": "gold"})
+        assert stale.messages == [{"role": "system", "content": "You are a support bot."}]
+        await asyncio.sleep(0.01)
+
+
+async def test_stale_hit_refresh_uses_the_variables_passed_even_if_the_caller_edits_them():
+    """A server that reuses one variables dict across requests must not get Bob's render
+    cached under Alice's key by the background refresh."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        v = json.loads(request.content)["variables"]
+        return httpx.Response(200, json={"messages": [{"role": "system", "content": f"Hello {v['user']}"}]})
+
+    async with make_client(handler, cache_ttl=60_000) as c:
+        await c.prompts.render("greet", "production", {"user": "alice"})
+        c.prompts._cache_ttl = 1
+        await asyncio.sleep(0.01)
+        shared = {"user": "alice"}
+        await c.prompts.render("greet", "production", shared)  # stale: refresh scheduled
+        shared["user"] = "bob"
+        await asyncio.sleep(0.05)
+        c.prompts._cache_ttl = 60_000
+        r = await c.prompts.render("greet", "production", {"user": "alice"})
+        assert r.messages == [{"role": "system", "content": "Hello alice"}]
+        assert r.variables == {"user": "alice"}
+
+
 async def test_chat_sends_variables_alongside_prompt_version_id():
     seen: Dict[str, Any] = {}
 

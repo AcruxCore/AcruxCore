@@ -76,6 +76,40 @@ function hashVariables(variables: Record<string, unknown>): string {
 }
 
 /**
+ * Deep-copies a render result, so the copy shares no object with the cache.
+ *
+ * The render cache is module-wide, so in a server the next render of the same prompt is
+ * usually another end user's request. A caller that appends its user turn to `messages`
+ * (the normal way to use a render) would otherwise write it into the cached entry.
+ *
+ * @param value - The result to copy. Every field came from JSON (`variables` is the
+ *   JSON snapshot `render` takes), so `structuredClone` always succeeds.
+ * @returns A copy sharing no mutable object with `value`.
+ */
+function copyRenderResult(value: RenderResult): RenderResult {
+  return structuredClone(value);
+}
+
+/**
+ * Snapshots render variables as the API will receive them.
+ *
+ * Taken once, at the start of `render`, so the cache key, the request, a background
+ * refresh and the echoed `variables` all see the same values. Without it a caller that
+ * reuses one object across requests could edit it while a stale-hit refresh is pending,
+ * and the refresh would cache the new values' render under the old values' key. The JSON
+ * round trip also applies `toJSON()`, so the echo (which feeds trace lineage) matches
+ * what was sent rather than an object's internal fields.
+ *
+ * @param variables - The caller's variables; must be JSON-serialisable, as the request is.
+ * @returns A plain JSON copy.
+ * @throws {TypeError} if a value cannot be serialised (a BigInt, a circular object),
+ *   which the request itself would also have thrown on.
+ */
+function snapshotVariables(variables: Record<string, unknown>): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(variables)) as Record<string, unknown>;
+}
+
+/**
  * Converts a binding input to the wire body, which is snake_case (`tool_alias`,
  * `pinned_version_number`, `off`) like the rest of the prompts API's request bodies.
  *
@@ -742,6 +776,7 @@ export class PromptsNamespace {
     alias: string,
     variables: Record<string, unknown> = {},
   ): Promise<RenderResult> {
+    variables = snapshotVariables(variables);
     const pin = pinnedVersion(name);
     if (this.cacheTtl <= 0) {
       return this._fetchAndCache(name, alias, variables, null, pin);
@@ -758,7 +793,7 @@ export class PromptsNamespace {
     if (cached) {
       const age = now - cached.fetchedAt;
       if (age < this.cacheTtl) {
-        return cached.value;
+        return copyRenderResult(cached.value);
       }
 
       this._backgroundRefresh(name, alias, variables, cacheKey, pin).catch((err: unknown) => {
@@ -768,7 +803,7 @@ export class PromptsNamespace {
         );
       });
 
-      return cached.value;
+      return copyRenderResult(cached.value);
     }
 
     return this._fetchAndCache(name, alias, variables, cacheKey, pin);
@@ -861,11 +896,11 @@ export class PromptsNamespace {
       variables,
     };
 
-    if (cacheKey !== null) {
-      const cache = getCache(this.maxCacheSize);
-      cache.set(cacheKey, { value, fetchedAt: Date.now() });
-    }
-
-    return value;
+    if (cacheKey === null) return value;
+    // The cache keeps its own copy (variables included) and the caller gets another, so
+    // neither the caller's later edits nor its own variables object can reach the entry.
+    const stored = copyRenderResult(value);
+    getCache(this.maxCacheSize).set(cacheKey, { value: stored, fetchedAt: Date.now() });
+    return copyRenderResult(stored);
   }
 }

@@ -175,6 +175,67 @@ describe('acruxcore.renderPrompt', () => {
     expect(result.messages).toEqual([{ role: 'user', content: 'Hello' }]);
   });
 
+  it('returns a copy, so caller edits never reach the cache (fresh and stale hits)', async () => {
+    // In a server the next render of the same prompt is another user's request: a caller
+    // appending its user turn to `messages` must not show up there.
+    vi.mocked(fetch).mockImplementation(async () =>
+      new Response(JSON.stringify({ messages: [{ role: 'system', content: 'You are a support bot.' }] }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      }));
+    const vars: Record<string, unknown> = { tier: 'gold' };
+    const a = await hub.prompts.render('support', 'production', vars);
+    a.messages.push({ role: 'user', content: 'user A: secret' });
+    a.variables.tier = 'changed';
+    vars.tier = 'changed-by-caller';
+    const b = await hub.prompts.render('support', 'production', { tier: 'gold' });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(b).not.toBe(a);
+    expect(b.messages).toEqual([{ role: 'system', content: 'You are a support bot.' }]);
+    expect(b.variables).toEqual({ tier: 'gold' });
+
+    // Stale hit: served from the cache while a refresh runs in the background.
+    const staleHub = new acruxcore({ apiKey: 'test-key', baseUrl: 'http://localhost:3000', cacheTtl: 1 });
+    const s1 = await staleHub.prompts.render('support2', 'production', {});
+    await new Promise((r) => setTimeout(r, 5));
+    s1.messages.push({ role: 'user', content: 'user B: secret' });
+    const s2 = await staleHub.prompts.render('support2', 'production', {});
+    expect(s2.messages).toEqual([{ role: 'system', content: 'You are a support bot.' }]);
+  });
+
+  it('a stale-hit refresh renders with the variables the caller passed, even if it edits them after', async () => {
+    // A server that reuses one variables object across requests must not get Bob's
+    // render cached under Alice's key by the background refresh.
+    vi.mocked(fetch).mockImplementation(async (_url, init) => {
+      const v = JSON.parse(String((init as RequestInit).body)).variables as { user: string };
+      return new Response(JSON.stringify({ messages: [{ role: 'system', content: `Hello ${v.user}` }] }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    });
+    const staleHub = new acruxcore({ apiKey: 'test-key', baseUrl: 'http://localhost:3000', cacheTtl: 1 });
+    await staleHub.prompts.render('greet', 'production', { user: 'alice' });
+    await new Promise((r) => setTimeout(r, 5));
+    const shared: Record<string, unknown> = { user: 'alice' };
+    await staleHub.prompts.render('greet', 'production', shared); // stale: refresh in background
+    shared.user = 'bob';
+    await new Promise((r) => setTimeout(r, 20));
+    const freshHub = new acruxcore({ apiKey: 'test-key', baseUrl: 'http://localhost:3000', cacheTtl: 60_000 });
+    const r = await freshHub.prompts.render('greet', 'production', { user: 'alice' });
+    expect(r.messages).toEqual([{ role: 'system', content: 'Hello alice' }]);
+    expect(r.variables).toEqual({ user: 'alice' });
+  });
+
+  it('echoes variables as the API received them, cached or not', async () => {
+    // A value with toJSON() is sent as its JSON form; the echo feeds trace lineage, so it
+    // must be that same form, not the object's internal fields.
+    class Money { constructor(public cents: number) {} toJSON(): string { return (this.cents / 100).toFixed(2); } }
+    vi.mocked(fetch).mockImplementation(async () => makeOkResponse());
+    const cached = await hub.prompts.render('price', 'production', { price: new Money(1999) });
+    expect(cached.variables).toEqual({ price: '19.99' });
+    const uncachedHub = new acruxcore({ apiKey: 'test-key', baseUrl: 'http://localhost:3000', cacheTtl: 0 });
+    const uncached = await uncachedHub.prompts.render('price', 'production', { price: new Money(1999) });
+    expect(uncached.variables).toEqual({ price: '19.99' });
+  });
+
   it('renders a prompt and returns messages + tools', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ messages: [{ role: 'user', content: 'Hello' }], tools: [{ type: 'function', function: { name: 'get_weather' } }] }), { status: 200, headers: { 'content-type': 'application/json' } }));
     const result = await hub.prompts.render('greeting', 'production', {});

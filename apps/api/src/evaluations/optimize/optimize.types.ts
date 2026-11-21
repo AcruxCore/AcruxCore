@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_EXPERIMENT_DIMENSION } from '../experiments/experiments.types';
 import { StoredPartSchema } from '../../prompts/versions/versions.types';
 
 /**
@@ -47,7 +48,7 @@ export type OptimizeResult = z.infer<typeof OptimizeResultSchema>;
  */
 export const StartOptimizeSchema = z.object({
   dataset_id: z.string().uuid(),
-  models: z.array(z.string().min(1)).min(1),
+  models: z.array(z.string().min(1)).min(1).max(MAX_EXPERIMENT_DIMENSION),
   // The model that writes the candidates, as opposed to `models`, which is what
   // they are tested on. Team-registered public name; validated in the service
   // (a 400 naming the model, like `judgeModel`) rather than here, since the

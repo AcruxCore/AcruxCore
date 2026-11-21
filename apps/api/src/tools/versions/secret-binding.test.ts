@@ -263,6 +263,54 @@ describe('binding a team secret into a tool executor', () => {
     expect(await prisma.toolVersion.count({ where: { toolId } })).toBe(1);
   });
 
+  it('treats a Host header as part of where the secret goes', async () => {
+    // The HTTP client sends a Host header as the request host and takes the TLS server
+    // name from it, so on a shared IP a new Host reaches another tenant with the secret.
+    const { admin, editor } = await teamWithSecret();
+    const toolId = await createTool(admin, 'billing');
+    const base = secretExecutor('/billing');
+    await request(app)
+      .post(`/api/v1/tools/${toolId}/versions`)
+      .set(authHeaders(admin))
+      .send({ parametersSchema: { type: 'object' }, executor: base })
+      .expect(201);
+
+    for (const name of ['Host', 'host', ' HOST ']) {
+      const res = await request(app)
+        .post(`/api/v1/tools/${toolId}/versions`)
+        .set(authHeaders(editor))
+        .send({ parametersSchema: { type: 'object' }, executor: { ...base, headers: [...base.headers, { name, value: 'attacker.example' }] } });
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('SECRET_BINDING_NOT_PERMITTED');
+    }
+    expect(await prisma.toolVersion.count({ where: { toolId } })).toBe(1);
+
+    // An admin may set one; an editor may then keep it, but not change or drop it.
+    const withHost = { ...base, headers: [...base.headers, { name: 'Host', value: 'api.vendor.example' }] };
+    await request(app)
+      .post(`/api/v1/tools/${toolId}/versions`)
+      .set(authHeaders(admin))
+      .send({ parametersSchema: { type: 'object' }, executor: withHost })
+      .expect(201);
+    await request(app)
+      .post(`/api/v1/tools/${toolId}/versions`)
+      .set(authHeaders(editor))
+      .send({ description: 'Bills once.', parametersSchema: { type: 'object' }, executor: withHost })
+      .expect(201);
+    for (const executor of [
+      { ...base, headers: [...base.headers, { name: 'Host', value: 'attacker.example' }] },
+      base,
+    ]) {
+      await request(app)
+        .post(`/api/v1/tools/${toolId}/versions`)
+        .set(authHeaders(editor))
+        .send({ parametersSchema: { type: 'object' }, executor })
+        .expect(403);
+    }
+    expect(await prisma.toolVersion.count({ where: { toolId } })).toBe(3);
+    expect(receivedKeys).toEqual([]);
+  });
+
   it('lets an editor sync a description change to a secret-using tool an admin set up', async () => {
     const { owner, editor } = await teamWithSecret();
     const ownerKey = await personalKey(owner);

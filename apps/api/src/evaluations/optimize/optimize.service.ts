@@ -16,6 +16,7 @@ import type { VersionDetail } from '../../prompts/versions/versions.types';
 import type { AliasDetail } from '../../prompts/aliases/aliases.types';
 import type { PromptMismatchWarning } from '../datasets/datasets.types';
 import { assertModelRegistered, resolveJudgePromptVersion } from '../judge';
+import { assertWithinGridCeiling } from '../experiments/grid-ceiling';
 
 /** Shared, stateless — mirrors how `OnlineEvalRuleService` reaches the model registry. */
 
@@ -100,6 +101,8 @@ export class OptimizeService {
    * @param dto - Validated payload: dataset id, models to sweep, optional draft_count.
    * @returns The created run's id and its initial `queued` status.
    * @throws {UnprocessableError} If `draft_count` exceeds {@link MAX_DRAFT_COUNT}.
+   * @throws {ValidationError} If `(draft_count + 1) x models x examples` exceeds
+   *   `MAX_EXPERIMENT_GRID_SIZE`, the most cell jobs this run could enqueue.
    * @throws {ValidationError} If the resolved optimizer model or the judge model
    *   is not registered for this team, or `judge_prompt_id` is not this team's
    *   prompt or has no committed version.
@@ -128,6 +131,10 @@ export class OptimizeService {
 
     const dataset = await this.datasetsRepo.getDatasetById(teamId, dto.dataset_id);
     if (!dataset) throw new NotFoundError('Dataset not found.');
+    // The grid is only known once the optimizer has drafted, inside the worker. Its
+    // largest size is known now: every draft plus the baseline, on every model, for
+    // every frozen example. The parser keeps at most `draftCount` drafts.
+    assertWithinGridCeiling((draftCount + 1) * dto.models.length * dataset.examples.length, 'optimize run');
 
     // Which model writes the candidates. Defaulting to the first swept model is
     // what makes this safe without configuration: those are the team's own
