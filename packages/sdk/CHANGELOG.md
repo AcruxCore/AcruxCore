@@ -12,6 +12,8 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+## 0.23.0 — 2026-11-22
+
 ### Added
 
 - `tool({ kind: 'retrieval' })` shows the tool's calls as search steps in the trace view, even
