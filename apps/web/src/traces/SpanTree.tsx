@@ -3,6 +3,8 @@ import { StatusDot } from '@/ui';
 import { KIND_META, formatLatency } from './format';
 import { flattenSpanTree, spanBarGeometry, spanHasWarning, traceWindow } from './span-tree';
 import { SpanPanel } from './SpanPanel';
+import { numberSteps } from './step-numbers';
+import { searchSummary } from './search-summary';
 import type { Feedback, Span } from '@/api/types';
 
 /** The warning's own message, for the badge's tooltip. */
@@ -42,6 +44,8 @@ export function SpanTree({ spans, traceId, feedback, initialExpandedSpanId }: Sp
   const rowRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const win = traceWindow(spans);
   const rows = flattenSpanTree(spans);
+  const steps = numberSteps(rows);
+  const stepOf = (spanId: string) => steps.get(spanId);
 
   // Scroll a deep-linked span into view once, on mount. Runs only when this trace
   // actually has a matching row — a stale/deleted span ref (or a span not present in
@@ -84,14 +88,31 @@ export function SpanTree({ spans, traceId, feedback, initialExpandedSpanId }: Sp
                 expanded ? 'bg-elevated' : 'bg-surface'
               }`}
             >
-              <div className="flex min-w-0 flex-1 items-center gap-2" style={{ paddingLeft: `${depth * 16}px` }}>
+              <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden" style={{ paddingLeft: `${depth * 16}px` }}>
+                {/* The agent's actions in order, so a reader can say "step 2 repeated step 1". */}
+                {steps.has(span.spanId) && (
+                  <span
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ink font-mono text-[10.5px] text-bg"
+                    title={`Step ${steps.get(span.spanId)}`}
+                    data-testid="span-step"
+                  >
+                    {steps.get(span.spanId)}
+                  </span>
+                )}
                 <span
                   className="shrink-0 rounded border border-line-soft px-1.5 py-0.5 font-mono text-[10.5px] text-muted"
                   title={kind.label}
                 >
                   {kind.glyph} {kind.label}
                 </span>
-                <span className="truncate text-[13px] text-ink">{span.name}</span>
+                {/* Shrinks and truncates; beside a search summary it is capped so the summary keeps room. */}
+                <span className={`min-w-0 truncate text-[13px] text-ink ${span.retrieval ? 'max-w-[45%]' : ''}`}>{span.name}</span>
+                {/* What a search asked for and what came back, readable without opening it. */}
+                {span.retrieval && (
+                  <span className="min-w-[5rem] flex-1 truncate text-[12.5px] text-muted" data-testid="span-search-summary">
+                    {searchSummary(span.retrieval, span.status)}
+                  </span>
+                )}
                 {/* An unnamed gateway span is named after the requested model alias (phase-3
                     FAQ Q15), and older ones after their start timestamp, so surface the served
                     model here, where a reader scanning the waterfall needs it. */}
@@ -134,6 +155,7 @@ export function SpanTree({ spans, traceId, feedback, initialExpandedSpanId }: Sp
                 span={span}
                 traceId={traceId}
                 feedback={feedback.filter((f) => f.spanId === span.spanId)}
+                stepOf={stepOf}
               />
             )}
           </Fragment>

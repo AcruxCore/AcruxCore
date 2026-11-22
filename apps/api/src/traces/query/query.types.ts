@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { TraceFilterQuerySchema } from '../filters';
 import type { TraceFilters } from '../filters';
+import type { RetrievalView } from './retrieval/retrieval.types';
 import { FeedbackDto } from '../feedback';
 
 /**
@@ -56,6 +57,11 @@ export interface TraceListItem {
    * from a call the primary model served itself.
    */
   hasWarning: boolean;
+  /**
+   * Search steps in this trace: `retrieval` spans plus `tool` spans whose output is a list
+   * of documents (issue #870). 0 means the run never searched.
+   */
+  searchCount: number;
 }
 
 /** Paginated envelope for GET /traces and the reverse-lineage endpoint. */
@@ -108,6 +114,11 @@ export interface SpanNode {
    * `toolSetId` is a key of {@link TraceDetail.toolSets}.
    */
   payload?: { input: unknown; output: unknown; variables: unknown; toolSetId: string | null; toolChoice: unknown };
+  /**
+   * Present only on a search step: a `retrieval` span, or a `tool` span whose output is a
+   * list of documents. Computed when the trace is read (issue #870, phase-3 FAQ Q52).
+   */
+  retrieval?: RetrievalView;
   children: SpanNode[];
 }
 

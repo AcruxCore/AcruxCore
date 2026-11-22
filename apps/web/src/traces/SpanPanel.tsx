@@ -8,6 +8,7 @@ import { formatCount, formatLatency, formatPayload, formatUsd } from './format';
 import { Collapsible } from './Collapsible';
 import { SpanTools } from './SpanTools';
 import { KeyValueRows } from './KeyValueRows';
+import { ToolStepPayload } from './ToolStepPayload';
 import { summarizeAttempts } from './attempt-trail';
 import type { Feedback, Span } from '@/api/types';
 
@@ -16,6 +17,8 @@ export interface SpanPanelProps {
   traceId: string;
   /** This span's own feedback rows (already filtered by the caller), newest-first. */
   feedback: Feedback[];
+  /** Step number of a span in this trace (tool and retrieval spans only). */
+  stepOf?: (spanId: string) => number | undefined;
 }
 
 /**
@@ -66,7 +69,7 @@ function Metric({ label, value }: { label: string; value: ReactNode }) {
  * Rendered as a sibling of the clickable row, never nested inside it — it contains
  * its own buttons/inputs, which cannot be descendants of the row's `<button>`.
  */
-export function SpanPanel({ span, traceId, feedback }: SpanPanelProps) {
+export function SpanPanel({ span, traceId, feedback, stepOf = () => undefined }: SpanPanelProps) {
   const toast = useToast();
   const navigate = useNavigate();
   const { me } = useAuth();
@@ -286,7 +289,9 @@ export function SpanPanel({ span, traceId, feedback }: SpanPanelProps) {
         </section>
       )}
 
-      {hasPayload ? (
+      {hasPayload && (span.kind === 'tool' || span.kind === 'retrieval') ? (
+        <ToolStepPayload span={span} stepOf={stepOf} />
+      ) : hasPayload ? (
         <div className="flex flex-col gap-3">
           {span.payload!.input !== undefined && (
             <MonoBlock label="Input" value={formatPayload(span.payload!.input)} />
@@ -298,7 +303,8 @@ export function SpanPanel({ span, traceId, feedback }: SpanPanelProps) {
         </div>
       ) : (
         <p className="text-[12px] text-faint" data-testid="span-payload-hint">
-          Payload not captured.{' '}
+          {/* One message, not two: a search step says it searched, then why nothing shows. */}
+          {span.retrieval ? 'Search step. Its query and documents were not captured.' : 'Payload not captured.'}{' '}
           <Link to="/observability/settings" className="text-accent hover:underline">
             Enable payload capture
           </Link>{' '}

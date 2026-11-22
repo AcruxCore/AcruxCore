@@ -1972,6 +1972,8 @@ export class GatewayNamespace {
       arguments: args,
       executorType: 'client',
       ...(route?.toolVersionId ? { toolVersionId: route.toolVersionId } : {}),
+      // The developer's search marker from tool({ kind }); the trace view reads it first.
+      ...(route?.tool?.kind ? { toolKind: route.tool.kind } : {}),
     };
     return Promise.resolve(run()).then(
       (returned): Message => {

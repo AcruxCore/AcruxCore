@@ -4,6 +4,7 @@ import type { TraceListFilters, TraceListItem } from './query.types';
 import { buildTraceConditions, runContentSearch } from '../filters';
 import { traceIdWhere, TRACE_ID_MATCH_ORDER } from '../spans/trace-id-where';
 import { getTraceListCountCap } from './list-count.config';
+import { detectRetrieval, LIST_FIELDS, SAMPLE_SIZE } from './retrieval';
 import type { TraceRow, SpanRow, SpanPayloadRow } from '../../shared/db/schema';
 
 /** Raw row shape returned by the list query before Date→ISO mapping. */
@@ -21,6 +22,15 @@ interface TraceListRaw {
   tags: string[];
   hasWarning: boolean;
 }
+
+/**
+ * An output stored as one JSON string larger than this is not inspected for the list's
+ * search count. Lists and objects have no cap: only their first items are read.
+ */
+const MAX_COUNTED_STRING_BYTES = 1_048_576;
+
+/** jsonpath for the leading items the shape check samples, e.g. `$[0 to 19]`. */
+const SAMPLE_PATH = `$[0 to ${SAMPLE_SIZE - 1}]`;
 
 /**
  * Read-only data access over `traces`/`spans` for the query surface. All queries
@@ -45,7 +55,69 @@ export class TraceQueryRepository {
       durationMs: r.durationMs,
       tags: r.tags,
       hasWarning: r.hasWarning,
+      searchCount: 0,
     };
+  }
+
+  /**
+   * Counts the search steps of each listed trace with the same rule the detail view uses
+   * (issue #870): every `retrieval` span and every tool marked `kind="retrieval"`, plus
+   * each unmarked `tool` span whose output is a list of documents.
+   *
+   * Only an unmarked tool's output is read, and only what the shape check looks at: the
+   * first {@link SAMPLE_SIZE} items of a list, or of an object's list fields. So a page
+   * of large RAG outputs sends Node a few items per span, not every document. An output
+   * stored as one JSON string over {@link MAX_COUNTED_STRING_BYTES} is not counted.
+   *
+   * Runs on the shared client, after the page query: inside a content search's bounded
+   * transaction it would be a third statement the transaction's budget does not cover.
+   *
+   * @param traceIds - The ids of the page's traces.
+   * @returns Search steps per trace id; a trace with none is absent.
+   */
+  private async countSearches(traceIds: string[]): Promise<Map<string, number>> {
+    const counts = new Map<string, number>();
+    if (traceIds.length === 0) return counts;
+    const listFields = Prisma.join(LIST_FIELDS.map((f) => Prisma.sql`${f}`));
+    const rows = await prisma.$queryRaw<{ traceId: string; kind: string; toolKind: string | null; output: unknown }[]>(Prisma.sql`
+      SELECT s.trace_id AS "traceId", s.kind::text AS kind, s.attributes->>'toolKind' AS "toolKind",
+        CASE WHEN s.kind = 'tool' AND COALESCE(s.attributes->>'toolKind', '') NOT IN ('retrieval', 'tool') THEN
+          CASE jsonb_typeof(p.output)
+            WHEN 'array' THEN jsonb_path_query_array(p.output, ${SAMPLE_PATH}::jsonpath)
+            WHEN 'object' THEN (
+              SELECT jsonb_object_agg(e.key, CASE jsonb_typeof(e.value)
+                WHEN 'array' THEN jsonb_path_query_array(e.value, ${SAMPLE_PATH}::jsonpath)
+                WHEN 'string' THEN CASE WHEN octet_length(e.value #>> '{}') <= ${MAX_COUNTED_STRING_BYTES} THEN e.value END
+              END)
+              FROM jsonb_each(p.output) e
+              WHERE e.key IN (${listFields})
+            )
+            WHEN 'string' THEN CASE WHEN octet_length(p.output #>> '{}') <= ${MAX_COUNTED_STRING_BYTES} THEN p.output END
+          END
+        END AS output
+      FROM spans s
+      LEFT JOIN span_payloads p ON p.span_id = s.id
+      WHERE s.trace_id IN (${Prisma.join(traceIds.map((id) => Prisma.sql`${id}::uuid`))})
+        AND s.kind IN ('tool', 'retrieval')
+    `);
+    for (const r of rows) {
+      const payload = r.output === null || r.output === undefined ? undefined : { input: null, output: r.output };
+      if (detectRetrieval({ kind: r.kind, attributes: { toolKind: r.toolKind }, payload })) counts.set(r.traceId, (counts.get(r.traceId) ?? 0) + 1);
+    }
+    return counts;
+  }
+
+  /**
+   * Fills `searchCount` on a page of list rows (see {@link countSearches}).
+   *
+   * @param result - A page from {@link runList}.
+   * @returns The same page with each row's search count.
+   */
+  private async withSearchCounts(
+    result: { data: TraceListItem[]; total: number; totalCapped: boolean },
+  ): Promise<{ data: TraceListItem[]; total: number; totalCapped: boolean }> {
+    const searches = await this.countSearches(result.data.map((r) => r.id));
+    return { ...result, data: result.data.map((r) => ({ ...r, searchCount: searches.get(r.id) ?? 0 })) };
   }
 
   /**
@@ -65,7 +137,8 @@ export class TraceQueryRepository {
    * @param limit - Page size (already capped at 100 upstream).
    * @param client - The client to run on: a content search passes its bounded
    *   transaction (see `runContentSearch`); everything else uses the shared client.
-   * @returns Mapped page rows, the matching count up to the cap, and whether it was capped.
+   * @returns Mapped page rows (with `searchCount` 0; see {@link withSearchCounts}), the
+   *   matching count up to the cap, and whether it was capped.
    */
   private async runList(
     where: Prisma.Sql,
@@ -145,8 +218,10 @@ export class TraceQueryRepository {
     ];
 
     const where = Prisma.join(conds, ' AND ');
-    if (!filters.q) return this.runList(where, filters.page, filters.limit);
-    return runContentSearch(teamId, (tx) => this.runList(where, filters.page, filters.limit, tx));
+    const page = filters.q
+      ? await runContentSearch(teamId, (tx) => this.runList(where, filters.page, filters.limit, tx))
+      : await this.runList(where, filters.page, filters.limit);
+    return this.withSearchCounts(page);
   }
 
   /**
@@ -218,6 +293,6 @@ export class TraceQueryRepository {
     limit: number,
   ): Promise<{ data: TraceListItem[]; total: number; totalCapped: boolean }> {
     const where = Prisma.sql`t.team_id = ${teamId}::uuid AND EXISTS (SELECT 1 FROM spans s WHERE s.trace_id = t.id AND s.prompt_version_id = ${promptVersionId}::uuid)`;
-    return this.runList(where, page, limit);
+    return this.withSearchCounts(await this.runList(where, page, limit));
   }
 }

@@ -84,6 +84,17 @@ function unwrapJsonStrings(value: unknown, depth: number): unknown {
 }
 
 /**
+ * Decodes a captured payload whose objects may be stored as JSON strings, at any depth
+ * up to a fixed budget. Plain text and scalars come back unchanged.
+ *
+ * @param value - A captured `input` or `output`.
+ * @returns The value with string-encoded JSON objects and arrays decoded.
+ */
+export function decodePayload(value: unknown): unknown {
+  return unwrapJsonStrings(value, MAX_UNWRAP_DEPTH);
+}
+
+/**
  * Renders a captured span payload as text a person can read.
  *
  * Payloads are routinely double-encoded: the stored value is a JSON *string*
@@ -99,7 +110,7 @@ function unwrapJsonStrings(value: unknown, depth: number): unknown {
  * @returns Pretty-printed text, ready for a `<pre>`.
  */
 export function formatPayload(value: unknown): string {
-  const decoded = unwrapJsonStrings(value, MAX_UNWRAP_DEPTH);
+  const decoded = decodePayload(value);
   if (typeof decoded === 'string') return decoded;
   if (decoded === undefined) return '';
   try {

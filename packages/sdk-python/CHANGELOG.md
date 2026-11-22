@@ -12,6 +12,11 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+### Added
+
+- `@acrux.tool(kind="retrieval")` shows the tool's calls as search steps in the trace view, even
+  when it returns one formatted string. `kind="tool"` stops a tool from being shown as a search.
+
 ### Fixed
 
 - `prompts.render()` returned the cached result itself, so appending to `messages` leaked the

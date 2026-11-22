@@ -25,7 +25,18 @@ interface ToolInputBase {
   alias?: string;
   /** Release note for humans. Never shown to the model. */
   changelog?: string;
+  /**
+   * How the trace view shows this tool's calls. `'retrieval'` shows each call as a search
+   * step (query plus document cards), even when the tool returns one formatted string;
+   * `'tool'` stops a document-shaped output from being shown as a search. Omit it to let
+   * the trace view decide from the output. Display only: recorded as the `toolKind` span
+   * attribute, while the span's kind stays `tool`.
+   */
+  kind?: ToolKind;
 }
+
+/** The values `tool({ kind })` accepts. */
+export type ToolKind = 'tool' | 'retrieval';
 
 /**
  * A tool: its interface and the function that implements it, in one value.
@@ -43,6 +54,8 @@ export interface AcruxTool<A = Record<string, unknown>> {
   readonly parameters: unknown;
   readonly alias: string;
   readonly changelog?: string;
+  /** The trace-view marker from `tool({ kind })`, when one was given. */
+  readonly kind?: ToolKind;
   /**
    * Always `{ type: 'client' }`. `tool()` wraps a JavaScript function, so the caller's
    * process is by definition what runs it; `http` executors are a dashboard/API concern.
@@ -63,7 +76,8 @@ export interface AcruxTool<A = Record<string, unknown>> {
  * @param handler - The implementation. Its `args` are typed from the schema, so a
  *   renamed parameter is a compile error rather than a silent `undefined`.
  * @returns An {@link AcruxTool} to pass to `runToolLoop({ tools: [...] })`.
- * @throws {acruxcoreError} TOOL_SCHEMA_ERROR if `name` is not a valid tool name.
+ * @throws {acruxcoreError} TOOL_SCHEMA_ERROR if `name` is not a valid tool name, or
+ *   `kind` is not `'tool'` or `'retrieval'`.
  */
 export function tool<T>(
   input: ToolInputBase & { parameters: ZodLikeSchema<T> },
@@ -79,7 +93,8 @@ export function tool<T>(
  * @param input - Name, optional description/alias/changelog, and a JSON Schema object.
  * @param handler - The implementation, receiving the model's parsed JSON arguments.
  * @returns An {@link AcruxTool}.
- * @throws {acruxcoreError} TOOL_SCHEMA_ERROR if `name` is not a valid tool name.
+ * @throws {acruxcoreError} TOOL_SCHEMA_ERROR if `name` is not a valid tool name, or
+ *   `kind` is not `'tool'` or `'retrieval'`.
  */
 export function tool(
   input: ToolInputBase & { parameters: Record<string, unknown> },
@@ -96,6 +111,12 @@ export function tool(
       'TOOL_SCHEMA_ERROR',
     );
   }
+  if (input.kind !== undefined && input.kind !== 'tool' && input.kind !== 'retrieval') {
+    throw new acruxcoreError(
+      `acruxcore: tool kind must be 'tool' or 'retrieval', got ${JSON.stringify(input.kind)}.`,
+      'TOOL_SCHEMA_ERROR',
+    );
+  }
   return {
     __acruxTool: true,
     name: input.name,
@@ -103,6 +124,7 @@ export function tool(
     parameters: input.parameters,
     alias: input.alias ?? 'production',
     ...(input.changelog !== undefined ? { changelog: input.changelog } : {}),
+    ...(input.kind !== undefined ? { kind: input.kind } : {}),
     executor: { type: 'client' },
     handler: handler as (args: never) => Promise<unknown> | unknown,
   };

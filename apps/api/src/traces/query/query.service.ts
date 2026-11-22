@@ -1,6 +1,7 @@
 import { TraceQueryRepository } from './query.repository';
 import { NotFoundError } from '../../shared/errors';
 import { buildSpanTree } from './span-tree';
+import { annotateRetrieval } from './retrieval';
 import { VersionsService } from '../../prompts/versions';
 import { FeedbackService, FeedbackRepository } from '../feedback';
 import { EvalRuleRepository } from '../../evaluations/online';
@@ -95,7 +96,12 @@ export class TraceQueryService {
       createdAt: row.createdAt.toISOString(),
     }));
 
-    return { trace: summary, spans: buildSpanTree(spans, payloads), toolSets, feedback, evalScores };
+    // Search steps get a readable view (query, documents, repeats) on read, so old traces
+    // get it too and the UI and MCP agree on what a search is (issue #870).
+    const tree = buildSpanTree(spans, payloads);
+    annotateRetrieval(tree);
+
+    return { trace: summary, spans: tree, toolSets, feedback, evalScores };
   }
 
   /**

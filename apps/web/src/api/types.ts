@@ -533,7 +533,32 @@ export interface Span {
   tags: string[];
   metadata: Record<string, unknown>;
   payload?: SpanPayload;
+  /** Present only on a search step (issue #870); computed by the API when the trace is read. */
+  retrieval?: RetrievalView;
   children: Span[];
+}
+
+/** One document a search step returned, normalised by the API. */
+export interface RetrievedDocument {
+  id: string | null;
+  text: string;
+  score: number | null;
+  source: string | null;
+  metadata: Record<string, unknown> | null;
+  truncated: boolean;
+  /** spanId of the earlier search step that first returned this document. */
+  repeatedFromSpanId: string | null;
+}
+
+/** The search view of a span: what it searched for and what came back. */
+export interface RetrievalView {
+  detectedBy: 'kind' | 'marker' | 'shape';
+  query: string | null;
+  documents: RetrievedDocument[];
+  /** Documents the step returned before the API's cap of 50. */
+  documentCount: number;
+  /** False when no output was stored (capture off, deleted, or the tool threw): the 0 means unknown. */
+  outputCaptured: boolean;
 }
 
 /** A trace row for the list table (GET /traces) and session-detail table (GET /sessions/:id). */
@@ -555,6 +580,8 @@ export interface TraceListItem {
    * from an older API build still parses.
    */
   hasWarning?: boolean;
+  /** Search steps in the run (issue #870); 0 = never searched. Absent on an older API. */
+  searchCount?: number;
 }
 
 /** The trace summary object inside GET /traces/:id (no durationMs; compute from started/ended). */

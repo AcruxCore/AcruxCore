@@ -1,7 +1,7 @@
 export { acruxcore, acruxcore as default } from './client';
 export { acruxcoreError } from './error';
 export { acrux, tool, isAcruxTool, resolveParametersSchema, parseToolArgs } from './tools';
-export type { AcruxTool, ZodLikeSchema } from './tools';
+export type { AcruxTool, ToolKind, ZodLikeSchema } from './tools';
 export { toolError, toolWarning, isToolOutcome } from './tool-result';
 export type { ToolOutcome, ToolOutcomeLevel } from './tool-result';
 export { ToolsNamespace, _resetSyncCacheForTesting } from './tools-api';

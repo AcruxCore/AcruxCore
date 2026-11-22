@@ -7,6 +7,12 @@ package follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Added
+
+- `get_trace` returns a `retrieval` field on search steps: the query, the documents with their
+  scores, and repeats of an earlier search. It is kept when
+  `include_payloads=false`, and the summary line counts search steps.
+
 ## 0.3.1 — 2026-10-31
 
 ### Fixed

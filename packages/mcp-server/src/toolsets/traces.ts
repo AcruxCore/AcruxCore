@@ -5,6 +5,8 @@ import { defineTool, type AnyToolDefinition } from './types';
 /** A span as returned inside a trace tree, with its children. */
 interface SpanNode {
   payload?: unknown;
+  /** The API's search view of a search step (issue #870); kept when payloads are stripped. */
+  retrieval?: unknown;
   children?: SpanNode[];
   [key: string]: unknown;
 }
@@ -28,6 +30,19 @@ function stripPayloads(spans: SpanNode[]): SpanNode[] {
     if (Array.isArray(copy.children)) copy.children = stripPayloads(copy.children);
     return copy;
   });
+}
+
+/**
+ * Counts the spans in a tree that the API marked as search steps.
+ *
+ * @param spans - Span tree from `GET /traces/:id`.
+ * @returns How many spans carry a `retrieval` view.
+ */
+function countSearches(spans: SpanNode[]): number {
+  return spans.reduce(
+    (n, span) => n + (span.retrieval ? 1 : 0) + (Array.isArray(span.children) ? countSearches(span.children) : 0),
+    0,
+  );
 }
 
 /**
@@ -90,8 +105,12 @@ export const traceTools: AnyToolDefinition[] = [
     description:
       'Open one trace: the header plus every span assembled into a parent/child tree, ' +
       'each with its model, tokens, cost, latency, error message and — when the team ' +
-      'captures payloads — the input and output. Set include_payloads=false when the ' +
-      'trace is large and you only need its shape and timings.',
+      'captures payloads — the input and output. A search step (a retrieval span, or a ' +
+      'tool span marked kind="retrieval" or that returned a list of documents) also carries `retrieval`: its query, ' +
+      'its documents with scores, which ones an earlier search already returned ' +
+      '(`repeatedFromSpanId`), and `outputCaptured: false` when no output was stored (0 documents then means unknown). ' +
+      'Set include_payloads=false when the trace is large and you only need its shape, ' +
+      'timings and search steps; `retrieval` is kept.',
     inputSchema: {
       trace_id: z.string().uuid().describe('Trace UUID, from search_traces or a gateway call.'),
       include_payloads: z
@@ -105,9 +124,10 @@ export const traceTools: AnyToolDefinition[] = [
       );
       const spans = include_payloads === false ? stripPayloads(result.spans ?? []) : result.spans;
       const header = result.trace ?? {};
+      const searches = countSearches(result.spans ?? []);
       return okResult(
         `Trace "${header.name}" — status ${header.status}, ${header.spanCount} span(s), ` +
-          `${header.totalTokens ?? 0} tokens, $${header.totalCostUsd ?? 0}.`,
+          `${searches} search step(s), ${header.totalTokens ?? 0} tokens, $${header.totalCostUsd ?? 0}.`,
         { trace: header, spans },
         config.maxTextBytes,
       );

@@ -556,6 +556,8 @@ class _ToolRoute:
     result_schema: Optional[Dict[str, Any]] = None
     #: Whether a ``result_schema`` mismatch is a warning or an error.
     result_schema_severity: Optional[str] = None
+    #: The ``kind=`` a decorated function declared, written as the span's ``toolKind``.
+    tool_kind: Optional[str] = None
 
 
 #: Live clients that may still have spans to send, held weakly so an abandoned
@@ -1441,7 +1443,11 @@ class GatewayNamespace:
                 # (issue #632). An older API sends none, and the span then omits it.
                 tool_version_id = result.version_id
             routes[spec.name] = _ToolRoute(
-                kind="local", fn=spec.fn, alias=spec.alias, tool_version_id=tool_version_id
+                kind="local",
+                fn=spec.fn,
+                alias=spec.alias,
+                tool_version_id=tool_version_id,
+                tool_kind=spec.kind,
             )
             refs.append({"name": spec.name, "alias": spec.alias})
             if inline_schemas and not spec.description:
@@ -1500,6 +1506,8 @@ class GatewayNamespace:
                         tool_version_id=version_id,
                         result_schema=item.result_schema,
                         result_schema_severity=item.result_schema_severity,
+                        # A decorated function passed here keeps its search marker.
+                        tool_kind=getattr(spec_of(supplied), "kind", None),
                     )
                 elif dispatch is not None:
                     routes[name] = _ToolRoute(
@@ -2577,6 +2585,8 @@ class GatewayNamespace:
         attributes: Dict[str, Any] = {"arguments": args, "executorType": "client"}
         if route is not None and route.tool_version_id:
             attributes["toolVersionId"] = route.tool_version_id
+        if route is not None and route.tool_kind:
+            attributes["toolKind"] = route.tool_kind
         try:
             ret = runner()
             if inspect.isawaitable(ret):

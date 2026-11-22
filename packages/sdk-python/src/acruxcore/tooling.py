@@ -57,6 +57,10 @@ class ToolSpec:
     :param alias: Which catalog alias a sync should move. Defaults to ``production``.
     :param changelog: Release note for humans. Never shown to the model.
     :param fn: The undecorated function, called when the model requests this tool.
+    :param kind: ``"retrieval"`` marks the tool as a search, so the trace view shows its
+        query and documents; ``"tool"`` marks it as not a search. ``None`` (the default)
+        leaves the trace view to decide from the tool's output. Display only: it never
+        changes what the tool returns or what the catalog stores.
     """
 
     name: str
@@ -66,6 +70,7 @@ class ToolSpec:
     alias: str
     changelog: Optional[str]
     fn: Callable[..., Any]
+    kind: Optional[str] = None
 
 
 def spec_of(obj: Any) -> Optional[ToolSpec]:
@@ -299,6 +304,7 @@ def tool(
     parameters: Optional[Dict[str, Any]] = None,
     alias: str = "production",
     changelog: Optional[str] = None,
+    kind: Optional[Literal["tool", "retrieval"]] = None,
 ) -> Any:
     """Mark a function as a tool, deriving its interface from the function itself.
 
@@ -329,9 +335,19 @@ def tool(
         derivation entirely — the escape hatch for a type this converter cannot model.
     :param alias: Which catalog alias a sync moves. Defaults to ``production``.
     :param changelog: Release note for humans. Never shown to the model.
+    :param kind: ``"retrieval"`` makes the trace view show this tool's calls as search
+        steps (query plus document cards) even when its output is one formatted string.
+        ``"tool"`` stops the trace view from treating a document-shaped output as a
+        search. Omit it to let the trace view decide from the output. Recorded as the
+        ``toolKind`` attribute on each tool span; the span's kind stays ``tool``.
     :returns: The same function, with a :class:`ToolSpec` attached.
-    :raises ToolSchemaError: At decoration time, when the schema cannot be derived.
+    :raises ToolSchemaError: At decoration time, when the schema cannot be derived, or
+        when ``kind`` is not ``"tool"``, ``"retrieval"`` or ``None``.
     """
+    if kind not in (None, "tool", "retrieval"):
+        raise ToolSchemaError(
+            f"acruxcore: tool kind must be \"tool\" or \"retrieval\", got {kind!r}."
+        )
 
     def decorate(target: Callable[..., Any]) -> Callable[..., Any]:
         derived_description, _ = parse_docstring(target.__doc__)
@@ -345,6 +361,7 @@ def tool(
             alias=alias,
             changelog=changelog,
             fn=target,
+            kind=kind,
         )
         setattr(target, SPEC_ATTRIBUTE, spec)
         return target

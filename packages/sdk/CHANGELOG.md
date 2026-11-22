@@ -14,6 +14,8 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ### Added
 
+- `tool({ kind: 'retrieval' })` shows the tool's calls as search steps in the trace view, even
+  when it returns one formatted string. `kind: 'tool'` stops a tool from being shown as a search.
 - `traces.list()` and a prompt version's trace list return `totalCapped`. The API now stops
   counting 10,000 rows past the page, and then `total` is a lower bound.
 

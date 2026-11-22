@@ -35,6 +35,9 @@ function resolveDurationMs(t: TraceListItem): number | null {
 
 export function TraceTable({ traces, showSession = true }: TraceTableProps) {
   if (traces.length === 0) return <Empty title="No traces" description="No traces match these filters yet." />;
+  // Only a page that has a search shows the column, so a team with no RAG sees no change.
+  // A dash marks a run that answered without searching.
+  const showSearches = traces.some((t) => (t.searchCount ?? 0) > 0);
   return (
     <div className="overflow-x-auto rounded-xl border border-line">
       <table className="w-full min-w-[820px] border-collapse text-left text-[13px]">
@@ -45,6 +48,7 @@ export function TraceTable({ traces, showSession = true }: TraceTableProps) {
             <th className="px-4 py-2.5 font-medium">Name</th>
             {showSession && <th className="px-4 py-2.5 font-medium">Session</th>}
             <th className="px-4 py-2.5 font-medium">Tags</th>
+            {showSearches && <th className="px-4 py-2.5 text-right font-medium">Searches</th>}
             <th className="px-4 py-2.5 text-right font-medium">Spans</th>
             <th className="px-4 py-2.5 text-right font-medium">Tokens</th>
             <th className="px-4 py-2.5 text-right font-medium">Cost</th>
@@ -105,6 +109,11 @@ export function TraceTable({ traces, showSession = true }: TraceTableProps) {
                   <span className="text-faint">—</span>
                 )}
               </td>
+              {showSearches && (
+                <td className="px-4 py-2.5 text-right font-mono" data-testid="trace-search-count">
+                  {(t.searchCount ?? 0) > 0 ? t.searchCount : <span className="text-faint" title="No search step in this run">—</span>}
+                </td>
+              )}
               <td className="px-4 py-2.5 text-right font-mono">{t.spanCount}</td>
               <td className="px-4 py-2.5 text-right font-mono">{formatCount(t.totalTokens)}</td>
               <td className="px-4 py-2.5 text-right font-mono">{formatUsd(t.totalCostUsd)}</td>

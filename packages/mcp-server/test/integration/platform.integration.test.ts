@@ -172,6 +172,32 @@ describe('observability over MCP', () => {
     expect(withoutPayloads).not.toContain('"payload": {');
   });
 
+  it('returns the search view of a search step, even without payloads (issue #870)', async () => {
+    const result = await rest<{ traceIds: string[] }>(harness, 'POST', '/traces', {
+      traces: [
+        {
+          name: 'rag-run',
+          spans: [
+            {
+              spanId: 't1', name: 'search_docs', kind: 'tool', status: 'ok', startTime: '2026-09-01T10:00:00Z',
+              input: { query: 'refund window' },
+              output: [{ id: 'refunds', text: 'A refund reaches your card 5 to 7 business days later.', score: 0.8 }],
+            },
+            { spanId: 't2', name: 'get_price', kind: 'tool', status: 'ok', startTime: '2026-09-01T10:00:01Z', input: { sku: 'PRO' }, output: { price: 49 } },
+          ],
+        },
+      ],
+    });
+
+    const text = await callTool(harness.client, 'get_trace', { trace_id: result.traceIds[0], include_payloads: false });
+    expect(text).toContain('1 search step');
+    const opened = payloadOf<{ spans: Array<{ spanId: string; retrieval?: { query: string; documents: Array<{ id: string }> } }> }>(text);
+    const search = opened.spans.find((s) => s.spanId === 't1');
+    expect(search?.retrieval?.query).toBe('refund window');
+    expect(search?.retrieval?.documents[0].id).toBe('refunds');
+    expect(opened.spans.find((s) => s.spanId === 't2')?.retrieval).toBeUndefined();
+  });
+
   it('filters traces by status and model', async () => {
     await seedTrace('ok-run', 'session-alpha');
 
