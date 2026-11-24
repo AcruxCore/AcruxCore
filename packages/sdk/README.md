@@ -517,6 +517,7 @@ const { data } = await hub.traces.list({ sessionId: 'tokyo-trip-plan-01', limit:
 | `maxCacheSize` | — | `500` | Maximum number of prompt entries in the in-process LRU cache |
 | `maxRetries` | — | `1` | Retry attempts on transient failure (2 total attempts) |
 | `retryInterval` | — | `500` | Milliseconds between retries |
+| `maxQueuedSpans` | — | `20000` | Trace spans held in memory while the API cannot be reached; the oldest are dropped past this |
 
 **Create one instance at process startup and reuse it.** The cache is a module-level singleton; `maxCacheSize` is set by the first constructor call.
 

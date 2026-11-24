@@ -308,4 +308,135 @@ describe('SpanQueue', () => {
     await expect(q.flush()).resolves.toBeUndefined();
     warn.mockRestore();
   });
+
+  describe('when the server is down or slow', () => {
+    const FAST = { backoffInitialMs: 10, backoffMaxMs: 20 };
+    const connectError = () =>
+      Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNREFUSED' } });
+    const httpError = (status: number) =>
+      Object.assign(new Error(`acruxcore API error ${status} reporting traces`), { status });
+
+    it('keeps retrying while the server is unreachable and loses nothing', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const delivered: string[] = [];
+      let down = true;
+      const q = new SpanQueue(async (b) => {
+        if (down) throw connectError();
+        delivered.push(...b.map((e) => e.traceId!));
+      }, FAST);
+
+      for (let i = 0; i < 20; i++) {
+        q.enqueue(entry(`t${i}`));
+        await new Promise((r) => setTimeout(r, 5));
+      }
+      await new Promise((r) => setTimeout(r, 100));
+      expect(delivered).toEqual([]);
+      down = false;
+      await q.flush();
+
+      expect(delivered).toEqual(Array.from({ length: 20 }, (_, i) => `t${i}`));
+      expect(warn.mock.calls.filter((c) => String(c[0]).includes('trace report failed'))).toHaveLength(1);
+      warn.mockRestore();
+    });
+
+    it('waits longer after each failure in a row', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const stamps: number[] = [];
+      const q = new SpanQueue(
+        async () => {
+          stamps.push(performance.now());
+          if (stamps.length < 5) throw connectError();
+        },
+        { backoffInitialMs: 20, backoffMaxMs: 1000 },
+      );
+      q.enqueue(entry('t1'));
+      await q.flush();
+      const gaps = stamps.slice(1).map((t, i) => t - stamps[i]);
+      expect(stamps).toHaveLength(5);
+      expect(gaps[gaps.length - 1]).toBeGreaterThan(gaps[0] * 3);
+      warn.mockRestore();
+    });
+
+    it.each([408, 429, 502, 503, 504])('retries a %i, which means "try again later"', async (status) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const delivered: string[] = [];
+      let calls = 0;
+      const q = new SpanQueue(async (b) => {
+        if (++calls <= 6) throw httpError(status);
+        delivered.push(...b.map((e) => e.traceId!));
+      }, FAST);
+      q.enqueue(entry('t1'));
+      await q.flush();
+      expect(delivered).toEqual(['t1']);
+      warn.mockRestore();
+    });
+
+    it('drops a batch the server refuses, without retrying', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      let calls = 0;
+      const q = new SpanQueue(async () => {
+        calls++;
+        throw httpError(400);
+      }, FAST);
+      q.enqueue(entry('t1'));
+      await q.flush();
+      expect(calls).toBe(1);
+      expect(q.pendingSpanCount).toBe(0);
+      warn.mockRestore();
+    });
+
+    it('gives up on a 500 after three attempts', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      let calls = 0;
+      const q = new SpanQueue(async () => {
+        calls++;
+        throw httpError(500);
+      }, FAST);
+      q.enqueue(entry('t1'));
+      await q.flush();
+      expect(calls).toBe(3);
+      expect(q.pendingSpanCount).toBe(0);
+      warn.mockRestore();
+    });
+
+    it('flush stops waiting when the server stays unreachable, and keeps the spans', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const q = new SpanQueue(async () => {
+        throw connectError();
+      }, { ...FAST, giveUpAfterMs: 200 });
+      q.enqueue(entry('t1'));
+      const t0 = performance.now();
+      await q.flush();
+      const waited = performance.now() - t0;
+      expect(waited).toBeGreaterThan(150);
+      expect(waited).toBeLessThan(1000);
+      expect(q.pendingSpanCount).toBe(1);
+      await q.close();
+      warn.mockRestore();
+    });
+
+    it('close gives up and says how many spans were not sent', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const q = new SpanQueue(async () => {
+        throw connectError();
+      }, { ...FAST, giveUpAfterMs: 100 });
+      q.enqueue(entry('t1', 3));
+      q.enqueue(entry('t2', 2));
+      await q.close();
+      expect(q.pendingSpanCount).toBe(0);
+      expect(warn.mock.calls.filter((c) => String(c[0]).includes('5 spans were not sent'))).toHaveLength(1);
+      warn.mockRestore();
+    });
+
+    it('holds twenty thousand spans by default', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const q = new SpanQueue(() => new Promise(() => {}));
+      q.enqueue(entry('inflight'));
+      for (let i = 0; i < 20_000; i++) q.enqueue(entry(`t${i}`));
+      expect(q.pendingSpanCount).toBe(20_000);
+      q.enqueue(entry('one-more'));
+      expect(q.pendingSpanCount).toBe(20_000);
+      warn.mockRestore();
+    });
+  });
 });

@@ -578,6 +578,7 @@ page = await hub.traces.list(session_id="tokyo-trip-plan-01", limit=10)
 | `max_retries` | — | `1` | Retries on transient failure (2 total attempts) |
 | `retry_interval` | — | `500` | Milliseconds between retries |
 | `timeout` | — | `30` | Per-request timeout, in seconds |
+| `max_queued_spans` | — | `20000` | Trace spans held in memory while the API cannot be reached; the oldest are dropped past this |
 
 ## Error handling
 

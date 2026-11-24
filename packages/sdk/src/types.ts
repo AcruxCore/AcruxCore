@@ -1334,6 +1334,11 @@ export interface acruxcoreConfig {
   maxRetries?: number;
   /** Milliseconds to wait between retries. Default: 500. */
   retryInterval?: number;
+  /**
+   * Most trace spans held in memory while the server is unreachable, before the oldest are
+   * dropped. Default: 20_000. Raise it to cover longer outages, at the cost of memory.
+   */
+  maxQueuedSpans?: number;
   /** Client-level BYO default. A per-call `provider` on chat()/runToolLoop() overrides this. */
   provider?: ProviderConfig;
 }

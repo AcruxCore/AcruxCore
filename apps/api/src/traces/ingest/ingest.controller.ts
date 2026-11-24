@@ -17,6 +17,10 @@ export class IngestController {
   /**
    * `POST /api/v1/traces` — ingest a batch of traces.
    *
+   * Idempotent on (trace id, span id): the SDKs re-send a batch when the server was
+   * unreachable or answered 5xx, and a re-send of a batch that was in fact stored (only
+   * its reply was lost) must store nothing twice.
+   *
    * @throws {ValidationError} 400 if the body fails schema validation.
    */
   ingest = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -25,7 +29,7 @@ export class IngestController {
       if (!parsed.success) {
         throw new ValidationError(parsed.error.issues[0].message);
       }
-      const result = await this.service.ingest(req.teamId!, parsed.data.traces);
+      const result = await this.service.ingest(req.teamId!, parsed.data.traces, { idempotent: true });
       res.status(200).json(result);
     } catch (err) {
       next(err);

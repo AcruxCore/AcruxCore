@@ -216,6 +216,49 @@ describe('trace reporting is off the critical path', () => {
     warn.mockRestore();
   });
 
+  it('a trace reported while the server answers 503 still lands once it recovers', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let unavailable = 2;
+    let stored = 0;
+    const acruxBase = await listen((req, res) => {
+      void readBody(req).then(() => {
+        if (unavailable-- > 0) {
+          res.writeHead(503, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ error: { code: 'UNAVAILABLE' } }));
+          return;
+        }
+        stored++;
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ accepted: 1, traceIds: ['11111111-1111-4111-8111-111111111111'] }));
+      });
+    });
+    const providerBase = await listen((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(completion('ok')));
+    });
+
+    const hub = new acruxcore({ apiKey: 'k', baseUrl: `${acruxBase}/api/v1`, maxRetries: 0 });
+    await hub.gateway.chat({
+      model: 'stub-model',
+      messages: [{ role: 'user', content: 'hi' }],
+      provider: { baseUrl: providerBase, apiKey: 'p' },
+    });
+    await hub.gateway.close();
+
+    expect(stored).toBe(1);
+    const warned = warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('trace report failed'));
+    expect(warned).toEqual([expect.stringContaining('retrying')]);
+    warn.mockRestore();
+  }, 15_000);
+
+  it('maxQueuedSpans sets how many spans the client holds while the server is down', () => {
+    const def = new acruxcore({ apiKey: 'k', baseUrl: 'https://stub/api/v1' });
+    const big = new acruxcore({ apiKey: 'k', baseUrl: 'https://stub/api/v1', maxQueuedSpans: 50_000 });
+    const cap = (c: acruxcore) => (c as unknown as { spanQueue: { maxQueuedSpans: number } }).spanQueue.maxQueuedSpans;
+    expect(cap(def)).toBe(20_000);
+    expect(cap(big)).toBe(50_000);
+  });
+
   it('public trace() still awaits and still returns a traceId', async () => {
     const acruxBase = await listen((req, res) => {
       void readBody(req).then(() => {

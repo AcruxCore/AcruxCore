@@ -25,7 +25,7 @@ from .gateway_api import GatewayNamespace
 from .http import request_with_retry
 from .prompts_api import PromptsNamespace
 from .sessions_api import SessionsNamespace
-from .span_queue import SpanQueue
+from .span_queue import DEFAULT_MAX_QUEUED_SPANS, SpanQueue
 from .tools_api import ToolsNamespace
 from .traces_api import TracesNamespace
 from .types import ProviderConfig
@@ -94,6 +94,9 @@ class AcruxCore:
     :param max_retries: Retries on transient failure. Default 1 (2 attempts).
     :param retry_interval: Milliseconds between retries. Default 500.
     :param timeout: Per-request timeout in seconds. Default 30.
+    :param max_queued_spans: Most trace spans held in memory while the server is
+        unreachable, before the oldest are dropped. Default 20,000; raise it to cover
+        longer outages, at the cost of memory.
     :param transport: An httpx transport (for testing/injection). Optional.
     :param provider: Client-level BYO default.
     :raises AcruxCoreError: ``MISSING_API_KEY`` / ``MISSING_BASE_URL`` if required
@@ -110,6 +113,7 @@ class AcruxCore:
         max_retries: int = DEFAULT_MAX_RETRIES,
         retry_interval: int = DEFAULT_RETRY_INTERVAL,
         timeout: float = 30.0,
+        max_queued_spans: int = DEFAULT_MAX_QUEUED_SPANS,
         transport: Optional[httpx.AsyncBaseTransport] = None,
         provider: Optional[ProviderConfig] = None,
     ) -> None:
@@ -146,7 +150,7 @@ class AcruxCore:
 
         # Span queue — the gateway owns it, but the client creates it here so the
         # exit-flush hook can reach it.
-        self._span_queue = SpanQueue(self._send_trace_batch)
+        self._span_queue = SpanQueue(self._send_trace_batch, max_queued_spans=max_queued_spans)
 
         # Namespace instances
         self.tools = ToolsNamespace(self)

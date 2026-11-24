@@ -11,18 +11,43 @@ The drain is deliberately serial. The traces ingest endpoint validates each span
 could land a child before its parent and fail the whole batch with
 ``400 INVALID_SPAN_PARENT``.
 
-Mirrors ``packages/sdk/src/span-queue.ts``: same caps, same drop-oldest policy, same
-once-per-kind warnings, same serial drain.
+When the server cannot be reached, or answers "try again later", the batch goes back to
+the head of the buffer and is sent again after a growing pause (1 s, 2 s, 4 s ... up to 30 s),
+so an outage or a restart loses nothing as long as the buffer has room. The buffer is the
+only memory bound: past ``max_queued_spans`` the oldest spans are dropped, with one warning.
+A batch the server refuses (a 4xx) is dropped at once, and one that keeps failing with a 500
+is dropped after three attempts, so neither can block everything behind it. The server stores
+a re-sent span once (it upserts on trace id + span id), so a retry after a reply that was lost
+on the way back does not duplicate it.
+
+Mirrors ``packages/sdk/src/span-queue.ts``: same caps, same drop-oldest policy, same retry
+rules, same once-per-kind warnings, same serial drain.
 """
 
 from __future__ import annotations
 
 import asyncio
+import random
 import warnings
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple
 
+import httpx
+
 DEFAULT_MAX_BATCH_SPANS = 200
-DEFAULT_MAX_QUEUED_SPANS = 2000
+DEFAULT_MAX_QUEUED_SPANS = 20_000
+DEFAULT_BACKOFF_INITIAL_S = 1.0
+DEFAULT_BACKOFF_MAX_S = 30.0
+DEFAULT_GIVE_UP_AFTER_S = 10.0
+
+#: Attempts a batch gets when the server keeps answering 500 before it is dropped.
+SERVER_ERROR_ATTEMPTS = 3
+
+#: Statuses that mean "the server, or the proxy in front of it, is not ready yet".
+_TRY_AGAIN_STATUSES = frozenset({408, 429, 502, 503, 504})
+
+_RETRY = "retry"
+_RETRY_LIMITED = "retry_limited"
+_DROP = "drop"
 
 Sender = Callable[[List[Dict[str, Any]]], Awaitable[None]]
 
@@ -30,6 +55,29 @@ Sender = Callable[[List[Dict[str, Any]]], Awaitable[None]]
 def _span_count(payload: Dict[str, Any]) -> int:
     """Spans a trace entry carries, tolerant of an entry with no ``spans`` key."""
     return len(payload.get("spans") or [])
+
+
+def _failure_action(err: BaseException) -> str:
+    """Decide what a failed send means for its batch.
+
+    - No answer at all (connection refused, reset, timeout), or 408/429/502/503/504: the
+      server is down, restarting, overloaded or behind a proxy that cannot reach it. Retry
+      for as long as the buffer has room.
+    - Any other 5xx: the server answered and failed on this batch. Retry a few times, then
+      drop it, so one batch the server cannot store never blocks the rest.
+    - Any other 4xx, or an error that is not about the network: retrying cannot help. Drop.
+
+    :param err: What the sender raised.
+    :returns: ``"retry"``, ``"retry_limited"`` or ``"drop"``.
+    """
+    status = getattr(err, "status_code", None)
+    if isinstance(status, int):
+        if status in _TRY_AGAIN_STATUSES:
+            return _RETRY
+        return _RETRY_LIMITED if status >= 500 else _DROP
+    if isinstance(err, (httpx.TransportError, OSError, asyncio.TimeoutError)):
+        return _RETRY
+    return _DROP
 
 
 def _merge_by_trace_id(batch: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -78,12 +126,20 @@ class SpanQueue:
     """Buffers trace reports and sends them off the caller's critical path.
 
     :param send: Coroutine performing one ``POST /traces`` for a batch. Must raise on a
-        transport failure or a non-2xx response; the queue turns that into one warning
-        per error kind and drops the batch.
+        transport failure or a non-2xx response (with ``status_code`` set for the latter);
+        the queue warns once per error kind and retries or drops the batch by the rules in
+        the module docstring.
     :param max_batch_spans: Most spans in one request. Defaults to 200, the platform cap
         (a larger batch is rejected with ``413``). Clamped to at least 1.
     :param max_queued_spans: Most spans held in memory before the oldest are dropped.
-        Defaults to 2000. Clamped to at least 1.
+        Defaults to 20,000, about eight minutes of a 20 request/s app with two spans per
+        request. Clamped to at least 1.
+    :param backoff_initial_s: Pause before the first retry; it doubles on each failure in a
+        row. Defaults to 1 s.
+    :param backoff_max_s: Longest pause between retries. Defaults to 30 s.
+    :param give_up_after_s: How long :meth:`flush` and :meth:`close` wait on a server that
+        keeps failing before they return. Defaults to 10 s. A flush that gives up leaves the
+        spans queued and still retried; a close drops them, with a warning saying how many.
     """
 
     def __init__(
@@ -92,12 +148,22 @@ class SpanQueue:
         *,
         max_batch_spans: int = DEFAULT_MAX_BATCH_SPANS,
         max_queued_spans: int = DEFAULT_MAX_QUEUED_SPANS,
+        backoff_initial_s: float = DEFAULT_BACKOFF_INITIAL_S,
+        backoff_max_s: float = DEFAULT_BACKOFF_MAX_S,
+        give_up_after_s: float = DEFAULT_GIVE_UP_AFTER_S,
     ) -> None:
         self._send = send
         # Clamped to >= 1: a cap of 0 would make every batch empty, so the buffer could
         # never drain and flush() would never return.
         self._max_batch_spans = max(1, max_batch_spans)
         self._max_queued_spans = max(1, max_queued_spans)
+        self._backoff_initial_s = max(0.0, backoff_initial_s)
+        self._backoff_max_s = max(self._backoff_initial_s, backoff_max_s)
+        self._give_up_after_s = max(0.0, give_up_after_s)
+        # Loop time of the first failure in the current run of failures; None while healthy.
+        self._failing_since: Optional[float] = None
+        self._failures_in_a_row = 0
+        self._head_server_errors = 0
         self._buffer: List[Dict[str, Any]] = []
         self._queued_spans = 0
         self._task: "Optional[asyncio.Task[None]]" = None
@@ -131,9 +197,12 @@ class SpanQueue:
 
         self._buffer.append(payload)
         self._queued_spans += _span_count(payload)
+        self._shed_overflow()
+        self._wake()
 
-        # Overflow sheds the OLDEST, which keeps the most recent activity — the part
-        # someone debugging is actually looking at.
+    def _shed_overflow(self) -> None:
+        """Drop the OLDEST entries past the cap, which keeps the most recent activity — the
+        part someone debugging is actually looking at. Warns the first time only."""
         dropped = False
         while self._queued_spans > self._max_queued_spans and len(self._buffer) > 1:
             self._drop_head()
@@ -143,10 +212,8 @@ class SpanQueue:
             warnings.warn(
                 f"[acruxcore] trace buffer is full ({self._max_queued_spans} spans) — "
                 "dropping the oldest spans",
-                stacklevel=2,
+                stacklevel=3,
             )
-
-        self._wake()
 
     def take_pending(self) -> List[Dict[str, Any]]:
         """Remove and return everything still buffered, without sending it.
@@ -202,19 +269,45 @@ class SpanQueue:
                 # asyncio.run() cancels whatever is still pending before closing the
                 # loop. Put the batch back so the interpreter-exit drain can rescue it
                 # instead of it disappearing with the loop.
-                self._buffer[:0] = batch
-                self._queued_spans += sum(_span_count(e) for e in batch)
+                self._put_back(batch)
                 raise
             except Exception as err:  # noqa: BLE001 — telemetry must never escape
+                action = _failure_action(err)
+                if action == _RETRY_LIMITED:
+                    self._head_server_errors += 1
+                    if self._head_server_errors >= SERVER_ERROR_ATTEMPTS:
+                        action = _DROP
+                retrying = action != _DROP and not self._closed
                 kind = str(err) or type(err).__name__
                 if kind not in self._warned_errors:
                     self._warned_errors.add(kind)
-                    warnings.warn(
-                        f"[acruxcore] trace report failed — continuing without it: {kind}",
-                        stacklevel=2,
-                    )
-                # The batch is dropped rather than retried: `send` already retries
-                # transient failures, and holding it would stall everything behind it.
+                    then = "retrying" if retrying else "continuing without it"
+                    warnings.warn(f"[acruxcore] trace report failed — {then}: {kind}", stacklevel=2)
+                loop = asyncio.get_running_loop()
+                if self._failing_since is None:
+                    self._failing_since = loop.time()
+                if not retrying:
+                    self._head_server_errors = 0
+                    continue
+                self._put_back(batch)
+                self._shed_overflow()
+                self._failures_in_a_row += 1
+                await asyncio.sleep(self._backoff_s())
+                continue
+            self._failing_since = None
+            self._failures_in_a_row = 0
+            self._head_server_errors = 0
+
+    def _put_back(self, batch: List[Dict[str, Any]]) -> None:
+        """Return a batch to the head of the buffer, ahead of anything newer."""
+        self._buffer[:0] = batch
+        self._queued_spans += sum(_span_count(e) for e in batch)
+
+    def _backoff_s(self) -> float:
+        """The pause before the next attempt: doubling from the initial value up to the
+        maximum, with +/-20% jitter so many clients do not retry in step."""
+        base = min(self._backoff_max_s, self._backoff_initial_s * 2 ** (self._failures_in_a_row - 1))
+        return base * random.uniform(0.8, 1.2)
 
     def _take_batch(self) -> List[Dict[str, Any]]:
         """Remove and return the next batch, honouring the span cap and merging by trace.
@@ -266,31 +359,64 @@ class SpanQueue:
         return _merge_by_trace_id(batch)
 
     async def flush(self) -> None:
-        """Wait until everything buffered has been sent (or dropped after a failure).
+        """Wait until everything buffered has been sent or dropped.
+
+        When the server keeps failing, waits at most ``give_up_after_s`` from the later of
+        the first failure and the start of this call, then returns with the spans still
+        queued; the drain goes on retrying them in the background.
 
         Never raises for a telemetry failure — those are warned about, not propagated.
         """
+        loop = asyncio.get_running_loop()
+        started = loop.time()
         while True:
             task = self._task
             if not self._buffer and (task is None or task.done()):
                 return
-            if task is None or task.done() or self._task_loop is not asyncio.get_running_loop():
+            if task is None or task.done() or self._task_loop is not loop:
                 self._wake()
                 task = self._task
             if task is None:
                 return
+            if (
+                self._failing_since is not None
+                and loop.time() - max(self._failing_since, started) >= self._give_up_after_s
+            ):
+                return
             # Shielded so cancelling the caller's flush() does not cancel the drain, and
             # exceptions are swallowed because _drain already reports its own failures.
+            # The short wait lets this loop notice a server that stays down.
             try:
-                await asyncio.shield(task)
+                await asyncio.wait_for(asyncio.shield(task), timeout=0.1)
+            except asyncio.TimeoutError:
+                continue
             except asyncio.CancelledError:
                 raise
             except Exception:  # noqa: BLE001
                 return
 
     async def close(self) -> None:
-        """Flush, then refuse further work. Idempotent."""
+        """Flush, then refuse further work. Idempotent.
+
+        If the server is still failing when the flush gives up, what is left is dropped and
+        one warning says how many spans were lost.
+        """
         if self._closed:
             return
         await self.flush()
         self._closed = True
+        task = self._task
+        if task is not None and not task.done() and self._task_loop is asyncio.get_running_loop():
+            task.cancel()  # puts an in-flight batch back, so it is counted below
+            try:
+                await task
+            except BaseException:  # noqa: BLE001 — the cancellation we just asked for
+                pass
+        left = self._queued_spans
+        self.take_pending()
+        if left:
+            warnings.warn(
+                f"[acruxcore] {left} spans were not sent before the client closed: the trace "
+                "server did not answer",
+                stacklevel=2,
+            )

@@ -60,8 +60,9 @@ export class IngestService {
    * @param traces - The validated batch (Zod-parsed at the controller boundary).
    * @param opts - Optional flags.
    *        `idempotent` — when true, retried batches with the same spanIds are
-   *        safe (used by the OTLP receiver); the native JSON path leaves this
-   *        false and keeps its stricter create-and-fail behavior.
+   *        safe: a span already stored is updated, not inserted again. Both the
+   *        OTLP receiver and `POST /traces` set it, because both have senders that
+   *        retry; false keeps the stricter create-and-fail behavior.
    *        `allowUnknownParents` — when true, a span whose `parentSpanId` is not
    *        (yet) a known span in this trace is stored as-is instead of rejected.
    *        Required by the OTLP receiver: OTel's `BatchSpanProcessor` queues a

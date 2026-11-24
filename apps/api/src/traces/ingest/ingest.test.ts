@@ -529,53 +529,39 @@ describe('POST /api/v1/traces — ingestion', () => {
     expect(spans).toHaveLength(0);
   });
 
-  it('rolls back a genuinely mid-APPEND failure: a spanId already stored under the trace from a prior request', async () => {
+  it('stores a re-sent batch once: a retry after a lost reply duplicates nothing', async () => {
+    // The SDKs re-send a batch when the server was unreachable or answered 5xx. If the
+    // first send was stored and only its reply was lost, the re-send carries the same
+    // trace id and span ids; it must succeed without storing anything twice.
     const { agent } = await signup();
+    const traceId = '0f5a3c1e-2b4d-4e6f-8a9b-1c2d3e4f5a6b';
+    const batch = {
+      traces: [
+        {
+          traceId,
+          name: 'req-000001',
+          spans: [
+            { spanId: 's1', name: 'req-000001', kind: 'agent', startTime: '2026-07-04T10:00:00.000Z', endTime: '2026-07-04T10:00:00.300Z' },
+            {
+              spanId: 's2', parentSpanId: 's1', name: 'llm-call', kind: 'llm',
+              startTime: '2026-07-04T10:00:00.100Z', endTime: '2026-07-04T10:00:00.200Z',
+              usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
+            },
+          ],
+        },
+      ],
+    };
 
-    // First request commits one span (s1) under a new trace.
-    const first = await agent
-      .post('/api/v1/traces')
-      .send({ traces: [{ name: 'mid-append', spans: [{ spanId: 's1', name: 'ok-1', startTime: '2026-07-04T10:00:00.000Z' }] }] })
-      .expect(200);
-    const traceId = first.body.traceIds[0] as string;
+    const first = await agent.post('/api/v1/traces').send(batch).expect(200);
+    const again = await agent.post('/api/v1/traces').send(batch).expect(200);
+    expect(again.body.traceIds).toEqual(first.body.traceIds);
 
-    // Second request: s2 is new and valid and inserts FIRST; then s1 re-uses an
-    // already-stored spanId, which passes Zod (unique only *within this batch*)
-    // and passes the service's parent check (it isn't a parentSpanId issue), so
-    // it reaches SpansRepository.appendSpan and trips the DB's
-    // (trace_id, span_ref) unique constraint — a true post-insert, mid-loop failure.
-    const res = await agent
-      .post('/api/v1/traces')
-      .send({
-        traces: [
-          {
-            traceId,
-            spans: [
-              { spanId: 's2', name: 'new-but-will-be-rolled-back', startTime: '2026-07-04T10:00:01.000Z' },
-              { spanId: 's1', name: 'duplicate-of-prior-request', startTime: '2026-07-04T10:00:02.000Z' },
-            ],
-          },
-        ],
-      });
-
-    // KNOWN GAP (Task 3 IngestService, not fixed here — out of Task 4's file
-    // scope): unlike dangling parents (validated up front against listSpanRefs
-    // and mapped to a clean 400 INVALID_SPAN_PARENT), a spanId collision against
-    // an ALREADY-STORED span from a prior request is not pre-validated. It falls
-    // through to a raw Prisma P2002 and the global error middleware's generic
-    // 500 INTERNAL_ERROR. This assertion pins today's actual behavior; if this
-    // ever starts passing 400/409 instead, the service added the missing
-    // pre-flight check and this comment (and the finding in the T4 report) is stale.
-    expect(res.status).toBe(500);
-
-    // The load-bearing assertion: even though the failure is a raw DB error and
-    // not a validated AppError, the $transaction still rolled back — s2 (which
-    // inserted successfully before s1 blew up) does NOT persist.
-    const spans = await prisma.span.findMany({ where: { traceId } });
-    expect(spans).toHaveLength(1);
-    expect(spans[0].spanRef).toBe('s1');
-    const trace = await prisma.trace.findUnique({ where: { id: traceId } });
-    expect(trace?.spanCount).toBe(1);
+    const stored = first.body.traceIds[0] as string;
+    const spans = await prisma.span.findMany({ where: { traceId: stored }, orderBy: { startedAt: 'asc' } });
+    expect(spans.map((sp) => sp.spanRef)).toEqual(['s1', 's2']);
+    const trace = await prisma.trace.findUniqueOrThrow({ where: { id: stored } });
+    expect(trace.spanCount).toBe(2);
+    expect(trace.totalTokens).toBe(15);
   });
 
   it('commits trace 1 of a multi-trace batch when trace 2 fails (per-trace tx, not per-batch)', async () => {

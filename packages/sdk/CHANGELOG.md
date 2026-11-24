@@ -12,6 +12,23 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+### Added
+
+- `maxQueuedSpans` on the client sets how many trace spans it holds while the server cannot be reached.
+
+### Changed
+
+- A trace report that fails because the server is unreachable, or answers 408, 429, 502, 503
+  or 504, is retried with backoff (1 s doubling to 30 s) instead of dropped after one retry.
+- The trace buffer holds 20,000 spans (was 2,000) before it drops the oldest.
+- `flush()` and `close()` wait at most 10 s on a server that keeps failing. `close()` then
+  warns how many spans it could not send.
+
+### Fixed
+
+- Traces reported while the server was down or restarting were lost; a 500 is now retried
+  twice and a 4xx is still dropped at once.
+
 ## 0.23.0 — 2026-11-22
 
 ### Added

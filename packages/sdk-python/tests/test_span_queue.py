@@ -375,6 +375,172 @@ async def test_a_cancelled_send_puts_its_batch_back():
     assert q.take_pending()[0]["traceId"] == "t1"
 
 
+# --- server down or slow: retry with backoff, bounded memory -------------------
+
+
+FAST = {"backoff_initial_s": 0.01, "backoff_max_s": 0.02}
+
+
+def connect_error() -> Exception:
+    import httpx
+
+    return httpx.ConnectError("All connection attempts failed")
+
+
+def http_error(status: int) -> Exception:
+    from acruxcore.errors import AcruxCoreError
+
+    return AcruxCoreError(f"acruxcore API error {status} reporting traces", "API_ERROR", status)
+
+
+async def test_keeps_retrying_while_the_server_is_unreachable_and_loses_nothing(recwarn):
+    """The server is down for a while: every span sent meanwhile arrives once it is back."""
+    delivered: List[str] = []
+    down = True
+
+    async def send(batch):
+        if down:
+            raise connect_error()
+        delivered.extend(e["traceId"] for e in batch)
+
+    q = SpanQueue(send, **FAST)
+    for i in range(20):
+        q.enqueue(entry(f"t{i}"))
+        await asyncio.sleep(0.005)
+    await asyncio.sleep(0.1)  # many failed attempts by now
+    assert delivered == []
+    down = False
+    await q.flush()
+
+    assert delivered == [f"t{i}" for i in range(20)]  # all of them, once, in order
+    assert warning_count(recwarn, "trace report failed") == 1
+
+
+async def test_backoff_grows_between_attempts():
+    stamps: List[float] = []
+
+    async def send(_batch):
+        stamps.append(asyncio.get_running_loop().time())
+        if len(stamps) < 5:
+            raise connect_error()
+
+    q = SpanQueue(send, backoff_initial_s=0.02, backoff_max_s=1.0)
+    q.enqueue(entry("t1"))
+    await q.flush()
+
+    gaps = [b - a for a, b in zip(stamps, stamps[1:])]
+    assert len(stamps) == 5
+    assert gaps[-1] > gaps[0] * 3  # 0.02, 0.04, 0.08, 0.16 (with jitter)
+
+
+@pytest.mark.parametrize("status", [408, 429, 502, 503, 504])
+async def test_retries_a_status_that_means_try_again_later(status):
+    delivered: List[str] = []
+    calls = 0
+
+    async def send(batch):
+        nonlocal calls
+        calls += 1
+        if calls <= 6:
+            raise http_error(status)
+        delivered.extend(e["traceId"] for e in batch)
+
+    q = SpanQueue(send, **FAST)
+    q.enqueue(entry("t1"))
+    await q.flush()
+    assert delivered == ["t1"]
+
+
+async def test_drops_a_batch_the_server_refuses_without_retrying(recwarn):
+    calls = 0
+
+    async def send(_batch):
+        nonlocal calls
+        calls += 1
+        raise http_error(400)
+
+    q = SpanQueue(send, **FAST)
+    q.enqueue(entry("t1"))
+    await q.flush()
+    assert calls == 1
+    assert q.pending_span_count == 0
+
+
+async def test_gives_up_on_a_500_after_three_attempts():
+    calls = 0
+
+    async def send(_batch):
+        nonlocal calls
+        calls += 1
+        raise http_error(500)
+
+    q = SpanQueue(send, **FAST)
+    q.enqueue(entry("t1"))
+    await q.flush()
+    assert calls == 3
+    assert q.pending_span_count == 0
+
+
+async def test_flush_stops_waiting_when_the_server_stays_unreachable(recwarn):
+    async def send(_batch):
+        raise connect_error()
+
+    q = SpanQueue(send, give_up_after_s=0.2, **FAST)
+    q.enqueue(entry("t1"))
+    t0 = asyncio.get_running_loop().time()
+    await q.flush()
+    waited = asyncio.get_running_loop().time() - t0
+
+    assert 0.15 < waited < 1.0
+    assert q.pending_span_count == 1  # still queued, still being retried
+    q._task.cancel()
+
+
+async def test_close_gives_up_and_says_how_many_spans_were_not_sent(recwarn):
+    async def send(_batch):
+        raise connect_error()
+
+    q = SpanQueue(send, give_up_after_s=0.1, **FAST)
+    q.enqueue(entry("t1", count=3))
+    q.enqueue(entry("t2", count=2))
+    await q.close()
+
+    assert q.pending_span_count == 0
+    assert warning_count(recwarn, "5 spans were not sent") == 1
+
+
+async def test_buffer_holds_twenty_thousand_spans_by_default():
+    gate = asyncio.Event()
+
+    async def send(_batch):
+        await gate.wait()
+
+    q = SpanQueue(send)
+    q.enqueue(entry("inflight"))
+    await asyncio.sleep(0)
+    for i in range(20_000):
+        q.enqueue(entry(f"t{i}"))
+    assert q.pending_span_count == 20_000
+    q.enqueue(entry("one-more"))
+    assert q.pending_span_count == 20_000
+    gate.set()
+    q._task.cancel()
+
+
+async def test_the_client_sets_the_buffer_size():
+    import httpx
+
+    import acruxcore as acrux
+
+    transport = httpx.MockTransport(lambda r: httpx.Response(200, json={}))
+    async with acrux.AcruxCore(api_key="k", base_url="https://stub/api/v1", transport=transport) as hub:
+        assert hub._span_queue._max_queued_spans == 20_000
+    async with acrux.AcruxCore(
+        api_key="k", base_url="https://stub/api/v1", transport=transport, max_queued_spans=50_000
+    ) as hub:
+        assert hub._span_queue._max_queued_spans == 50_000
+
+
 # --- client wiring ---------------------------------------------------------
 
 
@@ -532,6 +698,39 @@ async def test_a_failed_trace_report_never_surfaces_in_chat(recwarn):
         )
         assert result.content == "still fine"
         await hub.gateway.flush()
+
+
+async def test_a_step_reported_while_the_server_is_down_lands_once_it_is_back(recwarn):
+    """End to end through the client: the server refuses connections, then answers 503,
+    then recovers. The step's trace arrives once, and the app saw nothing."""
+    import httpx
+
+    import acruxcore as acrux
+
+    answers = ["refuse", "refuse", 503, 200]
+    stored: List[Dict[str, Any]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nxt = answers.pop(0) if answers else 200
+        if nxt == "refuse":
+            raise httpx.ConnectError("All connection attempts failed", request=request)
+        if nxt == 503:
+            return httpx.Response(503, json={"error": {"code": "UNAVAILABLE"}})
+        stored.append(json.loads(request.content))
+        return httpx.Response(200, json={"accepted": 2, "traceIds": ["33333333-3333-4333-8333-333333333333"]})
+
+    async with acrux.AcruxCore(
+        api_key="k", base_url="http://stub/api/v1", transport=httpx.MockTransport(handler), max_retries=0
+    ) as hub:
+        hub._span_queue._backoff_initial_s = 0.01
+        async with hub.traces.step("req-1", kind="agent"):
+            async with hub.traces.step("llm-call", kind="llm"):
+                pass
+        await hub.traces.flush()
+
+    assert len(stored) == 1
+    assert sorted(s["name"] for s in stored[0]["traces"][0]["spans"]) == ["llm-call", "req-1"]
+    assert warning_count(recwarn, "retrying") >= 1
 
 
 async def test_public_trace_still_awaits_and_returns_a_trace_id():

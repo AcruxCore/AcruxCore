@@ -301,8 +301,8 @@ export class SpansRepository {
    * exporters to retry a whole export on failure). Every span of one trace goes in one
    * `INSERT … ON CONFLICT (trace_id, span_ref)`, then the trace's rollups are recomputed
    * once from all its stored spans rather than incremented, since a blind increment
-   * would double-count a retried batch. The native JSON path never uses this: it keeps
-   * {@link appendSpan}'s stricter create-and-fail semantics.
+   * would double-count a retried batch. `POST /traces` uses it too, since the SDKs
+   * re-send a batch whose reply was lost.
    *
    * OTLP ingestion wrote each span with four statements (upsert, aggregate, error
    * lookup, trace update), so a 3-span trace cost a dozen round trips and the API spent

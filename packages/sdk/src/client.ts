@@ -135,11 +135,15 @@ export class acruxcore {
           typeof body === 'object' && body !== null
             ? (body as { error?: { code?: string } }).error?.code
             : undefined;
-        throw new Error(
+        // The status tells the span queue whether to retry (503) or drop (400).
+        throw new acruxcoreError(
           `acruxcore API error ${response.status} reporting traces${code ? ` (${code})` : ''}`,
+          'API_ERROR',
+          response.status,
+          body,
         );
       }
-    });
+    }, { maxQueuedSpans: config?.maxQueuedSpans });
 
     this.gateway = new GatewayNamespace(this);
   }

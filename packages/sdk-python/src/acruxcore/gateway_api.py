@@ -645,12 +645,16 @@ class GatewayNamespace:
             pass
 
     async def _drain_on_a_fresh_loop(self, pending: List[Dict[str, Any]]) -> None:
-        """Re-send buffered entries with a brand-new HTTP client on a brand-new loop."""
+        """Re-send buffered entries with a brand-new HTTP client on a brand-new loop.
+
+        Closes the queue rather than flushing it, so a server that is down at exit costs
+        at most the queue's give-up wait and one warning, never a hung interpreter.
+        """
         async with httpx.AsyncClient(timeout=self._host._timeout) as client:
             queue = SpanQueue(lambda batch: self._post_traces(client, batch))
             for item in pending:
                 queue.enqueue(item)
-            await queue.flush()
+            await queue.close()
 
     # ── trace posting (shared with traces namespace via host) ──────────────
 
