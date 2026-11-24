@@ -12,6 +12,8 @@ changelog: <https://docs.acruxcore.com/changelog>
 
 ## Unreleased
 
+## 0.24.0 — 2026-11-24
+
 ### Added
 
 - `maxQueuedSpans` on the client sets how many trace spans it holds while the server cannot be reached.
