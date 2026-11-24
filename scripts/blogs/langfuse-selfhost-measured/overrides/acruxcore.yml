@@ -1,0 +1,27 @@
+# AcruxCore README quickstart (docker-compose.local.yml) with the published images (default 2026.11.11, the current release).
+# Fixed container names dropped and host ports moved.
+services:
+  postgres:
+    container_name: !reset null
+  redis:
+    container_name: !reset null
+  api:
+    image: acruxcore/api:${ACX_IMAGE_TAG:-2026.11.11}
+    container_name: !reset null
+    ports: !override
+      - "43001:3001"
+  worker:
+    image: acruxcore/worker:${ACX_IMAGE_TAG:-2026.11.11}
+    container_name: !reset null
+  web:
+    image: acruxcore/web:${ACX_IMAGE_TAG:-2026.11.11}
+    container_name: !reset null
+    ports: !override
+      - "48080:80"
+
+# Fixed subnet: this host has used up Docker's default address pools.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 10.251.5.0/24

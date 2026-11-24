@@ -1,0 +1,21 @@
+services:
+  storage:
+    cgroup_parent: lfm2g1cmlflow1794536158.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  create-bucket:
+    cgroup_parent: lfm2g1cmlflow1794536158.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  postgres:
+    cgroup_parent: lfm2g1cmlflow1794536158.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  mlflow:
+    cgroup_parent: lfm2g1cmlflow1794536158.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1

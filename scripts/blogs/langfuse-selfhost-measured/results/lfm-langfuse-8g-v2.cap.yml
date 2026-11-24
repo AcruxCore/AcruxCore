@@ -1,0 +1,36 @@
+services:
+  clickhouse:
+    cgroup_parent: lfm8g4clangfuse1794539368.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  minio:
+    cgroup_parent: lfm8g4clangfuse1794539368.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  postgres:
+    cgroup_parent: lfm8g4clangfuse1794539368.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  redis:
+    cgroup_parent: lfm8g4clangfuse1794539368.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  langfuse-web:
+    cgroup_parent: lfm8g4clangfuse1794539368.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  langfuse-ai-gateway:
+    cgroup_parent: lfm8g4clangfuse1794539368.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  langfuse-worker:
+    cgroup_parent: lfm8g4clangfuse1794539368.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4

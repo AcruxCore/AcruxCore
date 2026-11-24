@@ -1,0 +1,26 @@
+services:
+  redis:
+    cgroup_parent: lfm8g4cacrux1794557041.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  postgres:
+    cgroup_parent: lfm8g4cacrux1794557041.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  api:
+    cgroup_parent: lfm8g4cacrux1794557041.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  web:
+    cgroup_parent: lfm8g4cacrux1794557041.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  worker:
+    cgroup_parent: lfm8g4cacrux1794557041.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4

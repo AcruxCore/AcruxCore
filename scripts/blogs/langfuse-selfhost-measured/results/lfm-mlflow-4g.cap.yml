@@ -1,0 +1,9 @@
+services:
+  storage:
+    cgroup_parent: lfm4g2c.slice
+  create-bucket:
+    cgroup_parent: lfm4g2c.slice
+  postgres:
+    cgroup_parent: lfm4g2c.slice
+  mlflow:
+    cgroup_parent: lfm4g2c.slice

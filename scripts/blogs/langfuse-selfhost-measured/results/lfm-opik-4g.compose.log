@@ -1,0 +1,142 @@
+$ compose config --services
+clickhouse-init
+zookeeper
+clickhouse
+minio-init
+minio
+mysql
+redis
+backend
+frontend
+python-backend
+demo-data-generator
+mc
+
+$ compose down -v --remove-orphans
+
+$ compose up -d
+ Image zookeeper:3.9.4 Pulling 
+ Image ghcr.io/comet-ml/opik/opik-python-backend:2.2.143 Pulling 
+ Image ghcr.io/comet-ml/opik/opik-backend:2.2.143 Pulling 
+ Image ghcr.io/comet-ml/opik/opik-python-backend:2.2.143 Pulling 
+ Image redis:7.2.4-alpine3.19 Pulling 
+ Image ghcr.io/comet-ml/opik/opik-frontend:2.2.143 Pulling 
+ Image docker.io/cloudpirates/image-minio:RELEASE.2025-10-15T17-29-55Z-hardened Pulling 
+ Image mysql:8.4.2 Pulling 
+ Image docker.io/cloudpirates/image-minio:RELEASE.2025-10-15T17-29-55Z-hardened Pulling 
+ Image clickhouse/clickhouse-server:26.3.62.3-alpine Pulling 
+ Image docker.io/cloudpirates/image-minio:RELEASE.2025-10-15T17-29-55Z-hardened Pulling 
+ Image ghcr.io/comet-ml/opik/opik-backend:2.2.143 Pulled 
+ Image ghcr.io/comet-ml/opik/opik-frontend:2.2.143 Pulled 
+ Image ghcr.io/comet-ml/opik/opik-python-backend:2.2.143 Pulled 
+ Image ghcr.io/comet-ml/opik/opik-python-backend:2.2.143 Pulled 
+ Image mysql:8.4.2 Pulled 
+ Image docker.io/cloudpirates/image-minio:RELEASE.2025-10-15T17-29-55Z-hardened Pulled 
+ Image docker.io/cloudpirates/image-minio:RELEASE.2025-10-15T17-29-55Z-hardened Pulled 
+ Image docker.io/cloudpirates/image-minio:RELEASE.2025-10-15T17-29-55Z-hardened Pulled 
+ Image redis:7.2.4-alpine3.19 Pulled 
+ Image zookeeper:3.9.4 Pulled 
+ Image clickhouse/clickhouse-server:26.3.62.3-alpine Pulled 
+ Volume lfm-opik-4g_clickhouse-server Creating 
+ Volume lfm-opik-4g_clickhouse Creating 
+ Volume lfm-opik-4g_redis-data Creating 
+ Volume lfm-opik-4g_clickhouse-server Creating 
+ Volume lfm-opik-4g_clickhouse Creating 
+ Volume lfm-opik-4g_redis-data Creating 
+ Volume lfm-opik-4g_mysql Creating 
+ Network lfm-opik-4g_default Creating 
+ Volume lfm-opik-4g_mysql Creating 
+ Volume lfm-opik-4g_clickhouse-config Creating 
+ Network lfm-opik-4g_default Creating 
+ Volume lfm-opik-4g_clickhouse-config Creating 
+ Volume lfm-opik-4g_minio-data Creating 
+ Volume lfm-opik-4g_minio-data Creating 
+ Volume lfm-opik-4g_zookeeper Creating 
+ Volume lfm-opik-4g_zookeeper Creating 
+ Volume lfm-opik-4g_clickhouse-server Created 
+ Volume lfm-opik-4g_clickhouse-server Created 
+ Volume lfm-opik-4g_redis-data Created 
+ Volume lfm-opik-4g_redis-data Created 
+ Volume lfm-opik-4g_clickhouse Created 
+ Volume lfm-opik-4g_clickhouse Created 
+ Volume lfm-opik-4g_clickhouse-config Created 
+ Volume lfm-opik-4g_clickhouse-config Created 
+ Volume lfm-opik-4g_minio-data Created 
+ Volume lfm-opik-4g_minio-data Created 
+ Volume lfm-opik-4g_mysql Created 
+ Volume lfm-opik-4g_mysql Created 
+ Volume lfm-opik-4g_zookeeper Created 
+ Volume lfm-opik-4g_zookeeper Created 
+ Network lfm-opik-4g_default Created 
+ Network lfm-opik-4g_default Created 
+ Container lfm-opik-4g-zookeeper-1 Creating 
+ Container lfm-opik-4g-minio-init-1 Creating 
+ Container lfm-opik-4g-python-backend-1 Creating 
+ Container lfm-opik-4g-redis-1 Creating 
+ Container lfm-opik-4g-clickhouse-init-1 Creating 
+ Container lfm-opik-4g-mysql-1 Creating 
+ Container lfm-opik-4g-minio-init-1 Created 
+ Container lfm-opik-4g-mysql-1 Created 
+ Container lfm-opik-4g-minio-1 Creating 
+ Container lfm-opik-4g-clickhouse-init-1 Created 
+ Container lfm-opik-4g-redis-1 Created 
+ Container lfm-opik-4g-python-backend-1 Created 
+ Container lfm-opik-4g-zookeeper-1 Created 
+ Container lfm-opik-4g-clickhouse-1 Creating 
+ Container lfm-opik-4g-minio-1 Created 
+ Container lfm-opik-4g-mc-1 Creating 
+ Container lfm-opik-4g-clickhouse-1 Created 
+ Container lfm-opik-4g-backend-1 Creating 
+ Container lfm-opik-4g-mc-1 Created 
+ Container lfm-opik-4g-backend-1 Created 
+ Container lfm-opik-4g-frontend-1 Creating 
+ Container lfm-opik-4g-frontend-1 Created 
+ Container lfm-opik-4g-demo-data-generator-1 Creating 
+ Container lfm-opik-4g-demo-data-generator-1 Created 
+ Container lfm-opik-4g-zookeeper-1 Starting 
+ Container lfm-opik-4g-redis-1 Starting 
+ Container lfm-opik-4g-mysql-1 Starting 
+ Container lfm-opik-4g-python-backend-1 Starting 
+ Container lfm-opik-4g-minio-init-1 Starting 
+ Container lfm-opik-4g-clickhouse-init-1 Starting 
+ Container lfm-opik-4g-zookeeper-1 Started 
+ Container lfm-opik-4g-redis-1 Started 
+ Container lfm-opik-4g-mysql-1 Started 
+ Container lfm-opik-4g-python-backend-1 Started 
+ Container lfm-opik-4g-minio-init-1 Started 
+ Container lfm-opik-4g-minio-init-1 Waiting 
+ Container lfm-opik-4g-clickhouse-init-1 Started 
+ Container lfm-opik-4g-zookeeper-1 Waiting 
+ Container lfm-opik-4g-clickhouse-init-1 Waiting 
+ Container lfm-opik-4g-minio-init-1 Exited 
+ Container lfm-opik-4g-minio-1 Starting 
+ Container lfm-opik-4g-minio-1 Started 
+ Container lfm-opik-4g-minio-1 Waiting 
+ Container lfm-opik-4g-clickhouse-init-1 Exited 
+ Container lfm-opik-4g-zookeeper-1 Healthy 
+ Container lfm-opik-4g-clickhouse-1 Starting 
+ Container lfm-opik-4g-clickhouse-1 Started 
+ Container lfm-opik-4g-minio-1 Waiting 
+ Container lfm-opik-4g-redis-1 Waiting 
+ Container lfm-opik-4g-mysql-1 Waiting 
+ Container lfm-opik-4g-clickhouse-1 Waiting 
+ Container lfm-opik-4g-redis-1 Healthy 
+ Container lfm-opik-4g-minio-1 Healthy 
+ Container lfm-opik-4g-mc-1 Starting 
+ Container lfm-opik-4g-mc-1 Started 
+ Container lfm-opik-4g-minio-1 Healthy 
+ Container lfm-opik-4g-clickhouse-1 Healthy 
+ Container lfm-opik-4g-mysql-1 Healthy 
+ Container lfm-opik-4g-backend-1 Starting 
+ Container lfm-opik-4g-backend-1 Started 
+ Container lfm-opik-4g-backend-1 Waiting 
+ Container lfm-opik-4g-backend-1 Healthy 
+ Container lfm-opik-4g-frontend-1 Starting 
+ Container lfm-opik-4g-frontend-1 Started 
+ Container lfm-opik-4g-frontend-1 Waiting 
+ Container lfm-opik-4g-python-backend-1 Waiting 
+ Container lfm-opik-4g-python-backend-1 Healthy 
+ Container lfm-opik-4g-frontend-1 Healthy 
+ Container lfm-opik-4g-demo-data-generator-1 Starting 
+ Container lfm-opik-4g-demo-data-generator-1 Started 
+

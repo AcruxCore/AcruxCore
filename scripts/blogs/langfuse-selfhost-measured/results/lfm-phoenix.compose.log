@@ -1,0 +1,98 @@
+$ compose down -v --remove-orphans
+
+$ compose up -d
+ Network lfm-phoenix_default Creating 
+ Volume lfm-phoenix_database_data Creating 
+ Volume lfm-phoenix_database_data Creating 
+ Network lfm-phoenix_default Creating 
+ Volume lfm-phoenix_database_data Created 
+ Volume lfm-phoenix_database_data Created 
+ Network lfm-phoenix_default Created 
+ Network lfm-phoenix_default Created 
+ Container lfm-phoenix-db-1 Creating 
+ Container lfm-phoenix-db-1 Created 
+ Container lfm-phoenix-phoenix-1 Creating 
+ Container lfm-phoenix-phoenix-1 Created 
+ Container lfm-phoenix-db-1 Starting 
+ Container lfm-phoenix-db-1 Started 
+ Container lfm-phoenix-phoenix-1 Starting 
+ Container lfm-phoenix-phoenix-1 Started 
+
+$ compose down -v --remove-orphans
+ Container lfm-phoenix-phoenix-1 Stopping 
+ Container lfm-phoenix-phoenix-1 Stopped 
+ Container lfm-phoenix-phoenix-1 Removing 
+ Container lfm-phoenix-phoenix-1 Removed 
+ Container lfm-phoenix-db-1 Stopping 
+ Container lfm-phoenix-db-1 Stopped 
+ Container lfm-phoenix-db-1 Removing 
+ Container lfm-phoenix-db-1 Removed 
+ Volume lfm-phoenix_database_data Removing 
+ Network lfm-phoenix_default Removing 
+ Volume lfm-phoenix_database_data Removed 
+ Network lfm-phoenix_default Removed 
+
+$ compose up -d
+ Volume lfm-phoenix_database_data Creating 
+ Volume lfm-phoenix_database_data Creating 
+ Network lfm-phoenix_default Creating 
+ Network lfm-phoenix_default Creating 
+ Volume lfm-phoenix_database_data Created 
+ Volume lfm-phoenix_database_data Created 
+ Network lfm-phoenix_default Created 
+ Network lfm-phoenix_default Created 
+ Container lfm-phoenix-db-1 Creating 
+ Container lfm-phoenix-db-1 Created 
+ Container lfm-phoenix-phoenix-1 Creating 
+ Container lfm-phoenix-phoenix-1 Created 
+ Container lfm-phoenix-db-1 Starting 
+ Container lfm-phoenix-db-1 Started 
+ Container lfm-phoenix-phoenix-1 Starting 
+ Container lfm-phoenix-phoenix-1 Started 
+
+$ compose down -v --remove-orphans
+ Container lfm-phoenix-phoenix-1 Stopping 
+ Container lfm-phoenix-phoenix-1 Stopped 
+ Container lfm-phoenix-phoenix-1 Removing 
+ Container lfm-phoenix-phoenix-1 Removed 
+ Container lfm-phoenix-db-1 Stopping 
+ Container lfm-phoenix-db-1 Stopped 
+ Container lfm-phoenix-db-1 Removing 
+ Container lfm-phoenix-db-1 Removed 
+ Volume lfm-phoenix_database_data Removing 
+ Network lfm-phoenix_default Removing 
+ Volume lfm-phoenix_database_data Removed 
+ Network lfm-phoenix_default Removed 
+
+$ compose up -d
+ Network lfm-phoenix_default Creating 
+ Network lfm-phoenix_default Creating 
+ Volume lfm-phoenix_database_data Creating 
+ Volume lfm-phoenix_database_data Creating 
+ Volume lfm-phoenix_database_data Created 
+ Volume lfm-phoenix_database_data Created 
+ Network lfm-phoenix_default Created 
+ Network lfm-phoenix_default Created 
+ Container lfm-phoenix-db-1 Creating 
+ Container lfm-phoenix-db-1 Created 
+ Container lfm-phoenix-phoenix-1 Creating 
+ Container lfm-phoenix-phoenix-1 Created 
+ Container lfm-phoenix-db-1 Starting 
+ Container lfm-phoenix-db-1 Started 
+ Container lfm-phoenix-phoenix-1 Starting 
+ Container lfm-phoenix-phoenix-1 Started 
+
+$ compose down -v --remove-orphans
+ Container lfm-phoenix-phoenix-1 Stopping 
+ Container lfm-phoenix-phoenix-1 Stopped 
+ Container lfm-phoenix-phoenix-1 Removing 
+ Container lfm-phoenix-phoenix-1 Removed 
+ Container lfm-phoenix-db-1 Stopping 
+ Container lfm-phoenix-db-1 Stopped 
+ Container lfm-phoenix-db-1 Removing 
+ Container lfm-phoenix-db-1 Removed 
+ Volume lfm-phoenix_database_data Removing 
+ Network lfm-phoenix_default Removing 
+ Volume lfm-phoenix_database_data Removed 
+ Network lfm-phoenix_default Removed 
+

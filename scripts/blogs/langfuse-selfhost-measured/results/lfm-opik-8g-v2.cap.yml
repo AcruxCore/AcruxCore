@@ -1,0 +1,61 @@
+services:
+  clickhouse-init:
+    cgroup_parent: lfm8g4copik1794539783.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  zookeeper:
+    cgroup_parent: lfm8g4copik1794539783.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  clickhouse:
+    cgroup_parent: lfm8g4copik1794539783.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  minio-init:
+    cgroup_parent: lfm8g4copik1794539783.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  minio:
+    cgroup_parent: lfm8g4copik1794539783.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  mysql:
+    cgroup_parent: lfm8g4copik1794539783.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  redis:
+    cgroup_parent: lfm8g4copik1794539783.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  backend:
+    cgroup_parent: lfm8g4copik1794539783.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  frontend:
+    cgroup_parent: lfm8g4copik1794539783.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  mc:
+    cgroup_parent: lfm8g4copik1794539783.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  python-backend:
+    cgroup_parent: lfm8g4copik1794539783.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  demo-data-generator:
+    cgroup_parent: lfm8g4copik1794539783.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4

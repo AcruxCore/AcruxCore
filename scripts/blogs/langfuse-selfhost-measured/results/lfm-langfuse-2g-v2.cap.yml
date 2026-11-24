@@ -1,0 +1,36 @@
+services:
+  minio:
+    cgroup_parent: lfm2g1c.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  postgres:
+    cgroup_parent: lfm2g1c.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  redis:
+    cgroup_parent: lfm2g1c.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  clickhouse:
+    cgroup_parent: lfm2g1c.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  langfuse-web:
+    cgroup_parent: lfm2g1c.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  langfuse-ai-gateway:
+    cgroup_parent: lfm2g1c.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  langfuse-worker:
+    cgroup_parent: lfm2g1c.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1

@@ -1,0 +1,11 @@
+services:
+  postgres:
+    cgroup_parent: lfm4g2c.slice
+  redis:
+    cgroup_parent: lfm4g2c.slice
+  api:
+    cgroup_parent: lfm4g2c.slice
+  worker:
+    cgroup_parent: lfm4g2c.slice
+  web:
+    cgroup_parent: lfm4g2c.slice

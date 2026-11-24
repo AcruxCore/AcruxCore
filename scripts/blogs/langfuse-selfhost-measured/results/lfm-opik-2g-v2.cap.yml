@@ -1,0 +1,61 @@
+services:
+  clickhouse-init:
+    cgroup_parent: lfm2g1copik1794537669.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  zookeeper:
+    cgroup_parent: lfm2g1copik1794537669.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  clickhouse:
+    cgroup_parent: lfm2g1copik1794537669.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  minio-init:
+    cgroup_parent: lfm2g1copik1794537669.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  minio:
+    cgroup_parent: lfm2g1copik1794537669.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  mysql:
+    cgroup_parent: lfm2g1copik1794537669.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  redis:
+    cgroup_parent: lfm2g1copik1794537669.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  backend:
+    cgroup_parent: lfm2g1copik1794537669.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  python-backend:
+    cgroup_parent: lfm2g1copik1794537669.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  frontend:
+    cgroup_parent: lfm2g1copik1794537669.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  demo-data-generator:
+    cgroup_parent: lfm2g1copik1794537669.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  mc:
+    cgroup_parent: lfm2g1copik1794537669.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1

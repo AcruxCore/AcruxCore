@@ -1,0 +1,402 @@
+$ compose config --services
+redis
+postgres
+api
+web
+worker
+
+$ compose down -v --remove-orphans
+
+$ compose up -d
+ Volume lfm-acrux-4g-v2-851_acruxcore-local-pgdata Creating 
+ Volume lfm-acrux-4g-v2-851_acruxcore-local-pgdata Creating 
+ Network lfm-acrux-4g-v2-851_acruxcore-local Creating 
+ Network lfm-acrux-4g-v2-851_acruxcore-local Creating 
+ Volume lfm-acrux-4g-v2-851_acruxcore-local-pgdata Created 
+ Volume lfm-acrux-4g-v2-851_acruxcore-local-pgdata Created 
+ Network lfm-acrux-4g-v2-851_acruxcore-local Created 
+ Network lfm-acrux-4g-v2-851_acruxcore-local Created 
+ Container lfm-acrux-4g-v2-851-postgres-1 Creating 
+ Container lfm-acrux-4g-v2-851-redis-1 Creating 
+ Container lfm-acrux-4g-v2-851-redis-1 Created 
+ Container lfm-acrux-4g-v2-851-postgres-1 Created 
+ Container lfm-acrux-4g-v2-851-api-1 Creating 
+ Container lfm-acrux-4g-v2-851-api-1 Created 
+ Container lfm-acrux-4g-v2-851-web-1 Creating 
+ Container lfm-acrux-4g-v2-851-worker-1 Creating 
+ Container lfm-acrux-4g-v2-851-web-1 Created 
+ Container lfm-acrux-4g-v2-851-worker-1 Created 
+ Container lfm-acrux-4g-v2-851-postgres-1 Starting 
+ Container lfm-acrux-4g-v2-851-redis-1 Starting 
+ Container lfm-acrux-4g-v2-851-postgres-1 Started 
+ Container lfm-acrux-4g-v2-851-redis-1 Started 
+ Container lfm-acrux-4g-v2-851-postgres-1 Waiting 
+ Container lfm-acrux-4g-v2-851-redis-1 Waiting 
+ Container lfm-acrux-4g-v2-851-postgres-1 Healthy 
+ Container lfm-acrux-4g-v2-851-redis-1 Healthy 
+ Container lfm-acrux-4g-v2-851-api-1 Starting 
+ Container lfm-acrux-4g-v2-851-api-1 Started 
+ Container lfm-acrux-4g-v2-851-web-1 Starting 
+ Container lfm-acrux-4g-v2-851-api-1 Waiting 
+ Container lfm-acrux-4g-v2-851-postgres-1 Waiting 
+ Container lfm-acrux-4g-v2-851-redis-1 Waiting 
+ Container lfm-acrux-4g-v2-851-web-1 Started 
+ Container lfm-acrux-4g-v2-851-redis-1 Healthy 
+ Container lfm-acrux-4g-v2-851-postgres-1 Healthy 
+ Container lfm-acrux-4g-v2-851-api-1 Healthy 
+ Container lfm-acrux-4g-v2-851-worker-1 Starting 
+ Container lfm-acrux-4g-v2-851-worker-1 Started 
+
+$ compose logs --no-color --tail 200
+worker-1  | [queues] Redis connected: redis://redis:6379 → 192.168.224.3:6379
+worker-1  | [worker] weekly digest disabled (DIGEST_ENABLED)
+worker-1  | [worker] trace payload purge disabled (TRACE_PAYLOAD_PURGE_ENABLED)
+worker-1  | [worker] expired gateway cache sweep scheduled (*/15 * * * * UTC)
+api-1     | Applying migration `20260713120000_add_supabase_user_id_nullable_password`
+api-1     | Applying migration `20260725120000_hash_api_keys`
+api-1     | Applying migration `20260726090000_add_email_log`
+api-1     | Applying migration `20260726090000_better_auth_identity`
+api-1     | Applying migration `20260726093754_signup_consent_fields`
+worker-1  | [worker] stale run sweep scheduled (*/10 * * * * UTC, 120 min without progress)
+worker-1  | [gateway-cache] purged 0 expired gateway_cache row(s)
+redis-1   | 1:C 13 Nov 2026 07:42:01.376 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. Being disabled, it can also cause failures without low memory condition, see https://github.com/jemalloc/jemalloc/issues/1328. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.
+web-1     | /docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+web-1     | /docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+web-1     | /docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+web-1     | 10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf
+api-1     | Applying migration `20260726120000_known_devices`
+redis-1   | 1:C 13 Nov 2026 07:42:01.376 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+redis-1   | 1:C 13 Nov 2026 07:42:01.376 * Redis version=7.4.12, bits=64, commit=00000000, modified=0, pid=1, just started
+api-1     | Applying migration `20260726131249_add_connection_updated_audit_event`
+redis-1   | 1:C 13 Nov 2026 07:42:01.376 # Warning: no config file specified, using the default config. In order to specify a config file use redis-server /path/to/redis.conf
+redis-1   | 1:M 13 Nov 2026 07:42:01.377 * Increased maximum number of open files to 10032 (it was originally set to 1024).
+web-1     | 10-listen-on-ipv6-by-default.sh: info: /etc/nginx/conf.d/default.conf differs from the packaged version
+postgres-1  | The files belonging to this database system will be owned by user "postgres".
+web-1       | /docker-entrypoint.sh: Sourcing /docker-entrypoint.d/15-local-resolvers.envsh
+web-1       | /docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+api-1     | Applying migration `20260727090000_add_notification_preferences`
+redis-1     | 1:M 13 Nov 2026 07:42:01.377 * monotonic clock: POSIX clock_gettime
+redis-1     | 1:M 13 Nov 2026 07:42:01.378 * Running mode=standalone, port=6379.
+redis-1     | 1:M 13 Nov 2026 07:42:01.378 * Server initialized
+redis-1     | 1:M 13 Nov 2026 07:42:01.378 * Ready to accept connections tcp
+redis-1     | 1:M 13 Nov 2026 07:43:14.785 * 10000 changes in 60 seconds. Saving...
+redis-1     | 1:M 13 Nov 2026 07:43:14.785 * Background saving started by pid 100
+redis-1     | 100:C 13 Nov 2026 07:43:14.794 * DB saved on disk
+redis-1     | 100:C 13 Nov 2026 07:43:14.794 * Fork CoW for RDB: current 1 MB, peak 1 MB, average 1 MB
+redis-1     | 1:M 13 Nov 2026 07:43:14.886 * Background saving terminated with success
+redis-1     | 1:M 13 Nov 2026 07:44:15.046 * 10000 changes in 60 seconds. Saving...
+redis-1     | 1:M 13 Nov 2026 07:44:15.047 * Background saving started by pid 173
+redis-1     | 173:C 13 Nov 2026 07:44:15.118 * DB saved on disk
+redis-1     | 173:C 13 Nov 2026 07:44:15.119 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+redis-1     | 1:M 13 Nov 2026 07:44:15.147 * Background saving terminated with success
+web-1       | /docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh
+web-1       | /docker-entrypoint.sh: Launching /docker-entrypoint.d/40-runtime-config.sh
+web-1       | /docker-entrypoint.sh: Launching /docker-entrypoint.d/41-blog-proxy.sh
+web-1       | /docker-entrypoint.sh: Configuration complete; ready for start up
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: using the "epoll" event method
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: nginx/1.27.5
+postgres-1  | This user must also own the server process.
+postgres-1  | 
+postgres-1  | The database cluster will be initialized with locale "en_US.utf8".
+postgres-1  | The default database encoding has accordingly been set to "UTF8".
+postgres-1  | The default text search configuration will be set to "english".
+postgres-1  | 
+postgres-1  | Data page checksums are disabled.
+postgres-1  | 
+postgres-1  | fixing permissions on existing directory /var/lib/postgresql/data ... ok
+api-1       | Applying migration `20260727135310_tool_version_changelog_and_source`
+api-1       | Applying migration `20260728000000_backfill_email_verified`
+api-1       | Applying migration `20260729140000_single_role_per_team_member`
+api-1       | Applying migration `20260802080000_add_alias_deleted_audit_event`
+api-1       | Applying migration `20260804120000_add_dataset_example_history`
+api-1       | Applying migration `20260812093209_add_eval_rules`
+api-1       | Applying migration `20260819210000_add_eval_rule_judge_prompt_id`
+api-1       | Applying migration `20260819210100_backfill_eval_rule_judge_model`
+api-1       | Applying migration `20260820000000_add_prompt_tool_alias_route`
+api-1       | Applying migration `20260820120000_prompt_tool_bindings`
+api-1       | Applying migration `20260908000000_unique_dataset_example_per_feedback`
+postgres-1  | creating subdirectories ... ok
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: built by gcc 14.2.0 (Alpine 14.2.0) 
+postgres-1  | selecting dynamic shared memory implementation ... posix
+postgres-1  | selecting default max_connections ... 100
+postgres-1  | selecting default shared_buffers ... 128MB
+postgres-1  | selecting default time zone ... UTC
+postgres-1  | creating configuration files ... ok
+postgres-1  | running bootstrap script ... ok
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: OS: Linux 7.2.13-200.fc44.x86_64
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1024:524288
+api-1       | Applying migration `20260908120000_saved_views`
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker processes
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 33
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 34
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 35
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 36
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 37
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 38
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 39
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 40
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 41
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 42
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 43
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 44
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 45
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 46
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 47
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 48
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 49
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 50
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 51
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 52
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 53
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 54
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 55
+web-1       | 2026/11/13 07:42:07 [notice] 1#1: start worker process 56
+api-1       | Applying migration `20260916000000_evaluations_audit_events`
+api-1       | Applying migration `20260917000000_budget_virtual_key_must_be_own_team`
+postgres-1  | sh: locale: not found
+postgres-1  | 2026-11-13 07:42:01.603 UTC [35] WARNING:  no usable system locales were found
+postgres-1  | performing post-bootstrap initialization ... ok
+postgres-1  | syncing data to disk ... ok
+postgres-1  | 
+postgres-1  | 
+postgres-1  | Success. You can now start the database server using:
+postgres-1  | 
+postgres-1  |     pg_ctl -D /var/lib/postgresql/data -l logfile start
+postgres-1  | 
+postgres-1  | initdb: warning: enabling "trust" authentication for local connections
+postgres-1  | initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+postgres-1  | waiting for server to start....2026-11-13 07:42:03.227 UTC [41] LOG:  starting PostgreSQL 16.15 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+postgres-1  | 2026-11-13 07:42:03.229 UTC [41] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1  | 2026-11-13 07:42:03.234 UTC [44] LOG:  database system was shut down at 2026-11-13 07:42:01 UTC
+postgres-1  | 2026-11-13 07:42:03.238 UTC [41] LOG:  database system is ready to accept connections
+postgres-1  |  done
+postgres-1  | server started
+postgres-1  | CREATE DATABASE
+postgres-1  | 
+postgres-1  | 
+postgres-1  | /usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
+postgres-1  | 
+postgres-1  | waiting for server to shut down....2026-11-13 07:42:03.371 UTC [41] LOG:  received fast shutdown request
+postgres-1  | 2026-11-13 07:42:03.372 UTC [41] LOG:  aborting any active transactions
+postgres-1  | 2026-11-13 07:42:03.374 UTC [41] LOG:  background worker "logical replication launcher" (PID 47) exited with exit code 1
+postgres-1  | 2026-11-13 07:42:03.374 UTC [42] LOG:  shutting down
+api-1       | Applying migration `20261014000000_experiment_run_judge`
+api-1       | Applying migration `20261016000000_gateway_model_cached_input_price`
+api-1       | Applying migration `20261016000001_span_cached_tokens`
+api-1       | Applying migration `20261016100000_local_experiments`
+api-1       | Applying migration `20261019120000_run_grading_snapshot`
+api-1       | Applying migration `20261022120000_run_kind_and_optimizer_rejections`
+api-1       | Applying migration `20261026120000_prompt_candidate_version`
+api-1       | Applying migration `20261026130000_prompt_candidate_version_index`
+api-1       | Applying migration `20261107090000_span_payload_tools`
+api-1       | Applying migration `20261107091000_trace_name_is_derived`
+api-1       | Applying migration `20261107100000_trace_tool_sets`
+api-1       | Applying migration `20261111120000_trace_client_trace_id`
+api-1       | Applying migration `20261111120100_trace_client_trace_id_index`
+api-1       | Applying migration `20261113090000_provider_kind_runware`
+api-1       | 
+api-1       | The following migration(s) have been applied:
+api-1       | 
+api-1       | migrations/
+api-1       |   └─ 0_init/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260626220307_prompts_audit_log/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260626222454_add_prompt_versions_and_aliases/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260626231227_b6_teams_rbac/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260626231817_b6_add_audit_events/
+api-1       |     └─ migration.sql
+postgres-1  | 2026-11-13 07:42:03.375 UTC [42] LOG:  checkpoint starting: shutdown immediate
+api-1       |   └─ 20260704031647_gateway_provider_connections/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260704034039_gateway_requests/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260704034353_widen_gateway_cost_precision/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260704035318_gateway_add_gemini_provider/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260704041030_gateway_virtual_keys/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260704042942_gateway_budgets/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260704042951_gateway_budgets_scope_unique/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260704044710_budget_spend_precision/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260704050244_gateway_request_meta/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260704051946_gateway_cache/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260704114539_gateway_model_registry/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260704114556_gateway_model_fallback_self_check/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260704175708_phase3_traces/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260705011453_phase3_trace_feedback/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260705073346_add_user_default_team/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260705113808_trace_metadata_tags/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260705160414_span_metadata_tags/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260705175244_trace_feedback_updated_at/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260706195315_span_payload_variables/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260707075514_eval_datasets/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260707085203_eval_experiments_runs_results/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260707184621_eval_result_scoring/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260708052055_eval_prompt_candidates/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260711114411_add_tool_catalog/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260711144809_add_secrets/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260711164542_add_prompt_version_tools/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260712113605_add_prompt_version_default_model/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260712190325_capture_payloads_default_true/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260713120000_add_supabase_user_id_nullable_password/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260725120000_hash_api_keys/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260726090000_add_email_log/
+api-1       |     └─ migration.sql
+postgres-1  | 2026-11-13 07:42:03.759 UTC [42] LOG:  checkpoint complete: wrote 926 buffers (5.7%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.025 s, sync=0.352 s, total=0.386 s; sync files=301, longest=0.005 s, average=0.002 s; distance=4283 kB, estimate=4283 kB; lsn=0/1925D68, redo lsn=0/1925D68
+postgres-1  | 2026-11-13 07:42:03.767 UTC [41] LOG:  database system is shut down
+postgres-1  |  done
+postgres-1  | server stopped
+postgres-1  | 
+postgres-1  | PostgreSQL init process complete; ready for start up.
+postgres-1  | 
+postgres-1  | 2026-11-13 07:42:03.789 UTC [1] LOG:  starting PostgreSQL 16.15 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+postgres-1  | 2026-11-13 07:42:03.790 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+postgres-1  | 2026-11-13 07:42:03.790 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+postgres-1  | 2026-11-13 07:42:03.792 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1  | 2026-11-13 07:42:03.796 UTC [57] LOG:  database system was shut down at 2026-11-13 07:42:03 UTC
+postgres-1  | 2026-11-13 07:42:03.800 UTC [1] LOG:  database system is ready to accept connections
+postgres-1  | 2026-11-13 07:47:03.895 UTC [55] LOG:  checkpoint starting: time
+api-1       |   └─ 20260726090000_better_auth_identity/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260726093754_signup_consent_fields/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260726120000_known_devices/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260726131249_add_connection_updated_audit_event/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260727090000_add_notification_preferences/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260727135310_tool_version_changelog_and_source/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260728000000_backfill_email_verified/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260729140000_single_role_per_team_member/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260802080000_add_alias_deleted_audit_event/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260804120000_add_dataset_example_history/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260812093209_add_eval_rules/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260819210000_add_eval_rule_judge_prompt_id/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260819210100_backfill_eval_rule_judge_model/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260820000000_add_prompt_tool_alias_route/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260820120000_prompt_tool_bindings/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260908000000_unique_dataset_example_per_feedback/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260908120000_saved_views/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260916000000_evaluations_audit_events/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20260917000000_budget_virtual_key_must_be_own_team/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20261014000000_experiment_run_judge/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20261016000000_gateway_model_cached_input_price/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20261016000001_span_cached_tokens/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20261016100000_local_experiments/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20261019120000_run_grading_snapshot/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20261022120000_run_kind_and_optimizer_rejections/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20261026120000_prompt_candidate_version/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20261026130000_prompt_candidate_version_index/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20261107090000_span_payload_tools/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20261107091000_trace_name_is_derived/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20261107100000_trace_tool_sets/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20261111120000_trace_client_trace_id/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20261111120100_trace_client_trace_id_index/
+api-1       |     └─ migration.sql
+api-1       |   └─ 20261113090000_provider_kind_runware/
+api-1       |     └─ migration.sql
+api-1       |       
+api-1       | All migrations have been successfully applied.
+api-1       | npm notice
+api-1       | npm notice New major version of npm available! 10.9.9 -> 12.2.2
+api-1       | npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.2
+api-1       | npm notice To update run: npm install -g npm@12.2.2
+api-1       | npm notice
+api-1       | [api] Starting server...
+api-1       | API server listening on http://localhost:3001
+api-1       | 
+api-1       |   ┌─────────────────────────────────────────────────────────────────┐
+api-1       |   │  acruxcore is not set up yet.                                   │
+api-1       |   │  Open this link to create the first account (owner):            │
+api-1       |   └─────────────────────────────────────────────────────────────────┘
+api-1       | 
+api-1       |   http://localhost:8080/first-run?token=MTc5NDU1OTMzMDI2Mw.oZpfTgM-vaa--GT7-gToiLnuVgYiyt1106ID1ZLJLRc
+api-1       | 
+api-1       |   The link works once and expires in 60 minutes.
+api-1       |   Restart the server to get a new one.
+api-1       | 
+api-1       | [queues] Redis connected: redis://redis:6379 → 192.168.224.3:6379
+api-1       | [auth] rate limiting is not being enforced — Redis unavailable: Stream isn't writeable and enableOfflineQueue options is false
+
+$ compose down -v --remove-orphans
+ Container lfm-acrux-4g-v2-851-web-1 Stopping 
+ Container lfm-acrux-4g-v2-851-worker-1 Stopping 
+ Container lfm-acrux-4g-v2-851-worker-1 Stopped 
+ Container lfm-acrux-4g-v2-851-worker-1 Removing 
+ Container lfm-acrux-4g-v2-851-web-1 Stopped 
+ Container lfm-acrux-4g-v2-851-web-1 Removing 
+ Container lfm-acrux-4g-v2-851-worker-1 Removed 
+ Container lfm-acrux-4g-v2-851-web-1 Removed 
+ Container lfm-acrux-4g-v2-851-api-1 Stopping 
+ Container lfm-acrux-4g-v2-851-api-1 Stopped 
+ Container lfm-acrux-4g-v2-851-api-1 Removing 
+ Container lfm-acrux-4g-v2-851-api-1 Removed 
+ Container lfm-acrux-4g-v2-851-redis-1 Stopping 
+ Container lfm-acrux-4g-v2-851-postgres-1 Stopping 
+ Container lfm-acrux-4g-v2-851-postgres-1 Stopped 
+ Container lfm-acrux-4g-v2-851-postgres-1 Removing 
+ Container lfm-acrux-4g-v2-851-redis-1 Stopped 
+ Container lfm-acrux-4g-v2-851-redis-1 Removing 
+ Container lfm-acrux-4g-v2-851-postgres-1 Removed 
+ Container lfm-acrux-4g-v2-851-redis-1 Removed 
+ Volume lfm-acrux-4g-v2-851_acruxcore-local-pgdata Removing 
+ Network lfm-acrux-4g-v2-851_acruxcore-local Removing 
+ Volume lfm-acrux-4g-v2-851_acruxcore-local-pgdata Removed 
+ Network lfm-acrux-4g-v2-851_acruxcore-local Removed 
+

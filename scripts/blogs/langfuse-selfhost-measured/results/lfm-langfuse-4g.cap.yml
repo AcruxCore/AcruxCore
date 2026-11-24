@@ -1,0 +1,15 @@
+services:
+  clickhouse:
+    cgroup_parent: lfm4g2c.slice
+  postgres:
+    cgroup_parent: lfm4g2c.slice
+  redis:
+    cgroup_parent: lfm4g2c.slice
+  minio:
+    cgroup_parent: lfm4g2c.slice
+  langfuse-web:
+    cgroup_parent: lfm4g2c.slice
+  langfuse-ai-gateway:
+    cgroup_parent: lfm4g2c.slice
+  langfuse-worker:
+    cgroup_parent: lfm4g2c.slice

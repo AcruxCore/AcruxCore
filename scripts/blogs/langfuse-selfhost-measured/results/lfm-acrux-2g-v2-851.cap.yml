@@ -1,0 +1,26 @@
+services:
+  postgres:
+    cgroup_parent: lfm2g1cacrux1794555266.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  redis:
+    cgroup_parent: lfm2g1cacrux1794555266.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  api:
+    cgroup_parent: lfm2g1cacrux1794555266.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  web:
+    cgroup_parent: lfm2g1cacrux1794555266.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+  worker:
+    cgroup_parent: lfm2g1cacrux1794555266.slice
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1

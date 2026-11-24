@@ -1,0 +1,617 @@
+$ compose config --services
+clickhouse
+postgres
+redis
+minio
+langfuse-web
+langfuse-ai-gateway
+langfuse-worker
+
+$ compose down -v --remove-orphans
+
+$ compose up -d
+ Volume lfm-langfuse-4g_langfuse_postgres_data Creating 
+ Volume lfm-langfuse-4g_langfuse_clickhouse_logs Creating 
+ Volume lfm-langfuse-4g_langfuse_postgres_data Creating 
+ Volume lfm-langfuse-4g_langfuse_clickhouse_logs Creating 
+ Volume lfm-langfuse-4g_langfuse_redis_data Creating 
+ Volume lfm-langfuse-4g_langfuse_redis_data Creating 
+ Volume lfm-langfuse-4g_langfuse_minio_data Creating 
+ Volume lfm-langfuse-4g_langfuse_minio_data Creating 
+ Volume lfm-langfuse-4g_langfuse_clickhouse_data Creating 
+ Volume lfm-langfuse-4g_langfuse_clickhouse_data Creating 
+ Network lfm-langfuse-4g_default Creating 
+ Network lfm-langfuse-4g_default Creating 
+ Volume lfm-langfuse-4g_langfuse_postgres_data Created 
+ Volume lfm-langfuse-4g_langfuse_postgres_data Created 
+ Volume lfm-langfuse-4g_langfuse_redis_data Created 
+ Volume lfm-langfuse-4g_langfuse_redis_data Created 
+ Volume lfm-langfuse-4g_langfuse_clickhouse_logs Created 
+ Volume lfm-langfuse-4g_langfuse_clickhouse_logs Created 
+ Volume lfm-langfuse-4g_langfuse_clickhouse_data Created 
+ Volume lfm-langfuse-4g_langfuse_clickhouse_data Created 
+ Volume lfm-langfuse-4g_langfuse_minio_data Created 
+ Volume lfm-langfuse-4g_langfuse_minio_data Created 
+ Network lfm-langfuse-4g_default Created 
+ Network lfm-langfuse-4g_default Created 
+ Container lfm-langfuse-4g-redis-1 Creating 
+ Container lfm-langfuse-4g-minio-1 Creating 
+ Container lfm-langfuse-4g-clickhouse-1 Creating 
+ Container lfm-langfuse-4g-postgres-1 Creating 
+ Container lfm-langfuse-4g-redis-1 Created 
+ Container lfm-langfuse-4g-minio-1 Created 
+ Container lfm-langfuse-4g-clickhouse-1 Created 
+ Container lfm-langfuse-4g-postgres-1 Created 
+ Container lfm-langfuse-4g-langfuse-web-1 Creating 
+ Container lfm-langfuse-4g-langfuse-worker-1 Creating 
+ Container lfm-langfuse-4g-langfuse-worker-1 Created 
+ Container lfm-langfuse-4g-langfuse-web-1 Created 
+ Container lfm-langfuse-4g-langfuse-ai-gateway-1 Creating 
+ Container lfm-langfuse-4g-langfuse-ai-gateway-1 Created 
+ Container lfm-langfuse-4g-postgres-1 Starting 
+ Container lfm-langfuse-4g-clickhouse-1 Starting 
+ Container lfm-langfuse-4g-minio-1 Starting 
+ Container lfm-langfuse-4g-redis-1 Starting 
+ Container lfm-langfuse-4g-postgres-1 Started 
+ Container lfm-langfuse-4g-clickhouse-1 Started 
+ Container lfm-langfuse-4g-minio-1 Started 
+ Container lfm-langfuse-4g-redis-1 Started 
+ Container lfm-langfuse-4g-redis-1 Waiting 
+ Container lfm-langfuse-4g-clickhouse-1 Waiting 
+ Container lfm-langfuse-4g-postgres-1 Waiting 
+ Container lfm-langfuse-4g-minio-1 Waiting 
+ Container lfm-langfuse-4g-redis-1 Waiting 
+ Container lfm-langfuse-4g-clickhouse-1 Waiting 
+ Container lfm-langfuse-4g-postgres-1 Waiting 
+ Container lfm-langfuse-4g-minio-1 Waiting 
+ Container lfm-langfuse-4g-minio-1 Healthy 
+ Container lfm-langfuse-4g-minio-1 Healthy 
+ Container lfm-langfuse-4g-postgres-1 Healthy 
+ Container lfm-langfuse-4g-postgres-1 Healthy 
+ Container lfm-langfuse-4g-redis-1 Healthy 
+ Container lfm-langfuse-4g-redis-1 Healthy 
+ Container lfm-langfuse-4g-clickhouse-1 Healthy 
+ Container lfm-langfuse-4g-clickhouse-1 Healthy 
+ Container lfm-langfuse-4g-langfuse-web-1 Starting 
+ Container lfm-langfuse-4g-langfuse-worker-1 Starting 
+ Container lfm-langfuse-4g-langfuse-web-1 Started 
+ Container lfm-langfuse-4g-langfuse-ai-gateway-1 Starting 
+ Container lfm-langfuse-4g-langfuse-worker-1 Started 
+ Container lfm-langfuse-4g-langfuse-ai-gateway-1 Started 
+
+$ compose logs --no-color --tail 200
+redis-1  | 1:C 13 Nov 2026 00:49:19.796 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. Being disabled, it can also cause failures without low memory condition, see https://github.com/jemalloc/jemalloc/issues/1328. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.
+redis-1       | 1:C 13 Nov 2026 00:49:19.796 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+clickhouse-1  | /entrypoint.sh: create new user 'clickhouse' instead 'default'
+redis-1       | 1:C 13 Nov 2026 00:49:19.796 * Redis version=7.4.12, bits=64, commit=00000000, modified=0, pid=1, just started
+redis-1       | 1:C 13 Nov 2026 00:49:19.796 * Configuration loaded
+redis-1       | 1:M 13 Nov 2026 00:49:19.797 * Increased maximum number of open files to 10032 (it was originally set to 1024).
+redis-1       | 1:M 13 Nov 2026 00:49:19.797 * monotonic clock: POSIX clock_gettime
+redis-1       | 1:M 13 Nov 2026 00:49:19.797 * Running mode=standalone, port=6379.
+redis-1       | 1:M 13 Nov 2026 00:49:19.798 * Server initialized
+minio-1       | INFO: Formatting 1st pool, 1 set(s), 1 drives per set.
+langfuse-ai-gateway-1  | 2026-11-13T00:49:26.202909Z  INFO ai_gateway: gateway listening address=0.0.0.0:3031 inference_enabled=false max_request_bytes=16777216 memory_budget_bytes=1073741824 memory_budget_source="default" request_memory_overhead_bytes=1048576 max_execution_seconds=600 stall_timeout_seconds=120 connection_drain_timeout_seconds=30 telemetry_shutdown_timeout_seconds=20
+redis-1                | 1:M 13 Nov 2026 00:49:19.798 * Ready to accept connections tcp
+minio-1                | INFO: WARNING: Host local has more than 0 drives of set. A host failure will result in data becoming unavailable.
+minio-1                | MinIO Object Storage Server
+minio-1                | Copyright: 2015-2026 MinIO, Inc.
+minio-1                | License: GNU AGPLv3 - https://www.gnu.org/licenses/agpl-3.0.html
+minio-1                | Version: RELEASE.2026-11-12T01-15-23Z (go1.27.4 linux/amd64)
+minio-1                | 
+minio-1                | API: http://10.251.1.4:9000  http://127.0.0.1:9000 
+minio-1                | WebUI: http://10.251.1.4:9001 http://127.0.0.1:9001  
+langfuse-worker-1      | 2026-11-13T00:49:29.551Z info 	[LocalCache:model_match] Initialized local cache {"enabled":false,"ttlMs":10000,"max":20000}
+langfuse-web-1         |     └─ migration.sql
+redis-1                | 1:M 13 Nov 2026 00:50:54.218 * 10000 changes in 60 seconds. Saving...
+minio-1                | 
+clickhouse-1           | Processing configuration file '/etc/clickhouse-server/config.xml'.
+minio-1                | Docs: https://docs.min.io
+redis-1                | 1:M 13 Nov 2026 00:50:54.219 * Background saving started by pid 202
+clickhouse-1           | Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.
+redis-1                | 202:C 13 Nov 2026 00:50:54.290 * DB saved on disk
+redis-1                | 202:C 13 Nov 2026 00:50:54.291 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+langfuse-worker-1      | 2026-11-13T00:49:29.871307Z  INFO langfuse_native::telemetry: native telemetry initialised address="localhost:8125"
+redis-1                | 1:M 13 Nov 2026 00:50:54.319 * Background saving terminated with success
+langfuse-web-1         |   └─ 20260723165610_add_remote_experiment_auth_headers/
+redis-1                | 1:M 13 Nov 2026 00:55:55.050 * 100 changes in 300 seconds. Saving...
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20260731100000_add_media_association_origin/
+redis-1                | 1:M 13 Nov 2026 00:55:55.050 * Background saving started by pid 797
+redis-1                | 797:C 13 Nov 2026 00:55:55.072 * DB saved on disk
+redis-1                | 797:C 13 Nov 2026 00:55:55.073 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+langfuse-web-1         |     └─ migration.sql
+redis-1                | 1:M 13 Nov 2026 00:55:55.151 * Background saving terminated with success
+langfuse-web-1         |   └─ 20260806120000_add_in_app_agent_conversation_always_allowed_tools/
+langfuse-worker-1      | 2026-11-13T00:49:29.872Z info 	[Connection] Log level is set to INFO
+langfuse-web-1         |     └─ migration.sql
+langfuse-worker-1      | 2026-11-13T00:49:29.901Z info 	Resolved ClickHouse compatibility from version {"clickhouseVersion":"26.3.62.3","parsedClickHouseVersion":{"raw":"26.3.62.3","major":26,"minor":3,"patch":62,"build":3,"tuple":[26,3,62,3]},"computedCompatibilityFlags":[{"id":"disable-lazy-materialization-for-patch-parts","setting":"query_plan_optimize_lazy_materialization","value":0,"reason":"Work around ClickHouse #102904, where lazy materialization can lose `_block_number` while reading lightweight-update patch parts.","override":"auto","versionBands":[{"minInclusive":"25.4.0.0","maxExclusive":"26.4.1.1005"}],"matchesVersionBand":true,"applied":true},{"id":"disable-top-k-through-join","setting":"query_plan_top_k_through_join","value":0,"reason":"Work around ClickHouse #109210, where top-K-through-join can leave lazy materialization with a dangling filter input.","override":"auto","versionBands":[{"minInclusive":"26.5.1.651","maxExclusive":"26.5.6.70"},{"minInclusive":"26.6.0.0","maxExclusive":"26.6.2.108"},{"minInclusive":"26.7.0.0","maxExclusive":"26.7.1.1334"},{"minInclusive":"26.7.2.0","maxExclusive":"26.7.2.11"}],"matchesVersionBand":false,"applied":false},{"id":"enable-skip-indexes-on-data-read","setting":"use_skip_indexes_on_data_read","value":1,"reason":"Evaluate skip indexes at granule read time to cut query startup latency. Held back below 26.2, where reading a column patched by a lightweight update fails with `Not found column _part_offset in block`.","override":"auto","versionBands":[{"minInclusive":"26.2.0.0"}],"matchesVersionBand":true,"applied":true}],"settings":{"query_plan_optimize_lazy_materialization":0,"use_skip_indexes_on_data_read":1}}
+langfuse-web-1         |   └─ 20260807120000_drop_job_execution_configuration_fk/
+langfuse-worker-1      | 2026-11-13T00:49:29.902Z info 	Applying ClickHouse compatibility settings {"clickhouseVersion":"26.3.62.3","settings":{"query_plan_optimize_lazy_materialization":0,"use_skip_indexes_on_data_read":1},"rules":[{"id":"disable-lazy-materialization-for-patch-parts","setting":"query_plan_optimize_lazy_materialization","reason":"Work around ClickHouse #102904, where lazy materialization can lose `_block_number` while reading lightweight-update patch parts."},{"id":"enable-skip-indexes-on-data-read","setting":"use_skip_indexes_on_data_read","reason":"Evaluate skip indexes at granule read time to cut query startup latency. Held back below 26.2, where reading a column patched by a lightweight update fails with `Not found column _part_offset in block`."}]}
+langfuse-web-1         |     └─ migration.sql
+langfuse-worker-1      | 2026-11-13T00:49:29.902Z info 	[Connection] Log level is set to INFO
+clickhouse-1           | Logging trace to /var/log/clickhouse-server/clickhouse-server.log
+langfuse-worker-1      | 2026-11-13T00:49:29.938Z error 	[Connection] Query: HTTP request error. {"operation":"Query","connection_id":"0ffa3c8a-ce9c-458c-aca0-748bbf0f4763","query_id":"c4087c7c-6e28-4f9f-b5f0-88ad6081fc15","with_abort_signal":false,"clickhouse_settings":{"query_plan_optimize_lazy_materialization":0,"use_skip_indexes_on_data_read":1,"input_format_json_throw_on_bad_escape_sequence":0,"timeout_before_checking_execution_speed":0,"max_execution_time":35,"async_insert":1,"wait_for_async_insert":1},"error":"Table default.events_full does not exist. "}
+clickhouse-1           | Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log
+langfuse-web-1         |   └─ 20260813120000_add_posthog_integration_error_fields/
+clickhouse-1           | 
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20260821121000_add_evaluator_v2/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20260821121500_backfill_evaluator_v2/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20260825120000_add_organization_feature_flag_defaults/
+langfuse-worker-1      | Error: Table default.events_full does not exist. 
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20260901103400_add_evaluator_prompt_messages/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20260904151000_add_ai_gateway_control_plane/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20260909171000_add_sessions_expired_at/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20260921150000_add_decision_model_eval_template_type/
+langfuse-web-1         |     └─ migration.sql
+postgres-1             | The files belonging to this database system will be owned by user "postgres".
+postgres-1             | This user must also own the server process.
+postgres-1             | 
+postgres-1             | The database cluster will be initialized with locale "en_US.utf8".
+postgres-1             | The default database encoding has accordingly been set to "UTF8".
+postgres-1             | The default text search configuration will be set to "english".
+clickhouse-1           | /entrypoint.sh: create database 'default'
+postgres-1             | 
+clickhouse-1           | Processing configuration file '/etc/clickhouse-server/config.xml'.
+postgres-1             | Data page checksums are disabled.
+clickhouse-1           | Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.
+postgres-1             | 
+clickhouse-1           | Logging trace to /var/log/clickhouse-server/clickhouse-server.log
+postgres-1             | fixing permissions on existing directory /var/lib/postgresql/data ... ok
+clickhouse-1           | Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log
+postgres-1             | creating subdirectories ... ok
+postgres-1             | selecting dynamic shared memory implementation ... posix
+postgres-1             | selecting default "max_connections" ... 100
+postgres-1             | selecting default "shared_buffers" ... 128MB
+postgres-1             | selecting default time zone ... UTC
+langfuse-web-1         |   └─ 20260921191000_add_evaluator_version_questions/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20260923120000_in_app_agent_conversation_retention_index/
+langfuse-web-1         |     └─ migration.sql
+postgres-1             | creating configuration files ... ok
+postgres-1             | running bootstrap script ... ok
+postgres-1             | performing post-bootstrap initialization ... ok
+langfuse-web-1         |   └─ 20260924174440_skill_management/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20260924213305_add_role_assignments/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20260924213400_backfill_role_assignments/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261001160000_add_facet_evaluator_type/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261002120000_add_topic_clustering_runs/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261005120000_export_integrations_backfill/
+langfuse-web-1         |     └─ migration.sql
+langfuse-worker-1      |     at parseError (/app/worker/node_modules/.pnpm/@clickhouse+client@1.23.1/node_modules/@clickhouse/client/dist/common/error/error.js:42:16)
+postgres-1             | syncing data to disk ... ok
+postgres-1             | 
+langfuse-web-1         |   └─ 20261006111500_add_external_media_storage_integration/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261007122058_add_gcs_blob_storage_integration_type/
+langfuse-web-1         |     └─ migration.sql
+postgres-1             | 
+langfuse-web-1         |   └─ 20261007142940_add_topic_configs/
+postgres-1             | initdb: warning: enabling "trust" authentication for local connections
+postgres-1             | initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+postgres-1             | Success. You can now start the database server using:
+postgres-1             | 
+postgres-1             |     pg_ctl -D /var/lib/postgresql/data -l logfile start
+postgres-1             | 
+postgres-1             | waiting for server to start....2026-11-13 00:49:20.031 UTC [47] LOG:  starting PostgreSQL 17.11 (Debian 17.11-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+postgres-1             | 2026-11-13 00:49:20.032 UTC [47] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1             | 2026-11-13 00:49:20.037 UTC [50] LOG:  database system was shut down at 2026-11-13 00:49:19 UTC
+postgres-1             | 2026-11-13 00:49:20.041 UTC [47] LOG:  database system is ready to accept connections
+postgres-1             |  done
+postgres-1             | server started
+postgres-1             | 
+postgres-1             | /usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
+postgres-1             | 
+postgres-1             | 2026-11-13 00:49:20.152 UTC [47] LOG:  received fast shutdown request
+postgres-1             | waiting for server to shut down....2026-11-13 00:49:20.153 UTC [47] LOG:  aborting any active transactions
+postgres-1             | 2026-11-13 00:49:20.154 UTC [47] LOG:  background worker "logical replication launcher" (PID 53) exited with exit code 1
+postgres-1             | 2026-11-13 00:49:20.154 UTC [48] LOG:  shutting down
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261008120000_reshape_role_assignments/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261012060000_add_tracing_readiness_settings/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261012134000_add_unique_gateway_connection_names/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261012155316_add_audit_log_staging/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261013120000_add_organization_llm_connections/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261013123042_add_audit_log_staging_failure_columns/
+postgres-1             | 2026-11-13 00:49:20.155 UTC [48] LOG:  checkpoint starting: shutdown immediate
+postgres-1             | 2026-11-13 00:49:20.165 UTC [48] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.001 s, sync=0.003 s, total=0.011 s; sync files=2, longest=0.002 s, average=0.002 s; distance=0 kB, estimate=0 kB; lsn=0/14EF800, redo lsn=0/14EF800
+postgres-1             | 2026-11-13 00:49:20.168 UTC [47] LOG:  database system is shut down
+postgres-1             |  done
+postgres-1             | server stopped
+postgres-1             | 
+postgres-1             | PostgreSQL init process complete; ready for start up.
+postgres-1             | 
+postgres-1             | 2026-11-13 00:49:20.272 UTC [1] LOG:  starting PostgreSQL 17.11 (Debian 17.11-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+postgres-1             | 2026-11-13 00:49:20.273 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+postgres-1             | 2026-11-13 00:49:20.273 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+postgres-1             | 2026-11-13 00:49:20.275 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1             | 2026-11-13 00:49:20.279 UTC [61] LOG:  database system was shut down at 2026-11-13 00:49:20 UTC
+postgres-1             | 2026-11-13 00:49:20.284 UTC [1] LOG:  database system is ready to accept connections
+postgres-1             | 2026-11-13 00:49:29.978 UTC [92] ERROR:  relation "pricing_tiers" does not exist at character 265
+postgres-1             | 2026-11-13 00:49:29.978 UTC [92] STATEMENT:  
+postgres-1             | 	      SELECT
+postgres-1             | 	        m.id AS "modelId",
+postgres-1             | 	        m.updated_at AS "modelUpdatedAt",
+langfuse-web-1         |     └─ migration.sql
+langfuse-worker-1      |     at ClientRequest.onResponse (/app/worker/node_modules/.pnpm/@clickhouse+client@1.23.1/node_modules/@clickhouse/client/dist/connection/socket_pool.js:239:91)
+langfuse-worker-1      |     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+postgres-1             | 	        t.id AS "tierId",
+langfuse-worker-1      | 2026-11-13T00:49:29.938Z warn 	Failed to detect ClickHouse event-size DEFAULT; using legacy estimates for TypeScript writers {"error":"Table default.events_full does not exist. "}
+postgres-1             | 	        t.name AS "tierName",
+langfuse-web-1         |   └─ 20261014132400_update_gateway_connection_model_routing/
+postgres-1             | 	        t.priority AS "tierPriority",
+langfuse-web-1         |     └─ migration.sql
+postgres-1             | 	        t.is_default AS "tierIsDefault"
+langfuse-web-1         |   └─ 20261019141500_add_gateway_ingestion_mode_none/
+postgres-1             | 	      FROM
+langfuse-web-1         |     └─ migration.sql
+postgres-1             | 	        models m
+langfuse-worker-1      | 2026-11-13T00:49:29.979Z error 	prisma:error 
+postgres-1             | 	        INNER JOIN pricing_tiers t ON t.model_id = m.id
+langfuse-worker-1      | Invalid `prisma.$queryRaw()` invocation:
+postgres-1             | 	      WHERE
+langfuse-worker-1      | 
+postgres-1             | 	        m.project_id IS NULL
+langfuse-worker-1      | 
+postgres-1             | 	    
+langfuse-worker-1      | Raw query failed. Code: `42P01`. Message: `relation "pricing_tiers" does not exist` {"trace_id":"0c934e7f44a8fd33eddd534b243cb31a","span_id":"e2da018cd1b2040b","trace_flags":"01"}
+postgres-1             | 2026-11-13 00:49:29.983 UTC [93] ERROR:  relation "public.dashboard_widgets" does not exist at character 57
+langfuse-web-1         |   └─ 20261020120000_add_slack_integration_installer/
+postgres-1             | 2026-11-13 00:49:29.983 UTC [93] STATEMENT:  SELECT "t0"."id", "t0"."updated_at" AS "updatedAt" FROM "public"."dashboard_widgets" AS "t0" WHERE ("t0"."project_id" IS NULL AND "t0"."id" IN ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36))
+langfuse-worker-1      | 2026-11-13T00:49:29.980Z error 	Error upserting default model prices after 42ms: 
+langfuse-worker-1      | Invalid `prisma.$queryRaw()` invocation:
+langfuse-worker-1      | 
+langfuse-worker-1      | 
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261020134835_add_api_key_user_binding/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261022120000_add_encrypt_legacy_webhook_headers_background_migration/
+langfuse-worker-1      | Raw query failed. Code: `42P01`. Message: `relation "pricing_tiers" does not exist` {"error":{"code":"P2010","meta":{"code":"42P01","message":"relation \"pricing_tiers\" does not exist"},"clientVersion":"6.19.3","name":"PrismaClientKnownRequestError","message":"\nInvalid `prisma.$queryRaw()` invocation:\n\n\nRaw query failed. Code: `42P01`. Message: `relation \"pricing_tiers\" does not exist`","stack":"PrismaClientKnownRequestError: \nInvalid `prisma.$queryRaw()` invocation:\n\n\nRaw query failed. Code: `42P01`. Message: `relation \"pricing_tiers\" does not exist`\n    at ei.handleRequestError (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2/node_modules/@prisma/client/runtime/library.js:121:7268)\n    at ei.handleAndLogRequestError (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2/node_modules/@prisma/client/runtime/library.js:121:6593)\n    at ei.request (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2/node_modules/@prisma/client/runtime/library.js:121:6300)"}}
+postgres-1             | 2026-11-13 00:54:20.343 UTC [59] LOG:  checkpoint starting: time
+langfuse-worker-1      | 2026-11-13T00:49:29.984Z error 	prisma:error 
+langfuse-worker-1      | Invalid `prisma.dashboardWidget.findMany()` invocation:
+langfuse-web-1         |     └─ migration.sql
+langfuse-worker-1      | 
+langfuse-web-1         |   └─ 20261022120000_add_organization_access_audit_log_enabled/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261022120000_backfill_user_role_assignments/
+langfuse-web-1         |     └─ migration.sql
+langfuse-worker-1      | 
+langfuse-worker-1      | The table `public.dashboard_widgets` does not exist in the current database. {"trace_id":"610f3051ea7b8f11dc0254aeef64c5b2","span_id":"4a4a350703f902db","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:29.984Z error 	Error upserting Langfuse dashboards after 37ms: 
+langfuse-worker-1      | Invalid `prisma.dashboardWidget.findMany()` invocation:
+langfuse-worker-1      | 
+langfuse-worker-1      | 
+langfuse-web-1         |   └─ 20261022130000_add_ai_gateway_membership_role/
+langfuse-worker-1      | The table `public.dashboard_widgets` does not exist in the current database. {"error":{"code":"P2021","meta":{"modelName":"DashboardWidget","table":"public.dashboard_widgets"},"clientVersion":"6.19.3","name":"PrismaClientKnownRequestError","message":"\nInvalid `prisma.dashboardWidget.findMany()` invocation:\n\n\nThe table `public.dashboard_widgets` does not exist in the current database.","stack":"PrismaClientKnownRequestError: \nInvalid `prisma.dashboardWidget.findMany()` invocation:\n\n\nThe table `public.dashboard_widgets` does not exist in the current database.\n    at ei.handleRequestError (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2/node_modules/@prisma/client/runtime/library.js:121:7268)\n    at ei.handleAndLogRequestError (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2/node_modules/@prisma/client/runtime/library.js:121:6593)\n    at ei.request (/app/worker/node_modules/.pnpm/@prisma+client@6.19.3_@typescript+typescript6@6.0.2/node_modules/@prisma/client/runtime/library.js:121:6300)"}}
+langfuse-web-1         |     └─ migration.sql
+langfuse-worker-1      | 2026-11-13T00:49:31.070Z info 	[LocalCache:otel_org_created_at] Initialized local cache {"enabled":true,"ttlMs":3600000,"max":10000}
+langfuse-web-1         |   └─ 20261023120000_add_user_support_access/
+langfuse-worker-1      | 2026-11-13T00:49:31.101Z info 	No min project create date set, ClickhouseReadSkipCache will not pre-populate
+postgres-1             | 2026-11-13 00:55:23.591 UTC [59] LOG:  checkpoint complete: wrote 634 buffers (3.9%); 0 WAL file(s) added, 0 removed, 0 recycled; write=63.109 s, sync=0.121 s, total=63.249 s; sync files=831, longest=0.010 s, average=0.001 s; distance=6066 kB, estimate=6066 kB; lsn=0/1ADC240, redo lsn=0/1ADC1B0
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261026120100_add_pagerduty_action_type/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261030120000_add_topic_rule_scoped_runs/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261030120000_add_user_api_key_scope/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261104120000_add_external_media_storage_role_auth/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261104120000_add_gateway_bedrock_provider_and_custom_models/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261105120000_add_gateway_connection_base_url_and_headers/
+langfuse-web-1         |     └─ migration.sql
+langfuse-worker-1      | 2026-11-13T00:49:31.103Z info 	trace-upsert executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.104Z info 	create-eval-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.104Z info 	trace-delete executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.104Z info 	score-delete executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.105Z info 	dataset-delete-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.105Z info 	project-delete executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.105Z info 	dataset-run-item-upsert-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.105Z info 	evaluation-execution-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.106Z info 	llm-as-a-judge-execution-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.106Z info 	code-eval-execution-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.106Z info 	secondary-evaluation-execution-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.107Z info 	batch-export-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.107Z info 	batch-action-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.107Z info 	otel-ingestion-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.107Z info 	secondary-otel-ingestion-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.108Z info 	ingestion-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.108Z info 	secondary-ingestion-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.108Z info 	monitor-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.108Z info 	experiment-create-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.109Z info 	posthog-integration-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.109Z info 	posthog-integration-processing-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.110Z info 	v4-legacy-api-usage-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.110Z info 	mixpanel-integration-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.110Z info 	mixpanel-integration-processing-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.110Z info 	blobstorage-integration-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.111Z info 	blobstorage-integration-processing-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.111Z info 	data-retention-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.111Z info 	data-retention-processing-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.111Z info 	webhook-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.111Z info 	entity-change-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.112Z info 	event-propagation-queue executor started: true
+langfuse-worker-1      | 2026-11-13T00:49:31.112Z info 	notification-queue executor started: true
+langfuse-web-1         |   └─ 20261106130000_add_blob_storage_role_auth/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261109110421_add_annotation_queue_items_project_id_queue_id_created_at_id_idx/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261109110453_drop_annotation_queue_items_id_project_id_idx/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261110120000_add_gateway_openrouter_provider/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261110130000_add_gateway_xai_provider/
+langfuse-web-1         |     └─ migration.sql
+langfuse-worker-1      | 2026-11-13T00:49:31.113Z info 	Starting TraceDeleteBatchActionRunner {"intervalMs":10000,"lockTtlSeconds":1800,"batchSize":2000,"maxBatchesPerRun":5}
+langfuse-worker-1      | 2026-11-13T00:49:31.113Z info 	Starting InAppAgentIntegrityRunner {"intervalMs":900000}
+langfuse-worker-1      | 2026-11-13T00:49:31.114Z info 	Starting MonitorRunner(1/1) {"schedulerId":0,"totalSchedulers":1,"intervalMs":30000}
+langfuse-worker-1      | 2026-11-13T00:49:31.121Z info 	Listening: http://41c7f2fcfa6b:3030
+langfuse-worker-1      | 2026-11-13T00:49:31.169Z info 	[Background Migration] Found background migrations 20250102_backfill_billing_cycle_anchors to run {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"84480b1c9741a5bc","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.229Z info 	MonitorRunner(1/1): published 0 events {"trace_id":"360954a13e17ba72f47d2df8d2518430","span_id":"57fa0e25316e19db","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.263Z info 	[Background Migration] Acquired lock for background migration 20250102_backfill_billing_cycle_anchors {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"84480b1c9741a5bc","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.309Z info 	[Background Migration] Not in cloud environment, migration will be skipped {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.310Z info 	[Background Migration] Starting billing cycle anchor backfill with args: {} {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.310Z info 	[Background Migration] Not in cloud environment, skipping migration {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.313Z info 	[Background Migration] Finished background migration 20250102_backfill_billing_cycle_anchors {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.315Z info 	[Background Migration] Found background migrations 20250711_1347_patch_llm_tool_schema_audit_logs to run {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"68b26b83ac84e756","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.316Z info 	[Background Migration] Acquired lock for background migration 20250711_1347_patch_llm_tool_schema_audit_logs {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"68b26b83ac84e756","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.322Z info 	[Background Migration] Patching audit logs for LLMTool and LLMSchema {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.324Z info 	[Background Migration] Finished patching of audit logs for LLMTool and LLMSchema in 2ms - Rows: 0 {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.326Z info 	[Background Migration] Finished background migration 20250711_1347_patch_llm_tool_schema_audit_logs {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.328Z info 	[Background Migration] Found background migrations 20251216_1001_backfill_dataset_items_valid_to to run {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"86d18d1a94220051","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.328Z info 	[Background Migration] Acquired lock for background migration 20251216_1001_backfill_dataset_items_valid_to {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"86d18d1a94220051","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.341Z info 	Backfilling valid_to for dataset_items with {} {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.343Z info 	Backfill completed in 2ms {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.346Z info 	[Background Migration] Finished background migration 20251216_1001_backfill_dataset_items_valid_to {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.348Z info 	[Background Migration] Found background migrations 20260106_encrypt_blob_storage_secrets to run {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"bbbf8f4bd3888468","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.348Z info 	[Background Migration] Acquired lock for background migration 20260106_encrypt_blob_storage_secrets {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"bbbf8f4bd3888468","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.355Z info 	[Background Migration] Starting blob storage secrets encryption migration {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.356Z info 	[Background Migration] No integrations to check, migration complete {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.359Z info 	[Background Migration] Finished background migration 20260106_encrypt_blob_storage_secrets {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.360Z info 	[Background Migration] Found background migrations 20260701_v4_step_1_create_root_spans_from_traces to run {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"9bb4fb29360f12fd","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.361Z info 	[Background Migration] Acquired lock for background migration 20260701_v4_step_1_create_root_spans_from_traces {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"9bb4fb29360f12fd","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:31.373Z info 	[Backfill Root Spans] events_full table does not exist. Retrying in 10s... {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.381Z info 	[Backfill Root Spans] All prerequisites validated successfully {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.381Z info 	[Backfill Root Spans] Starting backfill with config: {"concurrency":1,"pollIntervalMs":30000,"maxRetries":3} {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.388Z info 	[Backfill Root Spans] Discovering traces partitions from system.parts {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.395Z info 	[Backfill Root Spans] Loaded 0 partitions:  {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.400Z info 	[Backfill Root Spans] All chunks completed! {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.505Z info 	[Backfill Root Spans] Finished backfill in 0.00 minutes {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.508Z info 	[Background Migration] Finished background migration 20260701_v4_step_1_create_root_spans_from_traces {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.510Z info 	[Background Migration] Found background migrations 20260701_v4_step_2_rewrite_observations_to_pid_tid_sorting to run {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"df81bfe553ad6a2e","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.510Z info 	[Background Migration] Acquired lock for background migration 20260701_v4_step_2_rewrite_observations_to_pid_tid_sorting {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"df81bfe553ad6a2e","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.520Z info 	[Backfill PidTid Sorting] Ensuring observations_pid_tid_sorting exists {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.528Z info 	[Backfill PidTid Sorting] All prerequisites validated successfully {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.528Z info 	[Backfill PidTid Sorting] Starting backfill with config: {"concurrency":1,"pollIntervalMs":30000,"maxRetries":3} {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.532Z info 	[Backfill PidTid Sorting] Discovering observations partitions from system.parts {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.536Z info 	[Backfill PidTid Sorting] Loaded 0 partitions:  {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.540Z info 	[Backfill PidTid Sorting] All chunks completed! {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.547Z info 	[Backfill PidTid Sorting] Stopping merges on observations_pid_tid_sorting (engine=ReplacingMergeTree) {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.553Z info 	[Backfill PidTid Sorting] Skipping SYSTEM SYNC REPLICA (engine=ReplacingMergeTree is not replicated) {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.553Z info 	[Backfill PidTid Sorting] Froze and synced observations_pid_tid_sorting for downstream processing {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.553Z info 	[Backfill PidTid Sorting] Finished backfill in 0.00 minutes {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.586Z info 	[Background Migration] Finished background migration 20260701_v4_step_2_rewrite_observations_to_pid_tid_sorting {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.588Z info 	[Background Migration] Found background migrations 20260701_v4_step_3_backfill_events_full_from_observations to run {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"ac07158cf4587a6d","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.589Z info 	[Background Migration] Acquired lock for background migration 20260701_v4_step_3_backfill_events_full_from_observations {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"ac07158cf4587a6d","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.597Z info 	[Backfill Events Observations] All prerequisites validated successfully {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.601Z info 	[Backfill Events Observations] Skipping cross-replica consistency check (engine=ReplacingMergeTree is not replicated) {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.601Z info 	[Backfill Events Observations] Starting backfill with config: {"concurrency":1,"pollIntervalMs":30000,"maxRetries":3} {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.604Z info 	[Backfill Events Observations] Discovering parts from system.parts {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.607Z info 	[Backfill Events Observations] Loaded 0 parts from system.parts {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.612Z info 	[Backfill Events Observations] All chunks completed! {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.614Z info 	[Backfill Events Observations] Finished backfill in 0.00 minutes {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.616Z info 	[Background Migration] Finished background migration 20260701_v4_step_3_backfill_events_full_from_observations {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.618Z info 	[Background Migration] Found background migrations 20260701_v4_step_4_backfill_events_full_from_dataset_run_items to run {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"6720f1374f5a7a31","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.619Z info 	[Background Migration] Acquired lock for background migration 20260701_v4_step_4_backfill_events_full_from_dataset_run_items {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"6720f1374f5a7a31","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.629Z info 	[Backfill Events DRIs] All prerequisites validated successfully {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-web-1         |   └─ 20261110140000_add_gateway_vercel_provider/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |       
+langfuse-web-1         | All migrations have been successfully applied.
+langfuse-web-1         | 1/u traces (122.617123ms)
+langfuse-web-1         | 2/u observations (243.614074ms)
+langfuse-web-1         | 3/u scores (364.046713ms)
+langfuse-web-1         | 4/u drop_observations_index (484.925119ms)
+langfuse-web-1         | 5/u add_session_id_index (615.592081ms)
+langfuse-web-1         | 6/u add_user_id_index (736.462772ms)
+langfuse-web-1         | 7/u add_event_log (857.07914ms)
+langfuse-web-1         | 8/u add_environments_column (987.853245ms)
+langfuse-web-1         | 9/u add_project_environments (1.118894328s)
+langfuse-web-1         | 10/u add_metadata_column_on_scores (1.239361913s)
+langfuse-web-1         | 11/u add_blob_storage_file_log (1.360200444s)
+langfuse-web-1         | 12/u add_session_id_column_scores (1.358397375s)
+langfuse-web-1         | 13/u drop_scores_trace_id_index (1.368337237s)
+langfuse-web-1         | 14/u scores_modify_nullable_trace_id_column (1.368429734s)
+langfuse-web-1         | 15/u add_scores_trace_index (1.368517802s)
+langfuse-web-1         | 16/u add_scores_session_index (1.35832138s)
+langfuse-web-1         | 17/u add_run_id_column_scores (1.358313155s)
+langfuse-web-1         | 18/u add_scores_run_index (1.358096874s)
+langfuse-web-1         | 19/u analytics_traces (1.348413659s)
+langfuse-web-1         | 20/u analytics_observations (1.338052275s)
+langfuse-web-1         | 21/u analytics_scores (1.338526016s)
+langfuse-web-1         | 22/u dataset_run_items (1.338304254s)
+langfuse-worker-1      | 2026-11-13T00:49:41.629Z info 	[Backfill Events DRIs] Starting events_full backfill from dataset_run_items_rmt with config: {"pollIntervalMs":30000,"maxRetries":3,"batchSize":200,"maxDescendantsPerDri":50000,"lookbackDays":90} {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.633Z info 	[Connection] Log level is set to INFO {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"d8371ece7ee01409","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.640Z info 	[Backfill Events DRIs] No more DRIs to process; processed 0 DRIs in total {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.640Z info 	[Backfill Events DRIs] Finished events_full backfill in 0.00 minutes (enriched=0, skipped=0) {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.643Z info 	[Background Migration] Finished background migration 20260701_v4_step_4_backfill_events_full_from_dataset_run_items {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.644Z info 	[Background Migration] Found background migrations 20261022_encrypt_legacy_webhook_headers to run {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"bffa0e840b351740","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.645Z info 	[Background Migration] Acquired lock for background migration 20261022_encrypt_legacy_webhook_headers {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"bffa0e840b351740","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.650Z info 	[Background Migration] Starting legacy webhook header encryption {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.651Z info 	[Background Migration] Legacy webhook header encryption finished in 1ms: 0 encrypted, 0 invalid, 0 failed {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.653Z info 	[Background Migration] Finished background migration 20261022_encrypt_legacy_webhook_headers {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"25c5aa3ca53241aa","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:49:41.655Z info 	[Background Migration] No background migrations to run {"trace_id":"1f5fad3f16f62759c755b79dcd56e839","span_id":"d34403e01a3480cd","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:50:00.060Z info 	Executing Event Propagation Job {"trace_id":"cd22c98ae87b51074f8178d577ef81a0","span_id":"aea6bee9a6c48410","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:50:00.060Z info 	[DUAL WRITE] Last processed partition: none {"trace_id":"cd22c98ae87b51074f8178d577ef81a0","span_id":"aea6bee9a6c48410","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:50:00.066Z info 	[DUAL WRITE] No partitions available for processing (last processed: none) {"trace_id":"cd22c98ae87b51074f8178d577ef81a0","span_id":"aea6bee9a6c48410","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:50:00.066Z info 	[EXPERIMENT BACKFILL] Checking if backfill should run {"trace_id":"cd22c98ae87b51074f8178d577ef81a0","span_id":"aea6bee9a6c48410","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:50:00.066Z info 	[EXPERIMENT BACKFILL] Initialized cutoff timestamp to 2026-11-13T00:50:00.066Z (first run) {"trace_id":"cd22c98ae87b51074f8178d577ef81a0","span_id":"aea6bee9a6c48410","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:50:01.287Z info 	MonitorRunner(1/1): published 0 events {"trace_id":"1a5ee1751875478b1ca9843de19a3dca","span_id":"671d097bc7b75093","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:50:31.294Z info 	MonitorRunner(1/1): published 0 events {"trace_id":"25c7a584c8c4aef03f3d49a4f2fff00a","span_id":"72bfd50395494b3a","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:50:48.231Z info 	Starting ClickhouseWriter. Max interval: 1000 ms, Max batch size: 1000 {"format":"json","trace_id":"c37632512df5c9f5dfcfc86207969deb","span_id":"bd725784b92c8e2f","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:51:00.046Z info 	Executing Event Propagation Job {"trace_id":"e4abed4fc53c0178c80781d381bf4719","span_id":"de9e12309d999d91","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:51:00.047Z info 	[DUAL WRITE] Last processed partition: none {"trace_id":"e4abed4fc53c0178c80781d381bf4719","span_id":"de9e12309d999d91","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:51:00.051Z info 	[DUAL WRITE] No partitions available for processing (last processed: none) {"trace_id":"e4abed4fc53c0178c80781d381bf4719","span_id":"de9e12309d999d91","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:51:00.051Z info 	[EXPERIMENT BACKFILL] Checking if backfill should run {"trace_id":"e4abed4fc53c0178c80781d381bf4719","span_id":"de9e12309d999d91","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:51:01.305Z info 	MonitorRunner(1/1): published 0 events {"trace_id":"8032e8b2eaa6a16fd81c0f65d2c343c0","span_id":"043eaff2dd0eb9b8","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:51:31.316Z info 	MonitorRunner(1/1): published 0 events {"trace_id":"a5bca70b1e1afcd5ecf5eaae0ac27df0","span_id":"f17f6704d101ef47","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:52:00.064Z info 	Executing Event Propagation Job {"trace_id":"f6fad35188d9f82ca888f1adf9816fb3","span_id":"36321113685d0934","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:52:00.064Z info 	[DUAL WRITE] Last processed partition: none {"trace_id":"f6fad35188d9f82ca888f1adf9816fb3","span_id":"36321113685d0934","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:52:00.069Z info 	[DUAL WRITE] No partitions available for processing (last processed: none) {"trace_id":"f6fad35188d9f82ca888f1adf9816fb3","span_id":"36321113685d0934","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:52:00.069Z info 	[EXPERIMENT BACKFILL] Checking if backfill should run {"trace_id":"f6fad35188d9f82ca888f1adf9816fb3","span_id":"36321113685d0934","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:52:01.323Z info 	MonitorRunner(1/1): published 0 events {"trace_id":"d892929c4dfe74b3e8d200fb692d8798","span_id":"931e7446ccf71822","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:52:31.327Z info 	MonitorRunner(1/1): published 0 events {"trace_id":"0267dedd5224e9e49535498a95c136a5","span_id":"ce904716a25f9d2a","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:53:00.099Z info 	Executing Event Propagation Job {"trace_id":"6efdbd6a34dc70c5c58f953feac2ee37","span_id":"e36f212438938a59","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:53:00.099Z info 	[DUAL WRITE] Last processed partition: none {"trace_id":"6efdbd6a34dc70c5c58f953feac2ee37","span_id":"e36f212438938a59","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:53:00.104Z info 	[DUAL WRITE] No partitions available for processing (last processed: none) {"trace_id":"6efdbd6a34dc70c5c58f953feac2ee37","span_id":"e36f212438938a59","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:53:00.104Z info 	[EXPERIMENT BACKFILL] Checking if backfill should run {"trace_id":"6efdbd6a34dc70c5c58f953feac2ee37","span_id":"e36f212438938a59","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:53:01.333Z info 	MonitorRunner(1/1): published 0 events {"trace_id":"8f9c5a0281e9f4bbe7a09fd32031568c","span_id":"dd443dfa53d236a6","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:53:31.341Z info 	MonitorRunner(1/1): published 0 events {"trace_id":"e089495e656abd39ee3d34d7099ea305","span_id":"56ff9029190e9ca6","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:54:00.016Z info 	Executing Event Propagation Job {"trace_id":"12224dd4840a96580ca82d3512588735","span_id":"4270bf73ba20c078","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:54:00.016Z info 	[DUAL WRITE] Last processed partition: none {"trace_id":"12224dd4840a96580ca82d3512588735","span_id":"4270bf73ba20c078","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:54:00.021Z info 	[DUAL WRITE] No partitions available for processing (last processed: none) {"trace_id":"12224dd4840a96580ca82d3512588735","span_id":"4270bf73ba20c078","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:54:00.021Z info 	[EXPERIMENT BACKFILL] Checking if backfill should run {"trace_id":"12224dd4840a96580ca82d3512588735","span_id":"4270bf73ba20c078","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:54:01.353Z info 	MonitorRunner(1/1): published 0 events {"trace_id":"a116889b5e9f00c544e46f76c8f79da5","span_id":"71c1333a9d2b5b82","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:54:31.359Z info 	MonitorRunner(1/1): published 0 events {"trace_id":"166f675a92fa8a317049e3e986d580c8","span_id":"273d0e699c6e67de","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:55:00.044Z info 	Executing Event Propagation Job {"trace_id":"44d87e45ebb390f1592137ece88cd4b4","span_id":"b1ea9865d7a23548","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:55:00.044Z info 	[DUAL WRITE] Last processed partition: none {"trace_id":"44d87e45ebb390f1592137ece88cd4b4","span_id":"b1ea9865d7a23548","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:55:00.049Z info 	[DUAL WRITE] No partitions available for processing (last processed: none) {"trace_id":"44d87e45ebb390f1592137ece88cd4b4","span_id":"b1ea9865d7a23548","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:55:00.049Z info 	[EXPERIMENT BACKFILL] Checking if backfill should run {"trace_id":"44d87e45ebb390f1592137ece88cd4b4","span_id":"b1ea9865d7a23548","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:55:01.366Z info 	MonitorRunner(1/1): published 0 events {"trace_id":"a5a938571706cd3380e97a649016300f","span_id":"a556cf362b60a78d","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T00:55:31.370Z info 	MonitorRunner(1/1): published 0 events {"trace_id":"a1d5dfbe07b0802aff996eb31ac361c5","span_id":"cdfdedd7b33d86e4","trace_flags":"01"}
+langfuse-web-1         | 23/u traces_aggregating_merge_trees (1.368329202s)
+langfuse-web-1         | 24/u dataset_run_items (1.357908856s)
+langfuse-web-1         | 25/u add_observations_metadata_indexes (1.368678737s)
+langfuse-web-1         | 26/u add_trace_id_index (1.368215957s)
+langfuse-web-1         | 27/u drop_project_environments_mvs (1.368565231s)
+langfuse-web-1         | 28/u drop_traces_null_mvs (1.36931116s)
+langfuse-web-1         | 29/u drop_traces_null_and_amt_tables (1.368700589s)
+langfuse-web-1         | 30/u add_eval_execution_trace_id_to_scores (1.368582305s)
+langfuse-web-1         | 31/u add_usage_pricing_tier_columns (1.37851891s)
+langfuse-web-1         | 32/u add_dataset_version_to_dataset_run_items_rmt (1.378494474s)
+langfuse-web-1         | 33/u add_tool_call_columns (1.388800083s)
+langfuse-web-1         | 34/u add_long_string_value_to_scores (1.358344164s)
+langfuse-web-1         | 35/u add_ingestion_attribution_columns (1.36907998s)
+langfuse-web-1         | 36/u add_ingested_sdks_to_analytics_scores (1.358231189s)
+langfuse-web-1         | 37/u add_created_at_indexes (1.37883409s)
+langfuse-web-1         | 38/u create_observations_batch_staging (1.37884456s)
+langfuse-web-1         | 39/u create_events_full (1.387843213s)
+langfuse-web-1         | 40/u create_events_core (1.398450995s)
+langfuse-web-1         | 41/u create_events_core_mv (1.398509928s)
+langfuse-web-1         | 42/u add_events_ingestion_attribution_columns (1.469096944s)
+langfuse-web-1         | 43/u add_events_metadata_ngram_index (1.489131293s)
+langfuse-web-1         | 44/u drop_event_log (1.478997822s)
+langfuse-web-1         | 45/u drop_project_environments (1.479036877s)
+langfuse-web-1         | 46/u drop_dataset_run_items (1.469018846s)
+langfuse-web-1         | 47/u add_eval_execution_columns (1.579822603s)
+langfuse-web-1         | 48/u enable_block_columns_on_scores_and_dataset_run_items (1.579635176s)
+langfuse-web-1         | 49/u add_events_name_ngram_indexes (1.629748198s)
+langfuse-web-1         | 50/u scores_trace_index_granularity (1.640210172s)
+langfuse-web-1         | 51/u add_topics (1.640127145s)
+langfuse-web-1         | 52/u create_audit_logs (1.640267732s)
+langfuse-web-1         | 53/u add_skill_observation_references (1.590577546s)
+langfuse-web-1         | 54/u add_audit_logs_support_access (1.569718387s)
+langfuse-web-1         | 55/u update_topic_tables (1.579735557s)
+langfuse-web-1         | 56/u compute_event_bytes (1.589915637s)
+langfuse-web-1         | ▲ Next.js 16.4.6
+langfuse-web-1         | - Local:         http://bcc97cc44c76:3000
+langfuse-web-1         | - Network:       http://bcc97cc44c76:3000
+langfuse-web-1         | ✓ Ready in 0ms
+langfuse-web-1         | ✓ Running next.config took 1.9ms
+langfuse-web-1         | Running init scripts...
+langfuse-web-1         | DATADOG TRACER DIAGNOSTIC - 'next' was loaded before dd-trace, so the next integration will not be applied. Initialize dd-trace before your application starts — NODE_OPTIONS='--require dd-trace/init' (CommonJS) or '--import dd-trace/initialize.mjs' (ESM) — and add 'dd-trace' to `serverExternalPackages` (Next.js >=15) or `experimental.serverComponentsExternalPackages` (13-14) so it is not bundled.
+langfuse-web-1         | 2026-11-13T00:49:40.623Z info 	[LocalCache:model_match] Initialized local cache {"enabled":false,"ttlMs":10000,"max":20000}
+langfuse-web-1         | 2026-11-13T00:49:40.880Z info 	[Connection] Log level is set to INFO
+langfuse-web-1         | 2026-11-13T00:49:40.905Z info 	Resolved ClickHouse compatibility from version {"clickhouseVersion":"26.3.62.3","parsedClickHouseVersion":{"raw":"26.3.62.3","major":26,"minor":3,"patch":62,"build":3,"tuple":[26,3,62,3]},"computedCompatibilityFlags":[{"id":"disable-lazy-materialization-for-patch-parts","setting":"query_plan_optimize_lazy_materialization","value":0,"reason":"Work around ClickHouse #102904, where lazy materialization can lose `_block_number` while reading lightweight-update patch parts.","override":"auto","versionBands":[{"minInclusive":"25.4.0.0","maxExclusive":"26.4.1.1005"}],"matchesVersionBand":true,"applied":true},{"id":"disable-top-k-through-join","setting":"query_plan_top_k_through_join","value":0,"reason":"Work around ClickHouse #109210, where top-K-through-join can leave lazy materialization with a dangling filter input.","override":"auto","versionBands":[{"minInclusive":"26.5.1.651","maxExclusive":"26.5.6.70"},{"minInclusive":"26.6.0.0","maxExclusive":"26.6.2.108"},{"minInclusive":"26.7.0.0","maxExclusive":"26.7.1.1334"},{"minInclusive":"26.7.2.0","maxExclusive":"26.7.2.11"}],"matchesVersionBand":false,"applied":false},{"id":"enable-skip-indexes-on-data-read","setting":"use_skip_indexes_on_data_read","value":1,"reason":"Evaluate skip indexes at granule read time to cut query startup latency. Held back below 26.2, where reading a column patched by a lightweight update fails with `Not found column _part_offset in block`.","override":"auto","versionBands":[{"minInclusive":"26.2.0.0"}],"matchesVersionBand":true,"applied":true}],"settings":{"query_plan_optimize_lazy_materialization":0,"use_skip_indexes_on_data_read":1}}
+langfuse-web-1         | 2026-11-13T00:49:40.905Z info 	Applying ClickHouse compatibility settings {"clickhouseVersion":"26.3.62.3","settings":{"query_plan_optimize_lazy_materialization":0,"use_skip_indexes_on_data_read":1},"rules":[{"id":"disable-lazy-materialization-for-patch-parts","setting":"query_plan_optimize_lazy_materialization","reason":"Work around ClickHouse #102904, where lazy materialization can lose `_block_number` while reading lightweight-update patch parts."},{"id":"enable-skip-indexes-on-data-read","setting":"use_skip_indexes_on_data_read","reason":"Evaluate skip indexes at granule read time to cut query startup latency. Held back below 26.2, where reading a column patched by a lightweight update fails with `Not found column _part_offset in block`."}]}
+langfuse-web-1         | 2026-11-13T00:49:41.214Z info 	No valid keys to invalidate
+langfuse-web-1         | 2026-11-13T00:49:43.663Z info 	[LocalCache:model_match] Initialized local cache {"enabled":false,"ttlMs":10000,"max":20000}
+langfuse-web-1         | 2026-11-13T00:49:44.228Z info 	[LocalCache:model_match] Initialized local cache {"enabled":false,"ttlMs":10000,"max":20000}
+langfuse-web-1         | 2026-11-13T00:49:45.197Z info 	MCP feature registered: prompts {"featureName":"prompts","toolCount":6,"toolNames":["getPrompt","getPromptUnresolved","listPrompts","createTextPrompt","createChatPrompt","updatePromptLabels"]}
+langfuse-web-1         | 2026-11-13T00:49:45.197Z info 	MCP feature registered: skills {"featureName":"skills","toolCount":7,"toolNames":["listSkills","getSkill","loadSkill","loadSkillResource","createSkillVersion","updateSkillLabels","updateSkillTags"]}
+langfuse-web-1         | 2026-11-13T00:49:45.197Z info 	MCP feature registered: observations {"featureName":"observations","toolCount":5,"toolNames":["listObservations","getObservation","getObservationFieldSchema","getObservationFilterSchema","getObservationFilterValues"]}
+langfuse-web-1         | 2026-11-13T00:49:45.197Z info 	MCP feature registered: annotationQueues {"featureName":"annotationQueues","toolCount":10,"toolNames":["listAnnotationQueues","createAnnotationQueue","getAnnotationQueue","listAnnotationQueueItems","getAnnotationQueueItem","createAnnotationQueueItem","updateAnnotationQueueItem","deleteAnnotationQueueItem","createAnnotationQueueAssignment","deleteAnnotationQueueAssignment"]}
+langfuse-web-1         | 2026-11-13T00:49:45.197Z info 	MCP feature registered: comments {"featureName":"comments","toolCount":3,"toolNames":["createComment","listComments","getComment"]}
+langfuse-web-1         | 2026-11-13T00:49:45.197Z info 	MCP feature registered: datasets {"featureName":"datasets","toolCount":13,"toolNames":["upsertDataset","listDatasets","getDataset","upsertDatasetItem","batchUpsertDatasetItems","listDatasetItems","getDatasetItem","deleteDatasetItem","createDatasetRunItem","listDatasetRunItems","listDatasetRuns","getDatasetRun","deleteDatasetRun"]}
+langfuse-web-1         | 2026-11-13T00:49:45.197Z info 	MCP feature registered: health {"featureName":"health","toolCount":1,"toolNames":["getHealth"]}
+langfuse-web-1         | 2026-11-13T00:49:45.197Z info 	MCP feature registered: scores {"featureName":"scores","toolCount":8,"toolNames":["listScores","getScore","createScore","listScoreConfigs","getScoreConfig","createScoreConfig","updateScoreConfig","deleteScoreConfig"]}
+langfuse-web-1         | 2026-11-13T00:49:45.198Z info 	MCP feature registered: metrics {"featureName":"metrics","toolCount":2,"toolNames":["queryMetrics","getMetricsSchema"]}
+langfuse-web-1         | 2026-11-13T00:49:45.198Z info 	MCP feature registered: models {"featureName":"models","toolCount":4,"toolNames":["listModels","createModel","getModel","deleteModel"]}
+langfuse-web-1         | 2026-11-13T00:49:45.198Z info 	MCP feature registered: llmConnections {"featureName":"llmConnections","toolCount":1,"toolNames":["listLlmConnections"]}
+langfuse-web-1         | 2026-11-13T00:49:45.198Z info 	MCP feature registered: media {"featureName":"media","toolCount":1,"toolNames":["getMedia"]}
+langfuse-web-1         | 2026-11-13T00:49:45.198Z info 	MCP feature registered: evals {"featureName":"evals","toolCount":17,"toolNames":["listManagedEvaluatorTemplates","listEvaluators","getEvaluator","testEvaluator","createEvaluator","updateEvaluator","deleteEvaluator","listEvaluationRules","getEvaluationRule","createEvaluationRule","updateEvaluationRule","attachEvaluatorToEvaluationRule","detachEvaluatorFromEvaluationRule","deleteEvaluationRule","getDefaultEvaluationModel","setDefaultEvaluationModel","deleteDefaultEvaluationModel"]}
+langfuse-web-1         | 2026-11-13T00:49:45.198Z info 	MCP feature registered: batchEvaluations {"featureName":"batchEvaluations","toolCount":1,"toolNames":["runBatchEvaluation"]}
+langfuse-web-1         | 2026-11-13T00:49:45.198Z info 	MCP feature registered: dashboardWidgets {"featureName":"dashboardWidgets","toolCount":13,"toolNames":["listDashboardWidgets","createDashboardWidget","getDashboardWidget","updateDashboardWidget","deleteDashboardWidget","listDashboards","getDashboard","createDashboard","updateDashboard","deleteDashboard","addDashboardPlacement","updateDashboardPlacement","deleteDashboardPlacement"]}
+langfuse-web-1         | 2026-11-13T00:49:45.198Z info 	MCP feature registered: feedback {"featureName":"feedback","toolCount":1,"toolNames":["submitFeedback"]}
+langfuse-web-1         | 2026-11-13T00:49:45.198Z info 	MCP feature registered: experiments {"featureName":"experiments","toolCount":2,"toolNames":["listExperiments","listExperimentItems"]}
+langfuse-web-1         | 2026-11-13T00:49:45.198Z info 	MCP feature registered: external-media-storage {"featureName":"external-media-storage","toolCount":4,"toolNames":["getExternalMediaStorage","configureExternalMediaStorage","deleteExternalMediaStorage","testExternalMediaStorage"]}
+langfuse-web-1         | 2026-11-13T00:49:45.198Z info 	MCP feature registered: alerts {"featureName":"alerts","toolCount":2,"toolNames":["listAlerts","getAlert"]}
+langfuse-web-1         | 2026-11-13T00:49:45.198Z info 	MCP feature registered: topics {"featureName":"topics","toolCount":5,"toolNames":["listTopicRules","listTopicFacets","listTopics","listTopicSummaries","listTopicAssignments"]}
+langfuse-web-1         | 2026-11-13T00:49:45.198Z info 	MCP feature registered: v4Migration {"featureName":"v4Migration","toolCount":1,"toolNames":["getV4MigrationData"]}
+langfuse-web-1         | 2026-11-13T00:49:47.662Z info 	[Connection] Log level is set to INFO
+langfuse-web-1         | 2026-11-13T00:49:47.664Z error 	Telemetry job is locked
+langfuse-web-1         | 2026-11-13T00:49:47.668Z error 	Telemetry job is locked
+langfuse-web-1         | 2026-11-13T00:49:47.694Z info 	[Connection] Log level is set to INFO
+langfuse-web-1         | 2026-11-13T00:49:47.702Z info 	[Connection] Log level is set to INFO
+langfuse-web-1         | 2026-11-13T00:55:57.899Z info 	[Connection] Log level is set to INFO {"trace_id":"3906ec332474e1b9a9565b6818f4332b","span_id":"239831372a513278","trace_flags":"01"}
+
+$ compose down -v --remove-orphans
+ Container lfm-langfuse-4g-langfuse-ai-gateway-1 Stopping 
+ Container lfm-langfuse-4g-langfuse-worker-1 Stopping 
+ Container lfm-langfuse-4g-langfuse-ai-gateway-1 Stopped 
+ Container lfm-langfuse-4g-langfuse-ai-gateway-1 Removing 
+ Container lfm-langfuse-4g-langfuse-ai-gateway-1 Removed 
+ Container lfm-langfuse-4g-langfuse-web-1 Stopping 
+ Container lfm-langfuse-4g-langfuse-web-1 Stopped 
+ Container lfm-langfuse-4g-langfuse-web-1 Removing 
+ Container lfm-langfuse-4g-langfuse-web-1 Removed 
+ Container lfm-langfuse-4g-langfuse-worker-1 Stopped 
+ Container lfm-langfuse-4g-langfuse-worker-1 Removing 
+ Container lfm-langfuse-4g-langfuse-worker-1 Removed 
+ Container lfm-langfuse-4g-redis-1 Stopping 
+ Container lfm-langfuse-4g-clickhouse-1 Stopping 
+ Container lfm-langfuse-4g-postgres-1 Stopping 
+ Container lfm-langfuse-4g-minio-1 Stopping 
+ Container lfm-langfuse-4g-minio-1 Stopped 
+ Container lfm-langfuse-4g-minio-1 Removing 
+ Container lfm-langfuse-4g-postgres-1 Stopped 
+ Container lfm-langfuse-4g-postgres-1 Removing 
+ Container lfm-langfuse-4g-redis-1 Stopped 
+ Container lfm-langfuse-4g-redis-1 Removing 
+ Container lfm-langfuse-4g-minio-1 Removed 
+ Container lfm-langfuse-4g-postgres-1 Removed 
+ Container lfm-langfuse-4g-redis-1 Removed 
+ Container lfm-langfuse-4g-clickhouse-1 Stopped 
+ Container lfm-langfuse-4g-clickhouse-1 Removing 
+ Container lfm-langfuse-4g-clickhouse-1 Removed 
+ Volume lfm-langfuse-4g_langfuse_clickhouse_logs Removing 
+ Volume lfm-langfuse-4g_langfuse_minio_data Removing 
+ Volume lfm-langfuse-4g_langfuse_postgres_data Removing 
+ Volume lfm-langfuse-4g_langfuse_redis_data Removing 
+ Volume lfm-langfuse-4g_langfuse_clickhouse_data Removing 
+ Network lfm-langfuse-4g_default Removing 
+ Volume lfm-langfuse-4g_langfuse_clickhouse_logs Removed 
+ Volume lfm-langfuse-4g_langfuse_minio_data Removed 
+ Volume lfm-langfuse-4g_langfuse_postgres_data Removed 
+ Network lfm-langfuse-4g_default Removed 
+ Volume lfm-langfuse-4g_langfuse_clickhouse_data Removed 
+ Volume lfm-langfuse-4g_langfuse_redis_data Removed 
+

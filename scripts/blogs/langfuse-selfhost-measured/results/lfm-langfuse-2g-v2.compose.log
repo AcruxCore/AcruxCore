@@ -1,0 +1,723 @@
+$ compose config --services
+minio
+postgres
+redis
+clickhouse
+langfuse-web
+langfuse-ai-gateway
+langfuse-worker
+
+$ compose down -v --remove-orphans
+
+$ compose up -d
+ Volume lfm-langfuse-2g-v2_langfuse_minio_data Creating 
+ Volume lfm-langfuse-2g-v2_langfuse_clickhouse_data Creating 
+ Volume lfm-langfuse-2g-v2_langfuse_clickhouse_logs Creating 
+ Volume lfm-langfuse-2g-v2_langfuse_minio_data Creating 
+ Volume lfm-langfuse-2g-v2_langfuse_clickhouse_logs Creating 
+ Volume lfm-langfuse-2g-v2_langfuse_clickhouse_data Creating 
+ Volume lfm-langfuse-2g-v2_langfuse_postgres_data Creating 
+ Volume lfm-langfuse-2g-v2_langfuse_redis_data Creating 
+ Volume lfm-langfuse-2g-v2_langfuse_postgres_data Creating 
+ Volume lfm-langfuse-2g-v2_langfuse_redis_data Creating 
+ Network lfm-langfuse-2g-v2_default Creating 
+ Network lfm-langfuse-2g-v2_default Creating 
+ Volume lfm-langfuse-2g-v2_langfuse_clickhouse_logs Created 
+ Volume lfm-langfuse-2g-v2_langfuse_clickhouse_logs Created 
+ Volume lfm-langfuse-2g-v2_langfuse_minio_data Created 
+ Volume lfm-langfuse-2g-v2_langfuse_minio_data Created 
+ Volume lfm-langfuse-2g-v2_langfuse_clickhouse_data Created 
+ Volume lfm-langfuse-2g-v2_langfuse_clickhouse_data Created 
+ Volume lfm-langfuse-2g-v2_langfuse_postgres_data Created 
+ Volume lfm-langfuse-2g-v2_langfuse_postgres_data Created 
+ Volume lfm-langfuse-2g-v2_langfuse_redis_data Created 
+ Volume lfm-langfuse-2g-v2_langfuse_redis_data Created 
+ Network lfm-langfuse-2g-v2_default Created 
+ Network lfm-langfuse-2g-v2_default Created 
+ Container lfm-langfuse-2g-v2-minio-1 Creating 
+ Container lfm-langfuse-2g-v2-postgres-1 Creating 
+ Container lfm-langfuse-2g-v2-clickhouse-1 Creating 
+ Container lfm-langfuse-2g-v2-redis-1 Creating 
+ Container lfm-langfuse-2g-v2-clickhouse-1 Created 
+ Container lfm-langfuse-2g-v2-redis-1 Created 
+ Container lfm-langfuse-2g-v2-postgres-1 Created 
+ Container lfm-langfuse-2g-v2-minio-1 Created 
+ Container lfm-langfuse-2g-v2-langfuse-web-1 Creating 
+ Container lfm-langfuse-2g-v2-langfuse-worker-1 Creating 
+ Container lfm-langfuse-2g-v2-langfuse-worker-1 Created 
+ Container lfm-langfuse-2g-v2-langfuse-web-1 Created 
+ Container lfm-langfuse-2g-v2-langfuse-ai-gateway-1 Creating 
+ Container lfm-langfuse-2g-v2-langfuse-ai-gateway-1 Created 
+ Container lfm-langfuse-2g-v2-postgres-1 Starting 
+ Container lfm-langfuse-2g-v2-clickhouse-1 Starting 
+ Container lfm-langfuse-2g-v2-minio-1 Starting 
+ Container lfm-langfuse-2g-v2-redis-1 Starting 
+ Container lfm-langfuse-2g-v2-postgres-1 Started 
+ Container lfm-langfuse-2g-v2-clickhouse-1 Started 
+ Container lfm-langfuse-2g-v2-minio-1 Started 
+ Container lfm-langfuse-2g-v2-redis-1 Started 
+ Container lfm-langfuse-2g-v2-clickhouse-1 Waiting 
+ Container lfm-langfuse-2g-v2-postgres-1 Waiting 
+ Container lfm-langfuse-2g-v2-minio-1 Waiting 
+ Container lfm-langfuse-2g-v2-redis-1 Waiting 
+ Container lfm-langfuse-2g-v2-clickhouse-1 Waiting 
+ Container lfm-langfuse-2g-v2-postgres-1 Waiting 
+ Container lfm-langfuse-2g-v2-minio-1 Waiting 
+ Container lfm-langfuse-2g-v2-redis-1 Waiting 
+ Container lfm-langfuse-2g-v2-minio-1 Healthy 
+ Container lfm-langfuse-2g-v2-minio-1 Healthy 
+ Container lfm-langfuse-2g-v2-postgres-1 Healthy 
+ Container lfm-langfuse-2g-v2-postgres-1 Healthy 
+ Container lfm-langfuse-2g-v2-redis-1 Healthy 
+ Container lfm-langfuse-2g-v2-redis-1 Healthy 
+ Container lfm-langfuse-2g-v2-clickhouse-1 Healthy 
+ Container lfm-langfuse-2g-v2-clickhouse-1 Healthy 
+ Container lfm-langfuse-2g-v2-langfuse-web-1 Starting 
+ Container lfm-langfuse-2g-v2-langfuse-worker-1 Starting 
+ Container lfm-langfuse-2g-v2-langfuse-web-1 Started 
+ Container lfm-langfuse-2g-v2-langfuse-ai-gateway-1 Starting 
+ Container lfm-langfuse-2g-v2-langfuse-worker-1 Started 
+ Container lfm-langfuse-2g-v2-langfuse-ai-gateway-1 Started 
+
+$ compose logs --no-color --tail 200
+clickhouse-1  | /entrypoint.sh: create new user 'clickhouse' instead 'default'
+clickhouse-1  | Processing configuration file '/etc/clickhouse-server/config.xml'.
+clickhouse-1  | Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.
+clickhouse-1  | Logging trace to /var/log/clickhouse-server/clickhouse-server.log
+clickhouse-1  | Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log
+clickhouse-1  | 
+clickhouse-1  | /entrypoint.sh: create database 'default'
+clickhouse-1  | Processing configuration file '/etc/clickhouse-server/config.xml'.
+clickhouse-1  | Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.
+clickhouse-1  | Logging trace to /var/log/clickhouse-server/clickhouse-server.log
+clickhouse-1  | Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log
+minio-1       | INFO: Formatting 1st pool, 1 set(s), 1 drives per set.
+minio-1       | INFO: WARNING: Host local has more than 0 drives of set. A host failure will result in data becoming unavailable.
+minio-1       | MinIO Object Storage Server
+minio-1       | Copyright: 2015-2026 MinIO, Inc.
+minio-1       | License: GNU AGPLv3 - https://www.gnu.org/licenses/agpl-3.0.html
+minio-1       | Version: RELEASE.2026-11-12T01-15-23Z (go1.27.4 linux/amd64)
+minio-1       | 
+minio-1       | API: http://10.251.1.4:9000  http://127.0.0.1:9000 
+minio-1       | WebUI: http://10.251.1.4:9001 http://127.0.0.1:9001  
+minio-1       | 
+minio-1       | Docs: https://docs.min.io
+minio-1            | WARN: Detected GOMAXPROCS(2) < NumCPU(24), please make sure to provide all PROCS to MinIO for optimal performance
+langfuse-worker-1  |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1  | 2026-11-13T01:53:57.112Z error 	Queue job data-retention-processing-queue errored: Error: Socket timeout. Expecting data, but didn't receive any in 30000ms. Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1  | Error: Socket timeout. Expecting data, but didn't receive any in 30000ms.
+redis-1            | 1:C 13 Nov 2026 01:34:59.732 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. Being disabled, it can also cause failures without low memory condition, see https://github.com/jemalloc/jemalloc/issues/1328. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.
+langfuse-worker-1  |     at Timeout._onTimeout (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:467:33)
+langfuse-worker-1  |     at listOnTimeout (node:internal/timers:685:17)
+langfuse-worker-1  |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1  | 2026-11-13T01:53:57.112Z error 	Queue job mixpanel-integration-queue errored: Error: Socket timeout. Expecting data, but didn't receive any in 30000ms. Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1  | Error: Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1  |     at Timeout._onTimeout (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:467:33)
+langfuse-worker-1  |     at listOnTimeout (node:internal/timers:685:17)
+langfuse-worker-1  |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1  | 2026-11-13T01:53:57.113Z error 	Queue job secondary-ingestion-queue errored: Error: Socket timeout. Expecting data, but didn't receive any in 30000ms. Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1  | Error: Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1  |     at Timeout._onTimeout (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:467:33)
+langfuse-worker-1  |     at listOnTimeout (node:internal/timers:685:17)
+langfuse-worker-1  |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1  | 2026-11-13T01:53:57.113Z error 	Queue job data-retention-queue errored: Error: Socket timeout. Expecting data, but didn't receive any in 30000ms. Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1  | Error: Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1  |     at Timeout._onTimeout (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:467:33)
+langfuse-worker-1  |     at listOnTimeout (node:internal/timers:685:17)
+langfuse-worker-1  |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1  | 2026-11-13T01:53:57.113Z error 	Queue job batch-action-queue errored: Error: Socket timeout. Expecting data, but didn't receive any in 30000ms. Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1  | Error: Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1  |     at Timeout._onTimeout (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:467:33)
+langfuse-worker-1  |     at listOnTimeout (node:internal/timers:685:17)
+langfuse-worker-1  |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1  | 2026-11-13T01:53:57.113Z error 	Queue job project-delete errored: Error: Socket timeout. Expecting data, but didn't receive any in 30000ms. Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1  | Error: Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1  |     at Timeout._onTimeout (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:467:33)
+langfuse-worker-1  |     at listOnTimeout (node:internal/timers:685:17)
+langfuse-worker-1  |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1  | 2026-11-13T01:53:57.114Z error 	Queue job llm-as-a-judge-execution-queue errored: Error: Socket timeout. Expecting data, but didn't receive any in 30000ms. Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1  | Error: Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1  |     at Timeout._onTimeout (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:467:33)
+langfuse-worker-1  |     at listOnTimeout (node:internal/timers:685:17)
+langfuse-ai-gateway-1  | 2026-11-13T01:35:11.216986Z  INFO ai_gateway: gateway listening address=0.0.0.0:3031 inference_enabled=false max_request_bytes=16777216 memory_budget_bytes=1221381323 memory_budget_source="cgroup_limit" request_memory_overhead_bytes=1048576 max_execution_seconds=600 stall_timeout_seconds=120 connection_drain_timeout_seconds=30 telemetry_shutdown_timeout_seconds=20
+langfuse-worker-1      |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1      | 2026-11-13T01:53:57.114Z error 	Queue job experiment-create-queue errored: Error: Socket timeout. Expecting data, but didn't receive any in 30000ms. Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1      | Error: Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1      |     at Timeout._onTimeout (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:467:33)
+langfuse-worker-1      |     at listOnTimeout (node:internal/timers:685:17)
+langfuse-worker-1      |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1      | 2026-11-13T01:53:57.114Z error 	Queue job mixpanel-integration-processing-queue errored: Error: Socket timeout. Expecting data, but didn't receive any in 30000ms. Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1      | Error: Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1      |     at Timeout._onTimeout (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:467:33)
+langfuse-worker-1      |     at listOnTimeout (node:internal/timers:685:17)
+langfuse-worker-1      |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1      | 2026-11-13T01:53:57.114Z error 	Queue job batch-export-queue errored: Error: Socket timeout. Expecting data, but didn't receive any in 30000ms. Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1      | Error: Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1      |     at Timeout._onTimeout (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:467:33)
+langfuse-worker-1      |     at listOnTimeout (node:internal/timers:685:17)
+langfuse-worker-1      |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1      | 2026-11-13T01:53:57.114Z error 	Queue job score-delete errored: Error: Socket timeout. Expecting data, but didn't receive any in 30000ms. Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1      | Error: Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1      |     at Timeout._onTimeout (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:467:33)
+langfuse-worker-1      |     at listOnTimeout (node:internal/timers:685:17)
+langfuse-worker-1      |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1      | 2026-11-13T01:53:58.019Z error 	Queue job event-propagation-queue errored: Error: Missing lock for job repeat:event-propagation-job:1794534720000. moveToDelayed Missing lock for job repeat:event-propagation-job:1794534720000. moveToDelayed {"code":-2}
+langfuse-worker-1      | Error: Missing lock for job repeat:event-propagation-job:1794534720000. moveToDelayed
+langfuse-worker-1      |     at Scripts.finishedErrors (/app/worker/node_modules/.pnpm/bullmq@5.76.3_supports-color@8.1.1/node_modules/bullmq/dist/cjs/classes/scripts.js:1169:25)
+langfuse-worker-1      |     at Scripts.moveToDelayed (/app/worker/node_modules/.pnpm/bullmq@5.76.3_supports-color@8.1.1/node_modules/bullmq/dist/cjs/classes/scripts.js:769:24)
+langfuse-worker-1      |     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+langfuse-worker-1      |     at async /app/worker/node_modules/.pnpm/bullmq@5.76.3_supports-color@8.1.1/node_modules/bullmq/dist/cjs/classes/job.js:525:30
+redis-1            | 1:C 13 Nov 2026 01:34:59.732 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+langfuse-worker-1      |     at async Worker.handleFailed (/app/worker/node_modules/.pnpm/bullmq@5.76.3_supports-color@8.1.1/node_modules/bullmq/dist/cjs/classes/worker.js:600:22)
+langfuse-worker-1      |     at async Worker.retryIfFailed (/app/worker/node_modules/.pnpm/bullmq@5.76.3_supports-color@8.1.1/node_modules/bullmq/dist/cjs/classes/worker.js:743:16)
+redis-1                | 1:C 13 Nov 2026 01:34:59.732 * Redis version=7.4.12, bits=64, commit=00000000, modified=0, pid=1, just started
+redis-1                | 1:C 13 Nov 2026 01:34:59.732 * Configuration loaded
+redis-1                | 1:M 13 Nov 2026 01:34:59.732 * Increased maximum number of open files to 10032 (it was originally set to 1024).
+redis-1                | 1:M 13 Nov 2026 01:34:59.732 * monotonic clock: POSIX clock_gettime
+redis-1                | 1:M 13 Nov 2026 01:34:59.733 * Running mode=standalone, port=6379.
+redis-1                | 1:M 13 Nov 2026 01:34:59.733 * Server initialized
+redis-1                | 1:M 13 Nov 2026 01:34:59.733 * Ready to accept connections tcp
+redis-1                | 1:M 13 Nov 2026 01:38:57.921 * 10000 changes in 60 seconds. Saving...
+langfuse-worker-1      |     at async /app/worker/node_modules/.pnpm/bullmq@5.76.3_supports-color@8.1.1/node_modules/bullmq/dist/cjs/classes/worker.js:544:24
+langfuse-worker-1      | 2026-11-13T01:53:58.216Z info 	MonitorRunner(1/1): published 0 events {"trace_id":"afda8efa87fe75c000db125128b2bd5f","span_id":"1a8d5ec9c85ace76","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:55:17.639Z error 	Queue job data-retention-queue errored: Error: Socket timeout. Expecting data, but didn't receive any in 30000ms. Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-web-1         |   └─ 20261106130000_add_blob_storage_role_auth/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261109110421_add_annotation_queue_items_project_id_queue_id_created_at_id_idx/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261109110453_drop_annotation_queue_items_id_project_id_idx/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261110120000_add_gateway_openrouter_provider/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261110130000_add_gateway_xai_provider/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |   └─ 20261110140000_add_gateway_vercel_provider/
+langfuse-web-1         |     └─ migration.sql
+langfuse-web-1         |       
+langfuse-web-1         | All migrations have been successfully applied.
+langfuse-web-1         | 1/u traces (190.246547ms)
+langfuse-web-1         | 2/u observations (353.510604ms)
+langfuse-web-1         | 3/u scores (474.500379ms)
+langfuse-worker-1      | Error: Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1      |     at Timeout._onTimeout (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:467:33)
+langfuse-worker-1      |     at listOnTimeout (node:internal/timers:685:17)
+langfuse-worker-1      |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1      | 2026-11-13T01:55:17.714Z error 	Queue job mixpanel-integration-queue errored: Error: Socket timeout. Expecting data, but didn't receive any in 30000ms. Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1      | Error: Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1      |     at Timeout._onTimeout (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:467:33)
+langfuse-worker-1      |     at listOnTimeout (node:internal/timers:685:17)
+langfuse-worker-1      |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1      | 2026-11-13T01:55:17.715Z error 	Queue job posthog-integration-queue errored: Error: Socket timeout. Expecting data, but didn't receive any in 30000ms. Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1      | Error: Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1      |     at Timeout._onTimeout (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:467:33)
+langfuse-web-1         | 4/u drop_observations_index (605.454337ms)
+langfuse-web-1         | 5/u add_session_id_index (726.11781ms)
+redis-1                | 1:M 13 Nov 2026 01:38:57.922 * Background saving started by pid 402
+redis-1                | 402:C 13 Nov 2026 01:38:58.037 * DB saved on disk
+redis-1                | 402:C 13 Nov 2026 01:38:58.038 * Fork CoW for RDB: current 1 MB, peak 1 MB, average 0 MB
+redis-1                | 1:M 13 Nov 2026 01:38:58.124 * Background saving terminated with success
+redis-1                | 1:M 13 Nov 2026 01:43:59.508 * 100 changes in 300 seconds. Saving...
+redis-1                | 1:M 13 Nov 2026 01:43:59.908 * Background saving started by pid 647
+langfuse-web-1         | 6/u add_user_id_index (846.83181ms)
+langfuse-web-1         | 7/u add_event_log (967.122475ms)
+langfuse-web-1         | 8/u add_environments_column (1.09815864s)
+langfuse-web-1         | 9/u add_project_environments (1.228842834s)
+redis-1                | 647:C 13 Nov 2026 01:44:05.307 * DB saved on disk
+postgres-1             | The files belonging to this database system will be owned by user "postgres".
+redis-1                | 647:C 13 Nov 2026 01:44:06.207 * Fork CoW for RDB: current 1 MB, peak 1 MB, average 1 MB
+postgres-1             | This user must also own the server process.
+postgres-1             | 
+postgres-1             | The database cluster will be initialized with locale "en_US.utf8".
+postgres-1             | The default database encoding has accordingly been set to "UTF8".
+postgres-1             | The default text search configuration will be set to "english".
+postgres-1             | 
+postgres-1             | Data page checksums are disabled.
+postgres-1             | 
+postgres-1             | fixing permissions on existing directory /var/lib/postgresql/data ... ok
+postgres-1             | creating subdirectories ... ok
+postgres-1             | selecting dynamic shared memory implementation ... posix
+postgres-1             | selecting default "max_connections" ... 100
+postgres-1             | selecting default "shared_buffers" ... 128MB
+postgres-1             | selecting default time zone ... UTC
+postgres-1             | creating configuration files ... ok
+postgres-1             | running bootstrap script ... ok
+postgres-1             | performing post-bootstrap initialization ... ok
+postgres-1             | syncing data to disk ... ok
+postgres-1             | 
+langfuse-worker-1      |     at listOnTimeout (node:internal/timers:685:17)
+langfuse-worker-1      |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1      | 2026-11-13T01:55:17.715Z error 	Queue job blobstorage-integration-queue errored: Error: Socket timeout. Expecting data, but didn't receive any in 30000ms. Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1      | Error: Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-web-1         | 10/u add_metadata_column_on_scores (1.349590979s)
+langfuse-worker-1      |     at Timeout._onTimeout (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:467:33)
+postgres-1             | 
+postgres-1             | Success. You can now start the database server using:
+langfuse-worker-1      |     at listOnTimeout (node:internal/timers:685:17)
+langfuse-worker-1      |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1      | 2026-11-13T01:55:17.715Z error 	Queue job v4-legacy-api-usage-queue errored: Error: Socket timeout. Expecting data, but didn't receive any in 30000ms. Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1      | Error: Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1      |     at Timeout._onTimeout (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:467:33)
+langfuse-worker-1      |     at listOnTimeout (node:internal/timers:685:17)
+langfuse-worker-1      |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1      | 2026-11-13T01:55:20.326Z warn 	Queue job repeat:event-propagation-job:1794534720000 in event-propagation-queue stalled (lock expired, re-enqueued) detectedOnHost=6e0949949342
+langfuse-worker-1      | 2026-11-13T01:55:21.127Z info 	Executing Event Propagation Job {"trace_id":"70709505780d9f13bbfa7967319809e4","span_id":"732ed78381992cb8","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:55:30.510Z info 	MonitorRunner(1/1): published 0 events {"trace_id":"43318da3c63a3655b38a506df91d3119","span_id":"3d5ab612af9df07f","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:56:04.709Z error 	Queue job posthog-integration-queue errored: Error: connect ETIMEDOUT connect ETIMEDOUT {"errorno":"ETIMEDOUT","code":"ETIMEDOUT","syscall":"connect"}
+langfuse-worker-1      | Error: connect ETIMEDOUT
+langfuse-worker-1      |     at Socket.<anonymous> (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:171:41)
+langfuse-worker-1      |     at Socket.wrapper (node:events:639:12)
+langfuse-worker-1      |     at Socket.emit (node:events:514:28)
+langfuse-worker-1      |     at Socket._onTimeout (node:net:886:8)
+langfuse-worker-1      |     at Timeout.onStreamTimeout (node:internal/stream_base_commons:242:10)
+langfuse-worker-1      |     at listOnTimeout (node:internal/timers:687:11)
+postgres-1             | 
+langfuse-web-1         | 11/u add_blob_storage_file_log (1.470548833s)
+langfuse-web-1         | 12/u add_session_id_column_scores (1.400818309s)
+langfuse-web-1         | 13/u drop_scores_trace_id_index (1.358439267s)
+langfuse-web-1         | 14/u scores_modify_nullable_trace_id_column (1.358187969s)
+langfuse-web-1         | 15/u add_scores_trace_index (1.348442132s)
+langfuse-web-1         | 16/u add_scores_session_index (1.348039646s)
+langfuse-web-1         | 17/u add_run_id_column_scores (1.348091384s)
+langfuse-web-1         | 18/u add_scores_run_index (1.348662982s)
+langfuse-web-1         | 19/u analytics_traces (1.338676267s)
+langfuse-web-1         | 20/u analytics_observations (1.328356116s)
+langfuse-web-1         | 21/u analytics_scores (1.328222492s)
+langfuse-web-1         | 22/u dataset_run_items (1.327826598s)
+langfuse-web-1         | 23/u traces_aggregating_merge_trees (1.358626063s)
+langfuse-web-1         | 24/u dataset_run_items (1.358516584s)
+langfuse-web-1         | 25/u add_observations_metadata_indexes (1.368765319s)
+langfuse-web-1         | 26/u add_trace_id_index (1.368186868s)
+langfuse-web-1         | 27/u drop_project_environments_mvs (1.368859799s)
+langfuse-web-1         | 28/u drop_traces_null_mvs (1.368749239s)
+langfuse-web-1         | 29/u drop_traces_null_and_amt_tables (1.368762223s)
+redis-1                | 1:M 13 Nov 2026 01:44:06.308 * Background saving terminated with success
+postgres-1             | initdb: warning: enabling "trust" authentication for local connections
+langfuse-worker-1      |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1      | 2026-11-13T01:56:04.709Z error 	Queue job v4-legacy-api-usage-queue errored: Error: connect ETIMEDOUT connect ETIMEDOUT {"errorno":"ETIMEDOUT","code":"ETIMEDOUT","syscall":"connect"}
+langfuse-worker-1      | Error: connect ETIMEDOUT
+langfuse-worker-1      |     at Socket.<anonymous> (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:171:41)
+langfuse-worker-1      |     at Socket.wrapper (node:events:639:12)
+langfuse-worker-1      |     at Socket.emit (node:events:514:28)
+langfuse-worker-1      |     at Socket._onTimeout (node:net:886:8)
+langfuse-worker-1      |     at Timeout.onStreamTimeout (node:internal/stream_base_commons:242:10)
+langfuse-worker-1      |     at listOnTimeout (node:internal/timers:687:11)
+langfuse-worker-1      |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1      | 2026-11-13T01:56:04.709Z error 	Queue job data-retention-queue errored: Error: connect ETIMEDOUT connect ETIMEDOUT {"errorno":"ETIMEDOUT","code":"ETIMEDOUT","syscall":"connect"}
+langfuse-worker-1      | Error: connect ETIMEDOUT
+langfuse-worker-1      |     at Socket.<anonymous> (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:171:41)
+langfuse-worker-1      |     at Socket.wrapper (node:events:639:12)
+langfuse-worker-1      |     at Socket.emit (node:events:514:28)
+langfuse-worker-1      |     at Socket._onTimeout (node:net:886:8)
+langfuse-worker-1      |     at Timeout.onStreamTimeout (node:internal/stream_base_commons:242:10)
+langfuse-worker-1      |     at listOnTimeout (node:internal/timers:687:11)
+redis-1                | 1:M 13 Nov 2026 01:50:46.813 * 100 changes in 300 seconds. Saving...
+langfuse-web-1         | 30/u add_eval_execution_trace_id_to_scores (1.368553095s)
+redis-1                | 1:M 13 Nov 2026 01:50:46.813 * Background saving started by pid 724
+redis-1                | 724:C 13 Nov 2026 01:50:46.818 * DB saved on disk
+redis-1                | 724:C 13 Nov 2026 01:50:46.819 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+redis-1                | 1:M 13 Nov 2026 01:50:46.914 * Background saving terminated with success
+redis-1                | 1:M 13 Nov 2026 01:55:47.008 * 100 changes in 300 seconds. Saving...
+postgres-1             | initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+postgres-1             |     pg_ctl -D /var/lib/postgresql/data -l logfile start
+postgres-1             | 
+postgres-1             | waiting for server to start....2026-11-13 01:35:00.621 UTC [48] LOG:  starting PostgreSQL 17.11 (Debian 17.11-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+postgres-1             | 2026-11-13 01:35:00.622 UTC [48] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1             | 2026-11-13 01:35:00.627 UTC [51] LOG:  database system was shut down at 2026-11-13 01:35:00 UTC
+postgres-1             | 2026-11-13 01:35:00.631 UTC [48] LOG:  database system is ready to accept connections
+langfuse-web-1         | 31/u add_usage_pricing_tier_columns (1.3786077s)
+redis-1                | 1:M 13 Nov 2026 01:55:47.008 * Background saving started by pid 1002
+langfuse-web-1         | 32/u add_dataset_version_to_dataset_run_items_rmt (1.378942818s)
+redis-1                | 1002:C 13 Nov 2026 01:55:47.407 * DB saved on disk
+langfuse-worker-1      |     at process.processTimers (node:internal/timers:618:7)
+redis-1                | 1002:C 13 Nov 2026 01:55:47.508 * Fork CoW for RDB: current 1 MB, peak 1 MB, average 1 MB
+redis-1                | 1:M 13 Nov 2026 01:55:47.608 * Background saving terminated with success
+langfuse-worker-1      | 2026-11-13T01:56:04.710Z error 	Queue job blobstorage-integration-queue errored: Error: connect ETIMEDOUT connect ETIMEDOUT {"errorno":"ETIMEDOUT","code":"ETIMEDOUT","syscall":"connect"}
+langfuse-worker-1      | Error: connect ETIMEDOUT
+langfuse-worker-1      |     at Socket.<anonymous> (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:171:41)
+langfuse-worker-1      |     at Socket.wrapper (node:events:639:12)
+langfuse-worker-1      |     at Socket.emit (node:events:514:28)
+langfuse-worker-1      |     at Socket._onTimeout (node:net:886:8)
+langfuse-web-1         | 33/u add_tool_call_columns (1.389277225s)
+langfuse-web-1         | 34/u add_long_string_value_to_scores (1.358495474s)
+langfuse-web-1         | 35/u add_ingestion_attribution_columns (1.368922237s)
+langfuse-web-1         | 36/u add_ingested_sdks_to_analytics_scores (1.358239106s)
+langfuse-web-1         | 37/u add_created_at_indexes (1.378780149s)
+langfuse-web-1         | 38/u create_observations_batch_staging (1.378387331s)
+langfuse-web-1         | 39/u create_events_full (1.388679468s)
+postgres-1             |  done
+postgres-1             | server started
+postgres-1             | 
+postgres-1             | /usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
+postgres-1             | 
+postgres-1             | 2026-11-13 01:35:00.760 UTC [48] LOG:  received fast shutdown request
+postgres-1             | waiting for server to shut down....2026-11-13 01:35:00.761 UTC [48] LOG:  aborting any active transactions
+postgres-1             | 2026-11-13 01:35:00.762 UTC [48] LOG:  background worker "logical replication launcher" (PID 54) exited with exit code 1
+postgres-1             | 2026-11-13 01:35:00.762 UTC [49] LOG:  shutting down
+postgres-1             | 2026-11-13 01:35:00.764 UTC [49] LOG:  checkpoint starting: shutdown immediate
+postgres-1             | 2026-11-13 01:35:00.773 UTC [49] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.001 s, sync=0.003 s, total=0.011 s; sync files=2, longest=0.002 s, average=0.002 s; distance=0 kB, estimate=0 kB; lsn=0/14EF800, redo lsn=0/14EF800
+postgres-1             | 2026-11-13 01:35:00.777 UTC [48] LOG:  database system is shut down
+postgres-1             |  done
+postgres-1             | server stopped
+postgres-1             | 
+postgres-1             | PostgreSQL init process complete; ready for start up.
+postgres-1             | 
+postgres-1             | 2026-11-13 01:35:00.878 UTC [1] LOG:  starting PostgreSQL 17.11 (Debian 17.11-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+langfuse-worker-1      |     at Timeout.onStreamTimeout (node:internal/stream_base_commons:242:10)
+langfuse-worker-1      |     at listOnTimeout (node:internal/timers:687:11)
+langfuse-worker-1      |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1      | 2026-11-13T01:56:04.710Z error 	Queue job mixpanel-integration-queue errored: Error: connect ETIMEDOUT connect ETIMEDOUT {"errorno":"ETIMEDOUT","code":"ETIMEDOUT","syscall":"connect"}
+langfuse-worker-1      | Error: connect ETIMEDOUT
+langfuse-worker-1      |     at Socket.<anonymous> (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:171:41)
+langfuse-worker-1      |     at Socket.wrapper (node:events:639:12)
+langfuse-worker-1      |     at Socket.emit (node:events:514:28)
+langfuse-worker-1      |     at Socket._onTimeout (node:net:886:8)
+langfuse-worker-1      |     at Timeout.onStreamTimeout (node:internal/stream_base_commons:242:10)
+langfuse-worker-1      |     at listOnTimeout (node:internal/timers:687:11)
+langfuse-worker-1      |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1      | 2026-11-13T01:56:04.712Z error 	Redis error [timeout]: Socket timeout. Expecting data, but didn't receive any in 30000ms. {"failureMode":"timeout","error":{"name":"Error","message":"Socket timeout. Expecting data, but didn't receive any in 30000ms."},"trace_id":"70709505780d9f13bbfa7967319809e4","span_id":"732ed78381992cb8","trace_flags":"01"}
+langfuse-worker-1      | Error: Socket timeout. Expecting data, but didn't receive any in 30000ms.
+langfuse-worker-1      |     at Timeout._onTimeout (/app/worker/node_modules/.pnpm/ioredis@5.10.1_supports-color@8.1.1/node_modules/ioredis/built/Redis.js:467:33)
+langfuse-worker-1      |     at listOnTimeout (node:internal/timers:685:17)
+langfuse-worker-1      |     at process.processTimers (node:internal/timers:618:7)
+langfuse-worker-1      | 2026-11-13T01:56:04.720Z error 	Queue job event-propagation-queue errored: Error: could not renew lock for job repeat:event-propagation-job:1794534720000 could not renew lock for job repeat:event-propagation-job:1794534720000
+langfuse-worker-1      | Error: could not renew lock for job repeat:event-propagation-job:1794534720000
+langfuse-worker-1      |     at /app/worker/node_modules/.pnpm/bullmq@5.76.3_supports-color@8.1.1/node_modules/bullmq/dist/cjs/classes/lock-manager.js:44:51
+langfuse-worker-1      |     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+langfuse-worker-1      |     at async LockManager.extendLocks (/app/worker/node_modules/.pnpm/bullmq@5.76.3_supports-color@8.1.1/node_modules/bullmq/dist/cjs/classes/lock-manager.js:32:9)
+langfuse-worker-1      |     at async Timeout._onTimeout (/app/worker/node_modules/.pnpm/bullmq@5.76.3_supports-color@8.1.1/node_modules/bullmq/dist/cjs/classes/lock-manager.js:80:21)
+langfuse-worker-1      | 2026-11-13T01:56:04.771Z info 	[DUAL WRITE] Last processed partition: none {"trace_id":"70709505780d9f13bbfa7967319809e4","span_id":"732ed78381992cb8","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:56:04.934Z info 	[DUAL WRITE] No partitions available for processing (last processed: none) {"trace_id":"70709505780d9f13bbfa7967319809e4","span_id":"732ed78381992cb8","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:56:04.934Z info 	[EXPERIMENT BACKFILL] Checking if backfill should run {"trace_id":"70709505780d9f13bbfa7967319809e4","span_id":"732ed78381992cb8","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:56:04.937Z info 	[EXPERIMENT BACKFILL] Acquired backfill lock with TTL 300s {"trace_id":"70709505780d9f13bbfa7967319809e4","span_id":"732ed78381992cb8","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:56:04.937Z info 	[EXPERIMENT BACKFILL] Processing chunk from 2026-11-13T01:50:19.330Z to 2026-11-13T01:55:34.937Z {"trace_id":"70709505780d9f13bbfa7967319809e4","span_id":"732ed78381992cb8","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:56:04.937Z info 	[EXPERIMENT BACKFILL] Starting backfill process with lastRun 2026-11-13T01:50:19.330Z and upperBound 2026-11-13T01:55:34.937Z {"trace_id":"70709505780d9f13bbfa7967319809e4","span_id":"732ed78381992cb8","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:56:04.975Z info 	[EXPERIMENT BACKFILL] Found 0 dataset run items between 2026-11-13T01:50:19.330Z and 2026-11-13T01:55:34.937Z {"trace_id":"70709505780d9f13bbfa7967319809e4","span_id":"732ed78381992cb8","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:56:04.975Z info 	[EXPERIMENT BACKFILL] No dataset run items to process, advancing cursor {"trace_id":"70709505780d9f13bbfa7967319809e4","span_id":"732ed78381992cb8","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:56:04.975Z info 	[EXPERIMENT BACKFILL] Updated last run timestamp to 2026-11-13T01:55:34.937Z {"trace_id":"70709505780d9f13bbfa7967319809e4","span_id":"732ed78381992cb8","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:56:04.975Z info 	[EXPERIMENT BACKFILL] Backfill completed successfully {"trace_id":"70709505780d9f13bbfa7967319809e4","span_id":"732ed78381992cb8","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:56:04.986Z error 	Queue job event-propagation-queue errored: Error: Missing lock for job repeat:event-propagation-job:1794534720000. moveToFinished Missing lock for job repeat:event-propagation-job:1794534720000. moveToFinished {"code":-2}
+langfuse-worker-1      | Error: Missing lock for job repeat:event-propagation-job:1794534720000. moveToFinished
+langfuse-worker-1      |     at Scripts.finishedErrors (/app/worker/node_modules/.pnpm/bullmq@5.76.3_supports-color@8.1.1/node_modules/bullmq/dist/cjs/classes/scripts.js:1169:25)
+langfuse-worker-1      |     at Scripts.moveToFinished (/app/worker/node_modules/.pnpm/bullmq@5.76.3_supports-color@8.1.1/node_modules/bullmq/dist/cjs/classes/scripts.js:478:24)
+langfuse-worker-1      |     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+langfuse-worker-1      |     at async /app/worker/node_modules/.pnpm/bullmq@5.76.3_supports-color@8.1.1/node_modules/bullmq/dist/cjs/classes/job.js:465:28
+langfuse-worker-1      |     at async Worker.handleCompleted (/app/worker/node_modules/.pnpm/bullmq@5.76.3_supports-color@8.1.1/node_modules/bullmq/dist/cjs/classes/worker.js:574:25)
+langfuse-worker-1      |     at async Worker.retryIfFailed (/app/worker/node_modules/.pnpm/bullmq@5.76.3_supports-color@8.1.1/node_modules/bullmq/dist/cjs/classes/worker.js:743:16)
+langfuse-worker-1      |     at async /app/worker/node_modules/.pnpm/bullmq@5.76.3_supports-color@8.1.1/node_modules/bullmq/dist/cjs/classes/worker.js:536:16
+langfuse-worker-1      | 2026-11-13T01:56:04.986Z error 	Queue job event-propagation-queue errored: Error: Missing lock for job repeat:event-propagation-job:1794534720000. moveToDelayed Missing lock for job repeat:event-propagation-job:1794534720000. moveToDelayed {"code":-2}
+langfuse-worker-1      | Error: Missing lock for job repeat:event-propagation-job:1794534720000. moveToDelayed
+langfuse-worker-1      |     at Scripts.finishedErrors (/app/worker/node_modules/.pnpm/bullmq@5.76.3_supports-color@8.1.1/node_modules/bullmq/dist/cjs/classes/scripts.js:1169:25)
+langfuse-worker-1      |     at Scripts.moveToDelayed (/app/worker/node_modules/.pnpm/bullmq@5.76.3_supports-color@8.1.1/node_modules/bullmq/dist/cjs/classes/scripts.js:769:24)
+langfuse-worker-1      |     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+langfuse-worker-1      |     at async /app/worker/node_modules/.pnpm/bullmq@5.76.3_supports-color@8.1.1/node_modules/bullmq/dist/cjs/classes/job.js:525:30
+langfuse-worker-1      |     at async Worker.handleFailed (/app/worker/node_modules/.pnpm/bullmq@5.76.3_supports-color@8.1.1/node_modules/bullmq/dist/cjs/classes/worker.js:600:22)
+langfuse-worker-1      |     at async Worker.retryIfFailed (/app/worker/node_modules/.pnpm/bullmq@5.76.3_supports-color@8.1.1/node_modules/bullmq/dist/cjs/classes/worker.js:743:16)
+langfuse-worker-1      |     at async /app/worker/node_modules/.pnpm/bullmq@5.76.3_supports-color@8.1.1/node_modules/bullmq/dist/cjs/classes/worker.js:544:24
+langfuse-worker-1      | 2026-11-13T01:56:34.722Z warn 	Queue job repeat:event-propagation-job:1794534720000 in event-propagation-queue stalled (lock expired, re-enqueued) detectedOnHost=6e0949949342
+langfuse-worker-1      | 2026-11-13T01:56:34.724Z info 	Executing Event Propagation Job {"trace_id":"1975be904df770010404b6a101709c91","span_id":"0541f2b25421046c","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:56:34.725Z info 	[DUAL WRITE] Last processed partition: none {"trace_id":"1975be904df770010404b6a101709c91","span_id":"0541f2b25421046c","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:56:34.730Z info 	[DUAL WRITE] No partitions available for processing (last processed: none) {"trace_id":"1975be904df770010404b6a101709c91","span_id":"0541f2b25421046c","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:56:34.730Z info 	[EXPERIMENT BACKFILL] Checking if backfill should run {"trace_id":"1975be904df770010404b6a101709c91","span_id":"0541f2b25421046c","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:56:34.733Z info 	Executing Event Propagation Job {"trace_id":"ae47099ad41c46c31183d8d755915920","span_id":"78991fa21bb55604","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:56:34.733Z info 	[DUAL WRITE] Last processed partition: none {"trace_id":"ae47099ad41c46c31183d8d755915920","span_id":"78991fa21bb55604","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:56:34.737Z info 	[DUAL WRITE] No partitions available for processing (last processed: none) {"trace_id":"ae47099ad41c46c31183d8d755915920","span_id":"78991fa21bb55604","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:56:34.737Z info 	[EXPERIMENT BACKFILL] Checking if backfill should run {"trace_id":"ae47099ad41c46c31183d8d755915920","span_id":"78991fa21bb55604","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:56:34.822Z info 	MonitorRunner(1/1): published 0 events {"trace_id":"7ee27a46bc10d387a5dd4ece55bdfc98","span_id":"5c8c7b500118b530","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:57:00.052Z info 	Executing Event Propagation Job {"trace_id":"a4a65263f60c91cdb94137d7b8b1b3ef","span_id":"212d6d89b47666c6","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:57:00.052Z info 	[DUAL WRITE] Last processed partition: none {"trace_id":"a4a65263f60c91cdb94137d7b8b1b3ef","span_id":"212d6d89b47666c6","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:57:00.057Z info 	[DUAL WRITE] No partitions available for processing (last processed: none) {"trace_id":"a4a65263f60c91cdb94137d7b8b1b3ef","span_id":"212d6d89b47666c6","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:57:00.057Z info 	[EXPERIMENT BACKFILL] Checking if backfill should run {"trace_id":"a4a65263f60c91cdb94137d7b8b1b3ef","span_id":"212d6d89b47666c6","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:57:04.833Z info 	MonitorRunner(1/1): published 0 events {"trace_id":"f92fd76400e85f78834e88f550f947a6","span_id":"0e9caca145817538","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:57:34.846Z info 	MonitorRunner(1/1): published 0 events {"trace_id":"eac86ef24253a0c06b665b87d0366337","span_id":"5b04d623c8857eb0","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:58:00.049Z info 	Executing Event Propagation Job {"trace_id":"07e36255a60d28a361aa75803caf67f6","span_id":"dd450576f07eb328","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:58:00.050Z info 	[DUAL WRITE] Last processed partition: none {"trace_id":"07e36255a60d28a361aa75803caf67f6","span_id":"dd450576f07eb328","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:58:00.056Z info 	[DUAL WRITE] No partitions available for processing (last processed: none) {"trace_id":"07e36255a60d28a361aa75803caf67f6","span_id":"dd450576f07eb328","trace_flags":"01"}
+postgres-1             | 2026-11-13 01:35:00.878 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+langfuse-worker-1      | 2026-11-13T01:58:00.056Z info 	[EXPERIMENT BACKFILL] Checking if backfill should run {"trace_id":"07e36255a60d28a361aa75803caf67f6","span_id":"dd450576f07eb328","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:58:04.853Z info 	MonitorRunner(1/1): published 0 events {"trace_id":"10cbab73ddb02b895df6c721fa1e7af4","span_id":"a0880bb5098144b7","trace_flags":"01"}
+langfuse-worker-1      | 2026-11-13T01:58:34.858Z info 	MonitorRunner(1/1): published 0 events {"trace_id":"f24107c3828410327394be06102e9fc2","span_id":"7a5beb4869d1bd13","trace_flags":"01"}
+langfuse-web-1         | 40/u create_events_core (1.398582364s)
+postgres-1             | 2026-11-13 01:35:00.878 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+langfuse-web-1         | 41/u create_events_core_mv (1.398522309s)
+langfuse-web-1         | 42/u add_events_ingestion_attribution_columns (1.469231766s)
+langfuse-web-1         | 43/u add_events_metadata_ngram_index (1.488955112s)
+langfuse-web-1         | 44/u drop_event_log (1.478674537s)
+langfuse-web-1         | 45/u drop_project_environments (1.478877252s)
+langfuse-web-1         | 46/u drop_dataset_run_items (1.468451481s)
+langfuse-web-1         | 47/u add_eval_execution_columns (1.589581452s)
+langfuse-web-1         | 48/u enable_block_columns_on_scores_and_dataset_run_items (1.579505457s)
+langfuse-web-1         | 49/u add_events_name_ngram_indexes (1.619776988s)
+langfuse-web-1         | 50/u scores_trace_index_granularity (1.629433875s)
+langfuse-web-1         | 51/u add_topics (1.630002248s)
+langfuse-web-1         | 52/u create_audit_logs (1.630570379s)
+langfuse-web-1         | 53/u add_skill_observation_references (1.579211357s)
+langfuse-web-1         | 54/u add_audit_logs_support_access (1.559326194s)
+langfuse-web-1         | 55/u update_topic_tables (1.568974396s)
+langfuse-web-1         | 56/u compute_event_bytes (1.579403823s)
+langfuse-web-1         | ▲ Next.js 16.4.6
+langfuse-web-1         | - Local:         http://27a1a142e6d8:3000
+langfuse-web-1         | - Network:       http://27a1a142e6d8:3000
+langfuse-web-1         | ✓ Ready in 0ms
+langfuse-web-1         | ✓ Running next.config took 3ms
+langfuse-web-1         | Running init scripts...
+langfuse-web-1         | DATADOG TRACER DIAGNOSTIC - 'next' was loaded before dd-trace, so the next integration will not be applied. Initialize dd-trace before your application starts — NODE_OPTIONS='--require dd-trace/init' (CommonJS) or '--import dd-trace/initialize.mjs' (ESM) — and add 'dd-trace' to `serverExternalPackages` (Next.js >=15) or `experimental.serverComponentsExternalPackages` (13-14) so it is not bundled.
+langfuse-web-1         | 2026-11-13T01:35:31.047Z info 	[LocalCache:model_match] Initialized local cache {"enabled":false,"ttlMs":10000,"max":20000}
+langfuse-web-1         | 2026-11-13T01:35:31.385Z info 	[Connection] Log level is set to INFO
+postgres-1             | 2026-11-13 01:35:00.880 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1             | 2026-11-13 01:35:00.884 UTC [62] LOG:  database system was shut down at 2026-11-13 01:35:00 UTC
+langfuse-web-1         | 2026-11-13T01:35:31.513Z info 	Resolved ClickHouse compatibility from version {"clickhouseVersion":"26.3.62.3","parsedClickHouseVersion":{"raw":"26.3.62.3","major":26,"minor":3,"patch":62,"build":3,"tuple":[26,3,62,3]},"computedCompatibilityFlags":[{"id":"disable-lazy-materialization-for-patch-parts","setting":"query_plan_optimize_lazy_materialization","value":0,"reason":"Work around ClickHouse #102904, where lazy materialization can lose `_block_number` while reading lightweight-update patch parts.","override":"auto","versionBands":[{"minInclusive":"25.4.0.0","maxExclusive":"26.4.1.1005"}],"matchesVersionBand":true,"applied":true},{"id":"disable-top-k-through-join","setting":"query_plan_top_k_through_join","value":0,"reason":"Work around ClickHouse #109210, where top-K-through-join can leave lazy materialization with a dangling filter input.","override":"auto","versionBands":[{"minInclusive":"26.5.1.651","maxExclusive":"26.5.6.70"},{"minInclusive":"26.6.0.0","maxExclusive":"26.6.2.108"},{"minInclusive":"26.7.0.0","maxExclusive":"26.7.1.1334"},{"minInclusive":"26.7.2.0","maxExclusive":"26.7.2.11"}],"matchesVersionBand":false,"applied":false},{"id":"enable-skip-indexes-on-data-read","setting":"use_skip_indexes_on_data_read","value":1,"reason":"Evaluate skip indexes at granule read time to cut query startup latency. Held back below 26.2, where reading a column patched by a lightweight update fails with `Not found column _part_offset in block`.","override":"auto","versionBands":[{"minInclusive":"26.2.0.0"}],"matchesVersionBand":true,"applied":true}],"settings":{"query_plan_optimize_lazy_materialization":0,"use_skip_indexes_on_data_read":1}}
+postgres-1             | 2026-11-13 01:35:00.911 UTC [1] LOG:  database system is ready to accept connections
+postgres-1             | 2026-11-13 01:35:18.648 UTC [117] ERROR:  relation "pricing_tiers" does not exist at character 265
+langfuse-web-1         | 2026-11-13T01:35:31.513Z info 	Applying ClickHouse compatibility settings {"clickhouseVersion":"26.3.62.3","settings":{"query_plan_optimize_lazy_materialization":0,"use_skip_indexes_on_data_read":1},"rules":[{"id":"disable-lazy-materialization-for-patch-parts","setting":"query_plan_optimize_lazy_materialization","reason":"Work around ClickHouse #102904, where lazy materialization can lose `_block_number` while reading lightweight-update patch parts."},{"id":"enable-skip-indexes-on-data-read","setting":"use_skip_indexes_on_data_read","reason":"Evaluate skip indexes at granule read time to cut query startup latency. Held back below 26.2, where reading a column patched by a lightweight update fails with `Not found column _part_offset in block`."}]}
+postgres-1             | 2026-11-13 01:35:18.648 UTC [117] STATEMENT:  
+langfuse-web-1         | 2026-11-13T01:35:32.074Z info 	No valid keys to invalidate
+postgres-1             | 	      SELECT
+langfuse-web-1         | 2026-11-13T01:35:35.279Z info 	[LocalCache:model_match] Initialized local cache {"enabled":false,"ttlMs":10000,"max":20000}
+postgres-1             | 	        m.id AS "modelId",
+postgres-1             | 	        m.updated_at AS "modelUpdatedAt",
+postgres-1             | 	        t.id AS "tierId",
+postgres-1             | 	        t.name AS "tierName",
+postgres-1             | 	        t.priority AS "tierPriority",
+postgres-1             | 	        t.is_default AS "tierIsDefault"
+postgres-1             | 	      FROM
+postgres-1             | 	        models m
+postgres-1             | 	        INNER JOIN pricing_tiers t ON t.model_id = m.id
+postgres-1             | 	      WHERE
+postgres-1             | 	        m.project_id IS NULL
+postgres-1             | 	    
+postgres-1             | 2026-11-13 01:35:18.662 UTC [118] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.662 UTC [118] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.663 UTC [117] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.663 UTC [117] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.711 UTC [118] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.711 UTC [118] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.711 UTC [117] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.711 UTC [117] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.712 UTC [118] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.712 UTC [118] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.712 UTC [117] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.712 UTC [117] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.719 UTC [118] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.719 UTC [118] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.817 UTC [117] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.817 UTC [117] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.821 UTC [134] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.821 UTC [134] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.828 UTC [130] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.828 UTC [130] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.828 UTC [122] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.828 UTC [122] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.828 UTC [127] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.828 UTC [127] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.828 UTC [121] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.828 UTC [121] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+langfuse-web-1         | 2026-11-13T01:35:36.126Z info 	[LocalCache:model_match] Initialized local cache {"enabled":false,"ttlMs":10000,"max":20000}
+langfuse-web-1         | 2026-11-13T01:35:37.325Z info 	MCP feature registered: prompts {"featureName":"prompts","toolCount":6,"toolNames":["getPrompt","getPromptUnresolved","listPrompts","createTextPrompt","createChatPrompt","updatePromptLabels"]}
+langfuse-web-1         | 2026-11-13T01:35:37.325Z info 	MCP feature registered: skills {"featureName":"skills","toolCount":7,"toolNames":["listSkills","getSkill","loadSkill","loadSkillResource","createSkillVersion","updateSkillLabels","updateSkillTags"]}
+langfuse-web-1         | 2026-11-13T01:35:37.325Z info 	MCP feature registered: observations {"featureName":"observations","toolCount":5,"toolNames":["listObservations","getObservation","getObservationFieldSchema","getObservationFilterSchema","getObservationFilterValues"]}
+langfuse-web-1         | 2026-11-13T01:35:37.325Z info 	MCP feature registered: annotationQueues {"featureName":"annotationQueues","toolCount":10,"toolNames":["listAnnotationQueues","createAnnotationQueue","getAnnotationQueue","listAnnotationQueueItems","getAnnotationQueueItem","createAnnotationQueueItem","updateAnnotationQueueItem","deleteAnnotationQueueItem","createAnnotationQueueAssignment","deleteAnnotationQueueAssignment"]}
+langfuse-web-1         | 2026-11-13T01:35:37.325Z info 	MCP feature registered: comments {"featureName":"comments","toolCount":3,"toolNames":["createComment","listComments","getComment"]}
+langfuse-web-1         | 2026-11-13T01:35:37.325Z info 	MCP feature registered: datasets {"featureName":"datasets","toolCount":13,"toolNames":["upsertDataset","listDatasets","getDataset","upsertDatasetItem","batchUpsertDatasetItems","listDatasetItems","getDatasetItem","deleteDatasetItem","createDatasetRunItem","listDatasetRunItems","listDatasetRuns","getDatasetRun","deleteDatasetRun"]}
+langfuse-web-1         | 2026-11-13T01:35:37.325Z info 	MCP feature registered: health {"featureName":"health","toolCount":1,"toolNames":["getHealth"]}
+langfuse-web-1         | 2026-11-13T01:35:37.325Z info 	MCP feature registered: scores {"featureName":"scores","toolCount":8,"toolNames":["listScores","getScore","createScore","listScoreConfigs","getScoreConfig","createScoreConfig","updateScoreConfig","deleteScoreConfig"]}
+langfuse-web-1         | 2026-11-13T01:35:37.325Z info 	MCP feature registered: metrics {"featureName":"metrics","toolCount":2,"toolNames":["queryMetrics","getMetricsSchema"]}
+langfuse-web-1         | 2026-11-13T01:35:37.325Z info 	MCP feature registered: models {"featureName":"models","toolCount":4,"toolNames":["listModels","createModel","getModel","deleteModel"]}
+langfuse-web-1         | 2026-11-13T01:35:37.326Z info 	MCP feature registered: llmConnections {"featureName":"llmConnections","toolCount":1,"toolNames":["listLlmConnections"]}
+langfuse-web-1         | 2026-11-13T01:35:37.326Z info 	MCP feature registered: media {"featureName":"media","toolCount":1,"toolNames":["getMedia"]}
+langfuse-web-1         | 2026-11-13T01:35:37.326Z info 	MCP feature registered: evals {"featureName":"evals","toolCount":17,"toolNames":["listManagedEvaluatorTemplates","listEvaluators","getEvaluator","testEvaluator","createEvaluator","updateEvaluator","deleteEvaluator","listEvaluationRules","getEvaluationRule","createEvaluationRule","updateEvaluationRule","attachEvaluatorToEvaluationRule","detachEvaluatorFromEvaluationRule","deleteEvaluationRule","getDefaultEvaluationModel","setDefaultEvaluationModel","deleteDefaultEvaluationModel"]}
+langfuse-web-1         | 2026-11-13T01:35:37.326Z info 	MCP feature registered: batchEvaluations {"featureName":"batchEvaluations","toolCount":1,"toolNames":["runBatchEvaluation"]}
+langfuse-web-1         | 2026-11-13T01:35:37.326Z info 	MCP feature registered: dashboardWidgets {"featureName":"dashboardWidgets","toolCount":13,"toolNames":["listDashboardWidgets","createDashboardWidget","getDashboardWidget","updateDashboardWidget","deleteDashboardWidget","listDashboards","getDashboard","createDashboard","updateDashboard","deleteDashboard","addDashboardPlacement","updateDashboardPlacement","deleteDashboardPlacement"]}
+langfuse-web-1         | 2026-11-13T01:35:37.326Z info 	MCP feature registered: feedback {"featureName":"feedback","toolCount":1,"toolNames":["submitFeedback"]}
+langfuse-web-1         | 2026-11-13T01:35:37.326Z info 	MCP feature registered: experiments {"featureName":"experiments","toolCount":2,"toolNames":["listExperiments","listExperimentItems"]}
+langfuse-web-1         | 2026-11-13T01:35:37.326Z info 	MCP feature registered: external-media-storage {"featureName":"external-media-storage","toolCount":4,"toolNames":["getExternalMediaStorage","configureExternalMediaStorage","deleteExternalMediaStorage","testExternalMediaStorage"]}
+langfuse-web-1         | 2026-11-13T01:35:37.326Z info 	MCP feature registered: alerts {"featureName":"alerts","toolCount":2,"toolNames":["listAlerts","getAlert"]}
+langfuse-web-1         | 2026-11-13T01:35:37.326Z info 	MCP feature registered: topics {"featureName":"topics","toolCount":5,"toolNames":["listTopicRules","listTopicFacets","listTopics","listTopicSummaries","listTopicAssignments"]}
+langfuse-web-1         | 2026-11-13T01:35:37.326Z info 	MCP feature registered: v4Migration {"featureName":"v4Migration","toolCount":1,"toolNames":["getV4MigrationData"]}
+langfuse-web-1         | 2026-11-13T01:35:42.413Z error 	Telemetry job is locked
+langfuse-web-1         | 2026-11-13T01:35:42.416Z error 	Telemetry job is locked
+langfuse-web-1         | 2026-11-13T01:35:42.419Z info 	[Connection] Log level is set to INFO
+langfuse-web-1         | 2026-11-13T01:35:42.420Z error 	Telemetry job is locked
+langfuse-web-1         | 2026-11-13T01:35:44.765Z info 	[Connection] Log level is set to INFO
+langfuse-web-1         | 2026-11-13T01:35:44.796Z info 	[Connection] Log level is set to INFO
+langfuse-web-1         | Script executed successfully.
+langfuse-web-1         | Prisma schema loaded from packages/shared/prisma/schema.prisma
+langfuse-web-1         | Datasource "db": PostgreSQL database "postgres", schema "public" at "postgres:5432"
+langfuse-web-1         | 
+langfuse-web-1         | 477 migrations found in prisma/migrations
+langfuse-web-1         | 
+langfuse-web-1         | 
+langfuse-web-1         | No pending migrations to apply.
+langfuse-web-1         | no change
+langfuse-web-1         | ▲ Next.js 16.4.6
+langfuse-web-1         | - Local:         http://27a1a142e6d8:3000
+langfuse-web-1         | - Network:       http://27a1a142e6d8:3000
+langfuse-web-1         | ✓ Ready in 0ms
+langfuse-web-1         | ✓ Running next.config took 2ms
+postgres-1             | 2026-11-13 01:35:18.829 UTC [123] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.829 UTC [123] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.829 UTC [120] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.829 UTC [120] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.829 UTC [119] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.829 UTC [119] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.830 UTC [125] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.830 UTC [125] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.830 UTC [124] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.830 UTC [124] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.830 UTC [129] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.830 UTC [129] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.831 UTC [132] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+langfuse-web-1         | Running init scripts...
+langfuse-web-1         | DATADOG TRACER DIAGNOSTIC - 'next' was loaded before dd-trace, so the next integration will not be applied. Initialize dd-trace before your application starts — NODE_OPTIONS='--require dd-trace/init' (CommonJS) or '--import dd-trace/initialize.mjs' (ESM) — and add 'dd-trace' to `serverExternalPackages` (Next.js >=15) or `experimental.serverComponentsExternalPackages` (13-14) so it is not bundled.
+langfuse-web-1         | 2026-11-13T01:50:55.217Z info 	[LocalCache:model_match] Initialized local cache {"enabled":false,"ttlMs":10000,"max":20000}
+langfuse-web-1         | 2026-11-13T01:50:55.498Z info 	[Connection] Log level is set to INFO
+langfuse-web-1         | 2026-11-13T01:50:55.523Z info 	Resolved ClickHouse compatibility from version {"clickhouseVersion":"26.3.62.3","parsedClickHouseVersion":{"raw":"26.3.62.3","major":26,"minor":3,"patch":62,"build":3,"tuple":[26,3,62,3]},"computedCompatibilityFlags":[{"id":"disable-lazy-materialization-for-patch-parts","setting":"query_plan_optimize_lazy_materialization","value":0,"reason":"Work around ClickHouse #102904, where lazy materialization can lose `_block_number` while reading lightweight-update patch parts.","override":"auto","versionBands":[{"minInclusive":"25.4.0.0","maxExclusive":"26.4.1.1005"}],"matchesVersionBand":true,"applied":true},{"id":"disable-top-k-through-join","setting":"query_plan_top_k_through_join","value":0,"reason":"Work around ClickHouse #109210, where top-K-through-join can leave lazy materialization with a dangling filter input.","override":"auto","versionBands":[{"minInclusive":"26.5.1.651","maxExclusive":"26.5.6.70"},{"minInclusive":"26.6.0.0","maxExclusive":"26.6.2.108"},{"minInclusive":"26.7.0.0","maxExclusive":"26.7.1.1334"},{"minInclusive":"26.7.2.0","maxExclusive":"26.7.2.11"}],"matchesVersionBand":false,"applied":false},{"id":"enable-skip-indexes-on-data-read","setting":"use_skip_indexes_on_data_read","value":1,"reason":"Evaluate skip indexes at granule read time to cut query startup latency. Held back below 26.2, where reading a column patched by a lightweight update fails with `Not found column _part_offset in block`.","override":"auto","versionBands":[{"minInclusive":"26.2.0.0"}],"matchesVersionBand":true,"applied":true}],"settings":{"query_plan_optimize_lazy_materialization":0,"use_skip_indexes_on_data_read":1}}
+langfuse-web-1         | 2026-11-13T01:50:55.523Z info 	Applying ClickHouse compatibility settings {"clickhouseVersion":"26.3.62.3","settings":{"query_plan_optimize_lazy_materialization":0,"use_skip_indexes_on_data_read":1},"rules":[{"id":"disable-lazy-materialization-for-patch-parts","setting":"query_plan_optimize_lazy_materialization","reason":"Work around ClickHouse #102904, where lazy materialization can lose `_block_number` while reading lightweight-update patch parts."},{"id":"enable-skip-indexes-on-data-read","setting":"use_skip_indexes_on_data_read","reason":"Evaluate skip indexes at granule read time to cut query startup latency. Held back below 26.2, where reading a column patched by a lightweight update fails with `Not found column _part_offset in block`."}]}
+langfuse-web-1         | 2026-11-13T01:50:55.637Z info 	No valid keys to invalidate
+langfuse-web-1         | 2026-11-13T01:50:59.752Z info 	[LocalCache:model_match] Initialized local cache {"enabled":false,"ttlMs":10000,"max":20000}
+langfuse-web-1         | 2026-11-13T01:51:00.749Z info 	[LocalCache:model_match] Initialized local cache {"enabled":false,"ttlMs":10000,"max":20000}
+langfuse-web-1         | 2026-11-13T01:51:01.821Z info 	MCP feature registered: prompts {"featureName":"prompts","toolCount":6,"toolNames":["getPrompt","getPromptUnresolved","listPrompts","createTextPrompt","createChatPrompt","updatePromptLabels"]}
+langfuse-web-1         | 2026-11-13T01:51:01.822Z info 	MCP feature registered: skills {"featureName":"skills","toolCount":7,"toolNames":["listSkills","getSkill","loadSkill","loadSkillResource","createSkillVersion","updateSkillLabels","updateSkillTags"]}
+langfuse-web-1         | 2026-11-13T01:51:01.822Z info 	MCP feature registered: observations {"featureName":"observations","toolCount":5,"toolNames":["listObservations","getObservation","getObservationFieldSchema","getObservationFilterSchema","getObservationFilterValues"]}
+langfuse-web-1         | 2026-11-13T01:51:01.822Z info 	MCP feature registered: annotationQueues {"featureName":"annotationQueues","toolCount":10,"toolNames":["listAnnotationQueues","createAnnotationQueue","getAnnotationQueue","listAnnotationQueueItems","getAnnotationQueueItem","createAnnotationQueueItem","updateAnnotationQueueItem","deleteAnnotationQueueItem","createAnnotationQueueAssignment","deleteAnnotationQueueAssignment"]}
+langfuse-web-1         | 2026-11-13T01:51:01.822Z info 	MCP feature registered: comments {"featureName":"comments","toolCount":3,"toolNames":["createComment","listComments","getComment"]}
+langfuse-web-1         | 2026-11-13T01:51:01.822Z info 	MCP feature registered: datasets {"featureName":"datasets","toolCount":13,"toolNames":["upsertDataset","listDatasets","getDataset","upsertDatasetItem","batchUpsertDatasetItems","listDatasetItems","getDatasetItem","deleteDatasetItem","createDatasetRunItem","listDatasetRunItems","listDatasetRuns","getDatasetRun","deleteDatasetRun"]}
+langfuse-web-1         | 2026-11-13T01:51:01.822Z info 	MCP feature registered: health {"featureName":"health","toolCount":1,"toolNames":["getHealth"]}
+langfuse-web-1         | 2026-11-13T01:51:01.822Z info 	MCP feature registered: scores {"featureName":"scores","toolCount":8,"toolNames":["listScores","getScore","createScore","listScoreConfigs","getScoreConfig","createScoreConfig","updateScoreConfig","deleteScoreConfig"]}
+langfuse-web-1         | 2026-11-13T01:51:01.822Z info 	MCP feature registered: metrics {"featureName":"metrics","toolCount":2,"toolNames":["queryMetrics","getMetricsSchema"]}
+langfuse-web-1         | 2026-11-13T01:51:01.822Z info 	MCP feature registered: models {"featureName":"models","toolCount":4,"toolNames":["listModels","createModel","getModel","deleteModel"]}
+langfuse-web-1         | 2026-11-13T01:51:01.822Z info 	MCP feature registered: llmConnections {"featureName":"llmConnections","toolCount":1,"toolNames":["listLlmConnections"]}
+langfuse-web-1         | 2026-11-13T01:51:01.822Z info 	MCP feature registered: media {"featureName":"media","toolCount":1,"toolNames":["getMedia"]}
+langfuse-web-1         | 2026-11-13T01:51:01.822Z info 	MCP feature registered: evals {"featureName":"evals","toolCount":17,"toolNames":["listManagedEvaluatorTemplates","listEvaluators","getEvaluator","testEvaluator","createEvaluator","updateEvaluator","deleteEvaluator","listEvaluationRules","getEvaluationRule","createEvaluationRule","updateEvaluationRule","attachEvaluatorToEvaluationRule","detachEvaluatorFromEvaluationRule","deleteEvaluationRule","getDefaultEvaluationModel","setDefaultEvaluationModel","deleteDefaultEvaluationModel"]}
+langfuse-web-1         | 2026-11-13T01:51:01.822Z info 	MCP feature registered: batchEvaluations {"featureName":"batchEvaluations","toolCount":1,"toolNames":["runBatchEvaluation"]}
+langfuse-web-1         | 2026-11-13T01:51:01.822Z info 	MCP feature registered: dashboardWidgets {"featureName":"dashboardWidgets","toolCount":13,"toolNames":["listDashboardWidgets","createDashboardWidget","getDashboardWidget","updateDashboardWidget","deleteDashboardWidget","listDashboards","getDashboard","createDashboard","updateDashboard","deleteDashboard","addDashboardPlacement","updateDashboardPlacement","deleteDashboardPlacement"]}
+langfuse-web-1         | 2026-11-13T01:51:01.822Z info 	MCP feature registered: feedback {"featureName":"feedback","toolCount":1,"toolNames":["submitFeedback"]}
+langfuse-web-1         | 2026-11-13T01:51:01.823Z info 	MCP feature registered: experiments {"featureName":"experiments","toolCount":2,"toolNames":["listExperiments","listExperimentItems"]}
+langfuse-web-1         | 2026-11-13T01:51:01.823Z info 	MCP feature registered: external-media-storage {"featureName":"external-media-storage","toolCount":4,"toolNames":["getExternalMediaStorage","configureExternalMediaStorage","deleteExternalMediaStorage","testExternalMediaStorage"]}
+langfuse-web-1         | 2026-11-13T01:51:01.823Z info 	MCP feature registered: alerts {"featureName":"alerts","toolCount":2,"toolNames":["listAlerts","getAlert"]}
+langfuse-web-1         | 2026-11-13T01:51:01.823Z info 	MCP feature registered: topics {"featureName":"topics","toolCount":5,"toolNames":["listTopicRules","listTopicFacets","listTopics","listTopicSummaries","listTopicAssignments"]}
+langfuse-web-1         | 2026-11-13T01:51:01.823Z info 	MCP feature registered: v4Migration {"featureName":"v4Migration","toolCount":1,"toolNames":["getV4MigrationData"]}
+langfuse-web-1         | Script executed successfully.
+langfuse-web-1         | Prisma schema loaded from packages/shared/prisma/schema.prisma
+langfuse-web-1         | Datasource "db": PostgreSQL database "postgres", schema "public" at "postgres:5432"
+langfuse-web-1         | 
+langfuse-web-1         | 477 migrations found in prisma/migrations
+langfuse-web-1         | 
+langfuse-web-1         | 
+langfuse-web-1         | No pending migrations to apply.
+langfuse-web-1         | no change
+langfuse-web-1         | ▲ Next.js 16.4.6
+langfuse-web-1         | - Local:         http://27a1a142e6d8:3000
+langfuse-web-1         | - Network:       http://27a1a142e6d8:3000
+langfuse-web-1         | ✓ Ready in 0ms
+langfuse-web-1         | ✓ Running next.config took 1.9ms
+langfuse-web-1         | Running init scripts...
+postgres-1             | 2026-11-13 01:35:18.831 UTC [132] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.831 UTC [131] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.831 UTC [131] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.831 UTC [118] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.831 UTC [118] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.831 UTC [126] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.831 UTC [126] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.838 UTC [128] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.838 UTC [128] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.838 UTC [133] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.838 UTC [133] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.910 UTC [135] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.910 UTC [135] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.910 UTC [132] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.910 UTC [132] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.911 UTC [117] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.911 UTC [117] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.911 UTC [118] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.911 UTC [118] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.911 UTC [134] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.911 UTC [134] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.912 UTC [136] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.912 UTC [136] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.912 UTC [137] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.912 UTC [137] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.912 UTC [138] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.912 UTC [138] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.913 UTC [139] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.913 UTC [139] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.913 UTC [140] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.913 UTC [140] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:35:18.913 UTC [141] ERROR:  column "min_version" of relation "dashboard_widgets" does not exist at character 176
+postgres-1             | 2026-11-13 01:35:18.913 UTC [141] STATEMENT:  INSERT INTO "public"."dashboard_widgets" ("id","created_at","updated_at","project_id","name","description","view","dimensions","metrics","filters","chart_type","chart_config","min_version") VALUES ($1,$2,$3,$4,$5,$6,CAST($7::text AS "public"."DashboardWidgetViews"),$8,$9,$10,CAST($11::text AS "public"."DashboardWidgetChartType"),$12,$13) ON CONFLICT ("id") DO UPDATE SET "name" = $14, "description" = $15, "view" = CAST($16::text AS "public"."DashboardWidgetViews"), "dimensions" = $17, "metrics" = $18, "filters" = $19, "chart_type" = CAST($20::text AS "public"."DashboardWidgetChartType"), "chart_config" = $21, "updated_at" = $22 WHERE ("public"."dashboard_widgets"."id" = $23 AND 1=1) RETURNING "public"."dashboard_widgets"."id", "public"."dashboard_widgets"."created_at", "public"."dashboard_widgets"."updated_at", "public"."dashboard_widgets"."created_by", "public"."dashboard_widgets"."updated_by", "public"."dashboard_widgets"."project_id", "public"."dashboard_widgets"."name", "public"."dashboard_widgets"."description", "public"."dashboard_widgets"."view"::text, "public"."dashboard_widgets"."dimensions", "public"."dashboard_widgets"."metrics", "public"."dashboard_widgets"."filters", "public"."dashboard_widgets"."chart_type"::text, "public"."dashboard_widgets"."chart_config", "public"."dashboard_widgets"."min_version"
+postgres-1             | 2026-11-13 01:40:01.111 UTC [60] LOG:  checkpoint starting: time
+postgres-1             | 2026-11-13 01:41:18.210 UTC [60] LOG:  checkpoint complete: wrote 636 buffers (3.9%); 0 WAL file(s) added, 0 removed, 0 recycled; write=74.904 s, sync=1.199 s, total=77.100 s; sync files=831, longest=0.100 s, average=0.002 s; distance=6072 kB, estimate=6072 kB; lsn=0/1ADDC40, redo lsn=0/1ADDBB0
+postgres-1             | 2026-11-13 01:55:02.007 UTC [60] LOG:  checkpoint starting: time
+postgres-1             | 2026-11-13 01:55:05.860 UTC [60] LOG:  checkpoint complete: wrote 29 buffers (0.2%); 0 WAL file(s) added, 0 removed, 0 recycled; write=3.299 s, sync=0.448 s, total=3.853 s; sync files=19, longest=0.097 s, average=0.024 s; distance=92 kB, estimate=5474 kB; lsn=0/1AF4E10, redo lsn=0/1AF4DB8
+langfuse-web-1         | DATADOG TRACER DIAGNOSTIC - 'next' was loaded before dd-trace, so the next integration will not be applied. Initialize dd-trace before your application starts — NODE_OPTIONS='--require dd-trace/init' (CommonJS) or '--import dd-trace/initialize.mjs' (ESM) — and add 'dd-trace' to `serverExternalPackages` (Next.js >=15) or `experimental.serverComponentsExternalPackages` (13-14) so it is not bundled.
+langfuse-web-1         | 2026-11-13T01:54:03.232Z info 	[LocalCache:model_match] Initialized local cache {"enabled":false,"ttlMs":10000,"max":20000}
+langfuse-web-1         | 2026-11-13T01:54:03.567Z info 	[Connection] Log level is set to INFO
+langfuse-web-1         | 2026-11-13T01:54:03.585Z info 	Resolved ClickHouse compatibility from version {"clickhouseVersion":"26.3.62.3","parsedClickHouseVersion":{"raw":"26.3.62.3","major":26,"minor":3,"patch":62,"build":3,"tuple":[26,3,62,3]},"computedCompatibilityFlags":[{"id":"disable-lazy-materialization-for-patch-parts","setting":"query_plan_optimize_lazy_materialization","value":0,"reason":"Work around ClickHouse #102904, where lazy materialization can lose `_block_number` while reading lightweight-update patch parts.","override":"auto","versionBands":[{"minInclusive":"25.4.0.0","maxExclusive":"26.4.1.1005"}],"matchesVersionBand":true,"applied":true},{"id":"disable-top-k-through-join","setting":"query_plan_top_k_through_join","value":0,"reason":"Work around ClickHouse #109210, where top-K-through-join can leave lazy materialization with a dangling filter input.","override":"auto","versionBands":[{"minInclusive":"26.5.1.651","maxExclusive":"26.5.6.70"},{"minInclusive":"26.6.0.0","maxExclusive":"26.6.2.108"},{"minInclusive":"26.7.0.0","maxExclusive":"26.7.1.1334"},{"minInclusive":"26.7.2.0","maxExclusive":"26.7.2.11"}],"matchesVersionBand":false,"applied":false},{"id":"enable-skip-indexes-on-data-read","setting":"use_skip_indexes_on_data_read","value":1,"reason":"Evaluate skip indexes at granule read time to cut query startup latency. Held back below 26.2, where reading a column patched by a lightweight update fails with `Not found column _part_offset in block`.","override":"auto","versionBands":[{"minInclusive":"26.2.0.0"}],"matchesVersionBand":true,"applied":true}],"settings":{"query_plan_optimize_lazy_materialization":0,"use_skip_indexes_on_data_read":1}}
+langfuse-web-1         | 2026-11-13T01:54:03.586Z info 	Applying ClickHouse compatibility settings {"clickhouseVersion":"26.3.62.3","settings":{"query_plan_optimize_lazy_materialization":0,"use_skip_indexes_on_data_read":1},"rules":[{"id":"disable-lazy-materialization-for-patch-parts","setting":"query_plan_optimize_lazy_materialization","reason":"Work around ClickHouse #102904, where lazy materialization can lose `_block_number` while reading lightweight-update patch parts."},{"id":"enable-skip-indexes-on-data-read","setting":"use_skip_indexes_on_data_read","reason":"Evaluate skip indexes at granule read time to cut query startup latency. Held back below 26.2, where reading a column patched by a lightweight update fails with `Not found column _part_offset in block`."}]}
+langfuse-web-1         | 2026-11-13T01:54:03.660Z info 	No valid keys to invalidate
+langfuse-web-1         | 2026-11-13T01:54:07.811Z info 	[LocalCache:model_match] Initialized local cache {"enabled":false,"ttlMs":10000,"max":20000}
+langfuse-web-1         | 2026-11-13T01:54:08.658Z info 	[LocalCache:model_match] Initialized local cache {"enabled":false,"ttlMs":10000,"max":20000}
+langfuse-web-1         | 2026-11-13T01:54:09.622Z info 	MCP feature registered: prompts {"featureName":"prompts","toolCount":6,"toolNames":["getPrompt","getPromptUnresolved","listPrompts","createTextPrompt","createChatPrompt","updatePromptLabels"]}
+langfuse-web-1         | 2026-11-13T01:54:09.622Z info 	MCP feature registered: skills {"featureName":"skills","toolCount":7,"toolNames":["listSkills","getSkill","loadSkill","loadSkillResource","createSkillVersion","updateSkillLabels","updateSkillTags"]}
+langfuse-web-1         | 2026-11-13T01:54:09.622Z info 	MCP feature registered: observations {"featureName":"observations","toolCount":5,"toolNames":["listObservations","getObservation","getObservationFieldSchema","getObservationFilterSchema","getObservationFilterValues"]}
+langfuse-web-1         | 2026-11-13T01:54:09.622Z info 	MCP feature registered: annotationQueues {"featureName":"annotationQueues","toolCount":10,"toolNames":["listAnnotationQueues","createAnnotationQueue","getAnnotationQueue","listAnnotationQueueItems","getAnnotationQueueItem","createAnnotationQueueItem","updateAnnotationQueueItem","deleteAnnotationQueueItem","createAnnotationQueueAssignment","deleteAnnotationQueueAssignment"]}
+langfuse-web-1         | 2026-11-13T01:54:09.622Z info 	MCP feature registered: comments {"featureName":"comments","toolCount":3,"toolNames":["createComment","listComments","getComment"]}
+langfuse-web-1         | 2026-11-13T01:54:09.622Z info 	MCP feature registered: datasets {"featureName":"datasets","toolCount":13,"toolNames":["upsertDataset","listDatasets","getDataset","upsertDatasetItem","batchUpsertDatasetItems","listDatasetItems","getDatasetItem","deleteDatasetItem","createDatasetRunItem","listDatasetRunItems","listDatasetRuns","getDatasetRun","deleteDatasetRun"]}
+langfuse-web-1         | 2026-11-13T01:54:09.623Z info 	MCP feature registered: health {"featureName":"health","toolCount":1,"toolNames":["getHealth"]}
+langfuse-web-1         | 2026-11-13T01:54:09.623Z info 	MCP feature registered: scores {"featureName":"scores","toolCount":8,"toolNames":["listScores","getScore","createScore","listScoreConfigs","getScoreConfig","createScoreConfig","updateScoreConfig","deleteScoreConfig"]}
+langfuse-web-1         | 2026-11-13T01:54:09.623Z info 	MCP feature registered: metrics {"featureName":"metrics","toolCount":2,"toolNames":["queryMetrics","getMetricsSchema"]}
+langfuse-web-1         | 2026-11-13T01:54:09.623Z info 	MCP feature registered: models {"featureName":"models","toolCount":4,"toolNames":["listModels","createModel","getModel","deleteModel"]}
+langfuse-web-1         | 2026-11-13T01:54:09.623Z info 	MCP feature registered: llmConnections {"featureName":"llmConnections","toolCount":1,"toolNames":["listLlmConnections"]}
+langfuse-web-1         | 2026-11-13T01:54:09.623Z info 	MCP feature registered: media {"featureName":"media","toolCount":1,"toolNames":["getMedia"]}
+langfuse-web-1         | 2026-11-13T01:54:09.623Z info 	MCP feature registered: evals {"featureName":"evals","toolCount":17,"toolNames":["listManagedEvaluatorTemplates","listEvaluators","getEvaluator","testEvaluator","createEvaluator","updateEvaluator","deleteEvaluator","listEvaluationRules","getEvaluationRule","createEvaluationRule","updateEvaluationRule","attachEvaluatorToEvaluationRule","detachEvaluatorFromEvaluationRule","deleteEvaluationRule","getDefaultEvaluationModel","setDefaultEvaluationModel","deleteDefaultEvaluationModel"]}
+langfuse-web-1         | 2026-11-13T01:54:09.623Z info 	MCP feature registered: batchEvaluations {"featureName":"batchEvaluations","toolCount":1,"toolNames":["runBatchEvaluation"]}
+langfuse-web-1         | 2026-11-13T01:54:09.623Z info 	MCP feature registered: dashboardWidgets {"featureName":"dashboardWidgets","toolCount":13,"toolNames":["listDashboardWidgets","createDashboardWidget","getDashboardWidget","updateDashboardWidget","deleteDashboardWidget","listDashboards","getDashboard","createDashboard","updateDashboard","deleteDashboard","addDashboardPlacement","updateDashboardPlacement","deleteDashboardPlacement"]}
+langfuse-web-1         | 2026-11-13T01:54:09.623Z info 	MCP feature registered: feedback {"featureName":"feedback","toolCount":1,"toolNames":["submitFeedback"]}
+langfuse-web-1         | 2026-11-13T01:54:09.623Z info 	MCP feature registered: experiments {"featureName":"experiments","toolCount":2,"toolNames":["listExperiments","listExperimentItems"]}
+langfuse-web-1         | 2026-11-13T01:54:09.623Z info 	MCP feature registered: external-media-storage {"featureName":"external-media-storage","toolCount":4,"toolNames":["getExternalMediaStorage","configureExternalMediaStorage","deleteExternalMediaStorage","testExternalMediaStorage"]}
+langfuse-web-1         | 2026-11-13T01:54:09.623Z info 	MCP feature registered: alerts {"featureName":"alerts","toolCount":2,"toolNames":["listAlerts","getAlert"]}
+langfuse-web-1         | 2026-11-13T01:54:09.623Z info 	MCP feature registered: topics {"featureName":"topics","toolCount":5,"toolNames":["listTopicRules","listTopicFacets","listTopics","listTopicSummaries","listTopicAssignments"]}
+langfuse-web-1         | 2026-11-13T01:54:09.623Z info 	MCP feature registered: v4Migration {"featureName":"v4Migration","toolCount":1,"toolNames":["getV4MigrationData"]}
+langfuse-web-1         | 2026-11-13T01:58:58.318Z info 	[Connection] Log level is set to INFO {"trace_id":"68255afe12a89c53b4be639c73d951ab","span_id":"99fb6069ff4d81a3","trace_flags":"01"}
+
+$ compose down -v --remove-orphans
+ Container lfm-langfuse-2g-v2-langfuse-ai-gateway-1 Stopping 
+ Container lfm-langfuse-2g-v2-langfuse-worker-1 Stopping 
+ Container lfm-langfuse-2g-v2-langfuse-ai-gateway-1 Stopped 
+ Container lfm-langfuse-2g-v2-langfuse-ai-gateway-1 Removing 
+ Container lfm-langfuse-2g-v2-langfuse-ai-gateway-1 Removed 
+ Container lfm-langfuse-2g-v2-langfuse-web-1 Stopping 
+ Container lfm-langfuse-2g-v2-langfuse-web-1 Stopped 
+ Container lfm-langfuse-2g-v2-langfuse-web-1 Removing 
+ Container lfm-langfuse-2g-v2-langfuse-web-1 Removed 
+ Container lfm-langfuse-2g-v2-langfuse-worker-1 Stopped 
+ Container lfm-langfuse-2g-v2-langfuse-worker-1 Removing 
+ Container lfm-langfuse-2g-v2-langfuse-worker-1 Removed 
+ Container lfm-langfuse-2g-v2-postgres-1 Stopping 
+ Container lfm-langfuse-2g-v2-minio-1 Stopping 
+ Container lfm-langfuse-2g-v2-redis-1 Stopping 
+ Container lfm-langfuse-2g-v2-clickhouse-1 Stopping 
+ Container lfm-langfuse-2g-v2-minio-1 Stopped 
+ Container lfm-langfuse-2g-v2-minio-1 Removing 
+ Container lfm-langfuse-2g-v2-postgres-1 Stopped 
+ Container lfm-langfuse-2g-v2-postgres-1 Removing 
+ Container lfm-langfuse-2g-v2-redis-1 Stopped 
+ Container lfm-langfuse-2g-v2-redis-1 Removing 
+ Container lfm-langfuse-2g-v2-minio-1 Removed 
+ Container lfm-langfuse-2g-v2-postgres-1 Removed 
+ Container lfm-langfuse-2g-v2-redis-1 Removed 
+ Container lfm-langfuse-2g-v2-clickhouse-1 Stopped 
+ Container lfm-langfuse-2g-v2-clickhouse-1 Removing 
+ Container lfm-langfuse-2g-v2-clickhouse-1 Removed 
+ Volume lfm-langfuse-2g-v2_langfuse_redis_data Removing 
+ Volume lfm-langfuse-2g-v2_langfuse_minio_data Removing 
+ Volume lfm-langfuse-2g-v2_langfuse_clickhouse_logs Removing 
+ Volume lfm-langfuse-2g-v2_langfuse_clickhouse_data Removing 
+ Volume lfm-langfuse-2g-v2_langfuse_postgres_data Removing 
+ Network lfm-langfuse-2g-v2_default Removing 
+ Volume lfm-langfuse-2g-v2_langfuse_minio_data Removed 
+ Volume lfm-langfuse-2g-v2_langfuse_clickhouse_logs Removed 
+ Volume lfm-langfuse-2g-v2_langfuse_redis_data Removed 
+ Network lfm-langfuse-2g-v2_default Removed 
+ Volume lfm-langfuse-2g-v2_langfuse_clickhouse_data Removed 
+ Volume lfm-langfuse-2g-v2_langfuse_postgres_data Removed 
+

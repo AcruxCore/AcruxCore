@@ -1,0 +1,25 @@
+services:
+  clickhouse-init:
+    cgroup_parent: lfm4g2c.slice
+  zookeeper:
+    cgroup_parent: lfm4g2c.slice
+  clickhouse:
+    cgroup_parent: lfm4g2c.slice
+  minio-init:
+    cgroup_parent: lfm4g2c.slice
+  minio:
+    cgroup_parent: lfm4g2c.slice
+  mysql:
+    cgroup_parent: lfm4g2c.slice
+  redis:
+    cgroup_parent: lfm4g2c.slice
+  backend:
+    cgroup_parent: lfm4g2c.slice
+  frontend:
+    cgroup_parent: lfm4g2c.slice
+  python-backend:
+    cgroup_parent: lfm4g2c.slice
+  demo-data-generator:
+    cgroup_parent: lfm4g2c.slice
+  mc:
+    cgroup_parent: lfm4g2c.slice

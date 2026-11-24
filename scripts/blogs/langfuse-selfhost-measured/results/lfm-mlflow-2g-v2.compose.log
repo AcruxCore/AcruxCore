@@ -1,0 +1,203 @@
+$ compose config --services
+storage
+create-bucket
+postgres
+mlflow
+
+$ compose down -v --remove-orphans
+
+$ compose up -d
+time="2026-11-13T07:15:58+05:00" level=warning msg="a network with name mlflow-network exists but was not created for project \"lfm-mlflow-2g-v2\".\nSet `external: true` to use an existing network"
+ Volume lfm-mlflow-2g-v2_pgdata Creating 
+ Volume lfm-mlflow-2g-v2_pgdata Creating 
+ Volume lfm-mlflow-2g-v2_storage-data Creating 
+ Volume lfm-mlflow-2g-v2_storage-data Creating 
+ Volume lfm-mlflow-2g-v2_pgdata Created 
+ Volume lfm-mlflow-2g-v2_pgdata Created 
+ Container lfm-mlflow-2g-v2-postgres-1 Creating 
+ Volume lfm-mlflow-2g-v2_storage-data Created 
+ Volume lfm-mlflow-2g-v2_storage-data Created 
+ Container lfm-mlflow-2g-v2-storage-1 Creating 
+ Container lfm-mlflow-2g-v2-storage-1 Created 
+ Container lfm-mlflow-2g-v2-create-bucket-1 Creating 
+ Container lfm-mlflow-2g-v2-postgres-1 Created 
+ Container lfm-mlflow-2g-v2-create-bucket-1 Created 
+ Container lfm-mlflow-2g-v2-mlflow-1 Creating 
+ Container lfm-mlflow-2g-v2-mlflow-1 Created 
+ Container lfm-mlflow-2g-v2-storage-1 Starting 
+ Container lfm-mlflow-2g-v2-postgres-1 Starting 
+ Container lfm-mlflow-2g-v2-storage-1 Started 
+ Container lfm-mlflow-2g-v2-storage-1 Waiting 
+ Container lfm-mlflow-2g-v2-postgres-1 Started 
+ Container lfm-mlflow-2g-v2-storage-1 Healthy 
+ Container lfm-mlflow-2g-v2-create-bucket-1 Starting 
+ Container lfm-mlflow-2g-v2-create-bucket-1 Started 
+ Container lfm-mlflow-2g-v2-storage-1 Waiting 
+ Container lfm-mlflow-2g-v2-create-bucket-1 Waiting 
+ Container lfm-mlflow-2g-v2-postgres-1 Waiting 
+ Container lfm-mlflow-2g-v2-postgres-1 Healthy 
+ Container lfm-mlflow-2g-v2-storage-1 Healthy 
+ Container lfm-mlflow-2g-v2-create-bucket-1 Exited 
+ Container lfm-mlflow-2g-v2-mlflow-1 Starting 
+ Container lfm-mlflow-2g-v2-mlflow-1 Started 
+
+$ compose logs --no-color --tail 200
+create-bucket-1  | Waiting for S3 gateway getting ready...
+create-bucket-1  | Creating bucket mlflow...
+postgres-1       | The files belonging to this database system will be owned by user "postgres".
+postgres-1       | This user must also own the server process.
+postgres-1       | 
+postgres-1       | The database cluster will be initialized with locale "en_US.utf8".
+postgres-1       | The default database encoding has accordingly been set to "UTF8".
+postgres-1       | The default text search configuration will be set to "english".
+postgres-1       | 
+postgres-1       | Data page checksums are disabled.
+postgres-1       | 
+postgres-1       | fixing permissions on existing directory /var/lib/postgresql/data ... ok
+postgres-1       | creating subdirectories ... ok
+postgres-1       | selecting dynamic shared memory implementation ... posix
+postgres-1       | selecting default max_connections ... 100
+postgres-1       | selecting default shared_buffers ... 128MB
+postgres-1       | selecting default time zone ... Etc/UTC
+postgres-1       | creating configuration files ... ok
+postgres-1       | running bootstrap script ... ok
+postgres-1       | performing post-bootstrap initialization ... ok
+postgres-1       | syncing data to disk ... ok
+postgres-1       | 
+storage-1        | Initializing data directories: /data
+storage-1        | Initializing log directory: /logs
+storage-1        | Starting: /usr/bin/rustfs  /data
+mlflow-1         | Collecting psycopg2-binary
+mlflow-1         |   Downloading psycopg2_binary-2.9.13-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (4.9 kB)
+mlflow-1         | Collecting boto3
+mlflow-1         |   Downloading boto3-1.44.2-py3-none-any.whl.metadata (6.6 kB)
+mlflow-1         | Collecting psycopg[binary]
+mlflow-1         |   Downloading psycopg-3.3.9-py3-none-any.whl.metadata (4.4 kB)
+mlflow-1         | Requirement already satisfied: typing-extensions>=4.6 in /usr/local/lib/python3.11/site-packages (from psycopg[binary]) (4.16.0)
+mlflow-1         | Collecting psycopg-binary==3.3.9 (from psycopg[binary])
+mlflow-1         |   Downloading psycopg_binary-3.3.9-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (2.7 kB)
+mlflow-1         | Collecting botocore<1.45.0,>=1.44.2 (from boto3)
+mlflow-1         |   Downloading botocore-1.44.2-py3-none-any.whl.metadata (5.6 kB)
+mlflow-1         | Collecting jmespath<2.0.0,>=0.7.1 (from boto3)
+mlflow-1         |   Downloading jmespath-1.1.0-py3-none-any.whl.metadata (7.6 kB)
+mlflow-1         | Collecting s3transfer<0.20.0,>=0.19.0 (from boto3)
+mlflow-1         |   Downloading s3transfer-0.19.3-py3-none-any.whl.metadata (1.7 kB)
+mlflow-1         | Requirement already satisfied: python-dateutil<3.0.0,>=2.1 in /usr/local/lib/python3.11/site-packages (from botocore<1.45.0,>=1.44.2->boto3) (2.9.0.post0)
+mlflow-1         | Requirement already satisfied: urllib3!=2.2.0,<3,>=1.25.4 in /usr/local/lib/python3.11/site-packages (from botocore<1.45.0,>=1.44.2->boto3) (2.8.0)
+storage-1        | RustFS Http API: http://172.26.0.2:9000  http://127.0.0.1:9000
+storage-1        | RustFS Start Time: 2026-11-13 02:15:59
+storage-1        | Console WebUI Start Time: 2026-11-13 02:15:59
+storage-1        | Console WebUI available at: http://172.26.0.2:9001/rustfs/console/index.html
+mlflow-1         | Requirement already satisfied: six>=1.5 in /usr/local/lib/python3.11/site-packages (from python-dateutil<3.0.0,>=2.1->botocore<1.45.0,>=1.44.2->boto3) (1.17.0)
+mlflow-1         | Downloading psycopg_binary-3.3.9-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (3.9 MB)
+mlflow-1         |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.9/3.9 MB 4.7 MB/s eta 0:00:00
+mlflow-1         | Downloading psycopg2_binary-2.9.13-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.3 MB)
+mlflow-1         |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 9.9 MB/s eta 0:00:00
+mlflow-1         | Downloading boto3-1.44.2-py3-none-any.whl (140 kB)
+mlflow-1         |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 140.2/140.2 kB 104.0 MB/s eta 0:00:00
+mlflow-1         | Downloading botocore-1.44.2-py3-none-any.whl (16.3 MB)
+mlflow-1         |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.3/16.3 MB 3.4 MB/s eta 0:00:00
+mlflow-1         | Downloading jmespath-1.1.0-py3-none-any.whl (20 kB)
+mlflow-1         | Downloading s3transfer-0.19.3-py3-none-any.whl (90 kB)
+mlflow-1         |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 90.3/90.3 kB 2.9 MB/s eta 0:00:00
+storage-1        | Console WebUI (localhost): http://127.0.0.1:9001/rustfs/console/index.html
+storage-1        | RustFS server version: refs/tags/1.0.0-alpha.83 started successfully at [::]:9000, current time: 2026-11-13T02:15:59.358368324Z[Etc/Unknown]
+postgres-1       | 
+postgres-1       | Success. You can now start the database server using:
+mlflow-1         | Downloading psycopg-3.3.9-py3-none-any.whl (219 kB)
+mlflow-1         |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 219.0/219.0 kB 2.7 MB/s eta 0:00:00
+mlflow-1         | Installing collected packages: psycopg2-binary, psycopg-binary, psycopg, jmespath, botocore, s3transfer, boto3
+postgres-1       | 
+postgres-1       |     pg_ctl -D /var/lib/postgresql/data -l logfile start
+postgres-1       | 
+postgres-1       | initdb: warning: enabling "trust" authentication for local connections
+postgres-1       | initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+mlflow-1         | Successfully installed boto3-1.44.2 botocore-1.44.2 jmespath-1.1.0 psycopg-3.3.9 psycopg-binary-3.3.9 psycopg2-binary-2.9.13 s3transfer-0.19.3
+mlflow-1         | WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+mlflow-1         | 
+mlflow-1         | [notice] A new release of pip is available: 24.0 -> 26.3
+mlflow-1         | [notice] To update, run: pip install --upgrade pip
+mlflow-1         | Registry store URI not provided. Using backend store URI.
+postgres-1       | waiting for server to start....2026-11-13 02:16:01.154 UTC [49] LOG:  starting PostgreSQL 15.19 (Debian 15.19-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+postgres-1       | 2026-11-13 02:16:01.156 UTC [49] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1       | 2026-11-13 02:16:01.160 UTC [52] LOG:  database system was shut down at 2026-11-13 02:15:59 UTC
+postgres-1       | 2026-11-13 02:16:01.165 UTC [49] LOG:  database system is ready to accept connections
+postgres-1       |  done
+postgres-1       | server started
+postgres-1       | CREATE DATABASE
+postgres-1       | 
+postgres-1       | 
+postgres-1       | /usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
+postgres-1       | 
+postgres-1       | 2026-11-13 02:16:01.326 UTC [49] LOG:  received fast shutdown request
+postgres-1       | waiting for server to shut down....2026-11-13 02:16:01.327 UTC [49] LOG:  aborting any active transactions
+mlflow-1         | 2026/11/13 02:16:21 INFO mlflow.store.db.utils: Creating initial MLflow database tables...
+postgres-1       | 2026-11-13 02:16:01.328 UTC [49] LOG:  background worker "logical replication launcher" (PID 55) exited with exit code 1
+mlflow-1         | 2026/11/13 02:16:21 INFO mlflow.store.db.utils: Updating database tables
+mlflow-1         | [MLflow] Security middleware enabled with default settings (localhost-only). To allow connections from other hosts, use --host 0.0.0.0 and configure --allowed-hosts and --cors-allowed-origins.
+mlflow-1         | 2026/11/13 02:16:22 INFO mlflow.server.jobs.executor_registry: Available backends after discovery: docker, local
+mlflow-1         | 2026/11/13 02:16:22 INFO mlflow.server.jobs.executor_registry: Job executor backend 'local' passed requirements check
+mlflow-1         | 2026/11/13 02:16:22 INFO:     Uvicorn running on http://0.0.0.0:45000 (Press CTRL+C to quit)
+mlflow-1         | 2026/11/13 02:16:22 INFO:     Started parent process [49]
+mlflow-1         | /usr/local/lib/python3.11/site-packages/mlflow/server/fastapi_app.py:24: StarletteDeprecationWarning: starlette.middleware.wsgi is deprecated and will be removed in a future release. Please refer to https://github.com/abersheeran/a2wsgi as a replacement.
+mlflow-1         |   from starlette.middleware.wsgi import WSGIResponder, build_environ
+mlflow-1         | /usr/local/lib/python3.11/site-packages/mlflow/server/fastapi_app.py:24: StarletteDeprecationWarning: starlette.middleware.wsgi is deprecated and will be removed in a future release. Please refer to https://github.com/abersheeran/a2wsgi as a replacement.
+mlflow-1         |   from starlette.middleware.wsgi import WSGIResponder, build_environ
+mlflow-1         | /usr/local/lib/python3.11/site-packages/mlflow/server/fastapi_app.py:24: StarletteDeprecationWarning: starlette.middleware.wsgi is deprecated and will be removed in a future release. Please refer to https://github.com/abersheeran/a2wsgi as a replacement.
+mlflow-1         |   from starlette.middleware.wsgi import WSGIResponder, build_environ
+mlflow-1         | /usr/local/lib/python3.11/site-packages/mlflow/server/fastapi_app.py:24: StarletteDeprecationWarning: starlette.middleware.wsgi is deprecated and will be removed in a future release. Please refer to https://github.com/abersheeran/a2wsgi as a replacement.
+mlflow-1         |   from starlette.middleware.wsgi import WSGIResponder, build_environ
+mlflow-1         | 2026/11/13 02:16:34 INFO:     Started server process [55]
+mlflow-1         | 2026/11/13 02:16:34 INFO:     Waiting for application startup.
+mlflow-1         | 2026/11/13 02:16:34 INFO:     Started server process [52]
+mlflow-1         | 2026/11/13 02:16:34 INFO:     Waiting for application startup.
+mlflow-1         | 2026/11/13 02:16:34 INFO:     Started server process [53]
+mlflow-1         | 2026/11/13 02:16:34 INFO:     Waiting for application startup.
+mlflow-1         | 2026/11/13 02:16:34 INFO:     Started server process [54]
+mlflow-1         | 2026/11/13 02:16:34 INFO:     Waiting for application startup.
+mlflow-1         | 2026/11/13 02:16:37 INFO:     Application startup complete.
+mlflow-1         | 2026/11/13 02:16:37 INFO:     Application startup complete.
+mlflow-1         | 2026/11/13 02:16:37 INFO:     Application startup complete.
+mlflow-1         | 2026/11/13 02:16:37 INFO:     Application startup complete.
+mlflow-1         | 2026/11/13 02:16:39 INFO:     172.26.0.1:39852 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 02:16:39 INFO:     127.0.0.1:57596 - "GET /health HTTP/1.1" 200 OK
+postgres-1       | 2026-11-13 02:16:01.328 UTC [50] LOG:  shutting down
+postgres-1       | 2026-11-13 02:16:01.332 UTC [50] LOG:  checkpoint starting: shutdown immediate
+postgres-1       | 2026-11-13 02:16:01.717 UTC [50] LOG:  checkpoint complete: wrote 922 buffers (5.6%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.026 s, sync=0.354 s, total=0.389 s; sync files=301, longest=0.005 s, average=0.002 s; distance=4239 kB, estimate=4239 kB
+postgres-1       | 2026-11-13 02:16:01.724 UTC [49] LOG:  database system is shut down
+postgres-1       |  done
+postgres-1       | server stopped
+postgres-1       | 
+postgres-1       | PostgreSQL init process complete; ready for start up.
+postgres-1       | 
+postgres-1       | 2026-11-13 02:16:01.744 UTC [1] LOG:  starting PostgreSQL 15.19 (Debian 15.19-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+postgres-1       | 2026-11-13 02:16:01.745 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+postgres-1       | 2026-11-13 02:16:01.745 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+postgres-1       | 2026-11-13 02:16:01.747 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1       | 2026-11-13 02:16:01.751 UTC [65] LOG:  database system was shut down at 2026-11-13 02:16:01 UTC
+postgres-1       | 2026-11-13 02:16:01.756 UTC [1] LOG:  database system is ready to accept connections
+postgres-1       | 2026-11-13 02:21:01.851 UTC [63] LOG:  checkpoint starting: time
+postgres-1       | 2026-11-13 02:21:33.891 UTC [63] LOG:  checkpoint complete: wrote 323 buffers (2.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=31.957 s, sync=0.069 s, total=32.041 s; sync files=435, longest=0.002 s, average=0.001 s; distance=2618 kB, estimate=2618 kB
+
+$ compose down -v --remove-orphans
+ Container lfm-mlflow-2g-v2-mlflow-1 Stopping 
+ Container lfm-mlflow-2g-v2-mlflow-1 Stopped 
+ Container lfm-mlflow-2g-v2-mlflow-1 Removing 
+ Container lfm-mlflow-2g-v2-mlflow-1 Removed 
+ Container lfm-mlflow-2g-v2-create-bucket-1 Stopping 
+ Container lfm-mlflow-2g-v2-postgres-1 Stopping 
+ Container lfm-mlflow-2g-v2-create-bucket-1 Stopped 
+ Container lfm-mlflow-2g-v2-create-bucket-1 Removing 
+ Container lfm-mlflow-2g-v2-create-bucket-1 Removed 
+ Container lfm-mlflow-2g-v2-storage-1 Stopping 
+ Container lfm-mlflow-2g-v2-postgres-1 Stopped 
+ Container lfm-mlflow-2g-v2-postgres-1 Removing 
+ Container lfm-mlflow-2g-v2-postgres-1 Removed 
+ Container lfm-mlflow-2g-v2-storage-1 Stopped 
+ Container lfm-mlflow-2g-v2-storage-1 Removing 
+ Container lfm-mlflow-2g-v2-storage-1 Removed 
+ Volume lfm-mlflow-2g-v2_storage-data Removing 
+ Volume lfm-mlflow-2g-v2_pgdata Removing 
+ Volume lfm-mlflow-2g-v2_storage-data Removed 
+ Volume lfm-mlflow-2g-v2_pgdata Removed 
+

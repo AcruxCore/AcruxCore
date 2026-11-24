@@ -1,0 +1,5 @@
+services:
+  db:
+    cgroup_parent: lfm4g2c.slice
+  phoenix:
+    cgroup_parent: lfm4g2c.slice

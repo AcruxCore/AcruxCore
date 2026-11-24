@@ -1,0 +1,44 @@
+# Langfuse repo docker-compose.yml, pinned to v4.79.0 (latest release, 2026-11-12).
+# Host ports moved; headless init creates an org, project and API keys.
+services:
+  langfuse-worker:
+    image: docker.langfuse.com/langfuse/langfuse-worker:4.79.0
+    ports: !reset []
+    environment:
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://localhost:49090
+  langfuse-web:
+    image: docker.langfuse.com/langfuse/langfuse:4.79.0
+    ports: !override
+      - 43000:3000
+    environment:
+      NEXTAUTH_URL: http://localhost:43000
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://localhost:49090
+      LANGFUSE_INIT_ORG_ID: bench-org
+      LANGFUSE_INIT_ORG_NAME: bench
+      LANGFUSE_INIT_PROJECT_ID: bench-project
+      LANGFUSE_INIT_PROJECT_NAME: bench
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: pk-lf-bench
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: sk-lf-bench
+      LANGFUSE_INIT_USER_EMAIL: bench@example.com
+      LANGFUSE_INIT_USER_NAME: bench
+      LANGFUSE_INIT_USER_PASSWORD: bench-password-123
+  langfuse-ai-gateway:
+    image: docker.langfuse.com/langfuse/ai-gateway:4.79.0
+    ports: !override
+      - 127.0.0.1:43031:3031
+  clickhouse:
+    ports: !reset []
+  minio:
+    ports: !override
+      - 49090:9000
+  redis:
+    ports: !reset []
+  postgres:
+    ports: !reset []
+
+# Fixed subnet: this host has used up Docker's default address pools.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 10.251.1.0/24

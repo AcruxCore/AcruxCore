@@ -1,0 +1,1119 @@
+$ compose config --services
+clickhouse-init
+zookeeper
+clickhouse
+minio-init
+minio
+mysql
+redis
+backend
+python-backend
+frontend
+demo-data-generator
+mc
+
+$ compose down -v --remove-orphans
+
+$ compose up -d
+ Image ghcr.io/comet-ml/opik/opik-backend:2.2.143 Pulling 
+ Image mysql:8.4.2 Pulling 
+ Image redis:7.2.4-alpine3.19 Pulling 
+ Image ghcr.io/comet-ml/opik/opik-python-backend:2.2.143 Pulling 
+ Image ghcr.io/comet-ml/opik/opik-python-backend:2.2.143 Pulling 
+ Image docker.io/cloudpirates/image-minio:RELEASE.2025-10-15T17-29-55Z-hardened Pulling 
+ Image ghcr.io/comet-ml/opik/opik-frontend:2.2.143 Pulling 
+ Image docker.io/cloudpirates/image-minio:RELEASE.2025-10-15T17-29-55Z-hardened Pulling 
+ Image zookeeper:3.9.4 Pulling 
+ Image docker.io/cloudpirates/image-minio:RELEASE.2025-10-15T17-29-55Z-hardened Pulling 
+ Image clickhouse/clickhouse-server:26.3.62.3-alpine Pulling 
+ Image ghcr.io/comet-ml/opik/opik-frontend:2.2.143 Pulled 
+ Image ghcr.io/comet-ml/opik/opik-backend:2.2.143 Pulled 
+ Image ghcr.io/comet-ml/opik/opik-python-backend:2.2.143 Pulled 
+ Image ghcr.io/comet-ml/opik/opik-python-backend:2.2.143 Pulled 
+ Image zookeeper:3.9.4 Pulled 
+ Image clickhouse/clickhouse-server:26.3.62.3-alpine Pulled 
+ Image docker.io/cloudpirates/image-minio:RELEASE.2025-10-15T17-29-55Z-hardened Pulled 
+ Image docker.io/cloudpirates/image-minio:RELEASE.2025-10-15T17-29-55Z-hardened Pulled 
+ Image redis:7.2.4-alpine3.19 Pulled 
+ Image docker.io/cloudpirates/image-minio:RELEASE.2025-10-15T17-29-55Z-hardened Pulled 
+ Image mysql:8.4.2 Pulled 
+ Volume lfm-opik-2g-v2_minio-data Creating 
+ Volume lfm-opik-2g-v2_clickhouse-config Creating 
+ Network lfm-opik-2g-v2_default Creating 
+ Volume lfm-opik-2g-v2_redis-data Creating 
+ Volume lfm-opik-2g-v2_redis-data Creating 
+ Volume lfm-opik-2g-v2_clickhouse Creating 
+ Volume lfm-opik-2g-v2_mysql Creating 
+ Volume lfm-opik-2g-v2_mysql Creating 
+ Volume lfm-opik-2g-v2_clickhouse Creating 
+ Network lfm-opik-2g-v2_default Creating 
+ Volume lfm-opik-2g-v2_zookeeper Creating 
+ Volume lfm-opik-2g-v2_clickhouse-server Creating 
+ Volume lfm-opik-2g-v2_clickhouse-server Creating 
+ Volume lfm-opik-2g-v2_clickhouse-config Creating 
+ Volume lfm-opik-2g-v2_zookeeper Creating 
+ Volume lfm-opik-2g-v2_minio-data Creating 
+ Volume lfm-opik-2g-v2_redis-data Created 
+ Volume lfm-opik-2g-v2_redis-data Created 
+ Volume lfm-opik-2g-v2_clickhouse-server Created 
+ Volume lfm-opik-2g-v2_clickhouse-server Created 
+ Volume lfm-opik-2g-v2_minio-data Created 
+ Volume lfm-opik-2g-v2_minio-data Created 
+ Volume lfm-opik-2g-v2_clickhouse-config Created 
+ Volume lfm-opik-2g-v2_clickhouse-config Created 
+ Volume lfm-opik-2g-v2_zookeeper Created 
+ Volume lfm-opik-2g-v2_zookeeper Created 
+ Volume lfm-opik-2g-v2_clickhouse Created 
+ Volume lfm-opik-2g-v2_clickhouse Created 
+ Volume lfm-opik-2g-v2_mysql Created 
+ Volume lfm-opik-2g-v2_mysql Created 
+ Network lfm-opik-2g-v2_default Created 
+ Network lfm-opik-2g-v2_default Created 
+ Container lfm-opik-2g-v2-clickhouse-init-1 Creating 
+ Container lfm-opik-2g-v2-minio-init-1 Creating 
+ Container lfm-opik-2g-v2-zookeeper-1 Creating 
+ Container lfm-opik-2g-v2-redis-1 Creating 
+ Container lfm-opik-2g-v2-mysql-1 Creating 
+ Container lfm-opik-2g-v2-python-backend-1 Creating 
+ Container lfm-opik-2g-v2-clickhouse-init-1 Created 
+ Container lfm-opik-2g-v2-python-backend-1 Created 
+ Container lfm-opik-2g-v2-mysql-1 Created 
+ Container lfm-opik-2g-v2-minio-init-1 Created 
+ Container lfm-opik-2g-v2-minio-1 Creating 
+ Container lfm-opik-2g-v2-redis-1 Created 
+ Container lfm-opik-2g-v2-zookeeper-1 Created 
+ Container lfm-opik-2g-v2-clickhouse-1 Creating 
+ Container lfm-opik-2g-v2-clickhouse-1 Created 
+ Container lfm-opik-2g-v2-minio-1 Created 
+ Container lfm-opik-2g-v2-mc-1 Creating 
+ Container lfm-opik-2g-v2-backend-1 Creating 
+ Container lfm-opik-2g-v2-mc-1 Created 
+ Container lfm-opik-2g-v2-backend-1 Created 
+ Container lfm-opik-2g-v2-frontend-1 Creating 
+ Container lfm-opik-2g-v2-frontend-1 Created 
+ Container lfm-opik-2g-v2-demo-data-generator-1 Creating 
+ Container lfm-opik-2g-v2-demo-data-generator-1 Created 
+ Container lfm-opik-2g-v2-python-backend-1 Starting 
+ Container lfm-opik-2g-v2-clickhouse-init-1 Starting 
+ Container lfm-opik-2g-v2-mysql-1 Starting 
+ Container lfm-opik-2g-v2-minio-init-1 Starting 
+ Container lfm-opik-2g-v2-zookeeper-1 Starting 
+ Container lfm-opik-2g-v2-redis-1 Starting 
+ Container lfm-opik-2g-v2-python-backend-1 Started 
+ Container lfm-opik-2g-v2-clickhouse-init-1 Started 
+ Container lfm-opik-2g-v2-mysql-1 Started 
+ Container lfm-opik-2g-v2-minio-init-1 Started 
+ Container lfm-opik-2g-v2-minio-init-1 Waiting 
+ Container lfm-opik-2g-v2-zookeeper-1 Started 
+ Container lfm-opik-2g-v2-clickhouse-init-1 Waiting 
+ Container lfm-opik-2g-v2-zookeeper-1 Waiting 
+ Container lfm-opik-2g-v2-redis-1 Started 
+ Container lfm-opik-2g-v2-minio-init-1 Exited 
+ Container lfm-opik-2g-v2-minio-1 Starting 
+ Container lfm-opik-2g-v2-clickhouse-init-1 Exited 
+ Container lfm-opik-2g-v2-minio-1 Started 
+ Container lfm-opik-2g-v2-minio-1 Waiting 
+ Container lfm-opik-2g-v2-zookeeper-1 Healthy 
+ Container lfm-opik-2g-v2-clickhouse-1 Starting 
+ Container lfm-opik-2g-v2-clickhouse-1 Started 
+ Container lfm-opik-2g-v2-minio-1 Waiting 
+ Container lfm-opik-2g-v2-redis-1 Waiting 
+ Container lfm-opik-2g-v2-mysql-1 Waiting 
+ Container lfm-opik-2g-v2-clickhouse-1 Waiting 
+ Container lfm-opik-2g-v2-minio-1 Healthy 
+ Container lfm-opik-2g-v2-mc-1 Starting 
+ Container lfm-opik-2g-v2-minio-1 Healthy 
+ Container lfm-opik-2g-v2-redis-1 Healthy 
+ Container lfm-opik-2g-v2-mc-1 Started 
+ Container lfm-opik-2g-v2-clickhouse-1 Healthy 
+ Container lfm-opik-2g-v2-mysql-1 Healthy 
+ Container lfm-opik-2g-v2-backend-1 Starting 
+ Container lfm-opik-2g-v2-backend-1 Started 
+ Container lfm-opik-2g-v2-backend-1 Waiting 
+ Container lfm-opik-2g-v2-backend-1 Healthy 
+ Container lfm-opik-2g-v2-frontend-1 Starting 
+ Container lfm-opik-2g-v2-frontend-1 Started 
+ Container lfm-opik-2g-v2-python-backend-1 Waiting 
+ Container lfm-opik-2g-v2-frontend-1 Waiting 
+ Container lfm-opik-2g-v2-python-backend-1 Healthy 
+ Container lfm-opik-2g-v2-frontend-1 Healthy 
+ Container lfm-opik-2g-v2-demo-data-generator-1 Starting 
+ Container lfm-opik-2g-v2-demo-data-generator-1 Started 
+
+$ compose logs --no-color --tail 200
+backend-1  | ! at java.base/java.net.InetAddress.getAllByName(InetAddress.java:1582)
+backend-1  | ! at org.apache.hc.client5.http.SystemDefaultDnsResolver.resolve(SystemDefaultDnsResolver.java:61)
+backend-1  | ! at org.apache.hc.client5.http.DnsResolver.resolve(DnsResolver.java:77)
+backend-1  | ! at org.apache.hc.client5.http.impl.io.DefaultHttpClientConnectionOperator.connect(DefaultHttpClientConnectionOperator.java:202)
+backend-1  | ! at org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager.connect(PoolingHttpClientConnectionManager.java:547)
+backend-1  | ! at org.apache.hc.client5.http.impl.classic.InternalExecRuntime.connectEndpoint(InternalExecRuntime.java:164)
+backend-1  | ! at org.apache.hc.client5.http.impl.classic.InternalExecRuntime.connectEndpoint(InternalExecRuntime.java:174)
+backend-1  | ! at org.apache.hc.client5.http.impl.classic.ConnectExec.execute(ConnectExec.java:144)
+backend-1  | ! at org.apache.hc.client5.http.impl.classic.ExecChainElement.execute(ExecChainElement.java:51)
+backend-1  | ! at org.apache.hc.client5.http.impl.classic.ProtocolExec.execute(ProtocolExec.java:192)
+backend-1  | ! at org.apache.hc.client5.http.impl.classic.ExecChainElement.execute(ExecChainElement.java:51)
+backend-1  | ! at org.apache.hc.client5.http.impl.classic.HttpRequestRetryExec.execute(HttpRequestRetryExec.java:112)
+backend-1  | ! at org.apache.hc.client5.http.impl.classic.ExecChainElement.execute(ExecChainElement.java:51)
+backend-1  | ! at org.apache.hc.client5.http.impl.classic.RedirectExec.execute(RedirectExec.java:110)
+backend-1  | ! at org.apache.hc.client5.http.impl.classic.ExecChainElement.execute(ExecChainElement.java:51)
+backend-1  | ! at org.apache.hc.client5.http.impl.classic.InternalHttpClient.doExecute(InternalHttpClient.java:186)
+backend-1  | ! at org.apache.hc.client5.http.impl.classic.CloseableHttpClient.execute(CloseableHttpClient.java:123)
+backend-1  | ! at com.clickhouse.client.http.ApacheHttpConnectionImpl.post(ApacheHttpConnectionImpl.java:301)
+backend-1  | ! at com.clickhouse.client.http.ClickHouseHttpClient.send(ClickHouseHttpClient.java:196)
+backend-1  | ! at com.clickhouse.client.AbstractClient.sendAsync(AbstractClient.java:165)
+backend-1  | ! at com.clickhouse.client.AbstractClient.lambda$execute$0(AbstractClient.java:280)
+backend-1  | ! at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1789)
+backend-1  | ! at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090)
+minio-1    | INFO: Formatting 1st pool, 1 set(s), 1 drives per set.
+mc-1       | Added `s3` successfully.
+mc-1       | Bucket created successfully `s3/public`.
+mc-1       | Access permission for `s3/public/` is set to `download`
+minio-1    | INFO: WARNING: Host local has more than 0 drives of set. A host failure will result in data becoming unavailable.
+minio-1    | MinIO Object Storage Server
+minio-1    | Copyright: 2015-2026 MinIO, Inc.
+minio-1    | License: GNU AGPLv3 - https://www.gnu.org/licenses/agpl-3.0.html
+minio-1    | Version: DEVELOPMENT.GOGET (go1.25.7 linux/amd64)
+minio-1    | 
+minio-1    | API: http://10.251.4.6:9000  http://127.0.0.1:9000 
+minio-1    | WebUI: http://10.251.4.6:9090 http://127.0.0.1:9090  
+minio-1    | 
+minio-1    | Docs: https://docs.min.io
+backend-1  | ! at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)
+backend-1  | ! at java.base/java.lang.Thread.run(Thread.java:1474)
+backend-1  | ERROR [2026-11-13 02:44:04,307] com.clickhouse.client.http.ApacheHttpConnectionImpl: HTTP request failed
+backend-1  | ! java.net.UnknownHostException: clickhouse
+demo-data-generator-1  | Starting the Demo Data creation task
+demo-data-generator-1  | ✅ Demo data created
+minio-init-1           | chown: unrecognized option: from=0
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:00:58 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 502 157 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "5eba2abe610703a61a810c1dbd85ff36"
+backend-1              | ! at java.base/java.net.InetAddress$CachedLookup.get(InetAddress.java:909)
+backend-1              | ! at java.base/java.net.InetAddress.getAllByName0(InetAddress.java:1702)
+backend-1              | ! at java.base/java.net.InetAddress.getAllByName(InetAddress.java:1582)
+backend-1              | ! at org.apache.hc.client5.http.SystemDefaultDnsResolver.resolve(SystemDefaultDnsResolver.java:61)
+backend-1              | ! at org.apache.hc.client5.http.DnsResolver.resolve(DnsResolver.java:77)
+backend-1              | ! at org.apache.hc.client5.http.impl.io.DefaultHttpClientConnectionOperator.connect(DefaultHttpClientConnectionOperator.java:202)
+backend-1              | ! at org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager.connect(PoolingHttpClientConnectionManager.java:547)
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.InternalExecRuntime.connectEndpoint(InternalExecRuntime.java:164)
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.InternalExecRuntime.connectEndpoint(InternalExecRuntime.java:174)
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.ConnectExec.execute(ConnectExec.java:144)
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.ExecChainElement.execute(ExecChainElement.java:51)
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.ProtocolExec.execute(ProtocolExec.java:192)
+frontend-1             | 2026/11/13 03:00:58 [error] 76#76: *77 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "POST /api/v1/private/otel/v1/traces HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/otel/v1/traces", host: "localhost:45173"
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.ExecChainElement.execute(ExecChainElement.java:51)
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:00:58 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 502 157 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "6170986ad7248cece190032b325cd42f"
+minio-init-1           | BusyBox v1.37.0 (2025-11-23 13:10:04 UTC) multi-call binary.
+frontend-1             | 2026/11/13 03:01:00 [error] 62#62: backend could not be resolved (110: Operation timed out)
+minio-init-1           | 
+frontend-1             | 2026/11/13 03:01:01 [error] 76#76: *80 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "POST /api/v1/private/otel/v1/traces HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/otel/v1/traces", host: "localhost:45173"
+minio-init-1           | Usage: chown [-RhLHPcvf]... USER[:[GRP]] FILE...
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.HttpRequestRetryExec.execute(HttpRequestRetryExec.java:112)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000321, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:02:47 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 03:06:01,011 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:49050
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000312, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:02:49 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000290, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:02:51 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000321, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:02:53 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 03:06:02,040 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:49064
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.ExecChainElement.execute(ExecChainElement.java:51)
+frontend-1             | 2026/11/13 03:01:01 [error] 91#91: *81 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "POST /api/v1/private/otel/v1/traces HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/otel/v1/traces", host: "localhost:45173"
+minio-init-1           | 
+minio-init-1           | Change the owner and/or group of FILEs to USER and/or GRP
+minio-init-1           | 
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:01:01 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 502 157 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "490a88f653a0571d0928f5e6b7d9ee83"
+minio-init-1           | 	-h	Affect symlinks instead of symlink targets
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:01:01 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 502 157 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "c741db20fabb739ec5839e51c85fe4ad"
+zookeeper-1            | 2026-11-13 03:06:03,068 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:49076
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000322, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:02:55 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 03:06:04,097 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:49084
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000294, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:02:57 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+frontend-1             | 2026/11/13 03:01:01 [error] 76#76: *77 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "POST /api/v1/private/otel/v1/traces HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/otel/v1/traces", host: "localhost:45173"
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000311, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:02:59 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.RedirectExec.execute(RedirectExec.java:110)
+redis-1                | 1:C 13 Nov 2026 02:41:15.521 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. Being disabled, it can also cause failures without low memory condition, see https://github.com/jemalloc/jemalloc/issues/1328. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.
+clickhouse-1           | /entrypoint.sh: create new user 'opik' instead 'default'
+clickhouse-1           | Processing configuration file '/etc/clickhouse-server/config.xml'.
+clickhouse-1           | Merging configuration file '/etc/clickhouse-server/config.d/additional_config.xml'.
+clickhouse-1           | Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.
+clickhouse-1           | Logging trace to /var/log/clickhouse-server/clickhouse-server.log
+clickhouse-1           | Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log
+clickhouse-1           | 
+clickhouse-1           | /entrypoint.sh: create database 'opik'
+clickhouse-1           | Processing configuration file '/etc/clickhouse-server/config.xml'.
+clickhouse-1           | Merging configuration file '/etc/clickhouse-server/config.d/additional_config.xml'.
+clickhouse-1           | Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.
+redis-1                | 1:C 13 Nov 2026 02:41:15.521 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:01:01 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 502 157 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "07fe92e6ac89943c778fd5433e09a9db"
+clickhouse-1           | Logging trace to /var/log/clickhouse-server/clickhouse-server.log
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.ExecChainElement.execute(ExecChainElement.java:51)
+redis-1                | 1:C 13 Nov 2026 02:41:15.521 * Redis version=7.2.4, bits=64, commit=00000000, modified=0, pid=1, just started
+minio-init-1           | 	-L	Traverse all symlinks to directories
+redis-1                | 1:C 13 Nov 2026 02:41:15.521 * Configuration loaded
+minio-init-1           | 	-H	Traverse symlinks on command line only
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.InternalHttpClient.doExecute(InternalHttpClient.java:186)
+redis-1                | 1:M 13 Nov 2026 02:41:15.521 * Increased maximum number of open files to 10032 (it was originally set to 1024).
+zookeeper-1            | 2026-11-13 03:06:05,126 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:49088
+frontend-1             | 2026/11/13 03:01:01 [error] 76#76: *76 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "POST /api/v1/private/otel/v1/traces HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/otel/v1/traces", host: "localhost:45173"
+zookeeper-1            | 2026-11-13 03:06:06,156 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:45650
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.CloseableHttpClient.execute(CloseableHttpClient.java:123)
+zookeeper-1            | 2026-11-13 03:06:07,185 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:45666
+backend-1              | ! at com.clickhouse.client.http.ApacheHttpConnectionImpl.post(ApacheHttpConnectionImpl.java:301)
+mysql-1                | 2026-11-13 02:41:14+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.4.2-1.el9 started.
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000286, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:01 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ! at com.clickhouse.client.http.ClickHouseHttpClient.send(ClickHouseHttpClient.java:196)
+backend-1              | ! at com.clickhouse.client.AbstractClient.sendAsync(AbstractClient.java:165)
+backend-1              | ! at com.clickhouse.client.AbstractClient.lambda$execute$0(AbstractClient.java:280)
+backend-1              | ! at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1789)
+backend-1              | ! at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090)
+backend-1              | ! at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)
+backend-1              | ! at java.base/java.lang.Thread.run(Thread.java:1474)
+backend-1              | ERROR [2026-11-13 02:44:04,307] reactor.core.publisher.Operators: Operator called default onErrorDropped
+redis-1                | 1:M 13 Nov 2026 02:41:15.521 * monotonic clock: POSIX clock_gettime
+clickhouse-1           | Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log
+redis-1                | 1:M 13 Nov 2026 02:41:15.522 * Running mode=standalone, port=6379.
+redis-1                | 1:M 13 Nov 2026 02:41:15.522 * Server initialized
+redis-1                | 1:M 13 Nov 2026 02:41:15.522 * Ready to accept connections tcp
+redis-1                | 1:M 13 Nov 2026 02:46:16.070 * 100 changes in 300 seconds. Saving...
+redis-1                | 1:M 13 Nov 2026 02:46:16.071 * Background saving started by pid 877
+backend-1              | ! java.net.ConnectException: clickhouse
+redis-1                | 877:C 13 Nov 2026 02:46:16.093 * DB saved on disk
+backend-1              | ! at com.clickhouse.client.http.ApacheHttpConnectionImpl.post(ApacheHttpConnectionImpl.java:317)
+backend-1              | ! at com.clickhouse.client.http.ClickHouseHttpClient.send(ClickHouseHttpClient.java:196)
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:01:01 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 502 157 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "bea8c149b06bb60599423df41281e95a"
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000335, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:03 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+minio-init-1           | 	-P	Don't traverse symlinks (default)
+mysql-1                | 2026-11-13 02:41:15+00:00 [Note] [Entrypoint]: Switching to dedicated user 'mysql'
+minio-init-1           | 	-R	Recurse
+backend-1              | ! at com.clickhouse.client.AbstractClient.sendAsync(AbstractClient.java:165)
+redis-1                | 877:C 13 Nov 2026 02:46:16.093 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+backend-1              | ! at com.clickhouse.client.AbstractClient.lambda$execute$0(AbstractClient.java:280)
+redis-1                | 1:M 13 Nov 2026 02:46:16.171 * Background saving terminated with success
+minio-init-1           | 	-c	List changed files
+mysql-1                | 2026-11-13 02:41:15+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.4.2-1.el9 started.
+mysql-1                | 2026-11-13 02:41:16+00:00 [Note] [Entrypoint]: Initializing database files
+mysql-1                | 2026-11-13T02:41:16.209160Z 0 [System] [MY-015017] [Server] MySQL Server Initialization - start.
+backend-1              | ! ... 4 common frames omitted
+backend-1              | ! Causing: com.clickhouse.client.ClickHouseException: clickhouse
+backend-1              | ! at com.clickhouse.client.ClickHouseException.of(ClickHouseException.java:150)
+zookeeper-1            | 2026-11-13 03:06:08,213 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:45678
+backend-1              | ! at com.clickhouse.client.AbstractClient.lambda$execute$0(AbstractClient.java:282)
+backend-1              | ! at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1789)
+backend-1              | ! at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090)
+mysql-1                | 2026-11-13T02:41:16.210224Z 0 [System] [MY-013169] [Server] /usr/sbin/mysqld (mysqld 8.4.2) initializing of server in progress as process 86
+frontend-1             | 2026/11/13 03:01:04 [error] 62#62: backend could not be resolved (110: Operation timed out)
+zookeeper-1            | 2026-11-13 03:06:09,242 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:45694
+backend-1              | ! at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)
+zookeeper-1            | 2026-11-13 03:06:10,273 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:45706
+backend-1              | ! at java.base/java.lang.Thread.run(Thread.java:1474)
+minio-init-1           | 	-v	Verbose
+minio-init-1           | 	-f	Hide errors
+mysql-1                | 2026-11-13T02:41:16.215463Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+minio-init-1           | minio-init: could not re-own /data to 1001:1001; see the self-host troubleshooting guide
+mysql-1                | 2026-11-13T02:41:17.324803Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+mysql-1                | 2026-11-13T02:41:20.205263Z 6 [Warning] [MY-010453] [Server] root@localhost is created with an empty password ! Please consider switching off the --initialize-insecure option.
+backend-1              | ERROR [2026-11-13 02:44:04,307] reactor.core.publisher.Operators: Operator called default onErrorDropped
+mysql-1                | 2026-11-13T02:41:24.554392Z 0 [System] [MY-015018] [Server] MySQL Server Initialization - end.
+mysql-1                | 2026-11-13 02:41:24+00:00 [Note] [Entrypoint]: Database files initialized
+mysql-1                | 2026-11-13 02:41:24+00:00 [Note] [Entrypoint]: Starting temporary server
+mysql-1                | 2026-11-13T02:41:24.619700Z 0 [System] [MY-015015] [Server] MySQL Server - start.
+mysql-1                | 2026-11-13T02:41:25.205300Z 0 [System] [MY-010116] [Server] /usr/sbin/mysqld (mysqld 8.4.2) starting as process 180
+zookeeper-1            | 2026-11-13 03:06:11,301 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:45722
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000310, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:05 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000325, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:07 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ! java.net.ConnectException: clickhouse
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000316, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:09 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000316, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:11 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000369, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:13 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000305, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:15 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000308, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:17 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000337, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:19 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000345, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:21 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000295, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:23 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000295, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:25 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000278, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:27 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000323, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:29 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000360, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:31 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000391, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:33 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ! at com.clickhouse.client.http.ApacheHttpConnectionImpl.post(ApacheHttpConnectionImpl.java:317)
+frontend-1             | 2026/11/13 03:01:06 [error] 76#76: *76 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "POST /api/v1/private/otel/v1/traces HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/otel/v1/traces", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:01:06 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 502 157 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "d7a996863ad4f258335bce4063547a2c"
+frontend-1             | 2026/11/13 03:01:06 [error] 76#76: *80 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "POST /api/v1/private/otel/v1/traces HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/otel/v1/traces", host: "localhost:45173"
+mysql-1                | 2026-11-13T02:41:25.224048Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:01:06 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 502 157 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "7b203887d73e2abb8f1495f10f44ebdc"
+frontend-1             | 2026/11/13 03:01:06 [error] 76#76: *77 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "POST /api/v1/private/otel/v1/traces HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/otel/v1/traces", host: "localhost:45173"
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000310, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:35 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:01:06 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 502 157 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "ebd84e53ac52e3a075cdef6a981edd8d"
+frontend-1             | 2026/11/13 03:01:08 [error] 62#62: backend could not be resolved (110: Operation timed out)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000301, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:37 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 03:06:12,330 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:45732
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000312, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:39 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 03:06:13,358 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:45734
+backend-1              | ! at com.clickhouse.client.http.ClickHouseHttpClient.send(ClickHouseHttpClient.java:196)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000316, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:41 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ! at com.clickhouse.client.AbstractClient.sendAsync(AbstractClient.java:165)
+backend-1              | ! at com.clickhouse.client.AbstractClient.lambda$execute$0(AbstractClient.java:280)
+backend-1              | ! ... 4 common frames omitted
+backend-1              | ! Causing: com.clickhouse.client.ClickHouseException: clickhouse
+backend-1              | ! at com.clickhouse.client.ClickHouseException.of(ClickHouseException.java:150)
+backend-1              | ! at com.clickhouse.client.AbstractClient.lambda$execute$0(AbstractClient.java:282)
+backend-1              | ! at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1789)
+backend-1              | ! at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090)
+backend-1              | ! at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)
+backend-1              | ! at java.base/java.lang.Thread.run(Thread.java:1474)
+backend-1              | ERROR [2026-11-13 02:44:04,307] reactor.core.publisher.Operators: Operator called default onErrorDropped
+backend-1              | ! java.net.ConnectException: clickhouse
+backend-1              | ! at com.clickhouse.client.http.ApacheHttpConnectionImpl.post(ApacheHttpConnectionImpl.java:317)
+zookeeper-1            | 2026-11-13 03:06:14,387 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:45746
+backend-1              | ! at com.clickhouse.client.http.ClickHouseHttpClient.send(ClickHouseHttpClient.java:196)
+mysql-1                | 2026-11-13T02:41:25.820770Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+mysql-1                | 2026-11-13T02:41:26.316859Z 0 [Warning] [MY-010068] [Server] CA certificate ca.pem is self signed.
+mysql-1                | 2026-11-13T02:41:26.316878Z 0 [System] [MY-013602] [Server] Channel mysql_main configured to support TLS. Encrypted connections are now supported for this channel.
+mysql-1                | 2026-11-13T02:41:26.319852Z 0 [Warning] [MY-011810] [Server] Insecure configuration for --pid-file: Location '/var/run/mysqld' in the path is accessible to all OS users. Consider choosing a different directory.
+mysql-1                | 2026-11-13T02:41:26.335200Z 0 [System] [MY-011323] [Server] X Plugin ready for connections. Socket: /var/run/mysqld/mysqlx.sock
+mysql-1                | 2026-11-13T02:41:26.335252Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.4.2'  socket: '/var/run/mysqld/mysqld.sock'  port: 0  MySQL Community Server - GPL.
+mysql-1                | 2026-11-13 02:41:26+00:00 [Note] [Entrypoint]: Temporary server started.
+mysql-1                | '/var/lib/mysql/mysql.sock' -> '/var/run/mysqld/mysqld.sock'
+mysql-1                | Warning: Unable to load '/usr/share/zoneinfo/iso3166.tab' as time zone. Skipping it.
+mysql-1                | Warning: Unable to load '/usr/share/zoneinfo/leap-seconds.list' as time zone. Skipping it.
+mysql-1                | Warning: Unable to load '/usr/share/zoneinfo/leapseconds' as time zone. Skipping it.
+mysql-1                | Warning: Unable to load '/usr/share/zoneinfo/tzdata.zi' as time zone. Skipping it.
+mysql-1                | Warning: Unable to load '/usr/share/zoneinfo/zone.tab' as time zone. Skipping it.
+backend-1              | ! at com.clickhouse.client.AbstractClient.sendAsync(AbstractClient.java:165)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000284, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:43 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 03:06:15,416 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:45760
+zookeeper-1            | 2026-11-13 03:06:16,445 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:60380
+zookeeper-1            | 2026-11-13 03:06:17,474 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:60396
+zookeeper-1            | 2026-11-13 03:06:18,502 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:60406
+zookeeper-1            | 2026-11-13 03:06:19,530 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:60420
+zookeeper-1            | 2026-11-13 03:06:20,558 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:60422
+zookeeper-1            | 2026-11-13 03:06:21,588 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:60438
+zookeeper-1            | 2026-11-13 03:06:22,616 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:60446
+zookeeper-1            | 2026-11-13 03:06:23,645 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:60462
+zookeeper-1            | 2026-11-13 03:06:24,673 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:60466
+zookeeper-1            | 2026-11-13 03:06:25,702 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:60470
+zookeeper-1            | 2026-11-13 03:06:26,730 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:53156
+zookeeper-1            | 2026-11-13 03:06:27,759 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:53166
+zookeeper-1            | 2026-11-13 03:06:28,787 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:53170
+zookeeper-1            | 2026-11-13 03:06:29,816 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:53184
+zookeeper-1            | 2026-11-13 03:06:30,845 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:53190
+zookeeper-1            | 2026-11-13 03:06:31,876 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:53192
+zookeeper-1            | 2026-11-13 03:06:32,904 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:53204
+zookeeper-1            | 2026-11-13 03:06:33,933 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:53210
+zookeeper-1            | 2026-11-13 03:06:34,961 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:53214
+zookeeper-1            | 2026-11-13 03:06:35,990 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:59118
+zookeeper-1            | 2026-11-13 03:06:37,020 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:59120
+zookeeper-1            | 2026-11-13 03:06:38,048 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:59136
+zookeeper-1            | 2026-11-13 03:06:39,076 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:59142
+zookeeper-1            | 2026-11-13 03:06:40,105 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:59152
+zookeeper-1            | 2026-11-13 03:06:41,134 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:59160
+zookeeper-1            | 2026-11-13 03:06:42,164 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:59164
+zookeeper-1            | 2026-11-13 03:06:43,193 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:59166
+zookeeper-1            | 2026-11-13 03:06:44,222 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:59172
+zookeeper-1            | 2026-11-13 03:06:45,250 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:59178
+zookeeper-1            | 2026-11-13 03:06:46,278 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52362
+zookeeper-1            | 2026-11-13 03:06:47,306 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52376
+zookeeper-1            | 2026-11-13 03:06:48,336 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52380
+zookeeper-1            | 2026-11-13 03:06:49,365 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52384
+zookeeper-1            | 2026-11-13 03:06:50,393 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52400
+zookeeper-1            | 2026-11-13 03:06:51,423 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52412
+zookeeper-1            | 2026-11-13 03:06:52,450 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52420
+zookeeper-1            | 2026-11-13 03:06:53,479 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52434
+zookeeper-1            | 2026-11-13 03:06:54,507 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52442
+zookeeper-1            | 2026-11-13 03:06:55,536 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52452
+zookeeper-1            | 2026-11-13 03:06:56,565 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:46178
+zookeeper-1            | 2026-11-13 03:06:57,593 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:46180
+zookeeper-1            | 2026-11-13 03:06:58,622 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:46188
+zookeeper-1            | 2026-11-13 03:06:59,651 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:46192
+zookeeper-1            | 2026-11-13 03:07:00,681 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:46200
+zookeeper-1            | 2026-11-13 03:07:01,708 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:46216
+zookeeper-1            | 2026-11-13 03:07:02,737 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:46226
+zookeeper-1            | 2026-11-13 03:07:03,765 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:46242
+zookeeper-1            | 2026-11-13 03:07:04,794 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:46252
+zookeeper-1            | 2026-11-13 03:07:05,823 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:46266
+zookeeper-1            | 2026-11-13 03:07:06,852 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58768
+zookeeper-1            | 2026-11-13 03:07:07,881 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58776
+zookeeper-1            | 2026-11-13 03:07:08,910 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58782
+zookeeper-1            | 2026-11-13 03:07:09,938 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58792
+zookeeper-1            | 2026-11-13 03:07:10,967 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58796
+zookeeper-1            | 2026-11-13 03:07:11,996 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58810
+zookeeper-1            | 2026-11-13 03:07:13,027 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58816
+zookeeper-1            | 2026-11-13 03:07:14,056 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58824
+zookeeper-1            | 2026-11-13 03:07:15,084 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58832
+zookeeper-1            | 2026-11-13 03:07:16,112 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:41620
+zookeeper-1            | 2026-11-13 03:07:17,142 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:41628
+zookeeper-1            | 2026-11-13 03:07:18,170 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:41642
+backend-1              | ! at com.clickhouse.client.AbstractClient.lambda$execute$0(AbstractClient.java:280)
+backend-1              | ! ... 4 common frames omitted
+backend-1              | ! Causing: com.clickhouse.client.ClickHouseException: clickhouse
+backend-1              | ! at com.clickhouse.client.ClickHouseException.of(ClickHouseException.java:150)
+backend-1              | ! at com.clickhouse.client.AbstractClient.lambda$execute$0(AbstractClient.java:282)
+backend-1              | ! at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1789)
+backend-1              | ! at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090)
+backend-1              | ! at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)
+backend-1              | ! at java.base/java.lang.Thread.run(Thread.java:1474)
+backend-1              | ERROR [2026-11-13 02:44:04,309] io.dropwizard.jersey.errors.LoggingExceptionMapper: Error handling a request: b14065f620e8ac11
+backend-1              | ! java.net.ConnectException: clickhouse
+backend-1              | ! at com.clickhouse.client.http.ApacheHttpConnectionImpl.post(ApacheHttpConnectionImpl.java:317)
+backend-1              | ! at com.clickhouse.client.http.ClickHouseHttpClient.send(ClickHouseHttpClient.java:196)
+mysql-1                | Warning: Unable to load '/usr/share/zoneinfo/zone1970.tab' as time zone. Skipping it.
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000304, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:45 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 03:07:19,199 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:41648
+zookeeper-1            | 2026-11-13 03:07:20,228 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:41650
+zookeeper-1            | 2026-11-13 03:07:21,255 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:41656
+zookeeper-1            | 2026-11-13 03:07:22,284 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:41662
+zookeeper-1            | 2026-11-13 03:07:23,313 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:41674
+zookeeper-1            | 2026-11-13 03:07:24,342 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:41680
+zookeeper-1            | 2026-11-13 03:07:25,372 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:41696
+zookeeper-1            | 2026-11-13 03:07:26,403 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58424
+zookeeper-1            | 2026-11-13 03:07:27,432 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58432
+zookeeper-1            | 2026-11-13 03:07:28,460 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58446
+zookeeper-1            | 2026-11-13 03:07:29,489 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58460
+backend-1              | ! at com.clickhouse.client.AbstractClient.sendAsync(AbstractClient.java:165)
+backend-1              | ! at com.clickhouse.client.AbstractClient.lambda$execute$0(AbstractClient.java:280)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000282, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:47 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ! ... 4 common frames omitted
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000317, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:49 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000284, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:51 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000292, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:53 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000279, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:55 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000296, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:57 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000311, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:03:59 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000334, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:01 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000304, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:03 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000368, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:05 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+frontend-1             | 2026/11/13 03:01:10 [error] 76#76: *76 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "POST /api/v1/private/otel/v1/traces HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/otel/v1/traces", host: "localhost:45173"
+frontend-1             | 2026/11/13 03:01:10 [error] 91#91: *81 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "POST /api/v1/private/otel/v1/traces HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/otel/v1/traces", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:01:10 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 502 157 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "efcec297d8a0a0c43783fbfbbe7d571b"
+mysql-1                | 2026-11-13 02:41:29+00:00 [Note] [Entrypoint]: Creating database opik
+mysql-1                | 2026-11-13 02:41:29+00:00 [Note] [Entrypoint]: Creating user opik
+mysql-1                | 2026-11-13 02:41:29+00:00 [Note] [Entrypoint]: Giving user opik access to schema opik
+mysql-1                | 
+mysql-1                | 2026-11-13 02:41:29+00:00 [Note] [Entrypoint]: Stopping temporary server
+mysql-1                | 2026-11-13T02:41:29.557425Z 13 [System] [MY-013172] [Server] Received SHUTDOWN from user root. Shutting down mysqld (Version: 8.4.2).
+mysql-1                | 2026-11-13T02:41:30.601900Z 0 [System] [MY-010910] [Server] /usr/sbin/mysqld: Shutdown complete (mysqld 8.4.2)  MySQL Community Server - GPL.
+zookeeper-1            | 2026-11-13 03:07:30,518 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58476
+backend-1              | ! Causing: com.clickhouse.client.ClickHouseException: clickhouse
+zookeeper-1            | 2026-11-13 03:07:31,546 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58482
+backend-1              | ! at com.clickhouse.client.ClickHouseException.of(ClickHouseException.java:150)
+zookeeper-1            | 2026-11-13 03:07:32,575 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58492
+backend-1              | ! at com.clickhouse.client.AbstractClient.lambda$execute$0(AbstractClient.java:282)
+zookeeper-1            | 2026-11-13 03:07:33,605 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58506
+backend-1              | ! at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1789)
+mysql-1                | 2026-11-13T02:41:30.601911Z 0 [System] [MY-015016] [Server] MySQL Server - end.
+backend-1              | ! at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090)
+mysql-1                | 2026-11-13 02:41:31+00:00 [Note] [Entrypoint]: Temporary server stopped
+backend-1              | ! at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)
+mysql-1                | 
+backend-1              | ! ... 1 common frames omitted
+mysql-1                | 2026-11-13 02:41:31+00:00 [Note] [Entrypoint]: MySQL init process done. Ready for start up.
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:01:10 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 502 157 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "be3da636bbfff8b0bf45bc066caa35f5"
+mysql-1                | 
+mysql-1                | 2026-11-13T02:41:31.574363Z 0 [System] [MY-015015] [Server] MySQL Server - start.
+frontend-1             | 2026/11/13 03:01:12 [error] 62#62: backend could not be resolved (110: Operation timed out)
+mysql-1                | 2026-11-13T02:41:31.807248Z 0 [System] [MY-010116] [Server] /usr/sbin/mysqld (mysqld 8.4.2) starting as process 1
+frontend-1             | 2026/11/13 03:01:13 [error] 76#76: *80 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "POST /api/v1/private/otel/v1/traces HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/otel/v1/traces", host: "localhost:45173"
+mysql-1                | 2026-11-13T02:41:31.812921Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:01:13 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 502 157 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "b182180a511ddf22c98d919a4cff2c28"
+zookeeper-1            | 2026-11-13 03:07:34,633 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58510
+zookeeper-1            | 2026-11-13 03:07:35,661 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58522
+zookeeper-1            | 2026-11-13 03:07:36,690 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:48082
+zookeeper-1            | 2026-11-13 03:07:37,718 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:48092
+backend-1              | ! Causing: reactor.core.Exceptions$ReactiveException: com.clickhouse.client.ClickHouseException: clickhouse
+mysql-1                | 2026-11-13T02:41:32.011106Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+backend-1              | ! at reactor.core.Exceptions.propagate(Exceptions.java:410)
+backend-1              | ! at reactor.core.publisher.BlockingSingleSubscriber.blockingGet(BlockingSingleSubscriber.java:102)
+backend-1              | ! at reactor.core.publisher.Mono.block(Mono.java:1773)
+mysql-1                | 2026-11-13T02:41:32.193198Z 0 [Warning] [MY-010068] [Server] CA certificate ca.pem is self signed.
+mysql-1                | 2026-11-13T02:41:32.193216Z 0 [System] [MY-013602] [Server] Channel mysql_main configured to support TLS. Encrypted connections are now supported for this channel.
+mysql-1                | 2026-11-13T02:41:32.195996Z 0 [Warning] [MY-011810] [Server] Insecure configuration for --pid-file: Location '/var/run/mysqld' in the path is accessible to all OS users. Consider choosing a different directory.
+mysql-1                | 2026-11-13T02:41:32.213211Z 0 [System] [MY-011323] [Server] X Plugin ready for connections. Bind-address: '::' port: 33060, socket: /var/run/mysqld/mysqlx.sock
+mysql-1                | 2026-11-13T02:41:32.213266Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.4.2'  socket: '/var/run/mysqld/mysqld.sock'  port: 3306  MySQL Community Server - GPL.
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000285, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:07 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000324, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:09 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000280, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:11 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000295, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:13 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000309, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:15 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000283, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:17 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000291, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:19 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000373, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:21 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000277, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:23 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000289, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:25 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000308, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:27 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 03:07:38,746 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:48108
+backend-1              | ! at com.comet.opik.api.resources.v1.priv.OpenTelemetryResource.handleOtelTraceRequest(OpenTelemetryResource.java:69)
+backend-1              | ! at com.comet.opik.api.resources.v1.priv.OpenTelemetryResource.receiveProtobufTraces(OpenTelemetryResource.java:42)
+backend-1              | ! at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)
+backend-1              | ! at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+backend-1              | ! at org.glassfish.jersey.server.model.internal.ResourceMethodInvocationHandlerFactory.lambda$static$0(ResourceMethodInvocationHandlerFactory.java:52)
+backend-1              | ! at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher$1.run(AbstractJavaResourceMethodDispatcher.java:146)
+backend-1              | ! at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher.invoke(AbstractJavaResourceMethodDispatcher.java:189)
+backend-1              | ! at org.glassfish.jersey.server.model.internal.JavaResourceMethodDispatcherProvider$ResponseOutInvoker.doDispatch(JavaResourceMethodDispatcherProvider.java:176)
+backend-1              | ! at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher.dispatch(AbstractJavaResourceMethodDispatcher.java:93)
+backend-1              | ! at org.glassfish.jersey.server.model.ResourceMethodInvoker.invoke(ResourceMethodInvoker.java:478)
+backend-1              | ! at org.glassfish.jersey.server.model.ResourceMethodInvoker.apply(ResourceMethodInvoker.java:400)
+backend-1              | ! at org.glassfish.jersey.server.model.ResourceMethodInvoker.apply(ResourceMethodInvoker.java:81)
+backend-1              | ! at org.glassfish.jersey.server.ServerRuntime$1.run(ServerRuntime.java:274)
+backend-1              | ! at org.glassfish.jersey.internal.Errors$1.call(Errors.java:248)
+backend-1              | ! at org.glassfish.jersey.internal.Errors$1.call(Errors.java:244)
+backend-1              | ! at org.glassfish.jersey.internal.Errors.process(Errors.java:292)
+frontend-1             | 2026/11/13 03:01:13 [error] 76#76: *76 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "POST /api/v1/private/otel/v1/traces HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/otel/v1/traces", host: "localhost:45173"
+backend-1              | ! at org.glassfish.jersey.internal.Errors.process(Errors.java:274)
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:01:13 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 502 157 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "6ba7b0284d9f662a7cb884bede0c3116"
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000285, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:29 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+frontend-1             | 2026/11/13 03:01:13 [error] 76#76: *77 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "POST /api/v1/private/otel/v1/traces HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/otel/v1/traces", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:01:13 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 502 157 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "b910508964284232ab5babffb62b1101"
+frontend-1             | 2026/11/13 03:01:16 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:01:19 [error] 76#76: *76 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "POST /api/v1/private/otel/v1/traces HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/otel/v1/traces", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:01:19 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 502 157 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "21e376faeb46f9824beb7bb504ed4365"
+frontend-1             | 2026/11/13 03:01:20 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:01:24 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:01:25 [error] 76#76: *80 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "POST /api/v1/private/otel/v1/traces HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/otel/v1/traces", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:01:25 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 502 157 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "6a01aaf36d8f1a89b7f58d8b959d65a4"
+frontend-1             | 2026/11/13 03:01:28 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:01:31 [error] 76#76: *77 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "POST /api/v1/private/otel/v1/traces HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/otel/v1/traces", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:01:31 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 502 157 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "4d93f14f885fed5fa86b96834b85b3b9"
+frontend-1             | 2026/11/13 03:01:31 [error] 91#91: *81 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "POST /api/v1/private/otel/v1/traces HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/otel/v1/traces", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:01:31 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 502 157 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "4408f85be68d917c8dd4506dce597f00"
+frontend-1             | 2026/11/13 03:01:31 [error] 76#76: *76 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "POST /api/v1/private/otel/v1/traces HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/otel/v1/traces", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:01:31 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 502 157 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "c6680268893a8ea6236e7d8a66c4e7ce"
+frontend-1             | 2026/11/13 03:01:32 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:01:35 [error] 91#91: *81 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "POST /api/v1/private/otel/v1/traces HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/otel/v1/traces", host: "localhost:45173"
+frontend-1             | 2026/11/13 03:01:35 [error] 76#76: *77 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "POST /api/v1/private/otel/v1/traces HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/otel/v1/traces", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:01:35 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 502 157 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "58b84a223762ac39d782302cddae8836"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:01:35 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 502 157 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "823bd39872384b618595437438522263"
+frontend-1             | 2026/11/13 03:01:36 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:01:37 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 499 0 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "3fa990823a3f6a866f718b0b7eda5598"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:01:37 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 499 0 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "23bd1c0dce0c2946386575e6e168839f"
+frontend-1             | 2026/11/13 03:01:40 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:01:44 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:01:48 [error] 62#62: backend could not be resolved (110: Operation timed out)
+zookeeper-1            | 2026-11-13 03:07:39,774 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:48124
+zookeeper-1            | 2026-11-13 03:07:40,802 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:48140
+zookeeper-1            | 2026-11-13 03:07:41,831 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:48152
+zookeeper-1            | 2026-11-13 03:07:42,861 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:48164
+zookeeper-1            | 2026-11-13 03:07:43,889 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:48168
+zookeeper-1            | 2026-11-13 03:07:44,918 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:48172
+zookeeper-1            | 2026-11-13 03:07:45,946 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36436
+zookeeper-1            | 2026-11-13 03:07:46,974 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36452
+zookeeper-1            | 2026-11-13 03:07:48,004 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36460
+zookeeper-1            | 2026-11-13 03:07:49,031 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36462
+zookeeper-1            | 2026-11-13 03:07:50,060 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36470
+zookeeper-1            | 2026-11-13 03:07:51,088 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36472
+zookeeper-1            | 2026-11-13 03:07:52,116 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36476
+zookeeper-1            | 2026-11-13 03:07:53,144 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36484
+zookeeper-1            | 2026-11-13 03:07:54,172 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36488
+zookeeper-1            | 2026-11-13 03:07:55,201 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36500
+zookeeper-1            | 2026-11-13 03:07:56,230 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:37086
+zookeeper-1            | 2026-11-13 03:07:57,258 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:37094
+zookeeper-1            | 2026-11-13 03:07:58,288 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:37104
+zookeeper-1            | 2026-11-13 03:07:59,317 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:37116
+zookeeper-1            | 2026-11-13 03:08:00,346 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:37130
+zookeeper-1            | 2026-11-13 03:08:01,377 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:37144
+zookeeper-1            | 2026-11-13 03:08:02,407 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:37148
+zookeeper-1            | 2026-11-13 03:08:03,434 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:37156
+zookeeper-1            | 2026-11-13 03:08:04,462 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:37170
+zookeeper-1            | 2026-11-13 03:08:05,491 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:37186
+zookeeper-1            | 2026-11-13 03:08:06,520 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:37144
+zookeeper-1            | 2026-11-13 03:08:07,550 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:37160
+zookeeper-1            | 2026-11-13 03:08:08,579 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:37170
+zookeeper-1            | 2026-11-13 03:08:09,608 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:37182
+frontend-1             | 2026/11/13 03:01:52 [error] 62#62: backend could not be resolved (110: Operation timed out)
+backend-1              | ! at org.glassfish.jersey.internal.Errors.process(Errors.java:244)
+zookeeper-1            | 2026-11-13 03:08:10,638 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:37194
+backend-1              | ! at org.glassfish.jersey.process.internal.RequestScope.runInScope(RequestScope.java:266)
+zookeeper-1            | 2026-11-13 03:08:11,667 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:37198
+backend-1              | ! at org.glassfish.jersey.server.ServerRuntime.process(ServerRuntime.java:253)
+backend-1              | ! at org.glassfish.jersey.server.ApplicationHandler.handle(ApplicationHandler.java:696)
+backend-1              | ! at org.glassfish.jersey.servlet.WebComponent.serviceImpl(WebComponent.java:398)
+backend-1              | ! at org.glassfish.jersey.servlet.WebComponent.service(WebComponent.java:350)
+backend-1              | ! at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:358)
+backend-1              | ! at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:312)
+backend-1              | ! at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:205)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHolder.handle(ServletHolder.java:754)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHandler$ChainEnd.doFilter(ServletHandler.java:1622)
+backend-1              | ! at io.dropwizard.servlets.ThreadNameFilter.doFilter(ThreadNameFilter.java:36)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.FilterHolder.doFilter(FilterHolder.java:205)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1594)
+backend-1              | ! at io.dropwizard.jetty.ZipExceptionHandlingServletFilter.doFilter(ZipExceptionHandlingServletFilter.java:30)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.FilterHolder.doFilter(FilterHolder.java:205)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1594)
+backend-1              | ! at io.dropwizard.jersey.filter.AllowedMethodsFilter.handle(AllowedMethodsFilter.java:46)
+backend-1              | ! at io.dropwizard.jersey.filter.AllowedMethodsFilter.doFilter(AllowedMethodsFilter.java:40)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.FilterHolder.doFilter(FilterHolder.java:205)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1594)
+backend-1              | ! at com.google.inject.servlet.FilterChainInvocation.doFilter(FilterChainInvocation.java:89)
+backend-1              | ! at com.google.inject.servlet.ManagedFilterPipeline.dispatch(ManagedFilterPipeline.java:121)
+backend-1              | ! at com.google.inject.servlet.GuiceFilter.doFilter(GuiceFilter.java:133)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.FilterHolder.doFilter(FilterHolder.java:205)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1594)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHandler$MappedServlet.handle(ServletHandler.java:1556)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletChannel.dispatch(ServletChannel.java:871)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletChannel.handle(ServletChannel.java:449)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHandler.handle(ServletHandler.java:469)
+backend-1              | ! at org.eclipse.jetty.server.Handler$Wrapper.handle(Handler.java:794)
+backend-1              | ! at io.dropwizard.request.logging.LogbackAccessRequestLogAwareHandler.handle(LogbackAccessRequestLogAwareHandler.java:14)
+frontend-1             | 2026/11/13 03:01:56 [error] 62#62: backend could not be resolved (110: Operation timed out)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000311, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:31 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000303, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:33 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000286, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:35 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000316, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:37 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+frontend-1             | 2026/11/13 03:02:00 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:02:04 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:02:08 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:02:12 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:02:16 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:02:20 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:02:24 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:02:28 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:02:32 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:02:36 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:02:40 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:02:44 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:02:48 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:02:52 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:02:56 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:03:00 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:03:04 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:03:08 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:03:12 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:03:16 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:03:20 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:03:24 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:03:28 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:03:32 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:03:36 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:03:40 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:03:44 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:03:48 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:03:52 [error] 62#62: backend could not be resolved (110: Operation timed out)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000305, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:40 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000368, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:42 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000308, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:44 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000309, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:46 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000287, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:48 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000286, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:50 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000311, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:52 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000295, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:54 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000302, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:56 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000347, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:04:58 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000292, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:00 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000283, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:02 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000284, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:04 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000296, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:06 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000359, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:08 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000290, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:10 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000372, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:12 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000302, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:14 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000294, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:16 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000288, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:18 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000303, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:20 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000301, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:22 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000308, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:24 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000282, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:26 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000276, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:28 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000298, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:30 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000296, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:32 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000381, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:34 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+frontend-1             | 2026/11/13 03:03:56 [error] 62#62: backend could not be resolved (110: Operation timed out)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000320, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:36 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000363, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:38 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000280, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:40 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+frontend-1             | 2026/11/13 03:04:00 [error] 62#62: backend could not be resolved (110: Operation timed out)
+backend-1              | ! at org.eclipse.jetty.server.handler.ContextHandler.handle(ContextHandler.java:1253)
+frontend-1             | 2026/11/13 03:04:04 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:04:08 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:04:12 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:04:16 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:04:20 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:04:24 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:04:28 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:04:32 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:04:36 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:04:40 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:04:44 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:04:48 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:04:52 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:04:56 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:05:00 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:05:04 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:05:08 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:05:12 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:05:16 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:05:20 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:05:24 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:05:28 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:05:32 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:05:36 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:05:40 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:05:44 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:05:48 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:05:52 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:05:56 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:06:00 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:06:04 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:06:08 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:06:12 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:06:16 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:06:20 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:06:24 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:06:28 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:06:32 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:06:37 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:06:41 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:06:45 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:06:49 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:06:53 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:06:57 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:07:01 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:07:05 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:07:09 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:07:13 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:07:17 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:07:21 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:07:25 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:07:29 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:07:33 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:07:37 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:07:41 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:07:45 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:07:49 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:07:53 [error] 62#62: backend could not be resolved (110: Operation timed out)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000309, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:42 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 03:08:12,696 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:37206
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000331, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:44 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 03:08:13,726 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:37214
+backend-1              | ! at org.eclipse.jetty.server.Handler$Wrapper.handle(Handler.java:794)
+backend-1              | ! at io.dropwizard.metrics.jetty12.AbstractInstrumentedHandler.handle(AbstractInstrumentedHandler.java:299)
+backend-1              | ! at io.dropwizard.jetty.RoutingHandler.handle(RoutingHandler.java:41)
+backend-1              | ! at org.eclipse.jetty.server.handler.gzip.GzipHandler.handle(GzipHandler.java:621)
+backend-1              | ! at io.dropwizard.jetty.ZipExceptionHandlingGzipHandler.handle(ZipExceptionHandlingGzipHandler.java:21)
+backend-1              | ! at org.eclipse.jetty.server.Handler$Wrapper.handle(Handler.java:794)
+backend-1              | ! at org.eclipse.jetty.server.handler.GracefulHandler.handle(GracefulHandler.java:120)
+backend-1              | ! at org.eclipse.jetty.server.Server.handle(Server.java:197)
+backend-1              | ! at org.eclipse.jetty.server.internal.HttpChannelState$HandlerInvoker.run(HttpChannelState.java:804)
+backend-1              | ! at org.eclipse.jetty.server.internal.HttpConnection.onFillable(HttpConnection.java:420)
+backend-1              | ! at org.eclipse.jetty.server.internal.HttpConnection$FillableCallback.succeeded(HttpConnection.java:1790)
+backend-1              | ! at org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:105)
+backend-1              | ! at org.eclipse.jetty.io.SelectableChannelEndPoint$1.run(SelectableChannelEndPoint.java:54)
+backend-1              | ! at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.runTask(AdaptiveExecutionStrategy.java:492)
+backend-1              | ! at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.epcRunTask(AdaptiveExecutionStrategy.java:428)
+backend-1              | ! at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.consumeTask(AdaptiveExecutionStrategy.java:401)
+backend-1              | ! at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.tryProduce(AdaptiveExecutionStrategy.java:255)
+backend-1              | ! at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.run(AdaptiveExecutionStrategy.java:204)
+backend-1              | ! at org.eclipse.jetty.util.thread.ReservedThreadExecutor$ReservedThread.run(ReservedThreadExecutor.java:317)
+backend-1              | ! at org.eclipse.jetty.util.thread.QueuedThreadPool.runJob(QueuedThreadPool.java:1009)
+backend-1              | ! at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.doRunJob(QueuedThreadPool.java:1240)
+frontend-1             | 2026/11/13 03:07:57 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:08:01 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:08:05 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:08:09 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:08:13 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:08:17 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:08:21 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:08:25 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:08:29 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:08:33 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:08:37 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:08:41 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:08:42 [error] 475#475: *2054 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/traces?project_name=bench&size=50", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:08:42 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 502 157 "-" "Python-urllib/3.14" "-" "90b3090bd8a6660980371ba7af370a83"
+backend-1              | ! at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.run(QueuedThreadPool.java:1194)
+backend-1              | ! at java.base/java.lang.Thread.run(Thread.java:1474)
+backend-1              | ! Suppressed: java.lang.Exception: #block terminated with an error
+backend-1              | ! 	at reactor.core.publisher.BlockingSingleSubscriber.blockingGet(BlockingSingleSubscriber.java:104)
+backend-1              | ! 	... 74 common frames omitted
+backend-1              | 10.251.4.9 - - [13/Nov/2026:02:44:04 +0000] "POST /v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" 1579
+backend-1              | INFO  [2026-11-13 02:44:04,405] com.comet.opik.domain.OpenTelemetryServiceImpl: Storing OpenTelemetry spans in workspaceId '0190babc-62a0-71d2-832a-0feffa4676eb': 300 spans to project 'bench'. Spans without a valid 'opik.project_name' go to project 'bench'
+backend-1              | INFO  [2026-11-13 02:44:04,407] com.comet.opik.domain.OpenTelemetryServiceImpl: Storing OpenTelemetry spans in workspaceId '0190babc-62a0-71d2-832a-0feffa4676eb': 300 spans to project 'bench'. Spans without a valid 'opik.project_name' go to project 'bench'
+backend-1              | WARN  [2026-11-13 02:44:04,537] com.clickhouse.client.api.internal.HttpAPIClientHelper: Failed to connect to 'clickhouse:8123': No route to host (connect failed)
+backend-1              | WARN  [2026-11-13 02:44:04,537] com.clickhouse.client.api.internal.HttpAPIClientHelper: Failed to connect to 'clickhouse:8123': No route to host (connect failed)
+backend-1              | WARN  [2026-11-13 02:44:04,605] com.clickhouse.client.api.internal.HttpAPIClientHelper: Failed to connect to 'clickhouse:8123': No route to host (connect failed)
+backend-1              | [0:0:0:0:0:0:0:1] - - [13/Nov/2026:02:44:04 +0000] "GET /health-check HTTP/1.1" 503 2 "-" "curl/8.21.0" 1
+backend-1              | [0:0:0:0:0:0:0:1] - - [13/Nov/2026:02:44:06 +0000] "GET /health-check HTTP/1.1" 503 2 "-" "curl/8.21.0" 1
+backend-1              | INFO  [2026-11-13 02:44:06,706] com.comet.opik.domain.TraceDAOImpl: Getting partial trace by id '01a1d2ca-0ecb-7731-87dd-937f7f73fc13'
+frontend-1             | 2026/11/13 03:08:45 [error] 62#62: backend could not be resolved (110: Operation timed out)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000321, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:46 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+frontend-1             | 2026/11/13 03:08:45 [error] 475#475: *2059 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/traces?project_name=bench&size=50", host: "localhost:45173"
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000297, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:48 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ./entrypoint.sh: line 39:   337 Killed                  java $JAVA_OPTS -jar opik-backend-$OPIK_VERSION.jar server config.yml
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000282, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:50 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000319, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:52 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000341, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:54 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000296, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:56 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000403, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:05:58 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000377, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:00 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000319, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:02 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000293, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:04 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000284, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:06 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000370, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:08 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000298, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:10 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000315, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:12 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000284, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:14 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000285, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:16 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000291, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:18 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000288, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:20 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000297, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:22 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000286, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:24 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000323, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:26 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000356, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:28 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:08:45 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 502 157 "-" "Python-urllib/3.14" "-" "8de7538c69e08c2720760b7eeb7a3c82"
+frontend-1             | 2026/11/13 03:08:48 [error] 480#480: *2064 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/traces?project_name=bench&size=50", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:08:48 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 502 157 "-" "Python-urllib/3.14" "-" "5fd03bbd4de48572722679f443bcaa3f"
+frontend-1             | 2026/11/13 03:08:49 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:08:51 [error] 480#480: *2069 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/traces?project_name=bench&size=50", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:08:51 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 502 157 "-" "Python-urllib/3.14" "-" "6992804260e69bc6c0809d153012a7b4"
+frontend-1             | 2026/11/13 03:08:53 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:08:54 [error] 480#480: *2074 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/traces?project_name=bench&size=50", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:08:54 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 502 157 "-" "Python-urllib/3.14" "-" "3d5ce564b20337231ee80bc57fa6dc7b"
+frontend-1             | 2026/11/13 03:08:57 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:08:57 [error] 480#480: *2079 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/traces?project_name=bench&size=50", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:08:57 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 502 157 "-" "Python-urllib/3.14" "-" "3aad8beea41a3189beee0fce1cc1b7ec"
+frontend-1             | 2026/11/13 03:09:00 [error] 473#473: *2084 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/traces?project_name=bench&size=50", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:09:00 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 502 157 "-" "Python-urllib/3.14" "-" "5e9aa6773fe11cfc4931d73289313123"
+frontend-1             | 2026/11/13 03:09:01 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:09:03 [error] 473#473: *2089 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/traces?project_name=bench&size=50", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:09:03 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 502 157 "-" "Python-urllib/3.14" "-" "f8177c94b85ef3eecd38112d2ad6c6d1"
+frontend-1             | 2026/11/13 03:09:05 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:09:06 [error] 473#473: *2094 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/traces?project_name=bench&size=50", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:09:06 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 502 157 "-" "Python-urllib/3.14" "-" "a635679eb5404cbcae130b18b2db2cd2"
+frontend-1             | 2026/11/13 03:09:09 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:09:09 [error] 473#473: *2099 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/traces?project_name=bench&size=50", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:09:09 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 502 157 "-" "Python-urllib/3.14" "-" "e7e7240029ad2fa8ebfeed218f6e2c18"
+frontend-1             | 2026/11/13 03:09:12 [error] 62#62: *2104 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/traces?project_name=bench&size=50", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:09:12 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 502 157 "-" "Python-urllib/3.14" "-" "3f830bc8be8547c7dc2a54873efaad53"
+frontend-1             | 2026/11/13 03:09:13 [error] 62#62: backend could not be resolved (110: Operation timed out)
+zookeeper-1            | 2026-11-13 03:08:14,755 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:37224
+frontend-1             | 2026/11/13 03:09:15 [error] 62#62: *2109 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/traces?project_name=bench&size=50", host: "localhost:45173"
+zookeeper-1            | 2026-11-13 03:08:15,784 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:37230
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000365, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:30 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 03:08:16,813 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58300
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000280, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:32 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 03:08:17,842 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58302
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000328, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:34 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:09:15 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 502 157 "-" "Python-urllib/3.14" "-" "c81aeb90e8121ec7d736cfa502028a9b"
+frontend-1             | 2026/11/13 03:09:17 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:09:18 [error] 62#62: *2114 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/traces?project_name=bench&size=50", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:09:18 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 502 157 "-" "Python-urllib/3.14" "-" "563dd670eacfe143f1963af2ee424fef"
+frontend-1             | 2026/11/13 03:09:21 [error] 62#62: backend could not be resolved (110: Operation timed out)
+frontend-1             | 2026/11/13 03:09:21 [error] 62#62: *2119 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/traces?project_name=bench&size=50", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:09:21 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 502 157 "-" "Python-urllib/3.14" "-" "083c77dfb6e8def9831558be3de0f04a"
+frontend-1             | 2026/11/13 03:09:25 [error] 63#63: *2124 connect() failed (113: Host is unreachable) while connecting to upstream, client: 10.251.4.1, server: _, request: "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1", upstream: "http://10.251.4.8:8080/v1/private/traces?project_name=bench&size=50", host: "localhost:45173"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:09:25 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 502 157 "-" "Python-urllib/3.14" "-" "3bc35b1dd356a27e0e4b66a4200337a4"
+frontend-1             | 2026/11/13 03:09:25 [error] 62#62: backend could not be resolved (110: Operation timed out)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000292, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:36 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000357, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:38 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 03:08:18,870 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58312
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000362, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:40 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 03:08:19,899 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58314
+zookeeper-1            | 2026-11-13 03:08:20,927 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58318
+zookeeper-1            | 2026-11-13 03:08:21,955 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58322
+zookeeper-1            | 2026-11-13 03:08:22,984 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58338
+zookeeper-1            | 2026-11-13 03:08:24,013 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58340
+zookeeper-1            | 2026-11-13 03:08:25,041 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:58346
+zookeeper-1            | 2026-11-13 03:08:26,069 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44820
+zookeeper-1            | 2026-11-13 03:08:27,097 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44834
+zookeeper-1            | 2026-11-13 03:08:28,125 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44850
+zookeeper-1            | 2026-11-13 03:08:29,154 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44866
+zookeeper-1            | 2026-11-13 03:08:30,183 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44876
+zookeeper-1            | 2026-11-13 03:08:31,214 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44884
+zookeeper-1            | 2026-11-13 03:08:32,243 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44900
+zookeeper-1            | 2026-11-13 03:08:33,272 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44916
+zookeeper-1            | 2026-11-13 03:08:34,301 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44924
+zookeeper-1            | 2026-11-13 03:08:35,330 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44932
+zookeeper-1            | 2026-11-13 03:08:36,359 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35366
+zookeeper-1            | 2026-11-13 03:08:37,389 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35382
+zookeeper-1            | 2026-11-13 03:08:38,418 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35390
+zookeeper-1            | 2026-11-13 03:08:39,446 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35396
+zookeeper-1            | 2026-11-13 03:08:40,475 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35412
+zookeeper-1            | 2026-11-13 03:08:41,503 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35428
+zookeeper-1            | 2026-11-13 03:08:42,531 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35442
+zookeeper-1            | 2026-11-13 03:08:43,559 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35458
+zookeeper-1            | 2026-11-13 03:08:44,588 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35474
+zookeeper-1            | 2026-11-13 03:08:45,618 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35478
+zookeeper-1            | 2026-11-13 03:08:46,647 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35154
+zookeeper-1            | 2026-11-13 03:08:47,675 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35166
+zookeeper-1            | 2026-11-13 03:08:48,704 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35180
+zookeeper-1            | 2026-11-13 03:08:49,734 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35190
+zookeeper-1            | 2026-11-13 03:08:50,762 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35202
+zookeeper-1            | 2026-11-13 03:08:51,791 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35218
+zookeeper-1            | 2026-11-13 03:08:52,820 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35234
+zookeeper-1            | 2026-11-13 03:08:53,847 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35244
+zookeeper-1            | 2026-11-13 03:08:54,875 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35252
+zookeeper-1            | 2026-11-13 03:08:55,903 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:38324
+zookeeper-1            | 2026-11-13 03:08:56,936 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:38332
+zookeeper-1            | 2026-11-13 03:08:57,967 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:38338
+zookeeper-1            | 2026-11-13 03:08:58,996 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:38352
+zookeeper-1            | 2026-11-13 03:09:00,026 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:38356
+zookeeper-1            | 2026-11-13 03:09:01,057 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:38370
+zookeeper-1            | 2026-11-13 03:09:02,086 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:38386
+zookeeper-1            | 2026-11-13 03:09:03,115 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:38396
+zookeeper-1            | 2026-11-13 03:09:04,144 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:38398
+zookeeper-1            | 2026-11-13 03:09:05,174 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:38402
+zookeeper-1            | 2026-11-13 03:09:06,203 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:50602
+zookeeper-1            | 2026-11-13 03:09:07,232 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:50612
+zookeeper-1            | 2026-11-13 03:09:08,261 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:50614
+zookeeper-1            | 2026-11-13 03:09:09,290 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:50626
+zookeeper-1            | 2026-11-13 03:09:10,319 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:50642
+zookeeper-1            | 2026-11-13 03:09:11,350 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:50654
+zookeeper-1            | 2026-11-13 03:09:12,380 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:50660
+zookeeper-1            | 2026-11-13 03:09:13,408 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:50672
+zookeeper-1            | 2026-11-13 03:09:14,437 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:50676
+zookeeper-1            | 2026-11-13 03:09:15,466 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:50692
+zookeeper-1            | 2026-11-13 03:09:16,495 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:34146
+zookeeper-1            | 2026-11-13 03:09:17,524 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:34152
+zookeeper-1            | 2026-11-13 03:09:18,553 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:34162
+zookeeper-1            | 2026-11-13 03:09:19,581 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:34168
+zookeeper-1            | 2026-11-13 03:09:20,610 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:34172
+zookeeper-1            | 2026-11-13 03:09:21,641 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:34186
+zookeeper-1            | 2026-11-13 03:09:22,669 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:34196
+zookeeper-1            | 2026-11-13 03:09:23,697 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:34202
+zookeeper-1            | 2026-11-13 03:09:24,727 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:34212
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000283, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:42 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 03:09:25,757 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:34220
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000363, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:44 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000296, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:46 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000297, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:48 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000285, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:50 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000632, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:52 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000297, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:54 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000354, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:56 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000282, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:06:58 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000297, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:00 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000280, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:02 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000304, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:04 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000287, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:06 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000363, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:08 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000303, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:11 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000298, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:13 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000312, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:15 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000319, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:17 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000286, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:19 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000296, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:21 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000307, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:23 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000286, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:25 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000281, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:27 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000291, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:29 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000289, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:31 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000307, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:33 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000314, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:35 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000292, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:37 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000285, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:39 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000277, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:41 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000369, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:43 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000343, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:45 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000384, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:47 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000369, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:49 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000319, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:51 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000289, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:53 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000292, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:55 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000350, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:57 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000287, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:07:59 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000314, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:01 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000338, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:03 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000277, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:05 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000314, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:07 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000315, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:09 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000302, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:11 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000367, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:13 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000304, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:15 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000301, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:17 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000353, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:19 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000329, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:21 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000389, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:23 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000299, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:25 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000422, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:27 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000363, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:29 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | [2026-11-13 03:08:29 +0000] [pid=9/MainProcess] [thr=139822177123104/RqWorkerThread-3] [INFO] [rq.worker] - Worker python-backend-9-3: cleaning registries for queue: opik:optimizer-cloud
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000290, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:31 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000383, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:33 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000337, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:35 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000286, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:37 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000366, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:39 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000332, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:41 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000289, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:43 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000332, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:45 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000310, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:47 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000287, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:49 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000318, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:51 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000298, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:53 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000290, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:55 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000284, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:57 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000305, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:08:59 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000285, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:09:01 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000341, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:09:03 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000344, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:09:05 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000288, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:09:07 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000298, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:09:09 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000316, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:09:11 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000304, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:09:13 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000388, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:09:15 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000294, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:09:17 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000286, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:09:19 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000382, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:09:21 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000308, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:09:23 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000310, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:03:09:25 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+
+$ compose down -v --remove-orphans
+ Container lfm-opik-2g-v2-demo-data-generator-1 Stopping 
+ Container lfm-opik-2g-v2-mc-1 Stopping 
+ Container lfm-opik-2g-v2-demo-data-generator-1 Stopped 
+ Container lfm-opik-2g-v2-demo-data-generator-1 Removing 
+ Container lfm-opik-2g-v2-mc-1 Stopped 
+ Container lfm-opik-2g-v2-mc-1 Removing 
+ Container lfm-opik-2g-v2-demo-data-generator-1 Removed 
+ Container lfm-opik-2g-v2-python-backend-1 Stopping 
+ Container lfm-opik-2g-v2-frontend-1 Stopping 
+ Container lfm-opik-2g-v2-mc-1 Removed 
+ Container lfm-opik-2g-v2-python-backend-1 Stopped 
+ Container lfm-opik-2g-v2-python-backend-1 Removing 
+ Container lfm-opik-2g-v2-python-backend-1 Removed 
+ Container lfm-opik-2g-v2-frontend-1 Stopped 
+ Container lfm-opik-2g-v2-frontend-1 Removing 
+ Container lfm-opik-2g-v2-frontend-1 Removed 
+ Container lfm-opik-2g-v2-backend-1 Stopping 
+ Container lfm-opik-2g-v2-backend-1 Stopped 
+ Container lfm-opik-2g-v2-backend-1 Removing 
+ Container lfm-opik-2g-v2-backend-1 Removed 
+ Container lfm-opik-2g-v2-minio-1 Stopping 
+ Container lfm-opik-2g-v2-redis-1 Stopping 
+ Container lfm-opik-2g-v2-mysql-1 Stopping 
+ Container lfm-opik-2g-v2-clickhouse-1 Stopping 
+ Container lfm-opik-2g-v2-clickhouse-1 Stopped 
+ Container lfm-opik-2g-v2-clickhouse-1 Removing 
+ Container lfm-opik-2g-v2-clickhouse-1 Removed 
+ Container lfm-opik-2g-v2-zookeeper-1 Stopping 
+ Container lfm-opik-2g-v2-clickhouse-init-1 Stopping 
+ Container lfm-opik-2g-v2-clickhouse-init-1 Stopped 
+ Container lfm-opik-2g-v2-clickhouse-init-1 Removing 
+ Container lfm-opik-2g-v2-clickhouse-init-1 Removed 
+ Container lfm-opik-2g-v2-redis-1 Stopped 
+ Container lfm-opik-2g-v2-redis-1 Removing 
+ Container lfm-opik-2g-v2-minio-1 Stopped 
+ Container lfm-opik-2g-v2-minio-1 Removing 
+ Container lfm-opik-2g-v2-redis-1 Removed 
+ Container lfm-opik-2g-v2-minio-1 Removed 
+ Container lfm-opik-2g-v2-minio-init-1 Stopping 
+ Container lfm-opik-2g-v2-minio-init-1 Stopped 
+ Container lfm-opik-2g-v2-minio-init-1 Removing 
+ Container lfm-opik-2g-v2-minio-init-1 Removed 
+ Container lfm-opik-2g-v2-zookeeper-1 Stopped 
+ Container lfm-opik-2g-v2-zookeeper-1 Removing 
+ Container lfm-opik-2g-v2-zookeeper-1 Removed 
+ Container lfm-opik-2g-v2-mysql-1 Stopped 
+ Container lfm-opik-2g-v2-mysql-1 Removing 
+ Container lfm-opik-2g-v2-mysql-1 Removed 
+ Volume lfm-opik-2g-v2_mysql Removing 
+ Volume lfm-opik-2g-v2_minio-data Removing 
+ Volume lfm-opik-2g-v2_clickhouse-server Removing 
+ Volume lfm-opik-2g-v2_clickhouse Removing 
+ Volume lfm-opik-2g-v2_clickhouse-config Removing 
+ Volume lfm-opik-2g-v2_zookeeper Removing 
+ Volume lfm-opik-2g-v2_redis-data Removing 
+ Network lfm-opik-2g-v2_default Removing 
+ Volume lfm-opik-2g-v2_mysql Removed 
+ Volume lfm-opik-2g-v2_clickhouse Removed 
+ Volume lfm-opik-2g-v2_minio-data Removed 
+ Volume lfm-opik-2g-v2_redis-data Removed 
+ Network lfm-opik-2g-v2_default Removed 
+ Volume lfm-opik-2g-v2_clickhouse-server Removed 
+ Volume lfm-opik-2g-v2_clickhouse-config Removed 
+ Volume lfm-opik-2g-v2_zookeeper Removed 
+

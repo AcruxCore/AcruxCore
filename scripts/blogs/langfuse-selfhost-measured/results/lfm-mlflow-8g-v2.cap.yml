@@ -1,0 +1,21 @@
+services:
+  postgres:
+    cgroup_parent: lfm8g4cmlflow1794556632.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  storage:
+    cgroup_parent: lfm8g4cmlflow1794556632.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  create-bucket:
+    cgroup_parent: lfm8g4cmlflow1794556632.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4
+  mlflow:
+    cgroup_parent: lfm8g4cmlflow1794556632.slice
+    mem_limit: 8g
+    memswap_limit: 8g
+    cpus: 4

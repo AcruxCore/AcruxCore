@@ -1,0 +1,295 @@
+$ compose config --services
+db
+phoenix
+
+$ compose down -v --remove-orphans
+
+$ compose up -d
+ Network lfm-phoenix-2g-v2_default Creating 
+ Volume lfm-phoenix-2g-v2_database_data Creating 
+ Volume lfm-phoenix-2g-v2_database_data Creating 
+ Network lfm-phoenix-2g-v2_default Creating 
+ Volume lfm-phoenix-2g-v2_database_data Created 
+ Volume lfm-phoenix-2g-v2_database_data Created 
+ Network lfm-phoenix-2g-v2_default Created 
+ Network lfm-phoenix-2g-v2_default Created 
+ Container lfm-phoenix-2g-v2-db-1 Creating 
+ Container lfm-phoenix-2g-v2-db-1 Created 
+ Container lfm-phoenix-2g-v2-phoenix-1 Creating 
+ Container lfm-phoenix-2g-v2-phoenix-1 Created 
+ Container lfm-phoenix-2g-v2-db-1 Starting 
+ Container lfm-phoenix-2g-v2-db-1 Started 
+ Container lfm-phoenix-2g-v2-phoenix-1 Starting 
+ Container lfm-phoenix-2g-v2-phoenix-1 Started 
+
+$ compose logs --no-color --tail 200
+db-1  | The files belonging to this database system will be owned by user "postgres".
+db-1  | This user must also own the server process.
+db-1  | 
+db-1  | The database cluster will be initialized with locale "en_US.utf8".
+db-1  | The default database encoding has accordingly been set to "UTF8".
+db-1  | The default text search configuration will be set to "english".
+db-1  | 
+db-1  | Data page checksums are disabled.
+db-1  | 
+db-1  | fixing permissions on existing directory /var/lib/postgresql/data ... ok
+db-1  | creating subdirectories ... ok
+db-1  | selecting dynamic shared memory implementation ... posix
+db-1  | selecting default max_connections ... 100
+db-1  | selecting default shared_buffers ... 128MB
+db-1  | selecting default time zone ... Etc/UTC
+db-1  | creating configuration files ... ok
+db-1  | running bootstrap script ... ok
+db-1  | performing post-bootstrap initialization ... ok
+db-1  | syncing data to disk ... ok
+db-1  | 
+db-1  | 
+db-1  | initdb: warning: enabling "trust" authentication for local connections
+db-1  | initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+db-1  | Success. You can now start the database server using:
+db-1  | 
+db-1  |     pg_ctl -D /var/lib/postgresql/data -l logfile start
+db-1  | 
+db-1  | waiting for server to start....2026-11-13 02:07:57.224 UTC [48] LOG:  starting PostgreSQL 16.15 (Debian 16.15-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+db-1  | 2026-11-13 02:07:57.226 UTC [48] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+db-1  | 2026-11-13 02:07:57.231 UTC [51] LOG:  database system was shut down at 2026-11-13 02:07:55 UTC
+db-1  | 2026-11-13 02:07:57.235 UTC [48] LOG:  database system is ready to accept connections
+db-1  |  done
+db-1  | server started
+db-1  | 
+db-1  | /usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
+db-1  | 
+db-1  | 2026-11-13 02:07:57.339 UTC [48] LOG:  received fast shutdown request
+db-1  | waiting for server to shut down....2026-11-13 02:07:57.341 UTC [48] LOG:  aborting any active transactions
+phoenix-1  | 2026-11-13 02:08:07,715 INFO sqlalchemy.engine.Engine [generated in 0.00004s] [SQL parameters hidden due to hide_parameters=True]
+phoenix-1  | 2026-11-13 02:08:07,716 INFO sqlalchemy.engine.Engine ALTER TABLE trace_annotations DROP CONSTRAINT "ck_trace_annotations_`valid_annotator_kind`"
+phoenix-1  | 2026-11-13 02:08:07,716 INFO sqlalchemy.engine.Engine [generated in 0.00004s] [SQL parameters hidden due to hide_parameters=True]
+phoenix-1  | 2026-11-13 02:08:07,716 INFO sqlalchemy.engine.Engine ALTER TABLE trace_annotations ADD CONSTRAINT "ck_trace_annotations_`valid_annotator_kind`" CHECK (annotator_kind IN ('LLM', 'CODE', 'HUMAN', 'DECISION', 'AGENT'))
+phoenix-1  | 2026-11-13 02:08:07,716 INFO sqlalchemy.engine.Engine [generated in 0.00005s] [SQL parameters hidden due to hide_parameters=True]
+phoenix-1  | 2026-11-13 02:08:07,716 INFO sqlalchemy.engine.Engine ALTER TABLE document_annotations DROP CONSTRAINT "ck_document_annotations_`valid_annotator_kind`"
+phoenix-1  | 2026-11-13 02:08:07,716 INFO sqlalchemy.engine.Engine [generated in 0.00004s] [SQL parameters hidden due to hide_parameters=True]
+phoenix-1  | 2026-11-13 02:08:07,717 INFO sqlalchemy.engine.Engine ALTER TABLE document_annotations ADD CONSTRAINT "ck_document_annotations_`valid_annotator_kind`" CHECK (annotator_kind IN ('LLM', 'CODE', 'HUMAN', 'DECISION', 'AGENT'))
+phoenix-1  | 2026-11-13 02:08:07,717 INFO sqlalchemy.engine.Engine [generated in 0.00004s] [SQL parameters hidden due to hide_parameters=True]
+phoenix-1  | 2026-11-13 02:08:07,717 INFO sqlalchemy.engine.Engine ALTER TABLE project_session_annotations DROP CONSTRAINT "ck_project_session_annotations_`valid_annotator_kind`"
+phoenix-1  | 2026-11-13 02:08:07,717 INFO sqlalchemy.engine.Engine [generated in 0.00004s] [SQL parameters hidden due to hide_parameters=True]
+phoenix-1  | 2026-11-13 02:08:07,717 INFO sqlalchemy.engine.Engine ALTER TABLE project_session_annotations ADD CONSTRAINT "ck_project_session_annotations_`valid_annotator_kind`" CHECK (annotator_kind IN ('LLM', 'CODE', 'HUMAN', 'DECISION', 'AGENT'))
+phoenix-1  | 2026-11-13 02:08:07,717 INFO sqlalchemy.engine.Engine [generated in 0.00004s] [SQL parameters hidden due to hide_parameters=True]
+phoenix-1  | 2026-11-13 02:08:07,718 INFO sqlalchemy.engine.Engine ALTER TABLE experiment_run_annotations DROP CONSTRAINT "ck_experiment_run_annotations_`valid_annotator_kind`"
+phoenix-1  | 2026-11-13 02:08:07,718 INFO sqlalchemy.engine.Engine [generated in 0.00004s] [SQL parameters hidden due to hide_parameters=True]
+phoenix-1  | 2026-11-13 02:08:07,718 INFO sqlalchemy.engine.Engine ALTER TABLE experiment_run_annotations ADD CONSTRAINT "ck_experiment_run_annotations_`valid_annotator_kind`" CHECK (annotator_kind IN ('LLM', 'CODE', 'HUMAN', 'DECISION', 'AGENT'))
+db-1       | 2026-11-13 02:07:57.342 UTC [48] LOG:  background worker "logical replication launcher" (PID 54) exited with exit code 1
+db-1       | 2026-11-13 02:07:57.342 UTC [49] LOG:  shutting down
+db-1       | 2026-11-13 02:07:57.344 UTC [49] LOG:  checkpoint starting: shutdown immediate
+db-1       | 2026-11-13 02:07:57.354 UTC [49] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.001 s, sync=0.003 s, total=0.012 s; sync files=2, longest=0.002 s, average=0.002 s; distance=0 kB, estimate=0 kB; lsn=0/14F2AE8, redo lsn=0/14F2AE8
+db-1       | 2026-11-13 02:07:57.357 UTC [48] LOG:  database system is shut down
+db-1       |  done
+db-1       | server stopped
+db-1       | 
+db-1       | PostgreSQL init process complete; ready for start up.
+db-1       | 
+db-1       | 2026-11-13 02:07:57.459 UTC [1] LOG:  starting PostgreSQL 16.15 (Debian 16.15-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+db-1       | 2026-11-13 02:07:57.459 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+db-1       | 2026-11-13 02:07:57.459 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+db-1       | 2026-11-13 02:07:57.462 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+db-1       | 2026-11-13 02:07:57.465 UTC [62] LOG:  database system was shut down at 2026-11-13 02:07:57 UTC
+db-1       | 2026-11-13 02:07:57.470 UTC [1] LOG:  database system is ready to accept connections
+db-1       | 2026-11-13 02:12:57.515 UTC [60] LOG:  checkpoint starting: time
+phoenix-1  | 2026-11-13 02:08:07,718 INFO sqlalchemy.engine.Engine [generated in 0.00004s] [SQL parameters hidden due to hide_parameters=True]
+phoenix-1  | 2026-11-13 02:08:07,718 INFO sqlalchemy.engine.Engine UPDATE alembic_version SET version_num='7c2bc8452d60' WHERE alembic_version.version_num = 'f3b8c2d14e70'
+phoenix-1  | 2026-11-13 02:08:07,718 INFO sqlalchemy.engine.Engine [generated in 0.00005s] [SQL parameters hidden due to hide_parameters=True]
+phoenix-1  | 2026-11-13 02:08:07,719 INFO sqlalchemy.engine.Engine COMMIT
+phoenix-1  | ---------------------------
+phoenix-1  | ✅ Migrations completed in 0.786 seconds.
+phoenix-1  | /phoenix/.venv/lib/python3.13/site-packages/pydantic/json_schema.py:2666: PydanticJsonSchemaWarning: Default value <phoenix.db.types.db_helper_types.Undefined object at 0x7fa278f05fd0> is not JSON serializable; excluding default from JSON schema [non-serializable-default]
+phoenix-1  |   warnings.warn(message, PydanticJsonSchemaWarning)
+phoenix-1  | INFO:     Started server process [1]
+phoenix-1  | INFO:     Waiting for application startup.
+phoenix-1  | <sys>:0: SAWarning: Column-expression-level unary distinct() should not be used outside of an aggregate function. For general 'SELECT DISTINCT' support use select().distinct().
+phoenix-1  | 
+phoenix-1  | ██████╗ ██╗  ██╗ ██████╗ ███████╗███╗   ██╗██╗██╗  ██╗
+phoenix-1  | ██╔══██╗██║  ██║██╔═══██╗██╔════╝████╗  ██║██║╚██╗██╔╝
+phoenix-1  | ██████╔╝███████║██║   ██║█████╗  ██╔██╗ ██║██║ ╚███╔╝
+phoenix-1  | ██╔═══╝ ██╔══██║██║   ██║██╔══╝  ██║╚██╗██║██║ ██╔██╗
+phoenix-1  | ██║     ██║  ██║╚██████╔╝███████╗██║ ╚████║██║██╔╝ ██╗
+phoenix-1  | ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝
+phoenix-1  | 
+phoenix-1  | Arize Phoenix v21.0.0 · AI Observability & Evaluation
+phoenix-1  | 
+phoenix-1  | ── 💾 Storage ───────────────────────────────────────────────────────
+phoenix-1  |   Database            postgresql://postgres:***@db:5432/postgres
+phoenix-1  | 
+phoenix-1  | ── 🔐 Auth & Security ───────────────────────────────────────────────
+phoenix-1  |   Authentication      ✅ Enabled
+phoenix-1  |   TLS (HTTP)          ➖ Disabled
+phoenix-1  |   TLS (gRPC)          ➖ Disabled
+phoenix-1  | 
+phoenix-1  | ── 🧩 Features ──────────────────────────────────────────────────────
+phoenix-1  |   Code sandboxes      ✅ DAYTONA, DENO, DOCKER, E2B, MODAL, MONTY, VERCEL, WASM
+phoenix-1  |   Prometheus metrics  ➖ Disabled
+phoenix-1  |   OTLP log export     ➖ Disabled
+phoenix-1  |   Email (SMTP)        ➖ Not configured
+phoenix-1  |   Telemetry           ✅ Enabled
+phoenix-1  | 
+phoenix-1  | ── ✨ Assistant ─────────────────────────────────────────────────────
+phoenix-1  |   Agent assistant     ✅ Enabled
+phoenix-1  |   Trace project       assistant_agent
+phoenix-1  |   Local traces        ➖ Disabled
+phoenix-1  |   Remote export       ➖ Disabled
+phoenix-1  |   Remote collector    ➖ Not configured
+phoenix-1  |   Collector API key   ➖ Not configured
+phoenix-1  |   Force tracing       ➖ Disabled
+phoenix-1  |   Web access          ✅ Enabled
+phoenix-1  |   Server-side bash    ✅ Enabled
+phoenix-1  |   GitHub tools        ✅ Enabled
+phoenix-1  | INFO:     Application startup complete.
+phoenix-1  | 
+phoenix-1  | ── 🌎 Community ─────────────────────────────────────────────────────
+phoenix-1  |   Star on GitHub      https://github.com/Arize-ai/phoenix
+phoenix-1  |   Community Slack     https://join.slack.com/t/arize-ai/shared_invite/zt-3r07iavnk-ammtATWSlF0pSrd1DsMW7g
+phoenix-1  |   Documentation       https://arize.com/docs/phoenix
+phoenix-1  |   Docs MCP            https://arizeai-433a7140.mintlify.app/mcp
+phoenix-1  | 
+phoenix-1  | ── 🌐 Server ────────────────────────────────────────────────────────
+phoenix-1  |   Web UI              http://localhost:6006
+phoenix-1  |   REST API            http://localhost:6006/v1
+phoenix-1  |   GraphQL API         http://localhost:6006/graphql
+phoenix-1  |   MCP server          http://localhost:6006/mcp
+phoenix-1  |   External skills     ➖ Not configured
+phoenix-1  | 
+phoenix-1  | ━━ 📡 Tracing — send traces here ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+phoenix-1  |   ▶ OTLP over gRPC    http://localhost:4317
+phoenix-1  |   ▶ OTLP over HTTP    http://localhost:6006/v1/traces
+phoenix-1  | 
+phoenix-1  | 🚀 Phoenix is up and running — open http://localhost:6006 to get started.
+phoenix-1  | INFO:     Uvicorn running on http://0.0.0.0:6006 (Press CTRL+C to quit)
+phoenix-1  | INFO:     10.251.2.1:53716 - "GET /healthz HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58530 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58518 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58526 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:58532 - "POST /v1/traces HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:49186 - "GET /v1/projects/default/traces?limit=50 HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:49196 - "GET /v1/projects/default/traces?limit=50 HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:49210 - "GET /v1/projects/default/traces?limit=50 HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:49214 - "GET /v1/projects/default/traces?limit=50 HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:49222 - "GET /v1/projects/default/traces?limit=50 HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:49230 - "GET /v1/projects/default/traces?limit=50 HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:49238 - "GET /v1/projects/default/traces?limit=50 HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:49246 - "GET /v1/projects/default/traces?limit=50 HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:49252 - "GET /v1/projects/default/traces?limit=50 HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:49266 - "GET /v1/projects/default/traces?limit=50 HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:49282 - "GET /v1/projects/default/traces?limit=50 HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:49296 - "GET /v1/projects/default/traces?limit=50 HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:49310 - "GET /v1/projects/default/traces?limit=50 HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:49316 - "GET /v1/projects/default/traces?limit=50 HTTP/1.1" 200 OK
+phoenix-1  | INFO:     10.251.2.1:49326 - "GET /v1/projects/default/traces?limit=50 HTTP/1.1" 200 OK
+
+$ compose down -v --remove-orphans
+ Container lfm-phoenix-2g-v2-phoenix-1 Stopping 
+ Container lfm-phoenix-2g-v2-phoenix-1 Stopped 
+ Container lfm-phoenix-2g-v2-phoenix-1 Removing 
+ Container lfm-phoenix-2g-v2-phoenix-1 Removed 
+ Container lfm-phoenix-2g-v2-db-1 Stopping 
+ Container lfm-phoenix-2g-v2-db-1 Stopped 
+ Container lfm-phoenix-2g-v2-db-1 Removing 
+ Container lfm-phoenix-2g-v2-db-1 Removed 
+ Volume lfm-phoenix-2g-v2_database_data Removing 
+ Network lfm-phoenix-2g-v2_default Removing 
+ Volume lfm-phoenix-2g-v2_database_data Removed 
+ Network lfm-phoenix-2g-v2_default Removed 
+

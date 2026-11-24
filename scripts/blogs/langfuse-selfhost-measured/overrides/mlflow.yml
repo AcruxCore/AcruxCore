@@ -1,0 +1,20 @@
+# MLflow repo docker-compose/ with .env.dev.example (MLFLOW_VERSION pinned in mlflow.env).
+# Fixed container_name values removed so it cannot clash with another stack.
+services:
+  postgres:
+    container_name: !reset null
+    ports: !reset []
+  storage:
+    container_name: !reset null
+    ports: !reset []
+  create-bucket:
+    container_name: !reset null
+  mlflow:
+    container_name: !reset null
+
+# Fixed subnet: this host has used up Docker's default address pools.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 10.251.3.0/24

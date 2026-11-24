@@ -1,0 +1,335 @@
+$ compose config --services
+storage
+create-bucket
+postgres
+mlflow
+
+$ compose down -v --remove-orphans
+
+$ compose up -d
+time="2026-11-13T06:18:54+05:00" level=warning msg="a network with name mlflow-network exists but was not created for project \"lfm-mlflow-4g\".\nSet `external: true` to use an existing network"
+ Volume lfm-mlflow-4g_pgdata Creating 
+ Volume lfm-mlflow-4g_storage-data Creating 
+ Volume lfm-mlflow-4g_storage-data Creating 
+ Volume lfm-mlflow-4g_pgdata Creating 
+ Volume lfm-mlflow-4g_storage-data Created 
+ Volume lfm-mlflow-4g_storage-data Created 
+ Container lfm-mlflow-4g-storage-1 Creating 
+ Volume lfm-mlflow-4g_pgdata Created 
+ Volume lfm-mlflow-4g_pgdata Created 
+ Container lfm-mlflow-4g-postgres-1 Creating 
+ Container lfm-mlflow-4g-storage-1 Created 
+ Container lfm-mlflow-4g-create-bucket-1 Creating 
+ Container lfm-mlflow-4g-postgres-1 Created 
+ Container lfm-mlflow-4g-create-bucket-1 Created 
+ Container lfm-mlflow-4g-mlflow-1 Creating 
+ Container lfm-mlflow-4g-mlflow-1 Created 
+ Container lfm-mlflow-4g-storage-1 Starting 
+ Container lfm-mlflow-4g-postgres-1 Starting 
+ Container lfm-mlflow-4g-storage-1 Started 
+ Container lfm-mlflow-4g-storage-1 Waiting 
+ Container lfm-mlflow-4g-postgres-1 Started 
+ Container lfm-mlflow-4g-storage-1 Healthy 
+ Container lfm-mlflow-4g-create-bucket-1 Starting 
+ Container lfm-mlflow-4g-create-bucket-1 Started 
+ Container lfm-mlflow-4g-storage-1 Waiting 
+ Container lfm-mlflow-4g-create-bucket-1 Waiting 
+ Container lfm-mlflow-4g-postgres-1 Waiting 
+ Container lfm-mlflow-4g-postgres-1 Healthy 
+ Container lfm-mlflow-4g-storage-1 Healthy 
+ Container lfm-mlflow-4g-create-bucket-1 Exited 
+ Container lfm-mlflow-4g-mlflow-1 Starting 
+ Container lfm-mlflow-4g-mlflow-1 Started 
+
+$ compose logs --no-color --tail 200
+storage-1  | Initializing data directories: /data
+storage-1  | Initializing log directory: /logs
+storage-1  | Starting: /usr/bin/rustfs  /data
+storage-1  | RustFS Http API: http://172.26.0.2:9000  http://127.0.0.1:9000
+storage-1  | RustFS Start Time: 2026-11-13 01:18:55
+storage-1  | Console WebUI Start Time: 2026-11-13 01:18:55
+storage-1  | Console WebUI available at: http://172.26.0.2:9001/rustfs/console/index.html
+storage-1  | Console WebUI (localhost): http://127.0.0.1:9001/rustfs/console/index.html
+storage-1  | RustFS server version: refs/tags/1.0.0-alpha.83 started successfully at [::]:9000, current time: 2026-11-13T01:18:55.436845242Z[Etc/Unknown]
+mlflow-1   |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 140.2/140.2 kB 103.7 MB/s eta 0:00:00
+mlflow-1   | Downloading botocore-1.44.2-py3-none-any.whl (16.3 MB)
+mlflow-1    |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.3/16.3 MB 2.3 MB/s eta 0:00:00
+mlflow-1    | Downloading jmespath-1.1.0-py3-none-any.whl (20 kB)
+postgres-1  | The files belonging to this database system will be owned by user "postgres".
+postgres-1  | This user must also own the server process.
+postgres-1       | 
+mlflow-1    | Downloading s3transfer-0.19.3-py3-none-any.whl (90 kB)
+create-bucket-1  | Waiting for S3 gateway getting ready...
+create-bucket-1  | Creating bucket mlflow...
+postgres-1       | The database cluster will be initialized with locale "en_US.utf8".
+postgres-1       | The default database encoding has accordingly been set to "UTF8".
+postgres-1       | The default text search configuration will be set to "english".
+postgres-1       | 
+postgres-1       | Data page checksums are disabled.
+postgres-1       | 
+postgres-1       | fixing permissions on existing directory /var/lib/postgresql/data ... ok
+postgres-1       | creating subdirectories ... ok
+postgres-1       | selecting dynamic shared memory implementation ... posix
+mlflow-1         |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 90.3/90.3 kB 2.5 MB/s eta 0:00:00
+mlflow-1         | Downloading psycopg-3.3.9-py3-none-any.whl (219 kB)
+mlflow-1         |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 219.0/219.0 kB 2.5 MB/s eta 0:00:00
+mlflow-1         | Installing collected packages: psycopg2-binary, psycopg-binary, psycopg, jmespath, botocore, s3transfer, boto3
+mlflow-1         | Successfully installed boto3-1.44.2 botocore-1.44.2 jmespath-1.1.0 psycopg-3.3.9 psycopg-binary-3.3.9 psycopg2-binary-2.9.13 s3transfer-0.19.3
+mlflow-1         | WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+mlflow-1         | 
+mlflow-1         | [notice] A new release of pip is available: 24.0 -> 26.3
+mlflow-1         | [notice] To update, run: pip install --upgrade pip
+mlflow-1         | Registry store URI not provided. Using backend store URI.
+mlflow-1         | 2026/11/13 01:19:17 INFO mlflow.store.db.utils: Creating initial MLflow database tables...
+postgres-1       | selecting default max_connections ... 100
+postgres-1       | selecting default shared_buffers ... 128MB
+postgres-1       | selecting default time zone ... Etc/UTC
+postgres-1       | creating configuration files ... ok
+postgres-1       | running bootstrap script ... ok
+postgres-1       | performing post-bootstrap initialization ... ok
+postgres-1       | syncing data to disk ... ok
+postgres-1       | 
+postgres-1       | 
+mlflow-1         | 2026/11/13 01:19:17 INFO mlflow.store.db.utils: Updating database tables
+mlflow-1         | [MLflow] Security middleware enabled with default settings (localhost-only). To allow connections from other hosts, use --host 0.0.0.0 and configure --allowed-hosts and --cors-allowed-origins.
+mlflow-1         | 2026/11/13 01:19:18 INFO mlflow.server.jobs.executor_registry: Available backends after discovery: docker, local
+postgres-1       | initdb: warning: enabling "trust" authentication for local connections
+mlflow-1         | 2026/11/13 01:19:18 INFO mlflow.server.jobs.executor_registry: Job executor backend 'local' passed requirements check
+mlflow-1         | 2026/11/13 01:19:18 INFO:     Uvicorn running on http://0.0.0.0:45000 (Press CTRL+C to quit)
+mlflow-1         | 2026/11/13 01:19:18 INFO:     Started parent process [49]
+mlflow-1         | /usr/local/lib/python3.11/site-packages/mlflow/server/fastapi_app.py:24: StarletteDeprecationWarning: starlette.middleware.wsgi is deprecated and will be removed in a future release. Please refer to https://github.com/abersheeran/a2wsgi as a replacement.
+mlflow-1         |   from starlette.middleware.wsgi import WSGIResponder, build_environ
+mlflow-1         | /usr/local/lib/python3.11/site-packages/mlflow/server/fastapi_app.py:24: StarletteDeprecationWarning: starlette.middleware.wsgi is deprecated and will be removed in a future release. Please refer to https://github.com/abersheeran/a2wsgi as a replacement.
+mlflow-1         |   from starlette.middleware.wsgi import WSGIResponder, build_environ
+mlflow-1         | /usr/local/lib/python3.11/site-packages/mlflow/server/fastapi_app.py:24: StarletteDeprecationWarning: starlette.middleware.wsgi is deprecated and will be removed in a future release. Please refer to https://github.com/abersheeran/a2wsgi as a replacement.
+mlflow-1         |   from starlette.middleware.wsgi import WSGIResponder, build_environ
+mlflow-1         | /usr/local/lib/python3.11/site-packages/mlflow/server/fastapi_app.py:24: StarletteDeprecationWarning: starlette.middleware.wsgi is deprecated and will be removed in a future release. Please refer to https://github.com/abersheeran/a2wsgi as a replacement.
+mlflow-1         |   from starlette.middleware.wsgi import WSGIResponder, build_environ
+mlflow-1         | 2026/11/13 01:19:24 INFO:     Started server process [53]
+mlflow-1         | 2026/11/13 01:19:24 INFO:     Waiting for application startup.
+mlflow-1         | 2026/11/13 01:19:24 INFO:     Started server process [52]
+mlflow-1         | 2026/11/13 01:19:24 INFO:     Waiting for application startup.
+mlflow-1         | 2026/11/13 01:19:24 INFO:     Started server process [55]
+mlflow-1         | 2026/11/13 01:19:24 INFO:     Waiting for application startup.
+mlflow-1         | 2026/11/13 01:19:24 INFO:     Started server process [54]
+mlflow-1         | 2026/11/13 01:19:24 INFO:     Waiting for application startup.
+mlflow-1         | 2026/11/13 01:19:26 INFO:     Application startup complete.
+mlflow-1         | 2026/11/13 01:19:26 INFO:     Application startup complete.
+mlflow-1         | 2026/11/13 01:19:26 INFO:     Application startup complete.
+mlflow-1         | 2026/11/13 01:19:26 INFO:     Application startup complete.
+mlflow-1         | 2026/11/13 01:19:27 INFO:     172.26.0.1:53846 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:19:32 INFO mlflow.server.jobs.utils: Registered online_scoring_scheduler periodic task (runs every 1 minute)
+mlflow-1         | 2026/11/13 01:19:32 INFO mlflow.server.jobs.utils: Registered trace_archival_scheduler periodic task (polls every 1 minute and no-ops when trace archival is disabled or unconfigured)
+mlflow-1         | 2026/11/13 01:19:32 INFO mlflow.server.jobs.utils: Registered issue_detection_scheduler periodic task (polls every 15 minutes and no-ops when no experiment has a detection schedule)
+mlflow-1         | 2026/11/13 01:19:32 INFO mlflow.server.jobs.utils: SQL trace rollup scheduler was not registered because rollups are disabled
+mlflow-1         | 2026/11/13 01:19:32 INFO:     127.0.0.1:35336 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:19:43 INFO:     127.0.0.1:51570 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:19:53 INFO:     127.0.0.1:52072 - "GET /health HTTP/1.1" 200 OK
+postgres-1       | initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+postgres-1       | Success. You can now start the database server using:
+postgres-1       | 
+postgres-1       |     pg_ctl -D /var/lib/postgresql/data -l logfile start
+postgres-1       | 
+postgres-1       | waiting for server to start....2026-11-13 01:18:57.101 UTC [48] LOG:  starting PostgreSQL 15.19 (Debian 15.19-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+postgres-1       | 2026-11-13 01:18:57.102 UTC [48] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1       | 2026-11-13 01:18:57.107 UTC [51] LOG:  database system was shut down at 2026-11-13 01:18:55 UTC
+postgres-1       | 2026-11-13 01:18:57.111 UTC [48] LOG:  database system is ready to accept connections
+postgres-1       |  done
+postgres-1       | server started
+postgres-1       | CREATE DATABASE
+postgres-1       | 
+postgres-1       | 
+postgres-1       | /usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
+postgres-1       | 
+postgres-1       | 2026-11-13 01:18:57.270 UTC [48] LOG:  received fast shutdown request
+postgres-1       | waiting for server to shut down....2026-11-13 01:18:57.271 UTC [48] LOG:  aborting any active transactions
+mlflow-1         | 2026/11/13 01:20:03 INFO:     127.0.0.1:54890 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:13 INFO:     127.0.0.1:51178 - "GET /health HTTP/1.1" 200 OK
+postgres-1       | 2026-11-13 01:18:57.272 UTC [48] LOG:  background worker "logical replication launcher" (PID 54) exited with exit code 1
+postgres-1       | 2026-11-13 01:18:57.273 UTC [49] LOG:  shutting down
+postgres-1       | 2026-11-13 01:18:57.274 UTC [49] LOG:  checkpoint starting: shutdown immediate
+postgres-1       | 2026-11-13 01:18:57.648 UTC [49] LOG:  checkpoint complete: wrote 922 buffers (5.6%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.024 s, sync=0.344 s, total=0.376 s; sync files=301, longest=0.003 s, average=0.002 s; distance=4239 kB, estimate=4239 kB
+postgres-1       | 2026-11-13 01:18:57.655 UTC [48] LOG:  database system is shut down
+postgres-1       |  done
+postgres-1       | server stopped
+postgres-1       | 
+postgres-1       | PostgreSQL init process complete; ready for start up.
+postgres-1       | 
+postgres-1       | 2026-11-13 01:18:57.688 UTC [1] LOG:  starting PostgreSQL 15.19 (Debian 15.19-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+postgres-1       | 2026-11-13 01:18:57.688 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+postgres-1       | 2026-11-13 01:18:57.688 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+postgres-1       | 2026-11-13 01:18:57.691 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1       | 2026-11-13 01:18:57.695 UTC [64] LOG:  database system was shut down at 2026-11-13 01:18:57 UTC
+postgres-1       | 2026-11-13 01:18:57.699 UTC [1] LOG:  database system is ready to accept connections
+mlflow-1         | 2026/11/13 01:20:23 INFO:     127.0.0.1:34528 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:29 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:29 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:29 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:29 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:30 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:30 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+postgres-1       | 2026-11-13 01:23:57.086 UTC [62] LOG:  checkpoint starting: time
+mlflow-1         | 2026/11/13 01:20:30 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:30 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:31 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:31 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:31 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:31 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:31 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:32 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:32 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:32 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:33 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:33 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:33 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:33 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:33 INFO:     127.0.0.1:40322 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:33 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:33 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:33 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:34 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:34 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:34 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:34 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:34 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:35 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:35 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:35 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:35 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:36 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:36 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:36 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:36 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:37 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:37 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:37 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:37 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:38 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:38 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:38 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:38 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:39 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:39 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:39 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:39 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:40 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:40 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:40 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:40 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:40 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:40 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:40 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:41 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:41 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:41 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:41 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:42 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:42 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:42 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:42 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:43 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:43 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:43 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:43 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:43 INFO:     127.0.0.1:45084 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:44 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:44 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:44 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:44 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:45 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:45 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:45 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:45 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:45 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:46 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:46 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:46 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:46 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:47 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:47 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:47 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:47 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:48 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:48 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:48 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:48 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:49 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:49 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:49 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:49 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:50 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:50 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:50 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:50 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:51 INFO:     172.26.0.1:51588 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:51 INFO:     172.26.0.1:51614 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:51 INFO:     172.26.0.1:51602 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:51 INFO:     172.26.0.1:51600 - "POST /v1/traces HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:20:54 INFO:     127.0.0.1:58492 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:21:04 INFO:     127.0.0.1:48412 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:21:14 INFO:     127.0.0.1:53112 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:21:24 INFO:     127.0.0.1:47778 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:21:34 INFO:     127.0.0.1:41278 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:21:44 INFO:     127.0.0.1:39654 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:21:54 INFO:     127.0.0.1:42200 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:22:04 INFO:     127.0.0.1:44042 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:22:14 INFO:     127.0.0.1:43144 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:22:24 INFO:     127.0.0.1:37766 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:22:34 INFO:     127.0.0.1:59616 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:22:44 INFO:     127.0.0.1:52226 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:22:54 INFO:     127.0.0.1:54002 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:23:04 INFO:     127.0.0.1:47330 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:23:15 INFO:     127.0.0.1:43162 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:23:25 INFO:     127.0.0.1:50774 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:23:35 INFO:     127.0.0.1:41970 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:23:45 INFO:     127.0.0.1:47122 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:23:55 INFO:     127.0.0.1:38454 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:24:05 INFO:     127.0.0.1:59008 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:24:15 INFO:     127.0.0.1:47548 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:24:25 INFO:     127.0.0.1:33730 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:24:35 INFO:     127.0.0.1:41942 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:24:45 INFO:     127.0.0.1:42176 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:24:55 INFO:     127.0.0.1:34350 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:25:05 INFO:     127.0.0.1:34710 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:25:15 INFO:     127.0.0.1:51062 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:25:25 INFO:     127.0.0.1:34428 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:25:35 INFO:     127.0.0.1:53990 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:25:46 INFO:     127.0.0.1:36862 - "GET /health HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:25:53 INFO:     172.26.0.1:48908 - "POST /api/3.0/mlflow/traces/search HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:25:53 INFO:     172.26.0.1:48924 - "POST /api/3.0/mlflow/traces/search HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:25:53 INFO:     172.26.0.1:48926 - "POST /api/3.0/mlflow/traces/search HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:25:53 INFO:     172.26.0.1:48934 - "POST /api/3.0/mlflow/traces/search HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:25:53 INFO:     172.26.0.1:48948 - "POST /api/3.0/mlflow/traces/search HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:25:53 INFO:     172.26.0.1:48950 - "POST /api/3.0/mlflow/traces/search HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:25:53 INFO:     172.26.0.1:48966 - "POST /api/3.0/mlflow/traces/search HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:25:53 INFO:     172.26.0.1:48980 - "POST /api/3.0/mlflow/traces/search HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:25:53 INFO:     172.26.0.1:48988 - "POST /api/3.0/mlflow/traces/search HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:25:53 INFO:     172.26.0.1:49002 - "POST /api/3.0/mlflow/traces/search HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:25:53 INFO:     172.26.0.1:49012 - "POST /api/3.0/mlflow/traces/search HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:25:53 INFO:     172.26.0.1:49014 - "POST /api/3.0/mlflow/traces/search HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:25:53 INFO:     172.26.0.1:49016 - "POST /api/3.0/mlflow/traces/search HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:25:53 INFO:     172.26.0.1:49022 - "POST /api/3.0/mlflow/traces/search HTTP/1.1" 200 OK
+mlflow-1         | 2026/11/13 01:25:53 INFO:     172.26.0.1:49024 - "POST /api/3.0/mlflow/traces/search HTTP/1.1" 200 OK
+
+$ compose down -v --remove-orphans
+ Container lfm-mlflow-4g-mlflow-1 Stopping 
+ Container lfm-mlflow-4g-mlflow-1 Stopped 
+ Container lfm-mlflow-4g-mlflow-1 Removing 
+ Container lfm-mlflow-4g-mlflow-1 Removed 
+ Container lfm-mlflow-4g-postgres-1 Stopping 
+ Container lfm-mlflow-4g-create-bucket-1 Stopping 
+ Container lfm-mlflow-4g-create-bucket-1 Stopped 
+ Container lfm-mlflow-4g-create-bucket-1 Removing 
+ Container lfm-mlflow-4g-create-bucket-1 Removed 
+ Container lfm-mlflow-4g-storage-1 Stopping 
+ Container lfm-mlflow-4g-postgres-1 Stopped 
+ Container lfm-mlflow-4g-postgres-1 Removing 
+ Container lfm-mlflow-4g-postgres-1 Removed 
+ Container lfm-mlflow-4g-storage-1 Stopped 
+ Container lfm-mlflow-4g-storage-1 Removing 
+ Container lfm-mlflow-4g-storage-1 Removed 
+ Volume lfm-mlflow-4g_storage-data Removing 
+ Volume lfm-mlflow-4g_pgdata Removing 
+ Volume lfm-mlflow-4g_storage-data Removed 
+ Volume lfm-mlflow-4g_pgdata Removed 
+

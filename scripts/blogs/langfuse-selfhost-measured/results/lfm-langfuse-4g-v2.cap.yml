@@ -1,0 +1,36 @@
+services:
+  clickhouse:
+    cgroup_parent: lfm4g2clangfuse1794540421.slice
+    mem_limit: 4g
+    memswap_limit: 4g
+    cpus: 2
+  postgres:
+    cgroup_parent: lfm4g2clangfuse1794540421.slice
+    mem_limit: 4g
+    memswap_limit: 4g
+    cpus: 2
+  redis:
+    cgroup_parent: lfm4g2clangfuse1794540421.slice
+    mem_limit: 4g
+    memswap_limit: 4g
+    cpus: 2
+  minio:
+    cgroup_parent: lfm4g2clangfuse1794540421.slice
+    mem_limit: 4g
+    memswap_limit: 4g
+    cpus: 2
+  langfuse-web:
+    cgroup_parent: lfm4g2clangfuse1794540421.slice
+    mem_limit: 4g
+    memswap_limit: 4g
+    cpus: 2
+  langfuse-ai-gateway:
+    cgroup_parent: lfm4g2clangfuse1794540421.slice
+    mem_limit: 4g
+    memswap_limit: 4g
+    cpus: 2
+  langfuse-worker:
+    cgroup_parent: lfm4g2clangfuse1794540421.slice
+    mem_limit: 4g
+    memswap_limit: 4g
+    cpus: 2

@@ -1,0 +1,13 @@
+# Same file and profile as ./opik.sh (full Opik), OPIK_VERSION=2.2.143 set in the environment.
+# Only the frontend's host port moved.
+services:
+  frontend:
+    ports: !override
+      - "45173:5173"
+
+# Fixed subnet: this host has used up Docker's default address pools.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 10.251.4.0/24

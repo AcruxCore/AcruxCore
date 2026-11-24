@@ -1,0 +1,22 @@
+# Phoenix repo docker-compose.yml with the published image (as the self-hosting docs show),
+# pinned to 21.0.0 (latest server release, 2026-10-30). Host ports moved.
+services:
+  phoenix:
+    build: !reset null
+    image: arizephoenix/phoenix:version-21.0.0
+    ports: !override
+      - "46006:6006"
+    # Phoenix 21 turns auth on by default for non-loopback hosts. Kept on; the admin
+    # secret is a bearer token for the load generator and the query timings.
+    environment:
+      PHOENIX_SECRET: benchsecret0001benchsecret0001benchsecret
+      PHOENIX_ADMIN_SECRET: benchadmin0001benchadmin0001benchadmin00
+  db:
+    ports: !reset []
+
+# Fixed subnet: this host has used up Docker's default address pools.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 10.251.2.0/24

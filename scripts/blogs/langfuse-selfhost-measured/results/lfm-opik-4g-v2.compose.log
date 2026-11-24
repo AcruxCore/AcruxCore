@@ -1,0 +1,1179 @@
+$ compose config --services
+python-backend
+minio-init
+minio
+mysql
+redis
+clickhouse-init
+zookeeper
+clickhouse
+backend
+frontend
+demo-data-generator
+mc
+
+$ compose down -v --remove-orphans
+
+$ compose up -d
+ Image clickhouse/clickhouse-server:26.3.62.3-alpine Pulling 
+ Image ghcr.io/comet-ml/opik/opik-python-backend:2.2.143 Pulling 
+ Image mysql:8.4.2 Pulling 
+ Image docker.io/cloudpirates/image-minio:RELEASE.2025-10-15T17-29-55Z-hardened Pulling 
+ Image zookeeper:3.9.4 Pulling 
+ Image ghcr.io/comet-ml/opik/opik-frontend:2.2.143 Pulling 
+ Image ghcr.io/comet-ml/opik/opik-python-backend:2.2.143 Pulling 
+ Image ghcr.io/comet-ml/opik/opik-backend:2.2.143 Pulling 
+ Image docker.io/cloudpirates/image-minio:RELEASE.2025-10-15T17-29-55Z-hardened Pulling 
+ Image docker.io/cloudpirates/image-minio:RELEASE.2025-10-15T17-29-55Z-hardened Pulling 
+ Image redis:7.2.4-alpine3.19 Pulling 
+ Image ghcr.io/comet-ml/opik/opik-backend:2.2.143 Pulled 
+ Image ghcr.io/comet-ml/opik/opik-frontend:2.2.143 Pulled 
+ Image ghcr.io/comet-ml/opik/opik-python-backend:2.2.143 Pulled 
+ Image ghcr.io/comet-ml/opik/opik-python-backend:2.2.143 Pulled 
+ Image docker.io/cloudpirates/image-minio:RELEASE.2025-10-15T17-29-55Z-hardened Pulled 
+ Image clickhouse/clickhouse-server:26.3.62.3-alpine Pulled 
+ Image docker.io/cloudpirates/image-minio:RELEASE.2025-10-15T17-29-55Z-hardened Pulled 
+ Image docker.io/cloudpirates/image-minio:RELEASE.2025-10-15T17-29-55Z-hardened Pulled 
+ Image mysql:8.4.2 Pulled 
+ Image redis:7.2.4-alpine3.19 Pulled 
+ Image zookeeper:3.9.4 Pulled 
+ Volume lfm-opik-4g-v2_mysql Creating 
+ Volume lfm-opik-4g-v2_clickhouse-config Creating 
+ Volume lfm-opik-4g-v2_mysql Creating 
+ Volume lfm-opik-4g-v2_clickhouse-config Creating 
+ Volume lfm-opik-4g-v2_minio-data Creating 
+ Volume lfm-opik-4g-v2_clickhouse Creating 
+ Volume lfm-opik-4g-v2_clickhouse Creating 
+ Volume lfm-opik-4g-v2_zookeeper Creating 
+ Volume lfm-opik-4g-v2_clickhouse-server Creating 
+ Volume lfm-opik-4g-v2_clickhouse-server Creating 
+ Volume lfm-opik-4g-v2_zookeeper Creating 
+ Network lfm-opik-4g-v2_default Creating 
+ Volume lfm-opik-4g-v2_minio-data Creating 
+ Network lfm-opik-4g-v2_default Creating 
+ Volume lfm-opik-4g-v2_redis-data Creating 
+ Volume lfm-opik-4g-v2_redis-data Creating 
+ Volume lfm-opik-4g-v2_mysql Created 
+ Volume lfm-opik-4g-v2_mysql Created 
+ Volume lfm-opik-4g-v2_clickhouse-server Created 
+ Volume lfm-opik-4g-v2_clickhouse-server Created 
+ Volume lfm-opik-4g-v2_clickhouse-config Created 
+ Volume lfm-opik-4g-v2_clickhouse-config Created 
+ Volume lfm-opik-4g-v2_minio-data Created 
+ Volume lfm-opik-4g-v2_minio-data Created 
+ Volume lfm-opik-4g-v2_clickhouse Created 
+ Volume lfm-opik-4g-v2_clickhouse Created 
+ Volume lfm-opik-4g-v2_zookeeper Created 
+ Volume lfm-opik-4g-v2_zookeeper Created 
+ Volume lfm-opik-4g-v2_redis-data Created 
+ Volume lfm-opik-4g-v2_redis-data Created 
+ Network lfm-opik-4g-v2_default Created 
+ Network lfm-opik-4g-v2_default Created 
+ Container lfm-opik-4g-v2-redis-1 Creating 
+ Container lfm-opik-4g-v2-clickhouse-init-1 Creating 
+ Container lfm-opik-4g-v2-zookeeper-1 Creating 
+ Container lfm-opik-4g-v2-minio-init-1 Creating 
+ Container lfm-opik-4g-v2-python-backend-1 Creating 
+ Container lfm-opik-4g-v2-mysql-1 Creating 
+ Container lfm-opik-4g-v2-clickhouse-init-1 Created 
+ Container lfm-opik-4g-v2-mysql-1 Created 
+ Container lfm-opik-4g-v2-minio-init-1 Created 
+ Container lfm-opik-4g-v2-minio-1 Creating 
+ Container lfm-opik-4g-v2-python-backend-1 Created 
+ Container lfm-opik-4g-v2-redis-1 Created 
+ Container lfm-opik-4g-v2-zookeeper-1 Created 
+ Container lfm-opik-4g-v2-clickhouse-1 Creating 
+ Container lfm-opik-4g-v2-minio-1 Created 
+ Container lfm-opik-4g-v2-mc-1 Creating 
+ Container lfm-opik-4g-v2-clickhouse-1 Created 
+ Container lfm-opik-4g-v2-backend-1 Creating 
+ Container lfm-opik-4g-v2-mc-1 Created 
+ Container lfm-opik-4g-v2-backend-1 Created 
+ Container lfm-opik-4g-v2-frontend-1 Creating 
+ Container lfm-opik-4g-v2-frontend-1 Created 
+ Container lfm-opik-4g-v2-demo-data-generator-1 Creating 
+ Container lfm-opik-4g-v2-demo-data-generator-1 Created 
+ Container lfm-opik-4g-v2-redis-1 Starting 
+ Container lfm-opik-4g-v2-minio-init-1 Starting 
+ Container lfm-opik-4g-v2-python-backend-1 Starting 
+ Container lfm-opik-4g-v2-zookeeper-1 Starting 
+ Container lfm-opik-4g-v2-mysql-1 Starting 
+ Container lfm-opik-4g-v2-clickhouse-init-1 Starting 
+ Container lfm-opik-4g-v2-redis-1 Started 
+ Container lfm-opik-4g-v2-minio-init-1 Started 
+ Container lfm-opik-4g-v2-minio-init-1 Waiting 
+ Container lfm-opik-4g-v2-python-backend-1 Started 
+ Container lfm-opik-4g-v2-zookeeper-1 Started 
+ Container lfm-opik-4g-v2-mysql-1 Started 
+ Container lfm-opik-4g-v2-minio-init-1 Exited 
+ Container lfm-opik-4g-v2-minio-1 Starting 
+ Container lfm-opik-4g-v2-clickhouse-init-1 Started 
+ Container lfm-opik-4g-v2-zookeeper-1 Waiting 
+ Container lfm-opik-4g-v2-clickhouse-init-1 Waiting 
+ Container lfm-opik-4g-v2-minio-1 Started 
+ Container lfm-opik-4g-v2-minio-1 Waiting 
+ Container lfm-opik-4g-v2-clickhouse-init-1 Exited 
+ Container lfm-opik-4g-v2-zookeeper-1 Healthy 
+ Container lfm-opik-4g-v2-clickhouse-1 Starting 
+ Container lfm-opik-4g-v2-clickhouse-1 Started 
+ Container lfm-opik-4g-v2-redis-1 Waiting 
+ Container lfm-opik-4g-v2-mysql-1 Waiting 
+ Container lfm-opik-4g-v2-clickhouse-1 Waiting 
+ Container lfm-opik-4g-v2-minio-1 Waiting 
+ Container lfm-opik-4g-v2-redis-1 Healthy 
+ Container lfm-opik-4g-v2-minio-1 Healthy 
+ Container lfm-opik-4g-v2-minio-1 Healthy 
+ Container lfm-opik-4g-v2-mc-1 Starting 
+ Container lfm-opik-4g-v2-mc-1 Started 
+ Container lfm-opik-4g-v2-clickhouse-1 Healthy 
+ Container lfm-opik-4g-v2-mysql-1 Healthy 
+ Container lfm-opik-4g-v2-backend-1 Starting 
+ Container lfm-opik-4g-v2-backend-1 Started 
+ Container lfm-opik-4g-v2-backend-1 Waiting 
+ Container lfm-opik-4g-v2-backend-1 Healthy 
+ Container lfm-opik-4g-v2-frontend-1 Starting 
+ Container lfm-opik-4g-v2-frontend-1 Started 
+ Container lfm-opik-4g-v2-frontend-1 Waiting 
+ Container lfm-opik-4g-v2-python-backend-1 Waiting 
+ Container lfm-opik-4g-v2-python-backend-1 Healthy 
+ Container lfm-opik-4g-v2-frontend-1 Healthy 
+ Container lfm-opik-4g-v2-demo-data-generator-1 Starting 
+ Container lfm-opik-4g-v2-demo-data-generator-1 Started 
+
+$ compose logs --no-color --tail 200
+minio-1  | INFO: Formatting 1st pool, 1 set(s), 1 drives per set.
+minio-1  | INFO: WARNING: Host local has more than 0 drives of set. A host failure will result in data becoming unavailable.
+minio-1       | MinIO Object Storage Server
+minio-1       | Copyright: 2015-2026 MinIO, Inc.
+minio-1       | License: GNU AGPLv3 - https://www.gnu.org/licenses/agpl-3.0.html
+minio-1       | Version: DEVELOPMENT.GOGET (go1.25.7 linux/amd64)
+minio-1       | 
+minio-1       | API: http://10.251.4.6:9000  http://127.0.0.1:9000 
+minio-1       | WebUI: http://10.251.4.6:9090 http://127.0.0.1:9090  
+minio-1       | 
+minio-1       | Docs: https://docs.min.io
+clickhouse-1  | /entrypoint.sh: create new user 'opik' instead 'default'
+mc-1          | Added `s3` successfully.
+mc-1          | Bucket created successfully `s3/public`.
+mc-1          | Access permission for `s3/public/` is set to `download`
+clickhouse-1  | Processing configuration file '/etc/clickhouse-server/config.xml'.
+clickhouse-1  | Merging configuration file '/etc/clickhouse-server/config.d/additional_config.xml'.
+mysql-1       | 2026-11-13 03:49:05+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.4.2-1.el9 started.
+mysql-1       | 2026-11-13 03:49:06+00:00 [Note] [Entrypoint]: Switching to dedicated user 'mysql'
+mysql-1       | 2026-11-13 03:49:06+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.4.2-1.el9 started.
+mysql-1       | 2026-11-13 03:49:06+00:00 [Note] [Entrypoint]: Initializing database files
+mysql-1       | 2026-11-13T03:49:06.794889Z 0 [System] [MY-015017] [Server] MySQL Server Initialization - start.
+redis-1       | 1:C 13 Nov 2026 03:49:05.442 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. Being disabled, it can also cause failures without low memory condition, see https://github.com/jemalloc/jemalloc/issues/1328. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.
+mysql-1       | 2026-11-13T03:49:06.795938Z 0 [System] [MY-013169] [Server] /usr/sbin/mysqld (mysqld 8.4.2) initializing of server in progress as process 81
+redis-1       | 1:C 13 Nov 2026 03:49:05.442 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+redis-1       | 1:C 13 Nov 2026 03:49:05.442 * Redis version=7.2.4, bits=64, commit=00000000, modified=0, pid=1, just started
+mysql-1       | 2026-11-13T03:49:06.861216Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+redis-1       | 1:C 13 Nov 2026 03:49:05.442 * Configuration loaded
+clickhouse-1  | Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.
+clickhouse-1  | Logging trace to /var/log/clickhouse-server/clickhouse-server.log
+clickhouse-1  | Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log
+mysql-1       | 2026-11-13T03:49:07.243862Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+mysql-1       | 2026-11-13T03:49:09.006577Z 6 [Warning] [MY-010453] [Server] root@localhost is created with an empty password ! Please consider switching off the --initialize-insecure option.
+minio-init-1  | chown: unrecognized option: from=0
+minio-init-1  | BusyBox v1.37.0 (2025-11-23 13:10:04 UTC) multi-call binary.
+minio-init-1  | 
+backend-1     | ! at org.glassfish.jersey.process.internal.RequestScope.runInScope(RequestScope.java:266)
+clickhouse-1  | 
+redis-1       | 1:M 13 Nov 2026 03:49:05.443 * Increased maximum number of open files to 10032 (it was originally set to 1024).
+redis-1                | 1:M 13 Nov 2026 03:49:05.443 * monotonic clock: POSIX clock_gettime
+clickhouse-1           | /entrypoint.sh: create database 'opik'
+mysql-1                | 2026-11-13T03:49:11.020385Z 0 [System] [MY-015018] [Server] MySQL Server Initialization - end.
+clickhouse-1           | Processing configuration file '/etc/clickhouse-server/config.xml'.
+mysql-1                | 2026-11-13 03:49:11+00:00 [Note] [Entrypoint]: Database files initialized
+redis-1                | 1:M 13 Nov 2026 03:49:05.443 * Running mode=standalone, port=6379.
+mysql-1                | 2026-11-13 03:49:11+00:00 [Note] [Entrypoint]: Starting temporary server
+backend-1              | ! at org.glassfish.jersey.server.ServerRuntime.process(ServerRuntime.java:253)
+backend-1              | ! at org.glassfish.jersey.server.ApplicationHandler.handle(ApplicationHandler.java:696)
+backend-1              | ! at org.glassfish.jersey.servlet.WebComponent.serviceImpl(WebComponent.java:398)
+demo-data-generator-1  | Starting the Demo Data creation task
+redis-1                | 1:M 13 Nov 2026 03:49:05.444 * Server initialized
+demo-data-generator-1  | ✅ Demo data created
+backend-1              | ! at org.glassfish.jersey.servlet.WebComponent.service(WebComponent.java:350)
+backend-1              | ! at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:358)
+backend-1              | ! at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:312)
+backend-1              | ! at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:205)
+minio-init-1  | Usage: chown [-RhLHPcvf]... USER[:[GRP]] FILE...
+clickhouse-1           | Merging configuration file '/etc/clickhouse-server/config.d/additional_config.xml'.
+clickhouse-1           | Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.
+redis-1                | 1:M 13 Nov 2026 03:49:05.444 * Ready to accept connections tcp
+clickhouse-1           | Logging trace to /var/log/clickhouse-server/clickhouse-server.log
+minio-init-1           | 
+zookeeper-1            | 2026-11-13 04:08:07,676 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44384
+zookeeper-1            | 2026-11-13 04:08:08,705 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44392
+zookeeper-1            | 2026-11-13 04:08:09,734 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44404
+zookeeper-1            | 2026-11-13 04:08:10,762 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44414
+zookeeper-1            | 2026-11-13 04:08:11,792 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44418
+zookeeper-1            | 2026-11-13 04:08:12,820 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44430
+zookeeper-1            | 2026-11-13 04:08:13,848 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44444
+zookeeper-1            | 2026-11-13 04:08:14,877 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44458
+zookeeper-1            | 2026-11-13 04:08:15,907 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:50676
+zookeeper-1            | 2026-11-13 04:08:16,936 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:50686
+zookeeper-1            | 2026-11-13 04:08:17,966 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:50702
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHolder.handle(ServletHolder.java:754)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHandler$ChainEnd.doFilter(ServletHandler.java:1622)
+backend-1              | ! at io.dropwizard.servlets.ThreadNameFilter.doFilter(ThreadNameFilter.java:36)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.FilterHolder.doFilter(FilterHolder.java:205)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1594)
+backend-1              | ! at io.dropwizard.jetty.ZipExceptionHandlingServletFilter.doFilter(ZipExceptionHandlingServletFilter.java:30)
+mysql-1                | 2026-11-13T03:49:11.066812Z 0 [System] [MY-015015] [Server] MySQL Server - start.
+mysql-1                | 2026-11-13T03:49:11.321666Z 0 [System] [MY-010116] [Server] /usr/sbin/mysqld (mysqld 8.4.2) starting as process 157
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.FilterHolder.doFilter(FilterHolder.java:205)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1594)
+backend-1              | ! at io.dropwizard.jersey.filter.AllowedMethodsFilter.handle(AllowedMethodsFilter.java:46)
+backend-1              | ! at io.dropwizard.jersey.filter.AllowedMethodsFilter.doFilter(AllowedMethodsFilter.java:40)
+mysql-1                | 2026-11-13T03:49:11.340423Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.FilterHolder.doFilter(FilterHolder.java:205)
+mysql-1                | 2026-11-13T03:49:11.583043Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1594)
+backend-1              | ! at com.google.inject.servlet.FilterChainInvocation.doFilter(FilterChainInvocation.java:89)
+backend-1              | ! at com.google.inject.servlet.ManagedFilterPipeline.dispatch(ManagedFilterPipeline.java:121)
+backend-1              | ! at com.google.inject.servlet.GuiceFilter.doFilter(GuiceFilter.java:133)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.FilterHolder.doFilter(FilterHolder.java:205)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1594)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHandler$MappedServlet.handle(ServletHandler.java:1556)
+zookeeper-1            | 2026-11-13 04:08:18,995 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:50718
+zookeeper-1            | 2026-11-13 04:08:20,024 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:50732
+zookeeper-1            | 2026-11-13 04:08:21,053 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:50734
+mysql-1                | 2026-11-13T03:49:12.038800Z 0 [Warning] [MY-010068] [Server] CA certificate ca.pem is self signed.
+minio-init-1           | Change the owner and/or group of FILEs to USER and/or GRP
+minio-init-1           | 
+mysql-1                | 2026-11-13T03:49:12.038819Z 0 [System] [MY-013602] [Server] Channel mysql_main configured to support TLS. Encrypted connections are now supported for this channel.
+minio-init-1           | 	-h	Affect symlinks instead of symlink targets
+minio-init-1           | 	-L	Traverse all symlinks to directories
+minio-init-1           | 	-H	Traverse symlinks on command line only
+minio-init-1           | 	-P	Don't traverse symlinks (default)
+mysql-1                | 2026-11-13T03:49:12.041764Z 0 [Warning] [MY-011810] [Server] Insecure configuration for --pid-file: Location '/var/run/mysqld' in the path is accessible to all OS users. Consider choosing a different directory.
+minio-init-1           | 	-R	Recurse
+mysql-1                | 2026-11-13T03:49:12.074496Z 0 [System] [MY-011323] [Server] X Plugin ready for connections. Socket: /var/run/mysqld/mysqlx.sock
+minio-init-1           | 	-c	List changed files
+mysql-1                | 2026-11-13T03:49:12.074560Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.4.2'  socket: '/var/run/mysqld/mysqld.sock'  port: 0  MySQL Community Server - GPL.
+minio-init-1           | 	-v	Verbose
+mysql-1                | 2026-11-13 03:49:12+00:00 [Note] [Entrypoint]: Temporary server started.
+minio-init-1           | 	-f	Hide errors
+mysql-1                | '/var/lib/mysql/mysql.sock' -> '/var/run/mysqld/mysqld.sock'
+minio-init-1           | minio-init: could not re-own /data to 1001:1001; see the self-host troubleshooting guide
+mysql-1                | Warning: Unable to load '/usr/share/zoneinfo/iso3166.tab' as time zone. Skipping it.
+mysql-1                | Warning: Unable to load '/usr/share/zoneinfo/leap-seconds.list' as time zone. Skipping it.
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletChannel.dispatch(ServletChannel.java:871)
+clickhouse-1           | Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletChannel.handle(ServletChannel.java:449)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHandler.handle(ServletHandler.java:469)
+zookeeper-1            | 2026-11-13 04:08:22,082 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:50736
+mysql-1                | Warning: Unable to load '/usr/share/zoneinfo/leapseconds' as time zone. Skipping it.
+zookeeper-1            | 2026-11-13 04:08:23,109 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:50738
+zookeeper-1            | 2026-11-13 04:08:24,139 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:50750
+zookeeper-1            | 2026-11-13 04:08:25,169 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:50762
+zookeeper-1            | 2026-11-13 04:08:26,198 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:48034
+zookeeper-1            | 2026-11-13 04:08:27,227 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:48046
+zookeeper-1            | 2026-11-13 04:08:28,256 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:48062
+zookeeper-1            | 2026-11-13 04:08:29,284 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:48078
+zookeeper-1            | 2026-11-13 04:08:30,315 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:48092
+zookeeper-1            | 2026-11-13 04:08:31,344 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:48094
+zookeeper-1            | 2026-11-13 04:08:32,372 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:48096
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:58:13 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "9d26f017598ede05d87750080e072c14"
+redis-1                | 1:M 13 Nov 2026 03:51:54.565 * 10000 changes in 60 seconds. Saving...
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:58:13 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "b9b0c94c2426bc5f05997f13c40e0ea9"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:58:13 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "9a5359c2c99999a34201564df5f8ea25"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:58:15 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "32fb4292581dd7b9620f1e6c6df2f069"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:58:16 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "4ba0533cc870b91018168ac7701135e9"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:58:16 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "1351f5fd53f0834222e0ac1ffd480580"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:58:16 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "d4c6cc9656070cc3447c40237ec8ab9f"
+redis-1                | 1:M 13 Nov 2026 03:51:54.566 * Background saving started by pid 493
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:58:17 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "ae35a6d05761eb11a36cec64e18ceb0d"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:58:18 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "79a0b5cdd6b7de534aa818ab16678a0b"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:58:18 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "90eaeffbcd05ab5926df26acd97a35b7"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:58:18 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "c4183b0b9b79115418f31acbff2940d3"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:58:37 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "c05ee61098fcdd1cb2e36533010b6d91"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:58:37 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "401d2d4c21e2883884a02ce2e55b1c6d"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:58:37 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "0d91bd68ccacd1ad20772d1c07f0562a"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:58:37 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "f79874deeefc451aedf053bb49817eed"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:58:45 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "982c92a69b610782101bd6e9947db2ba"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:58:46 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "b34f69333cb15ce46e62c884a042ba69"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:58:46 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "878dde041ae0647e2a9178a1daf25624"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:58:47 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "ca4fb42e81115d8a9268903d43133ca5"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:58:59 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "5d2e638f250f37a7064d3636eebc75f0"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:00 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "d1fa4d08aee0033f1e52de354dbb82c8"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:02 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "bcb6ce480e2a5e8e7b753b9c13dfd199"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:02 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "a134ecf5c21d5a538a02b97cebf64493"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:04 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "8a5daa588c5b50f18774abeed7d199f7"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:04 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "463a6aaeed9956d8b7e59e6043043850"
+backend-1              | ! at org.eclipse.jetty.server.Handler$Wrapper.handle(Handler.java:794)
+zookeeper-1            | 2026-11-13 04:08:33,401 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:48098
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:04 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "c5b46f69e2d59a6c995fabb8726a61a5"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:04 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "23dc0712c252bdafa0644383ddfaa931"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:05 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "c3c85e0a15518c40f11ee8c5ceea1d0d"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:05 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "8b4691ae9fe4b4bcf8815fe6ad03268a"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:13 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "fdbe03ea8c8d8fa4fd5fff7394081f44"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:13 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "cb9a1e3111b2d03f5be857c00f966442"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:13 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "b59a49d8b59033683db16d7dabf5a817"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:13 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "e7aaa80eb0aa66ba55af66eeda807986"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:15 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "db17f9fc04842f5e6377e237e28fc5f4"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:15 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "01e4591154a9f7e741732408e388db49"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:17 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "32d9bab93935f3ab4cf4e21f9e837f7c"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:17 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "ed96e21fadc3bf7d8b67b9e489eff118"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:19 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "0762118f6570719f747f3b21a22e8fb3"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:21 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "bdb210635969a26cb44f8be1ac1223cf"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:22 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "7624895e1381d774a306961384c41ede"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:34 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "060edfa6773d21d4c4f480440e8a6c4b"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:34 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "f5588eb51c36b0468876db64267c214f"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:34 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "a43530835156ef3162770e9348f1c898"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:40 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "29c45d534911e7dc7112ccba11cd00d0"
+backend-1              | ! at io.dropwizard.request.logging.LogbackAccessRequestLogAwareHandler.handle(LogbackAccessRequestLogAwareHandler.java:14)
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:41 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "d2518ccf0f22dc37da444e30d491f21d"
+backend-1              | ! at org.eclipse.jetty.server.handler.ContextHandler.handle(ContextHandler.java:1253)
+mysql-1                | Warning: Unable to load '/usr/share/zoneinfo/tzdata.zi' as time zone. Skipping it.
+backend-1              | ! at org.eclipse.jetty.server.Handler$Wrapper.handle(Handler.java:794)
+zookeeper-1            | 2026-11-13 04:08:34,429 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:48104
+backend-1              | ! at io.dropwizard.metrics.jetty12.AbstractInstrumentedHandler.handle(AbstractInstrumentedHandler.java:299)
+redis-1                | 493:C 13 Nov 2026 03:51:54.662 * DB saved on disk
+backend-1              | ! at io.dropwizard.jetty.RoutingHandler.handle(RoutingHandler.java:41)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000381, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:04:51 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ! at org.eclipse.jetty.server.handler.gzip.GzipHandler.handle(GzipHandler.java:621)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000371, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:04:53 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ! at io.dropwizard.jetty.ZipExceptionHandlingGzipHandler.handle(ZipExceptionHandlingGzipHandler.java:21)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000384, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:04:55 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+mysql-1                | Warning: Unable to load '/usr/share/zoneinfo/zone.tab' as time zone. Skipping it.
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:42 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "e7c1f8c98c5e031a4c7fb0b077fb0427"
+backend-1              | ! at org.eclipse.jetty.server.Handler$Wrapper.handle(Handler.java:794)
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:52 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "c7e3cad1eefb5972afcc39ca284678cf"
+mysql-1                | Warning: Unable to load '/usr/share/zoneinfo/zone1970.tab' as time zone. Skipping it.
+mysql-1                | 2026-11-13 03:49:13+00:00 [Note] [Entrypoint]: Creating database opik
+mysql-1                | 2026-11-13 03:49:13+00:00 [Note] [Entrypoint]: Creating user opik
+mysql-1                | 2026-11-13 03:49:13+00:00 [Note] [Entrypoint]: Giving user opik access to schema opik
+mysql-1                | 
+mysql-1                | 2026-11-13 03:49:13+00:00 [Note] [Entrypoint]: Stopping temporary server
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:52 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "d2fc1cd4016b77d12b1b03d450c5d6b7"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:52 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "35f3cc864722728ad08fefccf067c2be"
+backend-1              | ! at org.eclipse.jetty.server.handler.GracefulHandler.handle(GracefulHandler.java:120)
+redis-1                | 493:C 13 Nov 2026 03:51:54.663 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+backend-1              | ! at org.eclipse.jetty.server.Server.handle(Server.java:197)
+redis-1                | 1:M 13 Nov 2026 03:51:54.667 * Background saving terminated with success
+backend-1              | ! at org.eclipse.jetty.server.internal.HttpChannelState$HandlerInvoker.run(HttpChannelState.java:804)
+redis-1                | 1:M 13 Nov 2026 03:53:06.866 * 10000 changes in 60 seconds. Saving...
+backend-1              | ! at org.eclipse.jetty.server.internal.HttpConnection.onFillable(HttpConnection.java:420)
+redis-1                | 1:M 13 Nov 2026 03:53:06.866 * Background saving started by pid 692
+backend-1              | ! at org.eclipse.jetty.server.internal.HttpConnection$FillableCallback.succeeded(HttpConnection.java:1790)
+redis-1                | 692:C 13 Nov 2026 03:53:06.883 * DB saved on disk
+backend-1              | ! at org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:105)
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:52 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "1f832076d493f814df8af60061a920d8"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:54 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "b97ac41469d5ca630a106e2e5b8cc6e6"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:54 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "bcab38f2df3256523e57d3fd3c86ab2d"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:54 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "5553ddf3d331a360513f92271bf7f37d"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:55 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "b62375b1f7c823733dd012a6a96ad664"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:56 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "29c96671db4a3a98e9b91e41bb40a10a"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:56 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "028e9b8d4b039f3b71bf5a22a49f62f6"
+redis-1                | 692:C 13 Nov 2026 03:53:06.883 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+redis-1                | 1:M 13 Nov 2026 03:53:06.967 * Background saving terminated with success
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000283, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:04:57 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000288, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:04:59 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000353, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:01 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000345, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:03 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000352, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:05 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000367, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:07 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000282, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:09 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000354, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:11 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ! at org.eclipse.jetty.io.SelectableChannelEndPoint$1.run(SelectableChannelEndPoint.java:54)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000327, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:13 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 04:08:35,457 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:48120
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000289, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:15 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+redis-1                | 1:M 13 Nov 2026 03:54:18.767 * 10000 changes in 60 seconds. Saving...
+mysql-1                | 2026-11-13T03:49:13.444574Z 13 [System] [MY-013172] [Server] Received SHUTDOWN from user root. Shutting down mysqld (Version: 8.4.2).
+redis-1                | 1:M 13 Nov 2026 03:54:18.767 * Background saving started by pid 903
+mysql-1                | 2026-11-13T03:49:14.362801Z 0 [System] [MY-010910] [Server] /usr/sbin/mysqld: Shutdown complete (mysqld 8.4.2)  MySQL Community Server - GPL.
+mysql-1                | 2026-11-13T03:49:14.362812Z 0 [System] [MY-015016] [Server] MySQL Server - end.
+mysql-1                | 2026-11-13 03:49:14+00:00 [Note] [Entrypoint]: Temporary server stopped
+mysql-1                | 
+mysql-1                | 2026-11-13 03:49:14+00:00 [Note] [Entrypoint]: MySQL init process done. Ready for start up.
+mysql-1                | 
+mysql-1                | 2026-11-13T03:49:14.460039Z 0 [System] [MY-015015] [Server] MySQL Server - start.
+backend-1              | ! at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.runTask(AdaptiveExecutionStrategy.java:492)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000280, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:17 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:57 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "28bddfa4889f5858a181f19c499178b5"
+backend-1              | ! at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.epcRunTask(AdaptiveExecutionStrategy.java:428)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000343, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:19 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ! at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.consumeTask(AdaptiveExecutionStrategy.java:401)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000312, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:21 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+mysql-1                | 2026-11-13T03:49:14.687713Z 0 [System] [MY-010116] [Server] /usr/sbin/mysqld (mysqld 8.4.2) starting as process 1
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000298, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:23 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+mysql-1                | 2026-11-13T03:49:14.693329Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:58 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "947d47fcd7cf2998dcf3c089b1db1275"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:59 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "c53df6018107a16d9b1cc672466456ba"
+backend-1              | ! at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.tryProduce(AdaptiveExecutionStrategy.java:255)
+backend-1              | ! at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.run(AdaptiveExecutionStrategy.java:204)
+backend-1              | ! at org.eclipse.jetty.util.thread.ReservedThreadExecutor$ReservedThread.run(ReservedThreadExecutor.java:317)
+backend-1              | ! at org.eclipse.jetty.util.thread.QueuedThreadPool.runJob(QueuedThreadPool.java:1009)
+mysql-1                | 2026-11-13T03:49:14.870701Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000308, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:25 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+mysql-1                | 2026-11-13T03:49:15.040063Z 0 [Warning] [MY-010068] [Server] CA certificate ca.pem is self signed.
+mysql-1                | 2026-11-13T03:49:15.040080Z 0 [System] [MY-013602] [Server] Channel mysql_main configured to support TLS. Encrypted connections are now supported for this channel.
+mysql-1                | 2026-11-13T03:49:15.042728Z 0 [Warning] [MY-011810] [Server] Insecure configuration for --pid-file: Location '/var/run/mysqld' in the path is accessible to all OS users. Consider choosing a different directory.
+mysql-1                | 2026-11-13T03:49:15.059257Z 0 [System] [MY-011323] [Server] X Plugin ready for connections. Bind-address: '::' port: 33060, socket: /var/run/mysqld/mysqlx.sock
+mysql-1                | 2026-11-13T03:49:15.059317Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.4.2'  socket: '/var/run/mysqld/mysqld.sock'  port: 3306  MySQL Community Server - GPL.
+backend-1              | ! at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.doRunJob(QueuedThreadPool.java:1240)
+zookeeper-1            | 2026-11-13 04:08:36,487 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36362
+backend-1              | ! at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.run(QueuedThreadPool.java:1194)
+zookeeper-1            | 2026-11-13 04:08:37,514 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36366
+zookeeper-1            | 2026-11-13 04:08:38,543 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36378
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000303, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:27 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000327, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:29 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000387, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:31 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000307, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:33 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000291, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:35 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000305, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:37 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000290, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:39 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000301, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:41 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000361, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:43 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000302, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:45 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000302, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:47 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000301, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:49 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000319, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:52 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000305, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:54 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000309, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:56 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+redis-1                | 903:C 13 Nov 2026 03:54:18.783 * DB saved on disk
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000371, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:05:58 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+redis-1                | 903:C 13 Nov 2026 03:54:18.784 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000347, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:00 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 04:08:39,572 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36384
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000289, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:02 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:03:59:59 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "4615e0cd93e7e4068536c95823eb75e5"
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000327, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:04 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 04:08:40,601 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36388
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000308, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:06 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:09 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "662cfc3408ce18f75f9a89e07c004c7b"
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000288, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:08 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ! at java.base/java.lang.Thread.run(Thread.java:1474)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000288, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:10 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ! Suppressed: java.lang.Exception: #block terminated with an error
+backend-1              | ! 	at reactor.core.publisher.BlockingSingleSubscriber.blockingGet(BlockingSingleSubscriber.java:104)
+backend-1              | ! 	at reactor.core.publisher.Mono.block(Mono.java:1773)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000295, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:12 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000300, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:14 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000295, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:16 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000303, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:18 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000298, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:20 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000299, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:22 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000319, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:24 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000294, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:26 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000314, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:28 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000301, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:30 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000309, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:32 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000332, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:34 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000314, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:36 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000290, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:38 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000296, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:40 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000294, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:42 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000283, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:44 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000293, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:46 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000299, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:48 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 04:08:41,632 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36394
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:09 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "0b5094815eb474ce270415b308ea0a56"
+zookeeper-1            | 2026-11-13 04:08:42,662 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36408
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:09 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "d767cafd51aaef2ec58225c3c25e347b"
+zookeeper-1            | 2026-11-13 04:08:43,690 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36414
+redis-1                | 1:M 13 Nov 2026 03:54:18.867 * Background saving terminated with success
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:09 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "3e95d958062973164fbd521d42205fbd"
+redis-1                | 1:M 13 Nov 2026 03:55:19.062 * 10000 changes in 60 seconds. Saving...
+redis-1                | 1:M 13 Nov 2026 03:55:19.063 * Background saving started by pid 1078
+redis-1                | 1078:C 13 Nov 2026 03:55:19.166 * DB saved on disk
+redis-1                | 1078:C 13 Nov 2026 03:55:19.166 * Fork CoW for RDB: current 1 MB, peak 1 MB, average 0 MB
+redis-1                | 1:M 13 Nov 2026 03:55:19.265 * Background saving terminated with success
+redis-1                | 1:M 13 Nov 2026 03:56:20.066 * 10000 changes in 60 seconds. Saving...
+redis-1                | 1:M 13 Nov 2026 03:56:20.067 * Background saving started by pid 1258
+redis-1                | 1258:C 13 Nov 2026 03:56:20.162 * DB saved on disk
+redis-1                | 1258:C 13 Nov 2026 03:56:20.162 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+redis-1                | 1:M 13 Nov 2026 03:56:20.167 * Background saving terminated with success
+redis-1                | 1:M 13 Nov 2026 03:57:23.966 * 10000 changes in 60 seconds. Saving...
+redis-1                | 1:M 13 Nov 2026 03:57:23.966 * Background saving started by pid 1447
+redis-1                | 1447:C 13 Nov 2026 03:57:23.984 * DB saved on disk
+redis-1                | 1447:C 13 Nov 2026 03:57:23.985 * Fork CoW for RDB: current 1 MB, peak 1 MB, average 1 MB
+redis-1                | 1:M 13 Nov 2026 03:57:24.067 * Background saving terminated with success
+redis-1                | 1:M 13 Nov 2026 03:58:25.071 * 10000 changes in 60 seconds. Saving...
+redis-1                | 1:M 13 Nov 2026 03:58:25.071 * Background saving started by pid 1622
+zookeeper-1            | 2026-11-13 04:08:44,719 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36422
+redis-1                | 1622:C 13 Nov 2026 03:58:25.090 * DB saved on disk
+backend-1              | ! 	at com.comet.opik.api.resources.v1.priv.TracesResource.getTracesByProject(TracesResource.java:159)
+redis-1                | 1622:C 13 Nov 2026 03:58:25.090 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:17 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "6aeae5443b488d49f267c8b57cd7c1a8"
+backend-1              | ! 	at com.comet.opik.api.resources.v1.priv.TracesResource$$EnhancerByGuice$$12240753.GUICE$TRAMPOLINE(<generated>)
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:18 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "aff8a36e460cbe6cddf4791fb1dcc188"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:19 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "c5178565b963eac536cdf81e57ea837e"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:28 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "30bb3586ca88e85774314e579dcc9e2e"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:29 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "9be52fb3c13340712a46375a4ce004b9"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:30 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "9d5a70239a4fa419e8d7b8d70b78265d"
+redis-1                | 1:M 13 Nov 2026 03:58:25.171 * Background saving terminated with success
+redis-1                | 1:M 13 Nov 2026 03:59:49.164 * 10000 changes in 60 seconds. Saving...
+redis-1                | 1:M 13 Nov 2026 03:59:49.164 * Background saving started by pid 1869
+redis-1                | 1869:C 13 Nov 2026 03:59:49.173 * DB saved on disk
+redis-1                | 1869:C 13 Nov 2026 03:59:49.174 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+redis-1                | 1:M 13 Nov 2026 03:59:49.264 * Background saving terminated with success
+redis-1                | 1:M 13 Nov 2026 04:00:50.070 * 10000 changes in 60 seconds. Saving...
+redis-1                | 1:M 13 Nov 2026 04:00:50.071 * Background saving started by pid 2049
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000322, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:50 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000314, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:52 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000316, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:54 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+redis-1                | 2049:C 13 Nov 2026 04:00:50.091 * DB saved on disk
+redis-1                | 2049:C 13 Nov 2026 04:00:50.091 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+redis-1                | 1:M 13 Nov 2026 04:00:50.171 * Background saving terminated with success
+redis-1                | 1:M 13 Nov 2026 04:01:55.364 * 10000 changes in 60 seconds. Saving...
+redis-1                | 1:M 13 Nov 2026 04:01:55.364 * Background saving started by pid 2244
+redis-1                | 2244:C 13 Nov 2026 04:01:55.476 * DB saved on disk
+redis-1                | 2244:C 13 Nov 2026 04:01:55.476 * Fork CoW for RDB: current 1 MB, peak 1 MB, average 0 MB
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000315, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:56 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000280, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:06:58 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+redis-1                | 1:M 13 Nov 2026 04:01:55.565 * Background saving terminated with success
+redis-1                | 1:M 13 Nov 2026 04:02:57.167 * 10000 changes in 60 seconds. Saving...
+redis-1                | 1:M 13 Nov 2026 04:02:57.167 * Background saving started by pid 2425
+redis-1                | 2425:C 13 Nov 2026 04:02:57.265 * DB saved on disk
+redis-1                | 2425:C 13 Nov 2026 04:02:57.265 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+redis-1                | 1:M 13 Nov 2026 04:02:57.267 * Background saving terminated with success
+redis-1                | 1:M 13 Nov 2026 04:05:37.675 * 10000 changes in 60 seconds. Saving...
+redis-1                | 1:M 13 Nov 2026 04:05:37.675 * Background saving started by pid 2903
+redis-1                | 2903:C 13 Nov 2026 04:05:37.697 * DB saved on disk
+redis-1                | 2903:C 13 Nov 2026 04:05:37.697 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+redis-1                | 1:M 13 Nov 2026 04:05:37.776 * Background saving terminated with success
+redis-1                | 1:M 13 Nov 2026 04:10:38.046 * 100 changes in 300 seconds. Saving...
+redis-1                | 1:M 13 Nov 2026 04:10:38.047 * Background saving started by pid 3794
+redis-1                | 3794:C 13 Nov 2026 04:10:38.074 * DB saved on disk
+redis-1                | 3794:C 13 Nov 2026 04:10:38.074 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:32 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "a3fad8dfcc220e6595cc0a960f9ad556"
+zookeeper-1            | 2026-11-13 04:08:45,748 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36424
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:32 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "4c38e77b18337a223c11be6d9c92e7eb"
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000295, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:00 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 04:08:46,777 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44730
+zookeeper-1            | 2026-11-13 04:08:47,806 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44740
+zookeeper-1            | 2026-11-13 04:08:48,836 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44742
+zookeeper-1            | 2026-11-13 04:08:49,865 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44748
+zookeeper-1            | 2026-11-13 04:08:50,893 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44764
+zookeeper-1            | 2026-11-13 04:08:51,921 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44770
+zookeeper-1            | 2026-11-13 04:08:52,950 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44772
+zookeeper-1            | 2026-11-13 04:08:53,979 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44784
+zookeeper-1            | 2026-11-13 04:08:55,008 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:44798
+zookeeper-1            | 2026-11-13 04:08:56,037 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36032
+zookeeper-1            | 2026-11-13 04:08:57,065 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36038
+zookeeper-1            | 2026-11-13 04:08:58,093 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36044
+zookeeper-1            | 2026-11-13 04:08:59,121 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36060
+zookeeper-1            | 2026-11-13 04:09:00,150 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36062
+zookeeper-1            | 2026-11-13 04:09:01,179 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36078
+zookeeper-1            | 2026-11-13 04:09:02,208 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36082
+zookeeper-1            | 2026-11-13 04:09:03,238 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36098
+zookeeper-1            | 2026-11-13 04:09:04,266 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36100
+redis-1                | 1:M 13 Nov 2026 04:10:38.147 * Background saving terminated with success
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000300, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:02 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 04:09:05,295 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:36108
+backend-1              | ! 	at com.google.inject.internal.InterceptorStackCallback$InterceptedMethodInvocation.proceed(InterceptorStackCallback.java:74)
+backend-1              | ! 	at com.comet.opik.infrastructure.ratelimit.RateLimitInterceptor.invoke(RateLimitInterceptor.java:73)
+backend-1              | ! 	at com.google.inject.internal.InterceptorStackCallback$InterceptedMethodInvocation.proceed(InterceptorStackCallback.java:75)
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:33 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "29a017811ae26c4a2d2e03bae4a8f1d8"
+backend-1              | ! 	at com.google.inject.internal.InterceptorStackCallback.invoke(InterceptorStackCallback.java:55)
+backend-1              | ! 	at com.comet.opik.api.resources.v1.priv.TracesResource$$EnhancerByGuice$$12240753.getTracesByProject(<generated>)
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:34 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "9d653e594ff150373ac4ebfdb6949058"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:36 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "f34d4f12aad0a2aa159a1b8a80266208"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:37 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "9f86c51a969a701e5a6156cde3d1801a"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:37 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "40e744ff2c09a7284bf105a431bdd268"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:37 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "d413511ace149fd2a39580e83b476543"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:46 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "908db1c4b3ca6903aa0a571fd980b021"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:46 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "371eb4a885ca79f4c0e1b139af7e2839"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:46 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "57376f31e4c5c3ee55163820679638f9"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:46 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "74c87fa0435327336d1ef78bfe607c1c"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:47 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "c9279a7fcef0a43a2179c749c8172e55"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:47 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "0975d2b890c3d25eb94819c0da0bdb19"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:50 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "b73500632033e0b528223132dfa1e344"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:50 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "93333fb5fef5227f8b986b600a25dcb8"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:53 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "ea0d6d79dc7a424799c8990cd4337438"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:54 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "069776644b1d0f658a4b647a310190be"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:00:55 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "2a3ef914bf4069e8871baf3e5e3317eb"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:07 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "4ebf243f3a927a3884469a9d9ae0d4e7"
+backend-1              | ! 	... 71 common frames omitted
+backend-1              | 10.251.4.9 - - [13/Nov/2026:04:11:32 +0000] "GET /v1/private/traces?project_name=bench&size=50 HTTP/1.1" 500 110 "-" "Python-urllib/3.14" 6
+backend-1              | ERROR [2026-11-13 04:11:32,300] com.clickhouse.client.http.ApacheHttpConnectionImpl: HTTP request failed
+backend-1              | ! java.net.UnknownHostException: clickhouse
+backend-1              | ! at java.base/java.net.InetAddress$CachedLookup.get(InetAddress.java:909)
+backend-1              | ! at java.base/java.net.InetAddress.getAllByName0(InetAddress.java:1702)
+backend-1              | ! at java.base/java.net.InetAddress.getAllByName(InetAddress.java:1582)
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:07 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "54bbcd3e70dbfb57188de1166b9e402a"
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000288, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:04 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:07 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "c37561ffb2a351f8e7b5f8b368ffc989"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:07 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "d92f4ccaa2c7871291cd736fad0eaa91"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:08 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "d0173dbcd996049752f30327bdf3317c"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:09 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "3cea52717adcd49076c2e39453b41b7e"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:10 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "850c92e9265a3d1d83afc6ed89d873de"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:10 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "06e171f777e79e4576d51d95fa9b4273"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:12 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "5da730a29136b6f4905f40c7af73bf25"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:13 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "9ab8cc41889e3a0b65274114fd9e6407"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:17 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "d10bcf5b8e919c1dfb7298646c48f93b"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:25 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "98606a8cad3c6e32f7da7ec6ee8b263a"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:25 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "8c4f59462825e570afbfcc79c0c2763a"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:25 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "5e60cdef03149fa24c461bc0d40b25bf"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:26 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "154eaf62129bfbd0977a7d13dcc6173d"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:27 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "f6fdd376b75ef934110446570ddfaf9d"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:28 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "ab32df6ccefef367a8596ea92f597e35"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:28 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "80db6416c67fc78d579450858d82b992"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:29 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "375ef2fd681ac9974ee3ce8113cf820d"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:30 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "c334436a644ade0553d24d8a6ba4abf5"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:31 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "26de44a5789270dc7348f797c2f5a0fb"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:34 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "807afed82eba76c0aaadf88fdff4a427"
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000308, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:06 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:35 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "33e89c6021461ef798b0ff9750c83fdb"
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000309, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:08 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:35 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "3fe0e42381b1091db622f6a8f66d654a"
+zookeeper-1            | 2026-11-13 04:09:06,324 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:54596
+backend-1              | ! at org.apache.hc.client5.http.SystemDefaultDnsResolver.resolve(SystemDefaultDnsResolver.java:61)
+zookeeper-1            | 2026-11-13 04:09:07,353 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:54598
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:49 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "ac4b40f4cf927d65bdc262e0117f6aad"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:49 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "ff9e6253e8098cae986b85c6d9968604"
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000288, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:10 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000298, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:12 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000286, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:14 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000298, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:16 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000331, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:18 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000290, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:20 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000356, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:22 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000300, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:24 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000307, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:26 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000295, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:28 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000309, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:30 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000396, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:32 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000292, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:34 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000373, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:36 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000319, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:38 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000381, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:40 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000312, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:42 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000288, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:44 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000305, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:46 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000295, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:48 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000279, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:50 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 04:09:08,381 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:54608
+zookeeper-1            | 2026-11-13 04:09:09,410 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:54620
+zookeeper-1            | 2026-11-13 04:09:10,440 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:54632
+zookeeper-1            | 2026-11-13 04:09:11,469 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:54646
+zookeeper-1            | 2026-11-13 04:09:12,498 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:54662
+zookeeper-1            | 2026-11-13 04:09:13,527 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:54678
+zookeeper-1            | 2026-11-13 04:09:14,556 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:54682
+zookeeper-1            | 2026-11-13 04:09:15,585 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:54688
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:49 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "a988f5201f3dedb41b0bdf5a5d69ad01"
+backend-1              | ! at org.apache.hc.client5.http.DnsResolver.resolve(DnsResolver.java:77)
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:50 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "f71fc790018c756b7af4fd2023caef93"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:51 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "2ecb11acefc48d61710d9b2a2fb0a294"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:53 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "19f7721f92d17cf9e18341dc2578d295"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:54 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "af692f053b896a2f7abac27e509208fd"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:54 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "3bff07d02a7d616efce8d9459c3af704"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:55 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "03b0fb184d8efdc3174e9288fa2da1b6"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:57 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "2f61ad6a8528c562df9daba8c7cf20cb"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:01:57 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "fe05a265b1b95715c41ffe3d47b367d6"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:09 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "c024b2353a939c030d55e60ac685fc8b"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:09 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "df5dc81032a3625e2af096682fe271c9"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:09 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "4d106d50f72737ca5280a425c1fa7cd7"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:09 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "4d17fcccaf8ff0e4f4c14b7db62043ab"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:11 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "045058913bb049c9afbabd7509901010"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:11 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "eb02b0578c3a665751403b966c18c374"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:12 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "9c758a125b08cd88174740e5517fb156"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:13 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "1977fa0bfaa754166987f325f152ae69"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:15 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "6ec2a4c1b10bdcd3c3e3b08671830aee"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:15 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "c2a25155937e5673bd78c4c567ec6654"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:18 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "bbfed48382d16f1ea67cc1f7b36bbc14"
+zookeeper-1            | 2026-11-13 04:09:16,614 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:41738
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:27 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "1350a99cf5d199048495c7f477e90db4"
+zookeeper-1            | 2026-11-13 04:09:17,641 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:41742
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:27 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "53dc463ade5fc0f3be19f464d809433c"
+zookeeper-1            | 2026-11-13 04:09:18,670 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:41750
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000297, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:52 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000286, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:54 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000338, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:56 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000396, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:07:58 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000306, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:00 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000309, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:02 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000367, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:04 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000285, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:06 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000286, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:08 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000309, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:10 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000285, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:12 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000336, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:14 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000309, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:16 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000363, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:18 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000285, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:21 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000331, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:23 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000291, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:25 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000299, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:27 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000309, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:29 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000287, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:31 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000298, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:33 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000326, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:35 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000338, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:37 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000300, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:39 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000292, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:41 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000290, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:43 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000298, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:45 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000289, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:47 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000321, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:49 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000323, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:51 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:27 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "91cdcc8c60d0f6ee97b326fa62bdebe7"
+zookeeper-1            | 2026-11-13 04:09:19,698 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:41754
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:28 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "be991996b2edd86dac0d3a94716164ed"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:29 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "785644f59a71866d1e489a1f79e20e96"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:31 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "548c16e86e3e7ec4e227bb91f7cc926b"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:31 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "1282b0859e182c1e144ee801ffd7be91"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:32 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "da227dab443e25f78c44fd7cb9b5a0cb"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:33 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "4d1bbf3ee80cbe53234ced4e1ea1906e"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:35 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "3d6d1d49f6348aae861034b03bf7af44"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:35 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "52b24943cecf592b6b084348c1ee20f2"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:36 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "e458bfed0e8029f26fb22dc0e77f6be8"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:36 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "74c51341f94aa8997107a3773e0492ca"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:48 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "1c259035b8fa360d7a4023d59bf4a555"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:48 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "8639742cccaffd285c90bc17a139c393"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:51 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "215a5cdc2cd383066349506bd9c65283"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:52 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "c3691bc5574db23848292911e9127359"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:54 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "92e16cbd2778daf802eeb82dd91e6853"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:54 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "af35c9435884e303d3a7bd0d4e2a2145"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:56 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "a7fe674b99ed3efec21eb919f515de54"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:56 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "f81744ac3ed6d68c16a0c3300834892f"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:57 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "51a92d3b0b3290c753350f0019f02477"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:02:57 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "bf3ebe4c7f32574e81d8ce4f0cfe2378"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:07 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "f5b68e8f663cca86deaf8bf8a5c4a675"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:07 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "46e172bec2238ccefda2e8752412b2ca"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:07 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "e3d841f4246b6764aebb3a87d9382f5d"
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000296, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:53 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:08 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "440d13ffc031debe2ee1c12a4de703fa"
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000290, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:55 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ! at org.apache.hc.client5.http.impl.io.DefaultHttpClientConnectionOperator.connect(DefaultHttpClientConnectionOperator.java:202)
+backend-1              | ! at org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager.connect(PoolingHttpClientConnectionManager.java:547)
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.InternalExecRuntime.connectEndpoint(InternalExecRuntime.java:164)
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.InternalExecRuntime.connectEndpoint(InternalExecRuntime.java:174)
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.ConnectExec.execute(ConnectExec.java:144)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000321, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:57 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000391, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:08:59 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000365, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:01 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.ExecChainElement.execute(ExecChainElement.java:51)
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.ProtocolExec.execute(ProtocolExec.java:192)
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.ExecChainElement.execute(ExecChainElement.java:51)
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.HttpRequestRetryExec.execute(HttpRequestRetryExec.java:112)
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.ExecChainElement.execute(ExecChainElement.java:51)
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.RedirectExec.execute(RedirectExec.java:110)
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.ExecChainElement.execute(ExecChainElement.java:51)
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.InternalHttpClient.doExecute(InternalHttpClient.java:186)
+backend-1              | ! at org.apache.hc.client5.http.impl.classic.CloseableHttpClient.execute(CloseableHttpClient.java:123)
+backend-1              | ! at com.clickhouse.client.http.ApacheHttpConnectionImpl.post(ApacheHttpConnectionImpl.java:301)
+backend-1              | ! at com.clickhouse.client.http.ClickHouseHttpClient.send(ClickHouseHttpClient.java:196)
+backend-1              | ! at com.clickhouse.client.AbstractClient.sendAsync(AbstractClient.java:165)
+backend-1              | ! at com.clickhouse.client.AbstractClient.lambda$execute$0(AbstractClient.java:280)
+backend-1              | ! at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1789)
+backend-1              | ! at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090)
+backend-1              | ! at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)
+backend-1              | ! at java.base/java.lang.Thread.run(Thread.java:1474)
+backend-1              | ERROR [2026-11-13 04:11:32,300] io.dropwizard.jersey.errors.LoggingExceptionMapper: Error handling a request: 8bb9a4e3ad99b5b6
+zookeeper-1            | 2026-11-13 04:09:20,727 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:41756
+zookeeper-1            | 2026-11-13 04:09:21,755 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:41772
+zookeeper-1            | 2026-11-13 04:09:22,784 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:41784
+zookeeper-1            | 2026-11-13 04:09:23,813 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:41788
+zookeeper-1            | 2026-11-13 04:09:24,843 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:41800
+zookeeper-1            | 2026-11-13 04:09:25,871 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35524
+zookeeper-1            | 2026-11-13 04:09:26,900 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35530
+zookeeper-1            | 2026-11-13 04:09:27,929 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35536
+zookeeper-1            | 2026-11-13 04:09:28,958 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35542
+zookeeper-1            | 2026-11-13 04:09:29,986 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35552
+zookeeper-1            | 2026-11-13 04:09:31,014 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35562
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000307, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:03 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:10 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "3ad208b03d2b708719f7a86dc4207ee8"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:10 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "32809325a0d9f99ae176d33c9a715652"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:11 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "db8f4db86c6af5a95c2d8eedc4d28719"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:12 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "089e0d84fa540b76146fe6585dd9b4f3"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:12 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "f24bc59a69a70db5f01921c3f95d282d"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:13 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "209be0b4b0dc66541ac848eb2f5a242d"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:15 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "2cae229c7f6becdc9f983f27d01dba64"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:15 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "2266952283cc396d31e750f505b01e3a"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:16 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "b89b109ad75e23d4f5277650d217f868"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:26 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "8edcf26fbaa094ebef8b377fbf4d8c21"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:26 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "1acf8199eee0d291b3ae40ac1466cffb"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:26 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "bdfb6ac13d2038ad7b4b3e131e1a17cf"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:31 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "61f34af619dd9e66b34cb37ca4a84768"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:32 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "863f58aef210a2229df0817ef85cbb9b"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:33 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "3a56f363fa27171b7890e6480a989326"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:34 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "ba4c933a073676e01f7e905628fc11c6"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:36 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "15b217c562be235072dce8fe25bb4f23"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:48 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "31efe5e86fdff62d8607f6e7392b853d"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:48 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "53763a80e5083bcfa4091b2cd3e0e255"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:48 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "09f4f4baee94e9f6e04bfb81931ac3d1"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:49 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "060230a832511fb9b3949c123d346e71"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:03:56 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "750602cab9e77dc05896524875091868"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:04:21 +0000] "POST /api/v1/private/otel/v1/traces HTTP/1.1" 500 110 "-" "OTel-OTLP-Exporter-Python/1.44.0" "-" "431a013462e3b8de7950d0d55fca93e2"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:11:32 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 500 110 "-" "Python-urllib/3.14" "-" "3d8361194e0daf1bf0c3a6f31a605cfa"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:11:32 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 500 110 "-" "Python-urllib/3.14" "-" "39fe3c218bcd5ea96879847ef4515e1a"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:11:32 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 500 110 "-" "Python-urllib/3.14" "-" "0bbd0c63cad71500759422fadd08e7ff"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:11:32 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 500 110 "-" "Python-urllib/3.14" "-" "d1ea3ca2265018aacd8b0c50397bab9f"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:11:32 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 500 110 "-" "Python-urllib/3.14" "-" "03ef9106a3c1ce205561566f43a84ffb"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:11:32 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 500 110 "-" "Python-urllib/3.14" "-" "7440b1fd584dfbaf80c3bf539c08205b"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:11:32 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 500 110 "-" "Python-urllib/3.14" "-" "e9f9815b0fe82f4f6554e70e4442d8a1"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:11:32 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 500 110 "-" "Python-urllib/3.14" "-" "783a817d69fa890adc03b8bb832e36c7"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:11:32 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 500 110 "-" "Python-urllib/3.14" "-" "d8c73e3d303e120e7669b707d4a5d022"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:11:32 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 500 110 "-" "Python-urllib/3.14" "-" "0b61aa0dfbde4ade9019945bc18abfd6"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:11:32 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 500 110 "-" "Python-urllib/3.14" "-" "51be234bab1464457714a786c6168a6f"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:11:32 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 500 110 "-" "Python-urllib/3.14" "-" "3fae9a48692d2629806ef1b134680f17"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:11:32 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 500 110 "-" "Python-urllib/3.14" "-" "ea4776519562ce75f7d3fb80c5bd6d2a"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:11:32 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 500 110 "-" "Python-urllib/3.14" "-" "251cc528c751a7aa44d99e6a64182d34"
+frontend-1             | 10.251.4.1 - - [13/Nov/2026:04:11:32 +0000] "GET /api/v1/private/traces?project_name=bench&size=50 HTTP/1.1" 500 110 "-" "Python-urllib/3.14" "-" "47faa393214947ec2570ce4b85e04b12"
+backend-1              | ! java.net.ConnectException: clickhouse
+backend-1              | ! at com.clickhouse.client.http.ApacheHttpConnectionImpl.post(ApacheHttpConnectionImpl.java:317)
+backend-1              | ! at com.clickhouse.client.http.ClickHouseHttpClient.send(ClickHouseHttpClient.java:196)
+backend-1              | ! at com.clickhouse.client.AbstractClient.sendAsync(AbstractClient.java:165)
+backend-1              | ! at com.clickhouse.client.AbstractClient.lambda$execute$0(AbstractClient.java:280)
+backend-1              | ! ... 4 common frames omitted
+backend-1              | ! Causing: com.clickhouse.client.ClickHouseException: clickhouse
+backend-1              | ! at com.clickhouse.client.ClickHouseException.of(ClickHouseException.java:150)
+backend-1              | ! at com.clickhouse.client.AbstractClient.lambda$execute$0(AbstractClient.java:282)
+backend-1              | ! at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1789)
+backend-1              | ! at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090)
+backend-1              | ! at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)
+backend-1              | ! ... 1 common frames omitted
+backend-1              | ! Causing: reactor.core.Exceptions$ReactiveException: com.clickhouse.client.ClickHouseException: clickhouse
+backend-1              | ! at reactor.core.Exceptions.propagate(Exceptions.java:410)
+backend-1              | ! at reactor.core.publisher.BlockingSingleSubscriber.blockingGet(BlockingSingleSubscriber.java:102)
+backend-1              | ! at reactor.core.publisher.Mono.block(Mono.java:1773)
+backend-1              | ! at com.comet.opik.api.resources.v1.priv.TracesResource.getTracesByProject(TracesResource.java:159)
+backend-1              | ! at com.comet.opik.infrastructure.ratelimit.RateLimitInterceptor.invoke(RateLimitInterceptor.java:73)
+backend-1              | ! at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000300, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:05 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000291, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:07 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000308, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:09 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000332, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:11 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000288, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:13 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000307, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:15 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000327, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:17 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000282, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:19 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000292, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:21 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000284, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:23 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000295, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:25 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000308, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:27 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000292, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:29 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000302, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:31 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000296, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:33 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000310, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:35 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000316, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:37 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000305, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:39 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000289, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:41 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 04:09:32,043 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35572
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000309, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:43 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ! at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000308, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:45 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000322, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:47 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000305, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:49 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000291, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:51 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000363, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:53 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000355, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:55 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000286, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:57 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000307, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:09:59 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000282, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:01 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ! at org.glassfish.jersey.server.model.internal.ResourceMethodInvocationHandlerFactory.lambda$static$0(ResourceMethodInvocationHandlerFactory.java:52)
+backend-1              | ! at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher$1.run(AbstractJavaResourceMethodDispatcher.java:146)
+backend-1              | ! at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher.invoke(AbstractJavaResourceMethodDispatcher.java:189)
+backend-1              | ! at org.glassfish.jersey.server.model.internal.JavaResourceMethodDispatcherProvider$ResponseOutInvoker.doDispatch(JavaResourceMethodDispatcherProvider.java:176)
+backend-1              | ! at org.glassfish.jersey.server.model.internal.AbstractJavaResourceMethodDispatcher.dispatch(AbstractJavaResourceMethodDispatcher.java:93)
+zookeeper-1            | 2026-11-13 04:09:33,073 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35584
+zookeeper-1            | 2026-11-13 04:09:34,102 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35598
+zookeeper-1            | 2026-11-13 04:09:35,131 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35610
+zookeeper-1            | 2026-11-13 04:09:36,160 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:49530
+zookeeper-1            | 2026-11-13 04:09:37,189 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:49540
+zookeeper-1            | 2026-11-13 04:09:38,218 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:49550
+zookeeper-1            | 2026-11-13 04:09:39,246 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:49562
+zookeeper-1            | 2026-11-13 04:09:40,275 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:49570
+zookeeper-1            | 2026-11-13 04:09:41,303 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:49574
+zookeeper-1            | 2026-11-13 04:09:42,332 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:49588
+zookeeper-1            | 2026-11-13 04:09:43,361 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:49594
+backend-1              | ! at org.glassfish.jersey.server.model.ResourceMethodInvoker.invoke(ResourceMethodInvoker.java:478)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000314, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:03 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000286, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:05 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000297, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:07 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000282, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:09 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000304, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:11 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000302, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:13 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000304, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:15 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000297, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:17 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000382, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:19 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000283, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:21 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000308, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:23 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000307, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:25 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000295, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:27 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000370, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:29 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000309, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:31 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000343, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:33 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000380, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:35 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000463, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:37 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000309, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:39 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000307, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:41 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000378, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:43 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000286, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:45 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000301, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:47 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000289, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:50 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000308, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:52 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000405, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:54 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000364, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:56 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000390, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:10:58 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000318, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:11:00 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ! at org.glassfish.jersey.server.model.ResourceMethodInvoker.apply(ResourceMethodInvoker.java:400)
+backend-1              | ! at org.glassfish.jersey.server.model.ResourceMethodInvoker.apply(ResourceMethodInvoker.java:81)
+backend-1              | ! at org.glassfish.jersey.server.ServerRuntime$1.run(ServerRuntime.java:274)
+backend-1              | ! at org.glassfish.jersey.internal.Errors$1.call(Errors.java:248)
+backend-1              | ! at org.glassfish.jersey.internal.Errors$1.call(Errors.java:244)
+backend-1              | ! at org.glassfish.jersey.internal.Errors.process(Errors.java:292)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000381, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:11:02 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000302, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:11:04 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ! at org.glassfish.jersey.internal.Errors.process(Errors.java:274)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000375, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:11:06 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000298, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:11:08 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 04:09:44,390 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:49598
+zookeeper-1            | 2026-11-13 04:09:45,419 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:49602
+zookeeper-1            | 2026-11-13 04:09:46,447 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:33272
+zookeeper-1            | 2026-11-13 04:09:47,476 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:33284
+zookeeper-1            | 2026-11-13 04:09:48,504 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:33288
+zookeeper-1            | 2026-11-13 04:09:49,533 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:33302
+zookeeper-1            | 2026-11-13 04:09:50,560 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:33314
+zookeeper-1            | 2026-11-13 04:09:51,589 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:33322
+zookeeper-1            | 2026-11-13 04:09:52,618 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:33330
+zookeeper-1            | 2026-11-13 04:09:53,648 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:33340
+zookeeper-1            | 2026-11-13 04:09:54,676 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:33344
+zookeeper-1            | 2026-11-13 04:09:55,703 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:33346
+zookeeper-1            | 2026-11-13 04:09:56,733 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:54420
+zookeeper-1            | 2026-11-13 04:09:57,762 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:54432
+zookeeper-1            | 2026-11-13 04:09:58,791 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:54442
+zookeeper-1            | 2026-11-13 04:09:59,821 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:54446
+backend-1              | ! at org.glassfish.jersey.internal.Errors.process(Errors.java:244)
+zookeeper-1            | 2026-11-13 04:10:00,850 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:54454
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000327, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:11:10 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 04:10:01,879 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:54456
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000371, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:11:12 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000327, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:11:14 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000381, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:11:16 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000385, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:11:18 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000289, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:11:20 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000322, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:11:22 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000368, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:11:24 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ! at org.glassfish.jersey.process.internal.RequestScope.runInScope(RequestScope.java:266)
+backend-1              | ! at org.glassfish.jersey.server.ServerRuntime.process(ServerRuntime.java:253)
+backend-1              | ! at org.glassfish.jersey.server.ApplicationHandler.handle(ApplicationHandler.java:696)
+backend-1              | ! at org.glassfish.jersey.servlet.WebComponent.serviceImpl(WebComponent.java:398)
+backend-1              | ! at org.glassfish.jersey.servlet.WebComponent.service(WebComponent.java:350)
+backend-1              | ! at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:358)
+backend-1              | ! at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:312)
+backend-1              | ! at org.glassfish.jersey.servlet.ServletContainer.service(ServletContainer.java:205)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHolder.handle(ServletHolder.java:754)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHandler$ChainEnd.doFilter(ServletHandler.java:1622)
+backend-1              | ! at io.dropwizard.servlets.ThreadNameFilter.doFilter(ThreadNameFilter.java:36)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.FilterHolder.doFilter(FilterHolder.java:205)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1594)
+backend-1              | ! at io.dropwizard.jetty.ZipExceptionHandlingServletFilter.doFilter(ZipExceptionHandlingServletFilter.java:30)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.FilterHolder.doFilter(FilterHolder.java:205)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1594)
+backend-1              | ! at io.dropwizard.jersey.filter.AllowedMethodsFilter.handle(AllowedMethodsFilter.java:46)
+backend-1              | ! at io.dropwizard.jersey.filter.AllowedMethodsFilter.doFilter(AllowedMethodsFilter.java:40)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.FilterHolder.doFilter(FilterHolder.java:205)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000298, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:11:26 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1594)
+backend-1              | ! at com.google.inject.servlet.FilterChainInvocation.doFilter(FilterChainInvocation.java:89)
+backend-1              | ! at com.google.inject.servlet.ManagedFilterPipeline.dispatch(ManagedFilterPipeline.java:121)
+backend-1              | ! at com.google.inject.servlet.GuiceFilter.doFilter(GuiceFilter.java:133)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.FilterHolder.doFilter(FilterHolder.java:205)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHandler$Chain.doFilter(ServletHandler.java:1594)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHandler$MappedServlet.handle(ServletHandler.java:1556)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletChannel.dispatch(ServletChannel.java:871)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletChannel.handle(ServletChannel.java:449)
+backend-1              | ! at org.eclipse.jetty.ee10.servlet.ServletHandler.handle(ServletHandler.java:469)
+backend-1              | ! at org.eclipse.jetty.server.Handler$Wrapper.handle(Handler.java:794)
+backend-1              | ! at io.dropwizard.request.logging.LogbackAccessRequestLogAwareHandler.handle(LogbackAccessRequestLogAwareHandler.java:14)
+backend-1              | ! at org.eclipse.jetty.server.handler.ContextHandler.handle(ContextHandler.java:1253)
+backend-1              | ! at org.eclipse.jetty.server.Handler$Wrapper.handle(Handler.java:794)
+backend-1              | ! at io.dropwizard.metrics.jetty12.AbstractInstrumentedHandler.handle(AbstractInstrumentedHandler.java:299)
+backend-1              | ! at io.dropwizard.jetty.RoutingHandler.handle(RoutingHandler.java:41)
+backend-1              | ! at org.eclipse.jetty.server.handler.gzip.GzipHandler.handle(GzipHandler.java:621)
+backend-1              | ! at io.dropwizard.jetty.ZipExceptionHandlingGzipHandler.handle(ZipExceptionHandlingGzipHandler.java:21)
+backend-1              | ! at org.eclipse.jetty.server.Handler$Wrapper.handle(Handler.java:794)
+backend-1              | ! at org.eclipse.jetty.server.handler.GracefulHandler.handle(GracefulHandler.java:120)
+backend-1              | ! at org.eclipse.jetty.server.Server.handle(Server.java:197)
+backend-1              | ! at org.eclipse.jetty.server.internal.HttpChannelState$HandlerInvoker.run(HttpChannelState.java:804)
+backend-1              | ! at org.eclipse.jetty.server.internal.HttpConnection.onFillable(HttpConnection.java:420)
+backend-1              | ! at org.eclipse.jetty.server.internal.HttpConnection$FillableCallback.succeeded(HttpConnection.java:1790)
+backend-1              | ! at org.eclipse.jetty.io.FillInterest.fillable(FillInterest.java:105)
+backend-1              | ! at org.eclipse.jetty.io.SelectableChannelEndPoint$1.run(SelectableChannelEndPoint.java:54)
+backend-1              | ! at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.runTask(AdaptiveExecutionStrategy.java:492)
+backend-1              | ! at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.epcRunTask(AdaptiveExecutionStrategy.java:428)
+backend-1              | ! at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.consumeTask(AdaptiveExecutionStrategy.java:401)
+backend-1              | ! at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.tryProduce(AdaptiveExecutionStrategy.java:255)
+backend-1              | ! at org.eclipse.jetty.util.thread.strategy.AdaptiveExecutionStrategy.run(AdaptiveExecutionStrategy.java:204)
+backend-1              | ! at org.eclipse.jetty.util.thread.ReservedThreadExecutor$ReservedThread.run(ReservedThreadExecutor.java:317)
+backend-1              | ! at org.eclipse.jetty.util.thread.QueuedThreadPool.runJob(QueuedThreadPool.java:1009)
+backend-1              | ! at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.doRunJob(QueuedThreadPool.java:1240)
+backend-1              | ! at org.eclipse.jetty.util.thread.QueuedThreadPool$Runner.run(QueuedThreadPool.java:1194)
+backend-1              | ! at java.base/java.lang.Thread.run(Thread.java:1474)
+backend-1              | ! Suppressed: java.lang.Exception: #block terminated with an error
+zookeeper-1            | 2026-11-13 04:10:02,908 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:54462
+backend-1              | ! 	at reactor.core.publisher.BlockingSingleSubscriber.blockingGet(BlockingSingleSubscriber.java:104)
+zookeeper-1            | 2026-11-13 04:10:03,938 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:54470
+zookeeper-1            | 2026-11-13 04:10:04,970 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:54484
+backend-1              | ! 	at reactor.core.publisher.Mono.block(Mono.java:1773)
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000292, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:11:28 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+backend-1              | ! 	at com.comet.opik.api.resources.v1.priv.TracesResource.getTracesByProject(TracesResource.java:159)
+backend-1              | ! 	at com.comet.opik.api.resources.v1.priv.TracesResource$$EnhancerByGuice$$12240753.GUICE$TRAMPOLINE(<generated>)
+backend-1              | ! 	at com.google.inject.internal.InterceptorStackCallback$InterceptedMethodInvocation.proceed(InterceptorStackCallback.java:74)
+zookeeper-1            | 2026-11-13 04:10:05,998 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:55786
+backend-1              | ! 	at com.comet.opik.infrastructure.ratelimit.RateLimitInterceptor.invoke(RateLimitInterceptor.java:73)
+backend-1              | ! 	at com.google.inject.internal.InterceptorStackCallback$InterceptedMethodInvocation.proceed(InterceptorStackCallback.java:75)
+backend-1              | ! 	at com.google.inject.internal.InterceptorStackCallback.invoke(InterceptorStackCallback.java:55)
+backend-1              | ! 	at com.comet.opik.api.resources.v1.priv.TracesResource$$EnhancerByGuice$$12240753.getTracesByProject(<generated>)
+backend-1              | ! 	... 71 common frames omitted
+backend-1              | 10.251.4.9 - - [13/Nov/2026:04:11:32 +0000] "GET /v1/private/traces?project_name=bench&size=50 HTTP/1.1" 500 110 "-" "Python-urllib/3.14" 6
+backend-1              | [0:0:0:0:0:0:0:1] - - [13/Nov/2026:04:11:33 +0000] "GET /health-check HTTP/1.1" 503 2 "-" "curl/8.21.0" 0
+zookeeper-1            | 2026-11-13 04:10:07,027 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:55794
+zookeeper-1            | 2026-11-13 04:10:08,055 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:55804
+zookeeper-1            | 2026-11-13 04:10:09,085 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:55812
+zookeeper-1            | 2026-11-13 04:10:10,116 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:55826
+zookeeper-1            | 2026-11-13 04:10:11,144 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:55830
+zookeeper-1            | 2026-11-13 04:10:12,175 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:55834
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000299, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:11:30 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+python-backend-1       | {"body_bytes_sent": 2, "http_referer": "-", "http_user_agent": "Wget", "remote_addr": "127.0.0.1", "remote_user": "-", "request_length": 0, "request_time": 0.000365, "request": "GET /healthcheck HTTP/1.1", "source": "gunicorn", "status": 200, "time_local": "[13/Nov/2026:04:11:32 +0000]", "time": 0, "x_forwarded_for": "127.0.0.1"}
+zookeeper-1            | 2026-11-13 04:10:13,204 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:55842
+zookeeper-1            | 2026-11-13 04:10:14,233 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:55850
+zookeeper-1            | 2026-11-13 04:10:15,262 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:55864
+zookeeper-1            | 2026-11-13 04:10:16,291 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:46186
+zookeeper-1            | 2026-11-13 04:10:17,320 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:46196
+zookeeper-1            | 2026-11-13 04:10:18,350 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:46200
+zookeeper-1            | 2026-11-13 04:10:19,380 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:46216
+zookeeper-1            | 2026-11-13 04:10:20,408 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:46228
+zookeeper-1            | 2026-11-13 04:10:21,436 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:46240
+zookeeper-1            | 2026-11-13 04:10:22,465 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:46248
+zookeeper-1            | 2026-11-13 04:10:23,493 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:46250
+zookeeper-1            | 2026-11-13 04:10:24,521 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:46256
+zookeeper-1            | 2026-11-13 04:10:25,550 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:46262
+zookeeper-1            | 2026-11-13 04:10:26,580 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:47812
+zookeeper-1            | 2026-11-13 04:10:27,608 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:47814
+zookeeper-1            | 2026-11-13 04:10:28,637 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:47818
+zookeeper-1            | 2026-11-13 04:10:29,665 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:47826
+zookeeper-1            | 2026-11-13 04:10:30,695 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:47832
+zookeeper-1            | 2026-11-13 04:10:31,724 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:47848
+zookeeper-1            | 2026-11-13 04:10:32,752 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:47862
+zookeeper-1            | 2026-11-13 04:10:33,781 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:47876
+zookeeper-1            | 2026-11-13 04:10:34,809 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:47888
+zookeeper-1            | 2026-11-13 04:10:35,839 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:59652
+zookeeper-1            | 2026-11-13 04:10:36,868 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:59664
+zookeeper-1            | 2026-11-13 04:10:37,897 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:59678
+zookeeper-1            | 2026-11-13 04:10:38,926 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:59688
+zookeeper-1            | 2026-11-13 04:10:39,954 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:59696
+zookeeper-1            | 2026-11-13 04:10:40,983 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:59708
+zookeeper-1            | 2026-11-13 04:10:42,012 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:59722
+zookeeper-1            | 2026-11-13 04:10:43,040 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:59728
+zookeeper-1            | 2026-11-13 04:10:44,068 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:59738
+zookeeper-1            | 2026-11-13 04:10:45,096 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:59752
+zookeeper-1            | 2026-11-13 04:10:46,125 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52500
+zookeeper-1            | 2026-11-13 04:10:47,154 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52510
+zookeeper-1            | 2026-11-13 04:10:48,183 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52518
+zookeeper-1            | 2026-11-13 04:10:49,211 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52524
+zookeeper-1            | 2026-11-13 04:10:50,240 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52528
+zookeeper-1            | 2026-11-13 04:10:51,267 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52544
+zookeeper-1            | 2026-11-13 04:10:52,295 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52548
+zookeeper-1            | 2026-11-13 04:10:53,325 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52550
+zookeeper-1            | 2026-11-13 04:10:54,354 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52564
+zookeeper-1            | 2026-11-13 04:10:55,382 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52566
+zookeeper-1            | 2026-11-13 04:10:56,411 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35678
+zookeeper-1            | 2026-11-13 04:10:57,440 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35684
+zookeeper-1            | 2026-11-13 04:10:58,469 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35700
+zookeeper-1            | 2026-11-13 04:10:59,497 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35716
+zookeeper-1            | 2026-11-13 04:11:00,526 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35726
+zookeeper-1            | 2026-11-13 04:11:01,556 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35742
+zookeeper-1            | 2026-11-13 04:11:02,584 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35754
+zookeeper-1            | 2026-11-13 04:11:03,613 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35770
+zookeeper-1            | 2026-11-13 04:11:04,643 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35776
+zookeeper-1            | 2026-11-13 04:11:05,671 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:35790
+zookeeper-1            | 2026-11-13 04:11:06,700 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:32966
+zookeeper-1            | 2026-11-13 04:11:07,728 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:32974
+zookeeper-1            | 2026-11-13 04:11:08,756 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:32982
+zookeeper-1            | 2026-11-13 04:11:09,789 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:32996
+zookeeper-1            | 2026-11-13 04:11:10,817 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:33010
+zookeeper-1            | 2026-11-13 04:11:11,846 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:33014
+zookeeper-1            | 2026-11-13 04:11:12,875 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:33030
+zookeeper-1            | 2026-11-13 04:11:13,904 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:33040
+zookeeper-1            | 2026-11-13 04:11:14,933 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:33042
+zookeeper-1            | 2026-11-13 04:11:15,962 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52136
+zookeeper-1            | 2026-11-13 04:11:16,990 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52150
+zookeeper-1            | 2026-11-13 04:11:18,019 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52162
+zookeeper-1            | 2026-11-13 04:11:19,048 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52170
+zookeeper-1            | 2026-11-13 04:11:20,076 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52178
+zookeeper-1            | 2026-11-13 04:11:21,105 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52182
+zookeeper-1            | 2026-11-13 04:11:22,133 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52190
+zookeeper-1            | 2026-11-13 04:11:23,161 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52204
+zookeeper-1            | 2026-11-13 04:11:24,191 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52212
+zookeeper-1            | 2026-11-13 04:11:25,220 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:52218
+zookeeper-1            | 2026-11-13 04:11:26,249 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:55582
+zookeeper-1            | 2026-11-13 04:11:27,277 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:55592
+zookeeper-1            | 2026-11-13 04:11:28,305 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:55602
+zookeeper-1            | 2026-11-13 04:11:29,334 [myid:] - INFO  [NIOWorkerThread-2:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:55606
+zookeeper-1            | 2026-11-13 04:11:30,363 [myid:] - INFO  [NIOWorkerThread-4:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:55618
+zookeeper-1            | 2026-11-13 04:11:31,393 [myid:] - INFO  [NIOWorkerThread-1:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:55624
+zookeeper-1            | 2026-11-13 04:11:32,424 [myid:] - INFO  [NIOWorkerThread-3:o.a.z.s.NIOServerCnxn@532] - Processing ruok command from /[0:0:0:0:0:0:0:1]:55632
+
+$ compose down -v --remove-orphans
+ Container lfm-opik-4g-v2-demo-data-generator-1 Stopping 
+ Container lfm-opik-4g-v2-mc-1 Stopping 
+ Container lfm-opik-4g-v2-demo-data-generator-1 Stopped 
+ Container lfm-opik-4g-v2-demo-data-generator-1 Removing 
+ Container lfm-opik-4g-v2-mc-1 Stopped 
+ Container lfm-opik-4g-v2-mc-1 Removing 
+ Container lfm-opik-4g-v2-demo-data-generator-1 Removed 
+ Container lfm-opik-4g-v2-frontend-1 Stopping 
+ Container lfm-opik-4g-v2-python-backend-1 Stopping 
+ Container lfm-opik-4g-v2-mc-1 Removed 
+ Container lfm-opik-4g-v2-python-backend-1 Stopped 
+ Container lfm-opik-4g-v2-python-backend-1 Removing 
+ Container lfm-opik-4g-v2-python-backend-1 Removed 
+ Container lfm-opik-4g-v2-frontend-1 Stopped 
+ Container lfm-opik-4g-v2-frontend-1 Removing 
+ Container lfm-opik-4g-v2-frontend-1 Removed 
+ Container lfm-opik-4g-v2-backend-1 Stopping 
+ Container lfm-opik-4g-v2-backend-1 Stopped 
+ Container lfm-opik-4g-v2-backend-1 Removing 
+ Container lfm-opik-4g-v2-backend-1 Removed 
+ Container lfm-opik-4g-v2-redis-1 Stopping 
+ Container lfm-opik-4g-v2-clickhouse-1 Stopping 
+ Container lfm-opik-4g-v2-mysql-1 Stopping 
+ Container lfm-opik-4g-v2-minio-1 Stopping 
+ Container lfm-opik-4g-v2-clickhouse-1 Stopped 
+ Container lfm-opik-4g-v2-clickhouse-1 Removing 
+ Container lfm-opik-4g-v2-clickhouse-1 Removed 
+ Container lfm-opik-4g-v2-zookeeper-1 Stopping 
+ Container lfm-opik-4g-v2-clickhouse-init-1 Stopping 
+ Container lfm-opik-4g-v2-clickhouse-init-1 Stopped 
+ Container lfm-opik-4g-v2-clickhouse-init-1 Removing 
+ Container lfm-opik-4g-v2-clickhouse-init-1 Removed 
+ Container lfm-opik-4g-v2-minio-1 Stopped 
+ Container lfm-opik-4g-v2-minio-1 Removing 
+ Container lfm-opik-4g-v2-redis-1 Stopped 
+ Container lfm-opik-4g-v2-redis-1 Removing 
+ Container lfm-opik-4g-v2-minio-1 Removed 
+ Container lfm-opik-4g-v2-minio-init-1 Stopping 
+ Container lfm-opik-4g-v2-minio-init-1 Stopped 
+ Container lfm-opik-4g-v2-minio-init-1 Removing 
+ Container lfm-opik-4g-v2-redis-1 Removed 
+ Container lfm-opik-4g-v2-minio-init-1 Removed 
+ Container lfm-opik-4g-v2-zookeeper-1 Stopped 
+ Container lfm-opik-4g-v2-zookeeper-1 Removing 
+ Container lfm-opik-4g-v2-zookeeper-1 Removed 
+ Container lfm-opik-4g-v2-mysql-1 Stopped 
+ Container lfm-opik-4g-v2-mysql-1 Removing 
+ Container lfm-opik-4g-v2-mysql-1 Removed 
+ Volume lfm-opik-4g-v2_clickhouse-config Removing 
+ Volume lfm-opik-4g-v2_clickhouse Removing 
+ Volume lfm-opik-4g-v2_minio-data Removing 
+ Volume lfm-opik-4g-v2_mysql Removing 
+ Volume lfm-opik-4g-v2_redis-data Removing 
+ Network lfm-opik-4g-v2_default Removing 
+ Volume lfm-opik-4g-v2_clickhouse-server Removing 
+ Volume lfm-opik-4g-v2_clickhouse-config Removed 
+ Network lfm-opik-4g-v2_default Removed 
+ Volume lfm-opik-4g-v2_clickhouse Removed 
+ Volume lfm-opik-4g-v2_zookeeper Removing 
+ Volume lfm-opik-4g-v2_minio-data Removed 
+ Volume lfm-opik-4g-v2_mysql Removed 
+ Volume lfm-opik-4g-v2_redis-data Removed 
+ Volume lfm-opik-4g-v2_clickhouse-server Removed 
+ Volume lfm-opik-4g-v2_zookeeper Removed 
+

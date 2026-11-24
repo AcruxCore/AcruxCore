@@ -1,0 +1,11 @@
+services:
+  db:
+    cgroup_parent: lfm4g2cphoenix1794540846.slice
+    mem_limit: 4g
+    memswap_limit: 4g
+    cpus: 2
+  phoenix:
+    cgroup_parent: lfm4g2cphoenix1794540846.slice
+    mem_limit: 4g
+    memswap_limit: 4g
+    cpus: 2
